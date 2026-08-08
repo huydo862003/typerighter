@@ -62,6 +62,11 @@ pub enum DiagnosticCode {
   NestedSchemaFile = 54,
   VaultConfigInvalidValue = 55,
   InvalidCodeRangeIndicator = 56, // {abc} or unclosed { in code block
+  UnexpectedContainerPropItem = 57,
+  UnexpectedContainerPropValue = 58,
+  MissingContainerPropValueAfterEq = 59,
+  UnclosedContainerPropBlock = 60,
+  UnexpectedContainerSlotSeparatorToken = 61,
 }
 
 impl DiagnosticCode {
@@ -83,9 +88,12 @@ impl DiagnosticCode {
       DiagnosticCode::InconsistentIndentation => "inconsistent-indentation",
       DiagnosticCode::UnmatchedDedent => "unmatched-dedent",
       DiagnosticCode::MissingExponentDigits => "missing-exponent-digits",
-      DiagnosticCode::UnexpectedTokensOnFrontmatterMarkerLine => {
-        "unexpected-tokens-on-frontmatter-marker"
-      }
+      DiagnosticCode::UnexpectedTokensOnFrontmatterMarkerLine => "unexpected-tokens-on-frontmatter-marker",
+      DiagnosticCode::UnexpectedContainerPropItem => "unexpected-container-prop-item",
+      DiagnosticCode::UnexpectedContainerPropValue => "unexpected-container-prop-value",
+      DiagnosticCode::UnexpectedContainerSlotSeparatorToken => "unexpected-container-slot-separator-token",
+      DiagnosticCode::MissingContainerPropValueAfterEq => "missing-container-prop-value-after-eq",
+      DiagnosticCode::UnclosedContainerPropBlock => "unclosed-container-prop-block",
       DiagnosticCode::MissingFrontmatterMarker => "missing-frontmatter-marker",
       DiagnosticCode::MissingMarkdownHeadingHash => "missing-heading-hash",
       DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading => "missing-heading-space",
@@ -241,6 +249,30 @@ pub enum Diagnostic {
   /* Parser diagnostics */
   /// Unexpected tokens found before/after the frontmatter marker ---
   UnexpectedTokensOnFrontmatterMarkerLine {
+    start_offset: usize,
+    end_offset: usize,
+  },
+
+  /// Unexpected tokens inside a container prop block
+  UnexpectedContainerPropItem {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// Unexpected value of a prop
+  UnexpectedContainerPropValue {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// Missing value of a prop afetr =
+  MissingContainerPropValueAfterEq {
+    offset: usize,
+  },
+  /// Unclosed container prop block
+  UnclosedContainerPropBlock {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  UnexpectedContainerSlotSeparatorToken {
     start_offset: usize,
     end_offset: usize,
   },
@@ -577,6 +609,22 @@ impl Diagnostic {
         start_offset,
         end_offset,
       }
+      | Diagnostic::UnexpectedContainerPropItem {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnexpectedContainerPropValue {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnexpectedContainerSlotSeparatorToken {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnclosedContainerPropBlock {
+        start_offset,
+        end_offset,
+      }
       | Diagnostic::MissingMarkdownHeadingHash {
         start_offset,
         end_offset,
@@ -710,7 +758,8 @@ impl Diagnostic {
         end_offset,
         ..
       } => Some((*start_offset, *end_offset)),
-      Diagnostic::MissingFrontmatterMarker { offset } => Some((*offset, *offset)),
+      Diagnostic::MissingFrontmatterMarker { offset }
+      | Diagnostic::MissingContainerPropValueAfterEq { offset } => Some((*offset, *offset)),
       Diagnostic::VaultConfigParseError {
         start_offset,
         end_offset,
@@ -786,6 +835,21 @@ impl Diagnostic {
       }
       Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine { .. } => {
         "unexpected tokens on frontmatter marker line '---'".into()
+      }
+      Diagnostic::UnexpectedContainerPropItem { .. } => {
+        "unexpected tokens in container prop item".into()
+      }
+      Diagnostic::UnexpectedContainerPropValue { .. } => {
+        "unexpected tokens in container prop value".into()
+      }
+      Diagnostic::UnexpectedContainerSlotSeparatorToken { .. } => {
+        "unexpected tokens in container slot separator line".into()
+      },
+      Diagnostic::MissingContainerPropValueAfterEq { .. } => {
+        "missing container prop value after '='".into()
+      }
+      Diagnostic::UnclosedContainerPropBlock { .. } => {
+        "unclosed container prop block".into()
       }
       Diagnostic::MissingFrontmatterMarker { .. } => "missing frontmatter marker '---'".into(),
       Diagnostic::MissingMarkdownHeadingHash { .. } => "missing '#' for markdown heading".into(),
@@ -927,11 +991,14 @@ impl Diagnostic {
       Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine { .. } => {
         DiagnosticCode::UnexpectedTokensOnFrontmatterMarkerLine
       }
+      Diagnostic::UnexpectedContainerPropItem { .. } => DiagnosticCode::UnexpectedContainerPropItem,
+      Diagnostic::UnexpectedContainerPropValue { .. } => DiagnosticCode::UnexpectedContainerPropValue,
+      Diagnostic::MissingContainerPropValueAfterEq { .. } => DiagnosticCode::MissingContainerPropValueAfterEq,
+      Diagnostic::UnclosedContainerPropBlock { .. } => DiagnosticCode::UnclosedContainerPropBlock,
+      Diagnostic::UnexpectedContainerSlotSeparatorToken { .. } => DiagnosticCode::UnexpectedContainerSlotSeparatorToken,
       Diagnostic::MissingFrontmatterMarker { .. } => DiagnosticCode::MissingFrontmatterMarker,
       Diagnostic::MissingMarkdownHeadingHash { .. } => DiagnosticCode::MissingMarkdownHeadingHash,
-      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. } => {
-        DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading
-      }
+      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. } => DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading,
       Diagnostic::MissingSyntaxNode { .. } => DiagnosticCode::MissingSyntaxNode,
       Diagnostic::UnclosedLink { .. } => DiagnosticCode::UnclosedLink,
       Diagnostic::UnclosedBold { .. } => DiagnosticCode::UnclosedBold,

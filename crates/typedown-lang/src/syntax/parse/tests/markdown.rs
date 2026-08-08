@@ -801,10 +801,481 @@ content
       " "
       "note"
       "\n"
-      (MdParagraph
-        (MdText
-          "content"))
-      (MdText
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_block_with_number_props() {
+  let tree = parse_body(
+    r#"::: grid {cols=2 rows=10}
+content
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "grid"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "cols"
+          "="
+          "2")
+        (MdContainerPropItem
+          " "
+          "rows"
+          "="
+          "10")
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+ 
+// A well-formed numeric prop should not produce diagnostics
+#[test]
+fn parse_container_block_with_number_prop_no_diagnostics() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: grid {cols=2}
+content
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+ 
+// FIXME: decimal not supported
+#[test]
+fn parse_container_block_with_decimal_number_prop() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: grid {ratio=2.5}
+content
+:::
+"#,
+  );
+  assert!(
+    diags
+      .iter()
+      .any(|d| matches!(d, Diagnostic::UnexpectedContainerPropItem { .. })),
+    "decimal prop values are not supported, got: {diags:?}"
+  );
+}
+ 
+// FIXME: Same story for a negative value: `-` is an MdSymbol, not part of the number...
+#[test]
+fn parse_container_block_with_negative_number_prop() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: grid {offset=-1}
+content
+:::
+"#,
+  );
+  assert!(
+    !diags.is_empty(),
+    "negative prop values are not supported, expected a diagnostic"
+  );
+}
+ 
+#[test]
+fn parse_container_block_with_bare_boolean_prop() {
+  let tree = parse_body(
+    r#"::: card {collapsed bordered}
+content
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "card"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "collapsed")
+        (MdContainerPropItem
+          " "
+          "bordered")
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+ 
+#[test]
+fn parse_container_block_with_bare_boolean_prop_no_diagnostics() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: card {collapsed}
+content
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+ 
+#[test]
+fn parse_container_block_with_props_only() {
+  let tree = parse_body(
+    r#"::: card {title="Hello" variant="wide"}
+content
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "card"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "title"
+          "="
+          "\""
+          "Hello"
+          "\"")
+        (MdContainerPropItem
+          " "
+          "variant"
+          "="
+          "\""
+          "wide"
+          "\""))
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+ 
+// A valueless prop (`key` with no `=`) is allowed
+#[test]
+fn parse_container_block_with_valueless_prop() {
+  let tree = parse_body(
+    r#"::: card {collapsed}
+content
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "card"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "collapsed")
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+ 
+// A well-formed prop block should not produce diagnostics
+#[test]
+fn parse_container_block_with_props_no_diagnostics() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: card {title="Hello" variant="wide"}
+content
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+ 
+// An unclosed prop block reports UnclosedContainerPropBlock
+#[test]
+fn parse_container_block_with_unclosed_props() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: card {title="Hello"
+content
+:::
+"#,
+  );
+  assert!(
+    diags
+      .iter()
+      .any(|d| matches!(d, Diagnostic::UnclosedContainerPropBlock { .. })),
+    "should report UnclosedContainerPropBlock, got: {diags:?}"
+  );
+}
+ 
+// A non-identifier where a prop key is expected reports UnexpectedContainerPropItem
+#[test]
+fn parse_container_block_with_invalid_prop_key() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: card {"title"}
+content
+:::
+"#,
+  );
+  assert!(
+    diags
+      .iter()
+      .any(|d| matches!(d, Diagnostic::UnexpectedContainerPropItem { .. })),
+    "should report UnexpectedContainerPropItem, got: {diags:?}"
+  );
+}
+ 
+// A prop with `=` and no value should report MissingContainerPropValueAfterEq
+#[test]
+fn parse_container_block_with_missing_prop_value() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: card {title=}
+content
+:::
+"#,
+  );
+  assert!(
+    diags
+      .iter()
+      .any(|d| matches!(d, Diagnostic::MissingContainerPropValueAfterEq { .. })),
+    "should report MissingContainerPropValueAfterEq, got: {diags:?}"
+  );
+}
+ 
+// Containers with slots, no props
+#[test]
+fn parse_container_block_with_slots_only() {
+  let tree = parse_body(
+    r#"::: tabs
+first
+=== second
+more
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "tabs"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "first"))
+        "\n")
+      (MdContainerSlotSeparator
+        "==="
+        " "
+        "second")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "more"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+ 
+// Tokens trailing a slot separator report UnexpectedContainerSlotSeparatorToken
+#[test]
+fn parse_container_block_with_slot_separator_trailing_tokens() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: tabs
+first
+=== second extra
+more
+:::
+"#,
+  );
+  assert!(
+    diags
+      .iter()
+      .any(|d| matches!(d, Diagnostic::UnexpectedContainerSlotSeparatorToken { .. })),
+    "should report UnexpectedContainerSlotSeparatorToken, got: {diags:?}"
+  );
+}
+ 
+// Conatiners with both props and slots
+#[test]
+fn parse_container_block_with_props_and_slots() {
+  let tree = parse_body(
+    r#"::: tabs {variant="pill"}
+first
+=== second
+more
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "tabs"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "variant"
+          "="
+          "\""
+          "pill"
+          "\"")
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "first"))
+        "\n")
+      (MdContainerSlotSeparator
+        "==="
+        " "
+        "second")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "more"))
+        "\n")
+      ":::")
+    "\n"))"####
+  );
+}
+ 
+// Neither props nor slots in container
+#[test]
+fn parse_container_block_without_props_or_slots() {
+  let tree = parse_body(
+    r#"::: note Plain Title
+content
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      " "
+      "Plain"
+      " "
+      "Title"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"))
         "\n")
       ":::")
     "\n"))"####
@@ -877,12 +1348,12 @@ content here
       " "
       "Title"
       "\n"
-      (MdParagraph
-        (MdText
-          "content"
-          " "
-          "here"))
-      (MdText
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content"
+            " "
+            "here"))
         "\n")
       ":::")
     "\n"))"####

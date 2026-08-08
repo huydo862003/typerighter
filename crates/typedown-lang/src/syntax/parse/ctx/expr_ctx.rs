@@ -37,6 +37,9 @@ pub(in crate::syntax::parse) enum ExprCtx {
   /// Inside a `:::` container block, closed by `:::`
   /// The `u16` is the indentation level (spaces before `:::`) to append to the prefix.
   MdContainerBlock(u16),
+  MdContainerPropBlock,
+  MdContainerPropItem,
+  MdContainerSlot,
   /// Inside a `>` blockquote
   MdBlockQuote,
   /// Inside an ordered list (`1. ...`)
@@ -129,6 +132,10 @@ impl ExprCtxStack {
     self.stack.last().map(|e| e.ctx)
   }
 
+  pub(in crate::syntax::parse) fn is_inside(&self, pred: impl Fn (ExprCtx) -> bool) -> bool {
+    self.stack.iter().find(|c| pred(c.ctx)).is_some()
+  }
+
   // The accumulated expected MD prefix tokens
   pub(in crate::syntax::parse) fn md_prefix_tokens(&self) -> &[SyntaxToken] {
     &self.md_prefix_tokens
@@ -210,10 +217,6 @@ impl ExprCtxStack {
 }
 
 impl ExprCtx {
-  pub(in crate::syntax::parse) fn is_md_container_block(self) -> bool {
-    matches!(self, ExprCtx::MdContainerBlock(_))
-  }
-
   /// Whether expressions in this context should skip indent/dedent tokens.
   pub(in crate::syntax::parse) fn should_expr_skip_indent(self) -> bool {
     matches!(
@@ -302,6 +305,7 @@ impl ExprCtx {
         | (ExprCtx::MdStrikethrough, SyntaxKind::Newline)
         | (ExprCtx::MdStrikethrough, SyntaxKind::Eof)
         | (ExprCtx::MdContainerBlock(_), SyntaxKind::Eof)
+        | (ExprCtx::MdContainerPropBlock, SyntaxKind::RBrace)
     )
   }
 }
