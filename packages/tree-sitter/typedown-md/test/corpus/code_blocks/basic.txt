@@ -66,6 +66,62 @@ code here
       (fenced_code_block_delimiter))))
 
 ================
+Code block with line range indicator
+================
+
+```js{1,3,5-8}
+const x = 1;
+```
+
+---
+
+(document
+  (section
+    (fenced_code_block
+      (fenced_code_block_delimiter)
+      language: (language)
+      line_ranges: (line_range_indicator)
+      (code_fence_content)
+      (fenced_code_block_delimiter))))
+
+================
+Code block with range indicator but no language
+================
+
+```{1,3}
+code
+```
+
+---
+
+(document
+  (section
+    (fenced_code_block
+      (fenced_code_block_delimiter)
+      line_ranges: (line_range_indicator)
+      (code_fence_content)
+      (fenced_code_block_delimiter))))
+
+================
+Code block with space before range indicator
+================
+
+```js {1,3}
+code
+```
+
+---
+
+(document
+  (section
+    (fenced_code_block
+      (fenced_code_block_delimiter)
+      language: (language)
+      line_ranges: (line_range_indicator)
+      (code_fence_content)
+      (fenced_code_block_delimiter))))
+
+================
 Multi-line code block
 ================
 

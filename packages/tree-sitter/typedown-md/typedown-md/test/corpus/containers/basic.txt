@@ -1,0 +1,74 @@
+================
+Container block with type
+================
+
+::: note
+Hello
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Container block without type
+================
+
+:::
+Hello
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Footnote block
+================
+
+::: footnote
+ref1: Some text
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Warning container
+================
+
+::: warning
+Be careful.
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))

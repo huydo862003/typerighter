@@ -8,7 +8,7 @@ use super::ctx::ParseCtx;
 use super::ctx::expr_ctx::ExprCtx;
 use crate::syntax::green::{GreenNode, SyntaxToken};
 use crate::syntax::lex::ctx::LexMode;
-use crate::syntax::parse::constants::{SKIP_NONE, SKIP_WS};
+use crate::syntax::parse::constants::{SKIP_NONE, SKIP_WCN, SKIP_WS};
 
 // Markdown body parsing
 // We distinguish between block elements and inline elements
@@ -101,7 +101,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       _ if self.is_bullet_list_start(SKIP_NONE) => self.parse_bullet_list(),
       _ if self.is_ordered_list_start(SKIP_NONE) => self.parse_ordered_list(),
       _ if self.is_table_start(SKIP_NONE) => self.parse_table(),
-      _ if self.is_callout_start(SKIP_NONE) => self.parse_callout_block(),
+      _ if self.is_container_start(SKIP_NONE) => self.parse_container_block(),
       _ if self.is_media_block_start(SKIP_NONE) => self.parse_media(),
       _ if self.is_code_or_math_block_start(SKIP_NONE) => {
         let mut children = vec![];
@@ -1057,9 +1057,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdToggleListItem, &children), None)
   }
 
-  /// Parse a callout block: `::: label ... :::`.
+  /// Parse a container block: `::: label ... :::`.
   /// INVARIANT: Expect ::: to be the next token, all spaces must already be consumed and passed
-  pub(in crate::syntax::parse) fn parse_callout_block(&mut self) -> (GreenNode, Option<ExprCtx>) {
+  pub(in crate::syntax::parse) fn parse_container_block(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
         && self
@@ -1069,7 +1069,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           .chars()
           .collect::<String>()
           == ":::",
-      "[ParseCtx::parse_callout_block] Expected :::"
+      "[ParseCtx::parse_container_block] Expected :::"
     );
 
     let mut children = vec![];
@@ -1077,6 +1077,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Consume `:::`
     self.advance_md(&mut children, SKIP_NONE);
+
+    let parent_prefix_count = self.expr_ctx_stack.md_prefix_tokens().len();
+    let container_ctx = ExprCtx::MdContainerBlock(parent_prefix_count as u16);
+    self.expr_ctx_stack.enter(container_ctx);
 
     // Require a space between `:::` and the label
     let next = self.lex_ctx.peek_md(SKIP_NONE);
@@ -1100,6 +1104,22 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.advance_md(&mut children, SKIP_NONE);
     }
 
+    // Container props (`{key=value key=value}`)
+    if self.lex_ctx.peek_md(SKIP_WS).token.kind() == SyntaxKind::LBrace {
+      let (props, early_exit) = self.parse_container_prop_block();
+      children.push(props);
+      if early_exit.is_some_and(|ctx| ctx != container_ctx) {
+        self.expr_ctx_stack.exit(container_ctx);
+        return (self.emit(SyntaxKind::MdContainerBlock, &children), early_exit);
+      }
+      if early_exit == Some(container_ctx)
+        && let Some(ctx) = self.synchronize_container_block(&mut children)
+      {
+        self.expr_ctx_stack.exit(container_ctx);
+        return (self.emit(SyntaxKind::MdContainerBlock, &children), Some(ctx));
+      }
+    }
+
     // Consume optional title text after the label until newline
     loop {
       let next = self.lex_ctx.peek_md(SKIP_NONE);
@@ -1121,13 +1141,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         end_offset: self.offset(),
       },
     );
-
-    let parent_prefix_count = self.expr_ctx_stack.md_prefix_tokens().len();
-    let callout_ctx = ExprCtx::MdCalloutBlock(parent_prefix_count as u16);
-    self.expr_ctx_stack.enter(callout_ctx);
-
+    
     // Parse block elements until closing `:::` or EOF
-    // The callout creates a new indentation context: inner elements start at indent 0
+    // The container creates a new indentation context: inner elements start at indent 0
     loop {
       let next_kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
       if next_kind == SyntaxKind::Eof {
@@ -1139,22 +1155,75 @@ impl<S: Utf8Stream> ParseCtx<S> {
       let closing_pos = parent_prefix_count;
       let next = self.lex_ctx.peek_md_nth(closing_pos, SKIP_NONE);
       if next.token.kind() == SyntaxKind::MdSymbol
-        && next.token.chars().collect::<String>() == ":::"
+        && matches!(next.token.chars().collect::<String>().as_str(), ":::")
       {
         break;
       }
 
-      let (block, early_exit) = self.parse_md_block_element();
-      children.push(block);
-      if early_exit.is_some_and(|ctx| !ctx.is_md_callout_block()) {
-        self.expr_ctx_stack.exit(callout_ctx);
-        return (self.emit(SyntaxKind::MdCalloutBlock, &children), early_exit);
+      let (slot, early_exit) = self.parse_container_slot();
+      children.push(slot);
+
+      if early_exit.is_some_and(|ctx| ctx != container_ctx) {
+        self.expr_ctx_stack.exit(container_ctx);
+        return (self.emit(SyntaxKind::MdContainerBlock, &children), early_exit);
+      } else if early_exit.is_some() {
+        let mut error_children = vec![];
+        let ctx = self.consume_or_delegate_md(container_ctx, &mut error_children);
+        if !error_children.is_empty() {
+          children.push(self.emit(SyntaxKind::Error, &error_children));
+        }
+        if ctx.is_some() {
+          self.expr_ctx_stack.exit(container_ctx);
+          return (self.emit(SyntaxKind::MdContainerBlock, &children), early_exit);
+        }
       }
-      if early_exit.is_some_and(|ctx| ctx.is_md_callout_block())
-        && let Some(ctx) = self.synchronize_callout_block(&mut children)
+
+      let next = self.lex_ctx.peek_md_nth(closing_pos, SKIP_NONE);
+      if next.token.kind() == SyntaxKind::MdSymbol
+        && matches!(next.token.chars().collect::<String>().as_str(), "===")
       {
-        self.expr_ctx_stack.exit(callout_ctx);
-        return (self.emit(SyntaxKind::MdCalloutBlock, &children), Some(ctx));
+        if !self.consume_md_newline_and_prefix(&mut children) {
+          continue;
+        }
+
+        let mut sep_children = vec![];
+        self.advance_md(&mut sep_children, SKIP_NONE); // Consume ===
+
+        // Consume Ident
+        let start_offset = self.offset();
+        let end_offset = start_offset + self.lex_ctx.peek_md(SKIP_WS).token.text_len();
+        self.consume_md_if(
+          &mut sep_children,
+          SKIP_WS,
+          |token| token.kind() == SyntaxKind::Ident,
+          Diagnostic::MissingSyntaxNode {
+            expected: SyntaxKind::Ident,
+            start_offset,
+            end_offset,
+          },
+        );
+
+        // Consume redundant tokens till end of line
+        let mut error_children = vec![];
+        while !matches!(
+          self.lex_ctx.peek_md(SKIP_WS).token.kind(),
+          SyntaxKind::Newline | SyntaxKind::Eof
+        ) {
+          let start_offset = self.offset();
+          let end_offset = start_offset + self.lex_ctx.peek_md(SKIP_WS).token.text_len();
+          self.advance_md(&mut error_children, SKIP_WS);
+          self.emit_diagnostic(Diagnostic::UnexpectedContainerSlotSeparatorToken {
+            start_offset,
+            end_offset,
+          })
+        }
+        if !error_children.is_empty() {
+          let error_node = self.emit(SyntaxKind::Error, &error_children);  
+          sep_children.push(error_node);
+        }
+
+        let separator = self.emit(SyntaxKind::MdContainerSlotSeparator, &sep_children);
+        children.push(separator);
       }
     }
 
@@ -1164,18 +1233,18 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_WS,
       |token| token.kind() == SyntaxKind::MdSymbol && token.chars().collect::<String>() == ":::",
       Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::MdCalloutBlock,
+        expected: SyntaxKind::MdContainerBlock,
         start_offset: open_offset,
         end_offset: self.offset(),
       },
     );
 
-    self.expr_ctx_stack.exit(callout_ctx);
-    (self.emit(SyntaxKind::MdCalloutBlock, &children), None)
+    self.expr_ctx_stack.exit(container_ctx);
+    (self.emit(SyntaxKind::MdContainerBlock, &children), None)
   }
 
   // Stop on `:::` at matching indent, or EOF.
-  fn synchronize_callout_block(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
+  fn synchronize_container_block(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
     let current = self.expr_ctx_stack.current().unwrap();
     let mut error_children = vec![];
     let result = loop {
@@ -1193,6 +1262,201 @@ impl<S: Utf8Stream> ParseCtx<S> {
       children.push(self.emit(SyntaxKind::Error, &error_children));
     }
     result
+  }
+
+  /// Parse a container props block: `{key=value}`.
+  /// INVARIANT: Expect { to be the next NON-WHITESPACE token
+  pub(in crate::syntax::parse) fn parse_container_prop_block(&mut self) -> (GreenNode, Option<ExprCtx>) {
+    debug_assert!(
+      self.lex_ctx.peek_md(SKIP_WS).token.kind() == SyntaxKind::LBrace,
+      "[ParseCtx::parse_container_prop_block] Expected {{",
+    );
+
+    let mut children = vec![];
+
+    self.expr_ctx_stack.enter(ExprCtx::MdContainerPropBlock);
+
+    // Consume `{`
+    self.advance_md(&mut children, SKIP_WS);
+
+    loop {
+      let next_token = self.lex_ctx.peek_md(SKIP_WCN);
+      if matches!(next_token.token.kind(), SyntaxKind::Eof | SyntaxKind::RBrace) {
+        break;
+      }
+
+      // Look for possible key
+      if !matches!(next_token.token.kind(), SyntaxKind::Ident) {
+        let mut error_children = vec![];
+
+        let start_offset = self.offset();
+
+        let early_exit = self.consume_or_delegate_md(ExprCtx::MdContainerPropBlock, &mut error_children);
+
+        // No match, emit diagnostic
+        self.emit_diagnostic(Diagnostic::UnexpectedContainerPropItem {
+            start_offset,
+            end_offset: self.offset(),
+        });
+
+        let error_node = self.emit(SyntaxKind::Error, &error_children);
+        
+        children.push(error_node);
+
+        if early_exit.is_some() {
+          self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
+          return (self.emit(SyntaxKind::MdContainerPropBlock, &mut children), early_exit);
+        }
+        continue;
+      }
+
+      let (prop_item, early_exit) = self.parse_container_prop_item();
+      children.push(prop_item);
+
+      if early_exit.is_some_and(|ctx| ctx != ExprCtx::MdContainerPropBlock) {
+        self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
+        return (self.emit(SyntaxKind::MdContainerPropBlock, &mut children), early_exit);
+      } else if early_exit.is_some() {
+        if let Some(ctx) = self.consume_or_delegate_md(ExprCtx::MdContainerPropBlock, &mut children) {
+          self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
+          return (self.emit(SyntaxKind::MdContainerPropBlock, &children), Some(ctx));
+        }
+      }
+    }
+
+    let start_offset = self.offset();
+    let end_offset = self.offset() + self.lex_ctx.peek_md(SKIP_WCN).token.text_len();
+    self.consume_md(&mut children, SKIP_WCN, SyntaxKind::RBrace, Diagnostic::UnclosedContainerPropBlock { start_offset, end_offset });
+
+    self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
+
+    (self.emit(SyntaxKind::MdContainerPropBlock, &children), None)
+  }
+
+  /// Parse a container prop item: `key=value`.
+  /// INVARIANT: Expect ident to be the next NON-WHITESPACE token
+  pub(in crate::syntax::parse) fn parse_container_prop_item(&mut self) -> (GreenNode, Option<ExprCtx>) {
+    debug_assert!(
+      self.lex_ctx.peek_md(SKIP_WCN).token.kind() == SyntaxKind::Ident,
+      "[ParseCtx::parse_container_prop_item] Expected prop item",
+    );
+
+    let mut children = vec![];
+
+    self.expr_ctx_stack.enter(ExprCtx::MdContainerPropItem);
+
+    // Consume identifier
+    self.advance_md(&mut children, SKIP_WCN);
+
+    let maybe_eq_token = self.lex_ctx.peek_md(SKIP_NONE);
+    if maybe_eq_token.token.kind() != SyntaxKind::MdSymbol || !maybe_eq_token.token.text().is_some_and(|t| t == "=") {
+      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+
+      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None); // It's ok to not have eq
+    }
+
+    self.advance_md(&mut children, SKIP_NONE); // Consume eq
+
+    // Number value
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdNumber {
+      self.advance_md(&mut children, SKIP_NONE);
+
+      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+
+      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
+    }
+
+    // Double quoted and single quoted string
+    if matches!(self.lex_ctx.peek_md(SKIP_NONE).token.kind(), SyntaxKind::DqStrStart | SyntaxKind::SqStrStart) {
+      self.advance_md(&mut children, SKIP_NONE);
+
+      if !matches!(self.lex_ctx.peek_md(SKIP_NONE).token.kind(), SyntaxKind::SqStrContent | SyntaxKind::DqStrContent) {
+        let start_offset = self.offset();
+        let end_offset = start_offset + self.lex_ctx.peek_md(SKIP_NONE).token.text_len();
+        self.emit_diagnostic(Diagnostic::UnexpectedContainerPropValue {
+          start_offset,
+          end_offset,
+        });
+
+        self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+        return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
+      }
+
+      self.advance_md(&mut children, SKIP_NONE);
+
+      if !matches!(self.lex_ctx.peek_md(SKIP_NONE).token.kind(), SyntaxKind::SqStrEnd | SyntaxKind::DqStrEnd) {
+        let start_offset = self.offset();
+        let end_offset = start_offset + self.lex_ctx.peek_md(SKIP_NONE).token.text_len();
+        self.emit_diagnostic(Diagnostic::UnexpectedContainerPropValue {
+          start_offset,
+          end_offset,
+        });
+
+        self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+        return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
+      }
+
+      self.advance_md(&mut children, SKIP_NONE);
+
+      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+
+      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
+    }
+
+    self.emit_diagnostic(Diagnostic::MissingContainerPropValueAfterEq { offset: self.offset() });
+    self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+
+    (self.emit(SyntaxKind::MdContainerPropItem, &children), None)
+  }
+
+  /// Parse a container slot: `=== <name>\n<content>\n=== <name>`.
+  /// INVARIANT: Expect content to be next
+  pub(in crate::syntax::parse) fn parse_container_slot(&mut self) -> (GreenNode, Option<ExprCtx>) {
+    let mut children = vec![];
+
+    let parent_prefix_count = self.expr_ctx_stack.md_prefix_tokens().len();
+
+    self.expr_ctx_stack.enter(ExprCtx::MdContainerSlot);
+
+    // Parse block elements until closing `:::`, `===` or EOF
+    // The container creates a new indentation context: inner elements start at indent 0
+    loop {
+      let next_kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+      if next_kind == SyntaxKind::Eof {
+        break;
+      }
+
+      // Check for closing `:::`, `===` at the same indentation level as the opening
+      // The closing `:::`, `===` should appear right after the parent prefix
+      let closing_pos = parent_prefix_count;
+      let next = self.lex_ctx.peek_md_nth(closing_pos, SKIP_NONE);
+      if next.token.kind() == SyntaxKind::MdSymbol
+        && matches!(next.token.chars().collect::<String>().as_str(), ":::" | "===")
+      {
+        break;
+      }
+
+      let (block, early_exit) = self.parse_md_block_element();
+      children.push(block);
+      if early_exit.is_some_and(|ctx| ctx != ExprCtx::MdContainerSlot) {
+        self.expr_ctx_stack.exit(ExprCtx::MdContainerSlot);
+        return (
+          self.emit(SyntaxKind::MdContainerSlot, &children),
+          early_exit,
+        );
+      } else {
+        if let Some(ctx) = self.consume_or_delegate_md(ExprCtx::MdContainerSlot, &mut children) {
+          self.expr_ctx_stack.exit(ExprCtx::MdContainerSlot);
+          return (self.emit(SyntaxKind::MdContainerSlot, &children), Some(ctx));
+        }
+      }
+    }
+
+    self.expr_ctx_stack.exit(ExprCtx::MdContainerSlot);
+    return (
+      self.emit(SyntaxKind::MdContainerSlot, &children),
+      None,
+    );
   }
 
   /// Parse a link: `[text](url)`.
@@ -1917,14 +2181,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       if matches!(after.token.kind(), SyntaxKind::Newline | SyntaxKind::Eof) {
         return true;
       }
-      if !self.peek_md_prefix() {
-        return true;
-      }
       if after.token.kind() == SyntaxKind::MdSymbol {
         let text: String = after.token.chars().collect();
         let first = text.chars().next().unwrap_or('\0');
         if matches!(first, '#' | '-' | '*' | '+' | '>' | '|' | ':') {
           return true;
+        }
+        if text == "===" {
+          return self.expr_ctx_stack.is_inside(|c| matches!(c, ExprCtx::MdContainerBlock(_)));
         }
       }
       if after.token.kind() == SyntaxKind::MdNumber {
@@ -2089,7 +2353,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().collect::<String>() == "|"
   }
 
-  fn is_callout_start(&mut self, skip: u16) -> bool {
+  fn is_container_start(&mut self, skip: u16) -> bool {
     let next = self.lex_ctx.peek_md(skip);
     next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().collect::<String>() == ":::"
   }
@@ -2133,6 +2397,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         if text == "!" {
           let next = self.lex_ctx.peek_md_nth(offset + 1, SKIP_NONE);
           return next.token.kind() == SyntaxKind::LBracket;
+        }
+        if text == "===" {
+          return self.expr_ctx_stack.is_inside(|c| matches!(c, ExprCtx::MdContainerBlock(_)));
         }
         false
       }

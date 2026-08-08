@@ -148,7 +148,7 @@ impl MdBody {
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdToggleList, MdCalloutBlock,
+  MdBulletList, MdOrderedList, MdToggleList, MdContainerBlock,
   MdLink, MdMedia,
   MdBold, MdItalic, MdBoldItalic, MdStrikethrough,
   MdText, MdHtmlEntity,
@@ -157,7 +157,7 @@ pub struct MdNode(RedNode);
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdToggleList, MdCalloutBlock,
+  MdBulletList, MdOrderedList, MdToggleList, MdContainerBlock,
 ])]
 pub struct MdBlockElement(RedNode);
 
@@ -396,15 +396,15 @@ impl MdToggleListDetails {
   }
 }
 
-/// The Markdown callout block
+/// The Markdown container block
 /// Represented by:
 /// ::: label
 ///  content
 /// :::
 #[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct MdCalloutBlock(RedNode);
+pub struct MdContainerBlock(RedNode);
 
-impl MdCalloutBlock {
+impl MdContainerBlock {
   pub fn label(&self) -> Option<String> {
     self
       .0
@@ -945,7 +945,13 @@ impl InlineCode {
 #[derive(Clone, PartialEq, Eq, Hash, AstNode)]
 pub struct CodeBlock(RedNode);
 
+pub struct CodeLineRange {
+  pub start: usize,
+  pub end: usize,
+}
+
 impl CodeBlock {
+  // Full label text after the opening fence (e.g. "js{1,3,5-8}")
   pub fn label(&self) -> Option<String> {
     let text = self.0.as_token()?.text()?.to_string();
     let fence_count = text.chars().take_while(|c| *c == '`').count();
@@ -957,6 +963,52 @@ impl CodeBlock {
     } else {
       Some(label.to_string())
     }
+  }
+
+  // Language identifier without the range indicator (e.g. "js" from "js{1,3}")
+  pub fn language(&self) -> Option<String> {
+    let label = self.label()?;
+    let lang = match label.find('{') {
+      Some(idx) => label[..idx].trim(),
+      None => label.trim(),
+    };
+    if lang.is_empty() {
+      None
+    } else {
+      Some(lang.to_string())
+    }
+  }
+
+  // Parsed line ranges from the range indicator (e.g. {1,3,5-8} -> [(1,1), (3,3), (5,8)])
+  pub fn line_ranges(&self) -> Option<Vec<CodeLineRange>> {
+    let label = self.label()?;
+    let start = label.find('{')?;
+    let end = label.find('}')?;
+    let inner = label.get(start + 1..end)?.trim();
+    if inner.is_empty() {
+      return None;
+    }
+
+    let mut ranges = Vec::new();
+    for part in inner.split(',') {
+      let part = part.trim();
+      if let Some(dash) = part.find('-') {
+        let start_line = part[..dash].trim().parse::<usize>().ok()?;
+        let end_line = part[dash + 1..].trim().parse::<usize>().ok()?;
+        ranges.push(CodeLineRange {
+          start: start_line,
+          end: end_line,
+        });
+      } else {
+        let line = part.parse::<usize>().ok()?;
+        ranges.push(CodeLineRange {
+          start: line,
+          end: line,
+        });
+      }
+    }
+
+    Some(ranges)
   }
 
   pub fn value(&self) -> Option<String> {

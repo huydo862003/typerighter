@@ -1,5 +1,5 @@
 ================
-Callout containing a list
+Container containing a list
 ================
 
 ::: note
@@ -11,9 +11,9 @@ Callout containing a list
 
 (document
   (section
-    (callout_block
-      (callout_block_delimiter)
-      type: (callout_type)
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
       (list
         (list_item
           (list_marker_minus)
@@ -23,4 +23,4 @@ Callout containing a list
           (list_marker_minus)
           (paragraph
             (inline))))
-      (callout_block_delimiter))))
+      (container_block_delimiter))))

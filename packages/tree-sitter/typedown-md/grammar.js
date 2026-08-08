@@ -32,6 +32,7 @@ export default grammar({
     $.fenced_code_block_delimiter,
     $.code_fence_content,
     $.language,
+    $.line_range_indicator,
 
     $.math_block_delimiter,
     $.math_block_content,
@@ -43,8 +44,8 @@ export default grammar({
     $.list_marker_star,
     $.list_marker_dot,
 
-    $._callout_open,
-    $._callout_close,
+    $._container_open,
+    $._container_close,
 
     $._pipe_table_start,
     $._pipe_table_line_ending,
@@ -147,7 +148,7 @@ export default grammar({
         $.block_quote,
         $.toggle_list,
         $.list,
-        $.callout_block,
+        $.container_block,
         $.pipe_table,
       ),
 
@@ -186,9 +187,11 @@ export default grammar({
       seq(
         $.fenced_code_block_delimiter,
         optional(field('language', $.language)),
+        optional(field('line_ranges', $.line_range_indicator)),
         optional($.code_fence_content),
         $.fenced_code_block_delimiter,
       ),
+
 
     // Math block
 
@@ -298,11 +301,11 @@ export default grammar({
 
     // Callout block
 
-    callout_block: ($) =>
+    container_block: ($) =>
       seq(
-        alias($._callout_open, $.callout_block_delimiter),
-        optional(field('type', $.callout_type)),
-        optional(field('title', $.callout_title)),
+        alias($._container_open, $.container_block_delimiter),
+        optional(field('type', $.container_type)),
+        optional(field('title', $.container_title)),
         $._line_ending,
         repeat(
           choice(
@@ -310,14 +313,14 @@ export default grammar({
             $._blank_line,
           ),
         ),
-        alias($._callout_close, $.callout_block_delimiter),
+        alias($._container_close, $.container_block_delimiter),
         optional($._line_ending),
       ),
 
-    callout_type: () =>
+    container_type: () =>
       /[a-zA-Z_]\w*/,
 
-    callout_title: () =>
+    container_title: () =>
       /[^\n\r]+/,
   },
 });

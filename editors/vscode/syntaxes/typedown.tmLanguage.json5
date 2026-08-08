@@ -51,7 +51,7 @@
         { "include": "#md-fenced-code" },
         { "include": "#md-math-block" },
         { "include": "#md-heading" },
-        { "include": "#md-callout" },
+        { "include": "#md-container" },
         { "include": "#md-toggle-list" },
         { "include": "#md-block-quote" },
         { "include": "#md-table" },
@@ -133,11 +133,12 @@
       // Fenced code block with optional language label.
       // Language-specific injection is handled by the *-codeblock.json grammars,
       // which take priority over this rule for known languages.
-      "begin": "^(```+)(\\w+)?\\s*$",
+      "begin": "^(```+)(\\w+)?(\\{[^}]*\\})?\\s*$",
       "end": "^(\\1)\\s*$",
       "beginCaptures": {
         "1": { "name": "keyword.control.code.begin.typedown" },
-        "2": { "name": "entity.name.tag.typedown" }
+        "2": { "name": "entity.name.tag.typedown" },
+        "3": { "name": "comment.line.code-range.typedown" }
       },
       "endCaptures": { "1": { "name": "keyword.control.code.end.typedown" } },
       "contentName": "markup.raw.block.typedown"
@@ -149,16 +150,16 @@
       "endCaptures": { "0": { "name": "keyword.control.math.end.typedown" } },
       "contentName": "meta.embedded.math.typedown"
     },
-    "md-callout": {
+    "md-container": {
       "begin": "^(:::)\\s+(\\w+)\\s*(.*)?",
       "end": "^(:::)\\s*$",
       "beginCaptures": {
-        "1": { "name": "keyword.control.callout.begin.typedown" },
+        "1": { "name": "keyword.control.container.begin.typedown" },
         "2": { "name": "entity.name.tag.typedown" },
-        "3": { "name": "string.other.callout.title.typedown" }
+        "3": { "name": "string.other.container.title.typedown" }
       },
       "endCaptures": {
-        "1": { "name": "keyword.control.callout.end.typedown" }
+        "1": { "name": "keyword.control.container.end.typedown" }
       },
       "patterns": [
         { "include": "#md-fenced-code" },

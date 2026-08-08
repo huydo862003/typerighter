@@ -36,7 +36,7 @@ cargo test --test auth_integration
 
 The test harness automatically runs migrations on startup:
 
-```rust
+```rust{1,4-5}
 #[tokio::test]
 async fn test_login_success() {
     let app = TestApp::spawn().await;
