@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, chmodSync } from "node:fs";
+import { mkdirSync, chmodSync } from "node:fs";
 import path from "node:path";
 import {
   dev,
