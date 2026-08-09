@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, chmodSync } from "node:fs";
+import { mkdirSync, chmodSync, copyFileSync } from "node:fs";
 import path from "node:path";
 import {
   dev,
+  isNixOS,
   osArch,
   releaseTag,
   artifactName,
@@ -26,6 +27,37 @@ if (dev()) {
     process.exit(1);
   }
   process.exit(0);
+}
+
+// On NixOS, build using the Nix derivation
+if (isNixOS()) {
+  console.log(
+    "[rpc-server] NixOS detected: building typedown-rpc using Nix derivation",
+  );
+  const binDir = path.dirname(bin);
+  mkdirSync(binDir, { recursive: true });
+
+  try {
+    const outPath = execFileSync(
+      "nix",
+      ["build", ".#typedown-rpc", "--no-link", "--print-out-paths"],
+      {
+        cwd: repoRoot(),
+        encoding: "utf8",
+      },
+    ).trim();
+
+    const builtBin = path.join(outPath, "bin", "typedown-rpc");
+    copyFileSync(builtBin, bin);
+    if (process.platform !== "win32") {
+      chmodSync(bin, 0o755);
+    }
+    console.log("[rpc-server] typedown-rpc built and installed successfully via Nix");
+    process.exit(0);
+  } catch {
+    console.error("[rpc-server] nix build failed");
+    process.exit(1);
+  }
 }
 
 // In non dev mode, fetch the artifacts

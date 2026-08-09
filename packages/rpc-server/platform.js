@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import dotenv from "dotenv";
@@ -7,10 +8,28 @@ const require = createRequire(import.meta.url);
 const pkg = require("./package.json");
 
 const env = dotenv.config({ path: new URL(".env", import.meta.url) });
-const isDev = env.parsed?.DEV === "true";
+const isDev =
+  process.env.DEV !== undefined
+    ? process.env.DEV === "true"
+    : env.parsed?.DEV === "true";
 
 export function dev() {
   return isDev;
+}
+
+export function isNixOS() {
+  if (process.platform !== "linux") {
+    return false;
+  }
+  if (existsSync("/etc/NIXOS") || existsSync("/etc/nixos")) {
+    return true;
+  }
+  try {
+    const osRelease = readFileSync("/etc/os-release", "utf8");
+    return /ID(?:_LIKE)?=["']?nixos["']?/i.test(osRelease);
+  } catch {
+    return false;
+  }
 }
 
 const PLATFORM_MAP = {
