@@ -1437,7 +1437,7 @@ code
 // Code block with line range indicator parses as CodeBlock
 #[test]
 fn parse_code_block_with_line_ranges() {
-  let tree = parse_body(
+  let (tree, diags) = parse_body_with_diags(
     r#"```js{1,3,5-8}
 code
 ```
@@ -1458,6 +1458,7 @@ code
       "```js{1,3,5-8}\ncode\n```")
     "\n"))"####
   );
+  assert_eq!(diags, &[] as &[Diagnostic], "expected no diagnostics");
 }
 
 // Parses an empty body
