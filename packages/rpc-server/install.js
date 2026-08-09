@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, chmodSync, copyFileSync } from "node:fs";
+import { mkdirSync, chmodSync, copyFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import {
   dev,
@@ -29,10 +29,15 @@ if (dev()) {
   process.exit(0);
 }
 
-// On NixOS, build using the Nix derivation
+// On NixOS, build using Nix derivation
 if (isNixOS()) {
+  const tag = releaseTag();
+  const flakeTarget = existsSync(path.join(repoRoot(), "flake.nix"))
+    ? ".#typedown-rpc"
+    : `github:huydo862003/typerighter/${tag}#typedown-rpc`;
+
   console.log(
-    "[rpc-server] NixOS detected: building typedown-rpc using Nix derivation",
+    `[rpc-server] NixOS detected: building typedown-rpc using Nix derivation (${flakeTarget})`,
   );
   const binDir = path.dirname(bin);
   mkdirSync(binDir, { recursive: true });
@@ -40,7 +45,14 @@ if (isNixOS()) {
   try {
     const outPath = execFileSync(
       "nix",
-      ["build", ".#typedown-rpc", "--no-link", "--print-out-paths"],
+      [
+        "--extra-experimental-features",
+        "nix-command flakes",
+        "build",
+        flakeTarget,
+        "--no-link",
+        "--print-out-paths",
+      ],
       {
         cwd: repoRoot(),
         encoding: "utf8",
@@ -55,8 +67,7 @@ if (isNixOS()) {
     console.log("[rpc-server] typedown-rpc built and installed successfully via Nix");
     process.exit(0);
   } catch {
-    console.error("[rpc-server] nix build failed");
-    process.exit(1);
+    console.warn("[rpc-server] nix build failed, falling back to binary download");
   }
 }
 
