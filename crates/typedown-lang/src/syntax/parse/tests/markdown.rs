@@ -1441,6 +1441,15 @@ fn parse_code_block_with_line_ranges() {
     r#"```js{1,3,5-8}
 code
 ```
+
+```json{2,5}
+{
+  "sub": "user-id",
+  "exp": 1720000000,
+  "iat": 1719996400,
+  "scope": "read write"
+}
+```
 "#,
   );
   assert_eq!(
@@ -1456,6 +1465,10 @@ code
   (MdBody
     (CodeBlock
       "```js{1,3,5-8}\ncode\n```")
+    "\n"
+    "\n"
+    (CodeBlock
+      "```json{2,5}\n{\n  \"sub\": \"user-id\",\n  \"exp\": 1720000000,\n  \"iat\": 1719996400,\n  \"scope\": \"read write\"\n}\n```")
     "\n"))"####
   );
   assert_eq!(diags, &[] as &[Diagnostic], "expected no diagnostics");
