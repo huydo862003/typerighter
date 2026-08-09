@@ -11,7 +11,6 @@ use crate::db::derived::get_builtin_types::{
   get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type, instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::typechecker::typecheck::typecheck;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LiteralValue, MemberType, Project, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors,
@@ -63,9 +62,6 @@ fn evaluate_user_defined_schema(
     Some(hir) => hir,
     None => return TypeResult::new(db, None, vec![]),
   };
-
-  // Typecheck the schema file (diagnostics not propagated to callers)
-  let _ = typecheck(db, hir);
 
   // Extract entries from the frontmatter mapping
   let entries = match hir.kind(db) {
@@ -190,11 +186,14 @@ fn resolve_type_member(
     HirValueKind::Ident(_) => {
       let resolved = referee(db, hir);
       match resolved.value(db) {
-        Some(symbol) => {
-          let result = evaluate_type(db, symbol);
-          diagnostics.extend(result.diagnostics(db).iter().cloned());
-          result.typ(db).map(MemberType::Simple)
-        }
+        Some(symbol) => match symbol.kind(db) {
+          SymbolKind::UserDefinedSchema(_, _) => Some(MemberType::schema_ref(symbol)),
+          _ => {
+            let result = evaluate_type(db, symbol);
+            diagnostics.extend(result.diagnostics(db).iter().cloned());
+            result.typ(db).map(MemberType::simple)
+          }
+        },
         None => {
           let node = hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
@@ -236,31 +235,44 @@ fn resolve_type_member(
           fields.insert(key.clone(), TypeMember::new(db, member_type, descriptors));
         }
       }
-      Some(MemberType::Simple(
+      Some(MemberType::simple(
         TdProductType::new(db, None, get_type_type(db).into(), fields).into(),
       ))
     }
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {
       let base = resolve_type_member(db, *expr, diagnostics)?;
-      let MemberType::Simple(base_type) = base else {
-        return None;
+      let base_type = match base.resolve_type(db) {
+        Some(t) => t,
+        None => return None,
       };
       if base_type.arity(db) == 0 {
-        return Some(MemberType::Simple(base_type));
+        return Some(MemberType::simple(base_type));
       }
       let mut arg_types = vec![];
       for idx_hir in indices {
         let resolved = referee(db, idx_hir);
         match resolved.value(db) {
-          Some(symbol) => {
-            let result = evaluate_type(db, symbol);
-            diagnostics.extend(result.diagnostics(db).iter().cloned());
-            {
-              let typ = result.typ(db)?;
-              arg_types.push(typ)
+          Some(symbol) => match symbol.kind(db) {
+            SymbolKind::UserDefinedSchema(_, _) => {
+              arg_types.push(
+                TdProductType::new(
+                  db,
+                  Some(symbol.name(db)),
+                  get_schema_type(db).into(),
+                  HashMap::new(),
+                )
+                .into(),
+              );
             }
-          }
+            _ => {
+              let result = evaluate_type(db, symbol);
+              diagnostics.extend(result.diagnostics(db).iter().cloned());
+              if let Some(typ) = result.typ(db) {
+                arg_types.push(typ);
+              }
+            }
+          },
           None => {
             let node = idx_hir.node(db);
             let (tr_offset, tr_len) = node.trimmed_range();
@@ -275,7 +287,7 @@ fn resolve_type_member(
       }
       let inst_result = instantiate_type(db, base_type, arg_types);
       diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
-      Some(MemberType::Simple(inst_result.typ(db)))
+      Some(MemberType::simple(inst_result.typ(db)))
     }
     // Literal types
     HirValueKind::Str(val) => Some(MemberType::Literal(LiteralValue::Str(val))),
@@ -519,7 +531,7 @@ mod tests {
         "name".to_string(),
         TypeMember::new(
           &db,
-          MemberType::Simple(get_str_type(&db).into()),
+          MemberType::simple(get_str_type(&db).into()),
           TypeMemberDescriptors::empty(),
         ),
       )]),
@@ -703,11 +715,10 @@ age: 42
     let _ = construct_from_hir(&db, hir, &mut vec![]);
   }
 
-  // link[Person] accepts a schema type
-  // fref("file.td") returns the target resource's type
   #[test]
-  fn fref_returns_resource_type() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+  fn evaluate_type_fref_resolves_referenced_type() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();
 
@@ -718,9 +729,7 @@ age: 42
 
     let type_result = actual_node_type_member(&db, friend_hir);
     let member = type_result.member(&db).expect("fref should return a type");
-    let MemberType::Simple(typ) = member.typ(&db) else {
-      panic!("expected Simple type");
-    };
+    let typ = member.typ(&db).resolve_type(&db).expect("expected Simple type");
     assert_eq!(typ.display_name(&db), "Person");
   }
 

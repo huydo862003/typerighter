@@ -141,7 +141,13 @@ pub fn export_property_descriptors(
   // Map a MemberType to a property descriptor with a widget hint
   fn member_to_descriptor(db: &TypedownDatabase, member: &MemberType) -> serde_json::Value {
     match member {
-      MemberType::Simple(typ) => simple_type_to_descriptor(db, typ),
+      MemberType::Simple(_) => {
+        if let Some(typ) = member.resolve_type(db) {
+          simple_type_to_descriptor(db, &typ)
+        } else {
+          serde_json::json!({ "type": "string" })
+        }
+      }
 
       // Sum of string literals is a select (single value from options)
       MemberType::Sum(members) => {

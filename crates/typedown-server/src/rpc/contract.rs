@@ -54,6 +54,9 @@ pub trait TdBuildRpc<Hash, StorageKey> {
   #[method(name = "get_config")]
   async fn get_config(&self) -> RpcResult<TdSiteConfig>;
 
+  #[method(name = "check_vault")]
+  async fn check_vault(&self) -> RpcResult<TdDiagnosticReport>;
+
   /* Content subscriptions */
 
   #[subscription(name = "subscribe_content_changed", item = TdContentNotification)]
@@ -170,6 +173,40 @@ pub struct TdSchemaInfo {
   pub schema: String,
   #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub properties: serde_json::Value,
+}
+
+/* Diagnostics */
+
+/// A single diagnostic item with location and message
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
+pub struct TdDiagnosticItem {
+  /// File path relative to the content directory
+  pub filepath: String,
+  /// 1-based line number
+  pub line: u32,
+  /// 1-based column number
+  pub column: u32,
+  /// "error" or "warning"
+  pub severity: String,
+  /// Kebab-case diagnostic code (e.g. "duplicate-key", "missing-required-field")
+  pub code: String,
+  /// Human-readable message
+  pub message: String,
+}
+
+/// Result of checking all vault files for diagnostics
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
+pub struct TdDiagnosticReport {
+  pub diagnostics: Vec<TdDiagnosticItem>,
+  pub file_count: u32,
+  pub error_count: u32,
+  pub warning_count: u32,
 }
 
 /* Subscription notifications */

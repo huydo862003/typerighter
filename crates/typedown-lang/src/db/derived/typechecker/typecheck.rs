@@ -12,7 +12,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
 use crate::db::types::{
-  HirValue, HirValueKind, InterpolatedPart, MemberType, TdTypeEnum, TdTypeLike, TypeMember,
+  HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, TdTypeLike, TypeMember,
   TypeMemberDescriptors, TypecheckResult, member_type_display_name,
 };
 use crate::db::utils::typecheck::{lift_type_member_result, member_types_compatible};
@@ -25,7 +25,7 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
 
   // Use expected type from schema if available, otherwise fall back to inferred type
   let declared_type = if let Some(member) = expected_node_type_member(db, hir).member(db)
-    && let MemberType::Simple(typ) = member.typ(db)
+    && let Some(typ) = member.typ(db).resolve_type(db)
   {
     typ
   } else {

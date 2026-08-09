@@ -11,12 +11,22 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::{Duration, sleep};
 use typedown_incremental::QueryStorage;
+use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::check_schema_dir::check_schema_dir;
+use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
+use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
+use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
-use typedown_lang::db::types::{AssetsDirMode, SymbolKind};
+use typedown_lang::db::derived::parse_file::parse_file;
+use typedown_lang::db::derived::typechecker::typecheck::typecheck;
+use typedown_lang::db::types::{AssetsDirMode, File, SymbolKind};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
+use typedown_lang::integrations::lint::lint_markdown;
+use typedown_lang::syntax::ast::{AstNode, SourceFile};
+use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
 
 use typedown_types::path::normalize_path;
 
@@ -25,8 +35,8 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
   TdAssetsDir, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdFileMetadata, TdFilePath, TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification,
-  TdSiteConfig,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath,
+  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -402,6 +412,144 @@ impl RpcServer {
       properties,
     })
   }
+
+  async fn check_vault_impl(&self) -> RpcResult<TdDiagnosticReport> {
+    let analysis = self.host.read().await.snapshot();
+    let db = &analysis.db;
+    let project = analysis.project;
+
+    let config = get_vault_config(db, project);
+    let content_dir = config.content_dir(db);
+    let files = project.files(db);
+
+    let mut all_diagnostics = Vec::new();
+    let mut file_count: u32 = 0;
+
+    for (path, &file) in &files {
+      if !path.starts_with(&content_dir) || !is_content_file(path) {
+        continue;
+      }
+      file_count += 1;
+
+      let rel_path = normalize_path(path.strip_prefix(&content_dir).unwrap_or(path));
+      let rope = match analysis.file_rope(path) {
+        Some(r) => r,
+        None => continue,
+      };
+
+      let items = collect_file_diagnostics(db, project, file, &rel_path, &rope);
+      all_diagnostics.extend(items);
+    }
+
+    // Check for nested schema files
+    let schema_check = check_schema_dir(db, project);
+    for diag in schema_check.diagnostics(db) {
+      all_diagnostics.push(TdDiagnosticItem {
+        filepath: String::new(),
+        line: 0,
+        column: 0,
+        severity: "error".to_string(),
+        code: diag.code().as_str().to_string(),
+        message: diag.message(),
+      });
+    }
+
+    let error_count = all_diagnostics
+      .iter()
+      .filter(|d| d.severity == "error")
+      .count() as u32;
+    let warning_count = all_diagnostics
+      .iter()
+      .filter(|d| d.severity == "warning")
+      .count() as u32;
+
+    Ok(TdDiagnosticReport {
+      diagnostics: all_diagnostics,
+      file_count,
+      error_count,
+      warning_count,
+    })
+  }
+}
+
+/// Collect all diagnostics for a single content file
+fn collect_file_diagnostics(
+  db: &TypedownDatabase,
+  project: typedown_lang::db::types::Project,
+  file: File,
+  filepath: &str,
+  rope: &Rope,
+) -> Vec<TdDiagnosticItem> {
+  let mut items = Vec::new();
+
+  // Parse errors
+  let parse_result = parse_file(db, project, file);
+  let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
+
+  // Typecheck errors
+  let root = parse_result.ast(db);
+  let hir = lower_node(db, project, file, root);
+  let typecheck_result = typecheck(db, hir);
+  td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
+
+  // Evaluation errors
+  if let Some(sym) = file_symbol(db, project, file).value(db) {
+    if sym.kind(db).is_schema() {
+      let eval_result = evaluate_type(db, sym);
+      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+    } else {
+      let eval_result = evaluate_resource(db, sym);
+      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+    }
+  }
+
+  // Deduplicate diagnostics by (code, line, column)
+  let mut seen = std::collections::HashSet::new();
+  for diag in &td_diags {
+    let (line, column) = if let Some((start, _)) = diag.offsets() {
+      let start = start.min(rope.len_chars());
+      let l = rope.char_to_line(start);
+      let c = start - rope.line_to_char(l);
+      (l as u32 + 1, c as u32 + 1)
+    } else {
+      (1, 1)
+    };
+
+    let code = diag.code().as_str().to_string();
+    let key = (code.clone(), line, column);
+    if !seen.insert(key) {
+      continue;
+    }
+
+    items.push(TdDiagnosticItem {
+      filepath: filepath.to_string(),
+      line,
+      column,
+      severity: "error".to_string(),
+      code,
+      message: diag.message(),
+    });
+  }
+
+  // Lint warnings
+  if let Some(body) = SourceFile::cast(parse_result.ast(db)).and_then(|sf| sf.body()) {
+    for lint in lint_markdown(&body) {
+      let start = lint.start_offset.min(rope.len_chars());
+      let l = rope.char_to_line(start);
+      let c = start - rope.line_to_char(l);
+
+      items.push(TdDiagnosticItem {
+        filepath: filepath.to_string(),
+        line: l as u32 + 1,
+        column: c as u32 + 1,
+        severity: "warning".to_string(),
+        code: lint.code.as_str().to_string(),
+        message: lint.message,
+      });
+    }
+  }
+
+  items
 }
 
 /// Accept a subscription and forward broadcast messages to the client
@@ -457,6 +605,10 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
 
   async fn get_config(&self) -> RpcResult<TdSiteConfig> {
     self.get_config_impl().await
+  }
+
+  async fn check_vault(&self) -> RpcResult<TdDiagnosticReport> {
+    self.check_vault_impl().await
   }
 
   async fn subscribe_content_changed(

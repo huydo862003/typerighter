@@ -111,10 +111,7 @@ fn fref_completions(
 ) -> Vec<CompletionItem> {
   // Resolve the expected type for the field containing this fref() call.
   let expected_type =
-    declared_field(db, project, file, node).and_then(|member| match member.typ(db) {
-      MemberType::Simple(typ) => Some(typ),
-      _ => None,
-    });
+    declared_field(db, project, file, node).and_then(|member| member.typ(db).resolve_type(db));
 
   let root = project.root_dir(db);
   project
@@ -123,7 +120,7 @@ fn fref_completions(
     .filter(|(path, _)| is_content_file(path))
     .filter(|(_, target_file)| {
       // If we have an expected type, only include files whose type is compatible.
-      let Some(ref expected) = expected_type else {
+      let Some(ref expected_typ) = expected_type else {
         return true;
       };
       let sym = match file_symbol(db, project, **target_file).value(db) {
@@ -134,7 +131,7 @@ fn fref_completions(
         Some(typ) => typ,
         None => return false,
       };
-      expected.is_compatible_with(db, &file_type)
+      expected_typ.is_compatible_with(db, &file_type)
     })
     .filter_map(|(path, _)| path.strip_prefix(&root).ok().map(|rel| rel.to_path_buf()))
     .map(|rel| CompletionItem {
@@ -170,10 +167,7 @@ fn enclosing_mapping_product(
   let mapping_expr = Expr::cast(mapping.clone())?;
   let hir = lower_node(db, project, file, mapping_expr.syntax().clone());
   let member = expected_node_type_member(db, hir).member(db)?;
-  let typ = match member.typ(db) {
-    MemberType::Simple(typ) => typ,
-    _ => return None,
-  };
+  let typ = member.typ(db).resolve_type(db)?;
   Some((typ.as_td_product_type().cloned()?, mapping))
 }
 
@@ -277,7 +271,13 @@ fn build_schema_snippet(
 // Generate a placeholder string for a type member
 fn member_placeholder(db: &TypedownDatabase, member: &MemberType, indent: usize) -> String {
   match member {
-    MemberType::Simple(typ) => simple_type_placeholder(db, typ, indent),
+    MemberType::Simple(_) => {
+      if let Some(typ) = member.resolve_type(db) {
+        simple_type_placeholder(db, &typ, indent)
+      } else {
+        "value".to_string()
+      }
+    }
     // Enum: use first option as default
     MemberType::Sum(members) => {
       let first = members.first().and_then(|m| match m.typ(db) {

@@ -102,20 +102,25 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 // Generate a default value string for a member type
 fn default_value(db: &TypedownDatabase, member: &MemberType) -> String {
   match member {
-    MemberType::Simple(typ) => match typ {
-      TdTypeEnum::TdStrType(_) => "\"\"".to_string(),
-      TdTypeEnum::TdNumType(_) => "0".to_string(),
-      TdTypeEnum::TdBoolType(_) => "false".to_string(),
-      TdTypeEnum::TdDateType(_) => "\"\"".to_string(),
-      TdTypeEnum::TdDateTimeType(_) => "\"\"".to_string(),
-      TdTypeEnum::TdTimeType(_) => "\"\"".to_string(),
-      TdTypeEnum::TdProductType(product) => match product.name(db) {
-        Some(schema) => format!("fref(\"{schema}\")"),
-        None => "\"\"".to_string(),
-      },
-      TdTypeEnum::TdListType(_) => "[]".to_string(),
-      _ => "\"\"".to_string(),
-    },
+    MemberType::Simple(_) => {
+      let Some(typ) = member.resolve_type(db) else {
+        return "\"\"".to_string();
+      };
+      match typ {
+        TdTypeEnum::TdStrType(_) => "\"\"".to_string(),
+        TdTypeEnum::TdNumType(_) => "0".to_string(),
+        TdTypeEnum::TdBoolType(_) => "false".to_string(),
+        TdTypeEnum::TdDateType(_) => "\"\"".to_string(),
+        TdTypeEnum::TdDateTimeType(_) => "\"\"".to_string(),
+        TdTypeEnum::TdTimeType(_) => "\"\"".to_string(),
+        TdTypeEnum::TdProductType(product) => match product.name(db) {
+          Some(schema) => format!("fref(\"{schema}\")"),
+          None => "\"\"".to_string(),
+        },
+        TdTypeEnum::TdListType(_) => "[]".to_string(),
+        _ => "\"\"".to_string(),
+      }
+    }
     MemberType::Sum(members) => {
       // Enum: use first literal as default
       members

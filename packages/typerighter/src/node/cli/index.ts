@@ -104,6 +104,36 @@ export function cli () {
       server.printUrls();
     });
 
+  program
+    .command('check [root]', 'Check vault for errors')
+    .action(async (root: string | undefined) => {
+      const context = createAppContext(resolveRoot(root));
+
+      try {
+        process.stdout.write(`${TAG} Checking vault...\r`);
+        const tdContext = await context.getTdContext();
+        const report = await tdContext.checkVault();
+        process.stdout.write('\x1B[2K'); // clear the line
+
+        for (const d of report.diagnostics) {
+          const prefix = d.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+
+          console.log(`  ${prefix} ${d.filepath}:${d.line}:${d.column} ${d.message} ${pc.dim(`(${d.code})`)}`);
+        }
+
+        const summary = `${report.fileCount} files checked, ${report.errorCount} error(s), ${report.warningCount} warning(s)`;
+
+        if (report.errorCount > 0) {
+          console.log(`\n${TAG} ${pc.red(summary)}`);
+          process.exit(1);
+        } else {
+          console.log(`\n${TAG} ${pc.green(summary)}`);
+        }
+      } finally {
+        context.dispose();
+      }
+    });
+
   program.help();
   program.version(__VERSION__);
 
