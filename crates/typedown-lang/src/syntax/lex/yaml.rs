@@ -36,9 +36,12 @@ impl<S: Utf8Stream> LexCtx<S> {
   pub(in crate::syntax::lex) fn lex_yaml_token(&mut self) -> LexResult {
     let char = match self.peek() {
       Utf8Result::Char(char) => char,
-      _ => panic!(
-        "[LexCtx::lex_yaml_token] Expected a valid UTF-8 character but got EOF or invalid bytes. This should have been handled by try_consume_invalid_utf8 or is_eof before reaching this point."
-      ),
+      Utf8Result::Eof => return self.emit(SyntaxKind::Eof),
+      Utf8Result::Invalid { .. } => {
+        return self
+          .try_consume_invalid_utf8()
+          .unwrap_or_else(|| self.emit(SyntaxKind::Eof));
+      }
     };
 
     match char {

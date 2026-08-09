@@ -23,9 +23,12 @@ impl<S: Utf8Stream> LexCtx<S> {
 
     let char = match self.peek() {
       Utf8Result::Char(char) => char,
-      _ => panic!(
-        "[LexCtx::lex_markdown_body] Expected a valid UTF-8 character but got EOF or invalid bytes."
-      ),
+      Utf8Result::Eof => return self.emit(SyntaxKind::Eof),
+      Utf8Result::Invalid { .. } => {
+        return self
+          .try_consume_invalid_utf8()
+          .unwrap_or_else(|| self.emit(SyntaxKind::Eof));
+      }
     };
 
     match char {

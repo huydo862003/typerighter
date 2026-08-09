@@ -568,4 +568,25 @@ mod tests {
       "should have InvalidCodeRangeIndicator: {diags:?}",
     );
   }
+
+  #[test]
+  fn file_stream_lookahead_eof() {
+    use typedown_types::file_stream::FileStream;
+    let input = "# Heading\nSome content";
+    let stream = FileStream::new(input.as_bytes());
+    let cache = Rc::new(RefCell::new(Cache::new()));
+    let mut lexer = LexCtx::new(stream, cache);
+    assert!(!lexer.has_frontmatter_start());
+    lexer.set_mode(LexMode::MarkdownBody);
+    let mut tokens = vec![];
+    loop {
+      let result = lexer.lex();
+      let kind = result.token.kind();
+      tokens.push(kind);
+      if kind == SyntaxKind::Eof {
+        break;
+      }
+    }
+    assert_eq!(tokens.last(), Some(&SyntaxKind::Eof));
+  }
 }

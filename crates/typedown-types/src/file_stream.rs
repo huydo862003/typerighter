@@ -109,8 +109,7 @@ impl<T: Read> Utf8Stream for FileStream<T> {
   }
 
   fn exhausted(&self) -> bool {
-    self.peek();
-    matches!(self.buffer.get(), Some(Utf8Result::Eof))
+    matches!(self.peek(), Utf8Result::Eof)
   }
 
   fn peek_nth(&mut self, n: usize) -> Utf8Result {
