@@ -3,7 +3,7 @@
 * Commit: b6d9cb8
 * */
 
-/* This file lets you create block-level custom containers in Markdown
+/* This file lets you create block-level callout containers in Markdown
 * Example: ::: warning :::
 * */
 
@@ -17,7 +17,7 @@ import type {
   RenderRule,
 } from 'markdown-it/lib/renderer.mjs';
 
-export function containerPlugin (
+export function calloutContainerPlugin (
   md: MarkdownItAsync,
 ): void {
   for (const name of Object.keys(DEFAULT_TITLES)) {

@@ -36,8 +36,8 @@ import type {
 } from '@typerighter/rpc-client';
 import type MarkdownIt from 'markdown-it';
 import {
-  containerPlugin,
-} from './plugins/container';
+  calloutContainerPlugin,
+} from './plugins/callout-container';
 import {
   createHighlighter,
 } from './plugins/highlight';
@@ -83,7 +83,7 @@ export async function createMarkdownRenderer (
 
   preWrapperPlugin(md);
   lineNumberPlugin(md);
-  containerPlugin(md);
+  calloutContainerPlugin(md);
   imagePlugin(md);
   linkPlugin(md, {
     target: '_blank',
