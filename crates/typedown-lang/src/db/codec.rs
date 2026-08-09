@@ -1719,7 +1719,7 @@ mod tests {
     let decoder = Decoder::new(Arc::new(db.storage.clone()), Arc::new(vec![]));
     let data: &[u8] = &[0];
     let mut data = data;
-    assert_eq!(decoder.read_bool(&mut data), false);
+    assert!(!decoder.read_bool(&mut data));
   }
 
   #[test]
@@ -1730,7 +1730,7 @@ mod tests {
     let decoder = Decoder::new(Arc::new(db.storage.clone()), Arc::new(vec![]));
     let data: &[u8] = &[1];
     let mut data = data;
-    assert_eq!(decoder.read_bool(&mut data), true);
+    assert!(decoder.read_bool(&mut data));
   }
 
   proptest! {

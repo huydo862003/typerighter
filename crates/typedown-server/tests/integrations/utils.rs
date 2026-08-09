@@ -159,10 +159,10 @@ pub fn copy_dir_recursive(src: &Path, dst: &Path) {
       copy_dir_recursive(&src_path, &dst_path);
     } else {
       std::fs::copy(&src_path, &dst_path).unwrap();
-      if let Ok(meta) = entry.metadata() {
-        if let Ok(mtime) = meta.modified() {
-          let _ = filetime::set_file_mtime(&dst_path, filetime::FileTime::from_system_time(mtime));
-        }
+      if let Ok(meta) = entry.metadata()
+        && let Ok(mtime) = meta.modified()
+      {
+        let _ = filetime::set_file_mtime(&dst_path, filetime::FileTime::from_system_time(mtime));
       }
     }
   }

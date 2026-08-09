@@ -106,6 +106,12 @@ impl ServerBuilder {
   }
 }
 
+impl Default for ServerBuilder {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 /// A running LSP test server connected over an in-memory channel.
 pub struct Server {
   conn: Connection,

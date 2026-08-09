@@ -538,16 +538,16 @@ mod tests {
 
     // Find the first sequence item if any
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      for (key, value) in entries {
-        if let HirValueKind::Sequence(items) = value.kind(&db) {
-          if let Some(first_item) = items.first() {
-            let result = expected_node_type_member(&db, *first_item);
-            // Should have some expected type from the schema's list element type
-            // (or None if schema doesn't constrain elements)
-            // Just verify it doesn't panic
-            let _ = result.member(&db);
-            return;
-          }
+      for (_key, value) in entries {
+        if let HirValueKind::Sequence(items) = value.kind(&db)
+          && let Some(first_item) = items.first()
+        {
+          let result = expected_node_type_member(&db, *first_item);
+          // Should have some expected type from the schema's list element type
+          // (or None if schema doesn't constrain elements)
+          // Just verify it doesn't panic
+          let _ = result.member(&db);
+          return;
         }
       }
     }

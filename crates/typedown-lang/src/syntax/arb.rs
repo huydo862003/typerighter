@@ -26,7 +26,7 @@ impl Arbitrary for GreenNode {
 
   fn arbitrary_with(_: ()) -> Self::Strategy {
     arb_green_token()
-      .prop_recursive(4, 64, 8, |inner| arb_green_node(inner))
+      .prop_recursive(4, 64, 8, arb_green_node)
       .boxed()
   }
 }
@@ -37,7 +37,7 @@ impl Arbitrary for RedNode {
 
   fn arbitrary_with(_: ()) -> Self::Strategy {
     // RedNode root must be a node, not a token
-    arb_green_node(arb_green_token().prop_recursive(3, 64, 8, |inner| arb_green_node(inner)))
+    arb_green_node(arb_green_token().prop_recursive(3, 64, 8, arb_green_node))
       .prop_map(|green| RedNode::from_green(0, green))
       .boxed()
   }
