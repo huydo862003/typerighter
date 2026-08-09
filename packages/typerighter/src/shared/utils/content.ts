@@ -1,3 +1,6 @@
+import {
+  INDEX_FILENAME,
+} from '../constants';
 import type {
   ContentSummary, ContentTree, ContentTreeNode, DirectoryListing,
 } from '../types/content';
@@ -68,9 +71,13 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
   function getChildUrl (child: ContentTreeNode, urlPrefix: string): string {
     const first = child.items[0] ?? child.children[0]?.items[0];
 
-    return first
-      ? getParentUrl(getTdContentUrl(first.filepath))
-      : `${urlPrefix}/${child.name}`;
+    if (!first) return `${urlPrefix}/${child.name}`;
+
+    const contentUrl = getTdContentUrl(first.filepath);
+
+    return filestem(first.filepath) === INDEX_FILENAME
+      ? contentUrl
+      : getParentUrl(contentUrl);
   }
 
   function walk (nodes: ContentTreeNode[], urlPrefix: string) {
