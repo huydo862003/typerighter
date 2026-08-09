@@ -1,3 +1,8 @@
+## [0.4.1] - 2026-08-09
+
+* packages/typerighter
+  - Fix the index listing to correctly link to children dir
+
 ## [0.4.0] - 2026-08-09
 
 * crates/typedown-lang
