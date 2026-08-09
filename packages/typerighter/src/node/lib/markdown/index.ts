@@ -30,7 +30,9 @@ import {
 import {
   MarkdownItAsync,
 } from 'markdown-it-async';
-import mathPlugin from 'markdown-it-mathjax3';
+import {
+  katex,
+} from '@mdit/plugin-katex';
 import type {
   TdSiteConfig,
 } from '@typerighter/rpc-client';
@@ -151,7 +153,12 @@ export async function createMarkdownRenderer (
       state.tokens[index + 1].children?.push(space, ...linkTokens);
     },
   });
-  mathPlugin(md);
+  katex(md, {
+    // Render a broken formula as a red error span instead of failing the build
+    throwOnError: false,
+    // MathML alongside the HTML keeps the maths readable to screen readers
+    output: 'htmlAndMathml',
+  });
 
   /* mdit-vue plugins */
 

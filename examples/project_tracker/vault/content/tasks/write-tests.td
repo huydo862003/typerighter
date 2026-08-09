@@ -16,6 +16,15 @@ These tests require a running PostgreSQL database and Redis instance.
 See the setup instructions below.
 :::
 
+::: flashcard
+Which status code should an expired session return, and why not `403`?
+=== key
+`401 Unauthorized` - the client must **re-authenticate**.
+
+`403` means the identity is known and still not permitted, so it tells the
+client not to bother retrying.
+:::
+
 ## Test Cases
 
 | Scenario | Expected Result |
