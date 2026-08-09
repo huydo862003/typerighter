@@ -1,3 +1,8 @@
+## [0.4.3] - 2026-08-09
+
+* packages/rpc-server
+  - Make install.js more robust on nixos
+
 ## [0.4.2] - 2026-08-09
 
 * packages/rpc-server
