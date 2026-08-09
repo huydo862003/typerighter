@@ -1,3 +1,8 @@
+## [0.4.2] - 2026-08-09
+
+* packages/rpc-server
+  - Detect NixOS and install properly for rpc-server
+
 ## [0.4.1] - 2026-08-09
 
 * packages/typerighter
