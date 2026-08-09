@@ -1,3 +1,28 @@
+## [0.4.0] - 2026-08-09
+
+* crates/typedown-lang
+  - Support custom components `::: name {prop="value" flag}`
+  - Support code ranges in code block (` ```js{1,3,5-8} `) with `language()` and `line_ranges()`
+  - Rename callout to container across the AST, formatter, and exporter
+  - Treat `{` and `}` as lexer tokens
+  - Add container title support
+  - Support typeless `.td` files
+  - Support `.md` files alongside `.td`
+  - Remove non-standard CommonMark syntax extensions
+* packages/tree-sitter/typedown-md
+  - Grammar and external scanner for container props and slot separators
+  - Corpus coverage for containers, nested containers, and code block ranges
+  - Fix container title parsing
+* packages/typerighter
+  - Add templating and snippet support
+  - Render frontmatter in the default theme
+  - Implement document search with MiniSearch
+  - Show file modification time and improve theming
+  - Improve sidebar directory tree navigation
+  - Add file icons to directory listings
+* editors
+  - Update Neovim highlight queries and the VS Code TextMate grammar for container syntax
+
 ## [0.3.1] - 2026-08-04
 
 * packages/typerighter
