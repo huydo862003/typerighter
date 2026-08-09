@@ -1,3 +1,8 @@
+## [0.4.4] - 2026-08-09
+
+* crates/typedown-types
+  - Wrong exhaustion check of filestream
+
 ## [0.4.3] - 2026-08-09
 
 * packages/rpc-server
