@@ -59,6 +59,9 @@ import {
 import {
   tablePlugin,
 } from './plugins/table';
+import {
+  componentContainerPlugin,
+} from './plugins/custom-container';
 
 export type MarkdownRenderer = MarkdownItAsync;
 
@@ -69,7 +72,6 @@ export async function createMarkdownRenderer (
   const highlight = await createHighlighter();
 
   const md = new MarkdownItAsync({
-    html: true,
     linkify: true,
     highlight,
   }) as MarkdownIt & MarkdownItAsync;
@@ -84,6 +86,7 @@ export async function createMarkdownRenderer (
   preWrapperPlugin(md);
   lineNumberPlugin(md);
   calloutContainerPlugin(md);
+  componentContainerPlugin(md);
   imagePlugin(md);
   linkPlugin(md, {
     target: '_blank',

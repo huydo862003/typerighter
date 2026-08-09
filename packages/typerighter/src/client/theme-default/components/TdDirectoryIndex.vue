@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   File, FolderOpen, CornerLeftUp,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   getParentUrl,
 } from '@/shared';

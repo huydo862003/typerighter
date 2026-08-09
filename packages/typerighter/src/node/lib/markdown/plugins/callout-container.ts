@@ -29,7 +29,7 @@ export function calloutContainerPlugin (
   }
 }
 
-const DEFAULT_TITLES: Record<string, string> = {
+export const DEFAULT_TITLES: Record<string, string> = {
   tip: 'TIP',
   info: 'INFO',
   warning: 'WARNING',

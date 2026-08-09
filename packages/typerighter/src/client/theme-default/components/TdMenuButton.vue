@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   Menu, X,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   useMenu,
 } from '../composables/useMenu';
