@@ -1,0 +1,134 @@
+================
+Container block with type
+================
+
+::: note
+Hello
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Container block without type
+================
+
+:::
+Hello
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Warning container
+================
+
+::: warning
+Be careful.
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Container block with props
+================
+
+::: card {title="Hello" cols=2 flag}
+Hello
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      props: (container_prop_block
+        (container_prop_item
+          key: (container_prop_key)
+          value: (container_prop_value
+            (container_prop_string)))
+        (container_prop_item
+          key: (container_prop_key)
+          value: (container_prop_value
+            (container_prop_number)))
+        (container_prop_item
+          key: (container_prop_key)))
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Container block with slot separators
+================
+
+::: tabs
+first
+=== second
+more
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_slot_separator
+        (container_slot_delimiter)
+        name: (container_slot_name))
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Container block opening on a slot separator
+================
+
+::: tabs
+=== one
+content
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (container_slot_separator
+        (container_slot_delimiter)
+        name: (container_slot_name))
+      (paragraph
+        (inline))
+      (container_block_delimiter))))

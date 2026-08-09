@@ -14,6 +14,12 @@ Plain paragraph with **bold** and _italic_ and ***bold italic*** and ~strikethro
 print("hello")
 ```
 
+```js{1,3}
+const x = 1;
+const y = 2;
+const z = 3;
+```
+
 $E = mc^2$
 
 $$

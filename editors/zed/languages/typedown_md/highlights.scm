@@ -38,9 +38,9 @@
 (list_marker_star) @punctuation.list_marker
 (list_marker_dot) @punctuation.list_marker
 
-; Callouts
-(callout_block_delimiter) @punctuation.special
-(callout_type) @label
+; Containers
+(container_block_delimiter) @punctuation.special
+(container_type) @label
 
 ; Tables
 (pipe_table_header) @title

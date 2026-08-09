@@ -11,5 +11,5 @@
 (block_quote) @function.around
 (list_item) @function.around
 (toggle_list_item) @function.around
-(callout_block) @function.around
+(container_block) @function.around
 (pipe_table) @function.around

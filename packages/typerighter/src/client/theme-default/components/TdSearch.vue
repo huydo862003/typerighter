@@ -7,7 +7,7 @@ import {
 import MiniSearch from 'minisearch';
 import {
   Search, X,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   usePageLoader, useRoute, useSearchIndex,
 } from '../../app';

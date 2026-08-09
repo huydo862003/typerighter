@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   X,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   useTdContent, useSiteConfig, useSiteData, useRoute,
 } from '../app';

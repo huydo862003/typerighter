@@ -20,8 +20,8 @@
 ; Toggle list items
 (toggle_list_item) @block.outer
 
-; Callouts
-(callout_block) @block.outer
+; Containers
+(container_block) @block.outer
 
 ; Tables
 (pipe_table) @block.outer

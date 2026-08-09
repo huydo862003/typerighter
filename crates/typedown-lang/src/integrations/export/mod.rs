@@ -233,12 +233,17 @@ fn export_markdown_body(
 
   // Separate block elements with blank lines for CommonMark
   let mut first = true;
-  for block in body.block_elements() {
+  for child in body.syntax().children() {
+    let kind = child.kind();
+    // Skip whitespace/newline tokens between blocks
+    if kind == SyntaxKind::Whitespace || kind == SyntaxKind::Newline {
+      continue;
+    }
     if !first {
       out.push('\n');
     }
     first = false;
-    emit_md_block(db, project, file, block.syntax(), &mut out);
+    emit_md_block(db, project, file, &child, &mut out);
   }
 
   if !out.ends_with('\n') {
@@ -526,15 +531,19 @@ mod tests {
     assert!(content.contains("**bold**"), "should contain bold");
     assert!(content.contains("- bullet one"), "should contain bullet");
     assert!(content.contains("[link text]"), "should contain link");
+    assert!(
+      content.contains("```js{1,3}"),
+      "should preserve code block range indicator: {content}",
+    );
   }
 
   #[test]
-  fn exports_callout_with_title() {
+  fn exports_container_with_title() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/all_md_elements.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("::: details Click to expand"),
-      "should contain callout with title: {}",
+      "should contain container with title: {}",
       exported.content,
     );
   }

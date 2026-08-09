@@ -19,7 +19,6 @@ pub fn find_entry<T>(
 ) -> T {
   iter
     .into_iter()
-    .filter(predicate)
-    .next()
+    .find(predicate)
     .unwrap_or_else(|| panic!("{} not found", label))
 }

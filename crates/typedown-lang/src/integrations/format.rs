@@ -41,7 +41,7 @@ fn format_block(out: &mut String, node: &RedNode, depth: usize) {
     SyntaxKind::MdBulletList => format_bullet_list(out, node, depth),
     SyntaxKind::MdOrderedList => format_ordered_list(out, node, depth),
     _ => {
-      // Tables, blockquotes, callouts, paragraphs: emit source text
+      // Tables, blockquotes, containers, paragraphs: emit source text
       emit_source_lines(out, node, depth);
     }
   }

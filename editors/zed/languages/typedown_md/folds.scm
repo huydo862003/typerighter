@@ -6,5 +6,5 @@
 (toggle_list_item) @fold
 (list) @fold
 (list_item) @fold
-(callout_block) @fold
+(container_block) @fold
 (pipe_table) @fold

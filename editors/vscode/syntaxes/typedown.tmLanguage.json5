@@ -51,7 +51,7 @@
         { "include": "#md-fenced-code" },
         { "include": "#md-math-block" },
         { "include": "#md-heading" },
-        { "include": "#md-callout" },
+        { "include": "#md-container" },
         { "include": "#md-toggle-list" },
         { "include": "#md-block-quote" },
         { "include": "#md-table" },
@@ -133,11 +133,12 @@
       // Fenced code block with optional language label.
       // Language-specific injection is handled by the *-codeblock.json grammars,
       // which take priority over this rule for known languages.
-      "begin": "^(```+)(\\w+)?\\s*$",
+      "begin": "^(```+)(\\w+)?(\\{[^}]*\\})?\\s*$",
       "end": "^(\\1)\\s*$",
       "beginCaptures": {
         "1": { "name": "keyword.control.code.begin.typedown" },
-        "2": { "name": "entity.name.tag.typedown" }
+        "2": { "name": "entity.name.tag.typedown" },
+        "3": { "name": "comment.line.code-range.typedown" }
       },
       "endCaptures": { "1": { "name": "keyword.control.code.end.typedown" } },
       "contentName": "markup.raw.block.typedown"
@@ -149,23 +150,57 @@
       "endCaptures": { "0": { "name": "keyword.control.math.end.typedown" } },
       "contentName": "meta.embedded.math.typedown"
     },
-    "md-callout": {
-      "begin": "^(:::)\\s+(\\w+)\\s*(.*)?",
+    "md-container": {
+      "begin": "^(:::)\\s+(\\w+)\\s*(\\{[^}]*\\})?\\s*(.*)?",
       "end": "^(:::)\\s*$",
       "beginCaptures": {
-        "1": { "name": "keyword.control.callout.begin.typedown" },
+        "1": { "name": "keyword.control.container.begin.typedown" },
         "2": { "name": "entity.name.tag.typedown" },
-        "3": { "name": "string.other.callout.title.typedown" }
+        "3": {
+          "name": "meta.attribute.container.typedown",
+          "patterns": [{ "include": "#md-container-props" }]
+        },
+        "4": { "name": "string.other.container.title.typedown" }
       },
       "endCaptures": {
-        "1": { "name": "keyword.control.callout.end.typedown" }
+        "1": { "name": "keyword.control.container.end.typedown" }
       },
       "patterns": [
+        { "include": "#md-container-slot-separator" },
         { "include": "#md-fenced-code" },
         { "include": "#md-math-block" },
         { "include": "#md-list" },
         { "include": "#md-inline" }
       ]
+    },
+    "md-container-props": {
+      // Contents of a container prop block: `{key="value" count=2 flag}`
+      "patterns": [
+        {
+          "match": "[{}]",
+          "name": "punctuation.definition.container.props.typedown"
+        },
+        {
+          "match": "([A-Za-z_]\\w*)\\s*(=)?",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.typedown" },
+            "2": { "name": "keyword.operator.assignment.typedown" }
+          }
+        },
+        {
+          "match": "\"[^\"]*\"|'[^']*'",
+          "name": "string.quoted.container.prop.typedown"
+        },
+        { "match": "\\b\\d+\\b", "name": "constant.numeric.typedown" }
+      ]
+    },
+    "md-container-slot-separator": {
+      // Slot separator inside a container: `=== name`
+      "match": "^(===)(?:(\\s+)([A-Za-z_]\\w*))?\\s*$",
+      "captures": {
+        "1": { "name": "keyword.control.container.separator.typedown" },
+        "3": { "name": "entity.name.tag.slot.typedown" }
+      }
     },
     "md-toggle-list": {
       "match": "^(>-)(\\s+)(.*)",

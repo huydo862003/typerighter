@@ -295,7 +295,7 @@ name: "Alice"
       .filter_map(|diag| diag["code"].as_str())
       .collect();
     assert!(
-      codes.iter().any(|code| *code == "unresolved-schema"),
+      codes.contains(&"unresolved-schema"),
       "expected an unresolved-schema diagnostic, got codes: {codes:?}"
     );
   }
@@ -326,7 +326,7 @@ name: "Alice"
       .filter_map(|diag| diag["code"].as_str())
       .collect();
     assert!(
-      codes.iter().any(|code| *code == "missing-required-field"),
+      codes.contains(&"missing-required-field"),
       "expected a missing-required-field diagnostic, got codes: {codes:?}"
     );
   }

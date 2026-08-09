@@ -220,7 +220,7 @@ fn parse_all_project_tracker_files() {
   collect_files(&project_dir, &mut paths);
 
   for path in &paths {
-    let meta = std::fs::metadata(&path).ok();
+    let meta = std::fs::metadata(path).ok();
     let mtime = meta
       .as_ref()
       .and_then(|m| m.modified().ok())

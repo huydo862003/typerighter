@@ -5,6 +5,7 @@ mod tests {
 
   use typedown_types::string_stream::StringStream;
 
+  use crate::syntax::diagnostic::Diagnostic;
   use crate::syntax::green::cache::Cache;
   use crate::syntax::lex::ctx::{LexCtx, LexMode};
   use crate::syntax::syntax_kind::SyntaxKind;
@@ -27,21 +28,30 @@ mod tests {
   }
 
   fn lex_markdown(input: &str) -> Vec<(SyntaxKind, String)> {
+    let (tokens, _) = lex_markdown_with_diags(input);
+    tokens
+  }
+
+  fn lex_markdown_with_diags(input: &str) -> (Vec<(SyntaxKind, String)>, Vec<Diagnostic>) {
     let stream = StringStream::new(input);
     let cache = Rc::new(RefCell::new(Cache::new()));
     let mut lexer = LexCtx::new(stream, cache);
     lexer.set_mode(LexMode::MarkdownBody);
     let mut tokens = vec![];
+    let mut diags = vec![];
     loop {
       let result = lexer.lex();
       let kind = result.token.kind();
       let text: String = result.token.chars().collect();
+      if let Some(diag) = result.diagnostic {
+        diags.push(diag);
+      }
       tokens.push((kind, text));
       if kind == SyntaxKind::Eof {
         break;
       }
     }
-    tokens
+    (tokens, diags)
   }
 
   /* YAML mode tests */
@@ -512,5 +522,50 @@ mod tests {
     let tokens = lex_markdown("\"\"");
     assert_eq!(tokens[0], (SyntaxKind::DqStrStart, "\"".to_string()));
     assert_eq!(tokens[1], (SyntaxKind::DqStrEnd, "\"".to_string()));
+  }
+
+  #[test]
+  fn md_code_block_with_line_ranges() {
+    let tokens = lex_markdown("```js{1,3,5-8}\ncode\n```");
+    assert_eq!(
+      tokens[0],
+      (
+        SyntaxKind::CodeBlock,
+        "```js{1,3,5-8}\ncode\n```".to_string()
+      )
+    );
+  }
+
+  #[test]
+  fn md_code_block_with_ranges_no_diags() {
+    let (_, diags) = lex_markdown_with_diags("```js{1,3}\ncode\n```");
+    assert!(
+      diags.is_empty(),
+      "valid range should have no diagnostics: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn md_code_block_invalid_range_chars() {
+    let (tokens, diags) = lex_markdown_with_diags("```js{abc}\ncode\n```");
+    assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::InvalidCodeRangeIndicator { .. })),
+      "should have InvalidCodeRangeIndicator: {diags:?}",
+    );
+  }
+
+  #[test]
+  fn md_code_block_unclosed_range() {
+    let (tokens, diags) = lex_markdown_with_diags("```js{1,3\ncode\n```");
+    assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::InvalidCodeRangeIndicator { .. })),
+      "should have InvalidCodeRangeIndicator: {diags:?}",
+    );
   }
 }

@@ -1,3 +1,5 @@
+#![allow(clippy::double_must_use)]
+
 use std::collections::HashMap;
 
 #[cfg(not(target_arch = "wasm32"))]

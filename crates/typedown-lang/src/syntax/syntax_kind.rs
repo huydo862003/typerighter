@@ -35,14 +35,18 @@ pub enum SyntaxKind {
   MdToggleListItem,
   MdToggleListSummary,
   MdToggleListDetails,
-  MdCalloutBlock,  // ::: label ... :::
-  MdLink,          // [text](url)
-  MdMedia,         // ![alt](src)
-  MdBold,          // **text**
-  MdItalic,        // *text* or _text_
-  MdBoldItalic,    // ***text***
-  MdStrikethrough, // ~~text~~
-  MdText,          // plain text run
+  MdContainerBlock,     // ::: label ... :::
+  MdContainerPropBlock, // {key=value}
+  MdContainerPropItem,  // key=value or key
+  MdContainerSlot,
+  MdContainerSlotSeparator, // ===
+  MdLink,                   // [text](url)
+  MdMedia,                  // ![alt](src)
+  MdBold,                   // **text**
+  MdItalic,                 // *text* or _text_
+  MdBoldItalic,             // ***text***
+  MdStrikethrough,          // ~~text~~
+  MdText,                   // plain text run
 
   // Expression nodes
   PrimaryExpr = 300, // An operand in an expression

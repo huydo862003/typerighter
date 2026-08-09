@@ -78,7 +78,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, Fi
       .and_then(|ext| ext.to_str())
       .and_then(AssetKind::from_extension)
       .is_some();
-    is_content_file(&path) || is_asset || name == "typedown.yaml" || name == "typedown.yml"
+    is_content_file(path) || is_asset || name == "typedown.yaml" || name == "typedown.yml"
   }
 
   fn walk(dir: &Path, db: &TypedownDatabase, files: &mut HashMap<PathBuf, File>) {

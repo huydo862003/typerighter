@@ -32,6 +32,7 @@ export default grammar({
     $.fenced_code_block_delimiter,
     $.code_fence_content,
     $.language,
+    $.line_range_indicator,
 
     $.math_block_delimiter,
     $.math_block_content,
@@ -43,8 +44,9 @@ export default grammar({
     $.list_marker_star,
     $.list_marker_dot,
 
-    $._callout_open,
-    $._callout_close,
+    $._container_open,
+    $._container_close,
+    $._container_slot_separator,
 
     $._pipe_table_start,
     $._pipe_table_line_ending,
@@ -147,7 +149,7 @@ export default grammar({
         $.block_quote,
         $.toggle_list,
         $.list,
-        $.callout_block,
+        $.container_block,
         $.pipe_table,
       ),
 
@@ -186,6 +188,7 @@ export default grammar({
       seq(
         $.fenced_code_block_delimiter,
         optional(field('language', $.language)),
+        optional(field('line_ranges', $.line_range_indicator)),
         optional($.code_fence_content),
         $.fenced_code_block_delimiter,
       ),
@@ -296,29 +299,82 @@ export default grammar({
     pipe_table_cell: () =>
       /[^\r\n|]+/,
 
-    // Callout block
+    // Container block
 
-    callout_block: ($) =>
+    container_block: ($) =>
       seq(
-        alias($._callout_open, $.callout_block_delimiter),
-        optional(field('type', $.callout_type)),
-        optional(field('title', $.callout_title)),
+        alias($._container_open, $.container_block_delimiter),
+        optional(field('type', $.container_type)),
+        optional(seq(
+          optional($._whitespace),
+          field('props', $.container_prop_block),
+        )),
+        optional(seq(
+          optional($._whitespace),
+          field('title', $.container_title),
+        )),
         $._line_ending,
         repeat(
           choice(
             $._block,
             $._blank_line,
+            $.container_slot_separator,
           ),
         ),
-        alias($._callout_close, $.callout_block_delimiter),
+        alias($._container_close, $.container_block_delimiter),
         optional($._line_ending),
       ),
 
-    callout_type: () =>
+    container_type: () =>
+      token(prec(1, /[a-zA-Z_]\w*/)),
+
+    // Container props: `{key=value flag}`
+    container_prop_block: ($) =>
+      seq(
+        '{',
+        optional($._whitespace),
+        repeat(seq($.container_prop_item, optional($._whitespace))),
+        '}',
+      ),
+
+    container_prop_item: ($) =>
+      seq(
+        field('key', $.container_prop_key),
+        optional(seq('=', field('value', $.container_prop_value))),
+      ),
+
+    container_prop_key: () =>
       /[a-zA-Z_]\w*/,
 
-    callout_title: () =>
-      /[^\n\r]+/,
+    container_prop_value: ($) =>
+      choice($.container_prop_number, $.container_prop_string),
+
+    container_prop_number: () =>
+      /\d+/,
+
+    container_prop_string: () =>
+      token(choice(
+        seq('"', /[^"\n\r]*/, '"'),
+        seq('\'', /[^'\n\r]*/, '\''),
+      )),
+
+    // Slot separator: `=== name`
+    container_slot_separator: ($) =>
+      seq(
+        alias($._container_slot_separator, $.container_slot_delimiter),
+        optional(seq(
+          $._whitespace,
+          field('name', $.container_slot_name),
+        )),
+        optional($._whitespace),
+        $._line_ending,
+      ),
+
+    container_slot_name: () =>
+      /[a-zA-Z_]\w*/,
+
+    container_title: () =>
+      /[^{\s][^\n\r]*/,
   },
 });
 

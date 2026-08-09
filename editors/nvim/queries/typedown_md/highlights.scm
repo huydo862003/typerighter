@@ -22,6 +22,7 @@
 (fenced_code_block) @markup.raw.block
 (fenced_code_block_delimiter) @punctuation.delimiter
 (language) @label
+(line_range_indicator) @comment
 (code_fence_content) @markup.raw
 
 ; Math blocks
@@ -41,9 +42,16 @@
 (list_marker_star) @markup.list
 (list_marker_dot) @markup.list
 
-; Callouts
-(callout_block_delimiter) @punctuation.special
-(callout_type) @label
+; Containers
+(container_block_delimiter) @punctuation.special
+(container_type) @label
+(container_prop_block ["{" "}"] @punctuation.bracket)
+(container_prop_key) @attribute
+(container_prop_item "=" @operator)
+(container_prop_number) @number
+(container_prop_string) @string
+(container_slot_delimiter) @punctuation.special
+(container_slot_name) @label
 
 ; Tables
 (pipe_table_header) @markup.heading
@@ -57,4 +65,8 @@
 (code_fence_content) @nospell
 (math_block_content) @nospell
 (language) @nospell
-(callout_type) @nospell
+(line_range_indicator) @nospell
+(container_type) @nospell
+(container_prop_key) @nospell
+(container_slot_name) @nospell
+

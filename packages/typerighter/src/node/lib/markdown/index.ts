@@ -30,14 +30,16 @@ import {
 import {
   MarkdownItAsync,
 } from 'markdown-it-async';
-import mathPlugin from 'markdown-it-mathjax3';
+import {
+  katex,
+} from '@mdit/plugin-katex';
 import type {
   TdSiteConfig,
 } from '@typerighter/rpc-client';
 import type MarkdownIt from 'markdown-it';
 import {
-  containerPlugin,
-} from './plugins/container';
+  calloutContainerPlugin,
+} from './plugins/callout-container';
 import {
   createHighlighter,
 } from './plugins/highlight';
@@ -59,6 +61,9 @@ import {
 import {
   tablePlugin,
 } from './plugins/table';
+import {
+  componentContainerPlugin,
+} from './plugins/custom-container';
 
 export type MarkdownRenderer = MarkdownItAsync;
 
@@ -69,7 +74,6 @@ export async function createMarkdownRenderer (
   const highlight = await createHighlighter();
 
   const md = new MarkdownItAsync({
-    html: true,
     linkify: true,
     highlight,
   }) as MarkdownIt & MarkdownItAsync;
@@ -83,7 +87,8 @@ export async function createMarkdownRenderer (
 
   preWrapperPlugin(md);
   lineNumberPlugin(md);
-  containerPlugin(md);
+  calloutContainerPlugin(md);
+  componentContainerPlugin(md);
   imagePlugin(md);
   linkPlugin(md, {
     target: '_blank',
@@ -148,7 +153,12 @@ export async function createMarkdownRenderer (
       state.tokens[index + 1].children?.push(space, ...linkTokens);
     },
   });
-  mathPlugin(md);
+  katex(md, {
+    // Render a broken formula as a red error span instead of failing the build
+    throwOnError: false,
+    // MathML alongside the HTML keeps the maths readable to screen readers
+    output: 'htmlAndMathml',
+  });
 
   /* mdit-vue plugins */
 

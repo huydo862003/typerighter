@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   Sun, Moon,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   useTheme,
 } from '../../app/composables/useTheme';

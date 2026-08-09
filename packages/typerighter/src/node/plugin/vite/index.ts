@@ -1,7 +1,11 @@
+import {
+  resolve,
+} from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
-import type {
-  Plugin, ViteDevServer,
+import {
+  normalizePath,
+  type Plugin, type ViteDevServer,
 } from 'vite';
 import {
   renderToVueSfc,
@@ -247,23 +251,32 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           })
           .catch(() => {});
 
-        for (const module_ of server.moduleGraph.idToModuleMap.values()) {
-          if (module_.file?.endsWith(content)) {
-            server.moduleGraph.invalidateModule(module_);
+        tdContext.getConfig()
+          .then((config) => {
+            if (!server) return;
+
+            const absolute = normalizePath(
+              resolve(server.config.root, config.contentDir, content),
+            );
+
+            // A single file can back several modules (`?vue&type=template`, `&type=style`)
+            const modules = server.moduleGraph.getModulesByFile(absolute);
+
+            if (!modules?.size) return; // not transformed yet, nothing to invalidate
+
+            const updates = [...modules].map((module_) => {
+              server?.moduleGraph.invalidateModule(module_);
+
+              return makeHmrUpdate(module_);
+            });
+
             server.hot.send({
               type: 'update',
-              updates: [
-                {
-                  type: 'js-update' as const,
-                  path: module_.url,
-                  acceptedPath: module_.url,
-                  timestamp: Date.now(),
-                },
-              ],
+              updates,
             });
-            break;
-          }
-        }
+          })
+          .catch(() => {});
+
       });
 
       // Full re-index when files are added or removed

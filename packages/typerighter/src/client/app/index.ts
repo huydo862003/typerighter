@@ -9,6 +9,7 @@ import {
   type InjectionKey,
   type ShallowRef,
 } from 'vue';
+import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
 import {
   Content,
 } from './components/Content';
@@ -101,6 +102,11 @@ export async function createTypedownApp (
 
   app.provide(searchIndexSymbol, searchIndex);
   app.component('TypedownContent', Content);
+
+  // custom components
+  /* eslint-disable vue/multi-word-component-names */
+  app.component('Flashcard', TdFlashcard);
+  /* eslint-enable vue/multi-word-component-names */
 
   if (typeof window !== 'undefined') {
     await router.go(location.href, {

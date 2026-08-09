@@ -751,7 +751,7 @@ na|:
     let params = make_params(uri, &content, offset);
 
     let response = completion(&analysis, params);
-    let is_empty = matches!(response, None)
+    let is_empty = response.is_none()
       || matches!(response, Some(CompletionResponse::Array(ref items)) if items.is_empty());
     assert!(is_empty, "should not suggest fields when _type is absent");
   }
@@ -883,7 +883,7 @@ Some bod|y text.
     let params = make_params(uri, &content, offset);
 
     let response = completion(&analysis, params);
-    let is_empty = matches!(response, None)
+    let is_empty = response.is_none()
       || matches!(response, Some(CompletionResponse::Array(ref items)) if items.is_empty());
     assert!(is_empty, "should not suggest anything in the markdown body");
   }

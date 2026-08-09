@@ -47,7 +47,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       /* Dollar */
       '$' => self.lex_markdown_dollar(),
 
-      /* Brackets and parens */
+      /* Brackets and parens and braces */
       '[' => {
         self.advance_avoid_invalid_utf8();
         self.emit(SyntaxKind::LBracket)
@@ -63,6 +63,14 @@ impl<S: Utf8Stream> LexCtx<S> {
       ')' => {
         self.advance_avoid_invalid_utf8();
         self.emit(SyntaxKind::RParen)
+      }
+      '{' => {
+        self.advance_avoid_invalid_utf8();
+        self.emit(SyntaxKind::LBrace)
+      }
+      '}' => {
+        self.advance_avoid_invalid_utf8();
+        self.emit(SyntaxKind::RBrace)
       }
 
       /* Code spans */
@@ -294,6 +302,8 @@ impl<S: Utf8Stream> LexCtx<S> {
             && char != ']'
             && char != '('
             && char != ')'
+            && char != '{'
+            && char != '}'
             && char != '`'
             && char != '"'
             && char != '\''
@@ -337,8 +347,58 @@ impl<S: Utf8Stream> LexCtx<S> {
       fence_count += 1;
     }
 
+    // Consume language tag (alphanumeric chars, underscore, hyphen)
     while let Utf8Result::Char(c) = self.peek()
-      && (c.is_alphanumeric() || c.is_whitespace() && c != '\n')
+      && (c.is_alphanumeric() || c == '_' || c == '-')
+    {
+      self.advance_avoid_invalid_utf8();
+    }
+
+    // Consume optional line range indicator like {1,3,5-8}
+    let mut range_diagnostic: Option<Diagnostic> = None;
+    if let Utf8Result::Char('{') = self.peek() {
+      let range_start = self.stream.offset();
+      self.advance_avoid_invalid_utf8();
+      let mut closed = false;
+
+      loop {
+        match self.peek() {
+          Utf8Result::Char('}') => {
+            self.advance_avoid_invalid_utf8();
+            closed = true;
+            break;
+          }
+          Utf8Result::Char(c) if c.is_ascii_digit() || c == ',' || c == '-' || c == ' ' => {
+            self.advance_avoid_invalid_utf8();
+          }
+          Utf8Result::Char('\n') | Utf8Result::Char('\r') | Utf8Result::Eof => {
+            break;
+          }
+          _ => {
+            // Invalid character in range indicator
+            let offset = self.stream.offset();
+            range_diagnostic = Some(Diagnostic::InvalidCodeRangeIndicator {
+              start_offset: range_start,
+              end_offset: offset,
+            });
+            self.advance_avoid_invalid_utf8();
+          }
+        }
+      }
+
+      if !closed {
+        range_diagnostic = Some(Diagnostic::InvalidCodeRangeIndicator {
+          start_offset: range_start,
+          end_offset: self.stream.offset(),
+        });
+      }
+    }
+
+    // Consume trailing whitespace before newline
+    while let Utf8Result::Char(c) = self.peek()
+      && c.is_whitespace()
+      && c != '\n'
+      && c != '\r'
     {
       self.advance_avoid_invalid_utf8();
     }
@@ -364,7 +424,10 @@ impl<S: Utf8Stream> LexCtx<S> {
             } else {
               SyntaxKind::InlineCode
             };
-            return self.emit(kind);
+            return match range_diagnostic {
+              Some(diag) => self.emit_with(kind, diag),
+              None => self.emit(kind),
+            };
           }
         }
         Utf8Result::Eof => {

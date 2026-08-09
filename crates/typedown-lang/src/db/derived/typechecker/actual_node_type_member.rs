@@ -700,14 +700,14 @@ mod tests {
       let status_hir = status_hir.expect("should have status field");
       let result = actual_node_type_member(&db, status_hir);
       // Should resolve to something (not None), and not be type_type
-      if let Some(member) = result.member(&db) {
-        if let MemberType::Simple(typ) = member.typ(&db) {
-          assert_ne!(
-            typ.display_name(&db),
-            "type",
-            "fref field access should not return type_type"
-          );
-        }
+      if let Some(member) = result.member(&db)
+        && let MemberType::Simple(typ) = member.typ(&db)
+      {
+        assert_ne!(
+          typ.display_name(&db),
+          "type",
+          "fref field access should not return type_type"
+        );
       }
     }
   }

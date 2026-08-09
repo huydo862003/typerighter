@@ -28,7 +28,7 @@ Use short-lived JWT access tokens with a refresh token rotation strategy.
 
 The token payload structure:
 
-```json
+```json{2,5}
 {
   "sub": "user-id",
   "exp": 1720000000,

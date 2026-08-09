@@ -325,6 +325,37 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
+      Diagnostic::UnexpectedContainerPropItem {
+        start_offset,
+        end_offset,
+      } => {
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::UnexpectedContainerPropValue {
+        start_offset,
+        end_offset,
+      } => {
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::UnexpectedContainerSlotSeparatorToken {
+        start_offset,
+        end_offset,
+      } => {
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::UnclosedContainerPropBlock {
+        start_offset,
+        end_offset,
+      } => {
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::MissingContainerPropValueAfterEq { offset } => {
+        offset.encode(buf, encoder);
+      }
       Diagnostic::MissingFrontmatterMarker { offset } => {
         offset.encode(buf, encoder);
       }
@@ -642,6 +673,13 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
+      Diagnostic::InvalidCodeRangeIndicator {
+        start_offset,
+        end_offset,
+      } => {
+        encoder.emit_usize(buf, *start_offset);
+        encoder.emit_usize(buf, *end_offset);
+      }
     }
   }
 }
@@ -800,6 +838,42 @@ impl Decodable for Diagnostic {
           start_offset,
           end_offset,
         }
+      }
+      DiagnosticCode::UnexpectedContainerPropItem => {
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnexpectedContainerPropItem {
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnexpectedContainerPropValue => {
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnexpectedContainerPropValue {
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnexpectedContainerSlotSeparatorToken => {
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnexpectedContainerSlotSeparatorToken {
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnclosedContainerPropBlock => {
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnclosedContainerPropBlock {
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::MissingContainerPropValueAfterEq => {
+        let offset = usize::decode(data, decoder);
+        Diagnostic::MissingContainerPropValueAfterEq { offset }
       }
       DiagnosticCode::MissingFrontmatterMarker => {
         let offset = usize::decode(data, decoder);
@@ -1157,6 +1231,14 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::InvalidCodeRangeIndicator => {
+        let start_offset = decoder.read_usize(data);
+        let end_offset = decoder.read_usize(data);
+        Diagnostic::InvalidCodeRangeIndicator {
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1479,6 +1561,22 @@ impl StableHash for Diagnostic {
         start_offset,
         end_offset,
       }
+      | Diagnostic::UnexpectedContainerPropItem {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnexpectedContainerPropValue {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnexpectedContainerSlotSeparatorToken {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnclosedContainerPropBlock {
+        start_offset,
+        end_offset,
+      }
       | Diagnostic::MissingMarkdownHeadingHash {
         start_offset,
         end_offset,
@@ -1526,6 +1624,10 @@ impl StableHash for Diagnostic {
       | Diagnostic::NotIndexable {
         start_offset,
         end_offset,
+      }
+      | Diagnostic::InvalidCodeRangeIndicator {
+        start_offset,
+        end_offset,
       } => {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
@@ -1545,6 +1647,9 @@ impl StableHash for Diagnostic {
         message.stable_hash(db, hasher);
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::MissingContainerPropValueAfterEq { offset } => {
+        offset.stable_hash(db, hasher);
       }
     }
   }
@@ -1614,7 +1719,7 @@ mod tests {
     let decoder = Decoder::new(Arc::new(db.storage.clone()), Arc::new(vec![]));
     let data: &[u8] = &[0];
     let mut data = data;
-    assert_eq!(decoder.read_bool(&mut data), false);
+    assert!(!decoder.read_bool(&mut data));
   }
 
   #[test]
@@ -1625,7 +1730,7 @@ mod tests {
     let decoder = Decoder::new(Arc::new(db.storage.clone()), Arc::new(vec![]));
     let data: &[u8] = &[1];
     let mut data = data;
-    assert_eq!(decoder.read_bool(&mut data), true);
+    assert!(decoder.read_bool(&mut data));
   }
 
   proptest! {

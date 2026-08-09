@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   File, House,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import {
   useRoute,
 } from '../../app';

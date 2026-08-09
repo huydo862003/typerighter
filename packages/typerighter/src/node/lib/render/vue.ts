@@ -32,7 +32,6 @@ export async function renderToVueSfc (
   };
 
   const html = await context.md.renderAsync(resource.content, env);
-
   const isIndex = path.filestem(filepath) === INDEX_FILENAME;
   const title = env.title || (isIndex
     ? getTdIndexTitle(filepath, (await context.getConfig()).siteTitle)
@@ -45,21 +44,26 @@ export async function renderToVueSfc (
     title,
     metadata: resource.metadata,
   };
-
   const pageDataJson = JSON.stringify(JSON.stringify(pageData));
-
-  const htmlJson = JSON.stringify(html);
 
   const vueSrc = [
     '<script>',
     `export const __pageData = JSON.parse(${pageDataJson})`,
-    `export default { name: ${JSON.stringify(filepath)}, data() { return { __html: ${htmlJson} } } }`,
+    `export default { name: ${JSON.stringify(filepath)} }`,
     '</script>',
-    '<template><div v-html="__html" /></template>',
+    // Inlined rather than bound with `v-html`: the content has to pass through the Vue compiler for custom components and their slots to resolve
+    `<template><div class="typedown-content">\n${neutralizeInterpolation(html)}\n</div></template>`,
   ].join('\n');
 
   return {
     vueSrc,
     pageData,
   };
+}
+
+/**
+ * The rendered HTML becomes a Vue template, so `{{ ... }}` in authored content would be evaluated as an expression
+ */
+function neutralizeInterpolation (html: string): string {
+  return html.replaceAll('{{', '&#123;&#123;');
 }
