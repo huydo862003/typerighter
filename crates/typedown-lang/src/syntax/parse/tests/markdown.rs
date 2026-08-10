@@ -3092,3 +3092,18 @@ fn parse_arrow_inside_list_no_error() {
     heading_diags
   );
 }
+
+// Empty toggle block (no details content) should not error
+#[test]
+fn parse_empty_toggle_no_error() {
+  let (tree, diags) = parse_body_with_diags(
+    r#">- Summary
+
+Next paragraph outside toggle.
+"#,
+  );
+  assert!(tree.contains("MdToggleList"));
+  assert!(tree.contains("MdToggleListSummary"));
+  assert!(!tree.contains("MdToggleListDetails"));
+  assert!(diags.is_empty(), "empty toggle should produce no errors, got: {:?}", diags);
+}

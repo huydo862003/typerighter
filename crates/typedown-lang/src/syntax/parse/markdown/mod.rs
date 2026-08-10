@@ -1032,6 +1032,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return (self.emit(SyntaxKind::MdToggleListItem, &children), None);
     }
 
+    // Empty toggle: next line has no indentation prefix
+    let next_kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+    if next_kind == SyntaxKind::Newline && self.peek_md_newline_and_prefix().is_none() {
+      self.expr_ctx_stack.exit(ExprCtx::MdToggleListItem);
+      return (self.emit(SyntaxKind::MdToggleListItem, &children), None);
+    }
+
     // Parse details: block elements until end of toggle item
     let mut details_children = vec![];
     loop {
