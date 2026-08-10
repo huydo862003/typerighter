@@ -172,46 +172,68 @@ fn lower_expr_kind(
     return HirValueKind::Sequence(hir_items);
   }
 
-  // Handle various kinds of string literal
+  // Handle string literals (single/double quoted)
   if let Some(lit) = StrLit::cast(inner.syntax().clone()) {
-    // A string containing only a math literal lowers to Math
-    if let Some(math) = inner.syntax().children().find_map(MathLit::cast)
-      && let Some(val) = math.value()
-    {
-      return HirValueKind::Math(val);
+    let children: Vec<_> = inner.syntax().children().collect();
+    let has_text = children.iter().any(|c| {
+      matches!(c.kind(), SyntaxKind::SqStrContent | SyntaxKind::DqStrContent)
+        && !c.text().trim().is_empty()
+    });
+    let has_embedded = lit.is_interpolated()
+      || children
+        .iter()
+        .any(|c| matches!(c.kind(), SyntaxKind::MathLit | SyntaxKind::InlineCode));
+
+    // '$x$' (math only, no text) -> Math
+    if !has_text {
+      if let Some(math) = children.iter().find_map(|c| MathLit::cast(c.clone()))
+        && let Some(val) = math.value()
+      {
+        return HirValueKind::Math(val);
+      }
+      if let Some(code) = children.iter().find_map(|c| CodeLit::cast(c.clone()))
+        && let Some(val) = code.value()
+      {
+        return HirValueKind::Str(val);
+      }
     }
-    // A string containing only a code literal lowers to Str with code content
-    if let Some(code) = inner.syntax().children().find_map(CodeLit::cast)
-      && let Some(val) = code.value()
-    {
-      return HirValueKind::Str(val);
-    }
-    return if lit.is_interpolated() {
-      let hir_parts = lit
-        .fragments()
-        .map(|part| match part {
-          Either::Left(s) => InterpolatedPart::Literal(s),
-          Either::Right(frag) => {
-            let child_expr = frag
-              .expr()
-              .expect("interpolated fragment must have an expr");
-            let child = lower_node(db, project, file, child_expr.syntax().clone());
-            InterpolatedPart::Expr(child)
+
+    // 'text $x$ text' or 'text ${expr} text' -> Interpolated
+    if has_embedded {
+      let hir_parts = children
+        .into_iter()
+        .filter_map(|child| match child.kind() {
+          SyntaxKind::SqStrContent | SyntaxKind::DqStrContent => {
+            let text = child.text();
+            (!text.is_empty()).then(|| InterpolatedPart::Literal(text.to_string()))
           }
+          SyntaxKind::InterpFragment => {
+            let frag = InterpFragment::cast(child)?;
+            let child_expr = frag.expr()?;
+            Some(InterpolatedPart::Expr(lower_node(db, project, file, child_expr.syntax().clone())))
+          }
+          SyntaxKind::MathLit => {
+            let math = MathLit::cast(child.clone())?;
+            let val = math.value()?;
+            let hir = HirValue::new(db, project, file, child, HirValueKind::Math(val), vec![]);
+            Some(InterpolatedPart::Expr(hir))
+          }
+          _ => None,
         })
         .collect();
-      HirValueKind::Interpolated(hir_parts)
-    } else {
-      let text = lit
-        .fragments()
-        .filter_map(|frag| match frag {
-          Either::Left(s) => Some(s),
-          Either::Right(_) => None,
-        })
-        .collect::<Vec<_>>()
-        .join("");
-      HirValueKind::Str(text)
-    };
+      return HirValueKind::Interpolated(hir_parts);
+    }
+
+    // 'plain text' -> Str
+    let text = lit
+      .fragments()
+      .filter_map(|frag| match frag {
+        Either::Left(s) => Some(s),
+        Either::Right(_) => None,
+      })
+      .collect::<Vec<_>>()
+      .join("");
+    return HirValueKind::Str(text);
   }
 
   // Handle number lit
