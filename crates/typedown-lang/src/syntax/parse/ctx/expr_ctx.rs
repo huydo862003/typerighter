@@ -52,10 +52,6 @@ pub(in crate::syntax::parse) enum ExprCtx {
   MdUnorderedListItem,
   /// Inside a task list item (`- [ ] ...` or `- [x] ...`)
   MdTaskListItem,
-  /// Inside a toggle list (`>- ...`)
-  MdToggleList,
-  /// Inside a toggle list item
-  MdToggleListItem,
   /// Inside a table
   MdTable,
   /// Inside a table row, closed by Newline
@@ -183,17 +179,6 @@ impl ExprCtxStack {
           .md_prefix_tokens
           .push(cache.token(SyntaxKind::Whitespace, b" "));
       }
-      ExprCtx::MdToggleListItem => {
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
-      }
       ExprCtx::MdContainerBlock(parent_prefix_count) if parent_prefix_count > 0 => {
         self
           .md_prefix_tokens
@@ -280,9 +265,6 @@ impl ExprCtx {
         | (ExprCtx::MdUnorderedListItem, SyntaxKind::Eof)
         | (ExprCtx::MdTaskListItem, SyntaxKind::Newline)
         | (ExprCtx::MdTaskListItem, SyntaxKind::Eof)
-        | (ExprCtx::MdToggleList, SyntaxKind::Eof)
-        | (ExprCtx::MdToggleListItem, SyntaxKind::Newline)
-        | (ExprCtx::MdToggleListItem, SyntaxKind::Eof)
         | (ExprCtx::MdTable, SyntaxKind::Eof)
         | (ExprCtx::MdTableRow, SyntaxKind::Newline)
         | (ExprCtx::MdTableRow, SyntaxKind::Eof)

@@ -148,7 +148,7 @@ impl MdBody {
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdToggleList, MdContainerBlock,
+  MdBulletList, MdOrderedList, MdContainerBlock,
   MdLink, MdMedia,
   MdBold, MdItalic, MdBoldItalic, MdStrikethrough,
   MdText, MdHtmlEntity,
@@ -157,7 +157,7 @@ pub struct MdNode(RedNode);
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdToggleList, MdContainerBlock,
+  MdBulletList, MdOrderedList, MdContainerBlock,
 ])]
 pub struct MdBlockElement(RedNode);
 
@@ -343,56 +343,6 @@ impl MdOrderedListItem {
         .as_token()
         .and_then(|token| token.text().and_then(|text| text.parse().ok()))
     })
-  }
-}
-
-/// The Markdown toggle list
-/// >- summary 1
-///
-///    details 1
-#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct MdToggleList(RedNode);
-
-impl MdToggleList {
-  pub fn items(&self) -> impl Iterator<Item = MdToggleListItem> {
-    children::<MdToggleListItem>(&self.0)
-  }
-}
-
-/// The Markdown toggle list item
-/// >- summary
-///
-///    details
-#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct MdToggleListItem(RedNode);
-
-impl MdToggleListItem {
-  pub fn summary(&self) -> Option<MdToggleListSummary> {
-    child::<MdToggleListSummary>(&self.0)
-  }
-
-  pub fn details(&self) -> Option<MdToggleListDetails> {
-    child::<MdToggleListDetails>(&self.0)
-  }
-}
-
-/// The Markdown toggle list item summary
-#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct MdToggleListSummary(RedNode);
-
-impl MdToggleListSummary {
-  pub fn inline_elements(&self) -> impl Iterator<Item = MdInlineElement> {
-    children::<MdInlineElement>(&self.0)
-  }
-}
-
-/// The Markdown toggle list item details
-#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct MdToggleListDetails(RedNode);
-
-impl MdToggleListDetails {
-  pub fn block_elements(&self) -> impl Iterator<Item = MdBlockElement> {
-    children::<MdBlockElement>(&self.0)
   }
 }
 

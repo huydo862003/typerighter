@@ -258,25 +258,6 @@ fn parse_triple_nested_list() {
   );
 }
 
-// Toggle list nested inside ordered list nested inside bullet list
-#[test]
-fn parse_toggle_in_ordered_in_bullet() {
-  let tree = parse_body(
-    r#"- top
- 1. middle
-  >- toggle summary
-
-     toggle details
-"#,
-  );
-  assert!(
-    tree.contains("(MdBulletList")
-      && tree.contains("(MdOrderedList")
-      && tree.contains("(MdToggleList"),
-    "should have toggle > ordered > bullet nesting:\n{tree}"
-  );
-}
-
 // Parses a bullet list with star markers
 #[test]
 fn parse_bullet_list_star() {
@@ -679,100 +660,6 @@ fn parse_table_simple() {
             " "
             "|")))
       "\n")))"####
-  );
-}
-
-// Parses a toggle list
-#[test]
-fn parse_toggle_list_simple() {
-  let tree = parse_body(
-    r#">- summary
-
-   details here
-"#,
-  );
-  assert_eq!(
-    tree,
-    r####"(SourceFile
-  (YamlFrontmatter
-    ""
-    "---"
-    "\n"
-    ""
-    "---"
-    "\n")
-  (MdBody
-    (MdToggleList
-      (MdToggleListItem
-        ">"
-        "-"
-        " "
-        (MdToggleListSummary
-          (MdText
-            "summary"))
-        "\n"
-        "\n"
-        " "
-        " "
-        " "
-        "\n"
-        (MdToggleListDetails
-          (MdParagraph
-            (MdText
-              "details"
-              " "
-              "here"))))
-      "")))"####
-  );
-}
-
-// Toggle list inside a blockquote
-#[test]
-fn parse_toggle_list_in_blockquote() {
-  let tree = parse_body(
-    r#"> >- summary
->
->    details here
-"#,
-  );
-  assert_eq!(
-    tree,
-    r####"(SourceFile
-  (YamlFrontmatter
-    ""
-    "---"
-    "\n"
-    ""
-    "---"
-    "\n")
-  (MdBody
-    (MdBlockquote
-      ">"
-      " "
-      (MdToggleList
-        (MdToggleListItem
-          ">"
-          "-"
-          " "
-          (MdToggleListSummary
-            (MdText
-              "summary"))
-          "\n"
-          ">"
-          "\n"
-          ">"
-          " "
-          " "
-          " "
-          " "
-          "\n"
-          (MdToggleListDetails
-            (MdParagraph
-              (MdText
-                "details"
-                " "
-                "here"))))
-        ""))))"####
   );
 }
 
@@ -3093,17 +2980,3 @@ fn parse_arrow_inside_list_no_error() {
   );
 }
 
-// Empty toggle block (no details content) should not error
-#[test]
-fn parse_empty_toggle_no_error() {
-  let (tree, diags) = parse_body_with_diags(
-    r#">- Summary
-
-Next paragraph outside toggle.
-"#,
-  );
-  assert!(tree.contains("MdToggleList"));
-  assert!(tree.contains("MdToggleListSummary"));
-  assert!(!tree.contains("MdToggleListDetails"));
-  assert!(diags.is_empty(), "empty toggle should produce no errors, got: {:?}", diags);
-}

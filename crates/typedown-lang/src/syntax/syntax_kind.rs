@@ -31,10 +31,6 @@ pub enum SyntaxKind {
   MdCheckbox,     // `[ ]` or `[x]`
   MdOrderedList,
   MdOrderedListItem,
-  MdToggleList,
-  MdToggleListItem,
-  MdToggleListSummary,
-  MdToggleListDetails,
   MdContainerBlock,     // ::: label ... :::
   MdContainerPropBlock, // {key=value}
   MdContainerPropItem,  // key=value or key
