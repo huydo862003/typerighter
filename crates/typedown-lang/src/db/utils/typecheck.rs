@@ -238,18 +238,15 @@ pub fn value_matches_member_type(
         };
       }
       if let Some(product) = actual.as_td_product_type() {
-        return product
-          .fields(db)
-          .values()
-          .all(|field_member| {
-            if let Some(field_type) = field_member.typ(db).resolve_type(db) {
-              members
-                .iter()
-                .any(|member| value_matches_member_type(db, &member.typ(db), &field_type, value_hir))
-            } else {
-              false
-            }
-          });
+        return product.fields(db).values().all(|field_member| {
+          if let Some(field_type) = field_member.typ(db).resolve_type(db) {
+            members
+              .iter()
+              .any(|member| value_matches_member_type(db, &member.typ(db), &field_type, value_hir))
+          } else {
+            false
+          }
+        });
       }
       false
     }

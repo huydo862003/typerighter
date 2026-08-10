@@ -7,11 +7,11 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use ropey::Rope;
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::{Duration, sleep};
 use typedown_incremental::QueryStorage;
-use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schema_dir::check_schema_dir;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
@@ -35,8 +35,8 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
   TdAssetsDir, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath,
-  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdRpcSubscriptionCloseResponse,
+  TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
 enum FsEventKind {

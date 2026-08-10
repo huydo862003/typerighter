@@ -6,7 +6,9 @@ use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use typedown_lang::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
-use typedown_lang::db::types::{LiteralValue, TypeMember, TypeMemberDescriptors, member_type_display_name};
+use typedown_lang::db::types::{
+  LiteralValue, TypeMember, TypeMemberDescriptors, member_type_display_name,
+};
 use typedown_lang::db::utils::typecheck::lift_type_member_result;
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;

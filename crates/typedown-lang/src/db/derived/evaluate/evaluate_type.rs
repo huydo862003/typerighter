@@ -242,10 +242,7 @@ fn resolve_type_member(
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {
       let base = resolve_type_member(db, *expr, diagnostics)?;
-      let base_type = match base.resolve_type(db) {
-        Some(t) => t,
-        None => return None,
-      };
+      let base_type = base.resolve_type(db)?;
       if base_type.arity(db) == 0 {
         return Some(MemberType::simple(base_type));
       }
@@ -717,8 +714,7 @@ age: 42
 
   #[test]
   fn evaluate_type_fref_resolves_referenced_type() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();
 
@@ -729,7 +725,10 @@ age: 42
 
     let type_result = actual_node_type_member(&db, friend_hir);
     let member = type_result.member(&db).expect("fref should return a type");
-    let typ = member.typ(&db).resolve_type(&db).expect("expected Simple type");
+    let typ = member
+      .typ(&db)
+      .resolve_type(&db)
+      .expect("expected Simple type");
     assert_eq!(typ.display_name(&db), "Person");
   }
 

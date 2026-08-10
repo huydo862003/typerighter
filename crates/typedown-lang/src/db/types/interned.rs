@@ -170,7 +170,9 @@ impl Decodable for MemberType {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match MemberTypeTag::from_repr(tag).expect("unknown MemberType tag") {
-      MemberTypeTag::Simple => MemberType::Simple(Either::<TdTypeEnum, Symbol>::decode(data, decoder)),
+      MemberTypeTag::Simple => {
+        MemberType::Simple(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
+      }
       MemberTypeTag::Sum => MemberType::Sum(Vec::decode(data, decoder)),
       MemberTypeTag::Literal => MemberType::Literal(LiteralValue::decode(data, decoder)),
       MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),

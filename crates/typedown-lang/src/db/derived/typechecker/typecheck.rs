@@ -769,8 +769,7 @@ mod tests {
   // String field containing text with inline math lowers to Interpolated (a string subtype)
   #[test]
   fn typecheck_string_with_inline_math_no_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/math_in_string.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/math_in_string.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(

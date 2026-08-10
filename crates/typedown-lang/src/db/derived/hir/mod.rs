@@ -176,8 +176,10 @@ fn lower_expr_kind(
   if let Some(lit) = StrLit::cast(inner.syntax().clone()) {
     let children: Vec<_> = inner.syntax().children().collect();
     let has_text = children.iter().any(|c| {
-      matches!(c.kind(), SyntaxKind::SqStrContent | SyntaxKind::DqStrContent)
-        && !c.text().trim().is_empty()
+      matches!(
+        c.kind(),
+        SyntaxKind::SqStrContent | SyntaxKind::DqStrContent
+      ) && !c.text().trim().is_empty()
     });
     let has_embedded = lit.is_interpolated()
       || children
@@ -210,7 +212,12 @@ fn lower_expr_kind(
           SyntaxKind::InterpFragment => {
             let frag = InterpFragment::cast(child)?;
             let child_expr = frag.expr()?;
-            Some(InterpolatedPart::Expr(lower_node(db, project, file, child_expr.syntax().clone())))
+            Some(InterpolatedPart::Expr(lower_node(
+              db,
+              project,
+              file,
+              child_expr.syntax().clone(),
+            )))
           }
           SyntaxKind::MathLit => {
             let math = MathLit::cast(child.clone())?;

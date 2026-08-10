@@ -632,13 +632,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.advance_md(&mut children, SKIP_NONE);
 
     // Require a space after the bullet
-    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Whitespace {
+    let after_bullet = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+    if after_bullet == SyntaxKind::Whitespace {
+      self.advance_md(&mut children, SKIP_NONE);
+    } else if !matches!(after_bullet, SyntaxKind::Newline | SyntaxKind::Eof) {
       self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });
-    } else {
-      self.advance_md(&mut children, SKIP_NONE);
     }
 
     // Parse block elements until end of list item
@@ -831,13 +832,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
     );
 
     // Require a space after `.`
-    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Whitespace {
+    let after_dot = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+    if after_dot == SyntaxKind::Whitespace {
+      self.advance_md(&mut children, SKIP_NONE);
+    } else if !matches!(after_dot, SyntaxKind::Newline | SyntaxKind::Eof) {
       self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });
-    } else {
-      self.advance_md(&mut children, SKIP_NONE);
     }
 
     // Parse block elements until end of list item
@@ -980,13 +982,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.advance_md(&mut children, SKIP_NONE);
 
     // Require a space after `>-`
-    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Whitespace {
+    let after_toggle = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+    if after_toggle == SyntaxKind::Whitespace {
+      self.advance_md(&mut children, SKIP_NONE);
+    } else if !matches!(after_toggle, SyntaxKind::Newline | SyntaxKind::Eof) {
       self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });
-    } else {
-      self.advance_md(&mut children, SKIP_NONE);
     }
 
     // Parse summary: inline elements on this line

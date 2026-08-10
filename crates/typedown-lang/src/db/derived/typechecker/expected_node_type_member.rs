@@ -429,7 +429,10 @@ mod tests {
     let member = result
       .member(&db)
       .expect("'name' field should have a declared TypeMember");
-    let typ = member.typ(&db).resolve_type(&db).expect("expected Simple member type");
+    let typ = member
+      .typ(&db)
+      .resolve_type(&db)
+      .expect("expected Simple member type");
     assert_eq!(
       typ.display_name(&db),
       "string",
@@ -462,7 +465,10 @@ mod tests {
     let member = result
       .member(&db)
       .expect("schemaless file should return a type member");
-    let typ = member.typ(&db).resolve_type(&db).expect("expected Simple member type");
+    let typ = member
+      .typ(&db)
+      .resolve_type(&db)
+      .expect("expected Simple member type");
     assert_eq!(
       typ.display_name(&db),
       "{}",

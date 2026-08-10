@@ -3024,3 +3024,30 @@ fn parse_tag_brackets_are_plain_text() {
   );
   assert!(diags.is_empty());
 }
+
+// $$ math block should not trigger missing-heading-space
+#[test]
+fn parse_math_block_no_heading_error() {
+  let (_, diags) = parse_body_with_diags(
+    r#"$$
+x + y
+$$
+"#,
+  );
+  let heading_diags: Vec<_> = diags
+    .iter()
+    .filter(|d| {
+      matches!(
+        d,
+        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
+      )
+    })
+    .collect();
+  assert!(
+    heading_diags.is_empty(),
+    "$$ should not trigger missing-heading-space, got: {:?}",
+    heading_diags
+  );
+}
+
+// $$ after list with empty item should not trigger missing-heading-space

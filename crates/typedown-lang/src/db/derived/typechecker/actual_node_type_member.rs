@@ -528,7 +528,10 @@ mod tests {
     let hir = hir.expect("should parse");
     let result = actual_node_type_member(&db, hir);
     let member = result.member(&db).expect("should infer a type");
-    let typ = member.typ(&db).resolve_type(&db).expect("top-level mapping should be Simple");
+    let typ = member
+      .typ(&db)
+      .resolve_type(&db)
+      .expect("top-level mapping should be Simple");
     let product = typ.as_td_product_type().expect("should be a product type");
     let fields = product.fields(&db);
 
