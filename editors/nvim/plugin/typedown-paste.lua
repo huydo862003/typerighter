@@ -192,10 +192,6 @@ vim.api.nvim_create_autocmd("FileType", {
   callback = function(event)
     local opts = { buffer = event.buf, silent = true }
 
-    vim.keymap.set({ "n", "i" }, "<C-v>", function()
-      paste_intercept("<C-r>+")
-    end, vim.tbl_extend("force", opts, { desc = "Typedown paste asset" }))
-
     vim.keymap.set({ "n", "i" }, "<C-S-v>", function()
       paste_intercept("<C-r>+")
     end, vim.tbl_extend("force", opts, { desc = "Typedown paste asset" }))
