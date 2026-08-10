@@ -251,10 +251,8 @@ fn parse_triple_nested_list() {
                   (MdText
                     "level"
                     " "
-                    "three")))
-              "\n"))
-          ""))
-      "")))"####
+                    "three")))))))
+      "\n")))"####
   );
 }
 
@@ -489,9 +487,8 @@ fn parse_nested_task_list() {
               (MdText
                 "substep"
                 " "
-                "two")))
-          "\n"))
-      "")))"####
+                "two")))))
+      "\n")))"####
   );
 }
 
@@ -2948,7 +2945,12 @@ fn parse_arrow_not_list() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }))
+    .filter(|d| {
+      matches!(
+        d,
+        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
+      )
+    })
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -2971,7 +2973,12 @@ fn parse_arrow_inside_list_no_error() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }))
+    .filter(|d| {
+      matches!(
+        d,
+        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
+      )
+    })
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -2980,3 +2987,127 @@ fn parse_arrow_inside_list_no_error() {
   );
 }
 
+// Nested list siblings with 2-space indent
+#[test]
+fn parse_nested_siblings() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"- outer
+  - first inner
+  - second inner
+- back
+"#,
+  );
+  assert_eq!(
+    tree.matches("(MdBulletListItem\n").count(),
+    4,
+    "expected 4 items (outer, first inner, second inner, back):\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Nested ordered list siblings with 2-space indent
+#[test]
+fn parse_nested_ordered_siblings() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"1. outer
+  1. first inner
+  2. second inner
+2. back
+"#,
+  );
+  assert_eq!(
+    tree.matches("(MdOrderedListItem\n").count(),
+    4,
+    "expected 4 items (outer, first inner, second inner, back):\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Deep nesting exits correctly back to outer level
+#[test]
+fn parse_deep_nested_exits() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"- level 1
+  - level 2
+    - level 3
+- back to 1
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "level"
+            " "
+            "1"))
+        "\n"
+        " "
+        " "
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "level"
+                " "
+                "2"))
+            "\n"
+            " "
+            " "
+            " "
+            " "
+            (MdBulletList
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "level"
+                    " "
+                    "3")))))))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "back"
+            " "
+            "to"
+            " "
+            "1")))
+      "\n")))"####
+  );
+  assert!(diags.is_empty());
+}
+
+// Ambiguous dedent: second child at less indent than first is not a sibling
+#[test]
+fn parse_ambiguous_dedent_not_sibling() {
+  let (tree, _diags) = parse_body_with_diags(
+    r#"- outer
+    - first (4 spaces)
+  - second (2 spaces)
+"#,
+  );
+  // "second" should NOT be a sibling of "first" since it dedented
+  // It should be parsed as text or a separate context
+  assert!(
+    tree.matches("(MdBulletListItem\n").count() <= 3,
+    "dedented item should not create a 4th sibling:\n{tree}"
+  );
+}
