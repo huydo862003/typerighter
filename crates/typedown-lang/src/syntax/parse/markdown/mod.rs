@@ -96,6 +96,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
         self.advance_md(&mut children, SKIP_NONE);
         (self.emit(SyntaxKind::MdText, &children), None)
       }
+      _ if self.is_horizontal_rule_start(SKIP_NONE) => {
+        let mut children = vec![];
+        self.advance_md(&mut children, SKIP_NONE);
+        (self.emit(SyntaxKind::MdHorizontalRule, &children), None)
+      }
       _ if self.is_heading_start(SKIP_NONE) => self.parse_heading(),
       _ if self.is_blockquote_start(SKIP_NONE) => self.parse_blockquote(),
       _ if self.is_bullet_list_start(SKIP_NONE) => self.parse_bullet_list(indent),
@@ -2221,6 +2226,24 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
 // Block element start detection helpers
 impl<S: Utf8Stream> ParseCtx<S> {
+  // `---`, `***`, or `___` (3+ same char) followed by newline/eof
+  fn is_horizontal_rule_start(&mut self, skip: u16) -> bool {
+    let next = self.lex_ctx.peek_md(skip);
+    if next.token.kind() != SyntaxKind::MdSymbol {
+      return false;
+    }
+    let text: String = next.token.chars().collect();
+    if text.len() < 3 {
+      return false;
+    }
+    let first = text.chars().next().unwrap();
+    if !matches!(first, '-' | '*' | '_') || !text.chars().all(|c| c == first) {
+      return false;
+    }
+    let after = self.lex_ctx.peek_md_nth(1, skip).token.kind();
+    matches!(after, SyntaxKind::Newline | SyntaxKind::Eof)
+  }
+
   // WARNING: Prefix must be consumed already
   fn is_heading_start(&mut self, skip: u16) -> bool {
     let next = self.lex_ctx.peek_md(skip);

@@ -3111,3 +3111,91 @@ fn parse_ambiguous_dedent_not_sibling() {
     "dedented item should not create a 4th sibling:\n{tree}"
   );
 }
+
+// Backslash escapes prevent markdown interpretation
+#[test]
+fn parse_backslash_escape_italic() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\*not italic\*
+"#,
+  );
+  assert!(
+    !tree.contains("MdItalic"),
+    "escaped * should not create italic:\n{tree}"
+  );
+  assert!(
+    tree.contains("*"),
+    "escaped * should appear as literal:\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Backslash escapes work for brackets
+#[test]
+fn parse_backslash_escape_bracket() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\[not a link\]
+"#,
+  );
+  assert!(
+    !tree.contains("MdLink"),
+    "escaped [ should not create link:\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Backslash escapes work for hash
+#[test]
+fn parse_backslash_escape_hash() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\# not a heading
+"#,
+  );
+  assert!(
+    !tree.contains("MdHeading"),
+    "escaped # should not create heading:\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Backslash before non-escapable char is kept as literal
+#[test]
+fn parse_backslash_non_escapable() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\a plain text
+"#,
+  );
+  assert!(tree.contains("\\"), "backslash should be literal:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Horizontal rules
+#[test]
+fn parse_horizontal_rule_dashes() {
+  let (tree, diags) = parse_body_with_diags("---\n");
+  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+#[test]
+fn parse_horizontal_rule_stars() {
+  let (tree, diags) = parse_body_with_diags("***\n");
+  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+#[test]
+fn parse_horizontal_rule_underscores() {
+  let (tree, diags) = parse_body_with_diags("___\n");
+  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+#[test]
+fn parse_not_horizontal_rule_with_text() {
+  let (tree, _) = parse_body_with_diags("--- some text\n");
+  assert!(
+    !tree.contains("MdHorizontalRule"),
+    "should not be hr:\n{tree}"
+  );
+}

@@ -18,6 +18,7 @@ pub enum SyntaxKind {
   // Body (Markdown mode) nodes
   MdBody = 200,
   MdHeading,
+  MdHorizontalRule,
   MdParagraph,
   MdBlockquote,
   MdTable,
