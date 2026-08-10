@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type {
   RpcClient,
-  TdBuiltResource, TdDiagnosticReport, TdSiteConfig, TdSchemaInfo,
+  TdBuiltResource, TdDiagnosticReport, TdFormatResult, TdSiteConfig, TdSchemaInfo,
 } from '@typerighter/rpc-client';
 import {
   createMarkdownRenderer, type MarkdownRenderer,
@@ -177,6 +177,10 @@ export class TypedownContext {
 
   async checkVault (): Promise<TdDiagnosticReport> {
     return this.rpc.checkVault();
+  }
+
+  async formatFile (filepath: string): Promise<TdFormatResult> {
+    return this.rpc.formatFile(filepath);
   }
 
   get md (): MarkdownRenderer {

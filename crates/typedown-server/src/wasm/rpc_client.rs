@@ -9,7 +9,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::rpc::contract::{
-  TdBuildRpcClient, TdBuiltResource, TdDiagnosticReport, TdFilePath, TdSchemaInfo, TdSiteConfig,
+  TdBuildRpcClient, TdBuiltResource, TdDiagnosticReport, TdFilePath, TdFormatResult, TdSchemaInfo,
+  TdSiteConfig,
 };
 
 #[wasm_bindgen]
@@ -133,6 +134,13 @@ impl RpcClient {
   #[wasm_bindgen(js_name = "checkVault")]
   pub async fn check_vault(&self) -> Result<TdDiagnosticReport, JsValue> {
     <WasmClient as TdBuildRpcClient<(), ()>>::check_vault(&*self.inner)
+      .await
+      .map_err(rpc_err)
+  }
+
+  #[wasm_bindgen(js_name = "formatFile")]
+  pub async fn format_file(&self, path: String) -> Result<TdFormatResult, JsValue> {
+    <WasmClient as TdBuildRpcClient<(), ()>>::format_file(&*self.inner, TdFilePath(path))
       .await
       .map_err(rpc_err)
   }

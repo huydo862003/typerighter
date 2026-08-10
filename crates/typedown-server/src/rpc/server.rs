@@ -21,9 +21,10 @@ use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{AssetsDirMode, File, SymbolKind};
+use typedown_lang::db::types::{AssetsDirMode, File, Project, SymbolKind};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
+use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
@@ -35,8 +36,8 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
   TdAssetsDir, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdRpcSubscriptionCloseResponse,
-  TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult,
+  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -51,10 +52,7 @@ struct FsEvent {
 }
 
 // Build a TdSiteConfig from the current project state
-fn build_site_config(
-  db: &TypedownDatabase,
-  project: typedown_lang::db::types::Project,
-) -> TdSiteConfig {
+fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   let config = get_vault_config(db, project);
   let root = project.root_dir(db);
   let content_dir = config.content_dir(db);
@@ -470,12 +468,51 @@ impl RpcServer {
       warning_count,
     })
   }
+
+  async fn format_file_impl(&self, file_path: &TdFilePath) -> RpcResult<TdFormatResult> {
+    let analysis = self.host.read().await.snapshot();
+    let db = &analysis.db;
+    let project = analysis.project;
+
+    let config = get_vault_config(db, project);
+    let content_dir = config.content_dir(db);
+    let path = content_dir.join(&file_path.0);
+
+    let file = *project.files(db).get(&path).ok_or_else(|| {
+      ErrorObjectOwned::owned(
+        INVALID_PARAMS_CODE,
+        format!("File not found: {}", file_path.0),
+        None::<()>,
+      )
+    })?;
+
+    let root = parse_file(db, project, file).ast(db);
+    let source_file = SourceFile::cast(root.clone()).ok_or_else(|| {
+      ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Failed to parse file", None::<()>)
+    })?;
+
+    let original = root.text();
+    let formatted = match source_file.body() {
+      Some(body) => {
+        let frontmatter = original[..body.syntax().offset()].to_string();
+        let body_formatted = format_markdown(&body);
+        frontmatter + &body_formatted
+      }
+      None => original.to_string(),
+    };
+
+    let changed = formatted != original;
+    Ok(TdFormatResult {
+      content: formatted,
+      changed,
+    })
+  }
 }
 
 /// Collect all diagnostics for a single content file
 fn collect_file_diagnostics(
   db: &TypedownDatabase,
-  project: typedown_lang::db::types::Project,
+  project: Project,
   file: File,
   filepath: &str,
   rope: &Rope,
@@ -609,6 +646,10 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
 
   async fn check_vault(&self) -> RpcResult<TdDiagnosticReport> {
     self.check_vault_impl().await
+  }
+
+  async fn format_file(&self, file_path: TdFilePath) -> RpcResult<TdFormatResult> {
+    self.format_file_impl(&file_path).await
   }
 
   async fn subscribe_content_changed(

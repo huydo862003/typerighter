@@ -57,6 +57,9 @@ pub trait TdBuildRpc<Hash, StorageKey> {
   #[method(name = "check_vault")]
   async fn check_vault(&self) -> RpcResult<TdDiagnosticReport>;
 
+  #[method(name = "format_file")]
+  async fn format_file(&self, file_path: TdFilePath) -> RpcResult<TdFormatResult>;
+
   /* Content subscriptions */
 
   #[subscription(name = "subscribe_content_changed", item = TdContentNotification)]
@@ -173,6 +176,20 @@ pub struct TdSchemaInfo {
   pub schema: String,
   #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub properties: serde_json::Value,
+}
+
+/* Formatting */
+
+/// Result of formatting a single file
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
+pub struct TdFormatResult {
+  /// Full formatted file content (frontmatter + body)
+  pub content: String,
+  /// Whether the content changed
+  pub changed: bool,
 }
 
 /* Diagnostics */

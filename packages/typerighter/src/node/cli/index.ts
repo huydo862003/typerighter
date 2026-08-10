@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import cac from 'cac';
 import pc from 'picocolors';
@@ -106,28 +107,54 @@ export function cli () {
 
   program
     .command('check [root]', 'Check vault for errors')
-    .action(async (root: string | undefined) => {
+    .option('--fix', 'Auto-fix formatting issues')
+    .action(async (root: string | undefined, options: {
+      fix?: boolean;
+    }) => {
       const context = createAppContext(resolveRoot(root));
+      const { logger } = context;
 
       try {
-        process.stdout.write(`${TAG} Checking vault...\r`);
+        logger.start('Checking vault...');
         const tdContext = await context.getTdContext();
         const report = await tdContext.checkVault();
-        process.stdout.write('\x1B[2K'); // clear the line
 
         for (const d of report.diagnostics) {
-          const prefix = d.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+          if (d.severity === 'error') {
+            logger.error(`${d.filepath}:${d.line}:${d.column} ${d.message} (${d.code})`);
+          } else {
+            logger.warn(`${d.filepath}:${d.line}:${d.column} ${d.message} (${d.code})`);
+          }
+        }
 
-          console.log(`  ${prefix} ${d.filepath}:${d.line}:${d.column} ${d.message} ${pc.dim(`(${d.code})`)}`);
+        if (options.fix && report.warningCount > 0) {
+          const config = await tdContext.getConfig();
+          const files = await tdContext.listFiles();
+          let fixedCount = 0;
+
+          for (const filepath of files) {
+            const result = await tdContext.formatFile(filepath);
+
+            if (result.changed) {
+              const fullPath = path.resolve(config.contentDir, filepath);
+
+              fs.writeFileSync(fullPath, result.content);
+              fixedCount++;
+            }
+          }
+
+          if (fixedCount > 0) {
+            logger.success(`Fixed ${fixedCount} file(s)`);
+          }
         }
 
         const summary = `${report.fileCount} files checked, ${report.errorCount} error(s), ${report.warningCount} warning(s)`;
 
         if (report.errorCount > 0) {
-          console.log(`\n${TAG} ${pc.red(summary)}`);
+          logger.error(summary);
           process.exit(1);
         } else {
-          console.log(`\n${TAG} ${pc.green(summary)}`);
+          logger.success(summary);
         }
       } finally {
         context.dispose();
