@@ -581,6 +581,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
       if text != bullet {
         break;
       }
+      // Require whitespace or newline after the bullet to distinguish from e.g. `->` arrows
+      let after = self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind();
+      if !matches!(after, SyntaxKind::Whitespace | SyntaxKind::Newline | SyntaxKind::Eof) {
+        break;
+      }
 
       let (item, early_exit) = self.parse_next_bullet_item(&bullet);
       children.push(item);

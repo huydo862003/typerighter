@@ -3051,3 +3051,44 @@ $$
 }
 
 // $$ after list with empty item should not trigger missing-heading-space
+
+// `->` at line start should be treated as text, not a list bullet
+#[test]
+fn parse_arrow_not_list() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"-> **Trapped error** vs **untrapped error**.
+"#,
+  );
+  let heading_diags: Vec<_> = diags
+    .iter()
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }))
+    .collect();
+  assert!(
+    heading_diags.is_empty(),
+    "-> should not trigger missing-heading-space, got: {:?}",
+    heading_diags
+  );
+  assert!(
+    !tree.contains("MdListItem"),
+    "-> should not be parsed as a list item"
+  );
+}
+
+// `->` inside a list context
+#[test]
+fn parse_arrow_inside_list_no_error() {
+  let (_, diags) = parse_body_with_diags(
+    r#"- List item.
+-> **Trapped error** vs **untrapped error**.
+"#,
+  );
+  let heading_diags: Vec<_> = diags
+    .iter()
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }))
+    .collect();
+  assert!(
+    heading_diags.is_empty(),
+    "-> after list should not trigger missing-heading-space, got: {:?}",
+    heading_diags
+  );
+}
