@@ -1629,6 +1629,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return (self.emit(SyntaxKind::MdLink, &children), handler);
     }
 
+    // No `(` after `]` means this is just `[text]`, not a link
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::LParen {
+      return (self.emit(SyntaxKind::MdText, &children), None);
+    }
+
     // Consume `(`
     let ok = self.consume_md(
       &mut children,

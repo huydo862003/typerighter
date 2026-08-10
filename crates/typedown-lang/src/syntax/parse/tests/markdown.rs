@@ -2946,3 +2946,81 @@ fn recover_mismatched_inline_formatting() {
     ]
   );
 }
+
+// Square brackets without `(url)` are plain text, not links
+#[test]
+fn parse_brackets_without_url_are_plain_text() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[Cardelli, 1996] is a reference.
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "["
+        (MdText
+          "Cardelli,"
+          " "
+          "1996")
+        "]")
+      (MdText
+        " "
+        "is"
+        " "
+        "a"
+        " "
+        "reference"
+        "."))
+    "\n"))"####
+  );
+  assert!(diags.is_empty());
+}
+
+// Tag-style brackets like [Rocq] are plain text
+#[test]
+fn parse_tag_brackets_are_plain_text() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[Rocq] A command in Rocq.
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "["
+        (MdText
+          "Rocq")
+        "]")
+      (MdText
+        " "
+        "A"
+        " "
+        "command"
+        " "
+        "in"
+        " "
+        "Rocq"
+        "."))
+    "\n"))"####
+  );
+  assert!(diags.is_empty());
+}
