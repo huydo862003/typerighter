@@ -1,3 +1,28 @@
+## [0.5.0] - 2026-08-11
+
+* crates/typedown-lang
+  - Fix infinite loop when a container block is nested inside a list item
+  - Fix nested list multi-indentation
+  - Fix bullet/ordered/toggle list markers not followed by spaces being treated as lists
+  - Fix empty list item diagnostics and list space diagnostics
+  - Fix HIR lowering for inline math in strings
+  - Fix `[...]` now parsed as text instead of a link attempt
+  - Support horizontal rules and backslash escape
+  - Drop toggle list syntax
+  - Require Debug on incremental ingredient trait and all implementors
+  - Add readable query names in debug builds
+* crates/typedown-server
+  - Fix ref-cell panic in WASM RPC client
+  - Improve check command with vault error reporting
+  - Exclude non-relevant files from directory scan
+  - Offload RPC work off the main thread
+  - Load cache on RPC startup for faster responses
+  - Improve name resolver performance with a fast path
+* packages/typerighter
+  - Fix CLI error reporting and improve check command output
+* editors/nvim
+  - Remove conflicting C-v keymap
+
 ## [0.4.4] - 2026-08-09
 
 * crates/typedown-types
