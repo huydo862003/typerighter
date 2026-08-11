@@ -590,3 +590,120 @@ tags:
       "\n")))"####
   );
 }
+
+// Braces in prose are parsed as text tokens
+#[test]
+fn parse_braces_in_prose() {
+  let input = "hello {world}\n";
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdParagraph
+      (MdText
+        "hello"
+        " "
+        "{"
+        "world"
+        "}"))
+    "\n"))"####
+  );
+}
+
+// Braces inside a container block are parsed as text
+#[test]
+fn parse_braces_in_container() {
+  let input = r#"::: tip
+braces {} here
+:::
+"#;
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "tip"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "braces"
+            " "
+            "{"
+            "}"
+            " "
+            "here")))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+// Braces inside inline code are part of the code token
+#[test]
+fn parse_inline_code_with_braces() {
+  let input = r#"text `{}` more
+"#;
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdParagraph
+      (MdText
+        "text"
+        " ")
+      (InlineCode
+        "`{}`")
+      (MdText
+        " "
+        "more"))
+    "\n"))"####
+  );
+}
+
+// Backslash-escaped braces are parsed as text
+#[test]
+fn parse_backslash_brace() {
+  let input = r#"hello \{world\}
+"#;
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdParagraph
+      (MdText
+        "hello"
+        " "
+        "\\{"
+        "world"
+        "\\}"))
+    "\n"))"####
+  );
+}
+
+// Container block nested inside a bullet list item
+#[test]
+fn parse_container_nested_in_bullet_list() {
+  let input = r#"- item
+  ::: info
+  content here
+  :::
+"#;
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(tree.contains("MdContainerBlock"), "should have container: {tree}");
+}
