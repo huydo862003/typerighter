@@ -5,17 +5,17 @@ use std::{fs, io};
 use typedown_lang::db::types::{AssetKind, FileHandle, FileMetadata};
 use typedown_lang::db::utils::is_content_file;
 
-pub fn disk_handle(path: &PathBuf) -> Option<FileHandle> {
+pub fn disk_handle(path: &Path) -> Option<FileHandle> {
   let meta = fs::metadata(path).ok()?;
   let mtime = meta.modified().ok()?;
   let ctime = meta.created().unwrap_or(mtime);
   Some(FileHandle::Path(
-    path.clone(),
+    path.to_path_buf(),
     FileMetadata { mtime, ctime },
   ))
 }
 
-pub fn scan_project_files(root: &PathBuf) -> io::Result<HashSet<PathBuf>> {
+pub fn scan_project_files(root: &Path) -> io::Result<HashSet<PathBuf>> {
   let mut files = HashSet::new();
   let (content_dir, schema_dir) = vault_dirs(root);
 
