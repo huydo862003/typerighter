@@ -972,7 +972,7 @@ date: 2024-01-01
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
     let content_root = root.join("content");
-    let schema_root = root.join("schema");
+    let schema_root = root.join("schemas");
 
     let test_path = content_root.join("file.td");
     let uri = path_to_uri(&test_path, "file");

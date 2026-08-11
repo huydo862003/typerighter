@@ -53,6 +53,7 @@ impl RpcClient {
   pub async fn connect(addr: String, port: u16) -> Result<RpcClient, JsValue> {
     let url = format!("ws://{addr}:{port}");
     let inner = WasmClientBuilder::default()
+      .request_timeout(std::time::Duration::from_secs(120))
       .build(&url)
       .await
       .map_err(rpc_err)?;

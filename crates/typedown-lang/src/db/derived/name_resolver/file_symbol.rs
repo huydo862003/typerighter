@@ -15,13 +15,8 @@ pub struct MaybeSymbol {
 pub fn file_symbol(db: &TypedownDatabase, project: Project, file: File) -> MaybeSymbol {
   let config = get_vault_config(db, project);
   let schema_dir = config.schema_dir(db);
-  let proj_files = project.files(db);
-
-  let is_schema_file = proj_files
-    .iter()
-    .any(|(path, proj_file)| *proj_file == file && path.starts_with(&schema_dir));
-
   let path = file.handle(db).path().cloned().unwrap_or_default();
+  let is_schema_file = path.starts_with(&schema_dir);
 
   let name = path
     .file_stem()
