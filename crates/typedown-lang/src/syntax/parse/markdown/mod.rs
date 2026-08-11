@@ -1070,7 +1070,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         self.advance_md(&mut children, SKIP_WS);
       }
 
-      let next = self.lex_ctx.peek_md_nth(self.expr_ctx_stack.md_prefix_tokens().len(), SKIP_NONE);
+      let next = self
+        .lex_ctx
+        .peek_md_nth(self.expr_ctx_stack.md_prefix_tokens().len(), SKIP_NONE);
       if next.token.kind() == SyntaxKind::MdSymbol
         && matches!(next.token.chars().collect::<String>().as_str(), "===")
       {

@@ -63,8 +63,9 @@ impl<T: StableHash + Send + Sync + 'static> InternedIngredient<T> {
   }
 }
 
-impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static> Ingredient
-  for InternedIngredient<T>
+impl<
+  T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+> Ingredient for InternedIngredient<T>
 {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {

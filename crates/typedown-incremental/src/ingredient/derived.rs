@@ -67,9 +67,13 @@ impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredient<DB, K, V> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let name = {
       #[cfg(debug_assertions)]
-      { self.readable_name }
+      {
+        self.readable_name
+      }
       #[cfg(not(debug_assertions))]
-      { "DerivedQueryIngredient" }
+      {
+        "DerivedQueryIngredient"
+      }
     };
     f.debug_struct(name).finish_non_exhaustive()
   }
@@ -78,7 +82,16 @@ impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredient<DB, K, V> {
 impl<
   DB: QueryDatabase + Send + Sync + 'static,
   K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash + std::fmt::Debug + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
+  V: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + DerivedId
+    + Clone
+    + PartialEq
+    + Send
+    + Sync
+    + 'static,
 > DerivedQueryIngredient<DB, K, V>
 {
   /// Deserialize all sibling DerivedField nodes for a value struct.
@@ -449,7 +462,16 @@ impl<
 impl<
   DB: QueryDatabase + Send + Sync + 'static,
   K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash + std::fmt::Debug + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
+  V: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + DerivedId
+    + Clone
+    + PartialEq
+    + Send
+    + Sync
+    + 'static,
 > Ingredient for DerivedQueryIngredient<DB, K, V>
 {
   #[cfg(debug_assertions)]
