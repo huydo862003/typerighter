@@ -100,9 +100,29 @@ struct FsEventBus {
 
 impl RpcServer {
   pub fn new(root_dir: PathBuf) -> anyhow::Result<Self> {
-    let db = TypedownDatabase {
-      storage: QueryStorage::default(),
+    let cache_dir = root_dir.join(".typedown/.local/cache");
+    let (_session, serialized) =
+      typedown_incremental::CacheSession::open(&cache_dir).unwrap_or_else(|_| {
+        (typedown_incremental::CacheSession::empty(), None)
+      });
+
+    let storage = match serialized {
+      Some(data) => {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+          let arc = QueryStorage::from_serialized(data);
+          std::sync::Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone())
+        })) {
+          Ok(storage) => storage,
+          Err(_) => {
+            let _ = std::fs::remove_dir_all(&cache_dir);
+            QueryStorage::default()
+          }
+        }
+      }
+      None => QueryStorage::default(),
     };
+
+    let db = TypedownDatabase { storage };
     let host = AnalysisHost::new(db, root_dir.clone())?;
 
     let (content_changed_tx, _) = broadcast::channel(64);
