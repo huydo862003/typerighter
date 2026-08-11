@@ -3,11 +3,37 @@ use std::collections::HashMap;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
-use crate::db::types::{MembersResult, Scope, ScopeKind};
+use crate::db::types::{MembersResult, Project, Scope, ScopeKind};
 use crate::db::utils::is_content_file;
 use typedown_incremental::QueryDatabase;
+
+/// Schema-only members (fast path for _type resolution)
+#[query_derived]
+pub fn schema_members(db: &TypedownDatabase, project: Project) -> MembersResult {
+  let config = get_vault_config(db, project);
+  let schema_dir = config.schema_dir(db);
+  let proj_files = project.files(db);
+
+  let mut members = HashMap::new();
+  for (path, file) in &proj_files {
+    if !path.starts_with(&schema_dir) || !is_content_file(path) {
+      continue;
+    }
+    if let Some(sym) = file_symbol(db, project, *file).value(db) {
+      let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+      members.insert(name, sym);
+    }
+  }
+
+  MembersResult::new(db, members)
+}
 
 #[query_derived]
 pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
