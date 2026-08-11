@@ -58,6 +58,11 @@ impl<T: StableHash + Send + Sync + 'static> InternedIngredient<T> {
 impl<T: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static> Ingredient
   for InternedIngredient<T>
 {
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.name.to_string()
+  }
+
   fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }

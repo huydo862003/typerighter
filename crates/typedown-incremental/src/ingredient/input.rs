@@ -53,6 +53,11 @@ impl<T> InputFieldIngredient<T> {
 impl<T: StableHash + Send + Sync + Encodable + Decodable + 'static> Ingredient
   for InputFieldIngredient<T>
 {
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.name.to_string()
+  }
+
   fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }

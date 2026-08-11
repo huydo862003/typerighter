@@ -59,6 +59,8 @@ pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   pub data: Arc<DashMap<usize, QueryState<K, V>>>, // arg_id -> state
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicUsize>,
+  #[cfg(debug_assertions)]
+  readable_name: &'static str,
 }
 
 impl<
@@ -96,8 +98,8 @@ impl<
 
   pub fn new(
     ingredient_index: usize,
-    name_fingerprint: &str,
-    value_fingerprint: &str,
+    name_fingerprint: &'static str,
+    value_fingerprint: &'static str,
     value_id_counter: &'static AtomicUsize,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
@@ -112,6 +114,8 @@ impl<
       data: Arc::new(DashMap::new()),
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicUsize::new(0)),
+      #[cfg(debug_assertions)]
+      readable_name: name_fingerprint,
     }
   }
 
@@ -436,6 +440,11 @@ impl<
   V: StableHash + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
 > Ingredient for DerivedQueryIngredient<DB, K, V>
 {
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.readable_name.to_string()
+  }
+
   fn name_fingerprint(&self) -> Fingerprint {
     self.name_fingerprint
   }
@@ -658,6 +667,11 @@ impl<T> DerivedFieldIngredient<T> {
 impl<T: StableHash + Encodable + Decodable + Send + Sync + 'static> Ingredient
   for DerivedFieldIngredient<T>
 {
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.name.to_string()
+  }
+
   fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }
