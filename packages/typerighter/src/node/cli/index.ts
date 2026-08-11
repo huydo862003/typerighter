@@ -112,22 +112,24 @@ export function cli () {
       fix?: boolean;
     }) => {
       const context = createAppContext(resolveRoot(root));
-      const { logger } = context;
+      const {
+        logger,
+      } = context;
 
       try {
         logger.start('Checking vault...');
         const tdContext = await context.getTdContext();
         const report = await tdContext.checkVault();
 
-        for (const d of report.diagnostics) {
-          if (d.severity === 'error') {
-            logger.error(`${d.filepath}:${d.line}:${d.column} ${d.message} (${d.code})`);
+        for (const diag of report.diagnostics) {
+          if (diag.severity === 'error') {
+            logger.error(`${diag.filepath}:${diag.line}:${diag.column} ${diag.message} (${diag.code})`);
           } else {
-            logger.warn(`${d.filepath}:${d.line}:${d.column} ${d.message} (${d.code})`);
+            logger.warn(`${diag.filepath}:${diag.line}:${diag.column} ${diag.message} (${diag.code})`);
           }
         }
 
-        if (options.fix && report.warningCount > 0) {
+        if (options.fix && 0 < report.warningCount) {
           const config = await tdContext.getConfig();
           const files = await tdContext.listFiles();
           let fixedCount = 0;
@@ -143,14 +145,14 @@ export function cli () {
             }
           }
 
-          if (fixedCount > 0) {
+          if (0 < fixedCount) {
             logger.success(`Fixed ${fixedCount} file(s)`);
           }
         }
 
         const summary = `${report.fileCount} files checked, ${report.errorCount} error(s), ${report.warningCount} warning(s)`;
 
-        if (report.errorCount > 0) {
+        if (0 < report.errorCount) {
           logger.error(summary);
           process.exit(1);
         } else {

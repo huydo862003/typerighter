@@ -27,21 +27,15 @@ pub struct RpcClient {
 }
 
 impl RpcClient {
-  fn abort_all_subscriptions(&mut self) {
-    self.content_changed.get_mut().abort();
-    self.content_created.get_mut().abort();
-    self.content_deleted.get_mut().abort();
-    self.schema_changed.get_mut().abort();
-    self.schema_created.get_mut().abort();
-    self.schema_deleted.get_mut().abort();
-    self.config_changed.get_mut().abort();
-    self.disconnect.get_mut().abort();
-  }
-}
-
-impl Drop for RpcClient {
-  fn drop(&mut self) {
-    self.abort_all_subscriptions();
+  fn abort_all_subscriptions(&self) {
+    self.content_changed.borrow_mut().abort();
+    self.content_created.borrow_mut().abort();
+    self.content_deleted.borrow_mut().abort();
+    self.schema_changed.borrow_mut().abort();
+    self.schema_created.borrow_mut().abort();
+    self.schema_deleted.borrow_mut().abort();
+    self.config_changed.borrow_mut().abort();
+    self.disconnect.borrow_mut().abort();
   }
 }
 
@@ -75,7 +69,7 @@ impl RpcClient {
     })
   }
 
-  pub fn close(&mut self) {
+  pub fn close(&self) {
     self.abort_all_subscriptions();
   }
 
