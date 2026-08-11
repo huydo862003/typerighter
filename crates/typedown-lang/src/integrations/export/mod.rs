@@ -20,7 +20,7 @@ use crate::db::types::{
 };
 use crate::db::utils::strip_content_extension;
 
-use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdToggleList, SourceFile};
+use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -141,7 +141,13 @@ pub fn export_property_descriptors(
   // Map a MemberType to a property descriptor with a widget hint
   fn member_to_descriptor(db: &TypedownDatabase, member: &MemberType) -> serde_json::Value {
     match member {
-      MemberType::Simple(typ) => simple_type_to_descriptor(db, typ),
+      MemberType::Simple(_) => {
+        if let Some(typ) = member.resolve_type(db) {
+          simple_type_to_descriptor(db, &typ)
+        } else {
+          serde_json::json!({ "type": "string" })
+        }
+      }
 
       // Sum of string literals is a select (single value from options)
       MemberType::Sum(members) => {
@@ -259,52 +265,7 @@ fn emit_md_block(
   node: &RedNode,
   out: &mut String,
 ) {
-  match node.kind() {
-    SyntaxKind::MdToggleList => emit_md_toggle_list(db, project, file, node, out),
-    _ => emit_md_node(db, project, file, node, out),
-  }
-}
-
-/// Emit a toggle list as HTML <details><summary>...</summary>...</details>
-fn emit_md_toggle_list(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-  node: &RedNode,
-  out: &mut String,
-) {
-  let Some(list) = MdToggleList::cast(node.clone()) else {
-    return;
-  };
-
-  for item in list.items() {
-    out.push_str("<details>\n");
-
-    if let Some(summary) = item.summary() {
-      out.push_str("<summary>");
-      emit_md_node(db, project, file, summary.syntax(), out);
-      out.push_str("</summary>\n");
-    }
-
-    if let Some(details) = item.details() {
-      for block in details.block_elements() {
-        let mut block_html = String::new();
-        emit_md_block(db, project, file, block.syntax(), &mut block_html);
-        let trimmed = block_html.trim_end_matches('\n');
-        let is_block_element = trimmed.starts_with('<');
-        if is_block_element {
-          out.push_str(trimmed);
-        } else {
-          out.push_str("<div>");
-          out.push_str(trimmed);
-          out.push_str("</div>");
-        }
-        out.push('\n');
-      }
-    }
-
-    out.push_str("</details>\n");
-  }
+  emit_md_node(db, project, file, node, out);
 }
 
 /// Emit a node, translating fref interpolations to markdown links
@@ -682,23 +643,6 @@ mod tests {
         );
       }
     }
-  }
-
-  #[test]
-  fn exports_toggle_list_as_details() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/all_md_elements.td");
-    let exported = export_resource(&db, project, file).expect("should export");
-    let content = &exported.content;
-    // Toggle list should produce a self-contained HTML block with no blank lines
-    let expected = r#"<details>
-<summary>Toggle summary</summary>
-<div>Toggle details content</div>
-</details>
-"#;
-    assert!(
-      content.contains(expected),
-      "toggle list should emit:\n{expected}\ngot:\n{content}"
-    );
   }
 
   #[test]

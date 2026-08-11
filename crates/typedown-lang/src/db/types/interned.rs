@@ -7,7 +7,11 @@ use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
-use super::TdTypeEnum;
+use typedown_types::either::Either;
+
+use super::{Symbol, TdTypeEnum};
+use crate::db::TypedownDatabase;
+use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 
 #[query_interned]
 pub struct FuncSignature {
@@ -16,7 +20,7 @@ pub struct FuncSignature {
 }
 
 bitflags::bitflags! {
-  #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   pub struct TypeMemberDescriptors: u8 {
     const OPTIONAL = 0b0000_0001;
   }
@@ -29,10 +33,10 @@ impl StableHash for TypeMemberDescriptors {
 }
 
 /// The type of a type member field
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MemberType {
-  /// A reference to a named type (e.g. `string`, `list[number]`)
-  Simple(TdTypeEnum),
+  /// A reference to a type: either an evaluated type or a lazy schema symbol
+  Simple(Either<TdTypeEnum, Symbol>),
   /// A union or enum type: each arm is itself a `TypeMember` (a type ref)
   Sum(Vec<TypeMember>),
   /// A literal value constraint (e.g. `"foo"`, `42`, `true`)
@@ -43,6 +47,24 @@ pub enum MemberType {
   DictOfSum(Vec<TypeMember>),
   /// The bottom type: no value can be assigned to this field
   Never,
+}
+
+impl MemberType {
+  pub fn simple(typ: TdTypeEnum) -> Self {
+    MemberType::Simple(Either::Left(typ))
+  }
+
+  pub fn schema_ref(symbol: Symbol) -> Self {
+    MemberType::Simple(Either::Right(symbol))
+  }
+
+  pub fn resolve_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    match self {
+      MemberType::Simple(Either::Left(typ)) => Some(typ.clone()),
+      MemberType::Simple(Either::Right(symbol)) => evaluate_type(db, *symbol).typ(db),
+      _ => None,
+    }
+  }
 }
 
 /// A concrete literal value used in literal constraints
@@ -148,7 +170,9 @@ impl Decodable for MemberType {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match MemberTypeTag::from_repr(tag).expect("unknown MemberType tag") {
-      MemberTypeTag::Simple => MemberType::Simple(TdTypeEnum::decode(data, decoder)),
+      MemberTypeTag::Simple => {
+        MemberType::Simple(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
+      }
       MemberTypeTag::Sum => MemberType::Sum(Vec::decode(data, decoder)),
       MemberTypeTag::Literal => MemberType::Literal(LiteralValue::decode(data, decoder)),
       MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),

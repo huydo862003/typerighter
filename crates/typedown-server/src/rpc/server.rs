@@ -7,16 +7,27 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use ropey::Rope;
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::{Duration, sleep};
 use typedown_incremental::QueryStorage;
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::check_schema_dir::check_schema_dir;
+use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
+use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
+use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
-use typedown_lang::db::types::{AssetsDirMode, SymbolKind};
+use typedown_lang::db::derived::parse_file::parse_file;
+use typedown_lang::db::derived::typechecker::typecheck::typecheck;
+use typedown_lang::db::types::{AssetsDirMode, File, Project, SymbolKind};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
+use typedown_lang::integrations::format::format_markdown;
+use typedown_lang::integrations::lint::lint_markdown;
+use typedown_lang::syntax::ast::{AstNode, SourceFile};
+use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
 
 use typedown_types::path::normalize_path;
 
@@ -25,8 +36,8 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
   TdAssetsDir, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdFileMetadata, TdFilePath, TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification,
-  TdSiteConfig,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult,
+  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -41,10 +52,7 @@ struct FsEvent {
 }
 
 // Build a TdSiteConfig from the current project state
-fn build_site_config(
-  db: &TypedownDatabase,
-  project: typedown_lang::db::types::Project,
-) -> TdSiteConfig {
+fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   let config = get_vault_config(db, project);
   let root = project.root_dir(db);
   let content_dir = config.content_dir(db);
@@ -92,9 +100,27 @@ struct FsEventBus {
 
 impl RpcServer {
   pub fn new(root_dir: PathBuf) -> anyhow::Result<Self> {
-    let db = TypedownDatabase {
-      storage: QueryStorage::default(),
+    let cache_dir = root_dir.join(".typedown/.local/cache");
+    let (_session, serialized) = typedown_incremental::CacheSession::open(&cache_dir)
+      .unwrap_or_else(|_| (typedown_incremental::CacheSession::empty(), None));
+
+    let storage = match serialized {
+      Some(data) => {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+          let arc = QueryStorage::from_serialized(data);
+          std::sync::Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone())
+        })) {
+          Ok(storage) => storage,
+          Err(_) => {
+            let _ = std::fs::remove_dir_all(&cache_dir);
+            QueryStorage::default()
+          }
+        }
+      }
+      None => QueryStorage::default(),
     };
+
+    let db = TypedownDatabase { storage };
     let host = AnalysisHost::new(db, root_dir.clone())?;
 
     let (content_changed_tx, _) = broadcast::channel(64);
@@ -402,6 +428,188 @@ impl RpcServer {
       properties,
     })
   }
+
+  async fn check_vault_impl(&self) -> RpcResult<TdDiagnosticReport> {
+    let analysis = self.host.read().await.snapshot();
+    tokio::task::block_in_place(|| {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let config = get_vault_config(db, project);
+      let content_dir = config.content_dir(db);
+      let files = project.files(db);
+
+      let mut all_diagnostics = Vec::new();
+      let mut file_count: u32 = 0;
+
+      for (path, &file) in &files {
+        if !path.starts_with(&content_dir) || !is_content_file(path) {
+          continue;
+        }
+        file_count += 1;
+
+        let rel_path = normalize_path(path.strip_prefix(&content_dir).unwrap_or(path));
+        let rope = match analysis.file_rope(path) {
+          Some(r) => r,
+          None => continue,
+        };
+
+        let items = collect_file_diagnostics(db, project, file, &rel_path, &rope);
+        all_diagnostics.extend(items);
+      }
+
+      // Check for nested schema files
+      let schema_check = check_schema_dir(db, project);
+      for diag in schema_check.diagnostics(db) {
+        all_diagnostics.push(TdDiagnosticItem {
+          filepath: String::new(),
+          line: 0,
+          column: 0,
+          severity: "error".to_string(),
+          code: diag.code().as_str().to_string(),
+          message: diag.message(),
+        });
+      }
+
+      let error_count = all_diagnostics
+        .iter()
+        .filter(|d| d.severity == "error")
+        .count() as u32;
+      let warning_count = all_diagnostics
+        .iter()
+        .filter(|d| d.severity == "warning")
+        .count() as u32;
+
+      Ok(TdDiagnosticReport {
+        diagnostics: all_diagnostics,
+        file_count,
+        error_count,
+        warning_count,
+      })
+    }) // block_in_place
+  }
+
+  async fn format_file_impl(&self, file_path: &TdFilePath) -> RpcResult<TdFormatResult> {
+    let analysis = self.host.read().await.snapshot();
+    let fp = file_path.0.clone();
+    tokio::task::block_in_place(|| {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let config = get_vault_config(db, project);
+      let content_dir = config.content_dir(db);
+      let path = content_dir.join(&fp);
+
+      let file = *project.files(db).get(&path).ok_or_else(|| {
+        ErrorObjectOwned::owned(
+          INVALID_PARAMS_CODE,
+          format!("File not found: {}", fp),
+          None::<()>,
+        )
+      })?;
+
+      let root = parse_file(db, project, file).ast(db);
+      let source_file = SourceFile::cast(root.clone()).ok_or_else(|| {
+        ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Failed to parse file", None::<()>)
+      })?;
+
+      let original = root.text();
+      let formatted = match source_file.body() {
+        Some(body) => {
+          let frontmatter = original[..body.syntax().offset()].to_string();
+          let body_formatted = format_markdown(&body);
+          frontmatter + &body_formatted
+        }
+        None => original.to_string(),
+      };
+
+      let changed = formatted != original;
+      Ok(TdFormatResult {
+        content: formatted,
+        changed,
+      })
+    }) // block_in_place
+  }
+}
+
+/// Collect all diagnostics for a single content file
+fn collect_file_diagnostics(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  filepath: &str,
+  rope: &Rope,
+) -> Vec<TdDiagnosticItem> {
+  let mut items = Vec::new();
+
+  // Parse errors
+  let parse_result = parse_file(db, project, file);
+  let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
+
+  // Typecheck errors
+  let root = parse_result.ast(db);
+  let hir = lower_node(db, project, file, root);
+  let typecheck_result = typecheck(db, hir);
+  td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
+
+  // Evaluation errors
+  if let Some(sym) = file_symbol(db, project, file).value(db) {
+    if sym.kind(db).is_schema() {
+      let eval_result = evaluate_type(db, sym);
+      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+    } else {
+      let eval_result = evaluate_resource(db, sym);
+      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+    }
+  }
+
+  // Deduplicate diagnostics by (code, line, column)
+  let mut seen = std::collections::HashSet::new();
+  for diag in &td_diags {
+    let (line, column) = if let Some((start, _)) = diag.offsets() {
+      let start = start.min(rope.len_chars());
+      let l = rope.char_to_line(start);
+      let c = start - rope.line_to_char(l);
+      (l as u32 + 1, c as u32 + 1)
+    } else {
+      (1, 1)
+    };
+
+    let code = diag.code().as_str().to_string();
+    let key = (code.clone(), line, column);
+    if !seen.insert(key) {
+      continue;
+    }
+
+    items.push(TdDiagnosticItem {
+      filepath: filepath.to_string(),
+      line,
+      column,
+      severity: "error".to_string(),
+      code,
+      message: diag.message(),
+    });
+  }
+
+  // Lint warnings
+  if let Some(body) = SourceFile::cast(parse_result.ast(db)).and_then(|sf| sf.body()) {
+    for lint in lint_markdown(&body) {
+      let start = lint.start_offset.min(rope.len_chars());
+      let l = rope.char_to_line(start);
+      let c = start - rope.line_to_char(l);
+
+      items.push(TdDiagnosticItem {
+        filepath: filepath.to_string(),
+        line: l as u32 + 1,
+        column: c as u32 + 1,
+        severity: "warning".to_string(),
+        code: lint.code.as_str().to_string(),
+        message: lint.message,
+      });
+    }
+  }
+
+  items
 }
 
 /// Accept a subscription and forward broadcast messages to the client
@@ -457,6 +665,14 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
 
   async fn get_config(&self) -> RpcResult<TdSiteConfig> {
     self.get_config_impl().await
+  }
+
+  async fn check_vault(&self) -> RpcResult<TdDiagnosticReport> {
+    self.check_vault_impl().await
+  }
+
+  async fn format_file(&self, file_path: TdFilePath) -> RpcResult<TdFormatResult> {
+    self.format_file_impl(&file_path).await
   }
 
   async fn subscribe_content_changed(

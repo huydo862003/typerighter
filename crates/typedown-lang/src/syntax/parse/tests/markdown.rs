@@ -251,29 +251,8 @@ fn parse_triple_nested_list() {
                   (MdText
                     "level"
                     " "
-                    "three")))
-              "\n"))
-          ""))
-      "")))"####
-  );
-}
-
-// Toggle list nested inside ordered list nested inside bullet list
-#[test]
-fn parse_toggle_in_ordered_in_bullet() {
-  let tree = parse_body(
-    r#"- top
- 1. middle
-  >- toggle summary
-
-     toggle details
-"#,
-  );
-  assert!(
-    tree.contains("(MdBulletList")
-      && tree.contains("(MdOrderedList")
-      && tree.contains("(MdToggleList"),
-    "should have toggle > ordered > bullet nesting:\n{tree}"
+                    "three")))))))
+      "\n")))"####
   );
 }
 
@@ -508,9 +487,8 @@ fn parse_nested_task_list() {
               (MdText
                 "substep"
                 " "
-                "two")))
-          "\n"))
-      "")))"####
+                "two")))))
+      "\n")))"####
   );
 }
 
@@ -679,100 +657,6 @@ fn parse_table_simple() {
             " "
             "|")))
       "\n")))"####
-  );
-}
-
-// Parses a toggle list
-#[test]
-fn parse_toggle_list_simple() {
-  let tree = parse_body(
-    r#">- summary
-
-   details here
-"#,
-  );
-  assert_eq!(
-    tree,
-    r####"(SourceFile
-  (YamlFrontmatter
-    ""
-    "---"
-    "\n"
-    ""
-    "---"
-    "\n")
-  (MdBody
-    (MdToggleList
-      (MdToggleListItem
-        ">"
-        "-"
-        " "
-        (MdToggleListSummary
-          (MdText
-            "summary"))
-        "\n"
-        "\n"
-        " "
-        " "
-        " "
-        "\n"
-        (MdToggleListDetails
-          (MdParagraph
-            (MdText
-              "details"
-              " "
-              "here"))))
-      "")))"####
-  );
-}
-
-// Toggle list inside a blockquote
-#[test]
-fn parse_toggle_list_in_blockquote() {
-  let tree = parse_body(
-    r#"> >- summary
->
->    details here
-"#,
-  );
-  assert_eq!(
-    tree,
-    r####"(SourceFile
-  (YamlFrontmatter
-    ""
-    "---"
-    "\n"
-    ""
-    "---"
-    "\n")
-  (MdBody
-    (MdBlockquote
-      ">"
-      " "
-      (MdToggleList
-        (MdToggleListItem
-          ">"
-          "-"
-          " "
-          (MdToggleListSummary
-            (MdText
-              "summary"))
-          "\n"
-          ">"
-          "\n"
-          ">"
-          " "
-          " "
-          " "
-          " "
-          "\n"
-          (MdToggleListDetails
-            (MdParagraph
-              (MdText
-                "details"
-                " "
-                "here"))))
-        ""))))"####
   );
 }
 
@@ -2944,5 +2828,374 @@ fn recover_mismatched_inline_formatting() {
         end_offset: 28
       },
     ]
+  );
+}
+
+// Square brackets without `(url)` are plain text, not links
+#[test]
+fn parse_brackets_without_url_are_plain_text() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[Cardelli, 1996] is a reference.
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "["
+        (MdText
+          "Cardelli,"
+          " "
+          "1996")
+        "]")
+      (MdText
+        " "
+        "is"
+        " "
+        "a"
+        " "
+        "reference"
+        "."))
+    "\n"))"####
+  );
+  assert!(diags.is_empty());
+}
+
+// Tag-style brackets like [Rocq] are plain text
+#[test]
+fn parse_tag_brackets_are_plain_text() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[Rocq] A command in Rocq.
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "["
+        (MdText
+          "Rocq")
+        "]")
+      (MdText
+        " "
+        "A"
+        " "
+        "command"
+        " "
+        "in"
+        " "
+        "Rocq"
+        "."))
+    "\n"))"####
+  );
+  assert!(diags.is_empty());
+}
+
+// $$ math block should not trigger missing-heading-space
+#[test]
+fn parse_math_block_no_heading_error() {
+  let (_, diags) = parse_body_with_diags(
+    r#"$$
+x + y
+$$
+"#,
+  );
+  let heading_diags: Vec<_> = diags
+    .iter()
+    .filter(|d| {
+      matches!(
+        d,
+        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
+      )
+    })
+    .collect();
+  assert!(
+    heading_diags.is_empty(),
+    "$$ should not trigger missing-heading-space, got: {:?}",
+    heading_diags
+  );
+}
+
+// $$ after list with empty item should not trigger missing-heading-space
+
+// `->` at line start should be treated as text, not a list bullet
+#[test]
+fn parse_arrow_not_list() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"-> **Trapped error** vs **untrapped error**.
+"#,
+  );
+  let heading_diags: Vec<_> = diags
+    .iter()
+    .filter(|d| {
+      matches!(
+        d,
+        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
+      )
+    })
+    .collect();
+  assert!(
+    heading_diags.is_empty(),
+    "-> should not trigger missing-heading-space, got: {:?}",
+    heading_diags
+  );
+  assert!(
+    !tree.contains("MdListItem"),
+    "-> should not be parsed as a list item"
+  );
+}
+
+// `->` inside a list context
+#[test]
+fn parse_arrow_inside_list_no_error() {
+  let (_, diags) = parse_body_with_diags(
+    r#"- List item.
+-> **Trapped error** vs **untrapped error**.
+"#,
+  );
+  let heading_diags: Vec<_> = diags
+    .iter()
+    .filter(|d| {
+      matches!(
+        d,
+        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
+      )
+    })
+    .collect();
+  assert!(
+    heading_diags.is_empty(),
+    "-> after list should not trigger missing-heading-space, got: {:?}",
+    heading_diags
+  );
+}
+
+// Nested list siblings with 2-space indent
+#[test]
+fn parse_nested_siblings() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"- outer
+  - first inner
+  - second inner
+- back
+"#,
+  );
+  assert_eq!(
+    tree.matches("(MdBulletListItem\n").count(),
+    4,
+    "expected 4 items (outer, first inner, second inner, back):\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Nested ordered list siblings with 2-space indent
+#[test]
+fn parse_nested_ordered_siblings() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"1. outer
+  1. first inner
+  2. second inner
+2. back
+"#,
+  );
+  assert_eq!(
+    tree.matches("(MdOrderedListItem\n").count(),
+    4,
+    "expected 4 items (outer, first inner, second inner, back):\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Deep nesting exits correctly back to outer level
+#[test]
+fn parse_deep_nested_exits() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"- level 1
+  - level 2
+    - level 3
+- back to 1
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "level"
+            " "
+            "1"))
+        "\n"
+        " "
+        " "
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "level"
+                " "
+                "2"))
+            "\n"
+            " "
+            " "
+            " "
+            " "
+            (MdBulletList
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "level"
+                    " "
+                    "3")))))))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "back"
+            " "
+            "to"
+            " "
+            "1")))
+      "\n")))"####
+  );
+  assert!(diags.is_empty());
+}
+
+// Ambiguous dedent: second child at less indent than first is not a sibling
+#[test]
+fn parse_ambiguous_dedent_not_sibling() {
+  let (tree, _diags) = parse_body_with_diags(
+    r#"- outer
+    - first (4 spaces)
+  - second (2 spaces)
+"#,
+  );
+  // "second" should NOT be a sibling of "first" since it dedented
+  // It should be parsed as text or a separate context
+  assert!(
+    tree.matches("(MdBulletListItem\n").count() <= 3,
+    "dedented item should not create a 4th sibling:\n{tree}"
+  );
+}
+
+// Backslash escapes prevent markdown interpretation
+#[test]
+fn parse_backslash_escape_italic() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\*not italic\*
+"#,
+  );
+  assert!(
+    !tree.contains("MdItalic"),
+    "escaped * should not create italic:\n{tree}"
+  );
+  assert!(
+    tree.contains("*"),
+    "escaped * should appear as literal:\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Backslash escapes work for brackets
+#[test]
+fn parse_backslash_escape_bracket() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\[not a link\]
+"#,
+  );
+  assert!(
+    !tree.contains("MdLink"),
+    "escaped [ should not create link:\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Backslash escapes work for hash
+#[test]
+fn parse_backslash_escape_hash() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\# not a heading
+"#,
+  );
+  assert!(
+    !tree.contains("MdHeading"),
+    "escaped # should not create heading:\n{tree}"
+  );
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Backslash before non-escapable char is kept as literal
+#[test]
+fn parse_backslash_non_escapable() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"\a plain text
+"#,
+  );
+  assert!(tree.contains("\\"), "backslash should be literal:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+// Horizontal rules
+#[test]
+fn parse_horizontal_rule_dashes() {
+  let (tree, diags) = parse_body_with_diags("---\n");
+  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+#[test]
+fn parse_horizontal_rule_stars() {
+  let (tree, diags) = parse_body_with_diags("***\n");
+  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+#[test]
+fn parse_horizontal_rule_underscores() {
+  let (tree, diags) = parse_body_with_diags("___\n");
+  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  assert!(diags.is_empty(), "got: {diags:?}");
+}
+
+#[test]
+fn parse_not_horizontal_rule_with_text() {
+  let (tree, _) = parse_body_with_diags("--- some text\n");
+  assert!(
+    !tree.contains("MdHorizontalRule"),
+    "should not be hr:\n{tree}"
   );
 }

@@ -46,25 +46,25 @@ impl TdTypeLike for TdSchemaPropertyType {
       // type: string
       TypeMember::new(
         db,
-        MemberType::Simple(get_type_type(db).into()),
+        MemberType::simple(get_type_type(db).into()),
         TypeMemberDescriptors::empty(),
       ),
       // type: 'literal'
       TypeMember::new(
         db,
-        MemberType::Simple(get_str_type(db).into()),
+        MemberType::simple(get_str_type(db).into()),
         TypeMemberDescriptors::empty(),
       ),
       // type: false
       TypeMember::new(
         db,
-        MemberType::Simple(get_bool_type(db).into()),
+        MemberType::simple(get_bool_type(db).into()),
         TypeMemberDescriptors::empty(),
       ),
       // type: 0
       TypeMember::new(
         db,
-        MemberType::Simple(get_num_type(db).into()),
+        MemberType::simple(get_num_type(db).into()),
         TypeMemberDescriptors::empty(),
       ),
     ];
@@ -83,7 +83,7 @@ impl TdTypeLike for TdSchemaPropertyType {
                     base_type_members.clone(),
                     vec![TypeMember::new(
                       db,
-                      MemberType::Simple((*self).into()),
+                      MemberType::simple((*self).into()),
                       TypeMemberDescriptors::empty(),
                     )],
                   ]
@@ -99,7 +99,7 @@ impl TdTypeLike for TdSchemaPropertyType {
                     base_type_members.clone(),
                     vec![TypeMember::new(
                       db,
-                      MemberType::Simple((*self).into()),
+                      MemberType::simple((*self).into()),
                       TypeMemberDescriptors::empty(),
                     )],
                   ]
@@ -115,7 +115,7 @@ impl TdTypeLike for TdSchemaPropertyType {
       )),
       "optional" => Some(TypeMember::new(
         db,
-        MemberType::Simple(get_bool_type(db).into()),
+        MemberType::simple(get_bool_type(db).into()),
         TypeMemberDescriptors::OPTIONAL,
       )),
       _ => None,

@@ -62,6 +62,7 @@ export function createAppContext (root: string): AppContext {
   let disposed = false;
 
   function onSignal () {
+    logger.log('');
     dispose();
     process.exit(0);
   }

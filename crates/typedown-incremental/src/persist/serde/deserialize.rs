@@ -52,7 +52,7 @@ impl DeserializeContext {
     let mut ingredient_by_name: HashMap<Fingerprint, Vec<usize>> = HashMap::new();
     for (idx, entry) in storage.ingredients.iter().enumerate() {
       ingredient_by_name
-        .entry(entry.ingredient.name())
+        .entry(entry.ingredient.name_fingerprint())
         .or_default()
         .push(idx);
     }

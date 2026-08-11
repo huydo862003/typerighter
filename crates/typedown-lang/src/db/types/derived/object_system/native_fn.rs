@@ -92,7 +92,7 @@ fn math_to_string(
   _args: Vec<TdObjectEnum>,
 ) -> Option<TdObjectEnum> {
   let obj = this.as_td_math_obj()?;
-  Some(TdStrObj::new(db, obj.value(db)).into())
+  Some(TdStrObj::new(db, format!("${}$", obj.value(db))).into())
 }
 
 fn object_to_string(

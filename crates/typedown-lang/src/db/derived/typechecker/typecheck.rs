@@ -12,7 +12,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
 use crate::db::types::{
-  HirValue, HirValueKind, InterpolatedPart, MemberType, TdTypeEnum, TdTypeLike, TypeMember,
+  HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, TdTypeLike, TypeMember,
   TypeMemberDescriptors, TypecheckResult, member_type_display_name,
 };
 use crate::db::utils::typecheck::{lift_type_member_result, member_types_compatible};
@@ -25,7 +25,7 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
 
   // Use expected type from schema if available, otherwise fall back to inferred type
   let declared_type = if let Some(member) = expected_node_type_member(db, hir).member(db)
-    && let MemberType::Simple(typ) = member.typ(db)
+    && let Some(typ) = member.typ(db).resolve_type(db)
   {
     typ
   } else {
@@ -762,6 +762,47 @@ mod tests {
     assert!(
       result.diagnostics(&db).is_empty(),
       "date/time/datetime fields should accept quoted string values: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // String field containing text with inline math lowers to Interpolated (a string subtype)
+  #[test]
+  fn typecheck_string_with_inline_math_no_errors() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/math_in_string.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "string with inline math should have no type errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // String field containing multiple inline math expressions still accepted as string
+  #[test]
+  fn typecheck_string_with_multiple_inline_math_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/math_mixed_string.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "string with multiple inline math should have no type errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // String containing only a math literal still lowers to Math type
+  #[test]
+  fn typecheck_math_only_string_as_math_field() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/math_only_string.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "math-only string in math field should have no type errors: {:?}",
       result.diagnostics(&db)
     );
   }

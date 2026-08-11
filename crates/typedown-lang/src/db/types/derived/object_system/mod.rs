@@ -44,7 +44,7 @@ use typedown_incremental::Id;
 
 /// Use this instead of dyn
 /// The primitive types are fixed anyways
-#[derive(Clone, From, Delegate, EnumAsInner)]
+#[derive(Debug, Clone, From, Delegate, EnumAsInner)]
 #[delegate(TdObjectLike)]
 #[delegate(TdTypeLike)]
 pub enum TdTypeEnum {
@@ -68,7 +68,7 @@ pub enum TdTypeEnum {
 
 /// Use this instead of dyn
 /// The primitive object kinds are fixed anyways
-#[derive(Clone, From, Delegate, EnumAsInner)]
+#[derive(Debug, Clone, From, Delegate, EnumAsInner)]
 #[delegate(TdObjectLike)]
 pub enum TdObjectEnum {
   // Types are objects

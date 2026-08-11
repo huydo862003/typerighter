@@ -104,7 +104,10 @@ impl TdTypeLike for TdProductType {
 
 pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> String {
   match member {
-    MemberType::Simple(typ) => typ.display_name(db),
+    MemberType::Simple(either) => match either {
+      Either::Left(typ) => typ.display_name(db),
+      Either::Right(symbol) => symbol.name(db),
+    },
     MemberType::Sum(members) => members
       .iter()
       .map(|m| member_type_display_name(db, &m.typ(db)))

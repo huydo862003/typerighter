@@ -478,6 +478,39 @@ mod tests {
     assert!(str_obj.value(&db).contains("Hello world"));
   }
 
+  // String field with inline math evaluates to a concatenated string
+  #[test]
+  fn evaluate_string_with_inline_math() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/str_with_inline_math.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let name = obj
+      .get_owned_field(&db, "name")
+      .expect("should have name field");
+    let str_obj = name.as_td_str_obj().expect("expected TdStrObj");
+    assert_eq!(str_obj.value(&db), "The judgment $\\vdash$ holds");
+  }
+
+  // String field with multiple inline math expressions evaluates to a concatenated string
+  #[test]
+  fn evaluate_string_with_multiple_inline_math() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/str_with_multiple_math.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let name = obj
+      .get_owned_field(&db, "name")
+      .expect("should have name field");
+    let str_obj = name.as_td_str_obj().expect("expected TdStrObj");
+    let val = str_obj.value(&db);
+    assert!(
+      val.contains("$\\Gamma \\vdash J$") && val.contains("$\\Gamma \\vdash K$"),
+      "expected math content wrapped in $ delimiters, got: {}",
+      val
+    );
+  }
+
   // An asset symbol evaluates to a TdBlobObj with the correct format field
   #[test]
   fn evaluate_asset_produces_blob() {
