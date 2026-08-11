@@ -705,5 +705,197 @@ fn parse_container_nested_in_bullet_list() {
 "#;
   let (ast, _) = parse(input);
   let tree = render_tree(&ast);
-  assert!(tree.contains("MdContainerBlock"), "should have container: {tree}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        " "
+        " "
+        (MdContainerBlock
+          ":::"
+          " "
+          "info"
+          "\n"
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                " "
+                " "
+                "content"
+                " "
+                "here")))
+          "\n"
+          " "
+          " "
+          ":::"))
+      "\n")))"#
+  );
+}
+
+// Container block nested inside an ordered list item
+// 2-space indent: 1 for list prefix, 1 consumed by consume_md_indent
+#[test]
+fn parse_container_nested_in_ordered_list() {
+  let input = r#"1. item
+  ::: info
+  content here
+  :::
+"#;
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdOrderedList
+      (MdOrderedListItem
+        "1"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        " "
+        " "
+        (MdContainerBlock
+          ":::"
+          " "
+          "info"
+          "\n"
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                " "
+                " "
+                "content"
+                " "
+                "here")))
+          "\n"
+          " "
+          " "
+          ":::"))
+      "\n")))"#
+  );
+}
+
+// Container block nested inside a blockquote
+// Known limitation: the closing ::: is re-parsed as a new container inside the blockquote
+// because the blockquote prefix [>, " "] plus the container's extra " " require ">  :::"
+// but the natural blockquote syntax uses "> :::" (one space)
+#[test]
+fn parse_container_nested_in_blockquote() {
+  let input = "> ::: info\n>  content here\n> :::\n";
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdContainerBlock
+        ":::"
+        " "
+        "info"
+        "\n"
+        (MdContainerSlot
+          (MdBlockquote
+            ">"
+            " "
+            (MdParagraph
+              (MdText
+                " "
+                "content"
+                " "
+                "here"))))
+        "\n"
+        (MdContainerSlot
+          (MdBlockquote
+            ">"
+            " "
+            (MdContainerBlock
+              ":::"
+              "\n"
+              (Error
+                ""))))
+        (Error
+          "")))))"#
+  );
+}
+
+// Container with slots nested inside a bullet list item
+#[test]
+fn parse_container_with_slots_nested_in_bullet_list() {
+  let input = r#"- item
+  ::: card
+  front content
+  === back
+  back content
+  :::
+"#;
+  let (ast, _) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        " "
+        " "
+        (MdContainerBlock
+          ":::"
+          " "
+          "card"
+          "\n"
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                " "
+                " "
+                "front"
+                " "
+                "content")))
+          "\n"
+          " "
+          " "
+          (MdContainerSlotSeparator
+            "==="
+            " "
+            "back"
+            "\n")
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                " "
+                " "
+                "back"
+                " "
+                "content")))
+          "\n"
+          " "
+          " "
+          ":::"))
+      "\n")))"#
+  );
 }

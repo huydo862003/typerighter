@@ -1024,14 +1024,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
 
       // Check for closing `:::` at the same indentation level as the opening
-      // The closing `:::` should appear right after the parent prefix
+      // The closing `:::` should appear right after the full current prefix
       let check_pos = if next_kind == SyntaxKind::Newline {
         match self.peek_md_newline_and_prefix() {
           Some(pos) => pos,
           None => break,
         }
       } else {
-        parent_prefix_count
+        self.expr_ctx_stack.md_prefix_tokens().len()
       };
 
       let after = self.lex_ctx.peek_md_nth(check_pos, SKIP_NONE);
@@ -1070,7 +1070,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         self.advance_md(&mut children, SKIP_WS);
       }
 
-      let next = self.lex_ctx.peek_md_nth(parent_prefix_count, SKIP_NONE);
+      let next = self.lex_ctx.peek_md_nth(self.expr_ctx_stack.md_prefix_tokens().len(), SKIP_NONE);
       if next.token.kind() == SyntaxKind::MdSymbol
         && matches!(next.token.chars().collect::<String>().as_str(), "===")
       {
@@ -1364,7 +1364,6 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn parse_container_slot(&mut self) -> (GreenNode, Option<ExprCtx>) {
     let mut children = vec![];
 
-    let parent_prefix_count = self.expr_ctx_stack.md_prefix_tokens().len();
     self.expr_ctx_stack.enter(ExprCtx::MdContainerSlot);
 
     // Parse block elements until closing `:::`, `===` or EOF
@@ -1376,14 +1375,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
 
       // Check for closing `:::`, `===` at the same indentation level as the opening
-      // The closing `:::`, `===` should appear right after the parent prefix
+      // The closing `:::`, `===` should appear right after the full current prefix
       let check_pos = if next_kind == SyntaxKind::Newline {
         match self.peek_md_newline_and_prefix() {
           Some(pos) => pos,
           None => break,
         }
       } else {
-        parent_prefix_count
+        self.expr_ctx_stack.md_prefix_tokens().len()
       };
 
       let after = self.lex_ctx.peek_md_nth(check_pos, SKIP_NONE);
