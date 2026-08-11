@@ -8,7 +8,6 @@ use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::{MaybeSymbol, file_symbol};
 use crate::db::derived::name_resolver::members::{members, schema_members};
 use crate::db::derived::name_resolver::scope::{parent_scope, scope};
-use crate::db::types::ScopeKind;
 use crate::db::types::{HirValue, HirValueKind};
 use typedown_incremental::QueryDatabase;
 

@@ -14,7 +14,7 @@ use crate::persist::serialized::dep_graph::DepNodeIndex;
 use crate::{DepId, DeserializeContext, Fingerprint, QueryDatabase, SerializeContext};
 
 pub trait Ingredient: Any + Send + Sync {
-  fn name(&self) -> Fingerprint;
+  fn name_fingerprint(&self) -> Fingerprint;
 
   fn green_check(&self, db: &dyn QueryDatabase, arg_id: usize, last_changed_at: usize) -> bool;
 

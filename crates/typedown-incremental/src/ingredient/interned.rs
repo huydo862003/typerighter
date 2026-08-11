@@ -58,7 +58,7 @@ impl<T: StableHash + Send + Sync + 'static> InternedIngredient<T> {
 impl<T: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static> Ingredient
   for InternedIngredient<T>
 {
-  fn name(&self) -> Fingerprint {
+  fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }
 
@@ -116,7 +116,7 @@ impl<T: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + '
     ctx.dep_graph.set(
       node_index,
       UnresolvedDepNode::Interned {
-        name: self.name(),
+        name: self.name_fingerprint(),
         blob_index,
       },
     );

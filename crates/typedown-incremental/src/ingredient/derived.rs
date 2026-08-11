@@ -49,8 +49,8 @@ pub enum QueryState<K, V: DerivedId> {
 #[doc(hidden)]
 pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   ingredient_index: usize,
-  stable_name: Fingerprint,
-  value_name: Fingerprint, // name of the return type struct (e.g. "FibResult")
+  name_fingerprint: Fingerprint,
+  value_fingerprint: Fingerprint, // name of the return type struct (e.g. "FibResult")
   next_arg_id: Arc<AtomicUsize>,
   value_id_counter: &'static AtomicUsize,
   query_fn: fn(&DB, K) -> V,
@@ -69,7 +69,7 @@ impl<
 {
   /// Deserialize all sibling DerivedField nodes for a value struct.
   fn deserialize_field_group(&self, ctx: &DeserializeContext, serialized_entry_id: u64) {
-    let group_key = (self.value_name, serialized_entry_id);
+    let group_key = (self.value_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
       for &(_, field_node_index) in &field_group.fields {
         ctx.decoder.get_or_deserialize_dep_node_id(field_node_index);
@@ -96,15 +96,15 @@ impl<
 
   pub fn new(
     ingredient_index: usize,
-    stable_name: &str,
-    value_name: &str,
+    name_fingerprint: &str,
+    value_fingerprint: &str,
     value_id_counter: &'static AtomicUsize,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
       ingredient_index,
-      stable_name: Fingerprint::from_name(stable_name),
-      value_name: Fingerprint::from_name(value_name),
+      name_fingerprint: Fingerprint::from_name(name_fingerprint),
+      value_fingerprint: Fingerprint::from_name(value_fingerprint),
       next_arg_id: Arc::new(AtomicUsize::new(0)),
       value_id_counter,
       query_fn,
@@ -163,7 +163,7 @@ impl<
     arg.stable_hash(db, &mut hasher);
     let key_fp = Fingerprint::from_hasher(hasher);
 
-    let (node_index, node) = ctx.find_derived_query(self.stable_name, key_fp)?;
+    let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fp)?;
 
     let DepNode::DerivedQuery {
       value_entry_id: serialized_value_entry_id,
@@ -214,7 +214,7 @@ impl<
     self.deserialize_field_group(ctx, *serialized_value_entry_id);
     let value_entry_id = *ctx
       .entry_id_map
-      .entry((self.value_name, *serialized_value_entry_id))
+      .entry((self.value_fingerprint, *serialized_value_entry_id))
       .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
 
     // Decode key
@@ -436,8 +436,8 @@ impl<
   V: StableHash + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
 > Ingredient for DerivedQueryIngredient<DB, K, V>
 {
-  fn name(&self) -> Fingerprint {
-    self.stable_name
+  fn name_fingerprint(&self) -> Fingerprint {
+    self.name_fingerprint
   }
 
   /// Check the red-green algo here: https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html#improving-accuracy-the-red-green-algorithm
@@ -537,7 +537,7 @@ impl<
     // Get the session-local entry_id allocated by field deserialization
     let value_entry_id = *ctx
       .entry_id_map
-      .entry((self.value_name, *serialized_value_entry_id))
+      .entry((self.value_fingerprint, *serialized_value_entry_id))
       .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
 
     // Decode key
@@ -586,7 +586,7 @@ impl<
     ctx.dep_graph.set(
       node_index,
       UnresolvedDepNode::DerivedQuery {
-        name: self.stable_name,
+        name: self.name_fingerprint,
         key: self
           .key_fingerprint(ctx.db(), entry_id)
           .expect("Computed entry must have a key fingerprint"),
@@ -658,7 +658,7 @@ impl<T> DerivedFieldIngredient<T> {
 impl<T: StableHash + Encodable + Decodable + Send + Sync + 'static> Ingredient
   for DerivedFieldIngredient<T>
 {
-  fn name(&self) -> Fingerprint {
+  fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }
 
@@ -740,7 +740,7 @@ impl<T: StableHash + Encodable + Decodable + Send + Sync + 'static> Ingredient
     ctx.dep_graph.set(
       node_index,
       UnresolvedDepNode::DerivedField {
-        name: self.name(),
+        name: self.name_fingerprint(),
         field_index: self.field_index,
         entry_id: entry_id as u64,
         value: self

@@ -53,7 +53,7 @@ impl<T> InputFieldIngredient<T> {
 impl<T: StableHash + Send + Sync + Encodable + Decodable + 'static> Ingredient
   for InputFieldIngredient<T>
 {
-  fn name(&self) -> Fingerprint {
+  fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }
 
@@ -131,7 +131,7 @@ impl<T: StableHash + Send + Sync + Encodable + Decodable + 'static> Ingredient
     ctx.dep_graph.set(
       node_index,
       UnresolvedDepNode::InputField {
-        name: self.name(),
+        name: self.name_fingerprint(),
         field_index: self.field_index,
         entry_id: entry_id as u64,
         value: self
