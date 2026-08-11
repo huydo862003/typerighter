@@ -20,7 +20,7 @@ pub struct FuncSignature {
 }
 
 bitflags::bitflags! {
-  #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   pub struct TypeMemberDescriptors: u8 {
     const OPTIONAL = 0b0000_0001;
   }
@@ -33,7 +33,7 @@ impl StableHash for TypeMemberDescriptors {
 }
 
 /// The type of a type member field
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MemberType {
   /// A reference to a type: either an evaluated type or a lazy schema symbol
   Simple(Either<TdTypeEnum, Symbol>),

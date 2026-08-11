@@ -24,6 +24,14 @@ pub struct InternedIngredient<T: 'static> {
   pub data: Arc<DashMap<usize, T>>,
 }
 
+impl<T: 'static> std::fmt::Debug for InternedIngredient<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("InternedIngredient")
+      .field("name", &self.name)
+      .finish_non_exhaustive()
+  }
+}
+
 impl<T: 'static> InternedIngredient<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
@@ -55,7 +63,7 @@ impl<T: StableHash + Send + Sync + 'static> InternedIngredient<T> {
   }
 }
 
-impl<T: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static> Ingredient
+impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static> Ingredient
   for InternedIngredient<T>
 {
   #[cfg(debug_assertions)]

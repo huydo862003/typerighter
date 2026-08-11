@@ -29,6 +29,14 @@ pub struct InputFieldIngredient<T> {
   pub data: Arc<DashMap<usize, StampedInputField<T>>>,
 }
 
+impl<T> std::fmt::Debug for InputFieldIngredient<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("InputFieldIngredient")
+      .field("name", &self.name)
+      .finish_non_exhaustive()
+  }
+}
+
 impl<T> InputFieldIngredient<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
@@ -50,7 +58,7 @@ impl<T> InputFieldIngredient<T> {
   }
 }
 
-impl<T: StableHash + Send + Sync + Encodable + Decodable + 'static> Ingredient
+impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static> Ingredient
   for InputFieldIngredient<T>
 {
   #[cfg(debug_assertions)]

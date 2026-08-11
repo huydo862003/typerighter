@@ -13,7 +13,7 @@ pub use inventory::*;
 use crate::persist::serialized::dep_graph::DepNodeIndex;
 use crate::{DepId, DeserializeContext, Fingerprint, QueryDatabase, SerializeContext};
 
-pub trait Ingredient: Any + Send + Sync {
+pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String;
 

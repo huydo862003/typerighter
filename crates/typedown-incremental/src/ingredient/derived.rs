@@ -63,10 +63,22 @@ pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   readable_name: &'static str,
 }
 
+impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredient<DB, K, V> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let name = {
+      #[cfg(debug_assertions)]
+      { self.readable_name }
+      #[cfg(not(debug_assertions))]
+      { "DerivedQueryIngredient" }
+    };
+    f.debug_struct(name).finish_non_exhaustive()
+  }
+}
+
 impl<
   DB: QueryDatabase + Send + Sync + 'static,
-  K: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
+  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+  V: StableHash + std::fmt::Debug + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
 > DerivedQueryIngredient<DB, K, V>
 {
   /// Deserialize all sibling DerivedField nodes for a value struct.
@@ -436,8 +448,8 @@ impl<
 
 impl<
   DB: QueryDatabase + Send + Sync + 'static,
-  K: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
+  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+  V: StableHash + std::fmt::Debug + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
 > Ingredient for DerivedQueryIngredient<DB, K, V>
 {
   #[cfg(debug_assertions)]
@@ -641,6 +653,14 @@ pub struct DerivedFieldIngredient<T> {
   pub data: Arc<DashMap<usize, StampedDerivedField<T>>>,
 }
 
+impl<T> std::fmt::Debug for DerivedFieldIngredient<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("DerivedFieldIngredient")
+      .field("name", &self.name)
+      .finish_non_exhaustive()
+  }
+}
+
 impl<T> DerivedFieldIngredient<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
@@ -664,7 +684,7 @@ impl<T> DerivedFieldIngredient<T> {
   }
 }
 
-impl<T: StableHash + Encodable + Decodable + Send + Sync + 'static> Ingredient
+impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static> Ingredient
   for DerivedFieldIngredient<T>
 {
   #[cfg(debug_assertions)]
