@@ -101,10 +101,8 @@ struct FsEventBus {
 impl RpcServer {
   pub fn new(root_dir: PathBuf) -> anyhow::Result<Self> {
     let cache_dir = root_dir.join(".typedown/.local/cache");
-    let (_session, serialized) =
-      typedown_incremental::CacheSession::open(&cache_dir).unwrap_or_else(|_| {
-        (typedown_incremental::CacheSession::empty(), None)
-      });
+    let (_session, serialized) = typedown_incremental::CacheSession::open(&cache_dir)
+      .unwrap_or_else(|_| (typedown_incremental::CacheSession::empty(), None));
 
     let storage = match serialized {
       Some(data) => {
@@ -433,99 +431,104 @@ impl RpcServer {
 
   async fn check_vault_impl(&self) -> RpcResult<TdDiagnosticReport> {
     let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
+    tokio::task::block_in_place(|| {
+      let db = &analysis.db;
+      let project = analysis.project;
 
-    let config = get_vault_config(db, project);
-    let content_dir = config.content_dir(db);
-    let files = project.files(db);
+      let config = get_vault_config(db, project);
+      let content_dir = config.content_dir(db);
+      let files = project.files(db);
 
-    let mut all_diagnostics = Vec::new();
-    let mut file_count: u32 = 0;
+      let mut all_diagnostics = Vec::new();
+      let mut file_count: u32 = 0;
 
-    for (path, &file) in &files {
-      if !path.starts_with(&content_dir) || !is_content_file(path) {
-        continue;
+      for (path, &file) in &files {
+        if !path.starts_with(&content_dir) || !is_content_file(path) {
+          continue;
+        }
+        file_count += 1;
+
+        let rel_path = normalize_path(path.strip_prefix(&content_dir).unwrap_or(path));
+        let rope = match analysis.file_rope(path) {
+          Some(r) => r,
+          None => continue,
+        };
+
+        let items = collect_file_diagnostics(db, project, file, &rel_path, &rope);
+        all_diagnostics.extend(items);
       }
-      file_count += 1;
 
-      let rel_path = normalize_path(path.strip_prefix(&content_dir).unwrap_or(path));
-      let rope = match analysis.file_rope(path) {
-        Some(r) => r,
-        None => continue,
-      };
+      // Check for nested schema files
+      let schema_check = check_schema_dir(db, project);
+      for diag in schema_check.diagnostics(db) {
+        all_diagnostics.push(TdDiagnosticItem {
+          filepath: String::new(),
+          line: 0,
+          column: 0,
+          severity: "error".to_string(),
+          code: diag.code().as_str().to_string(),
+          message: diag.message(),
+        });
+      }
 
-      let items = collect_file_diagnostics(db, project, file, &rel_path, &rope);
-      all_diagnostics.extend(items);
-    }
+      let error_count = all_diagnostics
+        .iter()
+        .filter(|d| d.severity == "error")
+        .count() as u32;
+      let warning_count = all_diagnostics
+        .iter()
+        .filter(|d| d.severity == "warning")
+        .count() as u32;
 
-    // Check for nested schema files
-    let schema_check = check_schema_dir(db, project);
-    for diag in schema_check.diagnostics(db) {
-      all_diagnostics.push(TdDiagnosticItem {
-        filepath: String::new(),
-        line: 0,
-        column: 0,
-        severity: "error".to_string(),
-        code: diag.code().as_str().to_string(),
-        message: diag.message(),
-      });
-    }
-
-    let error_count = all_diagnostics
-      .iter()
-      .filter(|d| d.severity == "error")
-      .count() as u32;
-    let warning_count = all_diagnostics
-      .iter()
-      .filter(|d| d.severity == "warning")
-      .count() as u32;
-
-    Ok(TdDiagnosticReport {
-      diagnostics: all_diagnostics,
-      file_count,
-      error_count,
-      warning_count,
-    })
+      Ok(TdDiagnosticReport {
+        diagnostics: all_diagnostics,
+        file_count,
+        error_count,
+        warning_count,
+      })
+    }) // block_in_place
   }
 
   async fn format_file_impl(&self, file_path: &TdFilePath) -> RpcResult<TdFormatResult> {
     let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
+    let fp = file_path.0.clone();
+    tokio::task::block_in_place(|| {
+      let db = &analysis.db;
+      let project = analysis.project;
 
-    let config = get_vault_config(db, project);
-    let content_dir = config.content_dir(db);
-    let path = content_dir.join(&file_path.0);
+      let config = get_vault_config(db, project);
+      let content_dir = config.content_dir(db);
+      let path = content_dir.join(&fp);
 
-    let file = *project.files(db).get(&path).ok_or_else(|| {
-      ErrorObjectOwned::owned(
-        INVALID_PARAMS_CODE,
-        format!("File not found: {}", file_path.0),
-        None::<()>,
-      )
-    })?;
+      let file = *project.files(db).get(&path).ok_or_else(|| {
+        ErrorObjectOwned::owned(
+          INVALID_PARAMS_CODE,
+          format!("File not found: {}", fp),
+          None::<()>,
+        )
+      })?;
 
-    let root = parse_file(db, project, file).ast(db);
-    let source_file = SourceFile::cast(root.clone()).ok_or_else(|| {
-      ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Failed to parse file", None::<()>)
-    })?;
+      let root = parse_file(db, project, file).ast(db);
+      let source_file = SourceFile::cast(root.clone()).ok_or_else(|| {
+        ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Failed to parse file", None::<()>)
+      })?;
 
-    let original = root.text();
-    let formatted = match source_file.body() {
-      Some(body) => {
-        let frontmatter = original[..body.syntax().offset()].to_string();
-        let body_formatted = format_markdown(&body);
-        frontmatter + &body_formatted
-      }
-      None => original.to_string(),
-    };
+      let original = root.text();
+      let formatted = match source_file.body() {
+        Some(body) => {
+          let frontmatter = original[..body.syntax().offset()].to_string();
+          let body_formatted = format_markdown(&body);
+          frontmatter + &body_formatted
+        }
+        None => original.to_string(),
+      };
 
-    let changed = formatted != original;
-    Ok(TdFormatResult {
-      content: formatted,
-      changed,
-    })
+      let changed = formatted != original;
+      Ok(TdFormatResult {
+        content: formatted,
+        changed,
+      })
+    }) // block_in_place
   }
 }
 
