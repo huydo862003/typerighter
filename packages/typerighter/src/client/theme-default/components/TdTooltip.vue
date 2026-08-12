@@ -4,6 +4,10 @@ import {
   useTemplateRef,
 } from 'vue';
 
+defineOptions({
+  inheritAttrs: false,
+});
+
 const {
   text,
 } = defineProps<{
@@ -56,6 +60,7 @@ onBeforeUnmount(() => {
 <template>
   <span
     ref="wrapper"
+    v-bind="$attrs"
     class="td-tooltip-trigger"
     @mouseenter="show"
     @mouseleave="hide"
