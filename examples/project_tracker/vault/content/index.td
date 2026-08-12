@@ -1,5 +1,7 @@
 A sample vault that tracks **people**, **projects**, and **tasks** across a development team.
 
+[[directory-index]]
+
 ## People
 
 - [Alice Chen](people/alice) - backend developer, leading the website redesign

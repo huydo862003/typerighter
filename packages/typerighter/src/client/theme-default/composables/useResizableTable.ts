@@ -7,49 +7,72 @@ const MIN_COL_WIDTH = 40;
 
 // Enable column resizing on all tables inside .td-content via event delegation
 export function useResizableTable (): void {
+  let lastHoveredTh: HTMLTableCellElement | undefined;
+  let dragging = false;
+
+  function isNearRightEdge (th: HTMLTableCellElement, clientX: number): boolean {
+    const rect = th.getBoundingClientRect();
+
+    return rect.right - clientX < HANDLE_WIDTH;
+  }
+
+  function handlePointerMove (event: PointerEvent): void {
+    if (dragging) return;
+
+    const target = event.target as Element | undefined;
+
+    if (!target?.closest('.td-content')) {
+      if (lastHoveredTh) {
+        lastHoveredTh.classList.remove('is-near-border');
+        lastHoveredTh = undefined;
+      }
+
+      return;
+    }
+
+    const th = target.closest('th') as HTMLTableCellElement | undefined;
+
+    if (lastHoveredTh && lastHoveredTh !== th) {
+      lastHoveredTh.classList.remove('is-near-border');
+      lastHoveredTh = undefined;
+    }
+
+    if (!th || !th.nextElementSibling) return;
+
+    if (isNearRightEdge(th, event.clientX)) {
+      th.classList.add('is-near-border');
+      lastHoveredTh = th;
+    } else {
+      th.classList.remove('is-near-border');
+      lastHoveredTh = undefined;
+    }
+  }
+
   function handlePointerDown (event: PointerEvent): void {
     const th = (event.target as Element)?.closest('.td-content th') as HTMLTableCellElement | undefined;
 
-    if (!th) return;
-
-    // Only trigger when clicking near the right edge of the header cell
-    const rect = th.getBoundingClientRect();
-
-    if (HANDLE_WIDTH < rect.right - event.clientX) return;
-
-    // Find the adjacent header cell
-    const nextTh = th.nextElementSibling as HTMLTableCellElement | undefined;
-
-    if (!nextTh) return;
+    if (!th || !th.nextElementSibling) return;
+    if (!isNearRightEdge(th, event.clientX)) return;
 
     event.preventDefault();
-
-    // Ensure the table uses fixed layout for explicit column widths
-    const table = th.closest('table') as HTMLTableElement;
-
-    table.style.tableLayout = 'fixed';
-
-    // Lock initial widths from computed values
-    const headers = table.querySelectorAll<HTMLTableCellElement>('th');
-
-    for (const header of headers) {
-      header.style.width = `${header.offsetWidth}px`;
-    }
+    dragging = true;
 
     const startX = event.clientX;
     const startWidth = th.offsetWidth;
-    const nextStartWidth = nextTh.offsetWidth;
 
+    th.classList.add('is-resizing');
     document.body.style.cursor = 'col-resize';
 
     function onMove (moveEvent: PointerEvent) {
       const delta = moveEvent.clientX - startX;
 
-      th!.style.width = `${Math.max(MIN_COL_WIDTH, startWidth + delta)}px`;
-      nextTh!.style.width = `${Math.max(MIN_COL_WIDTH, nextStartWidth - delta)}px`;
+      if (!th) return;
+      th.style.width = `${Math.max(MIN_COL_WIDTH, startWidth + delta)}px`;
     }
 
     function onUp () {
+      dragging = false;
+      th?.classList.remove('is-resizing');
       document.body.style.cursor = '';
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
@@ -60,10 +83,12 @@ export function useResizableTable (): void {
   }
 
   onMounted(() => {
+    document.addEventListener('pointermove', handlePointerMove);
     document.addEventListener('pointerdown', handlePointerDown);
   });
 
   onUnmounted(() => {
+    document.removeEventListener('pointermove', handlePointerMove);
     document.removeEventListener('pointerdown', handlePointerDown);
   });
 }
