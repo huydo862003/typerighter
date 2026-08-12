@@ -1,3 +1,10 @@
+## [0.5.1] - 2026-08-12
+
+* packages/typerighter
+  - Improve sidebar nested item stylings
+  - Improve index file styling
+  - No longer strip index from path
+
 ## [0.5.0] - 2026-08-11
 
 * crates/typedown-lang
