@@ -2,6 +2,9 @@
 import {
   ref,
 } from 'vue';
+import {
+  getPillColor,
+} from './getPillColor';
 
 const {
   value,
@@ -27,6 +30,7 @@ function toggle () {
     v-for="(item, idx) in visible()"
     :key="idx"
     class="td-widget-pill"
+    :style="getPillColor(item)"
   >{{ item }}</span>
   <button
     v-if="hiddenCount > 0"
@@ -44,8 +48,6 @@ function toggle () {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: var(--font-size-td-caption);
-  background: var(--color-td-primary-bg-subtle);
-  color: var(--color-td-primary-solid);
 }
 
 .td-widget-more {

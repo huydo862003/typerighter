@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import {
+  getPillColor,
+} from './getPillColor';
+
 const {
   value,
 } = defineProps<{
@@ -8,7 +12,10 @@ const {
 </script>
 
 <template>
-  <span class="td-widget-pill">{{ value }}</span>
+  <span
+    class="td-widget-pill"
+    :style="getPillColor(value)"
+  >{{ value }}</span>
 </template>
 
 <style scoped>
@@ -17,7 +24,5 @@ const {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: var(--font-size-td-caption);
-  background: var(--color-td-primary-bg-subtle);
-  color: var(--color-td-primary-solid);
 }
 </style>
