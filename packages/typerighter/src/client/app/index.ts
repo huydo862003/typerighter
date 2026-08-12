@@ -9,6 +9,7 @@ import {
   type InjectionKey,
   type ShallowRef,
 } from 'vue';
+import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
 import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
 import {
   Content,
@@ -23,6 +24,7 @@ import type {
   PageModule,
   ContentTree,
   SchemaDefinition,
+  DirectoryListing,
 } from '@/shared';
 
 export {
@@ -49,6 +51,8 @@ export interface TypedownSiteData {
   searchIndex?: string;
   /** Schema definitions keyed by schema name */
   schemas: Record<string, SchemaDefinition>;
+  /** Directory listings keyed by URL path */
+  directoryListings: Record<string, DirectoryListing>;
 }
 
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
@@ -79,6 +83,7 @@ export async function createTypedownApp (
       children: [],
     },
     schemas: data.schemas ?? {},
+    directoryListings: data.directoryListings ?? {},
   };
 
   const router = createRouter(loadPageModule);
@@ -105,6 +110,7 @@ export async function createTypedownApp (
 
   // custom components
   /* eslint-disable vue/multi-word-component-names */
+  app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('Flashcard', TdFlashcard);
   /* eslint-enable vue/multi-word-component-names */
 
@@ -145,5 +151,6 @@ export function useSiteData (): TypedownSiteData {
       children: [],
     },
     schemas: {},
+    directoryListings: {},
   });
 }

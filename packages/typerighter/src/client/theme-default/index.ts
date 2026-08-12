@@ -10,7 +10,7 @@ export {
 
 export {
   default as TdDirectoryIndex,
-} from './components/TdDirectoryIndex.vue';
+} from './components/custom/TdDirectoryIndex.vue';
 
 export default {
   Layout: TdLayout,

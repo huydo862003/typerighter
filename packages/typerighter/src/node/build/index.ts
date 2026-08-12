@@ -204,8 +204,10 @@ interface SsrEntryOptions {
 function generateSsrEntry (options: SsrEntryOptions): string {
   const glob = `/${options.contentDir}/${CONTENT_GLOB}`;
   const parsedConfig = JSON.parse(options.siteConfig);
-  const parsedData = JSON.parse(options.siteData).contentTree ?? { rootItems: [], children: [] };
-  const directoryListingMap = buildDirectoryListingMap(parsedData.children ?? [], parsedConfig.title ?? '');
+  const parsedData = JSON.parse(options.siteData);
+  const contentTree = parsedData.contentTree ?? { rootItems: [], children: [] };
+  const directoryListingMap = buildDirectoryListingMap(contentTree.children ?? [], parsedConfig.title ?? '');
+  const siteDataWithListings = JSON.stringify({ ...parsedData, directoryListings: directoryListingMap });
 
   return `
 import { createTypedownApp } from 'typerighter/client';
@@ -216,8 +218,7 @@ import theme from '${options.layoutImport}';
 
 const pages = import.meta.glob('${glob}', { eager: true });
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
-
-const directoryIndex = ${JSON.stringify(directoryListingMap)};
+const siteData = ${siteDataWithListings};
 
 function findPage(base) {
   for (const ext of contentExts) {
@@ -233,9 +234,9 @@ function loadPageModule(pagePath) {
   const page = findPage(base);
   if (page) return Promise.resolve(page);
 
-  const dir = directoryIndex[pagePath] || directoryIndex[pagePath + '/'];
+  const dir = siteData.directoryListings[pagePath] || siteData.directoryListings[pagePath + '/'];
   if (dir) return Promise.resolve({
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex, dir); } },
+    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
     __pageData: { frontmatter: {}, headings: [], title: dir.title },
   });
 
@@ -243,7 +244,7 @@ function loadPageModule(pagePath) {
 }
 
 export async function render(url) {
-  const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, ${options.siteData});
+  const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, siteData);
   await router.go(url, { replace: true });
   const html = await renderToString(app);
   return { html, pageData: router.route.data };

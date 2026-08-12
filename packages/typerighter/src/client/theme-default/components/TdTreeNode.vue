@@ -8,6 +8,7 @@ import {
 import {
   useRoute,
 } from '../../app';
+import TdTooltip from './TdTooltip.vue';
 import {
   formatRelativeTime, getDirectoryUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, isUrlAncestorOf, path, unslugify,
   type ContentTreeNode,
@@ -37,17 +38,17 @@ function countItems (n: ContentTreeNode): number {
 }
 
 const collapsed = ref(!isUrlAncestorOf(directoryUrl, route.path));
-const expanded = ref(false);
+const showAll = ref(false);
 const MAX_VISIBLE = 4;
-const visibleItems = computed(() => expanded.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
+const visibleItems = computed(() => showAll.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
 const hiddenCount = computed(() => Math.max(0, regularItems.length - MAX_VISIBLE));
 
 watch(() => route.path, (currentPath) => {
   if (isUrlAncestorOf(directoryUrl, currentPath)) collapsed.value = false;
 });
 
-function expand () {
-  expanded.value = true;
+function expandAll () {
+  showAll.value = true;
 }
 
 function isCurrent (href: string): boolean {
@@ -121,14 +122,17 @@ function toggle () {
           :size="14"
           class="td-tree-file-icon"
         />
-        <span class="td-tree-link-text">{{ getTdResourceTitle(item.header, item.filepath) }}</span>
+        <TdTooltip
+          class="td-tree-link-text"
+          :text="getTdResourceTitle(item.header, item.filepath)"
+        >{{ getTdResourceTitle(item.header, item.filepath) }}</TdTooltip>
         <span class="td-tree-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
       </a>
       <button
-        v-if="hiddenCount > 0 && !expanded"
+        v-if="hiddenCount > 0 && !showAll"
         class="td-tree-more"
         type="button"
-        @click="expand"
+        @click="expandAll"
       >
         {{ hiddenCount }} more
       </button>
@@ -192,7 +196,7 @@ function toggle () {
 
 .td-tree-count {
   margin-left: auto;
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
   letter-spacing: normal;
   text-transform: none;
@@ -208,7 +212,7 @@ function toggle () {
 }
 
 .td-tree-children {
-  margin-left: 8px;
+  margin-left: 22px;
   border-left: 1px solid var(--color-td-neutral-border-subtle);
 }
 
@@ -225,7 +229,7 @@ function toggle () {
   font-size: var(--font-size-td-nav);
   color: var(--color-td-neutral-fg);
   text-decoration: none;
-  transition: background-color 0.1s;
+  transition: background-color 0.1s, border-left-color 0.1s, color 0.1s;
 }
 
 .td-tree-link:hover {
@@ -234,14 +238,13 @@ function toggle () {
 
 .td-tree-link-text {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
 }
 
 .td-tree-time {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  margin-left: auto;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
 }
 
@@ -257,9 +260,10 @@ function toggle () {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 4px 12px;
+  transition: color 0.15s;
 }
 
 .td-tree-more:hover {

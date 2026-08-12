@@ -2,18 +2,18 @@
 <!-- https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/components/VPLocalSearchBox.vue -->
 <script setup lang="ts">
 import {
-  computed, markRaw, shallowRef, watch,
+  computed, markRaw, ref, shallowRef, watch,
 } from 'vue';
 import MiniSearch from 'minisearch';
 import {
-  Search, X,
+  LoaderCircle, Search, X,
 } from '@lucide/vue';
 import {
-  usePageLoader, useRoute, useSearchIndex,
+  usePageLoader, useSearchIndex,
 } from '../../app';
 import {
   debounce,
-  escapeHtml, escapeRegex,
+  escapeHtml, escapeRegex, stripAnchor, unslugify,
   SEARCH_FIELDS, SEARCH_STORE_FIELDS, stripHtml,
   type PageModule,
 } from '@/shared';
@@ -24,6 +24,12 @@ interface SearchResult {
   titles: string[];
   excerpt: string;
   score: number;
+}
+
+interface SearchResultGroup {
+  pageUrl: string;
+  pageTitle: string;
+  results: SearchResult[];
 }
 
 const active = defineModel<boolean>('active', {
@@ -37,12 +43,37 @@ const emit = defineEmits<{
   select: [];
 }>();
 
-const route = useRoute();
-
 const EXCERPT_CHARS = 120;
 
 const results = shallowRef<SearchResult[]>([]);
+const searching = ref(false);
+const selectedIndex = ref(-1);
 const isSearchActive = computed(() => 0 < query.value.trim().length);
+
+const groupedResults = computed((): SearchResultGroup[] => {
+  const groups: SearchResultGroup[] = [];
+  const groupMap = new Map<string, SearchResultGroup>();
+
+  for (const result of results.value) {
+    const pageUrl = stripAnchor(result.id);
+    let group = groupMap.get(pageUrl);
+
+    if (!group) {
+      const filename = pageUrl.split('/').pop() || 'index';
+
+      group = {
+        pageUrl,
+        pageTitle: unslugify(filename),
+        results: [],
+      };
+      groupMap.set(pageUrl, group);
+      groups.push(group);
+    }
+    group.results.push(result);
+  }
+
+  return groups;
+});
 
 watch(isSearchActive, (value) => {
   active.value = value;
@@ -84,9 +115,12 @@ watch(query, (value, _old, onCleanup) => {
 
   if (!trimmed) {
     results.value = [];
+    searching.value = false;
 
     return;
   }
+  searching.value = true;
+  selectedIndex.value = -1;
   debouncedSearch(trimmed);
 });
 
@@ -142,9 +176,8 @@ async function fetchExcerpt (
   documentId: string,
   match: Record<string, string[]>,
 ): Promise<string> {
-  // Document ids are "page-url" or "page-url#anchor"
+  const pageUrl = stripAnchor(documentId);
   const hashIndex = documentId.indexOf('#');
-  const pageUrl = 0 <= hashIndex ? documentId.slice(0, hashIndex) : documentId;
   const anchor = 0 <= hashIndex ? documentId.slice(hashIndex + 1) : '';
 
   try {
@@ -160,6 +193,20 @@ async function fetchExcerpt (
     return '';
   }
 }
+
+// Flat list of grouped results for keyboard navigation
+const flatResults = computed(() => groupedResults.value.flatMap((group) => group.results));
+
+// Map each result id to its flat index for keyboard navigation
+const flatIndexMap = computed(() => {
+  const map = new Map<string, number>();
+
+  for (let index = 0; index < flatResults.value.length; index++) {
+    map.set(flatResults.value[index].id, index);
+  }
+
+  return map;
+});
 
 // Highlight matched terms in text by wrapping in <mark> tags
 function highlight (text: string, searchQuery: string): string {
@@ -177,11 +224,26 @@ function highlight (text: string, searchQuery: string): string {
   return result;
 }
 
-// Check if a result id belongs to the currently viewed page
-function isCurrentPage (resultId: string): boolean {
-  const page = resultId.split('#')[0];
+function onKeydown (event: KeyboardEvent) {
+  const count = flatIndexMap.value.size;
 
-  return route.path === page;
+  if (count === 0) return;
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    selectedIndex.value = (selectedIndex.value + 1) % count;
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    selectedIndex.value = (selectedIndex.value - 1 + count) % count;
+  } else if (event.key === 'Enter' && 0 <= selectedIndex.value) {
+    event.preventDefault();
+    const selected = flatResults.value[selectedIndex.value];
+
+    if (!selected) return;
+    const link = document.querySelector<HTMLAnchorElement>(`.td-search-result[href="${CSS.escape(selected.id)}"]`);
+
+    link?.click();
+  }
 }
 
 function onResultClick () {
@@ -194,34 +256,38 @@ async function runSearch (trimmed: string) {
 
   if (!index) return;
 
-  const rawResults = index.search(trimmed, {
-    prefix: true,
-    fuzzy: 0.2,
-    boost: {
-      title: 2,
-    },
-  });
+  try {
+    const rawResults = index.search(trimmed, {
+      prefix: true,
+      fuzzy: 0.2,
+      boost: {
+        title: 2,
+      },
+    });
 
-  // Cap results to avoid fetching too many page modules at once
-  const withExcerpts = await Promise.all(
-    rawResults.slice(0, 20).map(async (result) => {
-      const excerpt = loadPage
-        ? await fetchExcerpt(loadPage, result.id, result.match)
-        : '';
+    // Cap results to avoid fetching too many page modules at once
+    const withExcerpts = await Promise.all(
+      rawResults.slice(0, 20).map(async (result) => {
+        const excerpt = loadPage
+          ? await fetchExcerpt(loadPage, result.id, result.match)
+          : '';
 
-      return {
-        id: result.id,
-        title: result.title as string,
-        titles: result.titles as string[],
-        excerpt,
-        score: result.score,
-      };
-    }),
-  );
+        return {
+          id: result.id,
+          title: result.title as string,
+          titles: result.titles as string[],
+          excerpt,
+          score: result.score,
+        };
+      }),
+    );
 
-  // Query changed while awaiting excerpts, discard stale results
-  if (canceled) return;
-  results.value = withExcerpts;
+    // Query changed while awaiting excerpts, discard stale results
+    if (canceled) return;
+    results.value = withExcerpts;
+  } finally {
+    if (!canceled) searching.value = false;
+  }
 }
 </script>
 
@@ -232,14 +298,22 @@ async function runSearch (trimmed: string) {
         :size="14"
         class="td-search-icon"
       />
+      <!-- size="1" overrides the intrinsic input width so flex can shrink it -->
       <input
         v-model="query"
         class="td-search-input"
         type="text"
+        size="1"
         placeholder="Search..."
+        @keydown="onKeydown"
       >
+      <LoaderCircle
+        v-if="searching"
+        :size="12"
+        class="td-search-spinner"
+      />
       <span
-        v-if="isSearchActive"
+        v-else-if="isSearchActive"
         class="td-search-count"
       >{{ results.length }}</span>
       <button
@@ -256,30 +330,35 @@ async function runSearch (trimmed: string) {
       v-if="isSearchActive && results.length > 0"
       class="td-search-results"
     >
-      <a
-        v-for="result in results"
-        :key="result.id"
-        :href="result.id"
-        class="td-search-result"
-        @click="onResultClick"
+      <div
+        v-for="group in groupedResults"
+        :key="group.pageUrl"
+        class="td-search-group"
       >
-        <span class="td-search-result-header">
+        <div class="td-search-group-label">
+          {{ group.pageTitle }}
+        </div>
+        <a
+          v-for="result in group.results"
+          :key="result.id"
+          :href="result.id"
+          class="td-search-result"
+          :class="{
+            'is-selected': flatIndexMap.get(result.id) === selectedIndex,
+          }"
+          @click="onResultClick"
+        >
           <span
             class="td-search-result-title"
             v-html="highlight(result.title, query)"
           />
           <span
-            v-if="isCurrentPage(result.id)"
-            class="td-search-result-badge"
-          >current page</span>
-        </span>
-        <span class="td-search-result-breadcrumb">{{ result.titles.join(' / ') }}</span>
-        <span
-          v-if="result.excerpt"
-          class="td-search-result-excerpt"
-          v-html="highlight(result.excerpt, query)"
-        />
-      </a>
+            v-if="result.excerpt"
+            class="td-search-result-excerpt"
+            v-html="highlight(result.excerpt, query)"
+          />
+        </a>
+      </div>
     </div>
     <div
       v-if="isSearchActive && results.length === 0"
@@ -317,6 +396,7 @@ async function runSearch (trimmed: string) {
 
 .td-search-input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   background: none;
@@ -331,8 +411,18 @@ async function runSearch (trimmed: string) {
 
 .td-search-count {
   flex-shrink: 0;
-  font-size: 0.7rem;
+  font-size: var(--font-size-td-label);
   color: var(--color-td-neutral-fg-muted);
+}
+
+.td-search-spinner {
+  flex-shrink: 0;
+  color: var(--color-td-neutral-fg-muted);
+  animation: td-spin 0.8s linear infinite;
+}
+
+@keyframes td-spin {
+  to { transform: rotate(360deg); }
 }
 
 .td-search-clear {
@@ -344,6 +434,7 @@ async function runSearch (trimmed: string) {
   cursor: pointer;
   color: var(--color-td-neutral-fg-muted);
   padding: 2px;
+  transition: color 0.15s;
 }
 
 .td-search-clear:hover {
@@ -356,38 +447,35 @@ async function runSearch (trimmed: string) {
   flex-direction: column;
 }
 
+.td-search-group-label {
+  padding: 6px 20px;
+  font-size: var(--font-size-td-label);
+  letter-spacing: var(--tracking-td-label);
+  text-transform: uppercase;
+  color: var(--color-td-neutral-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .td-search-result {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 10px;
+  padding: 5px 12px;
+  margin-left: 20px;
+  border-left: 1px solid var(--color-td-neutral-border-subtle);
   text-decoration: none;
   transition: background-color 0.1s;
 }
 
-.td-search-result:hover {
+.td-search-result:hover,
+.td-search-result.is-selected {
   background: var(--color-td-neutral-bg-hover);
-}
-
-.td-search-result-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.td-search-result-badge {
-  flex-shrink: 0;
-  font-size: 0.6rem;
-  color: var(--color-td-primary-solid);
-  border: 1px solid var(--color-td-primary-solid);
-  border-radius: 4px;
-  padding: 1px 4px;
-  line-height: 1;
 }
 
 .td-search-result-title {
   font-size: var(--font-size-td-nav);
-  font-weight: var(--font-weight-td-semibold);
   color: var(--color-td-fg);
 }
 
@@ -396,13 +484,8 @@ async function runSearch (trimmed: string) {
   color: var(--color-td-primary-solid);
 }
 
-.td-search-result-breadcrumb {
-  font-size: 0.7rem;
-  color: var(--color-td-neutral-fg-muted);
-}
-
 .td-search-result-excerpt {
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg);
   line-height: 1.4;
   overflow: hidden;

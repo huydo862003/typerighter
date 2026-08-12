@@ -39,7 +39,7 @@ pub fn get_assets_dir(
 #[cfg(test)]
 mod tests {
   use std::collections::HashMap;
-  use std::path::PathBuf;
+  use std::path::{Path, PathBuf};
   use std::sync::{Arc, Condvar, Mutex};
 
   use lsp_types::TextDocumentIdentifier;
@@ -91,7 +91,7 @@ mod tests {
     (analysis, file_path)
   }
 
-  fn make_params(file_path: &PathBuf) -> TextDocumentIdentifierParams {
+  fn make_params(file_path: &Path) -> TextDocumentIdentifierParams {
     let uri = path_to_uri(file_path, "file");
     TextDocumentIdentifierParams {
       text_document: TextDocumentIdentifier { uri },
