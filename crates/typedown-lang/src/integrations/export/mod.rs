@@ -265,7 +265,34 @@ fn emit_md_block(
   node: &RedNode,
   out: &mut String,
 ) {
+  // [[label {props}]] expands to ::: label {props}\n:::
+  if node.kind() == SyntaxKind::MdContainerShorthand {
+    emit_container_shorthand(node, out);
+    return;
+  }
   emit_md_node(db, project, file, node, out);
+}
+
+// Expand a container shorthand node into ::: container syntax
+fn emit_container_shorthand(node: &RedNode, out: &mut String) {
+  let mut label = String::new();
+  let mut props = String::new();
+
+  for child in node.children() {
+    match child.kind() {
+      SyntaxKind::Ident => label = child.text().to_string(),
+      SyntaxKind::MdContainerPropBlock => props = child.text().trim().to_string(),
+      _ => {}
+    }
+  }
+
+  out.push_str("::: ");
+  out.push_str(&label);
+  if !props.is_empty() {
+    out.push(' ');
+    out.push_str(&props);
+  }
+  out.push_str("\n:::\n");
 }
 
 /// Emit a node, translating fref interpolations to markdown links
@@ -495,6 +522,22 @@ mod tests {
     assert!(
       content.contains("```js{1,3}"),
       "should preserve code block range indicator: {content}",
+    );
+  }
+
+  #[test]
+  fn exports_container_shorthand() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/md_container_shorthand.td");
+    let exported = export_resource(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("::: toc\n:::\n"),
+      "should expand [[toc]] to empty container: {content}",
+    );
+    assert!(
+      content.contains("::: grid {cols=2}\n:::\n"),
+      "should expand [[grid {{cols=2}}]] to container with props: {content}",
     );
   }
 

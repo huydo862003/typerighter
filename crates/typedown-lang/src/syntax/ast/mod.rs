@@ -148,7 +148,7 @@ impl MdBody {
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdContainerBlock,
+  MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
   MdLink, MdMedia,
   MdBold, MdItalic, MdBoldItalic, MdStrikethrough,
   MdText, MdHtmlEntity,
@@ -157,7 +157,7 @@ pub struct MdNode(RedNode);
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdContainerBlock,
+  MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
 ])]
 pub struct MdBlockElement(RedNode);
 
@@ -397,6 +397,23 @@ impl MdContainerBlock {
 
   pub fn value(&self) -> impl Iterator<Item = MdNode> {
     self.0.children().filter_map(MdNode::cast)
+  }
+}
+
+/// Self-closing container shorthand
+/// Represented by: [[label {props}]]
+#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
+pub struct MdContainerShorthand(RedNode);
+
+impl MdContainerShorthand {
+  pub fn label(&self) -> Option<String> {
+    self
+      .0
+      .children()
+      .find(|c| c.kind() == SyntaxKind::Ident)?
+      .as_token()?
+      .text()
+      .map(str::to_string)
   }
 }
 
