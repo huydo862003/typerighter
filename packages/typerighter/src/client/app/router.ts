@@ -241,11 +241,11 @@ function changeRoute (
   return true;
 }
 
-// Strip trailing index(.html) from a href and return pathname + search + hash
+// Strip trailing .html and return pathname + search + hash
 function normalizeHref (href: string): string {
   const url = new URL(href, 'http://a.com');
 
-  url.pathname = url.pathname.replace(/(^|\/)index(\.html)?$/, '$1');
+  url.pathname = url.pathname.replace(/\.html$/, '');
 
   return url.pathname + url.search + url.hash;
 }
