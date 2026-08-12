@@ -173,19 +173,19 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const report = await tdContext.checkVault();
 
       if (0 < report.errorCount || 0 < report.warningCount) {
-        for (const d of report.diagnostics) {
-          const location = `${d.filepath}:${d.line}:${d.column}`;
-          const prefix = d.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+        for (const diagnostic of report.diagnostics) {
+          const location = `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column}`;
+          const prefix = diagnostic.severity === 'error' ? pc.red('error') : pc.yellow('warn');
 
-          console.error(`  ${prefix} ${location} ${d.message} ${pc.dim(`(${d.code})`)}`);
+          console.error(`  ${prefix} ${location} ${diagnostic.message} ${pc.dim(`(${diagnostic.code})`)}`);
         }
       }
 
       // In production build (no dev server), fail on errors
       if (!server && 0 < report.errorCount) {
         const lines = report.diagnostics
-          .filter((d) => d.severity === 'error')
-          .map((d) => `  ${d.filepath}:${d.line}:${d.column} - ${d.message} (${d.code})`);
+          .filter((diagnostic) => diagnostic.severity === 'error')
+          .map((diagnostic) => `  ${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} - ${diagnostic.message} (${diagnostic.code})`);
 
         this.error(
           `Vault check failed with ${report.errorCount} error(s):\n${lines.join('\n')}`,

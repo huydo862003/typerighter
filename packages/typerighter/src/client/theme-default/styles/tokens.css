@@ -45,6 +45,10 @@
   --color-td-diff-remove: #f43f5e;
   --color-td-diff-remove-bg: rgba(244, 63, 94, 0.14);
 
+  /* Tooltip (always dark, adapted from floating-vue) */
+  --color-td-tooltip-bg: rgba(0, 0, 0, 0.8);
+  --color-td-tooltip-fg: #fff;
+
   /* Code block chrome (always dark) */
   --color-td-code-bg: #1e1e2e;
   --color-td-code-fg: #d4d4d4;
@@ -141,4 +145,13 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-td-primary-solid);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -33,7 +33,7 @@ const hiddenCount = isRelationList
   ? Math.max(0, resolvedRefs.length - MAX_VISIBLE)
   : Math.max(0, items.length - MAX_VISIBLE);
 
-function toggleExpand () {
+function toggle () {
   expanded.value = !expanded.value;
 }
 
@@ -55,7 +55,7 @@ function visible<T> (list: T[]): T[] {
       v-if="hiddenCount > 0"
       class="td-widget-more"
       type="button"
-      @click="toggleExpand"
+      @click="toggle"
     >
       {{ expanded ? 'show less' : `+${hiddenCount} more` }}
     </button>
@@ -75,7 +75,7 @@ function visible<T> (list: T[]): T[] {
       v-if="hiddenCount > 0"
       class="td-widget-more"
       type="button"
-      @click="toggleExpand"
+      @click="toggle"
     >
       {{ expanded ? 'show less' : `+${hiddenCount} more` }}
     </button>

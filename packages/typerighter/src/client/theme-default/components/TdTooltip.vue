@@ -90,10 +90,10 @@ onBeforeUnmount(() => {
   z-index: 1000;
   max-width: 300px;
   padding: 7px 12px 6px;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-td-caption);
   line-height: 1.4;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.8);
+  color: var(--color-td-tooltip-fg);
+  background: var(--color-td-tooltip-bg);
   border-radius: 6px;
   pointer-events: auto;
   word-break: break-word;

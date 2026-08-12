@@ -17,7 +17,7 @@ const items = Array.isArray(value) ? value : [];
 const visible = () => expanded.value ? items : items.slice(0, MAX_VISIBLE);
 const hiddenCount = Math.max(0, items.length - MAX_VISIBLE);
 
-function toggleExpand () {
+function toggle () {
   expanded.value = !expanded.value;
 }
 </script>
@@ -32,7 +32,7 @@ function toggleExpand () {
     v-if="hiddenCount > 0"
     class="td-widget-more"
     type="button"
-    @click="toggleExpand"
+    @click="toggle"
   >
     {{ expanded ? 'show less' : `+${hiddenCount} more` }}
   </button>

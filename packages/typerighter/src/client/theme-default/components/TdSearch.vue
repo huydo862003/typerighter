@@ -2,11 +2,11 @@
 <!-- https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/components/VPLocalSearchBox.vue -->
 <script setup lang="ts">
 import {
-  computed, markRaw, shallowRef, watch,
+  computed, markRaw, ref, shallowRef, watch,
 } from 'vue';
 import MiniSearch from 'minisearch';
 import {
-  Search, X,
+  LoaderCircle, Search, X,
 } from '@lucide/vue';
 import {
   usePageLoader, useRoute, useSearchIndex,
@@ -42,6 +42,8 @@ const route = useRoute();
 const EXCERPT_CHARS = 120;
 
 const results = shallowRef<SearchResult[]>([]);
+const searching = ref(false);
+const selectedIndex = ref(-1);
 const isSearchActive = computed(() => 0 < query.value.trim().length);
 
 watch(isSearchActive, (value) => {
@@ -84,9 +86,12 @@ watch(query, (value, _old, onCleanup) => {
 
   if (!trimmed) {
     results.value = [];
+    searching.value = false;
 
     return;
   }
+  searching.value = true;
+  selectedIndex.value = -1;
   debouncedSearch(trimmed);
 });
 
@@ -178,10 +183,30 @@ function highlight (text: string, searchQuery: string): string {
 }
 
 // Check if a result id belongs to the currently viewed page
-function isCurrentPage (resultId: string): boolean {
+function isCurrent (resultId: string): boolean {
   const page = resultId.split('#')[0];
 
   return route.path === page;
+}
+
+function onKeydown (event: KeyboardEvent) {
+  const count = results.value.length;
+
+  if (count === 0) return;
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    selectedIndex.value = (selectedIndex.value + 1) % count;
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    selectedIndex.value = (selectedIndex.value - 1 + count) % count;
+  } else if (event.key === 'Enter' && 0 <= selectedIndex.value) {
+    event.preventDefault();
+    const selected = results.value[selectedIndex.value];
+    const link = document.querySelector<HTMLAnchorElement>(`.td-search-result[href="${CSS.escape(selected.id)}"]`);
+
+    link?.click();
+  }
 }
 
 function onResultClick () {
@@ -194,34 +219,38 @@ async function runSearch (trimmed: string) {
 
   if (!index) return;
 
-  const rawResults = index.search(trimmed, {
-    prefix: true,
-    fuzzy: 0.2,
-    boost: {
-      title: 2,
-    },
-  });
+  try {
+    const rawResults = index.search(trimmed, {
+      prefix: true,
+      fuzzy: 0.2,
+      boost: {
+        title: 2,
+      },
+    });
 
-  // Cap results to avoid fetching too many page modules at once
-  const withExcerpts = await Promise.all(
-    rawResults.slice(0, 20).map(async (result) => {
-      const excerpt = loadPage
-        ? await fetchExcerpt(loadPage, result.id, result.match)
-        : '';
+    // Cap results to avoid fetching too many page modules at once
+    const withExcerpts = await Promise.all(
+      rawResults.slice(0, 20).map(async (result) => {
+        const excerpt = loadPage
+          ? await fetchExcerpt(loadPage, result.id, result.match)
+          : '';
 
-      return {
-        id: result.id,
-        title: result.title as string,
-        titles: result.titles as string[],
-        excerpt,
-        score: result.score,
-      };
-    }),
-  );
+        return {
+          id: result.id,
+          title: result.title as string,
+          titles: result.titles as string[],
+          excerpt,
+          score: result.score,
+        };
+      }),
+    );
 
-  // Query changed while awaiting excerpts, discard stale results
-  if (canceled) return;
-  results.value = withExcerpts;
+    // Query changed while awaiting excerpts, discard stale results
+    if (canceled) return;
+    results.value = withExcerpts;
+  } finally {
+    if (!canceled) searching.value = false;
+  }
 }
 </script>
 
@@ -237,9 +266,15 @@ async function runSearch (trimmed: string) {
         class="td-search-input"
         type="text"
         placeholder="Search..."
+        @keydown="onKeydown"
       >
+      <LoaderCircle
+        v-if="searching"
+        :size="12"
+        class="td-search-spinner"
+      />
       <span
-        v-if="isSearchActive"
+        v-else-if="isSearchActive"
         class="td-search-count"
       >{{ results.length }}</span>
       <button
@@ -257,10 +292,13 @@ async function runSearch (trimmed: string) {
       class="td-search-results"
     >
       <a
-        v-for="result in results"
+        v-for="(result, index) in results"
         :key="result.id"
         :href="result.id"
         class="td-search-result"
+        :class="{
+          'is-selected': index === selectedIndex,
+        }"
         @click="onResultClick"
       >
         <span class="td-search-result-header">
@@ -269,7 +307,7 @@ async function runSearch (trimmed: string) {
             v-html="highlight(result.title, query)"
           />
           <span
-            v-if="isCurrentPage(result.id)"
+            v-if="isCurrent(result.id)"
             class="td-search-result-badge"
           >current page</span>
         </span>
@@ -335,6 +373,16 @@ async function runSearch (trimmed: string) {
   color: var(--color-td-neutral-fg-muted);
 }
 
+.td-search-spinner {
+  flex-shrink: 0;
+  color: var(--color-td-neutral-fg-muted);
+  animation: td-spin 0.8s linear infinite;
+}
+
+@keyframes td-spin {
+  to { transform: rotate(360deg); }
+}
+
 .td-search-clear {
   display: flex;
   align-items: center;
@@ -344,11 +392,11 @@ async function runSearch (trimmed: string) {
   cursor: pointer;
   color: var(--color-td-neutral-fg-muted);
   padding: 2px;
+  transition: color 0.15s;
 }
 
 .td-search-clear:hover {
   color: var(--color-td-fg);
-  transition: color 0.15s;
 }
 
 .td-search-results {
@@ -366,7 +414,8 @@ async function runSearch (trimmed: string) {
   transition: background-color 0.1s;
 }
 
-.td-search-result:hover {
+.td-search-result:hover,
+.td-search-result.is-selected {
   background: var(--color-td-neutral-bg-hover);
 }
 

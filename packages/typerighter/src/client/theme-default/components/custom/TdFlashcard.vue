@@ -1,40 +1,3 @@
-<template>
-  <div
-    v-bind="$attrs"
-    :id="id"
-    class="flashcard"
-    :class="{
-      'is-revealed': isRevealed,
-      'is-disabled': disabled,
-    }"
-    role="button"
-    :tabindex="disabled ? -1 : 0"
-    :aria-pressed="isRevealed"
-    :aria-label="isRevealed ? keyLabel : questionLabel"
-    @click="flip"
-    @keydown.enter.prevent="flip"
-    @keydown.space.prevent="flip"
-  >
-    <div class="flashcard__face flashcard__face--question">
-      <p class="flashcard__label">
-        {{ questionLabel }}
-      </p>
-      <div class="flashcard__body">
-        <slot />
-      </div>
-    </div>
-
-    <div class="flashcard__face flashcard__face--key">
-      <p class="flashcard__label">
-        {{ keyLabel }}
-      </p>
-      <div class="flashcard__body">
-        <slot name="key" />
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import {
   readonly,
@@ -105,8 +68,45 @@ defineExpose({
 });
 </script>
 
+<template>
+  <div
+    v-bind="$attrs"
+    :id="id"
+    class="td-flashcard"
+    :class="{
+      'is-revealed': isRevealed,
+      'is-disabled': disabled,
+    }"
+    role="button"
+    :tabindex="disabled ? -1 : 0"
+    :aria-pressed="isRevealed"
+    :aria-label="isRevealed ? keyLabel : questionLabel"
+    @click="flip"
+    @keydown.enter.prevent="flip"
+    @keydown.space.prevent="flip"
+  >
+    <div class="td-flashcard-face td-flashcard-face-question">
+      <p class="td-flashcard-label">
+        {{ questionLabel }}
+      </p>
+      <div class="td-flashcard-body">
+        <slot />
+      </div>
+    </div>
+
+    <div class="td-flashcard-face td-flashcard-face-key">
+      <p class="td-flashcard-label">
+        {{ keyLabel }}
+      </p>
+      <div class="td-flashcard-body">
+        <slot name="key" />
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped>
-.flashcard {
+.td-flashcard {
   /* Both faces share one grid cell, so the card grows to fit the taller of
      the two instead of being sized by the question alone */
   display: grid;
@@ -114,10 +114,10 @@ defineExpose({
   min-height: 8rem;
   user-select: none;
   cursor: pointer;
-  perspective: max(100vw, 100vh); /* keep the card far enough from the screen */
+  perspective: max(100vw, 100vh);
 }
 
-.flashcard__face {
+.td-flashcard-face {
   grid-area: 1 / 1;
   /* Hide each face's reverse, so the question shows its back once rotated */
   backface-visibility: hidden;
@@ -141,31 +141,31 @@ defineExpose({
 }
 
 /* Tint the revealed side so a flipped card reads as flipped at a glance */
-.flashcard__face--key {
+.td-flashcard-face-key {
   background: var(--color-td-primary-bg-subtle);
   border-color: var(--color-td-primary-solid);
   transform: rotateY(180deg);
 }
 
-.flashcard.is-revealed .flashcard__face--question {
+.td-flashcard.is-revealed .td-flashcard-face-question {
   transform: rotateY(180deg);
 }
 
-.flashcard.is-revealed .flashcard__face--key {
+.td-flashcard.is-revealed .td-flashcard-face-key {
   transform: rotateY(0deg);
 }
 
 /* The face turned away must not swallow selections or clicks */
-.flashcard__face--key,
-.flashcard.is-revealed .flashcard__face--question {
+.td-flashcard-face-key,
+.td-flashcard.is-revealed .td-flashcard-face-question {
   pointer-events: none;
 }
 
-.flashcard.is-revealed .flashcard__face--key {
+.td-flashcard.is-revealed .td-flashcard-face-key {
   pointer-events: auto;
 }
 
-.flashcard__label {
+.td-flashcard-label {
   margin: 0;
   font-size: var(--font-size-td-label);
   font-weight: var(--font-weight-td-semibold);
@@ -177,11 +177,11 @@ defineExpose({
   color: var(--color-td-neutral-fg);
 }
 
-.flashcard__face--key .flashcard__label {
+.td-flashcard-face-key .td-flashcard-label {
   color: var(--color-td-primary-fg);
 }
 
-.flashcard__body {
+.td-flashcard-body {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -191,26 +191,26 @@ defineExpose({
 }
 
 /* Slot content belongs to the page, not this component, so it needs :slotted */
-.flashcard__body :slotted(:first-child) {
+.td-flashcard-body :slotted(:first-child) {
   margin-top: 0;
 }
 
-.flashcard__body :slotted(:last-child) {
+.td-flashcard-body :slotted(:last-child) {
   margin-bottom: 0;
 }
 
-.flashcard:focus-visible {
+.td-flashcard:focus-visible {
   outline: 2px solid var(--color-td-link);
   outline-offset: 3px;
 }
 
-.flashcard.is-disabled {
+.td-flashcard.is-disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flashcard__face {
+  .td-flashcard-face {
     transition-duration: 0ms;
   }
 }

@@ -27,6 +27,7 @@ import {
 import {
   useMenu,
 } from './composables/useMenu';
+import TdToc from './components/TdToc.vue';
 import {
   formatEditTime,
 } from '@/shared';
@@ -197,30 +198,7 @@ function onResizeStart (event: PointerEvent) {
           class="td-sidebar-right"
           aria-label="Table of contents"
         >
-          <div
-            v-if="page.headings.length"
-            class="td-toc"
-          >
-            <div class="td-toc-label">
-              On this page
-            </div>
-            <ul class="td-toc-list">
-              <li
-                v-for="heading in page.headings"
-                :key="heading.slug"
-                :class="{
-                  'td-toc-indent-1': heading.level === 3,
-                  'td-toc-indent-2': heading.level === 4,
-                  'td-toc-indent-3': heading.level === 5,
-                }"
-              >
-                <a
-                  :href="heading.link"
-                  class="td-toc-link"
-                >{{ heading.title }}</a>
-              </li>
-            </ul>
-          </div>
+          <TdToc :headings="page.headings" />
         </nav>
       </div>
     </div>
@@ -387,52 +365,6 @@ function onResizeStart (event: PointerEvent) {
   overflow-y: auto;
   padding: 44px 22px 60px;
   min-width: 0;
-}
-
-.td-toc-label {
-  font-size: var(--font-size-td-label);
-  letter-spacing: var(--tracking-td-label);
-  text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
-  margin-bottom: 12px;
-}
-
-.td-toc-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border-left: 2px solid var(--color-td-neutral-border-subtle);
-}
-
-.td-toc-list li {
-  margin: 0;
-}
-
-.td-toc-link {
-  display: block;
-  padding: 5px 0 5px 12px;
-  margin-left: -2px;
-  font-size: var(--font-size-td-caption);
-  color: var(--color-td-neutral-fg);
-  text-decoration: none;
-  border-left: 2px solid transparent;
-  transition: color 0.15s;
-}
-
-.td-toc-link:hover {
-  color: var(--color-td-primary-solid);
-}
-
-.td-toc-indent-1 {
-  padding-left: 24px;
-}
-
-.td-toc-indent-2 {
-  padding-left: 36px;
-}
-
-.td-toc-indent-3 {
-  padding-left: 48px;
 }
 
 /* Below lg breakpoint */

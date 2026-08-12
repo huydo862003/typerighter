@@ -38,17 +38,17 @@ function countItems (n: ContentTreeNode): number {
 }
 
 const collapsed = ref(!isUrlAncestorOf(directoryUrl, route.path));
-const expanded = ref(false);
+const showAll = ref(false);
 const MAX_VISIBLE = 4;
-const visibleItems = computed(() => expanded.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
+const visibleItems = computed(() => showAll.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
 const hiddenCount = computed(() => Math.max(0, regularItems.length - MAX_VISIBLE));
 
 watch(() => route.path, (currentPath) => {
   if (isUrlAncestorOf(directoryUrl, currentPath)) collapsed.value = false;
 });
 
-function expand () {
-  expanded.value = true;
+function expandAll () {
+  showAll.value = true;
 }
 
 function isCurrent (href: string): boolean {
@@ -129,10 +129,10 @@ function toggle () {
         <span class="td-tree-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
       </a>
       <button
-        v-if="hiddenCount > 0 && !expanded"
+        v-if="hiddenCount > 0 && !showAll"
         class="td-tree-more"
         type="button"
-        @click="expand"
+        @click="expandAll"
       >
         {{ hiddenCount }} more
       </button>
@@ -262,10 +262,10 @@ function toggle () {
   font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 4px 12px;
+  transition: color 0.15s;
 }
 
 .td-tree-more:hover {
   color: var(--color-td-fg);
-  transition: color 0.15s;
 }
 </style>
