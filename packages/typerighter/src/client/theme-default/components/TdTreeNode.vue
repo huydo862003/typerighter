@@ -208,7 +208,7 @@ function toggle () {
 }
 
 .td-tree-children {
-  margin-left: 8px;
+  margin-left: 34px;
   border-left: 1px solid var(--color-td-neutral-border-subtle);
 }
 
