@@ -13,7 +13,7 @@ import {
 } from '../../app';
 import {
   debounce,
-  escapeHtml, escapeRegex,
+  escapeHtml, escapeRegex, stripAnchor,
   SEARCH_FIELDS, SEARCH_STORE_FIELDS, stripHtml,
   type PageModule,
 } from '@/shared';
@@ -24,6 +24,14 @@ interface SearchResult {
   titles: string[];
   excerpt: string;
   score: number;
+}
+
+interface SearchResultGroup {
+  pageUrl: string;
+  pageTitle: string;
+  pagePath: string;
+  isCurrent: boolean;
+  results: SearchResult[];
 }
 
 const active = defineModel<boolean>('active', {
@@ -45,6 +53,38 @@ const results = shallowRef<SearchResult[]>([]);
 const searching = ref(false);
 const selectedIndex = ref(-1);
 const isSearchActive = computed(() => 0 < query.value.trim().length);
+
+const groupedResults = computed((): SearchResultGroup[] => {
+  const groups: SearchResultGroup[] = [];
+  const groupMap = new Map<string, SearchResultGroup>();
+
+  for (const result of results.value) {
+    const pageUrl = stripAnchor(result.id);
+    let group = groupMap.get(pageUrl);
+
+    if (!group) {
+      group = {
+        pageUrl,
+        pageTitle: '',
+        pagePath: result.titles.join(' / '),
+        isCurrent: route.path === pageUrl,
+        results: [],
+      };
+      groupMap.set(pageUrl, group);
+      groups.push(group);
+    }
+    group.results.push(result);
+  }
+
+  // Set page title from the page-level result (no anchor), or fall back to the first result
+  for (const group of groups) {
+    const pageResult = group.results.find((result) => !result.id.includes('#'));
+
+    group.pageTitle = pageResult?.title ?? group.results[0].title;
+  }
+
+  return groups;
+});
 
 watch(isSearchActive, (value) => {
   active.value = value;
@@ -147,9 +187,8 @@ async function fetchExcerpt (
   documentId: string,
   match: Record<string, string[]>,
 ): Promise<string> {
-  // Document ids are "page-url" or "page-url#anchor"
+  const pageUrl = stripAnchor(documentId);
   const hashIndex = documentId.indexOf('#');
-  const pageUrl = 0 <= hashIndex ? documentId.slice(0, hashIndex) : documentId;
   const anchor = 0 <= hashIndex ? documentId.slice(hashIndex + 1) : '';
 
   try {
@@ -166,6 +205,20 @@ async function fetchExcerpt (
   }
 }
 
+// Map each result id to its flat index for keyboard navigation
+const flatIndexMap = computed(() => {
+  const map = new Map<string, number>();
+  let index = 0;
+
+  for (const group of groupedResults.value) {
+    for (const result of group.results) {
+      map.set(result.id, index++);
+    }
+  }
+
+  return map;
+});
+
 // Highlight matched terms in text by wrapping in <mark> tags
 function highlight (text: string, searchQuery: string): string {
   if (!text || !searchQuery) return escapeHtml(text);
@@ -180,13 +233,6 @@ function highlight (text: string, searchQuery: string): string {
   }
 
   return result;
-}
-
-// Check if a result id belongs to the currently viewed page
-function isCurrent (resultId: string): boolean {
-  const page = resultId.split('#')[0];
-
-  return route.path === page;
 }
 
 function onKeydown (event: KeyboardEvent) {
@@ -291,33 +337,43 @@ async function runSearch (trimmed: string) {
       v-if="isSearchActive && results.length > 0"
       class="td-search-results"
     >
-      <a
-        v-for="(result, index) in results"
-        :key="result.id"
-        :href="result.id"
-        class="td-search-result"
-        :class="{
-          'is-selected': index === selectedIndex,
-        }"
-        @click="onResultClick"
+      <div
+        v-for="group in groupedResults"
+        :key="group.pageUrl"
+        class="td-search-group"
       >
-        <span class="td-search-result-header">
+        <div class="td-search-group-header">
+          <span class="td-search-group-title">{{ group.pageTitle }}</span>
+          <span
+            v-if="group.pagePath"
+            class="td-search-group-path"
+          >{{ group.pagePath }}</span>
+          <span
+            v-if="group.isCurrent"
+            class="td-search-result-badge"
+          >current page</span>
+        </div>
+        <a
+          v-for="result in group.results"
+          :key="result.id"
+          :href="result.id"
+          class="td-search-result"
+          :class="{
+            'is-selected': flatIndexMap.get(result.id) === selectedIndex,
+          }"
+          @click="onResultClick"
+        >
           <span
             class="td-search-result-title"
             v-html="highlight(result.title, query)"
           />
           <span
-            v-if="isCurrent(result.id)"
-            class="td-search-result-badge"
-          >current page</span>
-        </span>
-        <span class="td-search-result-breadcrumb">{{ result.titles.join(' / ') }}</span>
-        <span
-          v-if="result.excerpt"
-          class="td-search-result-excerpt"
-          v-html="highlight(result.excerpt, query)"
-        />
-      </a>
+            v-if="result.excerpt"
+            class="td-search-result-excerpt"
+            v-html="highlight(result.excerpt, query)"
+          />
+        </a>
+      </div>
     </div>
     <div
       v-if="isSearchActive && results.length === 0"
@@ -405,24 +461,32 @@ async function runSearch (trimmed: string) {
   flex-direction: column;
 }
 
-.td-search-result {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  text-decoration: none;
-  transition: background-color 0.1s;
+.td-search-group {
+  border-bottom: 1px solid var(--color-td-neutral-border-subtle);
 }
 
-.td-search-result:hover,
-.td-search-result.is-selected {
-  background: var(--color-td-neutral-bg-hover);
+.td-search-group:last-child {
+  border-bottom: none;
 }
 
-.td-search-result-header {
+.td-search-group-header {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 6px 10px 2px;
+}
+
+.td-search-group-title {
+  font-size: var(--font-size-td-label);
+  font-weight: var(--font-weight-td-semibold);
+  color: var(--color-td-neutral-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-td-label);
+}
+
+.td-search-group-path {
+  font-size: var(--font-size-td-label);
+  color: var(--color-td-neutral-border-strong);
 }
 
 .td-search-result-badge {
@@ -435,20 +499,28 @@ async function runSearch (trimmed: string) {
   line-height: 1;
 }
 
+.td-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 6px 16px;
+  text-decoration: none;
+  transition: background-color 0.1s;
+}
+
+.td-search-result:hover,
+.td-search-result.is-selected {
+  background: var(--color-td-neutral-bg-hover);
+}
+
 .td-search-result-title {
   font-size: var(--font-size-td-nav);
-  font-weight: var(--font-weight-td-semibold);
   color: var(--color-td-fg);
 }
 
 .td-search-result-title :deep(mark) {
   background: none;
   color: var(--color-td-primary-solid);
-}
-
-.td-search-result-breadcrumb {
-  font-size: var(--font-size-td-label);
-  color: var(--color-td-neutral-fg-muted);
 }
 
 .td-search-result-excerpt {
