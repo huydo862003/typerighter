@@ -1390,6 +1390,73 @@ fn parse_container_shorthand_with_props() {
   );
 }
 
+#[test]
+fn parse_container_block_kebab_case() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"::: directory-index
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "directory"
+      "-"
+      "index"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
+#[test]
+fn parse_container_shorthand_kebab_case() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[[directory-index]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      "directory"
+      "-"
+      "index"
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
 // Parses a fenced code block
 #[test]
 fn parse_code_block_simple() {

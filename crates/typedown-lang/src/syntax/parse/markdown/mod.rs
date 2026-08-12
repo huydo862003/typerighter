@@ -961,7 +961,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.advance_md(&mut children, SKIP_NONE);
     }
 
-    // Require a label identifier
+    // Require a label identifier (supports kebab-case like directory-index)
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
       self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
         expected: SyntaxKind::Ident,
@@ -969,7 +969,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         end_offset: self.offset(),
       });
     } else {
-      self.advance_md(&mut children, SKIP_NONE);
+      self.consume_kebab_ident(&mut children);
     }
 
     // Container props (`{key=value key=value}`)
@@ -1160,7 +1160,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.advance_md(&mut children, SKIP_NONE);
     self.advance_md(&mut children, SKIP_NONE);
 
-    // Require an identifier
+    // Require a label identifier (supports kebab-case like directory-index)
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
       self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
         expected: SyntaxKind::Ident,
@@ -1168,7 +1168,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         end_offset: self.offset(),
       });
     } else {
-      self.advance_md(&mut children, SKIP_NONE);
+      self.consume_kebab_ident(&mut children);
     }
 
     // Optional props block {key=value}
@@ -2145,6 +2145,24 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     (self.emit(SyntaxKind::MdText, &children), None)
+  }
+
+  // Consume a kebab-case identifier (e.g. directory-index)
+  // Advances through Ident, MdSymbol("-"), Ident sequences
+  fn consume_kebab_ident(&mut self, children: &mut Vec<GreenNode>) {
+    self.advance_md(children, SKIP_NONE);
+    loop {
+      let peek = self.lex_ctx.peek_md(SKIP_NONE);
+      if peek.token.kind() == SyntaxKind::MdSymbol
+        && peek.token.chars().collect::<String>() == "-"
+        && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::Ident
+      {
+        self.advance_md(children, SKIP_NONE); // -
+        self.advance_md(children, SKIP_NONE); // ident
+      } else {
+        break;
+      }
+    }
   }
 
   // Consume the expected prefix on the next line

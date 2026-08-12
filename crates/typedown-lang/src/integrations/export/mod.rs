@@ -280,7 +280,8 @@ fn emit_container_shorthand(node: &RedNode, out: &mut String) {
 
   for child in node.children() {
     match child.kind() {
-      SyntaxKind::Ident => label = child.text().to_string(),
+      SyntaxKind::Ident => label.push_str(&child.text()),
+      SyntaxKind::MdSymbol if child.text() == "-" => label.push('-'),
       SyntaxKind::MdContainerPropBlock => props = child.text().trim().to_string(),
       _ => {}
     }
@@ -538,6 +539,10 @@ mod tests {
     assert!(
       content.contains("::: grid {cols=2}\n:::\n"),
       "should expand [[grid {{cols=2}}]] to container with props: {content}",
+    );
+    assert!(
+      content.contains("::: directory-index\n:::\n"),
+      "should expand [[directory-index]] with kebab-case: {content}",
     );
   }
 

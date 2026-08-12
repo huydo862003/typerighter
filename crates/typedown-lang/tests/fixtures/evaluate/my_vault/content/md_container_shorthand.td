@@ -8,3 +8,5 @@ age: 25
 [[toc]]
 
 [[grid {cols=2}]]
+
+[[directory-index]]
