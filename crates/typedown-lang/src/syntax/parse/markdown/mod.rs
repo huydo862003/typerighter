@@ -1145,7 +1145,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
   /// Parse [[identifier {props}]] as a self-closing container shorthand
   /// INVARIANT: Expect [[ to be the next two tokens
-  pub(in crate::syntax::parse) fn parse_container_shorthand(&mut self) -> (GreenNode, Option<ExprCtx>) {
+  pub(in crate::syntax::parse) fn parse_container_shorthand(
+    &mut self,
+  ) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::LBracket
         && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::LBracket,
@@ -1527,13 +1529,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     );
     children.push(self.emit(SyntaxKind::MdText, &alt_children));
 
+    // Hit newline or EOF before ]: treat the whole thing as plain text
     if is_unclosed {
-      self.emit_diagnostic(Diagnostic::UnclosedLink {
-        start_offset: open_offset,
-        end_offset: self.offset(),
-      });
       self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
-      return (self.emit(SyntaxKind::MdLink, &children), None);
+      return (self.emit(SyntaxKind::MdText, &children), None);
     }
 
     // Consume `]`
@@ -1700,13 +1699,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     );
     children.push(self.emit(SyntaxKind::MdText, &alt_children));
 
+    // Hit newline or EOF before ]: treat the whole thing as plain text
     if is_unclosed {
-      self.emit_diagnostic(Diagnostic::UnclosedLink {
-        start_offset: open_offset,
-        end_offset: self.offset(),
-      });
       self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
-      return (self.emit(SyntaxKind::MdMedia, &children), None);
+      return (self.emit(SyntaxKind::MdText, &children), None);
     }
 
     // Consume `]`
