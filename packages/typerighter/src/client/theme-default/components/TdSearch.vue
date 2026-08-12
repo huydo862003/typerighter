@@ -311,6 +311,7 @@ async function runSearch (trimmed: string) {
         v-model="query"
         class="td-search-input"
         type="text"
+        size="1"
         placeholder="Search..."
         @keydown="onKeydown"
       >
@@ -411,6 +412,7 @@ async function runSearch (trimmed: string) {
 
 .td-search-input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   background: none;

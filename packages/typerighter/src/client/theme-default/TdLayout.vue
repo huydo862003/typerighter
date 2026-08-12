@@ -25,6 +25,9 @@ import {
   useCopyCode,
 } from './composables/useCopyCode';
 import {
+  useResizableTable,
+} from './composables/useResizableTable';
+import {
   useMenu,
 } from './composables/useMenu';
 import TdToc from './components/TdToc.vue';
@@ -53,6 +56,7 @@ const route = useRoute();
 watch(() => route.path, () => closeMenu());
 
 useCopyCode();
+useResizableTable();
 
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 500;
