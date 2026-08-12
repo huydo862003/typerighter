@@ -137,3 +137,8 @@ body {
 ::selection {
   background: color-mix(in srgb, var(--color-td-link) 30%, transparent);
 }
+
+:focus-visible {
+  outline: 2px solid var(--color-td-primary-solid);
+  outline-offset: 2px;
+}

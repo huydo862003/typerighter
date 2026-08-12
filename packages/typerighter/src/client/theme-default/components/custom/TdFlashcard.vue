@@ -206,7 +206,7 @@ defineExpose({
 
 .flashcard.is-disabled {
   cursor: not-allowed;
-  filter: brightness(0.95);
+  opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: reduce) {

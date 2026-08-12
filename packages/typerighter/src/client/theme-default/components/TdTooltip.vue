@@ -67,6 +67,7 @@ onBeforeUnmount(() => {
       v-if="visible"
       class="td-tooltip"
       :style="tipStyle"
+      role="tooltip"
       @mouseenter="clearHideTimeout"
       @mouseleave="hide"
     >{{ text }}</span>
@@ -88,7 +89,6 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 1000;
   max-width: 300px;
-  padding: 4px 8px;
   padding: 7px 12px 6px;
   font-size: 0.8125rem;
   line-height: 1.4;

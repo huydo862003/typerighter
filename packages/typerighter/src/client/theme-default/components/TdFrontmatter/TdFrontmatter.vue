@@ -86,13 +86,14 @@ const entries = computed(() => {
 .td-frontmatter-label {
   flex-shrink: 0;
   width: 120px;
-  font-size: 0.85rem;
+  max-width: 40%;
+  font-size: var(--font-size-td-nav);
   color: var(--color-td-neutral-fg-muted);
 }
 
 .td-frontmatter-value {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: var(--font-size-td-ui);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;

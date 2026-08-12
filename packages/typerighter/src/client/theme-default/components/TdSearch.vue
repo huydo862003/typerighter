@@ -331,7 +331,7 @@ async function runSearch (trimmed: string) {
 
 .td-search-count {
   flex-shrink: 0;
-  font-size: 0.7rem;
+  font-size: var(--font-size-td-label);
   color: var(--color-td-neutral-fg-muted);
 }
 
@@ -348,6 +348,7 @@ async function runSearch (trimmed: string) {
 
 .td-search-clear:hover {
   color: var(--color-td-fg);
+  transition: color 0.15s;
 }
 
 .td-search-results {
@@ -377,7 +378,7 @@ async function runSearch (trimmed: string) {
 
 .td-search-result-badge {
   flex-shrink: 0;
-  font-size: 0.6rem;
+  font-size: var(--font-size-td-label);
   color: var(--color-td-primary-solid);
   border: 1px solid var(--color-td-primary-solid);
   border-radius: 4px;
@@ -397,12 +398,12 @@ async function runSearch (trimmed: string) {
 }
 
 .td-search-result-breadcrumb {
-  font-size: 0.7rem;
+  font-size: var(--font-size-td-label);
   color: var(--color-td-neutral-fg-muted);
 }
 
 .td-search-result-excerpt {
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg);
   line-height: 1.4;
   overflow: hidden;

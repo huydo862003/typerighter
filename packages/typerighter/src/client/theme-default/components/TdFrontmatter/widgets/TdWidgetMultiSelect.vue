@@ -43,7 +43,7 @@ function toggleExpand () {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   background: var(--color-td-primary-bg-subtle);
   color: var(--color-td-primary-solid);
 }
@@ -52,7 +52,7 @@ function toggleExpand () {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 2px 0;
 }

@@ -16,7 +16,7 @@ const {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   background: var(--color-td-primary-bg-subtle);
   color: var(--color-td-primary-solid);
 }

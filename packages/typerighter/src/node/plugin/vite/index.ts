@@ -172,17 +172,17 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const tdContext = await resolveTdContext();
       const report = await tdContext.checkVault();
 
-      if (report.errorCount > 0 || report.warningCount > 0) {
+      if (0 < report.errorCount || 0 < report.warningCount) {
         for (const d of report.diagnostics) {
-          const loc = `${d.filepath}:${d.line}:${d.column}`;
+          const location = `${d.filepath}:${d.line}:${d.column}`;
           const prefix = d.severity === 'error' ? pc.red('error') : pc.yellow('warn');
 
-          console.error(`  ${prefix} ${loc} ${d.message} ${pc.dim(`(${d.code})`)}`);
+          console.error(`  ${prefix} ${location} ${d.message} ${pc.dim(`(${d.code})`)}`);
         }
       }
 
       // In production build (no dev server), fail on errors
-      if (!server && report.errorCount > 0) {
+      if (!server && 0 < report.errorCount) {
         const lines = report.diagnostics
           .filter((d) => d.severity === 'error')
           .map((d) => `  ${d.filepath}:${d.line}:${d.column} - ${d.message} (${d.code})`);

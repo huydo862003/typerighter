@@ -107,7 +107,7 @@ function visible<T> (list: T[]): T[] {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 2px 0;
 }

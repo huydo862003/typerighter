@@ -5,10 +5,10 @@ import {
 import {
   ChevronDown, File, Folder, FolderOpen,
 } from '@lucide/vue';
-import TdTooltip from './TdTooltip.vue';
 import {
   useRoute,
 } from '../../app';
+import TdTooltip from './TdTooltip.vue';
 import {
   formatRelativeTime, getDirectoryUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, isUrlAncestorOf, path, unslugify,
   type ContentTreeNode,
@@ -196,7 +196,7 @@ function toggle () {
 
 .td-tree-count {
   margin-left: auto;
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
   letter-spacing: normal;
   text-transform: none;
@@ -243,7 +243,7 @@ function toggle () {
 
 .td-tree-time {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
 }
 
@@ -259,7 +259,7 @@ function toggle () {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 4px 12px;
 }

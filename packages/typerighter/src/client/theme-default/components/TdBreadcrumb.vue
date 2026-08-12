@@ -47,6 +47,7 @@ const crumbs = computed(() => {
       <span
         v-if="index > 0"
         class="td-breadcrumb-sep"
+        aria-hidden="true"
       >/</span>
       <a
         v-if="index < crumbs.length - 1"

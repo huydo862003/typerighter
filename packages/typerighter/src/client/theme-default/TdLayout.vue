@@ -43,6 +43,7 @@ const siteData = useSiteData();
 const {
   isOpen, close: closeMenu,
 } = useMenu();
+
 const searchQuery = ref('');
 const sidebarSearchActive = ref(false);
 const menuSearchActive = ref(false);
@@ -70,18 +71,20 @@ function onResizeStart (event: PointerEvent) {
 
   target.setPointerCapture(event.pointerId);
 
-  function onMove (e: PointerEvent) {
-    const width = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + e.clientX - startX));
+  function onMove (event: PointerEvent) {
+    const width = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX));
 
     sidebarWidth.value = width;
   }
 
   function onUp () {
+    document.body.style.cursor = '';
     target.removeEventListener('pointermove', onMove);
     target.removeEventListener('pointerup', onUp);
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth.value));
   }
 
+  document.body.style.cursor = 'col-resize';
   target.addEventListener('pointermove', onMove);
   target.addEventListener('pointerup', onUp);
 }
@@ -147,7 +150,9 @@ function onResizeStart (event: PointerEvent) {
       <nav
         class="td-sidebar-left"
         aria-label="Site navigation"
-        :style="{ width: `${sidebarWidth}px` }"
+        :style="{
+          width: `${sidebarWidth}px`,
+        }"
       >
         <TdSearch
           v-model:query="searchQuery"
@@ -309,7 +314,7 @@ function onResizeStart (event: PointerEvent) {
 }
 
 .td-page-meta {
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border-strong);
   margin-bottom: 24px;
 }
