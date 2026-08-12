@@ -9,7 +9,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::rpc::contract::{
-  TdBuildRpcClient, TdBuiltResource, TdFilePath, TdSchemaInfo, TdSiteConfig,
+  TdBuildRpcClient, TdBuiltResource, TdDiagnosticReport, TdFilePath, TdFormatResult, TdSchemaInfo,
+  TdSiteConfig,
 };
 
 #[wasm_bindgen]
@@ -26,21 +27,15 @@ pub struct RpcClient {
 }
 
 impl RpcClient {
-  fn abort_all_subscriptions(&mut self) {
-    self.content_changed.get_mut().abort();
-    self.content_created.get_mut().abort();
-    self.content_deleted.get_mut().abort();
-    self.schema_changed.get_mut().abort();
-    self.schema_created.get_mut().abort();
-    self.schema_deleted.get_mut().abort();
-    self.config_changed.get_mut().abort();
-    self.disconnect.get_mut().abort();
-  }
-}
-
-impl Drop for RpcClient {
-  fn drop(&mut self) {
-    self.abort_all_subscriptions();
+  fn abort_all_subscriptions(&self) {
+    self.content_changed.borrow_mut().abort();
+    self.content_created.borrow_mut().abort();
+    self.content_deleted.borrow_mut().abort();
+    self.schema_changed.borrow_mut().abort();
+    self.schema_created.borrow_mut().abort();
+    self.schema_deleted.borrow_mut().abort();
+    self.config_changed.borrow_mut().abort();
+    self.disconnect.borrow_mut().abort();
   }
 }
 
@@ -58,6 +53,7 @@ impl RpcClient {
   pub async fn connect(addr: String, port: u16) -> Result<RpcClient, JsValue> {
     let url = format!("ws://{addr}:{port}");
     let inner = WasmClientBuilder::default()
+      .request_timeout(std::time::Duration::from_secs(120))
       .build(&url)
       .await
       .map_err(rpc_err)?;
@@ -74,7 +70,7 @@ impl RpcClient {
     })
   }
 
-  pub fn close(&mut self) {
+  pub fn close(&self) {
     self.abort_all_subscriptions();
   }
 
@@ -126,6 +122,20 @@ impl RpcClient {
   #[wasm_bindgen(js_name = "getSchema")]
   pub async fn get_schema(&self, schema: String) -> Result<TdSchemaInfo, JsValue> {
     <WasmClient as TdBuildRpcClient<(), ()>>::get_schema(&*self.inner, schema)
+      .await
+      .map_err(rpc_err)
+  }
+
+  #[wasm_bindgen(js_name = "checkVault")]
+  pub async fn check_vault(&self) -> Result<TdDiagnosticReport, JsValue> {
+    <WasmClient as TdBuildRpcClient<(), ()>>::check_vault(&*self.inner)
+      .await
+      .map_err(rpc_err)
+  }
+
+  #[wasm_bindgen(js_name = "formatFile")]
+  pub async fn format_file(&self, path: String) -> Result<TdFormatResult, JsValue> {
+    <WasmClient as TdBuildRpcClient<(), ()>>::format_file(&*self.inner, TdFilePath(path))
       .await
       .map_err(rpc_err)
   }

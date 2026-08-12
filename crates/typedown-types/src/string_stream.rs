@@ -57,7 +57,7 @@ impl<'a> Utf8Stream for StringStream<'a> {
   }
 
   fn exhausted(&self) -> bool {
-    self.offset.get() >= self.str.len()
+    matches!(self.peek(), Utf8Result::Eof)
   }
 
   fn peek_nth(&mut self, n: usize) -> Utf8Result {

@@ -103,7 +103,7 @@ pub trait TdTypeLike: TdObjectLike {
     self.get_owned_field_type_member(db, name).or_else(|| {
       Some(TypeMember::new(
         db,
-        MemberType::Simple(self.lookup_method(db, name)?.get_type(db)),
+        MemberType::simple(self.lookup_method(db, name)?.get_type(db)),
         TypeMemberDescriptors::empty(),
       ))
     })

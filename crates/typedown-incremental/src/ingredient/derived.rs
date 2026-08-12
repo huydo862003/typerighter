@@ -49,8 +49,8 @@ pub enum QueryState<K, V: DerivedId> {
 #[doc(hidden)]
 pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   ingredient_index: usize,
-  stable_name: Fingerprint,
-  value_name: Fingerprint, // name of the return type struct (e.g. "FibResult")
+  name_fingerprint: Fingerprint,
+  value_fingerprint: Fingerprint, // name of the return type struct (e.g. "FibResult")
   next_arg_id: Arc<AtomicUsize>,
   value_id_counter: &'static AtomicUsize,
   query_fn: fn(&DB, K) -> V,
@@ -59,17 +59,44 @@ pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   pub data: Arc<DashMap<usize, QueryState<K, V>>>, // arg_id -> state
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicUsize>,
+  #[cfg(debug_assertions)]
+  readable_name: &'static str,
+}
+
+impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredient<DB, K, V> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let name = {
+      #[cfg(debug_assertions)]
+      {
+        self.readable_name
+      }
+      #[cfg(not(debug_assertions))]
+      {
+        "DerivedQueryIngredient"
+      }
+    };
+    f.debug_struct(name).finish_non_exhaustive()
+  }
 }
 
 impl<
   DB: QueryDatabase + Send + Sync + 'static,
-  K: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
+  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+  V: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + DerivedId
+    + Clone
+    + PartialEq
+    + Send
+    + Sync
+    + 'static,
 > DerivedQueryIngredient<DB, K, V>
 {
   /// Deserialize all sibling DerivedField nodes for a value struct.
   fn deserialize_field_group(&self, ctx: &DeserializeContext, serialized_entry_id: u64) {
-    let group_key = (self.value_name, serialized_entry_id);
+    let group_key = (self.value_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
       for &(_, field_node_index) in &field_group.fields {
         ctx.decoder.get_or_deserialize_dep_node_id(field_node_index);
@@ -96,15 +123,15 @@ impl<
 
   pub fn new(
     ingredient_index: usize,
-    stable_name: &str,
-    value_name: &str,
+    name_fingerprint: &'static str,
+    value_fingerprint: &'static str,
     value_id_counter: &'static AtomicUsize,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
       ingredient_index,
-      stable_name: Fingerprint::from_name(stable_name),
-      value_name: Fingerprint::from_name(value_name),
+      name_fingerprint: Fingerprint::from_name(name_fingerprint),
+      value_fingerprint: Fingerprint::from_name(value_fingerprint),
       next_arg_id: Arc::new(AtomicUsize::new(0)),
       value_id_counter,
       query_fn,
@@ -112,6 +139,8 @@ impl<
       data: Arc::new(DashMap::new()),
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicUsize::new(0)),
+      #[cfg(debug_assertions)]
+      readable_name: name_fingerprint,
     }
   }
 
@@ -163,7 +192,7 @@ impl<
     arg.stable_hash(db, &mut hasher);
     let key_fp = Fingerprint::from_hasher(hasher);
 
-    let (node_index, node) = ctx.find_derived_query(self.stable_name, key_fp)?;
+    let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fp)?;
 
     let DepNode::DerivedQuery {
       value_entry_id: serialized_value_entry_id,
@@ -214,7 +243,7 @@ impl<
     self.deserialize_field_group(ctx, *serialized_value_entry_id);
     let value_entry_id = *ctx
       .entry_id_map
-      .entry((self.value_name, *serialized_value_entry_id))
+      .entry((self.value_fingerprint, *serialized_value_entry_id))
       .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
 
     // Decode key
@@ -432,12 +461,26 @@ impl<
 
 impl<
   DB: QueryDatabase + Send + Sync + 'static,
-  K: StableHash + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash + Encodable + Decodable + DerivedId + Clone + PartialEq + Send + Sync + 'static,
+  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+  V: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + DerivedId
+    + Clone
+    + PartialEq
+    + Send
+    + Sync
+    + 'static,
 > Ingredient for DerivedQueryIngredient<DB, K, V>
 {
-  fn name(&self) -> Fingerprint {
-    self.stable_name
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.readable_name.to_string()
+  }
+
+  fn name_fingerprint(&self) -> Fingerprint {
+    self.name_fingerprint
   }
 
   /// Check the red-green algo here: https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html#improving-accuracy-the-red-green-algorithm
@@ -537,7 +580,7 @@ impl<
     // Get the session-local entry_id allocated by field deserialization
     let value_entry_id = *ctx
       .entry_id_map
-      .entry((self.value_name, *serialized_value_entry_id))
+      .entry((self.value_fingerprint, *serialized_value_entry_id))
       .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
 
     // Decode key
@@ -586,7 +629,7 @@ impl<
     ctx.dep_graph.set(
       node_index,
       UnresolvedDepNode::DerivedQuery {
-        name: self.stable_name,
+        name: self.name_fingerprint,
         key: self
           .key_fingerprint(ctx.db(), entry_id)
           .expect("Computed entry must have a key fingerprint"),
@@ -632,6 +675,14 @@ pub struct DerivedFieldIngredient<T> {
   pub data: Arc<DashMap<usize, StampedDerivedField<T>>>,
 }
 
+impl<T> std::fmt::Debug for DerivedFieldIngredient<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("DerivedFieldIngredient")
+      .field("name", &self.name)
+      .finish_non_exhaustive()
+  }
+}
+
 impl<T> DerivedFieldIngredient<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
@@ -655,10 +706,15 @@ impl<T> DerivedFieldIngredient<T> {
   }
 }
 
-impl<T: StableHash + Encodable + Decodable + Send + Sync + 'static> Ingredient
+impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static> Ingredient
   for DerivedFieldIngredient<T>
 {
-  fn name(&self) -> Fingerprint {
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.name.to_string()
+  }
+
+  fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }
 
@@ -740,7 +796,7 @@ impl<T: StableHash + Encodable + Decodable + Send + Sync + 'static> Ingredient
     ctx.dep_graph.set(
       node_index,
       UnresolvedDepNode::DerivedField {
-        name: self.name(),
+        name: self.name_fingerprint(),
         field_index: self.field_index,
         entry_id: entry_id as u64,
         value: self

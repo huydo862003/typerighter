@@ -1,6 +1,7 @@
 import {
   resolve,
 } from 'node:path';
+import pc from 'picocolors';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import {
@@ -165,6 +166,31 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           noExternal: ['typerighter'],
         },
       };
+    },
+
+    async buildStart () {
+      const tdContext = await resolveTdContext();
+      const report = await tdContext.checkVault();
+
+      if (report.errorCount > 0 || report.warningCount > 0) {
+        for (const d of report.diagnostics) {
+          const loc = `${d.filepath}:${d.line}:${d.column}`;
+          const prefix = d.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+
+          console.error(`  ${prefix} ${loc} ${d.message} ${pc.dim(`(${d.code})`)}`);
+        }
+      }
+
+      // In production build (no dev server), fail on errors
+      if (!server && report.errorCount > 0) {
+        const lines = report.diagnostics
+          .filter((d) => d.severity === 'error')
+          .map((d) => `  ${d.filepath}:${d.line}:${d.column} - ${d.message} (${d.code})`);
+
+        this.error(
+          `Vault check failed with ${report.errorCount} error(s):\n${lines.join('\n')}`,
+        );
+      }
     },
 
     // Resolve virtual modules

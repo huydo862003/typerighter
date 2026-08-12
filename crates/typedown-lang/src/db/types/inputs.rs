@@ -11,7 +11,7 @@ use strum::FromRepr;
 use typedown_incremental::{Decodable, Decoder, Encodable, Encoder};
 
 /// File metadata
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FileMetadata {
   /// Last modification time
   pub mtime: SystemTime,
@@ -47,7 +47,7 @@ impl FileMetadata {
 }
 
 /// Types of file-handle: path-based or editor-managed content
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FileHandle {
   /// A file on disk with metadata
   Path(PathBuf, FileMetadata),

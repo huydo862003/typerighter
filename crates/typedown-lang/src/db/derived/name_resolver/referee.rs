@@ -6,7 +6,7 @@ use crate::syntax::syntax_kind::SyntaxKind;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::{MaybeSymbol, file_symbol};
-use crate::db::derived::name_resolver::members::members;
+use crate::db::derived::name_resolver::members::{members, schema_members};
 use crate::db::derived::name_resolver::scope::{parent_scope, scope};
 use crate::db::types::{HirValue, HirValueKind};
 use typedown_incremental::QueryDatabase;
@@ -23,6 +23,12 @@ pub fn referee(db: &TypedownDatabase, hir: HirValue) -> MaybeSymbol {
 fn resolve_ident(db: &TypedownDatabase, hir: HirValue, name: String) -> MaybeSymbol {
   if is_dot_rhs(&hir.node(db)) {
     return MaybeSymbol::new(db, None);
+  }
+
+  // Fast path: check schema members before walking the full scope chain
+  let schema_result = schema_members(db, hir.project(db));
+  if let Some(sym) = schema_result.members(db).get(&name) {
+    return MaybeSymbol::new(db, Some(*sym));
   }
 
   let mut current_scope = scope(db, hir);

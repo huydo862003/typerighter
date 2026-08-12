@@ -23,9 +23,12 @@ impl<S: Utf8Stream> LexCtx<S> {
 
     let char = match self.peek() {
       Utf8Result::Char(char) => char,
-      _ => panic!(
-        "[LexCtx::lex_markdown_body] Expected a valid UTF-8 character but got EOF or invalid bytes."
-      ),
+      Utf8Result::Eof => return self.emit(SyntaxKind::Eof),
+      Utf8Result::Invalid { .. } => {
+        return self
+          .try_consume_invalid_utf8()
+          .unwrap_or_else(|| self.emit(SyntaxKind::Eof));
+      }
     };
 
     match char {
@@ -115,6 +118,18 @@ impl<S: Utf8Stream> LexCtx<S> {
 
       /* HTML entities */
       '&' => self.lex_markdown_html_entity(),
+
+      /* Backslash escapes */
+      '\\' => {
+        self.advance_avoid_invalid_utf8();
+        match self.peek() {
+          Utf8Result::Char(c) if is_md_escapable_char(c) => {
+            self.advance_avoid_invalid_utf8();
+            self.emit(SyntaxKind::MdText)
+          }
+          _ => self.emit(SyntaxKind::MdSymbol),
+        }
+      }
 
       /* Symbols */
       _ if is_md_symbol_char(char) => self.lex_markdown_symbol(),
@@ -307,6 +322,7 @@ impl<S: Utf8Stream> LexCtx<S> {
             && char != '`'
             && char != '"'
             && char != '\''
+            && char != '\\'
             && !is_md_symbol_char(char)
             && !char.is_ascii_digit() =>
         {
@@ -733,11 +749,38 @@ fn is_md_symbol_char(char: char) -> bool {
       | '@'
       | ':'
       | '&'
-      | '\\'
       | '/'
       | '='
       | '+'
       | '%'
       | '.'
+  )
+}
+
+// Characters that can be escaped with a backslash in markdown
+fn is_md_escapable_char(char: char) -> bool {
+  matches!(
+    char,
+    '\\'
+      | '`'
+      | '*'
+      | '_'
+      | '{'
+      | '}'
+      | '['
+      | ']'
+      | '('
+      | ')'
+      | '#'
+      | '+'
+      | '-'
+      | '.'
+      | '!'
+      | '|'
+      | '~'
+      | '>'
+      | '<'
+      | ':'
+      | '$'
   )
 }

@@ -18,6 +18,7 @@ pub enum SyntaxKind {
   // Body (Markdown mode) nodes
   MdBody = 200,
   MdHeading,
+  MdHorizontalRule,
   MdParagraph,
   MdBlockquote,
   MdTable,
@@ -31,10 +32,6 @@ pub enum SyntaxKind {
   MdCheckbox,     // `[ ]` or `[x]`
   MdOrderedList,
   MdOrderedListItem,
-  MdToggleList,
-  MdToggleListItem,
-  MdToggleListSummary,
-  MdToggleListDetails,
   MdContainerBlock,     // ::: label ... :::
   MdContainerPropBlock, // {key=value}
   MdContainerPropItem,  // key=value or key

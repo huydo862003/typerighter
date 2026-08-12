@@ -3,7 +3,7 @@ import {
   computed, ref, watch,
 } from 'vue';
 import {
-  ChevronDown, File, House,
+  ChevronDown, File, Folder, FolderOpen,
 } from '@lucide/vue';
 import {
   useRoute,
@@ -15,13 +15,10 @@ import {
 
 const {
   node,
-  depth = 0,
   urlPrefix = '',
 } = defineProps<{
   /** Tree node to render */
   node: ContentTreeNode;
-  /** Nesting depth for indentation */
-  depth?: number;
   /** Accumulated path prefix for building directory hrefs */
   urlPrefix?: string;
 }>();
@@ -67,57 +64,48 @@ function toggle () {
     v-if="hasContent"
     class="td-tree-node"
   >
-    <button
-      type="button"
-      class="td-tree-label"
-      :aria-expanded="!collapsed"
-      :style="{
-        paddingLeft: `${12 + depth * 12}px`,
-      }"
-      @click="toggle"
-    >
-      <ChevronDown
-        :size="14"
-        class="td-tree-caret"
-        :class="{
-          'is-collapsed': collapsed,
-        }"
-      />
-      <span class="td-tree-label-text">{{ unslugify(node.name) }}</span>
-      <span class="td-tree-count">{{ totalCount }}</span>
-    </button>
-    <div
-      v-if="!collapsed"
-      class="td-tree-children"
-      :style="{
-        marginLeft: `${14 + depth * 10}px`,
-      }"
-    >
+    <div class="td-tree-label">
+      <button
+        type="button"
+        class="td-tree-toggle"
+        :aria-expanded="!collapsed"
+        @click="toggle"
+      >
+        <ChevronDown
+          :size="14"
+          class="td-tree-caret"
+          :class="{
+            'is-collapsed': collapsed,
+          }"
+        />
+        <span class="td-tree-label-text">{{ unslugify(node.name) }}</span>
+      </button>
       <a
         :href="indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl"
-        class="td-tree-link"
+        class="td-tree-index-btn"
         :class="{
           'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl),
         }"
-        :style="{
-          paddingLeft: `${32 + depth * 12}px`,
-        }"
       >
-        <House
-          :size="14"
-          class="td-tree-file-icon"
+        <FolderOpen
+          v-if="isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl)"
+          :size="12"
         />
-        <span class="td-tree-link-text">{{ unslugify(node.name) }}</span>
-        <span
-          v-if="indexItem"
-          class="td-tree-time"
-        >{{ formatRelativeTime(indexItem.metadata.mtime) }}</span>
+        <Folder
+          v-else
+          :size="12"
+        />
       </a>
+      <span class="td-tree-count">{{ totalCount }}</span>
+    </div>
+    <div
+      v-if="!collapsed"
+      class="td-tree-children"
+    >
       <TdTreeNode
         v-for="child in node.children"
         :key="child.name"
         :node="child"
-        :depth="depth + 1"
         :url-prefix="directoryUrl"
       />
       <a
@@ -127,9 +115,6 @@ function toggle () {
         class="td-tree-link"
         :class="{
           'is-active': isCurrent(getTdContentUrl(item.filepath)),
-        }"
-        :style="{
-          paddingLeft: `${32 + depth * 12}px`,
         }"
       >
         <File
@@ -143,9 +128,6 @@ function toggle () {
         v-if="hiddenCount > 0 && !expanded"
         class="td-tree-more"
         type="button"
-        :style="{
-          paddingLeft: `${32 + depth * 12}px`,
-        }"
         @click="expand"
       >
         {{ hiddenCount }} more
@@ -159,15 +141,25 @@ function toggle () {
   display: flex;
   align-items: center;
   gap: 4px;
-  width: 100%;
   padding: 6px 20px;
   font-size: var(--font-size-td-label);
   letter-spacing: var(--tracking-td-label);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
+}
+
+.td-tree-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   background: none;
   border: none;
   cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  padding: 0;
 }
 
 .td-tree-label:hover {
@@ -179,7 +171,27 @@ function toggle () {
   text-align: left;
 }
 
+.td-tree-index-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--color-td-neutral-border-strong);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+
+.td-tree-index-btn:hover {
+  color: var(--color-td-primary-solid);
+}
+
+.td-tree-index-btn.is-active {
+  color: var(--color-td-primary-solid);
+}
+
 .td-tree-count {
+  margin-left: auto;
   font-size: 0.75rem;
   color: var(--color-td-neutral-border);
   letter-spacing: normal;
@@ -196,6 +208,7 @@ function toggle () {
 }
 
 .td-tree-children {
+  margin-left: 8px;
   border-left: 1px solid var(--color-td-neutral-border-subtle);
 }
 

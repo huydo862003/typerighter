@@ -1,3 +1,80 @@
+## [0.5.1] - 2026-08-12
+
+* packages/typerighter
+  - Improve sidebar nested item stylings
+  - Improve index file styling
+  - No longer strip index from path
+
+## [0.5.0] - 2026-08-11
+
+* crates/typedown-lang
+  - Fix infinite loop when a container block is nested inside a list item
+  - Fix nested list multi-indentation
+  - Fix bullet/ordered/toggle list markers not followed by spaces being treated as lists
+  - Fix empty list item diagnostics and list space diagnostics
+  - Fix HIR lowering for inline math in strings
+  - Fix `[...]` now parsed as text instead of a link attempt
+  - Support horizontal rules and backslash escape
+  - Drop toggle list syntax
+  - Require Debug on incremental ingredient trait and all implementors
+  - Add readable query names in debug builds
+* crates/typedown-server
+  - Fix ref-cell panic in WASM RPC client
+  - Improve check command with vault error reporting
+  - Exclude non-relevant files from directory scan
+  - Offload RPC work off the main thread
+  - Load cache on RPC startup for faster responses
+  - Improve name resolver performance with a fast path
+* packages/typerighter
+  - Fix CLI error reporting and improve check command output
+* editors/nvim
+  - Remove conflicting C-v keymap
+
+## [0.4.4] - 2026-08-09
+
+* crates/typedown-types
+  - Wrong exhaustion check of filestream
+
+## [0.4.3] - 2026-08-09
+
+* packages/rpc-server
+  - Make install.js more robust on nixos
+
+## [0.4.2] - 2026-08-09
+
+* packages/rpc-server
+  - Detect NixOS and install properly for rpc-server
+
+## [0.4.1] - 2026-08-09
+
+* packages/typerighter
+  - Fix the index listing to correctly link to children dir
+
+## [0.4.0] - 2026-08-09
+
+* crates/typedown-lang
+  - Support custom components `::: name {prop="value" flag}`
+  - Support code ranges in code block (` ```js{1,3,5-8} `) with `language()` and `line_ranges()`
+  - Rename callout to container across the AST, formatter, and exporter
+  - Treat `{` and `}` as lexer tokens
+  - Add container title support
+  - Support typeless `.td` files
+  - Support `.md` files alongside `.td`
+  - Remove non-standard CommonMark syntax extensions
+* packages/tree-sitter/typedown-md
+  - Grammar and external scanner for container props and slot separators
+  - Corpus coverage for containers, nested containers, and code block ranges
+  - Fix container title parsing
+* packages/typerighter
+  - Add templating and snippet support
+  - Render frontmatter in the default theme
+  - Implement document search with MiniSearch
+  - Show file modification time and improve theming
+  - Improve sidebar directory tree navigation
+  - Add file icons to directory listings
+* editors
+  - Update Neovim highlight queries and the VS Code TextMate grammar for container syntax
+
 ## [0.3.1] - 2026-08-04
 
 * packages/typerighter

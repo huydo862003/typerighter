@@ -42,20 +42,16 @@ pub(in crate::syntax::parse) enum ExprCtx {
   MdContainerSlot,
   /// Inside a `>` blockquote
   MdBlockQuote,
-  /// Inside an ordered list (`1. ...`)
-  MdOrderedList,
+  /// Inside an ordered list, `u16` = extra leading indentation
+  MdOrderedList(u16),
   /// Inside an ordered list item
   MdOrderedListItem,
-  /// Inside an unordered list (`- ...`, `* ...`, `+ ...`)
-  MdUnorderedList,
+  /// Inside an unordered list, `u16` = extra leading indentation
+  MdUnorderedList(u16),
   /// Inside an unordered list item
   MdUnorderedListItem,
-  /// Inside a task list item (`- [ ] ...` or `- [x] ...`)
+  /// Inside a task list item
   MdTaskListItem,
-  /// Inside a toggle list (`>- ...`)
-  MdToggleList,
-  /// Inside a toggle list item
-  MdToggleListItem,
   /// Inside a table
   MdTable,
   /// Inside a table row, closed by Newline
@@ -141,16 +137,6 @@ impl ExprCtxStack {
     &self.md_prefix_tokens
   }
 
-  // The prefix tokens excluding the current context's contribution
-  pub(in crate::syntax::parse) fn md_parent_prefix_tokens(&self) -> &[SyntaxToken] {
-    let current_count = self
-      .stack
-      .last()
-      .map(|e| e.prefix_token_count as usize)
-      .unwrap_or(0);
-    &self.md_prefix_tokens[..self.md_prefix_tokens.len() - current_count]
-  }
-
   /// Whether expressions should skip indent/dedent tokens.
   pub(in crate::syntax::parse) fn should_expr_skip_indent(&self) -> bool {
     self.stack.iter().any(|e| e.ctx.should_expr_skip_indent())
@@ -173,23 +159,14 @@ impl ExprCtxStack {
           .md_prefix_tokens
           .push(cache.token(SyntaxKind::Whitespace, b" "));
       }
-      ExprCtx::MdUnorderedListItem | ExprCtx::MdTaskListItem => {
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
+      ExprCtx::MdUnorderedList(indent) | ExprCtx::MdOrderedList(indent) => {
+        for _ in 0..indent {
+          self
+            .md_prefix_tokens
+            .push(cache.token(SyntaxKind::Whitespace, b" "));
+        }
       }
-      ExprCtx::MdOrderedListItem => {
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
-      }
-      ExprCtx::MdToggleListItem => {
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
+      ExprCtx::MdUnorderedListItem | ExprCtx::MdTaskListItem | ExprCtx::MdOrderedListItem => {
         self
           .md_prefix_tokens
           .push(cache.token(SyntaxKind::Whitespace, b" "));
@@ -272,17 +249,14 @@ impl ExprCtx {
         | (ExprCtx::BlockMap, SyntaxKind::Newline)
         | (ExprCtx::MdBlockQuote, SyntaxKind::Newline)
         | (ExprCtx::MdBlockQuote, SyntaxKind::Eof)
-        | (ExprCtx::MdOrderedList, SyntaxKind::Eof)
+        | (ExprCtx::MdOrderedList(_), SyntaxKind::Eof)
         | (ExprCtx::MdOrderedListItem, SyntaxKind::Newline)
         | (ExprCtx::MdOrderedListItem, SyntaxKind::Eof)
-        | (ExprCtx::MdUnorderedList, SyntaxKind::Eof)
+        | (ExprCtx::MdUnorderedList(_), SyntaxKind::Eof)
         | (ExprCtx::MdUnorderedListItem, SyntaxKind::Newline)
         | (ExprCtx::MdUnorderedListItem, SyntaxKind::Eof)
         | (ExprCtx::MdTaskListItem, SyntaxKind::Newline)
         | (ExprCtx::MdTaskListItem, SyntaxKind::Eof)
-        | (ExprCtx::MdToggleList, SyntaxKind::Eof)
-        | (ExprCtx::MdToggleListItem, SyntaxKind::Newline)
-        | (ExprCtx::MdToggleListItem, SyntaxKind::Eof)
         | (ExprCtx::MdTable, SyntaxKind::Eof)
         | (ExprCtx::MdTableRow, SyntaxKind::Newline)
         | (ExprCtx::MdTableRow, SyntaxKind::Eof)

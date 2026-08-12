@@ -175,7 +175,7 @@ impl<S: Utf8Stream> LexCtx<S> {
 
   /// Look for an invalid utf-8 character right ahead and return if any.
   /// INVARIANT: Always call before any other advance()/consume().
-  fn try_consume_invalid_utf8(&mut self) -> Option<LexResult> {
+  pub(super) fn try_consume_invalid_utf8(&mut self) -> Option<LexResult> {
     debug_assert!(
       self.text_buffer.is_empty(),
       "Do not call advance()/consume() before try_consume_invalid_utf8()"

@@ -49,7 +49,3 @@ details content
 [link text](https://example.com)
 
 ![alt](image.png)
-
->- Toggle summary
-
-   Toggle details content
