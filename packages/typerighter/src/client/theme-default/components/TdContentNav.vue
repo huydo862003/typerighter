@@ -103,6 +103,7 @@ function isCurrent (href: string): boolean {
 
 .td-root-link-time {
   flex-shrink: 0;
+  margin-left: auto;
   font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
 }

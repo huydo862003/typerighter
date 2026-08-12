@@ -243,6 +243,7 @@ function toggle () {
 
 .td-tree-time {
   flex-shrink: 0;
+  margin-left: auto;
   font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
 }
