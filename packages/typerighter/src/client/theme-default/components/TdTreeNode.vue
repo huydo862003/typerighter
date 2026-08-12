@@ -212,7 +212,7 @@ function toggle () {
 }
 
 .td-tree-children {
-  margin-left: 34px;
+  margin-left: 22px;
   border-left: 1px solid var(--color-td-neutral-border-subtle);
 }
 
@@ -229,7 +229,7 @@ function toggle () {
   font-size: var(--font-size-td-nav);
   color: var(--color-td-neutral-fg);
   text-decoration: none;
-  transition: background-color 0.1s;
+  transition: background-color 0.1s, border-left-color 0.1s, color 0.1s;
 }
 
 .td-tree-link:hover {
@@ -266,5 +266,6 @@ function toggle () {
 
 .td-tree-more:hover {
   color: var(--color-td-fg);
+  transition: color 0.15s;
 }
 </style>
