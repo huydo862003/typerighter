@@ -26,17 +26,14 @@ export function getParentUrl (urlPath: string): string {
   return dirname(urlPath.replace(/\/$/, '')) || '/';
 }
 
-// Strip the anchor fragment from a URL, returning only the page path
-export function stripAnchor (url: string): string {
-  const hashIndex = url.indexOf('#');
-
-  return 0 <= hashIndex ? url.slice(0, hashIndex) : url;
-}
-
 export function getTdContentUrl (filepath: string): string {
   const name = filestem(filepath);
 
   return '/' + join(dirname(filepath), name);
+}
+
+export function isUrlAncestorOf (directoryUrl: string, path: string): boolean {
+  return path.startsWith(directoryUrl + '/') || path === directoryUrl;
 }
 
 // Returns true if the URL has a protocol prefix (https:, mailto:, data:, etc.)
@@ -44,13 +41,16 @@ export function isUrlExternal (path: string): boolean {
   return EXTERNAL_URL_RE.test(path);
 }
 
-export function isUrlAncestorOf (directoryUrl: string, path: string): boolean {
-  return path.startsWith(directoryUrl + '/') || path === directoryUrl;
-}
-
 // Returns true if the path looks like a page link (not a file download)
 export function isUrlToPage (filename: string): boolean {
   const extension = extname(filename).slice(1);
 
   return extension === '' || !DOWNLOADABLE_FILE_EXTENSIONS.has(extension.toLowerCase());
+}
+
+// Strip the anchor fragment from a URL, returning only the page path
+export function stripAnchor (url: string): string {
+  const hashIndex = url.indexOf('#');
+
+  return 0 <= hashIndex ? url.slice(0, hashIndex) : url;
 }

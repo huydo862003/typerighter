@@ -9,11 +9,11 @@ import {
   LoaderCircle, Search, X,
 } from '@lucide/vue';
 import {
-  usePageLoader, useRoute, useSearchIndex,
+  usePageLoader, useSearchIndex,
 } from '../../app';
 import {
   debounce,
-  escapeHtml, escapeRegex, stripAnchor,
+  escapeHtml, escapeRegex, stripAnchor, unslugify,
   SEARCH_FIELDS, SEARCH_STORE_FIELDS, stripHtml,
   type PageModule,
 } from '@/shared';
@@ -29,8 +29,6 @@ interface SearchResult {
 interface SearchResultGroup {
   pageUrl: string;
   pageTitle: string;
-  pagePath: string;
-  isCurrent: boolean;
   results: SearchResult[];
 }
 
@@ -44,8 +42,6 @@ const query = defineModel<string>('query', {
 const emit = defineEmits<{
   select: [];
 }>();
-
-const route = useRoute();
 
 const EXCERPT_CHARS = 120;
 
@@ -63,24 +59,17 @@ const groupedResults = computed((): SearchResultGroup[] => {
     let group = groupMap.get(pageUrl);
 
     if (!group) {
+      const filename = pageUrl.split('/').pop() || 'index';
+
       group = {
         pageUrl,
-        pageTitle: '',
-        pagePath: result.titles.join(' / '),
-        isCurrent: route.path === pageUrl,
+        pageTitle: unslugify(filename),
         results: [],
       };
       groupMap.set(pageUrl, group);
       groups.push(group);
     }
     group.results.push(result);
-  }
-
-  // Set page title from the page-level result (no anchor), or fall back to the first result
-  for (const group of groups) {
-    const pageResult = group.results.find((result) => !result.id.includes('#'));
-
-    group.pageTitle = pageResult?.title ?? group.results[0].title;
   }
 
   return groups;
@@ -205,15 +194,15 @@ async function fetchExcerpt (
   }
 }
 
+// Flat list of grouped results for keyboard navigation
+const flatResults = computed(() => groupedResults.value.flatMap((group) => group.results));
+
 // Map each result id to its flat index for keyboard navigation
 const flatIndexMap = computed(() => {
   const map = new Map<string, number>();
-  let index = 0;
 
-  for (const group of groupedResults.value) {
-    for (const result of group.results) {
-      map.set(result.id, index++);
-    }
+  for (let index = 0; index < flatResults.value.length; index++) {
+    map.set(flatResults.value[index].id, index);
   }
 
   return map;
@@ -236,7 +225,7 @@ function highlight (text: string, searchQuery: string): string {
 }
 
 function onKeydown (event: KeyboardEvent) {
-  const count = results.value.length;
+  const count = flatIndexMap.value.size;
 
   if (count === 0) return;
 
@@ -248,7 +237,9 @@ function onKeydown (event: KeyboardEvent) {
     selectedIndex.value = (selectedIndex.value - 1 + count) % count;
   } else if (event.key === 'Enter' && 0 <= selectedIndex.value) {
     event.preventDefault();
-    const selected = results.value[selectedIndex.value];
+    const selected = flatResults.value[selectedIndex.value];
+
+    if (!selected) return;
     const link = document.querySelector<HTMLAnchorElement>(`.td-search-result[href="${CSS.escape(selected.id)}"]`);
 
     link?.click();
@@ -307,6 +298,7 @@ async function runSearch (trimmed: string) {
         :size="14"
         class="td-search-icon"
       />
+      <!-- size="1" overrides the intrinsic input width so flex can shrink it -->
       <input
         v-model="query"
         class="td-search-input"
@@ -343,16 +335,8 @@ async function runSearch (trimmed: string) {
         :key="group.pageUrl"
         class="td-search-group"
       >
-        <div class="td-search-group-header">
-          <span class="td-search-group-title">{{ group.pageTitle }}</span>
-          <span
-            v-if="group.pagePath"
-            class="td-search-group-path"
-          >{{ group.pagePath }}</span>
-          <span
-            v-if="group.isCurrent"
-            class="td-search-result-badge"
-          >current page</span>
+        <div class="td-search-group-label">
+          {{ group.pageTitle }}
         </div>
         <a
           v-for="result in group.results"
@@ -463,49 +447,24 @@ async function runSearch (trimmed: string) {
   flex-direction: column;
 }
 
-.td-search-group {
-  border-bottom: 1px solid var(--color-td-neutral-border-subtle);
-}
-
-.td-search-group:last-child {
-  border-bottom: none;
-}
-
-.td-search-group-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px 2px;
-}
-
-.td-search-group-title {
+.td-search-group-label {
+  padding: 6px 20px;
   font-size: var(--font-size-td-label);
-  font-weight: var(--font-weight-td-semibold);
-  color: var(--color-td-neutral-fg-muted);
-  text-transform: uppercase;
   letter-spacing: var(--tracking-td-label);
-}
-
-.td-search-group-path {
-  font-size: var(--font-size-td-label);
-  color: var(--color-td-neutral-border-strong);
-}
-
-.td-search-result-badge {
-  flex-shrink: 0;
-  font-size: var(--font-size-td-label);
-  color: var(--color-td-primary-solid);
-  border: 1px solid var(--color-td-primary-solid);
-  border-radius: 4px;
-  padding: 1px 4px;
-  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-td-neutral-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-search-result {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 6px 10px 6px 16px;
+  padding: 5px 12px;
+  margin-left: 20px;
+  border-left: 1px solid var(--color-td-neutral-border-subtle);
   text-decoration: none;
   transition: background-color 0.1s;
 }
