@@ -1292,6 +1292,32 @@ content here
   );
 }
 
+#[test]
+fn parse_container_block_empty() {
+  let tree = parse_body(r#"::: note
+:::
+"#);
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
 // Parses a fenced code block
 #[test]
 fn parse_code_block_simple() {
