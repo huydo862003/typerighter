@@ -1,7 +1,4 @@
 import {
-  INDEX_FILENAME,
-} from '../constants';
-import {
   EXTERNAL_URL_RE,
 } from '../regexes';
 import {
@@ -36,12 +33,6 @@ export function getParentUrl (urlPath: string): string {
 
 export function getTdContentUrl (filepath: string): string {
   const name = filestem(filepath);
-
-  if (name === INDEX_FILENAME) {
-    const directory = dirname(filepath);
-
-    return directory ? '/' + directory : '/';
-  }
 
   return '/' + join(dirname(filepath), name);
 }
