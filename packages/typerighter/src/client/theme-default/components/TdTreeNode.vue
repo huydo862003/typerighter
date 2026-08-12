@@ -5,6 +5,7 @@ import {
 import {
   ChevronDown, File, Folder, FolderOpen,
 } from '@lucide/vue';
+import TdTooltip from './TdTooltip.vue';
 import {
   useRoute,
 } from '../../app';
@@ -121,7 +122,10 @@ function toggle () {
           :size="14"
           class="td-tree-file-icon"
         />
-        <span class="td-tree-link-text">{{ getTdResourceTitle(item.header, item.filepath) }}</span>
+        <TdTooltip
+          class="td-tree-link-text"
+          :text="getTdResourceTitle(item.header, item.filepath)"
+        >{{ getTdResourceTitle(item.header, item.filepath) }}</TdTooltip>
         <span class="td-tree-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
       </a>
       <button
@@ -234,9 +238,7 @@ function toggle () {
 
 .td-tree-link-text {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
 }
 
 .td-tree-time {

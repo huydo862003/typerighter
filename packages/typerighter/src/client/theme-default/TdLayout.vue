@@ -51,6 +51,40 @@ const route = useRoute();
 watch(() => route.path, () => closeMenu());
 
 useCopyCode();
+
+const SIDEBAR_MIN = 200;
+const SIDEBAR_MAX = 500;
+const SIDEBAR_DEFAULT = 272;
+const SIDEBAR_STORAGE_KEY = 'td-sidebar-width';
+
+const sidebarWidth = ref(
+  typeof localStorage !== 'undefined'
+    ? Number(localStorage.getItem(SIDEBAR_STORAGE_KEY)) || SIDEBAR_DEFAULT
+    : SIDEBAR_DEFAULT,
+);
+
+function onResizeStart (event: PointerEvent) {
+  const startX = event.clientX;
+  const startWidth = sidebarWidth.value;
+  const target = event.currentTarget as HTMLElement;
+
+  target.setPointerCapture(event.pointerId);
+
+  function onMove (e: PointerEvent) {
+    const width = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + e.clientX - startX));
+
+    sidebarWidth.value = width;
+  }
+
+  function onUp () {
+    target.removeEventListener('pointermove', onMove);
+    target.removeEventListener('pointerup', onUp);
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth.value));
+  }
+
+  target.addEventListener('pointermove', onMove);
+  target.addEventListener('pointerup', onUp);
+}
 </script>
 
 <template>
@@ -113,6 +147,7 @@ useCopyCode();
       <nav
         class="td-sidebar-left"
         aria-label="Site navigation"
+        :style="{ width: `${sidebarWidth}px` }"
       >
         <TdSearch
           v-model:query="searchQuery"
@@ -121,6 +156,10 @@ useCopyCode();
         <TdContentNav
           v-if="!sidebarSearchActive"
           :tree="siteData.contentTree"
+        />
+        <div
+          class="td-sidebar-resize"
+          @pointerdown.prevent="onResizeStart"
         />
       </nav>
 
@@ -284,13 +323,28 @@ useCopyCode();
 /* Sidebar: static column above lg */
 
 .td-sidebar-left {
-  width: var(--td-sidebar-width);
   position: sticky;
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   overflow-y: auto;
   padding: 22px 0 60px;
   flex-shrink: 0;
+}
+
+.td-sidebar-resize {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.td-sidebar-resize:hover,
+.td-sidebar-resize:active {
+  background: var(--color-td-primary-solid);
+  opacity: 0.3;
 }
 
 /* Menu overlay: full-screen with own header */
