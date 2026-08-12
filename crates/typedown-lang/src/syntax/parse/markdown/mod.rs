@@ -1143,6 +1143,63 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdContainerBlock, &children), None)
   }
 
+  /// Parse [[identifier {props}]] as a self-closing container shorthand
+  /// INVARIANT: Expect [[ to be the next two tokens
+  pub(in crate::syntax::parse) fn parse_container_shorthand(&mut self) -> (GreenNode, Option<ExprCtx>) {
+    debug_assert!(
+      self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::LBracket
+        && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::LBracket,
+      "[ParseCtx::parse_container_shorthand] Expected [["
+    );
+
+    let mut children = vec![];
+
+    // Consume [[
+    self.advance_md(&mut children, SKIP_NONE);
+    self.advance_md(&mut children, SKIP_NONE);
+
+    // Require an identifier
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
+      self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::Ident,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      });
+    } else {
+      self.advance_md(&mut children, SKIP_NONE);
+    }
+
+    // Optional props block {key=value}
+    if self.lex_ctx.peek_md(SKIP_WS).token.kind() == SyntaxKind::LBrace {
+      let (props, _) = self.parse_container_prop_block();
+      children.push(props);
+    }
+
+    // Consume ]]
+    self.consume_md(
+      &mut children,
+      SKIP_NONE,
+      SyntaxKind::RBracket,
+      Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::RBracket,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      },
+    );
+    self.consume_md(
+      &mut children,
+      SKIP_NONE,
+      SyntaxKind::RBracket,
+      Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::RBracket,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      },
+    );
+
+    (self.emit(SyntaxKind::MdContainerShorthand, &children), None)
+  }
+
   // Stop on `:::` at matching indent, or EOF.
   fn synchronize_container_block(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
     let current = self.expr_ctx_stack.current().unwrap();
