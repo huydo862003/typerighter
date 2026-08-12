@@ -107,6 +107,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       _ if self.is_ordered_list_start(SKIP_NONE) => self.parse_ordered_list(indent),
       _ if self.is_table_start(SKIP_NONE) => self.parse_table(),
       _ if self.is_container_start(SKIP_NONE) => self.parse_container_block(),
+      _ if self.is_container_shorthand_start(SKIP_NONE) => self.parse_container_shorthand(),
       _ if self.is_media_block_start(SKIP_NONE) => self.parse_media(),
       _ if self.is_code_or_math_block_start(SKIP_NONE) => {
         let mut children = vec![];
@@ -2299,6 +2300,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().collect::<String>() == ":::"
   }
 
+  fn is_container_shorthand_start(&mut self, skip: u16) -> bool {
+    let first = self.lex_ctx.peek_md(skip);
+    first.token.kind() == SyntaxKind::LBracket
+      && self.lex_ctx.peek_md_nth(1, skip).token.kind() == SyntaxKind::LBracket
+  }
+
   fn is_media_block_start(&mut self, skip: u16) -> bool {
     let next = self.lex_ctx.peek_md(skip);
     if next.token.kind() != SyntaxKind::MdSymbol {
@@ -2362,6 +2369,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SyntaxKind::MdNumber => {
         let dot = self.lex_ctx.peek_md_nth(offset + 1, SKIP_NONE);
         dot.token.kind() == SyntaxKind::MdSymbol && dot.token.chars().collect::<String>() == "."
+      }
+      SyntaxKind::LBracket => {
+        let next = self.lex_ctx.peek_md_nth(offset + 1, SKIP_NONE);
+        next.token.kind() == SyntaxKind::LBracket
       }
       SyntaxKind::CodeBlock | SyntaxKind::MathBlock => true,
       _ => false,
