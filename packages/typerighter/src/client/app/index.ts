@@ -9,6 +9,7 @@ import {
   type InjectionKey,
   type ShallowRef,
 } from 'vue';
+import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
 import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
 import {
   Content,
@@ -105,6 +106,7 @@ export async function createTypedownApp (
 
   // custom components
   /* eslint-disable vue/multi-word-component-names */
+  app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('Flashcard', TdFlashcard);
   /* eslint-enable vue/multi-word-component-names */
 

@@ -215,6 +215,11 @@
   cursor: col-resize;
 }
 
+.td-content th:not(:last-child):hover::after {
+  background: var(--color-td-primary-solid);
+  opacity: 0.3;
+}
+
 .td-content td {
   padding: 0.5rem;
   text-align: left;

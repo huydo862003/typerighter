@@ -38,9 +38,9 @@ const parentUrl = computed(() => getParentUrl(url));
     >
       <CornerLeftUp
         :size="16"
-        class="text-td-gray-500 flex-shrink-0"
+        class="td-dir-icon"
       />
-      <span class="font-td-semibold text-td-body-sm text-td-neutral-fg-muted">..</span>
+      <span class="td-dir-parent">..</span>
     </a>
 
     <div v-if="subdirectories.length > 0">
@@ -52,10 +52,10 @@ const parentUrl = computed(() => getParentUrl(url));
       >
         <FolderOpen
           :size="16"
-          class="text-td-gray-500 flex-shrink-0"
+          class="td-dir-icon"
         />
-        <span class="font-td-semibold text-td-body-sm">{{ sub.name }}</span>
-        <span class="text-td-label text-td-neutral-fg-muted ml-auto">{{ sub.count }}</span>
+        <span class="td-dir-name">{{ sub.name }}</span>
+        <span class="td-dir-count">{{ sub.count }}</span>
       </a>
     </div>
 
@@ -68,9 +68,9 @@ const parentUrl = computed(() => getParentUrl(url));
       >
         <File
           :size="16"
-          class="text-td-gray-500 flex-shrink-0"
+          class="td-dir-icon"
         />
-        <span class="font-td-semibold text-td-body-sm">{{ item.name }}</span>
+        <span class="td-dir-name">{{ item.name }}</span>
       </a>
     </div>
   </div>
@@ -90,5 +90,27 @@ const parentUrl = computed(() => getParentUrl(url));
 
 .td-dir-row:hover {
   background: var(--color-td-primary-bg-subtle);
+}
+
+.td-dir-icon {
+  flex-shrink: 0;
+  color: var(--color-td-neutral-border-strong);
+}
+
+.td-dir-parent {
+  font-weight: var(--font-weight-td-semibold);
+  font-size: var(--font-size-td-body-sm);
+  color: var(--color-td-neutral-fg-muted);
+}
+
+.td-dir-name {
+  font-weight: var(--font-weight-td-semibold);
+  font-size: var(--font-size-td-body-sm);
+}
+
+.td-dir-count {
+  margin-left: auto;
+  font-size: var(--font-size-td-label);
+  color: var(--color-td-neutral-fg-muted);
 }
 </style>

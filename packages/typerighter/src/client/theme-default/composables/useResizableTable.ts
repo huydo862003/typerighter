@@ -15,7 +15,7 @@ export function useResizableTable (): void {
     // Only trigger when clicking near the right edge of the header cell
     const rect = th.getBoundingClientRect();
 
-    if (rect.right - event.clientX > HANDLE_WIDTH) return;
+    if (HANDLE_WIDTH < rect.right - event.clientX) return;
 
     // Find the adjacent header cell
     const nextTh = th.nextElementSibling as HTMLTableCellElement | undefined;
