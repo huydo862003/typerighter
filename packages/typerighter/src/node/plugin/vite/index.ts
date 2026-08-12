@@ -73,12 +73,13 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
     description: options.siteDescription,
   });
 
+  const directoryListingMap = buildDirectoryListingMap(options.contentTree.children, options.siteTitle);
+
   const siteData = JSON.stringify({
     contentTree: options.contentTree,
     schemas: options.schemas ?? {},
+    directoryListings: directoryListingMap,
   });
-
-  const directoryListingMap = buildDirectoryListingMap(options.contentTree.children, options.siteTitle);
 
   return `
 import 'typerighter/style.css';
@@ -90,8 +91,7 @@ import searchIndex from '${SEARCH_INDEX_ID}';
 
 const pages = import.meta.glob('${glob}');
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
-
-const directoryIndex = ${JSON.stringify(directoryListingMap)};
+const siteData = { ...${siteData}, searchIndex };
 
 function findPage(base) {
   for (const ext of contentExts) {
@@ -107,16 +107,16 @@ async function loadPageModule(pagePath) {
   const loader = findPage(base);
   if (loader) return loader();
 
-  const dir = directoryIndex[pagePath] || directoryIndex[pagePath + '/'];
+  const dir = siteData.directoryListings[pagePath] || siteData.directoryListings[pagePath + '/'];
   if (dir) return {
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex, dir); } },
+    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
     __pageData: { frontmatter: {}, headings: [], title: dir.title },
   };
 
   return undefined;
 }
 
-const { app, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, { ...${siteData}, searchIndex });
+const { app, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, siteData);
 app.mount('#app');
 
 // Accept HMR for the search index so it updates without a full reload

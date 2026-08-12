@@ -6,27 +6,28 @@ import {
   File, FolderOpen, CornerLeftUp,
 } from '@lucide/vue';
 import {
+  useSiteData, useRoute,
+} from '@/client/app';
+import {
   getParentUrl,
 } from '@/shared';
-import type {
-  DirectoryEntry, SubdirectoryEntry,
-} from '@/shared';
 
-const {
-  url,
-  subdirectories = [],
-  items = [],
-} = defineProps<{
-  /** Absolute directory URL */
-  url: string;
-  /** Subdirectories with item counts */
-  subdirectories?: SubdirectoryEntry[];
-  /** Content items in this directory */
-  items?: DirectoryEntry[];
-}>();
+const route = useRoute();
+const siteData = useSiteData();
 
-const isRoot = computed(() => url === '/');
-const parentUrl = computed(() => getParentUrl(url));
+const listing = computed(() => {
+  const path = route.path;
+  const directory = siteData.directoryListings[path] ?? siteData.directoryListings[path + '/'];
+
+  return {
+    url: path,
+    subdirectories: directory?.subdirectories ?? [],
+    items: directory?.items ?? [],
+  };
+});
+
+const isRoot = computed(() => listing.value.url === '/');
+const parentUrl = computed(() => getParentUrl(listing.value.url));
 </script>
 
 <template>
@@ -43,9 +44,9 @@ const parentUrl = computed(() => getParentUrl(url));
       <span class="td-dir-parent">..</span>
     </a>
 
-    <div v-if="subdirectories.length > 0">
+    <div v-if="listing.subdirectories.length > 0">
       <a
-        v-for="sub in subdirectories"
+        v-for="sub in listing.subdirectories"
         :key="sub.url"
         :href="sub.url"
         class="td-dir-row"
@@ -59,9 +60,9 @@ const parentUrl = computed(() => getParentUrl(url));
       </a>
     </div>
 
-    <div v-if="items.length > 0">
+    <div v-if="listing.items.length > 0">
       <a
-        v-for="item in items"
+        v-for="item in listing.items"
         :key="item.url"
         :href="item.url"
         class="td-dir-row"

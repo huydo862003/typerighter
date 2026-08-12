@@ -24,6 +24,7 @@ import type {
   PageModule,
   ContentTree,
   SchemaDefinition,
+  DirectoryListing,
 } from '@/shared';
 
 export {
@@ -50,6 +51,8 @@ export interface TypedownSiteData {
   searchIndex?: string;
   /** Schema definitions keyed by schema name */
   schemas: Record<string, SchemaDefinition>;
+  /** Directory listings keyed by URL path */
+  directoryListings: Record<string, DirectoryListing>;
 }
 
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
@@ -80,6 +83,7 @@ export async function createTypedownApp (
       children: [],
     },
     schemas: data.schemas ?? {},
+    directoryListings: data.directoryListings ?? {},
   };
 
   const router = createRouter(loadPageModule);
@@ -147,5 +151,6 @@ export function useSiteData (): TypedownSiteData {
       children: [],
     },
     schemas: {},
+    directoryListings: {},
   });
 }
