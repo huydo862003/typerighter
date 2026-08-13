@@ -33,7 +33,7 @@ function isCurrent (href: string): boolean {
       :href="indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')"
       class="td-root-link"
       :class="{
-        'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : '/'),
+        'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')),
       }"
     >
       <House

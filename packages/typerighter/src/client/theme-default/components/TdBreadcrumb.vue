@@ -59,7 +59,6 @@ const collapsedCrumbs = computed(() => crumbs.value.slice(1, -2));
 watch(() => route.path, () => {
   ellipsisOpen.value = false;
 });
-
 </script>
 
 <template>

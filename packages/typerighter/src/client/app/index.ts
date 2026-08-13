@@ -31,9 +31,6 @@ export {
   useTdContent,
 } from './composables/useTdContent';
 export {
-  useUrl,
-} from './composables/useUrl';
-export {
   useRouter, useRoute,
 } from './router';
 export {
@@ -146,12 +143,20 @@ export function useSearchIndex (): ShallowRef<string | undefined> {
   return inject(searchIndexSymbol, shallowRef(undefined));
 }
 
-export function useSiteConfig (): TypedownSiteConfig {
-  return inject(siteConfigSymbol, {
+export function useSiteConfig () {
+  const config = inject(siteConfigSymbol, {
     title: '',
     description: '',
     basePath: '/',
   });
+  const base = config.basePath.replace(/\/$/, '');
+
+  return {
+    ...config,
+    withBase (path: string): string {
+      return base + path;
+    },
+  };
 }
 
 export function useSiteData (): TypedownSiteData {
