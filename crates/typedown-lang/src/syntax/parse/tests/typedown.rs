@@ -152,8 +152,8 @@ A paragraph with **bold** and *italic*.
           (MdText
             "plain"
             " "
-            "item")))
-      "\n")
+            "item"))))
+    "\n"
     "\n"
     (MdBlockquote
       ">"
@@ -611,8 +611,8 @@ tags:
           (MdText
             "list"
             " "
-            "item")))
-      "\n")))"####
+            "item"))))
+    "\n"))"####
   );
 }
 
@@ -761,8 +761,8 @@ fn parse_container_nested_in_bullet_list() {
           "\n"
           " "
           " "
-          ":::"))
-      "\n")))"#
+          ":::")))
+    "\n"))"#
   );
 }
 
@@ -809,8 +809,8 @@ fn parse_container_nested_in_ordered_list() {
           "\n"
           " "
           " "
-          ":::"))
-      "\n")))"#
+          ":::")))
+    "\n"))"#
   );
 }
 
@@ -920,7 +920,7 @@ fn parse_container_with_slots_nested_in_bullet_list() {
           "\n"
           " "
           " "
-          ":::"))
-      "\n")))"#
+          ":::")))
+    "\n"))"#
   );
 }

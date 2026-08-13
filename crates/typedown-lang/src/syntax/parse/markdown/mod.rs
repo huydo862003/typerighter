@@ -579,12 +579,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Parse remaining list items
     loop {
-      // Peek first to avoid consuming the newline when prefix doesn't match
-      if self.peek_md_newline_and_prefix().is_none() {
+      // Peek past blank lines and prefix to check for a sibling bullet
+      let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
         break;
-      }
-      self.consume_md_newline_and_prefix(&mut children);
-      let next = self.lex_ctx.peek_md(SKIP_NONE);
+      };
+      let next = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdSymbol {
         break;
       }
@@ -593,13 +592,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       // Require whitespace or newline after the bullet to distinguish from e.g. `->` arrows
-      let after = self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind();
+      let after = self.lex_ctx.peek_md_nth(after_prefix + 1, SKIP_NONE).token.kind();
       if !matches!(
         after,
         SyntaxKind::Whitespace | SyntaxKind::Newline | SyntaxKind::Eof
       ) {
         break;
       }
+      // Confirmed sibling: consume the newlines and prefix
+      self.consume_md_multinewline_and_prefix(&mut children);
 
       let (item, early_exit) = self.parse_next_bullet_item(&bullet);
       children.push(item);
@@ -669,7 +670,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       if next_kind == SyntaxKind::Newline {
-        let Some(after_prefix) = self.peek_md_newline_and_prefix() else {
+        let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
           break;
         };
         // Peek past prefix to check for sibling bullet
@@ -679,7 +680,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         {
           break;
         }
-        self.consume_md_newline_and_prefix(&mut children);
+        self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
         let next = self.lex_ctx.peek_md(SKIP_NONE);
         if matches!(next.token.kind(), SyntaxKind::Newline | SyntaxKind::Eof) {
@@ -738,8 +739,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
       // Newline -> either end of list, basic continuation, nested or sibling
       if next_kind == SyntaxKind::Newline {
-        let Some(after_prefix) = self.peek_md_newline_and_prefix() else {
-          break; // end of list due to no prefix matched
+        let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
+          break;
         };
 
         // Peek past prefix to check for sibling bullet
@@ -747,10 +748,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
         if after.token.kind() == SyntaxKind::MdSymbol
           && after.token.chars().collect::<String>() == bullet
         {
-          break; // sibling, stop
+          break;
         }
 
-        self.consume_md_newline_and_prefix(&mut children);
+        self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
 
         let next = self.lex_ctx.peek_md(SKIP_NONE);
@@ -812,20 +813,21 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Parse remaining list items
     loop {
-      // Peek first to avoid consuming the newline when prefix doesn't match
-      if self.peek_md_newline_and_prefix().is_none() {
+      // Peek past blank lines and prefix to check for a sibling ordered item
+      let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
         break;
-      }
-      self.consume_md_newline_and_prefix(&mut children);
-      let next = self.lex_ctx.peek_md(SKIP_NONE);
+      };
+      let next = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdNumber {
         break;
       }
       // Verify `.` follows the number
-      let dot = self.lex_ctx.peek_md_nth(1, SKIP_NONE);
+      let dot = self.lex_ctx.peek_md_nth(after_prefix + 1, SKIP_NONE);
       if dot.token.kind() != SyntaxKind::MdSymbol || dot.token.chars().collect::<String>() != "." {
         break;
       }
+      // Confirmed sibling: consume the newlines and prefix
+      self.consume_md_multinewline_and_prefix(&mut children);
 
       let (item, early_exit) = self.parse_ordered_list_item();
       children.push(item);
@@ -885,7 +887,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       if next_kind == SyntaxKind::Newline {
-        let Some(after_prefix) = self.peek_md_newline_and_prefix() else {
+        let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
           break;
         };
         // Peek past prefix to check for sibling ordered item
@@ -898,7 +900,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
             break;
           }
         }
-        self.consume_md_newline_and_prefix(&mut children);
+        self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
         let next = self.lex_ctx.peek_md(SKIP_NONE);
         if matches!(next.token.kind(), SyntaxKind::Newline | SyntaxKind::Eof) {
@@ -1027,7 +1029,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       // Check for closing `:::` at the same indentation level as the opening
       // The closing `:::` should appear right after the full current prefix
       let check_pos = if next_kind == SyntaxKind::Newline {
-        match self.peek_md_newline_and_prefix() {
+        match self.peek_md_multinewline_and_prefix() {
           Some(pos) => pos,
           None => break,
         }
@@ -1439,7 +1441,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       // Check for closing `:::`, `===` at the same indentation level as the opening
       // The closing `:::`, `===` should appear right after the full current prefix
       let check_pos = if next_kind == SyntaxKind::Newline {
-        match self.peek_md_newline_and_prefix() {
+        match self.peek_md_multinewline_and_prefix() {
           Some(pos) => pos,
           None => break,
         }
@@ -2190,6 +2192,35 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.consume_md_prefix(children)
   }
 
+  // Consume one or more newlines (blank lines) and the expected prefix
+  // Blank lines may contain trailing spaces or soft prefix tokens
+  fn consume_md_multinewline_and_prefix(&mut self, children: &mut Vec<GreenNode>) -> bool {
+    self.advance_md(children, SKIP_NONE);
+    loop {
+      let kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+      if kind == SyntaxKind::Newline {
+        self.advance_md(children, SKIP_NONE);
+        continue;
+      }
+      // Consume whitespace or soft prefix on blank lines
+      if matches!(kind, SyntaxKind::Whitespace | SyntaxKind::MdSymbol) {
+        if let Some(past_prefix) = self.peek_md_prefix_at(0) {
+          let after = self.lex_ctx.peek_md_nth(past_prefix, SKIP_NONE).token.kind();
+          if after == SyntaxKind::Newline {
+            // Consume the soft prefix and the newline
+            for _ in 0..past_prefix {
+              self.advance_md(children, SKIP_NONE);
+            }
+            self.advance_md(children, SKIP_NONE);
+            continue;
+          }
+        }
+      }
+      break;
+    }
+    self.consume_md_prefix(children)
+  }
+
   // If the next token should be handled by an outer context, return that context.
   // Otherwise consume the token into `error_children` for the caller to wrap as Error.
   fn consume_or_delegate_md(
@@ -2278,6 +2309,19 @@ impl<S: Utf8Stream> ParseCtx<S> {
     count
   }
 
+  // Check whether tokens at `offset` match the expected prefix
+  fn peek_md_prefix_at(&mut self, offset: usize) -> Option<usize> {
+    let expected_tokens = self.expr_ctx_stack.md_prefix_tokens().to_vec();
+    let mut pos = offset;
+    for expected_token in &expected_tokens {
+      if self.lex_ctx.peek_md_nth(pos, SKIP_NONE).token != *expected_token {
+        return None;
+      }
+      pos += 1;
+    }
+    Some(pos)
+  }
+
   // Peek whether the next token is a newline followed by the expected prefix
   // Returns the offset after the matched prefix, or None if mismatch
   // INVARIANT: The next token must be a Newline
@@ -2286,14 +2330,36 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline,
       "[ParseCtx::peek_md_newline_and_prefix] Expected next token to be Newline"
     );
-    let expected_tokens = self.expr_ctx_stack.md_prefix_tokens().to_vec();
-    for (idx, expected_token) in expected_tokens.iter().enumerate() {
-      let peek = self.lex_ctx.peek_md_nth(idx + 1, SKIP_NONE);
-      if peek.token != *expected_token {
-        return None;
+    self.peek_md_prefix_at(1)
+  }
+
+  // Like peek_md_newline_and_prefix but skips blank lines first
+  fn peek_md_multinewline_and_prefix(&mut self) -> Option<usize> {
+    debug_assert!(
+      self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline,
+      "[ParseCtx::peek_md_multinewline_and_prefix] Expected next token to be Newline"
+    );
+    let mut offset = 1;
+    loop {
+      let kind = self.lex_ctx.peek_md_nth(offset, SKIP_NONE).token.kind();
+      if kind == SyntaxKind::Newline {
+        offset += 1;
+        continue;
       }
+      // Skip whitespace or soft prefix tokens on blank lines
+      if kind == SyntaxKind::Whitespace || kind == SyntaxKind::MdSymbol {
+        // Check if a newline follows (meaning this is part of a blank line)
+        if let Some(past_prefix) = self.peek_md_prefix_at(offset) {
+          let after = self.lex_ctx.peek_md_nth(past_prefix, SKIP_NONE).token.kind();
+          if after == SyntaxKind::Newline {
+            offset = past_prefix + 1;
+            continue;
+          }
+        }
+      }
+      break;
     }
-    Some(expected_tokens.len() + 1)
+    self.peek_md_prefix_at(offset)
   }
 }
 
