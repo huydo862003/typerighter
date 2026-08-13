@@ -33,6 +33,9 @@ import {
 } from './composables/useMenu';
 import TdToc from './components/TdToc.vue';
 import {
+  renderInlineMath,
+} from './composables/renderMath';
+import {
   formatEditTime, getIndexUrl,
 } from '@/shared';
 import './styles/main.css';
@@ -203,9 +206,8 @@ function onResizeStart (event: PointerEvent) {
             <h1
               v-if="title"
               class="td-page-title"
-            >
-              {{ title }}
-            </h1>
+              v-html="renderInlineMath(title)"
+            />
             <div
               v-if="page.metadata"
               class="td-page-meta"

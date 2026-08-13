@@ -69,10 +69,9 @@ watch(() => route.path, () => {
     class="td-breadcrumb"
     aria-label="Breadcrumb"
   >
-    <!-- First crumb (Home) -->
     <a
       :href="crumbs[0].href"
-      class="td-breadcrumb-link"
+      class="td-breadcrumb-link td-breadcrumb-home"
     >{{ crumbs[0].name }}</a>
 
     <!-- When collapsed: ellipsis dropdown for middle crumbs -->
@@ -170,6 +169,10 @@ watch(() => route.path, () => {
   color: var(--color-td-neutral-border-strong);
   text-decoration: none;
   transition: color 0.15s;
+}
+
+.td-breadcrumb-home {
+  flex-shrink: 0;
 }
 
 .td-breadcrumb-link:hover {

@@ -70,6 +70,7 @@ const {
   align-items: start;
   gap: 8px;
   flex: 1;
+  min-width: 0;
   padding: 12px 16px;
   border: 1px solid var(--color-td-neutral-border-subtle);
   border-radius: 8px;
@@ -120,6 +121,9 @@ const {
   color: var(--color-td-primary-solid);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 </style>

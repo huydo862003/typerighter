@@ -39,9 +39,6 @@ import {
 import type {
   ContentTree,
 } from '@/shared';
-import {
-  BRAND_FAVICON_URI,
-} from '@/shared/brand';
 
 export interface ClientAppEntryOptions {
   /** Content directory relative to project root */
