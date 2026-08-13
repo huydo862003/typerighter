@@ -1,7 +1,6 @@
 ---
 _type: Task
 _label: "Dashboard page"
-title: "Dashboard page"
 status: "todo"
 priority: "high"
 project: fref("projects/website-redesign.td")

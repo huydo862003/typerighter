@@ -1,7 +1,6 @@
 ---
 _type: Task
 _label: "Implement comprehensive end-to-end integration testing for the authentication microservice with Redis session store"
-title: "Implement comprehensive end-to-end integration testing for the authentication microservice with Redis session store"
 status: "todo"
 priority: "medium"
 project: fref("projects/website-redesign.td")
