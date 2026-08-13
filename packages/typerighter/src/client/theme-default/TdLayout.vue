@@ -19,6 +19,7 @@ import {
   TdFrontmatter,
 } from './components/TdFrontmatter';
 import TdMenuButton from './components/TdMenuButton.vue';
+import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdSearch from './components/TdSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
@@ -195,6 +196,7 @@ function onResizeStart (event: PointerEvent) {
               :frontmatter="page.frontmatter"
             />
             <Content />
+            <TdPreviousNext />
           </article>
         </main>
 
