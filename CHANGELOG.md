@@ -1,3 +1,26 @@
+## [0.9.0] - 2026-08-13
+
+* crates/typedown-lang
+  - Add `public_dir` to vault config under `site`, defaults to `public`
+
+* packages/typerighter
+  - Add SEO meta tags: OpenGraph, Twitter Card, canonical URL, JSON-LD structured data
+  - Add sitemap.xml generation during build
+  - Add robots.txt scaffolding in init
+  - Add favicon.svg scaffolding from brand icon in init
+  - Add public directory support via Vite `publicDir`
+  - Add client-side KaTeX rendering for page titles and sidebar tree labels
+  - Add per-page document title and meta description updates
+  - Fix syntax highlighting: always use dark Shiki theme for code blocks
+  - Fix prev/next title overflow with 2-line clamp
+  - Fix breadcrumb Home never truncated
+  - Fix breadcrumb ellipsis button vertical alignment
+  - Fix folder icon color to sienna for visual distinction from file icons
+  - Fix scroll-to-top on page navigation without hash
+  - Default dev server port to 8686
+  - Increase sidebar tree MAX_VISIBLE from 4 to 20
+  - Use `_label` as canonical display name, remove `title` from example schemas
+
 ## [0.8.0] - 2026-08-13
 
 * packages/typerighter
