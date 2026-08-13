@@ -46,6 +46,8 @@ import {
 export interface ClientAppEntryOptions {
   /** Content directory relative to project root */
   contentDir: string;
+  /** URL base path */
+  basePath?: string;
   /** Site title */
   siteTitle: string;
   /** Site description */
@@ -73,6 +75,7 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
   const siteConfig = JSON.stringify({
     title: options.siteTitle,
     description: options.siteDescription,
+    basePath: options.basePath ?? '/',
     repo: options.repo,
   });
 

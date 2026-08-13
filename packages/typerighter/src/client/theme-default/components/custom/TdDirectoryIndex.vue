@@ -27,7 +27,11 @@ const listing = computed(() => {
 });
 
 const isRoot = computed(() => listing.value.url === '/');
-const parentUrl = computed(() => getParentUrl(listing.value.url));
+const parentUrl = computed(() => {
+  const parent = getParentUrl(listing.value.url);
+
+  return parent === '/' ? '/index' : parent + '/index';
+});
 </script>
 
 <template>

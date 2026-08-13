@@ -8,7 +8,7 @@ import {
   parseNumericPrefix, unslugify,
 } from './format';
 import {
-  getParentUrl, getTdContentUrl,
+  getTdContentUrl,
 } from './url';
 import {
   basename, filestem, dirname,
@@ -69,15 +69,11 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
   }
 
   function getChildUrl (child: ContentTreeNode, urlPrefix: string): string {
-    const first = child.items[0] ?? child.children[0]?.items[0];
+    const indexItem = child.items.find((item) => filestem(item.filepath) === INDEX_FILENAME);
 
-    if (!first) return `${urlPrefix}/${child.name}`;
+    if (indexItem) return getTdContentUrl(indexItem.filepath);
 
-    const contentUrl = getTdContentUrl(first.filepath);
-
-    return filestem(first.filepath) === INDEX_FILENAME
-      ? contentUrl
-      : getParentUrl(contentUrl);
+    return `${urlPrefix}/${child.name}/index`;
   }
 
   function walk (nodes: ContentTreeNode[], urlPrefix: string) {

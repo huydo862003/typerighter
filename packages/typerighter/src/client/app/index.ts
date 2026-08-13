@@ -31,6 +31,9 @@ export {
   useTdContent,
 } from './composables/useTdContent';
 export {
+  useUrl,
+} from './composables/useUrl';
+export {
   useRouter, useRoute,
 } from './router';
 export {
@@ -42,6 +45,8 @@ export interface TypedownSiteConfig {
   title: string;
   /** Site description */
   description: string;
+  /** URL base path (e.g. "/" or "/blog") */
+  basePath: string;
   /** Repository URL */
   repo?: string;
 }
@@ -77,6 +82,7 @@ export async function createTypedownApp (
   const siteConfig: TypedownSiteConfig = {
     title: config.title ?? '',
     description: config.description ?? '',
+    basePath: config.basePath ?? '/',
     repo: config.repo,
   };
 
@@ -144,6 +150,7 @@ export function useSiteConfig (): TypedownSiteConfig {
   return inject(siteConfigSymbol, {
     title: '',
     description: '',
+    basePath: '/',
   });
 }
 
