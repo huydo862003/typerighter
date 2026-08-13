@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@typerighter/rpc-server",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Typedown RPC server binary.",
   "repository": {
     "type": "git",

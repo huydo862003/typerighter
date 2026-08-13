@@ -8,9 +8,9 @@ repository = "https://github.com/Huy-DNA/typerighter"
 authors = ["Huy-DNA <huydo862003@gmail.com>"]
 
 [dependencies]
-typedown-incremental = { version = "0.6.0", path = "../typedown-incremental" }
-typedown-types = { version = "0.6.0", path = "../typedown-types" }
-typedown-macros = { version = "0.6.0", path = "../typedown-macros" }
+typedown-incremental = { version = "0.7.0", path = "../typedown-incremental" }
+typedown-types = { version = "0.7.0", path = "../typedown-types" }
+typedown-macros = { version = "0.7.0", path = "../typedown-macros" }
 dashmap = "6.2.1"
 hashbrown = "0.17.1"
 inventory = "0.3.24"

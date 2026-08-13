@@ -1,3 +1,19 @@
+## [0.7.0] - 2026-08-13
+
+* crates/typedown-lang
+  - Rewrite markdown exporter to strip source indentation from nested blocks
+  - Report unresolved identifiers in interpolations during vault check
+  - Add optional `repo` field to `typedown.yaml`
+  - Use `_label` as the canonical display name, fall back to parent directory for index files
+
+* packages/typerighter
+  - Add previous/next page navigation
+  - Add `basePath` and `repo` to site config
+  - Render relation lists as bullet lists instead of inline
+  - Fix directory and index page routing to use `/index` suffix
+  - Fix folder label overflow in sidebar tree
+  - Fix frontmatter row alignment for multiline values
+
 ## [0.6.0] - 2026-08-12
 
 * crates/typedown-lang
