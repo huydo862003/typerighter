@@ -847,17 +847,13 @@ fn parse_container_nested_in_blockquote() {
                 " "
                 "here"))))
         "\n"
-        (MdContainerSlot
-          (MdBlockquote
-            ">"
-            " "
-            (MdContainerBlock
-              ":::"
-              "\n"
-              (Error
-                ""))))
         (Error
-          "")))))"#
+          ">"))
+      (MdParagraph
+        (MdText
+          " "
+          ":::")))
+    "\n"))"#
   );
 }
 

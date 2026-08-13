@@ -3320,7 +3320,9 @@ fn parse_bullet_list_blank_line_between_items() {
 "#,
   );
   // Both items should be in the same MdBulletList
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3348,19 +3350,22 @@ fn parse_bullet_list_blank_line_between_items() {
             "item"
             " "
             "2"))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Loose list item: blank line before continuation paragraph should nest inside li
 #[test]
 fn parse_bullet_list_blank_line_before_continuation() {
   let tree = parse_body(
-r#"- item 1
+    r#"- item 1
 
     continuation
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3387,19 +3392,22 @@ r#"- item 1
         (MdParagraph
           (MdText
             "continuation"))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Loose list item: blank line before nested list should nest inside li
 #[test]
 fn parse_bullet_list_blank_line_before_nested_list() {
   let tree = parse_body(
-r#"- parent
+    r#"- parent
 
   - child
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3426,19 +3434,22 @@ r#"- parent
             (MdParagraph
               (MdText
                 "child"))))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Loose list item: blank line before blockquote should nest inside li
 #[test]
 fn parse_bullet_list_blank_line_before_blockquote() {
   let tree = parse_body(
-r#"- item
+    r#"- item
 
     > quoted text
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3468,21 +3479,24 @@ r#"- item
               "quoted"
               " "
               "text")))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Loose list item: blank line before multiple continuation paragraphs
 #[test]
 fn parse_bullet_list_blank_line_before_nested_paragraphs() {
   let tree = parse_body(
-r#"- item
+    r#"- item
 
     first paragraph
 
     second paragraph
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3520,19 +3534,22 @@ r#"- item
             "second"
             " "
             "paragraph"))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Ordered list: blank line before continuation paragraph should nest inside li
 #[test]
 fn parse_ordered_list_blank_line_before_continuation() {
   let tree = parse_body(
-r#"1. item 1
+    r#"1. item 1
 
     continuation
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3560,19 +3577,22 @@ r#"1. item 1
         (MdParagraph
           (MdText
             "continuation"))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Ordered list: blank line before nested bullet list should nest inside li
 #[test]
 fn parse_ordered_list_blank_line_before_nested_list() {
   let tree = parse_body(
-r#"1. parent
+    r#"1. parent
 
   - child
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3600,19 +3620,22 @@ r#"1. parent
             (MdParagraph
               (MdText
                 "child"))))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Ordered list: blank line between items keeps items in same list
 #[test]
 fn parse_ordered_list_blank_line_between_items() {
   let tree = parse_body(
-r#"1. item 1
+    r#"1. item 1
 
 2. item 2
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3642,19 +3665,22 @@ r#"1. item 1
             "item"
             " "
             "2"))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Ordered list: blank line before blockquote should nest inside li
 #[test]
 fn parse_ordered_list_blank_line_before_blockquote() {
   let tree = parse_body(
-r#"1. item
+    r#"1. item
 
     > quoted text
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3685,21 +3711,24 @@ r#"1. item
               "quoted"
               " "
               "text")))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Ordered list: blank line before multiple continuation paragraphs
 #[test]
 fn parse_ordered_list_blank_line_before_nested_paragraphs() {
   let tree = parse_body(
-r#"1. item
+    r#"1. item
 
     first paragraph
 
     second paragraph
 "#,
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -3738,15 +3767,14 @@ r#"1. item
             "second"
             " "
             "paragraph"))))
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Blank line with trailing spaces should not break list item containment
 #[test]
 fn parse_bullet_list_blank_line_with_spaces() {
-  let tree = parse_body(
-    "- item\n   \n  - child\n",
-  );
+  let tree = parse_body("- item\n   \n  - child\n");
   assert_eq!(
     tree,
     r####"(SourceFile
@@ -3784,12 +3812,11 @@ fn parse_bullet_list_blank_line_with_spaces() {
   );
 }
 
-// Blank line with soft prefix in blockquote ends the blockquote per CommonMark
-// The continuation starts a new blockquote
+// Bare `>` on a blank line continues the blockquote and list item
 #[test]
 fn parse_list_in_blockquote_blank_line_with_prefix() {
   let tree = parse_body(
-r#"> - item
+    r#"> - item
 >
 >   continuation
 "#,
@@ -3814,18 +3841,222 @@ r#"> - item
           " "
           (MdParagraph
             (MdText
-              "item")))))
+              "item"))
+          "\n"
+          ">"
+          "\n"
+          ">"
+          " "
+          " "
+          " "
+          (MdParagraph
+            (MdText
+              "continuation")))))
+    "\n"))"####
+  );
+}
+
+// Multiple bare `>` blank lines in a row inside blockquote
+#[test]
+fn parse_blockquote_multiple_bare_blank_lines() {
+  let tree = parse_body(
+    r#"> first
+>
+>
+> second
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
     "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
     (MdBlockquote
+      ">"
+      " "
+      (MdParagraph
+        (MdText
+          "first"))
+      "\n"
+      ">"
+      "\n"
       ">"
       "\n"
       ">"
       " "
       (MdParagraph
         (MdText
+          "second")))
+    "\n"))"####
+  );
+}
+
+// Blockquote ends on truly empty line (no `>`)
+#[test]
+fn parse_blockquote_ends_on_empty_line() {
+  let tree = parse_body(
+    r#"> first
+
+second
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdParagraph
+        (MdText
+          "first")))
+    "\n"
+    "\n"
+    (MdParagraph
+      (MdText
+        "second"))
+    "\n"))"####
+  );
+}
+
+// Two paragraphs in blockquote separated by bare `>`
+#[test]
+fn parse_blockquote_two_paragraphs_bare_separator() {
+  let tree = parse_body(
+    r#"> first
+>
+> second
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdParagraph
+        (MdText
+          "first"))
+      "\n"
+      ">"
+      "\n"
+      ">"
+      " "
+      (MdParagraph
+        (MdText
+          "second")))
+    "\n"))"####
+  );
+}
+
+// Nested blockquote with bare `>` blank line
+#[test]
+fn parse_nested_blockquote_bare_blank_line() {
+  let tree = parse_body(
+    r#"> > inner
+>
+> > continued
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdBlockquote
+        ">"
+        " "
+        (MdParagraph
+          (MdText
+            "inner")))
+      "\n"
+      ">"
+      "\n"
+      ">"
+      " "
+      (MdBlockquote
+        ">"
+        " "
+        (MdParagraph
+          (MdText
+            "continued"))))
+    "\n"))"####
+  );
+}
+
+// List in blockquote with multiple bare `>` blank lines
+#[test]
+fn parse_list_in_blockquote_multiple_bare_blank_lines() {
+  let tree = parse_body(
+    r#"> - item
+>
+>
+>   continuation
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "item"))
+          "\n"
+          ">"
+          "\n"
+          ">"
+          "\n"
+          ">"
           " "
           " "
-          "continuation")))
+          " "
+          (MdParagraph
+            (MdText
+              "continuation")))))
     "\n"))"####
   );
 }

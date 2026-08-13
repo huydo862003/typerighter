@@ -10,6 +10,10 @@ use crate::syntax::green::{GreenNode, SyntaxToken};
 use crate::syntax::lex::ctx::LexMode;
 use crate::syntax::parse::constants::{SKIP_NONE, SKIP_WCN, SKIP_WS};
 
+const MD_PREFIX_EXACT: u16 = 0;
+// Trailing whitespace prefix tokens are optional at end of line
+const MD_PREFIX_LAX: u16 = 1 << 0;
+
 // Markdown body parsing
 // We distinguish between block elements and inline elements
 // Inline elements (like links) must always be nested in a block element, such as paragraphs
@@ -293,13 +297,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Consume `>`
     self.advance_md(&mut children, SKIP_NONE);
 
-    // Require a space after `>`
-    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Whitespace {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
-    } else {
+    // Consume the optional space after `>`
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
       self.advance_md(&mut children, SKIP_NONE);
     }
 
@@ -314,6 +313,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
           break;
         }
         self.consume_md_newline_and_prefix(&mut children);
+        // Consume the optional space after `>` on continuation lines
+        if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
+          self.advance_md(&mut children, SKIP_NONE);
+        }
         continue;
       }
 
@@ -592,7 +595,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       // Require whitespace or newline after the bullet to distinguish from e.g. `->` arrows
-      let after = self.lex_ctx.peek_md_nth(after_prefix + 1, SKIP_NONE).token.kind();
+      let after = self
+        .lex_ctx
+        .peek_md_nth(after_prefix + 1, SKIP_NONE)
+        .token
+        .kind();
       if !matches!(
         after,
         SyntaxKind::Whitespace | SyntaxKind::Newline | SyntaxKind::Eof
@@ -2193,7 +2200,6 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   // Consume one or more newlines (blank lines) and the expected prefix
-  // Blank lines may contain trailing spaces or soft prefix tokens
   fn consume_md_multinewline_and_prefix(&mut self, children: &mut Vec<GreenNode>) -> bool {
     self.advance_md(children, SKIP_NONE);
     loop {
@@ -2202,18 +2208,21 @@ impl<S: Utf8Stream> ParseCtx<S> {
         self.advance_md(children, SKIP_NONE);
         continue;
       }
-      // Consume whitespace or soft prefix on blank lines
-      if matches!(kind, SyntaxKind::Whitespace | SyntaxKind::MdSymbol) {
-        if let Some(past_prefix) = self.peek_md_prefix_at(0) {
-          let after = self.lex_ctx.peek_md_nth(past_prefix, SKIP_NONE).token.kind();
-          if after == SyntaxKind::Newline {
-            // Consume the soft prefix and the newline
-            for _ in 0..past_prefix {
-              self.advance_md(children, SKIP_NONE);
-            }
+      // Skip prefix tokens on blank lines (e.g. bare `>` in blockquotes)
+      if matches!(kind, SyntaxKind::Whitespace | SyntaxKind::MdSymbol)
+        && let Some(past_prefix) = self.peek_md_prefix_at(0, MD_PREFIX_LAX)
+      {
+        let after = self
+          .lex_ctx
+          .peek_md_nth(past_prefix, SKIP_NONE)
+          .token
+          .kind();
+        if after == SyntaxKind::Newline {
+          for _ in 0..past_prefix {
             self.advance_md(children, SKIP_NONE);
-            continue;
           }
+          self.advance_md(children, SKIP_NONE);
+          continue;
         }
       }
       break;
@@ -2310,11 +2319,18 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   // Check whether tokens at `offset` match the expected prefix
-  fn peek_md_prefix_at(&mut self, offset: usize) -> Option<usize> {
+  fn peek_md_prefix_at(&mut self, offset: usize, flags: u16) -> Option<usize> {
     let expected_tokens = self.expr_ctx_stack.md_prefix_tokens().to_vec();
     let mut pos = offset;
     for expected_token in &expected_tokens {
-      if self.lex_ctx.peek_md_nth(pos, SKIP_NONE).token != *expected_token {
+      let actual = self.lex_ctx.peek_md_nth(pos, SKIP_NONE);
+      if actual.token != *expected_token {
+        if flags & MD_PREFIX_LAX != 0
+          && expected_token.kind() == SyntaxKind::Whitespace
+          && matches!(actual.token.kind(), SyntaxKind::Newline | SyntaxKind::Eof)
+        {
+          return Some(pos);
+        }
         return None;
       }
       pos += 1;
@@ -2330,7 +2346,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline,
       "[ParseCtx::peek_md_newline_and_prefix] Expected next token to be Newline"
     );
-    self.peek_md_prefix_at(1)
+    self.peek_md_prefix_at(1, MD_PREFIX_EXACT)
   }
 
   // Like peek_md_newline_and_prefix but skips blank lines first
@@ -2346,20 +2362,23 @@ impl<S: Utf8Stream> ParseCtx<S> {
         offset += 1;
         continue;
       }
-      // Skip whitespace or soft prefix tokens on blank lines
-      if kind == SyntaxKind::Whitespace || kind == SyntaxKind::MdSymbol {
-        // Check if a newline follows (meaning this is part of a blank line)
-        if let Some(past_prefix) = self.peek_md_prefix_at(offset) {
-          let after = self.lex_ctx.peek_md_nth(past_prefix, SKIP_NONE).token.kind();
-          if after == SyntaxKind::Newline {
-            offset = past_prefix + 1;
-            continue;
-          }
+      // Skip prefix tokens on blank lines (e.g. bare `>` in blockquotes)
+      if (kind == SyntaxKind::Whitespace || kind == SyntaxKind::MdSymbol)
+        && let Some(past_prefix) = self.peek_md_prefix_at(offset, MD_PREFIX_LAX)
+      {
+        let after = self
+          .lex_ctx
+          .peek_md_nth(past_prefix, SKIP_NONE)
+          .token
+          .kind();
+        if after == SyntaxKind::Newline {
+          offset = past_prefix + 1;
+          continue;
         }
       }
       break;
     }
-    self.peek_md_prefix_at(offset)
+    self.peek_md_prefix_at(offset, MD_PREFIX_EXACT)
   }
 }
 
