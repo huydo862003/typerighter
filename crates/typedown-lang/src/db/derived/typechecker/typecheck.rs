@@ -822,6 +822,71 @@ mod tests {
   }
 
   #[test]
+  fn typecheck_circular_schema_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "schemas/CircularA.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "circular schema with list[CircularB] should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_schema_with_bare_user_type_ref() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "schemas/WithBareRef.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "schema with bare Person ref should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_schema_with_self_ref() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "schemas/SelfRef.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "schema with self-ref and list[SelfRef] should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_schema_with_list_of_user_type_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "schemas/WithRefList.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "schema with list[Person] should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_circular_content_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/circular_ref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "content with circular refs should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
   fn typecheck_schema_simple_props_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/SimpleProps.td");
     let (hir, _) = lower_file(&db, project, file);

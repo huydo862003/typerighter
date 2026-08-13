@@ -463,6 +463,33 @@ mod tests {
   }
 
   #[test]
+  fn evaluate_type_circular_schema_refs() {
+    let (db, project, file_a) =
+      load_vault_fixture("evaluate/my_vault", "schemas/SchemaA.td");
+    let symbol_a = file_symbol(&db, project, file_a).value(&db).unwrap();
+    let result_a = evaluate_type(&db, symbol_a);
+    assert!(
+      result_a.diagnostics(&db).is_empty(),
+      "circular schema A should have no diagnostics: {:?}",
+      result_a.diagnostics(&db)
+    );
+
+    let file_b = project
+      .files(&db)
+      .iter()
+      .find(|(path, _)| path.ends_with("SchemaB.td"))
+      .map(|(_, f)| *f)
+      .expect("SchemaB.td should exist");
+    let symbol_b = file_symbol(&db, project, file_b).value(&db).unwrap();
+    let result_b = evaluate_type(&db, symbol_b);
+    assert!(
+      result_b.diagnostics(&db).is_empty(),
+      "circular schema B should have no diagnostics: {:?}",
+      result_b.diagnostics(&db)
+    );
+  }
+
+  #[test]
   fn display_name_builtin_types() {
     let db = make_db();
 
