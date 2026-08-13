@@ -100,7 +100,11 @@ export function createRouter (
 
         if (isInBrowser) {
           nextTick(() => {
-            scrollToHash(targetLocation.hash);
+            if (targetLocation.hash) {
+              scrollToHash(targetLocation.hash);
+            } else {
+              window.scrollTo(0, 0);
+            }
           });
         }
       }
