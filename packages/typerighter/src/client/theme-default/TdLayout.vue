@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref, watch,
+  ref, watch, watchEffect,
 } from 'vue';
 import {
   X,
@@ -33,6 +33,9 @@ import {
 } from './composables/useMenu';
 import TdToc from './components/TdToc.vue';
 import {
+  renderInlineMath,
+} from './composables/renderMath';
+import {
   formatEditTime, getIndexUrl,
 } from '@/shared';
 import './styles/main.css';
@@ -60,6 +63,25 @@ const route = useRoute();
 watch(() => route.path, () => closeMenu());
 
 useCopyCode();
+
+// Update document title and meta description per page
+watchEffect(() => {
+  const pageTitle = title.value;
+  const siteName = siteConfig.title;
+
+  document.title = pageTitle && pageTitle !== siteName
+    ? `${pageTitle} - ${siteName}`
+    : siteName;
+
+  const description = page.frontmatter?.description !== undefined
+    ? String(page.frontmatter.description)
+    : siteConfig.description ?? '';
+  const metaDescription = document.querySelector('meta[name="description"]');
+
+  if (metaDescription) {
+    metaDescription.setAttribute('content', description);
+  }
+});
 useResizableTable();
 
 const SIDEBAR_MIN = 200;
@@ -184,9 +206,8 @@ function onResizeStart (event: PointerEvent) {
             <h1
               v-if="title"
               class="td-page-title"
-            >
-              {{ title }}
-            </h1>
+              v-html="renderInlineMath(title)"
+            />
             <div
               v-if="page.metadata"
               class="td-page-meta"

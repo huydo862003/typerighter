@@ -1,7 +1,6 @@
 ---
 _type: Task
 _label: "Seed data script"
-title: "Seed data script"
 status: "todo"
 priority: "low"
 project: fref("projects/mobile-app.td")

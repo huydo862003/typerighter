@@ -13,7 +13,7 @@ import {
   getIndexUrl, isIndexUrl, stripTrailingSlash, unslugify,
 } from '@/shared';
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 3;
 
 const route = useRoute();
 const {
@@ -69,10 +69,9 @@ watch(() => route.path, () => {
     class="td-breadcrumb"
     aria-label="Breadcrumb"
   >
-    <!-- First crumb (Home) -->
     <a
       :href="crumbs[0].href"
-      class="td-breadcrumb-link"
+      class="td-breadcrumb-link td-breadcrumb-home"
     >{{ crumbs[0].name }}</a>
 
     <!-- When collapsed: ellipsis dropdown for middle crumbs -->
@@ -172,6 +171,10 @@ watch(() => route.path, () => {
   transition: color 0.15s;
 }
 
+.td-breadcrumb-home {
+  flex-shrink: 0;
+}
+
 .td-breadcrumb-link:hover {
   color: var(--color-td-primary-solid);
 }
@@ -184,6 +187,7 @@ watch(() => route.path, () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  vertical-align: middle;
   background: none;
   border: none;
   cursor: pointer;

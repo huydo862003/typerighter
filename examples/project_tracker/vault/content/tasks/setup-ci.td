@@ -1,7 +1,6 @@
 ---
 _type: Task
 _label: "Set up CI pipeline"
-title: "Set up CI pipeline"
 status: "todo"
 priority: "low"
 project: fref("projects/mobile-app.td")

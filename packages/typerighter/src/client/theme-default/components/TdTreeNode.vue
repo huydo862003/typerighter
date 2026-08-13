@@ -8,6 +8,9 @@ import {
 import {
   useRoute, useSiteConfig,
 } from '../../app';
+import {
+  renderInlineMath,
+} from '../composables/renderMath';
 import TdTooltip from './TdTooltip.vue';
 import {
   formatRelativeTime, getDirectoryUrl, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, isUrlAncestorOf, path, unslugify,
@@ -44,7 +47,7 @@ function countItems (n: ContentTreeNode): number {
 
 const collapsed = ref(!isUrlAncestorOf(directoryUrl, route.path));
 const showAll = ref(false);
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 20;
 const visibleItems = computed(() => showAll.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
 const hiddenCount = computed(() => Math.max(0, regularItems.length - MAX_VISIBLE));
 
@@ -130,7 +133,7 @@ function toggle () {
         <TdTooltip
           class="td-tree-link-text"
           :text="getTdResourceTitle(item.header, item.filepath)"
-        >{{ getTdResourceTitle(item.header, item.filepath) }}</TdTooltip>
+        ><span v-html="renderInlineMath(getTdResourceTitle(item.header, item.filepath))" /></TdTooltip>
         <span class="td-tree-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
       </a>
       <button
@@ -191,7 +194,7 @@ function toggle () {
   justify-content: center;
   padding: 2px;
   border-radius: 4px;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-primary-solid);
   text-decoration: none;
   transition: color 0.1s;
 }

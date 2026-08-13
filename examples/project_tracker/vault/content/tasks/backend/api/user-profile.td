@@ -1,7 +1,6 @@
 ---
 _type: Task
 _label: "User profile endpoints"
-title: "User profile endpoints"
 status: "todo"
 priority: "medium"
 project: fref("projects/mobile-app.td")

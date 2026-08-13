@@ -39,9 +39,6 @@ import {
 import type {
   ContentTree,
 } from '@/shared';
-import {
-  BRAND_FAVICON_URI,
-} from '@/shared/brand';
 
 export interface ClientAppEntryOptions {
   /** Content directory relative to project root */
@@ -158,14 +155,20 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
     enforce: 'pre',
 
-    configResolved (config) {
+    async config (userConfig) {
       if (!context) {
-        context = createAppContext(resolveProjectRoot(config.root));
+        context = createAppContext(resolveProjectRoot(userConfig.root ?? process.cwd()));
       }
-    },
 
-    config () {
+      const tdContext = await resolveTdContext();
+      const tdConfig = await tdContext.getConfig();
+
       return {
+        publicDir: tdConfig.publicDir,
+        server: {
+          port: 8686,
+          strictPort: false,
+        },
         resolve: {
           alias: resolveAliases(),
         },
@@ -341,13 +344,24 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           }
 
           tdContext.getConfig().then((config) => {
+            const title = escapeHtml(config.siteTitle);
+            const description = escapeHtml(config.siteDescription);
             const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(config.siteTitle)}</title>
-  <link rel="icon" type="image/svg+xml" href="${BRAND_FAVICON_URI}">
+  <title>${title}</title>
+  <meta name="description" content="${description}">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:image" content="/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="/og-image.png">
 </head>
 <body>
   <div id="app"></div>

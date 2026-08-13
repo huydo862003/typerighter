@@ -75,6 +75,7 @@ pub struct VaultConfigResult {
   site_title: String,
   site_description: String,
   repo: Option<String>,
+  public_dir: String,
   diagnostics: Vec<Diagnostic>,
 }
 

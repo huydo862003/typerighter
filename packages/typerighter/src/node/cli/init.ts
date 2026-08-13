@@ -16,7 +16,7 @@ import {
   escapeHtml,
 } from '@/shared';
 import {
-  BRAND_FAVICON_URI,
+  BRAND_ARROW, BRAND_BORDER, BRAND_COLOR, BRAND_LETTER, BRAND_VIEWBOX,
 } from '@/shared/brand';
 
 // Interactive project scaffolding
@@ -135,6 +135,15 @@ async function detectExistingProject (root: string): Promise<ExistingProject> {
   return result;
 }
 
+function generateFaviconSvg (): string {
+  return `<svg fill="none" viewBox="${BRAND_VIEWBOX}" xmlns="http://www.w3.org/2000/svg">
+  <path clip-rule="evenodd" d="${BRAND_BORDER}" fill-rule="evenodd" fill="${BRAND_COLOR}"/>
+  <path d="${BRAND_LETTER}" fill="${BRAND_COLOR}"/>
+  <path d="${BRAND_ARROW}" fill="${BRAND_COLOR}"/>
+</svg>
+`;
+}
+
 function generateIndexHtml (options: InitializeOptions): string {
   return `<!doctype html>
 <html lang="en">
@@ -142,11 +151,7 @@ function generateIndexHtml (options: InitializeOptions): string {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(options.siteTitle)}</title>
-    <link
-      rel="icon"
-      type="image/svg+xml"
-      href="${BRAND_FAVICON_URI}"
-    >
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   </head>
   <body>
     <div id="app"></div>
@@ -174,6 +179,14 @@ function generatePackageJson (options: InitializeOptions): string {
       typerighter: `^${__VERSION__}`,
     },
   }, undefined, 2) + '\n';
+}
+
+function generateRobotsText (): string {
+  return `User-agent: *
+Allow: /
+
+Sitemap: /sitemap.xml
+`;
 }
 
 function generateSampleTdContent (): string {
@@ -242,6 +255,7 @@ async function prompt (message: string, defaultValue: string): Promise<string> {
 async function scaffold (root: string, options: InitializeOptions): Promise<void> {
   const contentDirectory = path.join(root, 'vault', 'content');
   const schemaDirectory = path.join(root, 'vault', 'schemas');
+  const publicDirectory = path.join(root, 'public');
   const localDirectory = path.join(root, '.typedown', '.local');
 
   await Promise.all([
@@ -249,6 +263,9 @@ async function scaffold (root: string, options: InitializeOptions): Promise<void
       recursive: true,
     }),
     fs.mkdir(schemaDirectory, {
+      recursive: true,
+    }),
+    fs.mkdir(publicDirectory, {
       recursive: true,
     }),
     fs.mkdir(localDirectory, {
@@ -267,6 +284,12 @@ async function scaffold (root: string, options: InitializeOptions): Promise<void
     writeIfMissing(root, 'package.json', generatePackageJson(options)),
     writeIfMissing(root, 'typedown.yaml', generateTypedownYaml(options)),
     writeIfMissing(root, 'index.html', generateIndexHtml(options)),
+    writeIfMissing(publicDirectory, 'favicon.svg', generateFaviconSvg(), {
+      silent: true,
+    }),
+    writeIfMissing(publicDirectory, 'robots.txt', generateRobotsText(), {
+      silent: true,
+    }),
   ]);
 
   const samples = await Promise.all([
