@@ -20,11 +20,12 @@ import {
 import {
   createRouter, routerSymbol, type Router,
 } from './router';
-import type {
-  PageModule,
-  ContentTree,
-  SchemaDefinition,
-  DirectoryListing,
+import {
+  stripTrailingSlash,
+  type PageModule,
+  type ContentTree,
+  type SchemaDefinition,
+  type DirectoryListing,
 } from '@/shared';
 
 export {
@@ -92,7 +93,9 @@ export async function createTypedownApp (
     directoryListings: data.directoryListings ?? {},
   };
 
-  const router = createRouter(loadPageModule);
+  const router = createRouter(loadPageModule, {
+    basePath: siteConfig.basePath,
+  });
 
   const TypedownApp = defineComponent({
     name: 'TypedownApp',
@@ -149,11 +152,13 @@ export function useSiteConfig () {
     description: '',
     basePath: '/',
   });
-  const base = config.basePath.replace(/\/$/, '');
+  const base = stripTrailingSlash(config.basePath);
 
   return {
     ...config,
     withBase (path: string): string {
+      if (base === '/') return path;
+
       return base + path;
     },
   };

@@ -2,7 +2,7 @@ import {
   computed,
 } from 'vue';
 import {
-  useSiteData, useRoute,
+  useSiteData, useRoute, useSiteConfig,
 } from '../../app';
 import {
   getDirectoryUrl, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path, unslugify,
@@ -17,11 +17,30 @@ export interface PreviousNextLink {
 export function usePreviousNext () {
   const siteData = useSiteData();
   const route = useRoute();
+  const {
+    withBase,
+  } = useSiteConfig();
 
   const flatPages = computed(() => flattenTree(siteData.contentTree));
   const currentIndex = computed(() => flatPages.value.findIndex((page) => page.url === route.path));
-  const previous = computed(() => currentIndex.value < 1 ? undefined : flatPages.value[currentIndex.value - 1]);
-  const next = computed(() => currentIndex.value === -1 || flatPages.value.length - 1 <= currentIndex.value ? undefined : flatPages.value[currentIndex.value + 1]);
+  const previous = computed(() => {
+    if (currentIndex.value < 1) return undefined;
+    const page = flatPages.value[currentIndex.value - 1];
+
+    return {
+      ...page,
+      url: withBase(page.url),
+    };
+  });
+  const next = computed(() => {
+    if (currentIndex.value === -1 || flatPages.value.length - 1 <= currentIndex.value) return undefined;
+    const page = flatPages.value[currentIndex.value + 1];
+
+    return {
+      ...page,
+      url: withBase(page.url),
+    };
+  });
 
   return {
     previous,

@@ -6,7 +6,7 @@ import {
   File, Folder, CornerLeftUp,
 } from '@lucide/vue';
 import {
-  useSiteData, useRoute,
+  useSiteData, useRoute, useSiteConfig,
 } from '@/client/app';
 import {
   getIndexUrl, getParentUrl,
@@ -14,6 +14,9 @@ import {
 
 const route = useRoute();
 const siteData = useSiteData();
+const {
+  withBase,
+} = useSiteConfig();
 
 const listing = computed(() => {
   const path = getParentUrl(route.path);
@@ -27,7 +30,7 @@ const listing = computed(() => {
 });
 
 const isRoot = computed(() => listing.value.url === '/');
-const parentUrl = computed(() => getIndexUrl(getParentUrl(listing.value.url)));
+const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value.url))));
 </script>
 
 <template>
@@ -48,7 +51,7 @@ const parentUrl = computed(() => getIndexUrl(getParentUrl(listing.value.url)));
       <a
         v-for="sub in listing.subdirectories"
         :key="sub.url"
-        :href="sub.url"
+        :href="withBase(sub.url)"
         class="td-dir-row"
       >
         <Folder
@@ -64,7 +67,7 @@ const parentUrl = computed(() => getIndexUrl(getParentUrl(listing.value.url)));
       <a
         v-for="item in listing.items"
         :key="item.url"
-        :href="item.url"
+        :href="withBase(item.url)"
         class="td-dir-row"
       >
         <File

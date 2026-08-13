@@ -6,7 +6,7 @@ import {
   ChevronDown, File, Folder, FolderOpen,
 } from '@lucide/vue';
 import {
-  useRoute,
+  useRoute, useSiteConfig,
 } from '../../app';
 import TdTooltip from './TdTooltip.vue';
 import {
@@ -25,9 +25,13 @@ const {
 }>();
 
 const route = useRoute();
+const {
+  withBase,
+} = useSiteConfig();
 const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
 const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
-const folderHref = indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl);
+const folderPath = indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl);
+const folderHref = withBase(folderPath);
 const regularItems = node.items.filter((item) => path.filestem(item.filepath) !== INDEX_FILENAME);
 
 const hasContent = 0 < node.children.length || 0 < node.items.length;
@@ -86,11 +90,11 @@ function toggle () {
         :href="folderHref"
         class="td-tree-index-btn"
         :class="{
-          'is-active': isCurrent(folderHref),
+          'is-active': isCurrent(folderPath),
         }"
       >
         <FolderOpen
-          v-if="isCurrent(folderHref)"
+          v-if="isCurrent(folderPath)"
           :size="12"
         />
         <Folder
@@ -113,7 +117,7 @@ function toggle () {
       <a
         v-for="item in visibleItems"
         :key="item.filepath"
-        :href="getTdContentUrl(item.filepath)"
+        :href="withBase(getTdContentUrl(item.filepath))"
         class="td-tree-link"
         :class="{
           'is-active': isCurrent(getTdContentUrl(item.filepath)),

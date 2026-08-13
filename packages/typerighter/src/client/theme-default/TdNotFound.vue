@@ -2,6 +2,13 @@
 import {
   getIndexUrl,
 } from '@/shared';
+import {
+  useSiteConfig,
+} from '@/client/app';
+
+const {
+  withBase,
+} = useSiteConfig();
 </script>
 
 <template>
@@ -17,7 +24,7 @@ import {
     </p>
     <a
       class="inline-flex items-center mt-6 text-td-primary-solid text-td-ui font-td-heading tracking-td-heading hover:text-td-primary-solid-hover"
-      :href="getIndexUrl('/')"
+      :href="withBase(getIndexUrl('/'))"
     >Go Home</a>
   </div>
 </template>

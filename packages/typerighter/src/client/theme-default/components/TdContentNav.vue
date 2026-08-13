@@ -3,7 +3,7 @@ import {
   File, House,
 } from '@lucide/vue';
 import {
-  useRoute,
+  useRoute, useSiteConfig,
 } from '../../app';
 import TdTreeNode from './TdTreeNode.vue';
 import {
@@ -19,6 +19,9 @@ const {
 }>();
 
 const route = useRoute();
+const {
+  withBase,
+} = useSiteConfig();
 const indexItem = tree.rootItems.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
 const regularRootItems = tree.rootItems.filter((item) => path.filestem(item.filepath) !== INDEX_FILENAME);
 
@@ -30,7 +33,7 @@ function isCurrent (href: string): boolean {
 <template>
   <nav>
     <a
-      :href="indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')"
+      :href="withBase(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/'))"
       class="td-root-link"
       :class="{
         'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')),
@@ -49,7 +52,7 @@ function isCurrent (href: string): boolean {
     <a
       v-for="item in regularRootItems"
       :key="item.filepath"
-      :href="getTdContentUrl(item.filepath)"
+      :href="withBase(getTdContentUrl(item.filepath))"
       class="td-root-link"
       :class="{
         'is-active': isCurrent(getTdContentUrl(item.filepath)),

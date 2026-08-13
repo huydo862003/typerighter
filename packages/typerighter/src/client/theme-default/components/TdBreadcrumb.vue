@@ -6,16 +6,19 @@ import {
   Ellipsis,
 } from '@lucide/vue';
 import {
-  useRoute,
+  useRoute, useSiteConfig,
 } from '../../app';
 import TdDropdown from './TdDropdown.vue';
 import {
-  getIndexUrl, isIndexUrl, unslugify,
+  getIndexUrl, isIndexUrl, stripTrailingSlash, unslugify,
 } from '@/shared';
 
 const MAX_VISIBLE = 4;
 
 const route = useRoute();
+const {
+  withBase,
+} = useSiteConfig();
 const ellipsisOpen = ref(false);
 
 interface Crumb {
@@ -24,11 +27,11 @@ interface Crumb {
 }
 
 const crumbs = computed((): Crumb[] => {
-  const routePath = route.path === '/' ? '/' : route.path.replace(/\/$/, '');
+  const routePath = stripTrailingSlash(route.path);
   const result: Crumb[] = [
     {
       name: 'Home',
-      href: getIndexUrl('/'),
+      href: withBase(getIndexUrl('/')),
     },
   ];
 
@@ -46,7 +49,7 @@ const crumbs = computed((): Crumb[] => {
 
     result.push({
       name: unslugify(visibleParts[index]),
-      href: isLast ? basePath : getIndexUrl(basePath),
+      href: withBase(isLast ? basePath : getIndexUrl(basePath)),
     });
   }
 

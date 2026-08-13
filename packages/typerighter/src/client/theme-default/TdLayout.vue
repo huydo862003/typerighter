@@ -44,6 +44,9 @@ const {
   title, page,
 } = useTdContent();
 const siteConfig = useSiteConfig();
+const {
+  withBase,
+} = siteConfig;
 const siteData = useSiteData();
 const {
   isOpen, close: closeMenu,
@@ -102,7 +105,7 @@ function onResizeStart (event: PointerEvent) {
       <div class="td-header-left">
         <TdMenuButton />
         <a
-          :href="getIndexUrl('/')"
+          :href="withBase(getIndexUrl('/'))"
           class="td-brand"
         >
           <TdBrandIcon />
@@ -130,7 +133,7 @@ function onResizeStart (event: PointerEvent) {
             <X :size="20" />
           </TdButton>
           <a
-            :href="getIndexUrl('/')"
+            :href="withBase(getIndexUrl('/'))"
             class="td-brand"
           >
             <TdBrandIcon />

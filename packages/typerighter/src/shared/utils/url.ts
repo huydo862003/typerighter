@@ -35,7 +35,7 @@ export function getIndexUrl (directoryUrl: string): string {
 }
 
 export function getParentUrl (urlPath: string): string {
-  return dirname(urlPath.replace(/\/$/, '')) || '/';
+  return dirname(stripTrailingSlash(urlPath)) || '/';
 }
 
 export function getTdContentUrl (filepath: string): string {
@@ -74,4 +74,8 @@ export function stripAnchor (url: string): string {
   const hashIndex = url.indexOf('#');
 
   return 0 <= hashIndex ? url.slice(0, hashIndex) : url;
+}
+
+export function stripTrailingSlash (url: string): string {
+  return url.replace(/\/$/, '') || '/';
 }
