@@ -67,6 +67,7 @@ pub enum DiagnosticCode {
   MissingContainerPropValueAfterEq = 59,
   UnclosedContainerPropBlock = 60,
   UnexpectedContainerSlotSeparatorToken = 61,
+  UnresolvedIdentifier = 62,
 }
 
 impl DiagnosticCode {
@@ -133,6 +134,7 @@ impl DiagnosticCode {
       DiagnosticCode::ElementTypeMismatch => "element-type-mismatch",
       DiagnosticCode::DuplicateKey => "duplicate-key",
       DiagnosticCode::UnresolvedFileRef => "unresolved-file-ref",
+      DiagnosticCode::UnresolvedIdentifier => "unresolved-identifier",
       DiagnosticCode::UnknownField => "unknown-field",
       DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
       DiagnosticCode::NestedSchemaFile => "nested-schema-file",
@@ -502,6 +504,13 @@ pub enum Diagnostic {
     end_offset: usize,
   },
 
+  /// An identifier could not be resolved to any known name
+  UnresolvedIdentifier {
+    name: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+
   /// A field does not exist on the given type.
   UnknownField {
     field: String,
@@ -750,6 +759,11 @@ impl Diagnostic {
         end_offset,
         ..
       }
+      | Diagnostic::UnresolvedIdentifier {
+        start_offset,
+        end_offset,
+        ..
+      }
       | Diagnostic::UnknownField {
         start_offset,
         end_offset,
@@ -946,6 +960,9 @@ impl Diagnostic {
       Diagnostic::UnresolvedFileRef { path, .. } => {
         format!("cannot resolve file reference '{path}'")
       }
+      Diagnostic::UnresolvedIdentifier { name, .. } => {
+        format!("cannot resolve identifier '{name}'")
+      }
       Diagnostic::UnknownField { field, on_type, .. } => {
         format!("unknown field '{field}' on type '{on_type}'")
       }
@@ -1039,6 +1056,7 @@ impl Diagnostic {
       Diagnostic::ElementTypeMismatch { .. } => DiagnosticCode::ElementTypeMismatch,
       Diagnostic::DuplicateKey { .. } => DiagnosticCode::DuplicateKey,
       Diagnostic::UnresolvedFileRef { .. } => DiagnosticCode::UnresolvedFileRef,
+      Diagnostic::UnresolvedIdentifier { .. } => DiagnosticCode::UnresolvedIdentifier,
       Diagnostic::UnknownField { .. } => DiagnosticCode::UnknownField,
       Diagnostic::IndexOutOfBounds { .. } => DiagnosticCode::IndexOutOfBounds,
       Diagnostic::NestedSchemaFile { .. } => DiagnosticCode::NestedSchemaFile,

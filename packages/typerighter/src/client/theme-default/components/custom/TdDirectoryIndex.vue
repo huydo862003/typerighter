@@ -3,7 +3,7 @@ import {
   computed,
 } from 'vue';
 import {
-  File, FolderOpen, CornerLeftUp,
+  File, Folder, CornerLeftUp,
 } from '@lucide/vue';
 import {
   useSiteData, useRoute,
@@ -16,7 +16,7 @@ const route = useRoute();
 const siteData = useSiteData();
 
 const listing = computed(() => {
-  const path = route.path;
+  const path = getParentUrl(route.path);
   const directory = siteData.directoryListings[path] ?? siteData.directoryListings[path + '/'];
 
   return {
@@ -27,7 +27,11 @@ const listing = computed(() => {
 });
 
 const isRoot = computed(() => listing.value.url === '/');
-const parentUrl = computed(() => getParentUrl(listing.value.url));
+const parentUrl = computed(() => {
+  const parent = getParentUrl(listing.value.url);
+
+  return parent === '/' ? '/index' : parent + '/index';
+});
 </script>
 
 <template>
@@ -51,7 +55,7 @@ const parentUrl = computed(() => getParentUrl(listing.value.url));
         :href="sub.url"
         class="td-dir-row"
       >
-        <FolderOpen
+        <Folder
           :size="16"
           class="td-dir-icon"
         />

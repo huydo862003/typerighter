@@ -1,5 +1,6 @@
 ---
 _type: Project
+_label: "Mobile App"
 name: "Mobile App"
 status: "planning"
 started: "2026-06-01"

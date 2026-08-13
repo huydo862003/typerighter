@@ -46,10 +46,14 @@ import {
 export interface ClientAppEntryOptions {
   /** Content directory relative to project root */
   contentDir: string;
+  /** URL base path */
+  basePath?: string;
   /** Site title */
   siteTitle: string;
   /** Site description */
   siteDescription: string;
+  /** Repository URL */
+  repo?: string;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
   /** Schema definitions keyed by schema name */
@@ -71,6 +75,8 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
   const siteConfig = JSON.stringify({
     title: options.siteTitle,
     description: options.siteDescription,
+    basePath: options.basePath ?? '/',
+    repo: options.repo,
   });
 
   const directoryListingMap = buildDirectoryListingMap(options.contentTree.children, options.siteTitle);
@@ -97,8 +103,6 @@ function findPage(base) {
   for (const ext of contentExts) {
     const key = base + ext;
     if (pages[key]) return pages[key];
-    const indexKey = base + '/index' + ext;
-    if (pages[indexKey]) return pages[indexKey];
   }
 }
 
@@ -107,11 +111,15 @@ async function loadPageModule(pagePath) {
   const loader = findPage(base);
   if (loader) return loader();
 
-  const dir = siteData.directoryListings[pagePath] || siteData.directoryListings[pagePath + '/'];
-  if (dir) return {
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-    __pageData: { frontmatter: {}, headings: [], title: dir.title },
-  };
+  // Only /xxx/index paths get the directory listing fallback
+  if (pagePath.endsWith('/index')) {
+    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
+    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+    if (dir) return {
+      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
+      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+    };
+  }
 
   return undefined;
 }

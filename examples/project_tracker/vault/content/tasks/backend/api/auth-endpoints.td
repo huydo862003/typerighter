@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Implement auth endpoints"
 title: "Implement auth endpoints"
 status: "in_progress"
 priority: "high"

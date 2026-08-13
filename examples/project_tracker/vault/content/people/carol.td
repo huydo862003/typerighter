@@ -1,5 +1,6 @@
 ---
 _type: Person
+_label: "Carol Santos"
 name: "Carol Santos"
 role: "manager"
 tags: ["leadership", "planning"]

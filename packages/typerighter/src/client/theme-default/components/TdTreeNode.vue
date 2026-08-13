@@ -27,6 +27,7 @@ const {
 const route = useRoute();
 const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
 const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+const folderHref = indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl + '/index';
 const regularItems = node.items.filter((item) => path.filestem(item.filepath) !== INDEX_FILENAME);
 
 const hasContent = 0 < node.children.length || 0 < node.items.length;
@@ -82,14 +83,14 @@ function toggle () {
         <span class="td-tree-label-text">{{ unslugify(node.name) }}</span>
       </button>
       <a
-        :href="indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl"
+        :href="folderHref"
         class="td-tree-index-btn"
         :class="{
-          'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl),
+          'is-active': isCurrent(folderHref),
         }"
       >
         <FolderOpen
-          v-if="isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : directoryUrl)"
+          v-if="isCurrent(folderHref)"
           :size="12"
         />
         <Folder
@@ -156,6 +157,7 @@ function toggle () {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
   background: none;
   border: none;
   cursor: pointer;
@@ -164,6 +166,7 @@ function toggle () {
   text-transform: inherit;
   color: inherit;
   padding: 0;
+  overflow: hidden;
 }
 
 .td-tree-label:hover {
@@ -173,6 +176,9 @@ function toggle () {
 .td-tree-label-text {
   flex: 1;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-tree-index-btn {

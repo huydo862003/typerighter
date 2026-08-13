@@ -73,7 +73,7 @@ const entries = computed(() => {
 
 .td-frontmatter-row {
   display: flex;
-  align-items: center;
+  align-items: start;
   gap: 12px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--color-td-neutral-border-subtle);

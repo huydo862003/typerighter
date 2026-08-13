@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Write integration tests for auth"
 title: "Write integration tests for auth"
 status: "todo"
 priority: "medium"

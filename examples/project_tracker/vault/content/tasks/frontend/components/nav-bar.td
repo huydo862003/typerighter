@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Navigation bar component"
 title: "Navigation bar component"
 status: "in_progress"
 priority: "medium"

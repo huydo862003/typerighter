@@ -83,6 +83,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       contentDir: config.contentDir,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
+      repo: config.repo,
       contentTree,
       schemas,
     })),
@@ -224,8 +225,6 @@ function findPage(base) {
   for (const ext of contentExts) {
     const key = base + ext;
     if (pages[key]) return pages[key];
-    const indexKey = base + '/index' + ext;
-    if (pages[indexKey]) return pages[indexKey];
   }
 }
 
@@ -234,11 +233,14 @@ function loadPageModule(pagePath) {
   const page = findPage(base);
   if (page) return Promise.resolve(page);
 
-  const dir = siteData.directoryListings[pagePath] || siteData.directoryListings[pagePath + '/'];
-  if (dir) return Promise.resolve({
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-    __pageData: { frontmatter: {}, headings: [], title: dir.title },
-  });
+  if (pagePath.endsWith('/index')) {
+    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
+    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+    if (dir) return Promise.resolve({
+      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
+      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+    });
+  }
 
   return Promise.resolve(undefined);
 }

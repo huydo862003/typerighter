@@ -8,7 +8,7 @@ import {
   parseNumericPrefix, unslugify,
 } from './format';
 import {
-  getParentUrl, getTdContentUrl,
+  getTdContentUrl,
 } from './url';
 import {
   basename, filestem, dirname,
@@ -69,15 +69,11 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
   }
 
   function getChildUrl (child: ContentTreeNode, urlPrefix: string): string {
-    const first = child.items[0] ?? child.children[0]?.items[0];
+    const indexItem = child.items.find((item) => filestem(item.filepath) === INDEX_FILENAME);
 
-    if (!first) return `${urlPrefix}/${child.name}`;
+    if (indexItem) return getTdContentUrl(indexItem.filepath);
 
-    const contentUrl = getTdContentUrl(first.filepath);
-
-    return filestem(first.filepath) === INDEX_FILENAME
-      ? contentUrl
-      : getParentUrl(contentUrl);
+    return `${urlPrefix}/${child.name}/index`;
   }
 
   function walk (nodes: ContentTreeNode[], urlPrefix: string) {
@@ -128,12 +124,20 @@ export function getTdIndexTitle (filepath: string, siteTitle: string): string {
   return parent ? unslugify(parent) : siteTitle;
 }
 
-// Resolve a display title from frontmatter _label, name, or the file path
+// Resolve a display title from frontmatter _label or the file path
 export function getTdResourceTitle (header: Record<string, unknown>, filepath: string): string {
   if (header._label !== undefined) return String(header._label);
-  if (header.name !== undefined) return String(header.name);
 
-  return unslugify(filestem(filepath));
+  const stem = filestem(filepath);
+
+  // For index files, use the parent directory name
+  if (stem === INDEX_FILENAME) {
+    const parent = basename(dirname(filepath));
+
+    return parent ? unslugify(parent) : stem;
+  }
+
+  return unslugify(stem);
 }
 
 // Sort by numeric prefix first, then alphabetically as fallback
