@@ -8,6 +8,7 @@ import {
 import {
   useRoute,
 } from '../../app';
+import TdDropdown from './TdDropdown.vue';
 import {
   getIndexUrl, isIndexUrl, unslugify,
 } from '@/shared';
@@ -59,9 +60,6 @@ watch(() => route.path, () => {
   ellipsisOpen.value = false;
 });
 
-function toggleEllipsis () {
-  ellipsisOpen.value = !ellipsisOpen.value;
-}
 </script>
 
 <template>
@@ -81,26 +79,22 @@ function toggleEllipsis () {
         class="td-breadcrumb-sep"
         aria-hidden="true"
       >/</span>
-      <span class="td-breadcrumb-ellipsis-wrap">
-        <button
-          type="button"
-          class="td-breadcrumb-ellipsis"
-          @click="toggleEllipsis"
-        >
-          <Ellipsis :size="14" />
-        </button>
-        <div
-          v-if="ellipsisOpen"
-          class="td-breadcrumb-dropdown"
-        >
-          <a
-            v-for="crumb in collapsedCrumbs"
-            :key="crumb.href"
-            :href="crumb.href"
-            class="td-breadcrumb-dropdown-item"
-          >{{ crumb.name }}</a>
-        </div>
-      </span>
+      <TdDropdown v-model:open="ellipsisOpen">
+        <template #trigger>
+          <button
+            type="button"
+            class="td-breadcrumb-ellipsis"
+          >
+            <Ellipsis :size="14" />
+          </button>
+        </template>
+        <a
+          v-for="crumb in collapsedCrumbs"
+          :key="crumb.href"
+          :href="crumb.href"
+          class="td-breadcrumb-dropdown-item"
+        >{{ crumb.name }}</a>
+      </TdDropdown>
 
       <!-- Last two crumbs -->
       <template
@@ -184,10 +178,6 @@ function toggleEllipsis () {
   color: var(--color-td-neutral-fg);
 }
 
-.td-breadcrumb-ellipsis-wrap {
-  position: relative;
-}
-
 .td-breadcrumb-ellipsis {
   display: inline-flex;
   align-items: center;
@@ -204,20 +194,6 @@ function toggleEllipsis () {
 .td-breadcrumb-ellipsis:hover {
   color: var(--color-td-fg);
   background: var(--color-td-neutral-bg-hover);
-}
-
-.td-breadcrumb-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 50;
-  min-width: 160px;
-  margin-top: 4px;
-  padding: 4px;
-  background: var(--color-td-neutral-bg);
-  border: 1px solid var(--color-td-neutral-border-subtle);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .td-breadcrumb-dropdown-item {
