@@ -152,12 +152,10 @@ impl ExprCtxStack {
     let mut cache = self.cache.borrow_mut();
     match ctx {
       ExprCtx::MdBlockQuote => {
+        // Only `>` is the prefix, space after it is consumed separately
         self
           .md_prefix_tokens
           .push(cache.token(SyntaxKind::MdSymbol, b">"));
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
       }
       ExprCtx::MdUnorderedList(indent) | ExprCtx::MdOrderedList(indent) => {
         for _ in 0..indent {
