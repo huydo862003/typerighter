@@ -1,3 +1,9 @@
+## [0.10.0] - 2026-08-14
+
+* crates/typedown-lang
+  - Allow blank lines in lists before indented blocks
+  - No longer require trailing space between blockquote and content
+
 ## [0.9.0] - 2026-08-13
 
 * crates/typedown-lang
