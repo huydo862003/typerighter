@@ -198,12 +198,13 @@ impl TdTypeLike for TdTypeType {
   fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
+  // Any type is assignable to the metatype
   fn is_compatible_with(
     &self,
     _db: &::typedown_lang::db::TypedownDatabase,
-    actual: &TdTypeEnum,
+    _actual: &TdTypeEnum,
   ) -> bool {
-    self.as_id() == actual.as_id()
+    true
   }
   fn construct(
     &self,
