@@ -25,7 +25,7 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
       if resolved.value(db).is_none() {
         let node = hir.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::UnresolvedSchema {
+        diagnostics.push(Diagnostic::UnresolvedIdentifier {
           name: node.text(),
           start_offset: tr_offset,
           end_offset: tr_offset + tr_len,

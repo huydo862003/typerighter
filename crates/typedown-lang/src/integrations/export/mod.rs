@@ -801,6 +801,24 @@ mod tests {
     );
   }
 
+  // Unresolved interpolation in markdown silently produces empty output
+  #[test]
+  fn exports_unresolved_interpolation_as_empty() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/md_unresolved_interp.td");
+    let exported = export_resource(&db, project, file).expect("should export");
+    let content = &exported.content;
+    // ${question} resolves to nothing because `question` is not a field on Person
+    assert!(
+      !content.contains("question"),
+      "unresolved interpolation should not appear in output: {content}",
+    );
+    assert!(
+      content.contains("::: info\n"),
+      "container should still be present: {content}",
+    );
+  }
+
   #[test]
   fn exports_nested_blocks_without_extra_indentation() {
     let (db, project, file) =

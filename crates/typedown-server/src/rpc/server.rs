@@ -19,6 +19,7 @@ use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
+use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{AssetsDirMode, File, Project, SymbolKind};
@@ -546,11 +547,13 @@ fn collect_file_diagnostics(
   let parse_result = parse_file(db, project, file);
   let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
-  // Typecheck errors
+  // Typecheck and name resolution errors
   let root = parse_result.ast(db);
   let hir = lower_node(db, project, file, root);
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
+  let resolve_result = resolve(db, hir);
+  td_diags.extend(resolve_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors
   if let Some(sym) = file_symbol(db, project, file).value(db) {
