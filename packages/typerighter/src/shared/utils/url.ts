@@ -18,8 +18,20 @@ const DOWNLOADABLE_FILE_EXTENSIONS = new Set(
   ).split(','),
 );
 
+// Get the directory path for a page URL (strips /index suffix)
+export function getDirectoryFromPageUrl (url: string): string {
+  return isIndexUrl(url) ? getParentUrl(url) : url;
+}
+
 export function getDirectoryUrl (urlPrefix: string, name: string): string {
   return `${urlPrefix}/${name}`;
+}
+
+// Get the index page URL for a directory path
+export function getIndexUrl (directoryUrl: string): string {
+  if (directoryUrl === '/') return '/index';
+
+  return directoryUrl + '/index';
 }
 
 export function getParentUrl (urlPath: string): string {
@@ -30,6 +42,11 @@ export function getTdContentUrl (filepath: string): string {
   const name = filestem(filepath);
 
   return '/' + join(dirname(filepath), name);
+}
+
+// Whether a page URL ends with /index
+export function isIndexUrl (url: string): boolean {
+  return url === '/index' || url.endsWith('/index');
 }
 
 export function isUrlAncestorOf (directoryUrl: string, path: string): boolean {
@@ -46,6 +63,10 @@ export function isUrlToPage (filename: string): boolean {
   const extension = extname(filename).slice(1);
 
   return extension === '' || !DOWNLOADABLE_FILE_EXTENSIONS.has(extension.toLowerCase());
+}
+
+export function resolveRootUrl (url: string): string {
+  return url === '/' ? '/index' : url;
 }
 
 // Strip the anchor fragment from a URL, returning only the page path

@@ -33,7 +33,7 @@ import {
 } from './composables/useMenu';
 import TdToc from './components/TdToc.vue';
 import {
-  formatEditTime,
+  formatEditTime, getIndexUrl,
 } from '@/shared';
 import './styles/main.css';
 import './styles/markdown/content.css';
@@ -102,7 +102,7 @@ function onResizeStart (event: PointerEvent) {
       <div class="td-header-left">
         <TdMenuButton />
         <a
-          href="/index"
+          :href="getIndexUrl('/')"
           class="td-brand"
         >
           <TdBrandIcon />
@@ -130,7 +130,7 @@ function onResizeStart (event: PointerEvent) {
             <X :size="20" />
           </TdButton>
           <a
-            href="/index"
+            :href="getIndexUrl('/')"
             class="td-brand"
           >
             <TdBrandIcon />

@@ -110,6 +110,8 @@ function visible<T> (list: T[]): T[] {
 }
 
 .td-widget-more {
+  width: 100%;
+  text-align: left;
   background: none;
   border: none;
   cursor: pointer;

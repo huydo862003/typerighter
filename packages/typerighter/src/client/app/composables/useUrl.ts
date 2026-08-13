@@ -1,6 +1,9 @@
 import {
   useSiteConfig,
 } from '..';
+import {
+  getIndexUrl,
+} from '@/shared';
 
 // Construct URLs that respect the configured base path
 export function useUrl () {
@@ -12,16 +15,16 @@ export function useUrl () {
   }
 
   function homeUrl (): string {
-    return url('/index');
+    return url(getIndexUrl('/'));
   }
 
-  function indexUrl (directoryPath: string): string {
-    return url(directoryPath + '/index');
+  function directoryUrl (directoryPath: string): string {
+    return url(getIndexUrl(directoryPath));
   }
 
   return {
     url,
     homeUrl,
-    indexUrl,
+    directoryUrl,
   };
 }

@@ -1,22 +1,33 @@
 <script setup lang="ts">
 import {
-  computed,
+  computed, ref, watch,
 } from 'vue';
+import {
+  Ellipsis,
+} from '@lucide/vue';
 import {
   useRoute,
 } from '../../app';
 import {
-  unslugify,
+  getIndexUrl, isIndexUrl, unslugify,
 } from '@/shared';
 
-const route = useRoute();
+const MAX_VISIBLE = 4;
 
-const crumbs = computed(() => {
+const route = useRoute();
+const ellipsisOpen = ref(false);
+
+interface Crumb {
+  name: string;
+  href: string;
+}
+
+const crumbs = computed((): Crumb[] => {
   const routePath = route.path === '/' ? '/' : route.path.replace(/\/$/, '');
-  const result = [
+  const result: Crumb[] = [
     {
       name: 'Home',
-      href: '/index',
+      href: getIndexUrl('/'),
     },
   ];
 
@@ -24,18 +35,33 @@ const crumbs = computed(() => {
 
   const parts = routePath.replace(/^\//, '').split('/');
 
-  for (let index = 0; index < parts.length; index++) {
-    const basePath = '/' + parts.slice(0, index + 1).join('/');
-    const isLast = index === parts.length - 1;
+  const visibleParts = isIndexUrl(routePath)
+    ? parts.slice(0, -1)
+    : parts;
+
+  for (let index = 0; index < visibleParts.length; index++) {
+    const basePath = '/' + visibleParts.slice(0, index + 1).join('/');
+    const isLast = index === visibleParts.length - 1;
 
     result.push({
-      name: unslugify(parts[index]),
-      href: isLast ? basePath : basePath + '/index',
+      name: unslugify(visibleParts[index]),
+      href: isLast ? basePath : getIndexUrl(basePath),
     });
   }
 
   return result;
 });
+
+const needsCollapse = computed(() => MAX_VISIBLE < crumbs.value.length);
+const collapsedCrumbs = computed(() => crumbs.value.slice(1, -2));
+
+watch(() => route.path, () => {
+  ellipsisOpen.value = false;
+});
+
+function toggleEllipsis () {
+  ellipsisOpen.value = !ellipsisOpen.value;
+}
 </script>
 
 <template>
@@ -43,24 +69,80 @@ const crumbs = computed(() => {
     class="td-breadcrumb"
     aria-label="Breadcrumb"
   >
-    <template
-      v-for="(crumb, index) in crumbs"
-      :key="crumb.href"
-    >
+    <!-- First crumb (Home) -->
+    <a
+      :href="crumbs[0].href"
+      class="td-breadcrumb-link"
+    >{{ crumbs[0].name }}</a>
+
+    <!-- When collapsed: ellipsis dropdown for middle crumbs -->
+    <template v-if="needsCollapse">
       <span
-        v-if="index > 0"
         class="td-breadcrumb-sep"
         aria-hidden="true"
       >/</span>
-      <a
-        v-if="index < crumbs.length - 1"
-        :href="crumb.href"
-        class="td-breadcrumb-link"
-      >{{ crumb.name }}</a>
-      <span
-        v-else
-        class="td-breadcrumb-current"
-      >{{ crumb.name }}</span>
+      <span class="td-breadcrumb-ellipsis-wrap">
+        <button
+          type="button"
+          class="td-breadcrumb-ellipsis"
+          @click="toggleEllipsis"
+        >
+          <Ellipsis :size="14" />
+        </button>
+        <div
+          v-if="ellipsisOpen"
+          class="td-breadcrumb-dropdown"
+        >
+          <a
+            v-for="crumb in collapsedCrumbs"
+            :key="crumb.href"
+            :href="crumb.href"
+            class="td-breadcrumb-dropdown-item"
+          >{{ crumb.name }}</a>
+        </div>
+      </span>
+
+      <!-- Last two crumbs -->
+      <template
+        v-for="crumb in crumbs.slice(-2)"
+        :key="crumb.href"
+      >
+        <span
+          class="td-breadcrumb-sep"
+          aria-hidden="true"
+        >/</span>
+        <a
+          v-if="crumb !== crumbs[crumbs.length - 1]"
+          :href="crumb.href"
+          class="td-breadcrumb-link"
+        >{{ crumb.name }}</a>
+        <span
+          v-else
+          class="td-breadcrumb-current"
+        >{{ crumb.name }}</span>
+      </template>
+    </template>
+
+    <!-- When not collapsed: all crumbs normally -->
+    <template v-else>
+      <template
+        v-for="(crumb, index) in crumbs.slice(1)"
+        :key="crumb.href"
+      >
+        <span
+          class="td-breadcrumb-sep"
+          aria-hidden="true"
+        >/</span>
+        <a
+          v-if="index < crumbs.length - 2"
+          :href="crumb.href"
+          class="td-breadcrumb-link"
+        >{{ crumb.name }}</a>
+        <span
+          v-else
+          class="td-breadcrumb-current"
+        >{{ crumb.name }}</span>
+      </template>
     </template>
   </nav>
 </template>
@@ -100,5 +182,56 @@ const crumbs = computed(() => {
 
 .td-breadcrumb-current {
   color: var(--color-td-neutral-fg);
+}
+
+.td-breadcrumb-ellipsis-wrap {
+  position: relative;
+}
+
+.td-breadcrumb-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-td-neutral-fg-muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.td-breadcrumb-ellipsis:hover {
+  color: var(--color-td-fg);
+  background: var(--color-td-neutral-bg-hover);
+}
+
+.td-breadcrumb-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  min-width: 160px;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--color-td-neutral-bg);
+  border: 1px solid var(--color-td-neutral-border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.td-breadcrumb-dropdown-item {
+  display: block;
+  padding: 6px 10px;
+  font-size: var(--font-size-td-nav);
+  color: var(--color-td-neutral-fg);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.1s;
+}
+
+.td-breadcrumb-dropdown-item:hover {
+  background: var(--color-td-neutral-bg-hover);
+  color: var(--color-td-primary-solid);
 }
 </style>

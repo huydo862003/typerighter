@@ -5,7 +5,7 @@ import {
   useSiteData, useRoute,
 } from '../../app';
 import {
-  getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path,
+  getDirectoryUrl, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path, unslugify,
   type ContentTree, type ContentTreeNode, type ContentSummary,
 } from '@/shared';
 
@@ -29,11 +29,18 @@ export function usePreviousNext () {
   };
 }
 
-function flattenNode (node: ContentTreeNode, pages: PreviousNextLink[]) {
+function flattenNode (node: ContentTreeNode, pages: PreviousNextLink[], urlPrefix: string) {
   const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+  const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
 
   if (indexItem) {
     pages.push(itemToLink(indexItem));
+  } else {
+    // Virtual index page for directories without index.td
+    pages.push({
+      url: getIndexUrl(directoryUrl),
+      title: unslugify(node.name),
+    });
   }
 
   for (const item of node.items) {
@@ -43,7 +50,7 @@ function flattenNode (node: ContentTreeNode, pages: PreviousNextLink[]) {
   }
 
   for (const child of node.children) {
-    flattenNode(child, pages);
+    flattenNode(child, pages, directoryUrl);
   }
 }
 
@@ -54,7 +61,7 @@ function flattenTree (tree: ContentTree): PreviousNextLink[] {
     pages.push(itemToLink(item));
   }
   for (const child of tree.children) {
-    flattenNode(child, pages);
+    flattenNode(child, pages, '');
   }
 
   return pages;

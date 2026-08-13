@@ -7,7 +7,7 @@ import {
 } from '../../app';
 import TdTreeNode from './TdTreeNode.vue';
 import {
-  formatRelativeTime, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path,
+  formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path,
   type ContentTree,
 } from '@/shared';
 
@@ -30,7 +30,7 @@ function isCurrent (href: string): boolean {
 <template>
   <nav>
     <a
-      :href="indexItem ? getTdContentUrl(indexItem.filepath) : '/index'"
+      :href="indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')"
       class="td-root-link"
       :class="{
         'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : '/'),

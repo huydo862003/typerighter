@@ -213,6 +213,7 @@ function generateSsrEntry (options: SsrEntryOptions): string {
   return `
 import { createTypedownApp } from 'typerighter/client';
 import { TdDirectoryIndex } from 'typerighter/client/theme-default';
+import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
 import { h } from 'vue';
 import theme from '${options.layoutImport}';
@@ -233,9 +234,9 @@ function loadPageModule(pagePath) {
   const page = findPage(base);
   if (page) return Promise.resolve(page);
 
-  if (pagePath.endsWith('/index')) {
-    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
-    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+  if (isIndexUrl(pagePath)) {
+    const dirPath = getDirectoryFromPageUrl(pagePath);
+    const dir = siteData.directoryListings[dirPath];
     if (dir) return Promise.resolve({
       default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
       __pageData: { frontmatter: {}, headings: [], title: dir.title },

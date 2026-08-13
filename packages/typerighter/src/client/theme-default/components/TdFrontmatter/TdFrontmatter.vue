@@ -7,7 +7,7 @@ import {
   useSiteData,
 } from '@/client/app';
 import {
-  unslugify,
+  isBuiltinField, unslugify,
   type SchemaDefinition,
 } from '@/shared';
 
@@ -35,7 +35,16 @@ const entries = computed(() => {
   if (!schemaDef) return [];
 
   return Object.entries(schemaDef)
-    .filter(([key]) => !key.startsWith('_'));
+    .filter(([key]) => {
+      if (isBuiltinField(key)) return false;
+
+      const value = frontmatter[key];
+
+      if (value === undefined) return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+
+      return true;
+    });
 });
 </script>
 

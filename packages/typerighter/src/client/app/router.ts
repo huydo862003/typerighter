@@ -4,8 +4,9 @@ import type {
 import {
   inject, markRaw, nextTick, reactive, readonly,
 } from 'vue';
-import type {
-  PageData, PageModule,
+import {
+  resolveRootUrl,
+  type PageData, type PageModule,
 } from '@/shared';
 
 const isInBrowser = typeof window !== 'undefined';
@@ -245,11 +246,7 @@ function changeRoute (
 function normalizeHref (href: string): string {
   const url = new URL(href, 'http://a.com');
 
-  url.pathname = url.pathname.replace(/\.html$/, '');
-
-  if (url.pathname === '/') {
-    url.pathname = '/index';
-  }
+  url.pathname = resolveRootUrl(url.pathname.replace(/\.html$/, ''));
 
   return url.pathname + url.search + url.hash;
 }

@@ -25,6 +25,7 @@ export default defineConfig({
         vite: path.resolve(__dirname, 'src/node/plugin/index.ts'),
         client: path.resolve(__dirname, 'src/client/index.ts'),
         cli: path.resolve(__dirname, 'src/node/cli/index.ts'),
+        shared: path.resolve(__dirname, 'src/shared/index.ts'),
         'client/theme-default': path.resolve(__dirname, 'src/client/theme-default/index.ts'),
       },
       formats: ['es'],
