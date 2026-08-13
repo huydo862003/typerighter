@@ -70,22 +70,14 @@
   color: var(--color-td-code-fg);
 }
 
-/* Shiki dual-theme: apply light/dark token colors from CSS variables */
+/* Code blocks always use a dark background, so always use dark theme tokens */
 
 .td-content .shiki {
-  background-color: var(--shiki-light-bg);
+  background-color: var(--shiki-dark-bg, var(--color-td-code-bg));
 }
 
 .td-content .shiki span {
-  color: var(--shiki-light);
-}
-
-.dark .td-content .shiki {
-  background-color: var(--shiki-dark-bg);
-}
-
-.dark .td-content .shiki span {
-  color: var(--shiki-dark);
+  color: var(--shiki-dark, inherit);
 }
 
 /* Language label */
