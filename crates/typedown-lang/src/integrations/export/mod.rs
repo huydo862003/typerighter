@@ -436,16 +436,29 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     }
   }
 
-  // Fallback: File stem
+  // Fallback: file stem, or parent directory name for index files
   match &kind {
     SymbolKind::UserDefinedResource(_, target_file)
-    | SymbolKind::UserDefinedSchema(_, target_file) => target_file
-      .handle(db)
-      .path()
-      .and_then(|path| path.file_stem())
-      .and_then(|stem| stem.to_str())
-      .unwrap_or("unknown")
-      .to_string(),
+    | SymbolKind::UserDefinedSchema(_, target_file) => {
+      let handle = target_file.handle(db);
+      let path = handle.path();
+      let stem = path
+        .as_deref()
+        .and_then(|p| p.file_stem())
+        .and_then(|s| s.to_str());
+
+      match stem {
+        Some("index") => path
+          .as_deref()
+          .and_then(|p| p.parent())
+          .and_then(|p| p.file_name())
+          .and_then(|n| n.to_str())
+          .unwrap_or("index")
+          .to_string(),
+        Some(name) => name.to_string(),
+        None => "unknown".to_string(),
+      }
+    }
     _ => symbol.name(db).to_string(),
   }
 }

@@ -133,7 +133,16 @@ export function getTdResourceTitle (header: Record<string, unknown>, filepath: s
   if (header._label !== undefined) return String(header._label);
   if (header.name !== undefined) return String(header.name);
 
-  return unslugify(filestem(filepath));
+  const stem = filestem(filepath);
+
+  // For index files, use the parent directory name
+  if (stem === INDEX_FILENAME) {
+    const parent = basename(dirname(filepath));
+
+    return parent ? unslugify(parent) : stem;
+  }
+
+  return unslugify(stem);
 }
 
 // Sort by numeric prefix first, then alphabetically as fallback
