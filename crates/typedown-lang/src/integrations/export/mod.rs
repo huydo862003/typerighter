@@ -235,112 +235,360 @@ fn export_markdown_body(
   file: File,
   body: &MdBody,
 ) -> String {
-  let mut out = String::new();
+  let mut emitter = MarkdownExporter::new(db, project, file);
 
-  // Separate block elements with blank lines for CommonMark
-  let mut first = true;
-  for child in body.syntax().children() {
-    let kind = child.kind();
-    // Skip whitespace/newline tokens between blocks
-    if kind == SyntaxKind::Whitespace || kind == SyntaxKind::Newline {
-      continue;
-    }
-    if !first {
-      out.push('\n');
-    }
-    first = false;
-    emit_md_block(db, project, file, &child, &mut out);
-  }
-
-  if !out.ends_with('\n') {
-    out.push('\n');
-  }
-  out
+  emitter.emit_body(body);
+  emitter.finish()
 }
 
-fn emit_md_block(
-  db: &TypedownDatabase,
+struct MarkdownExporter<'a> {
+  db: &'a TypedownDatabase,
   project: Project,
   file: File,
-  node: &RedNode,
-  out: &mut String,
-) {
-  // [[label {props}]] expands to ::: label {props}\n:::
-  if node.kind() == SyntaxKind::MdContainerShorthand {
-    emit_container_shorthand(node, out);
-    return;
-  }
-  emit_md_node(db, project, file, node, out);
+  out: String,
+  prefix: String,
+  at_line_start: bool,
 }
 
-// Expand a container shorthand node into ::: container syntax
-fn emit_container_shorthand(node: &RedNode, out: &mut String) {
-  let mut label = String::new();
-  let mut props = String::new();
-
-  for child in node.children() {
-    match child.kind() {
-      SyntaxKind::Ident => label.push_str(&child.text()),
-      SyntaxKind::MdSymbol if child.text() == "-" => label.push('-'),
-      SyntaxKind::MdContainerPropBlock => props = child.text().trim().to_string(),
-      _ => {}
+impl<'a> MarkdownExporter<'a> {
+  fn new(db: &'a TypedownDatabase, project: Project, file: File) -> Self {
+    Self {
+      db,
+      project,
+      file,
+      out: String::new(),
+      prefix: String::new(),
+      at_line_start: true,
     }
   }
 
-  out.push_str("::: ");
-  out.push_str(&label);
-  if !props.is_empty() {
-    out.push(' ');
-    out.push_str(&props);
-  }
-  out.push_str("\n:::\n");
-}
-
-/// Emit a node, translating fref interpolations to markdown links
-fn emit_md_node(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-  node: &RedNode,
-  out: &mut String,
-) {
-  // Leaf token
-  if node.as_token().is_some() {
-    out.push_str(&node.text());
-    return;
-  }
-
-  // Interpolation fragment
-  if node.kind() == SyntaxKind::InterpFragment {
-    let Some(fragment) = InterpFragment::cast(node.clone()) else {
-      return;
-    };
-    let Some(expr) = fragment.expr() else { return };
-    let expr_node = expr.syntax().clone();
-
-    // Try to resolve as fref link
-    if let Some(link) = try_resolve_fref(db, project, file, &expr_node) {
-      out.push_str(&link);
-      return;
+  fn finish(mut self) -> String {
+    if !self.out.ends_with('\n') {
+      self.out.push('\n');
     }
-    // Not a fref: Evaluate and call to_string on the result
-    let hir = lower_node(db, project, file, expr_node);
-    if let Some(obj) = evaluate_node(db, hir).value(db)
-      && let Some(func) = obj.lookup_method(db, "to_string")
-    {
-      let native_fn = func.func(db).resolve();
-      if let Some(result) = native_fn(db, obj, vec![])
-        && let Some(str_obj) = result.as_td_str_obj()
-      {
-        out.push_str(&str_obj.value(db));
+    self.out
+  }
+
+  fn write(&mut self, text: &str) {
+    for ch in text.chars() {
+      if ch == '\n' {
+        self.out.push('\n');
+        self.at_line_start = true;
+      } else {
+        if self.at_line_start {
+          self.out.push_str(&self.prefix);
+          self.at_line_start = false;
+        }
+        self.out.push(ch);
       }
     }
-    return;
   }
 
-  // Composite node: Recurse into children
-  for child in node.children() {
-    emit_md_node(db, project, file, &child, out);
+  fn newline(&mut self) {
+    self.out.push('\n');
+    self.at_line_start = true;
+  }
+
+  fn emit_body(&mut self, body: &MdBody) {
+    let mut first = true;
+    for child in body.syntax().children() {
+      if child.kind() == SyntaxKind::Whitespace || child.kind() == SyntaxKind::Newline {
+        continue;
+      }
+      if !first {
+        self.newline();
+      }
+      first = false;
+      self.emit_block(&child);
+    }
+  }
+
+  fn emit_block(&mut self, node: &RedNode) {
+    match node.kind() {
+      SyntaxKind::MdHeading => self.emit_heading(node),
+      SyntaxKind::MdHorizontalRule => self.emit_horizontal_rule(node),
+      SyntaxKind::MdParagraph => self.emit_paragraph(node),
+      SyntaxKind::MdBlockquote => self.emit_blockquote(node),
+      SyntaxKind::MdBulletList => self.emit_list(node),
+      SyntaxKind::MdOrderedList => self.emit_list(node),
+      SyntaxKind::MdContainerBlock => self.emit_container(node),
+      SyntaxKind::MdContainerShorthand => self.emit_container_shorthand(node),
+      SyntaxKind::MdTable => self.emit_passthrough(node),
+      SyntaxKind::CodeBlock | SyntaxKind::MathBlock => self.emit_passthrough(node),
+      _ => self.emit_passthrough(node),
+    }
+  }
+
+  fn emit_child_blocks(&mut self, node: &RedNode) {
+    let mut first = true;
+    for child in node.children() {
+      let kind = child.kind();
+      if kind == SyntaxKind::Whitespace || kind == SyntaxKind::Newline {
+        continue;
+      }
+      if !first {
+        self.newline();
+      }
+      first = false;
+      self.emit_block(&child);
+    }
+  }
+
+  fn emit_heading(&mut self, node: &RedNode) {
+    self.emit_inline_children(node);
+    self.newline();
+  }
+
+  fn emit_horizontal_rule(&mut self, node: &RedNode) {
+    self.write(&node.text());
+    self.newline();
+  }
+
+  fn emit_paragraph(&mut self, node: &RedNode) {
+    self.emit_inline_children(node);
+    self.newline();
+  }
+
+  fn emit_blockquote(&mut self, node: &RedNode) {
+    let old_prefix = self.prefix.clone();
+    self.prefix.push_str("> ");
+
+    let mut first = true;
+    for child in node.children() {
+      let kind = child.kind();
+      if kind == SyntaxKind::MdSymbol
+        || kind == SyntaxKind::Whitespace
+        || kind == SyntaxKind::Newline
+      {
+        continue;
+      }
+      if !first {
+        self.newline();
+      }
+      first = false;
+      self.emit_block(&child);
+    }
+
+    self.prefix = old_prefix;
+  }
+
+  fn emit_list(&mut self, node: &RedNode) {
+    for child in node.children() {
+      match child.kind() {
+        SyntaxKind::MdBulletListItem | SyntaxKind::MdTaskListItem => {
+          self.emit_list_item(&child, "- ");
+        }
+        SyntaxKind::MdOrderedListItem => {
+          let marker = self.extract_ordered_marker(&child);
+          self.emit_list_item(&child, &marker);
+        }
+        _ => {}
+      }
+    }
+  }
+
+  fn extract_ordered_marker(&self, node: &RedNode) -> String {
+    let mut num = String::new();
+    for child in node.children() {
+      match child.kind() {
+        SyntaxKind::MdNumber => num = child.text().to_string(),
+        SyntaxKind::MdSymbol if child.text() == "." => {
+          return format!("{num}. ");
+        }
+        _ => {
+          if !num.is_empty() {
+            break;
+          }
+        }
+      }
+    }
+    "1. ".to_string()
+  }
+
+  fn emit_list_item(&mut self, node: &RedNode, marker: &str) {
+    let old_prefix = self.prefix.clone();
+    let continuation = " ".repeat(marker.len());
+
+    self.write(marker);
+    self.prefix.push_str(&continuation);
+
+    if node.kind() == SyntaxKind::MdTaskListItem {
+      for child in node.children() {
+        if child.kind() == SyntaxKind::MdCheckbox {
+          self.write(&child.text());
+          self.write(" ");
+          break;
+        }
+      }
+    }
+
+    let mut first = true;
+    for child in node.children() {
+      let kind = child.kind();
+      if kind == SyntaxKind::MdSymbol
+        || kind == SyntaxKind::MdNumber
+        || kind == SyntaxKind::Whitespace
+        || kind == SyntaxKind::Newline
+        || kind == SyntaxKind::MdCheckbox
+      {
+        continue;
+      }
+      if !first {
+        self.newline();
+      }
+      first = false;
+      self.emit_block(&child);
+    }
+
+    self.prefix = old_prefix;
+  }
+
+  fn emit_container(&mut self, node: &RedNode) {
+    self.write(":::");
+    let mut seen_opening = false;
+    for child in node.children() {
+      if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
+        seen_opening = true;
+        continue;
+      }
+      if child.kind() == SyntaxKind::Newline {
+        break;
+      }
+      if seen_opening {
+        self.emit_inline(&child);
+      }
+    }
+    self.newline();
+
+    for child in node.children() {
+      match child.kind() {
+        SyntaxKind::MdContainerSlot => {
+          self.emit_child_blocks(&child);
+        }
+        SyntaxKind::MdContainerSlotSeparator => {
+          self.write(&child.text());
+          self.newline();
+        }
+        _ => {}
+      }
+    }
+
+    self.write(":::");
+    self.newline();
+  }
+
+  fn emit_container_shorthand(&mut self, node: &RedNode) {
+    let mut label = String::new();
+    let mut props = String::new();
+
+    for child in node.children() {
+      match child.kind() {
+        SyntaxKind::Ident => label.push_str(&child.text()),
+        SyntaxKind::MdSymbol if child.text() == "-" => label.push('-'),
+        SyntaxKind::MdContainerPropBlock => props = child.text().trim().to_string(),
+        _ => {}
+      }
+    }
+
+    self.write("::: ");
+    self.write(&label);
+    if !props.is_empty() {
+      self.write(" ");
+      self.write(&props);
+    }
+    self.newline();
+    self.write(":::");
+    self.newline();
+  }
+
+  fn emit_passthrough(&mut self, node: &RedNode) {
+    let text = node.text().to_string();
+
+    let mut min_indent = usize::MAX;
+    for line in text.lines() {
+      if !line.trim().is_empty() {
+        let indent = line.len() - line.trim_start().len();
+
+        if indent < min_indent {
+          min_indent = indent;
+        }
+      }
+    }
+    if min_indent == usize::MAX {
+      min_indent = 0;
+    }
+
+    for (index, line) in text.lines().enumerate() {
+      if index > 0 {
+        self.newline();
+      }
+      if line.len() >= min_indent {
+        self.write(&line[min_indent..]);
+      } else {
+        self.write(line.trim_start());
+      }
+    }
+    self.newline();
+  }
+
+  fn emit_inline_children(&mut self, node: &RedNode) {
+    let mut started = false;
+
+    self.emit_inline_children_inner(node, &mut started);
+  }
+
+  fn emit_inline_children_inner(&mut self, node: &RedNode, started: &mut bool) {
+    for child in node.children() {
+      let kind = child.kind();
+      if kind == SyntaxKind::Newline {
+        continue;
+      }
+      if !*started && kind == SyntaxKind::Whitespace {
+        continue;
+      }
+      if !*started && child.as_token().is_none() && kind != SyntaxKind::InterpFragment {
+        self.emit_inline_children_inner(&child, started);
+        continue;
+      }
+      *started = true;
+      self.emit_inline(&child);
+    }
+  }
+
+  fn emit_inline(&mut self, node: &RedNode) {
+    if node.as_token().is_some() {
+      self.write(&node.text());
+      return;
+    }
+
+    if node.kind() == SyntaxKind::InterpFragment {
+      let Some(fragment) = InterpFragment::cast(node.clone()) else {
+        return;
+      };
+      let Some(expr) = fragment.expr() else { return };
+      let expr_node = expr.syntax().clone();
+
+      if let Some(link) = try_resolve_fref(self.db, self.project, self.file, &expr_node) {
+        self.write(&link);
+        return;
+      }
+      let hir = lower_node(self.db, self.project, self.file, expr_node);
+      if let Some(obj) = evaluate_node(self.db, hir).value(self.db)
+        && let Some(func) = obj.lookup_method(self.db, "to_string")
+      {
+        let native_fn = func.func(self.db).resolve();
+        if let Some(result) = native_fn(self.db, obj, vec![])
+          && let Some(str_obj) = result.as_td_str_obj()
+        {
+          self.write(&str_obj.value(self.db));
+        }
+      }
+      return;
+    }
+
+    for child in node.children() {
+      self.emit_inline(&child);
+    }
   }
 }
 
@@ -440,14 +688,10 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     | SymbolKind::UserDefinedSchema(_, target_file) => {
       let handle = target_file.handle(db);
       let path = handle.path();
-      let stem = path
-        .as_deref()
-        .and_then(|p| p.file_stem())
-        .and_then(|s| s.to_str());
+      let stem = path.and_then(|p| p.file_stem()).and_then(|s| s.to_str());
 
       match stem {
         Some("index") => path
-          .as_deref()
           .and_then(|p| p.parent())
           .and_then(|p| p.file_name())
           .and_then(|n| n.to_str())
@@ -554,6 +798,42 @@ mod tests {
     assert!(
       content.contains("::: directory-index\n:::\n"),
       "should expand [[directory-index]] with kebab-case: {content}",
+    );
+  }
+
+  #[test]
+  fn exports_nested_blocks_without_extra_indentation() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/md_nested_blocks.td");
+    let exported = export_resource(&db, project, file).expect("should export");
+    let content = &exported.content;
+
+    // No line should have 4+ leading spaces (which markdown-it treats as a code block)
+    for line in content.lines() {
+      let indent = line.len() - line.trim_start().len();
+
+      assert!(
+        indent < 4 || line.trim_start().is_empty(),
+        "line has {indent} spaces of indentation (would become code block): '{line}'\nfull content:\n{content}",
+      );
+    }
+
+    // Nested container content should not be indented
+    assert!(
+      content.contains("nested paragraph\n"),
+      "nested paragraph should not have leading whitespace: {content}",
+    );
+
+    // Blockquote content should use > prefix
+    assert!(
+      content.contains("> blockquote content\n"),
+      "blockquote should use > prefix: {content}",
+    );
+
+    // List item content
+    assert!(
+      content.contains("- item one\n"),
+      "list item should use - marker: {content}",
     );
   }
 
