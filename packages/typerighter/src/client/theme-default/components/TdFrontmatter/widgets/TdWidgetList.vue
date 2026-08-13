@@ -100,12 +100,13 @@ function visible<T> (list: T[]): T[] {
 
 .td-widget-list {
   margin: 0;
-  padding-left: 20px;
+  padding: 0 0 0 20px;
   list-style: disc;
 }
 
 .td-widget-list li {
-  padding: 1px 0;
+  margin: 0;
+  padding: 2px 0;
 }
 
 .td-widget-more {
