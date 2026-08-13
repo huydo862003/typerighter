@@ -27,6 +27,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
       AssetsDir::default(),
       String::new(),
       String::new(),
+      None,
       diagnostics,
     );
   };
@@ -41,6 +42,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
       AssetsDir::default(),
       String::new(),
       String::new(),
+      None,
       diagnostics,
     );
   };
@@ -59,6 +61,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
     .as_str()
     .unwrap_or("")
     .to_string();
+  let repo = doc["repo"].as_str().map(str::to_string);
 
   VaultConfigResult::new(
     db,
@@ -69,6 +72,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
     assets_dir,
     site_title,
     site_description,
+    repo,
     diagnostics,
   )
 }

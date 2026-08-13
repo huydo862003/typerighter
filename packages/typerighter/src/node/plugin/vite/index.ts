@@ -50,6 +50,8 @@ export interface ClientAppEntryOptions {
   siteTitle: string;
   /** Site description */
   siteDescription: string;
+  /** Repository URL */
+  repo?: string;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
   /** Schema definitions keyed by schema name */
@@ -71,6 +73,7 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
   const siteConfig = JSON.stringify({
     title: options.siteTitle,
     description: options.siteDescription,
+    repo: options.repo,
   });
 
   const directoryListingMap = buildDirectoryListingMap(options.contentTree.children, options.siteTitle);

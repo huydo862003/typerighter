@@ -83,6 +83,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       contentDir: config.contentDir,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
+      repo: config.repo,
       contentTree,
       schemas,
     })),

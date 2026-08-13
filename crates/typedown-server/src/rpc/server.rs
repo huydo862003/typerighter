@@ -73,6 +73,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
     },
     site_title: config.site_title(db).to_string(),
     site_description: config.site_description(db).to_string(),
+    repo: config.repo(db).clone(),
   }
 }
 

@@ -42,6 +42,8 @@ export interface TypedownSiteConfig {
   title: string;
   /** Site description */
   description: string;
+  /** Repository URL */
+  repo?: string;
 }
 
 export interface TypedownSiteData {
@@ -75,6 +77,7 @@ export async function createTypedownApp (
   const siteConfig: TypedownSiteConfig = {
     title: config.title ?? '',
     description: config.description ?? '',
+    repo: config.repo,
   };
 
   const siteData: TypedownSiteData = {
