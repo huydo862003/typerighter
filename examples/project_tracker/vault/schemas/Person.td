@@ -14,4 +14,7 @@ properties:
   email:
     type: string
     optional: true
+  tasks:
+    type: list[Task]
+    optional: true
 ---
