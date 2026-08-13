@@ -194,7 +194,7 @@ function toggle () {
   justify-content: center;
   padding: 2px;
   border-radius: 4px;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-primary-solid);
   text-decoration: none;
   transition: color 0.1s;
 }
