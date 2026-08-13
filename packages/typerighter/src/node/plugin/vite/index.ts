@@ -97,8 +97,6 @@ function findPage(base) {
   for (const ext of contentExts) {
     const key = base + ext;
     if (pages[key]) return pages[key];
-    const indexKey = base + '/index' + ext;
-    if (pages[indexKey]) return pages[indexKey];
   }
 }
 

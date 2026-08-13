@@ -16,7 +16,7 @@ const route = useRoute();
 const siteData = useSiteData();
 
 const listing = computed(() => {
-  const path = route.path;
+  const path = getParentUrl(route.path);
   const directory = siteData.directoryListings[path] ?? siteData.directoryListings[path + '/'];
 
   return {
