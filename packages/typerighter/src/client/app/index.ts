@@ -9,6 +9,7 @@ import {
   type InjectionKey,
   type ShallowRef,
 } from 'vue';
+import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
 import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
 import {
   Content,
@@ -23,11 +24,15 @@ import type {
   PageModule,
   ContentTree,
   SchemaDefinition,
+  DirectoryListing,
 } from '@/shared';
 
 export {
   useTdContent,
 } from './composables/useTdContent';
+export {
+  useUrl,
+} from './composables/useUrl';
 export {
   useRouter, useRoute,
 } from './router';
@@ -40,6 +45,10 @@ export interface TypedownSiteConfig {
   title: string;
   /** Site description */
   description: string;
+  /** URL base path (e.g. "/" or "/blog") */
+  basePath: string;
+  /** Repository URL */
+  repo?: string;
 }
 
 export interface TypedownSiteData {
@@ -49,6 +58,8 @@ export interface TypedownSiteData {
   searchIndex?: string;
   /** Schema definitions keyed by schema name */
   schemas: Record<string, SchemaDefinition>;
+  /** Directory listings keyed by URL path */
+  directoryListings: Record<string, DirectoryListing>;
 }
 
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
@@ -71,6 +82,8 @@ export async function createTypedownApp (
   const siteConfig: TypedownSiteConfig = {
     title: config.title ?? '',
     description: config.description ?? '',
+    basePath: config.basePath ?? '/',
+    repo: config.repo,
   };
 
   const siteData: TypedownSiteData = {
@@ -79,6 +92,7 @@ export async function createTypedownApp (
       children: [],
     },
     schemas: data.schemas ?? {},
+    directoryListings: data.directoryListings ?? {},
   };
 
   const router = createRouter(loadPageModule);
@@ -105,6 +119,7 @@ export async function createTypedownApp (
 
   // custom components
   /* eslint-disable vue/multi-word-component-names */
+  app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('Flashcard', TdFlashcard);
   /* eslint-enable vue/multi-word-component-names */
 
@@ -135,6 +150,7 @@ export function useSiteConfig (): TypedownSiteConfig {
   return inject(siteConfigSymbol, {
     title: '',
     description: '',
+    basePath: '/',
   });
 }
 
@@ -145,5 +161,6 @@ export function useSiteData (): TypedownSiteData {
       children: [],
     },
     schemas: {},
+    directoryListings: {},
   });
 }

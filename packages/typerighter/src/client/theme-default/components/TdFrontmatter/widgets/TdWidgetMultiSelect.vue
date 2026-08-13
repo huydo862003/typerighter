@@ -2,6 +2,9 @@
 import {
   ref,
 } from 'vue';
+import {
+  getPillColor,
+} from './getPillColor';
 
 const {
   value,
@@ -17,7 +20,7 @@ const items = Array.isArray(value) ? value : [];
 const visible = () => expanded.value ? items : items.slice(0, MAX_VISIBLE);
 const hiddenCount = Math.max(0, items.length - MAX_VISIBLE);
 
-function toggleExpand () {
+function toggle () {
   expanded.value = !expanded.value;
 }
 </script>
@@ -27,12 +30,13 @@ function toggleExpand () {
     v-for="(item, idx) in visible()"
     :key="idx"
     class="td-widget-pill"
+    :style="getPillColor(item)"
   >{{ item }}</span>
   <button
     v-if="hiddenCount > 0"
     class="td-widget-more"
     type="button"
-    @click="toggleExpand"
+    @click="toggle"
   >
     {{ expanded ? 'show less' : `+${hiddenCount} more` }}
   </button>
@@ -43,16 +47,14 @@ function toggleExpand () {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.8rem;
-  background: var(--color-td-primary-bg-subtle);
-  color: var(--color-td-primary-solid);
+  font-size: var(--font-size-td-caption);
 }
 
 .td-widget-more {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 2px 0;
 }

@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Database migrations"
 title: "Database migrations"
 status: "done"
 priority: "high"

@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Sidebar component"
 title: "Sidebar component"
 status: "todo"
 priority: "medium"

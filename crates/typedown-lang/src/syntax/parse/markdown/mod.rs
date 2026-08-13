@@ -107,6 +107,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       _ if self.is_ordered_list_start(SKIP_NONE) => self.parse_ordered_list(indent),
       _ if self.is_table_start(SKIP_NONE) => self.parse_table(),
       _ if self.is_container_start(SKIP_NONE) => self.parse_container_block(),
+      _ if self.is_container_shorthand_start(SKIP_NONE) => self.parse_container_shorthand(),
       _ if self.is_media_block_start(SKIP_NONE) => self.parse_media(),
       _ if self.is_code_or_math_block_start(SKIP_NONE) => {
         let mut children = vec![];
@@ -960,7 +961,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.advance_md(&mut children, SKIP_NONE);
     }
 
-    // Require a label identifier
+    // Require a label identifier (supports kebab-case like directory-index)
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
       self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
         expected: SyntaxKind::Ident,
@@ -968,7 +969,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         end_offset: self.offset(),
       });
     } else {
-      self.advance_md(&mut children, SKIP_NONE);
+      self.consume_kebab_ident(&mut children);
     }
 
     // Container props (`{key=value key=value}`)
@@ -1140,6 +1141,65 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.exit(container_ctx);
     (self.emit(SyntaxKind::MdContainerBlock, &children), None)
+  }
+
+  /// Parse [[identifier {props}]] as a self-closing container shorthand
+  /// INVARIANT: Expect [[ to be the next two tokens
+  pub(in crate::syntax::parse) fn parse_container_shorthand(
+    &mut self,
+  ) -> (GreenNode, Option<ExprCtx>) {
+    debug_assert!(
+      self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::LBracket
+        && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::LBracket,
+      "[ParseCtx::parse_container_shorthand] Expected [["
+    );
+
+    let mut children = vec![];
+
+    // Consume [[
+    self.advance_md(&mut children, SKIP_NONE);
+    self.advance_md(&mut children, SKIP_NONE);
+
+    // Require a label identifier (supports kebab-case like directory-index)
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
+      self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::Ident,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      });
+    } else {
+      self.consume_kebab_ident(&mut children);
+    }
+
+    // Optional props block {key=value}
+    if self.lex_ctx.peek_md(SKIP_WS).token.kind() == SyntaxKind::LBrace {
+      let (props, _) = self.parse_container_prop_block();
+      children.push(props);
+    }
+
+    // Consume ]]
+    self.consume_md(
+      &mut children,
+      SKIP_NONE,
+      SyntaxKind::RBracket,
+      Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::RBracket,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      },
+    );
+    self.consume_md(
+      &mut children,
+      SKIP_NONE,
+      SyntaxKind::RBracket,
+      Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::RBracket,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      },
+    );
+
+    (self.emit(SyntaxKind::MdContainerShorthand, &children), None)
   }
 
   // Stop on `:::` at matching indent, or EOF.
@@ -1469,13 +1529,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     );
     children.push(self.emit(SyntaxKind::MdText, &alt_children));
 
+    // Hit newline or EOF before ]: treat the whole thing as plain text
     if is_unclosed {
-      self.emit_diagnostic(Diagnostic::UnclosedLink {
-        start_offset: open_offset,
-        end_offset: self.offset(),
-      });
       self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
-      return (self.emit(SyntaxKind::MdLink, &children), None);
+      return (self.emit(SyntaxKind::MdText, &children), None);
     }
 
     // Consume `]`
@@ -1642,13 +1699,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     );
     children.push(self.emit(SyntaxKind::MdText, &alt_children));
 
+    // Hit newline or EOF before ]: treat the whole thing as plain text
     if is_unclosed {
-      self.emit_diagnostic(Diagnostic::UnclosedLink {
-        start_offset: open_offset,
-        end_offset: self.offset(),
-      });
       self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
-      return (self.emit(SyntaxKind::MdMedia, &children), None);
+      return (self.emit(SyntaxKind::MdText, &children), None);
     }
 
     // Consume `]`
@@ -2093,6 +2147,24 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdText, &children), None)
   }
 
+  // Consume a kebab-case identifier (e.g. directory-index)
+  // Advances through Ident, MdSymbol("-"), Ident sequences
+  fn consume_kebab_ident(&mut self, children: &mut Vec<GreenNode>) {
+    self.advance_md(children, SKIP_NONE);
+    loop {
+      let peek = self.lex_ctx.peek_md(SKIP_NONE);
+      if peek.token.kind() == SyntaxKind::MdSymbol
+        && peek.token.chars().collect::<String>() == "-"
+        && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::Ident
+      {
+        self.advance_md(children, SKIP_NONE); // -
+        self.advance_md(children, SKIP_NONE); // ident
+      } else {
+        break;
+      }
+    }
+  }
+
   // Consume the expected prefix on the next line
   fn consume_md_prefix(&mut self, children: &mut Vec<GreenNode>) -> bool {
     let expected_tokens = self.expr_ctx_stack.md_prefix_tokens().to_vec();
@@ -2299,6 +2371,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().collect::<String>() == ":::"
   }
 
+  fn is_container_shorthand_start(&mut self, skip: u16) -> bool {
+    let first = self.lex_ctx.peek_md(skip);
+    first.token.kind() == SyntaxKind::LBracket
+      && self.lex_ctx.peek_md_nth(1, skip).token.kind() == SyntaxKind::LBracket
+  }
+
   fn is_media_block_start(&mut self, skip: u16) -> bool {
     let next = self.lex_ctx.peek_md(skip);
     if next.token.kind() != SyntaxKind::MdSymbol {
@@ -2362,6 +2440,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SyntaxKind::MdNumber => {
         let dot = self.lex_ctx.peek_md_nth(offset + 1, SKIP_NONE);
         dot.token.kind() == SyntaxKind::MdSymbol && dot.token.chars().collect::<String>() == "."
+      }
+      SyntaxKind::LBracket => {
+        let next = self.lex_ctx.peek_md_nth(offset + 1, SKIP_NONE);
+        next.token.kind() == SyntaxKind::LBracket
       }
       SyntaxKind::CodeBlock | SyntaxKind::MathBlock => true,
       _ => false,

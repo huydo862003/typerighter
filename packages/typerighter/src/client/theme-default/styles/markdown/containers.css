@@ -87,3 +87,9 @@
 .td-content details.custom-block > :not(summary) {
   padding: 0 16px;
 }
+
+.td-content .custom-block div[class*="language-"] {
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 8px;
+}

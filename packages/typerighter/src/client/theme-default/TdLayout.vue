@@ -19,14 +19,19 @@ import {
   TdFrontmatter,
 } from './components/TdFrontmatter';
 import TdMenuButton from './components/TdMenuButton.vue';
+import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdSearch from './components/TdSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
   useCopyCode,
 } from './composables/useCopyCode';
 import {
+  useResizableTable,
+} from './composables/useResizableTable';
+import {
   useMenu,
 } from './composables/useMenu';
+import TdToc from './components/TdToc.vue';
 import {
   formatEditTime,
 } from '@/shared';
@@ -43,6 +48,7 @@ const siteData = useSiteData();
 const {
   isOpen, close: closeMenu,
 } = useMenu();
+
 const searchQuery = ref('');
 const sidebarSearchActive = ref(false);
 const menuSearchActive = ref(false);
@@ -51,6 +57,43 @@ const route = useRoute();
 watch(() => route.path, () => closeMenu());
 
 useCopyCode();
+useResizableTable();
+
+const SIDEBAR_MIN = 200;
+const SIDEBAR_MAX = 500;
+const SIDEBAR_DEFAULT = 272;
+const SIDEBAR_STORAGE_KEY = 'td-sidebar-width';
+
+const sidebarWidth = ref(
+  typeof localStorage !== 'undefined'
+    ? Number(localStorage.getItem(SIDEBAR_STORAGE_KEY)) || SIDEBAR_DEFAULT
+    : SIDEBAR_DEFAULT,
+);
+
+function onResizeStart (event: PointerEvent) {
+  const startX = event.clientX;
+  const startWidth = sidebarWidth.value;
+  const target = event.currentTarget as HTMLElement;
+
+  target.setPointerCapture(event.pointerId);
+
+  function onMove (event: PointerEvent) {
+    const width = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX));
+
+    sidebarWidth.value = width;
+  }
+
+  function onUp () {
+    document.body.style.cursor = '';
+    target.removeEventListener('pointermove', onMove);
+    target.removeEventListener('pointerup', onUp);
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth.value));
+  }
+
+  document.body.style.cursor = 'col-resize';
+  target.addEventListener('pointermove', onMove);
+  target.addEventListener('pointerup', onUp);
+}
 </script>
 
 <template>
@@ -59,7 +102,7 @@ useCopyCode();
       <div class="td-header-left">
         <TdMenuButton />
         <a
-          href="/"
+          href="/index"
           class="td-brand"
         >
           <TdBrandIcon />
@@ -87,7 +130,7 @@ useCopyCode();
             <X :size="20" />
           </TdButton>
           <a
-            href="/"
+            href="/index"
             class="td-brand"
           >
             <TdBrandIcon />
@@ -113,6 +156,9 @@ useCopyCode();
       <nav
         class="td-sidebar-left"
         aria-label="Site navigation"
+        :style="{
+          width: `${sidebarWidth}px`,
+        }"
       >
         <TdSearch
           v-model:query="searchQuery"
@@ -121,6 +167,10 @@ useCopyCode();
         <TdContentNav
           v-if="!sidebarSearchActive"
           :tree="siteData.contentTree"
+        />
+        <div
+          class="td-sidebar-resize"
+          @pointerdown.prevent="onResizeStart"
         />
       </nav>
 
@@ -146,6 +196,7 @@ useCopyCode();
               :frontmatter="page.frontmatter"
             />
             <Content />
+            <TdPreviousNext />
           </article>
         </main>
 
@@ -153,30 +204,7 @@ useCopyCode();
           class="td-sidebar-right"
           aria-label="Table of contents"
         >
-          <div
-            v-if="page.headings.length"
-            class="td-toc"
-          >
-            <div class="td-toc-label">
-              On this page
-            </div>
-            <ul class="td-toc-list">
-              <li
-                v-for="heading in page.headings"
-                :key="heading.slug"
-                :class="{
-                  'td-toc-indent-1': heading.level === 3,
-                  'td-toc-indent-2': heading.level === 4,
-                  'td-toc-indent-3': heading.level === 5,
-                }"
-              >
-                <a
-                  :href="heading.link"
-                  class="td-toc-link"
-                >{{ heading.title }}</a>
-              </li>
-            </ul>
-          </div>
+          <TdToc :headings="page.headings" />
         </nav>
       </div>
     </div>
@@ -270,7 +298,7 @@ useCopyCode();
 }
 
 .td-page-meta {
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border-strong);
   margin-bottom: 24px;
 }
@@ -284,13 +312,28 @@ useCopyCode();
 /* Sidebar: static column above lg */
 
 .td-sidebar-left {
-  width: var(--td-sidebar-width);
   position: sticky;
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   overflow-y: auto;
   padding: 22px 0 60px;
   flex-shrink: 0;
+}
+
+.td-sidebar-resize {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.td-sidebar-resize:hover,
+.td-sidebar-resize:active {
+  background: var(--color-td-primary-solid);
+  opacity: 0.3;
 }
 
 /* Menu overlay: full-screen with own header */
@@ -328,52 +371,6 @@ useCopyCode();
   overflow-y: auto;
   padding: 44px 22px 60px;
   min-width: 0;
-}
-
-.td-toc-label {
-  font-size: var(--font-size-td-label);
-  letter-spacing: var(--tracking-td-label);
-  text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
-  margin-bottom: 12px;
-}
-
-.td-toc-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border-left: 2px solid var(--color-td-neutral-border-subtle);
-}
-
-.td-toc-list li {
-  margin: 0;
-}
-
-.td-toc-link {
-  display: block;
-  padding: 5px 0 5px 12px;
-  margin-left: -2px;
-  font-size: var(--font-size-td-caption);
-  color: var(--color-td-neutral-fg);
-  text-decoration: none;
-  border-left: 2px solid transparent;
-  transition: color 0.15s;
-}
-
-.td-toc-link:hover {
-  color: var(--color-td-primary-solid);
-}
-
-.td-toc-indent-1 {
-  padding-left: 24px;
-}
-
-.td-toc-indent-2 {
-  padding-left: 36px;
-}
-
-.td-toc-indent-3 {
-  padding-left: 48px;
 }
 
 /* Below lg breakpoint */

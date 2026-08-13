@@ -247,5 +247,9 @@ function normalizeHref (href: string): string {
 
   url.pathname = url.pathname.replace(/\.html$/, '');
 
+  if (url.pathname === '/') {
+    url.pathname = '/index';
+  }
+
   return url.pathname + url.search + url.hash;
 }

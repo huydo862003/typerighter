@@ -416,6 +416,31 @@ fn parse_typedown_empty_file() {
   );
 }
 
+// Container shorthand in a schemaless file (no frontmatter)
+#[test]
+fn parse_typedown_container_shorthand_no_frontmatter() {
+  let input = "[[toc]]\n";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      "toc"
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+}
+
 // Single dash is not a frontmatter opener
 #[test]
 fn parse_typedown_single_dash_no_frontmatter() {

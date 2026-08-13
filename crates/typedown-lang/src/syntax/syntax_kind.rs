@@ -33,6 +33,7 @@ pub enum SyntaxKind {
   MdOrderedList,
   MdOrderedListItem,
   MdContainerBlock,     // ::: label ... :::
+  MdContainerShorthand, // [[label {props}]]
   MdContainerPropBlock, // {key=value}
   MdContainerPropItem,  // key=value or key
   MdContainerSlot,

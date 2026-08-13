@@ -33,7 +33,7 @@ const hiddenCount = isRelationList
   ? Math.max(0, resolvedRefs.length - MAX_VISIBLE)
   : Math.max(0, items.length - MAX_VISIBLE);
 
-function toggleExpand () {
+function toggle () {
   expanded.value = !expanded.value;
 }
 
@@ -45,17 +45,22 @@ function visible<T> (list: T[]): T[] {
 <template>
   <!-- List of relations: links -->
   <template v-if="isRelationList">
-    <a
-      v-for="(resolvedItem, idx) in visible(resolvedRefs)"
-      :key="idx"
-      :href="resolvedItem.url"
-      class="td-widget-ref"
-    >{{ resolvedItem.name }}</a>
+    <ul class="td-widget-list">
+      <li
+        v-for="(resolvedItem, idx) in visible(resolvedRefs)"
+        :key="idx"
+      >
+        <a
+          :href="resolvedItem.url"
+          class="td-widget-ref"
+        >{{ resolvedItem.name }}</a>
+      </li>
+    </ul>
     <button
       v-if="hiddenCount > 0"
       class="td-widget-more"
       type="button"
-      @click="toggleExpand"
+      @click="toggle"
     >
       {{ expanded ? 'show less' : `+${hiddenCount} more` }}
     </button>
@@ -75,7 +80,7 @@ function visible<T> (list: T[]): T[] {
       v-if="hiddenCount > 0"
       class="td-widget-more"
       type="button"
-      @click="toggleExpand"
+      @click="toggle"
     >
       {{ expanded ? 'show less' : `+${hiddenCount} more` }}
     </button>
@@ -95,19 +100,20 @@ function visible<T> (list: T[]): T[] {
 
 .td-widget-list {
   margin: 0;
-  padding-left: 20px;
+  padding: 0 0 0 20px;
   list-style: disc;
 }
 
 .td-widget-list li {
-  padding: 1px 0;
+  margin: 0;
+  padding: 2px 0;
 }
 
 .td-widget-more {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-fg-muted);
   padding: 2px 0;
 }

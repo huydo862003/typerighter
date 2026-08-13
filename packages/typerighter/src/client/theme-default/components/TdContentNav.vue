@@ -30,7 +30,7 @@ function isCurrent (href: string): boolean {
 <template>
   <nav>
     <a
-      :href="indexItem ? getTdContentUrl(indexItem.filepath) : '/'"
+      :href="indexItem ? getTdContentUrl(indexItem.filepath) : '/index'"
       class="td-root-link"
       :class="{
         'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : '/'),
@@ -103,7 +103,8 @@ function isCurrent (href: string): boolean {
 
 .td-root-link-time {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  margin-left: auto;
+  font-size: var(--font-size-td-caption);
   color: var(--color-td-neutral-border);
 }
 

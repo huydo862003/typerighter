@@ -1292,6 +1292,171 @@ content here
   );
 }
 
+#[test]
+fn parse_container_block_empty() {
+  let tree = parse_body(
+    r#"::: note
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_shorthand_simple() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[[toc]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      "toc"
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
+#[test]
+fn parse_container_shorthand_with_props() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[[grid {cols=2}]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      "grid"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "cols"
+          "="
+          "2")
+        "}")
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
+#[test]
+fn parse_container_block_kebab_case() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"::: directory-index
+:::
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "directory"
+      "-"
+      "index"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
+#[test]
+fn parse_container_shorthand_kebab_case() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"[[directory-index]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      "directory"
+      "-"
+      "index"
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
 // Parses a fenced code block
 #[test]
 fn parse_code_block_simple() {
@@ -2704,8 +2869,9 @@ fn parse_table_with_links() {
 // Error recovery
 
 // Recovers from unclosed link, emits UnclosedLink diagnostic
+// Unclosed [ before newline is treated as plain text, no diagnostic
 #[test]
-fn recover_unclosed_link() {
+fn parse_unclosed_bracket_as_text() {
   let (tree, diags) = parse_body_with_diags(
     r#"[text without closing
 "#,
@@ -2722,7 +2888,7 @@ fn recover_unclosed_link() {
     "\n")
   (MdBody
     (MdParagraph
-      (MdLink
+      (MdText
         "["
         (MdText
           "text"
@@ -2732,12 +2898,44 @@ fn recover_unclosed_link() {
           "closing")))
     "\n"))"####
   );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
+// Unclosed ![ before newline is treated as plain text, no diagnostic
+#[test]
+fn parse_unclosed_media_bracket_as_text() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"![alt without closing
+"#,
+  );
   assert_eq!(
-    diags,
-    vec![Diagnostic::UnclosedLink {
-      start_offset: 9,
-      end_offset: 30,
-    },]
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdText
+      "!"
+      "["
+      (MdText
+        "alt"
+        " "
+        "without"
+        " "
+        "closing"))
+    "\n"))"####
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
   );
 }
 

@@ -1,3 +1,46 @@
+## [0.7.0] - 2026-08-13
+
+* crates/typedown-lang
+  - Rewrite markdown exporter to strip source indentation from nested blocks
+  - Report unresolved identifiers in interpolations during vault check
+  - Add optional `repo` field to `typedown.yaml`
+  - Use `_label` as the canonical display name, fall back to parent directory for index files
+
+* packages/typerighter
+  - Add previous/next page navigation
+  - Add `basePath` and `repo` to site config
+  - Render relation lists as bullet lists instead of inline
+  - Fix directory and index page routing to use `/index` suffix
+  - Fix folder label overflow in sidebar tree
+  - Fix frontmatter row alignment for multiline values
+
+## [0.6.0] - 2026-08-12
+
+* crates/typedown-lang
+  - Add container shorthand syntax `[[identifier {props}]]`
+  - Support kebab-case identifiers in container blocks and shorthands
+  - Allow empty container blocks (`::: note` followed by `:::`)
+  - Treat unclosed `[` and `![` before newline as plain text instead of errors
+
+* packages/typerighter
+  - Add tooltip component with floating-vue-style dark theme
+  - Add TOC active heading highlight via IntersectionObserver
+  - Add search keyboard navigation (arrow keys + enter) and loading spinner
+  - Add search result grouping by page
+  - Add resizable sidebar and table columns
+  - Add `[[directory-index]]` custom component for inline directory listings
+  - Add deterministic pill colors for select/multiselect frontmatter fields
+  - Improve code block styling: full-bleed on mobile, border-radius, full-width highlights
+  - Improve inline code styling: border-radius, link color, heading size
+  - Fix breadcrumb overflow with ellipsis and `aria-hidden` on separators
+  - Fix code blocks inside containers and blockquotes breaking layout
+  - Fix timestamp alignment in sidebar tree and content nav
+  - Fix search input overflow when sidebar is narrow
+  - Replace hardcoded font sizes with design tokens across all components
+  - Replace unicode checkbox characters with lucide icons
+  - Extract TOC into standalone `TdToc` component
+  - Move `TdDirectoryIndex` to custom components directory
+
 ## [0.5.1] - 2026-08-12
 
 * packages/typerighter

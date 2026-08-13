@@ -83,6 +83,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       contentDir: config.contentDir,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
+      repo: config.repo,
       contentTree,
       schemas,
     })),
@@ -204,8 +205,10 @@ interface SsrEntryOptions {
 function generateSsrEntry (options: SsrEntryOptions): string {
   const glob = `/${options.contentDir}/${CONTENT_GLOB}`;
   const parsedConfig = JSON.parse(options.siteConfig);
-  const parsedData = JSON.parse(options.siteData).contentTree ?? { rootItems: [], children: [] };
-  const directoryListingMap = buildDirectoryListingMap(parsedData.children ?? [], parsedConfig.title ?? '');
+  const parsedData = JSON.parse(options.siteData);
+  const contentTree = parsedData.contentTree ?? { rootItems: [], children: [] };
+  const directoryListingMap = buildDirectoryListingMap(contentTree.children ?? [], parsedConfig.title ?? '');
+  const siteDataWithListings = JSON.stringify({ ...parsedData, directoryListings: directoryListingMap });
 
   return `
 import { createTypedownApp } from 'typerighter/client';
@@ -216,15 +219,12 @@ import theme from '${options.layoutImport}';
 
 const pages = import.meta.glob('${glob}', { eager: true });
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
-
-const directoryIndex = ${JSON.stringify(directoryListingMap)};
+const siteData = ${siteDataWithListings};
 
 function findPage(base) {
   for (const ext of contentExts) {
     const key = base + ext;
     if (pages[key]) return pages[key];
-    const indexKey = base + '/index' + ext;
-    if (pages[indexKey]) return pages[indexKey];
   }
 }
 
@@ -233,17 +233,20 @@ function loadPageModule(pagePath) {
   const page = findPage(base);
   if (page) return Promise.resolve(page);
 
-  const dir = directoryIndex[pagePath] || directoryIndex[pagePath + '/'];
-  if (dir) return Promise.resolve({
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex, dir); } },
-    __pageData: { frontmatter: {}, headings: [], title: dir.title },
-  });
+  if (pagePath.endsWith('/index')) {
+    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
+    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+    if (dir) return Promise.resolve({
+      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
+      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+    });
+  }
 
   return Promise.resolve(undefined);
 }
 
 export async function render(url) {
-  const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, ${options.siteData});
+  const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, siteData);
   await router.go(url, { replace: true });
   const html = await renderToString(app);
   return { html, pageData: router.route.data };

@@ -56,6 +56,6 @@ const {
 .td-frontmatter-empty {
   color: var(--color-td-neutral-fg-muted);
   font-style: italic;
-  font-size: 0.8rem;
+  font-size: var(--font-size-td-caption);
 }
 </style>

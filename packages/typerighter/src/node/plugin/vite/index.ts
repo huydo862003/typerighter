@@ -46,10 +46,14 @@ import {
 export interface ClientAppEntryOptions {
   /** Content directory relative to project root */
   contentDir: string;
+  /** URL base path */
+  basePath?: string;
   /** Site title */
   siteTitle: string;
   /** Site description */
   siteDescription: string;
+  /** Repository URL */
+  repo?: string;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
   /** Schema definitions keyed by schema name */
@@ -71,14 +75,17 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
   const siteConfig = JSON.stringify({
     title: options.siteTitle,
     description: options.siteDescription,
+    basePath: options.basePath ?? '/',
+    repo: options.repo,
   });
+
+  const directoryListingMap = buildDirectoryListingMap(options.contentTree.children, options.siteTitle);
 
   const siteData = JSON.stringify({
     contentTree: options.contentTree,
     schemas: options.schemas ?? {},
+    directoryListings: directoryListingMap,
   });
-
-  const directoryListingMap = buildDirectoryListingMap(options.contentTree.children, options.siteTitle);
 
   return `
 import 'typerighter/style.css';
@@ -90,15 +97,12 @@ import searchIndex from '${SEARCH_INDEX_ID}';
 
 const pages = import.meta.glob('${glob}');
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
-
-const directoryIndex = ${JSON.stringify(directoryListingMap)};
+const siteData = { ...${siteData}, searchIndex };
 
 function findPage(base) {
   for (const ext of contentExts) {
     const key = base + ext;
     if (pages[key]) return pages[key];
-    const indexKey = base + '/index' + ext;
-    if (pages[indexKey]) return pages[indexKey];
   }
 }
 
@@ -107,16 +111,20 @@ async function loadPageModule(pagePath) {
   const loader = findPage(base);
   if (loader) return loader();
 
-  const dir = directoryIndex[pagePath] || directoryIndex[pagePath + '/'];
-  if (dir) return {
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex, dir); } },
-    __pageData: { frontmatter: {}, headings: [], title: dir.title },
-  };
+  // Only /xxx/index paths get the directory listing fallback
+  if (pagePath.endsWith('/index')) {
+    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
+    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+    if (dir) return {
+      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
+      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+    };
+  }
 
   return undefined;
 }
 
-const { app, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, { ...${siteData}, searchIndex });
+const { app, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, siteData);
 app.mount('#app');
 
 // Accept HMR for the search index so it updates without a full reload
@@ -172,20 +180,20 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const tdContext = await resolveTdContext();
       const report = await tdContext.checkVault();
 
-      if (report.errorCount > 0 || report.warningCount > 0) {
-        for (const d of report.diagnostics) {
-          const loc = `${d.filepath}:${d.line}:${d.column}`;
-          const prefix = d.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+      if (0 < report.errorCount || 0 < report.warningCount) {
+        for (const diagnostic of report.diagnostics) {
+          const location = `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column}`;
+          const prefix = diagnostic.severity === 'error' ? pc.red('error') : pc.yellow('warn');
 
-          console.error(`  ${prefix} ${loc} ${d.message} ${pc.dim(`(${d.code})`)}`);
+          console.error(`  ${prefix} ${location} ${diagnostic.message} ${pc.dim(`(${diagnostic.code})`)}`);
         }
       }
 
       // In production build (no dev server), fail on errors
-      if (!server && report.errorCount > 0) {
+      if (!server && 0 < report.errorCount) {
         const lines = report.diagnostics
-          .filter((d) => d.severity === 'error')
-          .map((d) => `  ${d.filepath}:${d.line}:${d.column} - ${d.message} (${d.code})`);
+          .filter((diagnostic) => diagnostic.severity === 'error')
+          .map((diagnostic) => `  ${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} - ${diagnostic.message} (${diagnostic.code})`);
 
         this.error(
           `Vault check failed with ${report.errorCount} error(s):\n${lines.join('\n')}`,

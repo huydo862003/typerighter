@@ -16,7 +16,7 @@ const crumbs = computed(() => {
   const result = [
     {
       name: 'Home',
-      href: '/',
+      href: '/index',
     },
   ];
 
@@ -25,9 +25,12 @@ const crumbs = computed(() => {
   const parts = routePath.replace(/^\//, '').split('/');
 
   for (let index = 0; index < parts.length; index++) {
+    const basePath = '/' + parts.slice(0, index + 1).join('/');
+    const isLast = index === parts.length - 1;
+
     result.push({
       name: unslugify(parts[index]),
-      href: '/' + parts.slice(0, index + 1).join('/'),
+      href: isLast ? basePath : basePath + '/index',
     });
   }
 
@@ -47,6 +50,7 @@ const crumbs = computed(() => {
       <span
         v-if="index > 0"
         class="td-breadcrumb-sep"
+        aria-hidden="true"
       >/</span>
       <a
         v-if="index < crumbs.length - 1"
@@ -69,10 +73,19 @@ const crumbs = computed(() => {
   font-size: var(--font-size-td-body-sm);
   color: var(--color-td-neutral-border-strong);
   margin-bottom: 8px;
+  min-width: 0;
 }
 
 .td-breadcrumb-sep {
   margin: 0 2px;
+}
+
+.td-breadcrumb-link,
+.td-breadcrumb-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .td-breadcrumb-link {

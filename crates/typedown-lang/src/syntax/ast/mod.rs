@@ -148,7 +148,7 @@ impl MdBody {
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdContainerBlock,
+  MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
   MdLink, MdMedia,
   MdBold, MdItalic, MdBoldItalic, MdStrikethrough,
   MdText, MdHtmlEntity,
@@ -157,7 +157,7 @@ pub struct MdNode(RedNode);
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
-  MdBulletList, MdOrderedList, MdContainerBlock,
+  MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
 ])]
 pub struct MdBlockElement(RedNode);
 
@@ -355,14 +355,23 @@ impl MdOrderedListItem {
 pub struct MdContainerBlock(RedNode);
 
 impl MdContainerBlock {
+  /// Collect the kebab-case label (e.g. directory-index)
   pub fn label(&self) -> Option<String> {
-    self
-      .0
-      .children()
-      .find(|c| c.kind() == SyntaxKind::Ident)?
-      .as_token()?
-      .text()
-      .map(str::to_string)
+    let mut label = String::new();
+
+    for child in self.0.children() {
+      match child.kind() {
+        SyntaxKind::Ident => label.push_str(&child.text()),
+        SyntaxKind::MdSymbol if child.text() == "-" && !label.is_empty() => label.push('-'),
+        _ => {
+          if !label.is_empty() {
+            break;
+          }
+        }
+      }
+    }
+
+    if label.is_empty() { None } else { Some(label) }
   }
 
   // Title text after the label on the opening line
@@ -397,6 +406,32 @@ impl MdContainerBlock {
 
   pub fn value(&self) -> impl Iterator<Item = MdNode> {
     self.0.children().filter_map(MdNode::cast)
+  }
+}
+
+/// Self-closing container shorthand
+/// Represented by: [[label {props}]]
+#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
+pub struct MdContainerShorthand(RedNode);
+
+impl MdContainerShorthand {
+  /// Collect the kebab-case label (e.g. directory-index)
+  pub fn label(&self) -> Option<String> {
+    let mut label = String::new();
+
+    for child in self.0.children() {
+      match child.kind() {
+        SyntaxKind::Ident => label.push_str(&child.text()),
+        SyntaxKind::MdSymbol if child.text() == "-" && !label.is_empty() => label.push('-'),
+        _ => {
+          if !label.is_empty() {
+            break;
+          }
+        }
+      }
+    }
+
+    if label.is_empty() { None } else { Some(label) }
   }
 }
 
