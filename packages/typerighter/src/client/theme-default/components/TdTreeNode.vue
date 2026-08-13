@@ -156,6 +156,7 @@ function toggle () {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
   background: none;
   border: none;
   cursor: pointer;
@@ -164,6 +165,7 @@ function toggle () {
   text-transform: inherit;
   color: inherit;
   padding: 0;
+  overflow: hidden;
 }
 
 .td-tree-label:hover {
@@ -173,6 +175,9 @@ function toggle () {
 .td-tree-label-text {
   flex: 1;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-tree-index-btn {
