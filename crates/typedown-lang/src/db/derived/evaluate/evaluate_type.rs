@@ -464,8 +464,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_circular_schema_refs() {
-    let (db, project, file_a) =
-      load_vault_fixture("evaluate/my_vault", "schemas/SchemaA.td");
+    let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "schemas/SchemaA.td");
     let symbol_a = file_symbol(&db, project, file_a).value(&db).unwrap();
     let result_a = evaluate_type(&db, symbol_a);
     assert!(
