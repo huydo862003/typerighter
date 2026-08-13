@@ -1,5 +1,6 @@
 ---
 _type: Project
+_label: "Website Redesign"
 name: "Website Redesign"
 description: "Overhaul the public-facing site with a new design system."
 status: "active"

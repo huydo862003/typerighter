@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Implement authentication flow"
 title: "Implement authentication flow"
 status: "in_progress"
 priority: "high"

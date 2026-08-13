@@ -416,7 +416,7 @@ fn try_resolve_fref(
   Some(format!("[{}]({})", resolved.name, resolved.url))
 }
 
-/// Get a display name for a symbol: Try _label, then name field, then file stem
+/// Get a display name for a symbol: Try _label, then file stem
 fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> String {
   let kind = symbol.kind(db);
 
@@ -425,9 +425,7 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     && let Some(target_symbol) = file_symbol(db, project, *target_file).value(db)
     && let Some(obj) = evaluate_resource(db, target_symbol).value(db)
   {
-    let label_or_name = obj
-      .get_owned_field(db, "_label")
-      .or_else(|| obj.get_owned_field(db, "name"));
+    let label_or_name = obj.get_owned_field(db, "_label");
     if let Some(str_obj) = label_or_name
       .as_ref()
       .and_then(|field| field.as_td_str_obj())

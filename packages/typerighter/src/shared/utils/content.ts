@@ -128,10 +128,9 @@ export function getTdIndexTitle (filepath: string, siteTitle: string): string {
   return parent ? unslugify(parent) : siteTitle;
 }
 
-// Resolve a display title from frontmatter _label, name, or the file path
+// Resolve a display title from frontmatter _label or the file path
 export function getTdResourceTitle (header: Record<string, unknown>, filepath: string): string {
   if (header._label !== undefined) return String(header._label);
-  if (header.name !== undefined) return String(header.name);
 
   const stem = filestem(filepath);
 

@@ -1,5 +1,6 @@
 ---
 _type: Task
+_label: "Design mockups for new homepage"
 title: "Design mockups for new homepage"
 status: "done"
 priority: "high"
