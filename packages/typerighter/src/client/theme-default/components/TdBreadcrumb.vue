@@ -16,7 +16,7 @@ const crumbs = computed(() => {
   const result = [
     {
       name: 'Home',
-      href: '/',
+      href: '/index',
     },
   ];
 
@@ -25,9 +25,12 @@ const crumbs = computed(() => {
   const parts = routePath.replace(/^\//, '').split('/');
 
   for (let index = 0; index < parts.length; index++) {
+    const basePath = '/' + parts.slice(0, index + 1).join('/');
+    const isLast = index === parts.length - 1;
+
     result.push({
       name: unslugify(parts[index]),
-      href: '/' + parts.slice(0, index + 1).join('/'),
+      href: isLast ? basePath : basePath + '/index',
     });
   }
 

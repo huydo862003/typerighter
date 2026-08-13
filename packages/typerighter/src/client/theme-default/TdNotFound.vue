@@ -11,7 +11,7 @@
     </p>
     <a
       class="inline-flex items-center mt-6 text-td-primary-solid text-td-ui font-td-heading tracking-td-heading hover:text-td-primary-solid-hover"
-      href="/"
+      href="/index"
     >Go Home</a>
   </div>
 </template>
