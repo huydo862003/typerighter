@@ -28,6 +28,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
       String::new(),
       String::new(),
       None,
+      "public".to_string(),
       diagnostics,
     );
   };
@@ -43,6 +44,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
       String::new(),
       String::new(),
       None,
+      "public".to_string(),
       diagnostics,
     );
   };
@@ -62,6 +64,10 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
     .unwrap_or("")
     .to_string();
   let repo = doc["repo"].as_str().map(str::to_string);
+  let public_dir = doc["site"]["public_dir"]
+    .as_str()
+    .unwrap_or("public")
+    .to_string();
 
   VaultConfigResult::new(
     db,
@@ -73,6 +79,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
     site_title,
     site_description,
     repo,
+    public_dir,
     diagnostics,
   )
 }
@@ -176,7 +183,7 @@ fn check_unknown_fields(
   if let Some(hash) = doc.as_hash() {
     for key in hash.keys() {
       if let Some(key_str) = key.as_str()
-        && !matches!(key_str, "version" | "vault" | "build" | "site")
+        && !matches!(key_str, "version" | "vault" | "build" | "site" | "repo")
       {
         let offset = key_char_offset(contents, key_str).unwrap_or(0);
         diagnostics.push(Diagnostic::VaultConfigUnknownField {

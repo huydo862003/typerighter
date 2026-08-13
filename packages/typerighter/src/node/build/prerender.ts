@@ -18,6 +18,8 @@ export interface PrerenderContext {
   base: string;
   /** List of page paths to render (e.g. ["/", "/posts/hello"]) */
   pagePaths: string[];
+  /** Site title for SEO title suffix */
+  siteTitle: string;
   /** Progress logger for reporting render progress */
   progress?: ProgressLogger;
 }
@@ -42,6 +44,8 @@ export async function prerenderHtmlPages (context: PrerenderContext): Promise<vo
       description: result.pageData.frontmatter.description !== undefined
         ? String(result.pageData.frontmatter.description)
         : '',
+      url: context.base + pagePath.replace(/^\//, ''),
+      siteTitle: context.siteTitle,
       clientEntry,
       cssFiles,
       jsFiles,
@@ -66,6 +70,8 @@ interface HtmlDocumentContext {
   content: string;
   title: string;
   description: string;
+  url: string;
+  siteTitle: string;
   clientEntry: string;
   cssFiles: string[];
   jsFiles: string[];
@@ -74,6 +80,12 @@ interface HtmlDocumentContext {
 }
 
 function generateHtmlDocument (context: HtmlDocumentContext): string {
+  const title = escapeHtml(context.title);
+  const description = escapeHtml(context.description);
+  const pageTitle = context.title !== context.siteTitle
+    ? `${title} - ${escapeHtml(context.siteTitle)}`
+    : title;
+
   const cssLinks = context.cssFiles
     .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
     .join('\n');
@@ -87,8 +99,18 @@ function generateHtmlDocument (context: HtmlDocumentContext): string {
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(context.title)}</title>
-    <meta name="description" content="${escapeHtml(context.description)}">
+    <title>${pageTitle}</title>
+    <meta name="description" content="${description}">
+    <link rel="icon" href="${context.base}favicon.svg" type="image/svg+xml">
+    <link rel="canonical" href="${escapeHtml(context.url)}">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="${title}">
+    <meta property="og:description" content="${description}">
+    <meta property="og:image" content="${context.base}og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${title}">
+    <meta name="twitter:description" content="${description}">
+    <meta name="twitter:image" content="${context.base}og-image.png">
 ${cssLinks}
 ${modulePreloads}
   </head>

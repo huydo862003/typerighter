@@ -166,6 +166,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       outDir,
       base,
       pagePaths,
+      siteTitle: config.siteTitle,
       progress: phase3,
     });
 

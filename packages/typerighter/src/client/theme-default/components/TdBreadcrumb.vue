@@ -13,7 +13,7 @@ import {
   getIndexUrl, isIndexUrl, stripTrailingSlash, unslugify,
 } from '@/shared';
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 3;
 
 const route = useRoute();
 const {

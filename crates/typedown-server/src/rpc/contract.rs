@@ -108,6 +108,7 @@ pub struct TdSiteConfig {
   pub site_description: String,
   /// Repository URL from typedown.yaml
   pub repo: Option<String>,
+  pub public_dir: String,
 }
 
 /// Asset directory configuration
