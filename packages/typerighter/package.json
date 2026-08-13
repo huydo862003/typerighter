@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "typerighter",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Typedown: A typed content framework.",
   "repository": {
     "type": "git",
@@ -26,6 +26,10 @@
     "./client": {
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared.js"
     },
     "./client/theme-default": {
       "types": "./dist/client/theme-default/index.d.ts",

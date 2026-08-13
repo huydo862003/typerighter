@@ -1,3 +1,16 @@
+<script setup lang="ts">
+import {
+  getIndexUrl,
+} from '@/shared';
+import {
+  useSiteConfig,
+} from '@/client/app';
+
+const {
+  withBase,
+} = useSiteConfig();
+</script>
+
 <template>
   <div class="pt-16 pb-24">
     <p class="text-td-display font-td-heading leading-none tracking-td-title text-td-fg-muted">
@@ -11,7 +24,7 @@
     </p>
     <a
       class="inline-flex items-center mt-6 text-td-primary-solid text-td-ui font-td-heading tracking-td-heading hover:text-td-primary-solid-hover"
-      href="/index"
+      :href="withBase(getIndexUrl('/'))"
     >Go Home</a>
   </div>
 </template>

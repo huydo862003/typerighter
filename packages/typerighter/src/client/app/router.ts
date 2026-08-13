@@ -4,8 +4,9 @@ import type {
 import {
   inject, markRaw, nextTick, reactive, readonly,
 } from 'vue';
-import type {
-  PageData, PageModule,
+import {
+  resolveRootUrl, stripTrailingSlash,
+  type PageData, type PageModule,
 } from '@/shared';
 
 const isInBrowser = typeof window !== 'undefined';
@@ -37,10 +38,16 @@ const notFoundPageData: PageData = {
 };
 
 // Create a client-side router that loads .td page modules on navigation
+export interface RouterOptions {
+  basePath?: string;
+  fallbackComponent?: Component;
+}
+
 export function createRouter (
   loadPageModule: (path: string) => Promise<PageModule | undefined>,
-  fallbackComponent?: Component,
+  options: RouterOptions = {},
 ): Router {
+  const base = stripTrailingSlash(options.basePath ?? '/');
   const route = reactive<Route>({
     path: '/',
     hash: '',
@@ -52,11 +59,11 @@ export function createRouter (
   const router: Router = {
     route,
     async go (href, options) {
-      href = normalizeHref(href);
+      href = normalizeHref(href, base);
 
       if ((await router.onBeforeRouteChange?.(href)) === false) return;
 
-      if (!isInBrowser || options?.initialLoad || changeRoute(href, options)) {
+      if (!isInBrowser || options?.initialLoad || changeRoute(href, base, options)) {
         await loadPage(href);
       }
 
@@ -101,7 +108,7 @@ export function createRouter (
       if (latestPendingPath === pendingPath) {
         latestPendingPath = undefined;
         route.path = pendingPath;
-        route.contentSfc = fallbackComponent ? markRaw(fallbackComponent) : undefined;
+        route.contentSfc = options.fallbackComponent ? markRaw(options.fallbackComponent) : undefined;
         route.data = notFoundPageData;
         syncRouteQueryAndHash(targetLocation);
       }
@@ -158,7 +165,7 @@ export function createRouter (
     window.addEventListener('popstate', async (event) => {
       if (event.state == undefined) return;
 
-      const href = normalizeHref(location.href);
+      const href = normalizeHref(location.href, base);
 
       await loadPage(href);
       syncRouteQueryAndHash();
@@ -208,11 +215,12 @@ export function useRouter (): Router {
 // Push or replace the browser history entry, returning true if the pathname changed
 function changeRoute (
   href: string,
+  base: string,
   {
     replace = false,
   } = {},
 ): boolean {
-  const location_ = normalizeHref(location.href);
+  const location_ = normalizeHref(location.href, base);
 
   if (href === location_) {
     scrollToHash(new URL(href, 'http://a.com').hash);
@@ -241,15 +249,17 @@ function changeRoute (
   return true;
 }
 
-// Strip trailing .html and return pathname + search + hash
-function normalizeHref (href: string): string {
+// Strip trailing .html, strip base path, and return pathname + search + hash
+function normalizeHref (href: string, base: string): string {
   const url = new URL(href, 'http://a.com');
 
-  url.pathname = url.pathname.replace(/\.html$/, '');
+  let pathname = url.pathname.replace(/\.html$/, '');
 
-  if (url.pathname === '/') {
-    url.pathname = '/index';
+  if (base && pathname.startsWith(base)) {
+    pathname = pathname.slice(base.length) || '/';
   }
+
+  url.pathname = resolveRootUrl(pathname);
 
   return url.pathname + url.search + url.hash;
 }

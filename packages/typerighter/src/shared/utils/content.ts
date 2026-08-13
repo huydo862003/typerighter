@@ -8,7 +8,7 @@ import {
   parseNumericPrefix, unslugify,
 } from './format';
 import {
-  getTdContentUrl,
+  getIndexUrl, getTdContentUrl,
 } from './url';
 import {
   basename, filestem, dirname,
@@ -73,7 +73,7 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
 
     if (indexItem) return getTdContentUrl(indexItem.filepath);
 
-    return `${urlPrefix}/${child.name}/index`;
+    return getIndexUrl(`${urlPrefix}/${child.name}`);
   }
 
   function walk (nodes: ContentTreeNode[], urlPrefix: string) {

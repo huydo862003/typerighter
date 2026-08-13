@@ -91,6 +91,7 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
 import 'typerighter/style.css';
 import { createTypedownApp } from 'typerighter/client';
 import { TdDirectoryIndex } from 'typerighter/client/theme-default';
+import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { h } from 'vue';
 import theme from 'typerighter/client/theme-default';
 import searchIndex from '${SEARCH_INDEX_ID}';
@@ -111,10 +112,9 @@ async function loadPageModule(pagePath) {
   const loader = findPage(base);
   if (loader) return loader();
 
-  // Only /xxx/index paths get the directory listing fallback
-  if (pagePath.endsWith('/index')) {
-    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
-    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+  if (isIndexUrl(pagePath)) {
+    const dirPath = getDirectoryFromPageUrl(pagePath);
+    const dir = siteData.directoryListings[dirPath];
     if (dir) return {
       default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
       __pageData: { frontmatter: {}, headings: [], title: dir.title },

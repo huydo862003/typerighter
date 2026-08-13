@@ -1,3 +1,14 @@
+## [0.8.0] - 2026-08-13
+
+* packages/typerighter
+  - Collapse too long breadcrumbs
+  - Add previous/next page navigation
+  - Add reusable TdDropdown component with click-outside handling
+  - Add `typerighter/shared` package export for generated templates
+  - Add centralized index URL helpers and `stripTrailingSlash`
+  - Hide empty and builtin-prefixed frontmatter fields
+  - Include virtual index pages in prev/next navigation
+
 ## [0.7.0] - 2026-08-13
 
 * crates/typedown-lang
