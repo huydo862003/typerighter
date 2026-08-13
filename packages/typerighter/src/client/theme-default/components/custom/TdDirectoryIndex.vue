@@ -6,18 +6,21 @@ import {
   File, Folder, CornerLeftUp,
 } from '@lucide/vue';
 import {
-  useSiteData, useRoute,
+  useSiteData, useRoute, useSiteConfig,
 } from '@/client/app';
 import {
-  getParentUrl,
+  getIndexUrl, getParentUrl,
 } from '@/shared';
 
 const route = useRoute();
 const siteData = useSiteData();
+const {
+  withBase,
+} = useSiteConfig();
 
 const listing = computed(() => {
   const path = getParentUrl(route.path);
-  const directory = siteData.directoryListings[path] ?? siteData.directoryListings[path + '/'];
+  const directory = siteData.directoryListings[path];
 
   return {
     url: path,
@@ -27,11 +30,7 @@ const listing = computed(() => {
 });
 
 const isRoot = computed(() => listing.value.url === '/');
-const parentUrl = computed(() => {
-  const parent = getParentUrl(listing.value.url);
-
-  return parent === '/' ? '/index' : parent + '/index';
-});
+const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value.url))));
 </script>
 
 <template>
@@ -52,7 +51,7 @@ const parentUrl = computed(() => {
       <a
         v-for="sub in listing.subdirectories"
         :key="sub.url"
-        :href="sub.url"
+        :href="withBase(sub.url)"
         class="td-dir-row"
       >
         <Folder
@@ -68,7 +67,7 @@ const parentUrl = computed(() => {
       <a
         v-for="item in listing.items"
         :key="item.url"
-        :href="item.url"
+        :href="withBase(item.url)"
         class="td-dir-row"
       >
         <File

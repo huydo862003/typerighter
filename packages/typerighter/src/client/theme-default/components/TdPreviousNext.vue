@@ -49,6 +49,10 @@ const {
         class="td-previous-next-icon"
       />
     </a>
+    <span
+      v-else
+      class="td-previous-next-spacer"
+    />
   </nav>
 </template>
 

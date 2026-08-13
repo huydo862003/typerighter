@@ -20,19 +20,17 @@ import {
 import {
   createRouter, routerSymbol, type Router,
 } from './router';
-import type {
-  PageModule,
-  ContentTree,
-  SchemaDefinition,
-  DirectoryListing,
+import {
+  stripTrailingSlash,
+  type PageModule,
+  type ContentTree,
+  type SchemaDefinition,
+  type DirectoryListing,
 } from '@/shared';
 
 export {
   useTdContent,
 } from './composables/useTdContent';
-export {
-  useUrl,
-} from './composables/useUrl';
 export {
   useRouter, useRoute,
 } from './router';
@@ -95,7 +93,9 @@ export async function createTypedownApp (
     directoryListings: data.directoryListings ?? {},
   };
 
-  const router = createRouter(loadPageModule);
+  const router = createRouter(loadPageModule, {
+    basePath: siteConfig.basePath,
+  });
 
   const TypedownApp = defineComponent({
     name: 'TypedownApp',
@@ -146,12 +146,22 @@ export function useSearchIndex (): ShallowRef<string | undefined> {
   return inject(searchIndexSymbol, shallowRef(undefined));
 }
 
-export function useSiteConfig (): TypedownSiteConfig {
-  return inject(siteConfigSymbol, {
+export function useSiteConfig () {
+  const config = inject(siteConfigSymbol, {
     title: '',
     description: '',
     basePath: '/',
   });
+  const base = stripTrailingSlash(config.basePath);
+
+  return {
+    ...config,
+    withBase (path: string): string {
+      if (base === '/') return path;
+
+      return base + path;
+    },
+  };
 }
 
 export function useSiteData (): TypedownSiteData {

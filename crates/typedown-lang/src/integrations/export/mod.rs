@@ -79,6 +79,7 @@ pub fn export_resource(
   // _content is available in ExportedResource.content, not the header
   if let serde_json::Value::Object(ref mut map) = header {
     map.remove("_content");
+    map.retain(|_, v| !v.is_null());
   }
 
   // Walk the AST and translate to somewhat commonmark-conformant markdown
