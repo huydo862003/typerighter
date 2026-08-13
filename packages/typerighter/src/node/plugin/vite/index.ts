@@ -108,11 +108,15 @@ async function loadPageModule(pagePath) {
   const loader = findPage(base);
   if (loader) return loader();
 
-  const dir = siteData.directoryListings[pagePath] || siteData.directoryListings[pagePath + '/'];
-  if (dir) return {
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-    __pageData: { frontmatter: {}, headings: [], title: dir.title },
-  };
+  // Only /xxx/index paths get the directory listing fallback
+  if (pagePath.endsWith('/index')) {
+    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
+    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+    if (dir) return {
+      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
+      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+    };
+  }
 
   return undefined;
 }

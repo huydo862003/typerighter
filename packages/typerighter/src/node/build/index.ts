@@ -233,11 +233,14 @@ function loadPageModule(pagePath) {
   const page = findPage(base);
   if (page) return Promise.resolve(page);
 
-  const dir = siteData.directoryListings[pagePath] || siteData.directoryListings[pagePath + '/'];
-  if (dir) return Promise.resolve({
-    default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-    __pageData: { frontmatter: {}, headings: [], title: dir.title },
-  });
+  if (pagePath.endsWith('/index')) {
+    const dirPath = pagePath.slice(0, -'/index'.length) || '/';
+    const dir = siteData.directoryListings[dirPath] || siteData.directoryListings[dirPath + '/'];
+    if (dir) return Promise.resolve({
+      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
+      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+    });
+  }
 
   return Promise.resolve(undefined);
 }
