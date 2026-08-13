@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref, watch,
+  ref, watch, watchEffect,
 } from 'vue';
 import {
   X,
@@ -60,6 +60,25 @@ const route = useRoute();
 watch(() => route.path, () => closeMenu());
 
 useCopyCode();
+
+// Update document title and meta description per page
+watchEffect(() => {
+  const pageTitle = title.value;
+  const siteName = siteConfig.title;
+
+  document.title = pageTitle && pageTitle !== siteName
+    ? `${pageTitle} - ${siteName}`
+    : siteName;
+
+  const description = page.frontmatter?.description !== undefined
+    ? String(page.frontmatter.description)
+    : siteConfig.description ?? '';
+  const metaDescription = document.querySelector('meta[name="description"]');
+
+  if (metaDescription) {
+    metaDescription.setAttribute('content', description);
+  }
+});
 useResizableTable();
 
 const SIDEBAR_MIN = 200;

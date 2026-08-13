@@ -135,6 +135,15 @@ async function detectExistingProject (root: string): Promise<ExistingProject> {
   return result;
 }
 
+function generateFaviconSvg (): string {
+  return `<svg fill="none" viewBox="${BRAND_VIEWBOX}" xmlns="http://www.w3.org/2000/svg">
+  <path clip-rule="evenodd" d="${BRAND_BORDER}" fill-rule="evenodd" fill="${BRAND_COLOR}"/>
+  <path d="${BRAND_LETTER}" fill="${BRAND_COLOR}"/>
+  <path d="${BRAND_ARROW}" fill="${BRAND_COLOR}"/>
+</svg>
+`;
+}
+
 function generateIndexHtml (options: InitializeOptions): string {
   return `<!doctype html>
 <html lang="en">
@@ -172,6 +181,14 @@ function generatePackageJson (options: InitializeOptions): string {
   }, undefined, 2) + '\n';
 }
 
+function generateRobotsText (): string {
+  return `User-agent: *
+Allow: /
+
+Sitemap: /sitemap.xml
+`;
+}
+
 function generateSampleTdContent (): string {
   return `---
 _type: Article
@@ -203,15 +220,6 @@ vault:
 site:
   title: "${options.siteTitle}"
   description: "${options.siteDescription}"
-`;
-}
-
-function generateFaviconSvg (): string {
-  return `<svg fill="none" viewBox="${BRAND_VIEWBOX}" xmlns="http://www.w3.org/2000/svg">
-  <path clip-rule="evenodd" d="${BRAND_BORDER}" fill-rule="evenodd" fill="${BRAND_COLOR}"/>
-  <path d="${BRAND_LETTER}" fill="${BRAND_COLOR}"/>
-  <path d="${BRAND_ARROW}" fill="${BRAND_COLOR}"/>
-</svg>
 `;
 }
 
@@ -277,6 +285,9 @@ async function scaffold (root: string, options: InitializeOptions): Promise<void
     writeIfMissing(root, 'typedown.yaml', generateTypedownYaml(options)),
     writeIfMissing(root, 'index.html', generateIndexHtml(options)),
     writeIfMissing(publicDirectory, 'favicon.svg', generateFaviconSvg(), {
+      silent: true,
+    }),
+    writeIfMissing(publicDirectory, 'robots.txt', generateRobotsText(), {
       silent: true,
     }),
   ]);

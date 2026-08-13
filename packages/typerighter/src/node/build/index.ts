@@ -14,7 +14,7 @@ import {
 } from '../lib/progress';
 import {
   buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentTreeNode,
-  path as tdpath,
+  escapeHtml, path as tdpath,
 } from '@/shared';
 import type {
   AppContext,
@@ -172,7 +172,12 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     phase3.done(`Pre-rendered ${pagePaths.length} pages`);
 
-    // 6. Copy assets to the final output directory
+    // 6. Generate sitemap.xml
+    const sitemap = generateSitemap(pagePaths, base);
+
+    await fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap);
+
+    // 7. Copy assets to the final output directory
     const clientAssetsDir = path.join(clientOutDir, 'assets');
     const outAssetsDir = path.join(outDir, 'assets');
 
@@ -184,7 +189,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     await copyContentAssets(path.join(root, config.contentDir), outDir);
   } finally {
-    // 7. Clean up intermediate directories
+    // 8. Clean up intermediate directories
     await Promise.all([
       fs.rm(tempDir, { recursive: true, force: true }),
       fs.rm(clientOutDir, { recursive: true, force: true }),
@@ -275,6 +280,19 @@ async function copyContentAssets (contentDir: string, outDir: string): Promise<v
     });
 
   await Promise.all(copies);
+}
+
+// Generate a sitemap.xml string from the list of page paths
+function generateSitemap (pagePaths: string[], base: string): string {
+  const urls = pagePaths
+    .map((p) => `  <url><loc>${escapeHtml(base + p.replace(/^\//, ''))}</loc></url>`)
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>
+`;
 }
 
 // Collect all directory paths from the content tree for pre-rendering

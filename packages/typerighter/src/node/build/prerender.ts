@@ -111,6 +111,7 @@ function generateHtmlDocument (context: HtmlDocumentContext): string {
     <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="${description}">
     <meta name="twitter:image" content="${context.base}og-image.png">
+    <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Article', headline: context.title, description: context.description })}</script>
 ${cssLinks}
 ${modulePreloads}
   </head>
