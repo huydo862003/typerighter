@@ -3,7 +3,7 @@ import {
   computed,
 } from 'vue';
 import {
-  File, FolderOpen, CornerLeftUp,
+  File, Folder, CornerLeftUp,
 } from '@lucide/vue';
 import {
   useSiteData, useRoute,
@@ -51,7 +51,7 @@ const parentUrl = computed(() => getParentUrl(listing.value.url));
         :href="sub.url"
         class="td-dir-row"
       >
-        <FolderOpen
+        <Folder
           :size="16"
           class="td-dir-icon"
         />
