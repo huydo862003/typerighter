@@ -1,5 +1,7 @@
 -- Paste interception for Typedown files
 -- Detects binary/image data on the clipboard and saves it to the assets directory
+if vim.g.typedown_paste_loaded then return end
+vim.g.typedown_paste_loaded = true
 
 local sysname = vim.uv.os_uname().sysname
 

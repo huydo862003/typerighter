@@ -1,3 +1,6 @@
+if vim.g.typedown_lsp_loaded then return end
+vim.g.typedown_lsp_loaded = true
+
 local release = require("typedown.release")
 
 -- Resolve the LSP binary, downloading it if necessary.
