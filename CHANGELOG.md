@@ -1,3 +1,14 @@
+## [0.10.1] - 2026-08-14
+
+* crates/typedown-lang
+  - Allow tables in markdown to indent
+
+* packages/tree-sitter
+  - Add syntax highlighting for container shorthand
+
+* editors/nvim
+  - Fix local plugin loader to prioritize our dev version for easy dev testing
+
 ## [0.10.0] - 2026-08-14
 
 * crates/typedown-lang
