@@ -1,3 +1,6 @@
+if vim.g.typedown_tree_sitter_loaded then return end
+vim.g.typedown_tree_sitter_loaded = true
+
 require("typedown.theme").setup()
 
 local release = require("typedown.release")

@@ -21,3 +21,21 @@ A sample vault that tracks **people**, **projects**, and **tasks** across a deve
 | [Implement auth](tasks/implement-auth) | High | In progress |
 | [Write tests](tasks/write-tests) | Medium | Todo |
 | [Setup CI](tasks/setup-ci) | Medium | Todo |
+
+## Indented Table
+
+  | Name | Role |
+  | ---- | ---- |
+  | Alice | Backend |
+  | Bob | Frontend |
+
+## Table in List
+
+- Team overview
+
+  | Name | Role |
+  | ---- | ---- |
+  | Alice | Backend |
+  | Bob | Frontend |
+
+- Another item

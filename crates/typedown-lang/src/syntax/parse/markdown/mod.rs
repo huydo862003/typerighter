@@ -336,23 +336,18 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse a table: `| ... | ... |`.
-  /// INVARIANT: Next token must be MdSymbol `|`.
+  /// INVARIANT: Next token must be MdSymbol `|`, optionally preceded by whitespace.
   pub(in crate::syntax::parse) fn parse_table(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
-      self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
-        && self
-          .lex_ctx
-          .peek_md(SKIP_NONE)
-          .token
-          .chars()
-          .collect::<String>()
-          == "|",
+      self.is_table_start(SKIP_NONE),
       "[ParseCtx::parse_table] Expected |"
     );
 
     let mut children = vec![];
 
     self.expr_ctx_stack.enter(ExprCtx::MdTable);
+
+    self.consume_md_whitespace(&mut children);
 
     // Parse header row
     let (row, col_count, early_exit) = self.parse_table_row(false);
@@ -376,7 +371,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return (self.emit(SyntaxKind::MdTable, &children), None);
     }
     // Verify separator row starts with `|` followed by `-`
-    let next = self.lex_ctx.peek_md(SKIP_NONE);
+    let next = self.lex_ctx.peek_md(SKIP_WS);
     let next2 = self.lex_ctx.peek_md_nth(1, SKIP_WS);
     let is_separator = next.token.kind() == SyntaxKind::MdSymbol
       && next.token.chars().collect::<String>() == "|"
@@ -390,6 +385,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.expr_ctx_stack.exit(ExprCtx::MdTable);
       return (self.emit(SyntaxKind::MdTable, &children), None);
     }
+    // Consume indentation before separator row
+    self.consume_md_whitespace(&mut children);
     let (sep, early_exit) = self.parse_table_separator_row();
     children.push(sep);
     if early_exit.is_some_and(|ctx| ctx != ExprCtx::MdTable) {
@@ -402,15 +399,21 @@ impl<S: Utf8Stream> ParseCtx<S> {
       if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Newline {
         break;
       }
-      if !self.consume_md_newline_and_prefix(&mut children) {
+      // Peek ahead to check if next line starts a table row before consuming newline
+      let Some(after_prefix) = self.peek_md_newline_and_prefix() else {
         break;
-      }
-      let next = self.lex_ctx.peek_md(SKIP_NONE);
+      };
+      // Skip whitespace after prefix to find the `|`
+      let peek_offset = self.peek_md_past_whitespace_at(after_prefix);
+      let next = self.lex_ctx.peek_md_nth(peek_offset, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdSymbol || next.token.chars().collect::<String>() != "|"
       {
         break;
       }
-
+      // Confirmed next row, consume newline and prefix
+      self.consume_md_newline_and_prefix(&mut children);
+      // Consume indentation before data row
+      self.consume_md_whitespace(&mut children);
       let row_start = self.offset();
       let (row, col_count, early_exit) = self.parse_table_row(true);
       if col_count != expected_cols {
@@ -581,11 +584,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     // Parse remaining list items
-    loop {
-      // Peek past blank lines and prefix to check for a sibling bullet
-      let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
-        break;
-      };
+    while let Some(after_prefix) = self.peek_md_multinewline_and_prefix() {
       let next = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdSymbol {
         break;
@@ -819,11 +818,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     // Parse remaining list items
-    loop {
-      // Peek past blank lines and prefix to check for a sibling ordered item
-      let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
-        break;
-      };
+    while let Some(after_prefix) = self.peek_md_multinewline_and_prefix() {
       let next = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdNumber {
         break;
@@ -2193,6 +2188,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     true
   }
 
+  fn consume_md_whitespace(&mut self, children: &mut Vec<GreenNode>) {
+    while self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
+      self.advance_md(children, SKIP_NONE);
+    }
+  }
+
   // Consume a newline and the expected prefix on the next line
   fn consume_md_newline_and_prefix(&mut self, children: &mut Vec<GreenNode>) -> bool {
     self.advance_md(children, SKIP_WS);
@@ -2272,6 +2273,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
             .is_inside(|c| matches!(c, ExprCtx::MdContainerBlock(_)));
         }
       }
+      // Indented table row
+      if after.token.kind() == SyntaxKind::Whitespace {
+        let after_ws = self.lex_ctx.peek_md(SKIP_WS);
+        if after_ws.token.kind() == SyntaxKind::MdSymbol
+          && after_ws.token.chars().collect::<String>() == "|"
+        {
+          return true;
+        }
+      }
       if after.token.kind() == SyntaxKind::MdNumber {
         return true;
       }
@@ -2316,6 +2326,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
       count += 1;
     }
     count
+  }
+
+  // Return the offset of the first non-whitespace token at or after `offset`
+  fn peek_md_past_whitespace_at(&mut self, offset: usize) -> usize {
+    let mut pos = offset;
+    while self.lex_ctx.peek_md_nth(pos, SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
+      pos += 1;
+    }
+    pos
   }
 
   // Check whether tokens at `offset` match the expected prefix
@@ -2447,7 +2466,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   fn is_table_start(&mut self, skip: u16) -> bool {
-    let next = self.lex_ctx.peek_md(skip);
+    // Skip leading whitespace since table rows can be indented
+    let offset = self.peek_md_past_whitespace_at(0);
+    let next = self.lex_ctx.peek_md_nth(offset, skip);
     next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().collect::<String>() == "|"
   }
 
@@ -2531,6 +2552,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
         next.token.kind() == SyntaxKind::LBracket
       }
       SyntaxKind::CodeBlock | SyntaxKind::MathBlock => true,
+      // Indented table row
+      SyntaxKind::Whitespace => {
+        let past_ws = self.peek_md_past_whitespace_at(offset);
+        let after_ws = self.lex_ctx.peek_md_nth(past_ws, SKIP_NONE);
+        after_ws.token.kind() == SyntaxKind::MdSymbol
+          && after_ws.token.chars().collect::<String>() == "|"
+      }
       _ => false,
     }
   }

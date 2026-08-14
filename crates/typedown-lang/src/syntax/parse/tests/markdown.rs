@@ -655,8 +655,8 @@ fn parse_table_simple() {
             " "
             "2"
             " "
-            "|")))
-      "\n")))"####
+            "|"))))
+    "\n"))"####
   );
 }
 
@@ -2195,8 +2195,8 @@ fn parse_table_with_bold_cells() {
           (MdText
             "cell"
             " "
-            "|")))
-      "\n")))"####
+            "|"))))
+    "\n"))"####
   );
 }
 
@@ -2385,8 +2385,8 @@ text
           (MdText
             "c"
             " "
-            "|")))
-      "\n")
+            "|"))))
+    "\n"
     "\n"
     (MdParagraph
       (MdText
@@ -2861,8 +2861,527 @@ fn parse_table_with_links() {
             " "
             "2"
             " "
+            "|"))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_table_indented_rows() {
+  let tree = parse_body(
+    r#"  | a | b |
+    | --- | --- |
+  | 1 | 2 |
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdTable
+      " "
+      " "
+      (MdTableHeaderRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "a"
+            " "
+            "|"
+            " "
+            "b"
+            " "
             "|")))
-      "\n")))"####
+      "\n"
+      " "
+      " "
+      " "
+      " "
+      (MdTableSeparatorRow
+        "|"
+        " "
+        "---"
+        " "
+        "|"
+        " "
+        "---"
+        " "
+        "|")
+      "\n"
+      " "
+      " "
+      (MdTableDataRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "1"
+            " "
+            "|"
+            " "
+            "2"
+            " "
+            "|"))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_paragraph_then_indented_table() {
+  let tree = parse_body(
+    r#"hello world
+  | a | b |
+  | --- | --- |
+  | 1 | 2 |
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "hello"
+        " "
+        "world"))
+    "\n"
+    (MdTable
+      " "
+      " "
+      (MdTableHeaderRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "a"
+            " "
+            "|"
+            " "
+            "b"
+            " "
+            "|")))
+      "\n"
+      " "
+      " "
+      (MdTableSeparatorRow
+        "|"
+        " "
+        "---"
+        " "
+        "|"
+        " "
+        "---"
+        " "
+        "|")
+      "\n"
+      " "
+      " "
+      (MdTableDataRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "1"
+            " "
+            "|"
+            " "
+            "2"
+            " "
+            "|"))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_indented_table_then_paragraph() {
+  let tree = parse_body(
+    r#"  | a | b |
+  | --- | --- |
+  | 1 | 2 |
+hello world
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdTable
+      " "
+      " "
+      (MdTableHeaderRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "a"
+            " "
+            "|"
+            " "
+            "b"
+            " "
+            "|")))
+      "\n"
+      " "
+      " "
+      (MdTableSeparatorRow
+        "|"
+        " "
+        "---"
+        " "
+        "|"
+        " "
+        "---"
+        " "
+        "|")
+      "\n"
+      " "
+      " "
+      (MdTableDataRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "1"
+            " "
+            "|"
+            " "
+            "2"
+            " "
+            "|"))))
+    "\n"
+    (MdParagraph
+      (MdText
+        "hello"
+        " "
+        "world"))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_table_mixed_indentation() {
+  let tree = parse_body(
+    r#"| a | b |
+    | --- | --- |
+  | 1 | 2 |
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdTable
+      (MdTableHeaderRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "a"
+            " "
+            "|"
+            " "
+            "b"
+            " "
+            "|")))
+      "\n"
+      " "
+      " "
+      " "
+      " "
+      (MdTableSeparatorRow
+        "|"
+        " "
+        "---"
+        " "
+        "|"
+        " "
+        "---"
+        " "
+        "|")
+      "\n"
+      " "
+      " "
+      (MdTableDataRow
+        "|"
+        (MdTableCell
+          " "
+          (MdText
+            "1"
+            " "
+            "|"
+            " "
+            "2"
+            " "
+            "|"))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_indented_table_in_list() {
+  let tree = parse_body(
+    r#"- item
+
+  | a | b |
+  | --- | --- |
+  | 1 | 2 |
+- item2
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        "\n"
+        " "
+        " "
+        (MdTable
+          (MdTableHeaderRow
+            "|"
+            (MdTableCell
+              " "
+              (MdText
+                "a"
+                " "
+                "|"
+                " "
+                "b"
+                " "
+                "|")))
+          "\n"
+          " "
+          " "
+          (MdTableSeparatorRow
+            "|"
+            " "
+            "---"
+            " "
+            "|"
+            " "
+            "---"
+            " "
+            "|")
+          "\n"
+          " "
+          " "
+          (MdTableDataRow
+            "|"
+            (MdTableCell
+              " "
+              (MdText
+                "1"
+                " "
+                "|"
+                " "
+                "2"
+                " "
+                "|")))))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item"
+            "2"))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_indented_table_in_blockquote() {
+  let tree = parse_body(
+    r#"> | a | b |
+> | --- | --- |
+> | 1 | 2 |
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdTable
+        (MdTableHeaderRow
+          "|"
+          (MdTableCell
+            " "
+            (MdText
+              "a"
+              " "
+              "|"
+              " "
+              "b"
+              " "
+              "|")))
+        "\n"
+        ">"
+        " "
+        (MdTableSeparatorRow
+          "|"
+          " "
+          "---"
+          " "
+          "|"
+          " "
+          "---"
+          " "
+          "|")
+        "\n"
+        ">"
+        " "
+        (MdTableDataRow
+          "|"
+          (MdTableCell
+            " "
+            (MdText
+              "1"
+              " "
+              "|"
+              " "
+              "2"
+              " "
+              "|")))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_indented_table_in_list_with_continuation() {
+  let tree = parse_body(
+    r#"- parent
+
+  | a | b |
+  | --- | --- |
+  | 1 | 2 |
+
+  continued
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "parent"))
+        "\n"
+        "\n"
+        " "
+        " "
+        (MdTable
+          (MdTableHeaderRow
+            "|"
+            (MdTableCell
+              " "
+              (MdText
+                "a"
+                " "
+                "|"
+                " "
+                "b"
+                " "
+                "|")))
+          "\n"
+          " "
+          " "
+          (MdTableSeparatorRow
+            "|"
+            " "
+            "---"
+            " "
+            "|"
+            " "
+            "---"
+            " "
+            "|")
+          "\n"
+          " "
+          " "
+          (MdTableDataRow
+            "|"
+            (MdTableCell
+              " "
+              (MdText
+                "1"
+                " "
+                "|"
+                " "
+                "2"
+                " "
+                "|"))))
+        "\n"
+        "\n"
+        " "
+        " "
+        (MdParagraph
+          (MdText
+            "continued"))))
+    "\n"))"####
   );
 }
 
