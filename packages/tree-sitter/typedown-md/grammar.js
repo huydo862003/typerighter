@@ -48,6 +48,9 @@ export default grammar({
     $._container_close,
     $._container_slot_separator,
 
+    $._container_shorthand_open,
+    $._container_shorthand_close,
+
     $._pipe_table_start,
     $._pipe_table_line_ending,
     $.pipe_table_delimiter_row,
@@ -150,6 +153,7 @@ export default grammar({
         $.toggle_list,
         $.list,
         $.container_block,
+        $.container_block_shorthand,
         $.pipe_table,
       ),
 
@@ -322,6 +326,18 @@ export default grammar({
           ),
         ),
         alias($._container_close, $.container_block_delimiter),
+        optional($._line_ending),
+      ),
+
+    container_block_shorthand: ($) =>
+      seq(
+        alias($._container_shorthand_open, $.container_block_delimiter),
+        optional(field('type', $.container_type)),
+        optional(seq(
+          optional($._whitespace),
+          field('props', $.container_prop_block),
+        )),
+        alias($._container_shorthand_close, $.container_block_delimiter),
         optional($._line_ending),
       ),
 
