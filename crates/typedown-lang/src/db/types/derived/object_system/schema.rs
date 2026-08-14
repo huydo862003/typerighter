@@ -51,7 +51,7 @@ impl TdTypeLike for TdSchemaType {
         );
         Some(TypeMember::new(
           db,
-          MemberType::simple(properties_type.into()),
+          MemberType::eager_simple(properties_type.into()),
           TypeMemberDescriptors::empty(),
         ))
       }
@@ -79,7 +79,7 @@ impl TdTypeLike for TdSchemaType {
       let typ = obj.as_type()?;
       fields.insert(
         name,
-        TypeMember::new(db, MemberType::simple(typ), TypeMemberDescriptors::empty()),
+        TypeMember::new(db, MemberType::eager_simple(typ), TypeMemberDescriptors::empty()),
       );
     }
     Some(TdProductType::new(db, None, TdSchemaType::get(db).into(), fields, HashMap::new()).into())

@@ -50,15 +50,15 @@ pub enum MemberType {
 }
 
 impl MemberType {
-  pub fn simple(typ: TdTypeEnum) -> Self {
+  pub fn eager_simple(typ: TdTypeEnum) -> Self {
     MemberType::Simple(Either::Left(typ))
   }
 
-  pub fn schema_ref(symbol: Symbol) -> Self {
+  pub fn lazy_simple(symbol: Symbol) -> Self {
     MemberType::Simple(Either::Right(symbol))
   }
 
-  pub fn resolve_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  pub fn evaluate_simple(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
     match self {
       MemberType::Simple(Either::Left(typ)) => Some(typ.clone()),
       MemberType::Simple(Either::Right(symbol)) => evaluate_type(db, *symbol).typ(db),

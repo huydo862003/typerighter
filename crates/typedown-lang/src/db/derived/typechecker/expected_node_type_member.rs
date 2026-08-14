@@ -55,7 +55,7 @@ pub fn expected_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMe
   // Traverse down the type structure following the path
   let mut current_member = TypeMember::new(
     db,
-    MemberType::simple(anchor.typ),
+    MemberType::eager_simple(anchor.typ),
     TypeMemberDescriptors::empty(),
   );
 
@@ -325,7 +325,7 @@ fn traverse_field(
 ) -> Option<TypeMember> {
   match member_type {
     MemberType::Simple(_) => {
-      let typ = member_type.resolve_type(db)?;
+      let typ = member_type.evaluate_simple(db)?;
       if let Some(member) = typ.get_owned_field_type_member(db, field_name) {
         return Some(member);
       }
@@ -335,7 +335,7 @@ fn traverse_field(
       {
         return Some(TypeMember::new(
           db,
-          MemberType::simple(value_type),
+          MemberType::eager_simple(value_type),
           TypeMemberDescriptors::empty(),
         ));
       }
@@ -354,12 +354,12 @@ fn traverse_field(
 fn traverse_index(db: &TypedownDatabase, member_type: &MemberType) -> Option<TypeMember> {
   match member_type {
     MemberType::Simple(_) => {
-      let typ = member_type.resolve_type(db)?;
+      let typ = member_type.evaluate_simple(db)?;
       let list = typ.as_td_list_type()?;
       let elem = list.elem(db)?;
       Some(TypeMember::new(
         db,
-        MemberType::simple(elem),
+        MemberType::eager_simple(elem),
         TypeMemberDescriptors::empty(),
       ))
     }
@@ -377,7 +377,7 @@ fn simple_schemaless_result(db: &TypedownDatabase) -> TypeMemberResult {
     db,
     Some(TypeMember::new(
       db,
-      MemberType::simple(get_schemaless_type(db).into()),
+      MemberType::eager_simple(get_schemaless_type(db).into()),
       TypeMemberDescriptors::empty(),
     )),
     vec![],
@@ -431,7 +431,7 @@ mod tests {
       .expect("'name' field should have a declared TypeMember");
     let typ = member
       .typ(&db)
-      .resolve_type(&db)
+      .evaluate_simple(&db)
       .expect("expected Simple member type");
     assert_eq!(
       typ.display_name(&db),
@@ -467,7 +467,7 @@ mod tests {
       .expect("schemaless file should return a type member");
     let typ = member
       .typ(&db)
-      .resolve_type(&db)
+      .evaluate_simple(&db)
       .expect("expected Simple member type");
     assert_eq!(
       typ.display_name(&db),

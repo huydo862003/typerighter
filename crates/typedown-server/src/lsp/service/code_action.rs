@@ -103,7 +103,7 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 fn default_value(db: &TypedownDatabase, member: &MemberType) -> String {
   match member {
     MemberType::Simple(_) => {
-      let Some(typ) = member.resolve_type(db) else {
+      let Some(typ) = member.evaluate_simple(db) else {
         return "\"\"".to_string();
       };
       match typ {

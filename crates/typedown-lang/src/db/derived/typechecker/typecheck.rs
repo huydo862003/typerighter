@@ -25,7 +25,7 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
 
   // Use expected type from schema if available, otherwise fall back to inferred type
   let declared_type = if let Some(member) = expected_node_type_member(db, hir).member(db)
-    && let Some(typ) = member.typ(db).resolve_type(db)
+    && let Some(typ) = member.typ(db).evaluate_simple(db)
   {
     typ
   } else {

@@ -143,7 +143,7 @@ pub fn export_property_descriptors(
   fn member_to_descriptor(db: &TypedownDatabase, member: &MemberType) -> serde_json::Value {
     match member {
       MemberType::Simple(_) => {
-        if let Some(typ) = member.resolve_type(db) {
+        if let Some(typ) = member.evaluate_simple(db) {
           simple_type_to_descriptor(db, &typ)
         } else {
           serde_json::json!({ "type": "string" })

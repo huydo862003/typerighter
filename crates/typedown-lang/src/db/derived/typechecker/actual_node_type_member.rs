@@ -36,11 +36,11 @@ pub fn actual_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemb
     HirValueKind::Str(ref val) => {
       // Date/time subtypes are more specific than string literals
       let member_type = if is_valid_iso_datetime(val) {
-        MemberType::simple(get_datetime_type(db).into())
+        MemberType::eager_simple(get_datetime_type(db).into())
       } else if is_valid_iso_date(val) {
-        MemberType::simple(get_date_type(db).into())
+        MemberType::eager_simple(get_date_type(db).into())
       } else if is_valid_iso_time(val) {
-        MemberType::simple(get_time_type(db).into())
+        MemberType::eager_simple(get_time_type(db).into())
       } else {
         MemberType::Literal(LiteralValue::Str(val.clone()))
       };
@@ -104,7 +104,7 @@ fn simple_member_result(
     db,
     Some(TypeMember::new(
       db,
-      MemberType::simple(typ),
+      MemberType::eager_simple(typ),
       TypeMemberDescriptors::empty(),
     )),
     diagnostics,
@@ -115,7 +115,7 @@ fn simple_member_result(
 fn type_result_to_member_result(db: &TypedownDatabase, result: TypeResult) -> TypeMemberResult {
   let member = result
     .typ(db)
-    .map(|typ| TypeMember::new(db, MemberType::simple(typ), TypeMemberDescriptors::empty()));
+    .map(|typ| TypeMember::new(db, MemberType::eager_simple(typ), TypeMemberDescriptors::empty()));
   TypeMemberResult::new(db, member, result.diagnostics(db).clone())
 }
 
@@ -211,7 +211,7 @@ fn get_binary_type(
       Some(member) => member,
       None => return TypeMemberResult::new(db, None, diagnostics),
     };
-    let left_type = match left_member.typ(db).resolve_type(db) {
+    let left_type = match left_member.typ(db).evaluate_simple(db) {
       Some(typ) => typ,
       None => return TypeMemberResult::new(db, None, diagnostics),
     };
@@ -294,7 +294,7 @@ fn get_call_type(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -
     Some(member) => member,
     None => return TypeMemberResult::new(db, None, diagnostics),
   };
-  let callee_type = match callee_member.typ(db).resolve_type(db) {
+  let callee_type = match callee_member.typ(db).evaluate_simple(db) {
     Some(typ) => typ,
     None => return TypeMemberResult::new(db, None, diagnostics),
   };
@@ -399,7 +399,7 @@ fn get_index_type(
     Some(member) => member,
     None => return TypeMemberResult::new(db, None, diagnostics),
   };
-  let expr_type = match expr_member.typ(db).resolve_type(db) {
+  let expr_type = match expr_member.typ(db).evaluate_simple(db) {
     Some(typ) => typ,
     None => return TypeMemberResult::new(db, None, diagnostics),
   };
@@ -530,7 +530,7 @@ mod tests {
     let member = result.member(&db).expect("should infer a type");
     let typ = member
       .typ(&db)
-      .resolve_type(&db)
+      .evaluate_simple(&db)
       .expect("top-level mapping should be Simple");
     let product = typ.as_td_product_type().expect("should be a product type");
     let fields = product.fields(&db);
@@ -676,7 +676,7 @@ mod tests {
       let date_hir = date_hir.expect("should have date field");
       let result = actual_node_type_member(&db, date_hir);
       let member = result.member(&db).expect("should have a type");
-      let typ = member.typ(&db).resolve_type(&db).expect("should resolve");
+      let typ = member.typ(&db).evaluate_simple(&db).expect("should resolve");
       assert_eq!(
         typ.display_name(&db),
         "date",
@@ -699,7 +699,7 @@ mod tests {
       let result = actual_node_type_member(&db, status_hir);
       // Should resolve to something (not None), and not be type_type
       if let Some(member) = result.member(&db)
-        && let Some(typ) = member.typ(&db).resolve_type(&db)
+        && let Some(typ) = member.typ(&db).evaluate_simple(&db)
       {
         assert_ne!(
           typ.display_name(&db),

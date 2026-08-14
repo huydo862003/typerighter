@@ -71,7 +71,7 @@ impl TdTypeLike for TdDictType {
         None => return true,
       };
       return product.fields(db).values().all(|member| {
-        let value_member = MemberType::simple(value_type.clone());
+        let value_member = MemberType::eager_simple(value_type.clone());
         member_types_compatible(db, &value_member, &member.typ(db))
       });
     }

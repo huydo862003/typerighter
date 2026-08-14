@@ -43,7 +43,7 @@ impl TdTypeLike for TdBlobType {
     match name {
       "format" => Some(TypeMember::new(
         db,
-        MemberType::simple(str_type),
+        MemberType::eager_simple(str_type),
         TypeMemberDescriptors::empty(),
       )),
       _ => None,

@@ -188,11 +188,11 @@ fn resolve_type_member(
       let resolved = referee(db, hir);
       match resolved.value(db) {
         Some(symbol) => match symbol.kind(db) {
-          SymbolKind::UserDefinedSchema(_, _) => Some(MemberType::schema_ref(symbol)),
+          SymbolKind::UserDefinedSchema(_, _) => Some(MemberType::lazy_simple(symbol)),
           _ => {
             let result = evaluate_type(db, symbol);
             diagnostics.extend(result.diagnostics(db).iter().cloned());
-            result.typ(db).map(MemberType::simple)
+            result.typ(db).map(MemberType::eager_simple)
           }
         },
         None => {
@@ -236,16 +236,16 @@ fn resolve_type_member(
           fields.insert(key.clone(), TypeMember::new(db, member_type, descriptors));
         }
       }
-      Some(MemberType::simple(
+      Some(MemberType::eager_simple(
         TdProductType::new(db, None, get_type_type(db).into(), fields, HashMap::new()).into(),
       ))
     }
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {
       let base = resolve_type_member(db, *expr, diagnostics)?;
-      let base_type = base.resolve_type(db)?;
+      let base_type = base.evaluate_simple(db)?;
       if base_type.arity(db) == 0 {
-        return Some(MemberType::simple(base_type));
+        return Some(MemberType::eager_simple(base_type));
       }
       let mut arg_types = vec![];
       for idx_hir in indices {
@@ -286,7 +286,7 @@ fn resolve_type_member(
       }
       let inst_result = instantiate_type(db, base_type, arg_types);
       diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
-      Some(MemberType::simple(inst_result.typ(db)))
+      Some(MemberType::eager_simple(inst_result.typ(db)))
     }
     // Literal types
     HirValueKind::Str(val) => Some(MemberType::Literal(LiteralValue::Str(val))),
@@ -556,7 +556,7 @@ mod tests {
         "name".to_string(),
         TypeMember::new(
           &db,
-          MemberType::simple(get_str_type(&db).into()),
+          MemberType::eager_simple(get_str_type(&db).into()),
           TypeMemberDescriptors::empty(),
         ),
       )]),
@@ -756,7 +756,7 @@ age: 42
     let member = type_result.member(&db).expect("fref should return a type");
     let typ = member
       .typ(&db)
-      .resolve_type(&db)
+      .evaluate_simple(&db)
       .expect("expected Simple type");
     assert_eq!(typ.display_name(&db), "Person");
   }
