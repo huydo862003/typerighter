@@ -397,7 +397,19 @@ function onResizeStart (event: PointerEvent) {
   min-width: 0;
 }
 
-/* Below lg breakpoint */
+/* Below xl: hide TOC */
+
+@media (width < 80rem) {
+  .td-sidebar-right {
+    display: none;
+  }
+
+  .td-main-and-toc {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Below lg: hide sidebar, show hamburger menu */
 
 @media (width < 64rem) {
   .td-header {
@@ -408,13 +420,8 @@ function onResizeStart (event: PointerEvent) {
     display: inline-flex;
   }
 
-  .td-sidebar-left,
-  .td-sidebar-right {
+  .td-sidebar-left {
     display: none;
-  }
-
-  .td-main-and-toc {
-    grid-template-columns: 1fr;
   }
 
   .td-content {
