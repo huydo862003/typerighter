@@ -9,7 +9,6 @@ mod math;
 mod native_fn;
 mod num;
 mod product;
-mod schema;
 mod str;
 
 use std::hash::{Hash, Hasher};
@@ -31,7 +30,6 @@ pub use math::*;
 pub use native_fn::*;
 pub use num::*;
 pub use product::*;
-pub use schema::*;
 pub use str::*;
 
 use ambassador::Delegate;
@@ -59,7 +57,6 @@ pub enum TdTypeEnum {
   TdDateTimeType(TdDateTimeType),
   TdDateType(TdDateType),
   TdTimeType(TdTimeType),
-  TdSchemaType(TdSchemaType),
   TdProductType(TdProductType),
   TdBlobType(TdBlobType),
 }
@@ -82,7 +79,6 @@ pub enum TdObjectEnum {
   TdDateTimeType(TdDateTimeType),
   TdDateType(TdDateType),
   TdTimeType(TdTimeType),
-  TdSchemaType(TdSchemaType),
   TdProductType(TdProductType),
   TdBlobType(TdBlobType),
   // Objects
@@ -115,7 +111,6 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdDateTimeType(v) => v.as_id(),
       TdTypeEnum::TdDateType(v) => v.as_id(),
       TdTypeEnum::TdTimeType(v) => v.as_id(),
-      TdTypeEnum::TdSchemaType(v) => v.as_id(),
       TdTypeEnum::TdProductType(v) => v.as_id(),
       TdTypeEnum::TdBlobType(v) => v.as_id(),
     }
@@ -137,7 +132,6 @@ impl Id for TdObjectEnum {
       TdObjectEnum::TdDateTimeType(v) => v.as_id(),
       TdObjectEnum::TdDateType(v) => v.as_id(),
       TdObjectEnum::TdTimeType(v) => v.as_id(),
-      TdObjectEnum::TdSchemaType(v) => v.as_id(),
       TdObjectEnum::TdProductType(v) => v.as_id(),
       TdObjectEnum::TdBlobType(v) => v.as_id(),
       TdObjectEnum::TdBoolObj(v) => v.as_id(),
@@ -171,7 +165,6 @@ impl From<TdTypeEnum> for TdObjectEnum {
       TdTypeEnum::TdDateTimeType(v) => TdObjectEnum::TdDateTimeType(v),
       TdTypeEnum::TdDateType(v) => TdObjectEnum::TdDateType(v),
       TdTypeEnum::TdTimeType(v) => TdObjectEnum::TdTimeType(v),
-      TdTypeEnum::TdSchemaType(v) => TdObjectEnum::TdSchemaType(v),
       TdTypeEnum::TdProductType(v) => TdObjectEnum::TdProductType(v),
       TdTypeEnum::TdBlobType(v) => TdObjectEnum::TdBlobType(v),
     }
@@ -193,7 +186,6 @@ impl TdObjectEnum {
       TdObjectEnum::TdDateTimeType(v) => Some(TdTypeEnum::TdDateTimeType(v)),
       TdObjectEnum::TdDateType(v) => Some(TdTypeEnum::TdDateType(v)),
       TdObjectEnum::TdTimeType(v) => Some(TdTypeEnum::TdTimeType(v)),
-      TdObjectEnum::TdSchemaType(v) => Some(TdTypeEnum::TdSchemaType(v)),
       TdObjectEnum::TdProductType(v) => Some(TdTypeEnum::TdProductType(v)),
       TdObjectEnum::TdBlobType(v) => Some(TdTypeEnum::TdBlobType(v)),
       _ => None,
@@ -246,7 +238,6 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdDateTimeType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdDateType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdTimeType(v) => v.stable_hash(db, hasher),
-      TdTypeEnum::TdSchemaType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdProductType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdBlobType(v) => v.stable_hash(db, hasher),
     }
@@ -272,7 +263,6 @@ impl typedown_incremental::StableHash for TdObjectEnum {
       TdObjectEnum::TdDateTimeType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdDateType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdTimeType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdSchemaType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdProductType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBlobType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBoolObj(v) => v.stable_hash(db, hasher),
@@ -304,11 +294,10 @@ pub enum TdTypeKind {
   Dict = 7,
   Func = 8,
   Product = 9,
-  Schema = 10,
-  DateTime = 11,
-  Date = 12,
-  Time = 13,
-  Blob = 14,
+  DateTime = 10,
+  Date = 11,
+  Time = 12,
+  Blob = 13,
 }
 
 #[derive(FromRepr)]
@@ -325,11 +314,10 @@ pub enum TdObjectKind {
   Dict = 7,
   Func = 8,
   Product = 9,
-  Schema = 10,
-  DateTime = 11,
-  Date = 12,
-  Time = 13,
-  Blob = 14,
+  DateTime = 10,
+  Date = 11,
+  Time = 12,
+  Blob = 13,
   // Object-only
   StrObj = 128,
   BoolObj = 129,
@@ -389,10 +377,6 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Product as u8);
         v.encode_field(buf, encoder);
       }
-      TdTypeEnum::TdSchemaType(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Schema as u8);
-        v.encode_field(buf, encoder);
-      }
       TdTypeEnum::TdDateTimeType(v) => {
         encoder.emit_u8(buf, TdTypeKind::DateTime as u8);
         v.encode_field(buf, encoder);
@@ -427,7 +411,6 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Dict => TdDictType::decode_field(data, decoder).into(),
       TdTypeKind::Func => TdFuncType::decode_field(data, decoder).into(),
       TdTypeKind::Product => TdProductType::decode_field(data, decoder).into(),
-      TdTypeKind::Schema => TdSchemaType::decode_field(data, decoder).into(),
       TdTypeKind::DateTime => TdDateTimeType::decode_field(data, decoder).into(),
       TdTypeKind::Date => TdDateType::decode_field(data, decoder).into(),
       TdTypeKind::Time => TdTimeType::decode_field(data, decoder).into(),
@@ -479,10 +462,6 @@ impl Encodable for TdObjectEnum {
       }
       TdObjectEnum::TdProductType(v) => {
         encoder.emit_u8(buf, TdObjectKind::Product as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdSchemaType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Schema as u8);
         v.encode_field(buf, encoder);
       }
       TdObjectEnum::TdDateTimeType(v) => {
@@ -568,7 +547,6 @@ impl Decodable for TdObjectEnum {
       TdObjectKind::Dict => TdDictType::decode_field(data, decoder).into(),
       TdObjectKind::Func => TdFuncType::decode_field(data, decoder).into(),
       TdObjectKind::Product => TdProductType::decode_field(data, decoder).into(),
-      TdObjectKind::Schema => TdSchemaType::decode_field(data, decoder).into(),
       TdObjectKind::DateTime => TdDateTimeType::decode_field(data, decoder).into(),
       TdObjectKind::Date => TdDateType::decode_field(data, decoder).into(),
       TdObjectKind::Time => TdTimeType::decode_field(data, decoder).into(),

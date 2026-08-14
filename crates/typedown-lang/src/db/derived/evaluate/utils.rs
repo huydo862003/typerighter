@@ -312,7 +312,7 @@ fn evaluate_mapping(
   entries: Vec<(String, HirValue)>,
 ) -> Option<TdObjectEnum> {
   // Schema type
-  if typ.is_td_schema_type() {
+  if *typ == TdTypeEnum::from(get_schema_type(db)) {
     let properties_entries = match entries.iter().find(|(key, _)| key == "properties") {
       Some((_, props_hir)) => match props_hir.kind(db) {
         HirValueKind::Mapping(entries) => entries,

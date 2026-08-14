@@ -356,7 +356,7 @@ mod tests {
     let expected = Some(TdTypeEnum::from(get_schema_type(&db)));
     assert!(
       result.typ(&db) == expected,
-      "builtin Schema symbol should evaluate to TdSchemaType"
+      "builtin Schema symbol should evaluate to schema type"
     );
     assert!(
       result.diagnostics(&db).is_empty(),

@@ -106,16 +106,6 @@ fn extract_declared_fields(
       if let Some(product) = typ.as_td_product_type() {
         return product.fields(db);
       }
-      if typ.is_td_schema_type() {
-        return vec!["properties"]
-          .into_iter()
-          .filter_map(|name| {
-            typ
-              .get_owned_field_type_member(db, name)
-              .map(|member| (name.to_string(), member))
-          })
-          .collect();
-      }
       HashMap::new()
     }
     _ => HashMap::new(),

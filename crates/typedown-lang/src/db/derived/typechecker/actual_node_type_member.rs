@@ -617,7 +617,7 @@ mod tests {
     let expected = Some(TdTypeEnum::from(get_schema_type(&db)));
     assert!(
       typ == expected,
-      "top-level mapping of a schema file should have type TdSchemaType"
+      "top-level mapping of a schema file should have schema type"
     );
     assert!(
       result.diagnostics(&db).is_empty(),

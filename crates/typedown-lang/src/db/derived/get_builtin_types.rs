@@ -5,11 +5,13 @@ use typedown_macros::query_derived;
 use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
+use std::collections::HashMap;
+
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, Symbol, SymbolKind, TdBlobType,
-  TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictObj, TdDictType, TdFuncType, TdListType,
-  TdMathType, TdNumType, TdObjectType, TdProductType, TdSchemaType, TdStrType, TdTimeType,
-  TdTypeEnum, TdTypeLike, TdTypeType,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, MemberType, Symbol, SymbolKind,
+  TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
+  TdListType, TdMathType, TdNumType, TdObjectType, TdProductType, TdStrType, TdTimeType,
+  TdTypeEnum, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
 };
 use typedown_incremental::QueryDatabase;
 
@@ -78,22 +80,46 @@ pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
   TdBoolObj::new(db, false)
 }
 
-// Schema type is actually a kind
-// and its a subtype of the "type" kind
+// Schema is a metatype: its instances are user-defined types (product types)
+// Has a single field `properties` of type dict[string, SchemaProperty]
 #[query_derived]
-pub fn get_schema_type(db: &TypedownDatabase) -> TdSchemaType {
-  TdSchemaType::new(db)
+pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
+  let properties_type = TdDictType::new(
+    db,
+    Some(LazyType::eager(get_str_type(db).into())),
+    Some(LazyType::eager(
+      crate::db::derived::schema_property::get_schema_property_type(db).into(),
+    )),
+  );
+
+  let fields = HashMap::from([(
+    "properties".to_string(),
+    TypeMember::new(
+      db,
+      MemberType::Simple(LazyType::eager(properties_type.into())),
+      TypeMemberDescriptors::empty(),
+    ),
+  )]);
+
+  TdProductType::new(
+    db,
+    Some("schema".to_string()),
+    get_type_type(db).into(),
+    fields,
+    HashMap::new(),
+  )
 }
 
 // A schema with no declared fields, used for typeless resources
 #[query_derived]
 pub fn get_schemaless_type(db: &TypedownDatabase) -> TdProductType {
-  let schema_type = get_schema_type(db);
-  let empty_dict = TdDictObj::new(db, std::collections::HashMap::new());
-  schema_type
-    .construct(db, vec![empty_dict.into()])
-    .and_then(|obj| obj.as_td_product_type().copied())
-    .expect("TdSchemaType::construct with empty dict must produce a TdProductType")
+  TdProductType::new(
+    db,
+    None,
+    get_schema_type(db).into(),
+    HashMap::new(),
+    HashMap::new(),
+  )
 }
 
 pub fn get_type_type_symbol(db: &TypedownDatabase) -> Symbol {
