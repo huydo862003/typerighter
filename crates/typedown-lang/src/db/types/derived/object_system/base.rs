@@ -117,11 +117,7 @@ pub trait TdTypeLike: TdObjectLike {
     args: Vec<LazyType>,
   ) -> InstResult;
 
-  fn is_compatible_with(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    actual: &TdTypeEnum,
-  ) -> bool;
+  fn accepts(&self, db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool;
 
   fn get_type_args(&self, db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum>;
 
@@ -201,11 +197,7 @@ impl TdTypeLike for TdTypeType {
     vec![]
   }
   // Any type is assignable to the metatype
-  fn is_compatible_with(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _actual: &TdTypeEnum,
-  ) -> bool {
+  fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, _actual: &TdTypeEnum) -> bool {
     true
   }
   fn construct(
@@ -284,11 +276,7 @@ impl TdTypeLike for TdObjectType {
   fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    actual: &TdTypeEnum,
-  ) -> bool {
+  fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool {
     self.as_id() == actual.as_id()
   }
   fn construct(

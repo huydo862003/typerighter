@@ -53,7 +53,7 @@ impl TdTypeLike for TdListType {
       vec![],
     )
   }
-  fn is_compatible_with(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
     if self.as_id().0 != actual.as_id().0 {
       return false;
     }
@@ -69,7 +69,7 @@ impl TdTypeLike for TdListType {
       Some(t) => t,
       None => return false,
     };
-    self_elem.is_compatible_with(db, &actual_elem)
+    self_elem.accepts(db, &actual_elem)
   }
   fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     self

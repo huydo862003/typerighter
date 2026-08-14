@@ -61,7 +61,7 @@ pub fn member_types_compatible(
         Some(t) => t,
         None => return false,
       };
-      exp_type.is_compatible_with(db, &actual_type)
+      exp_type.accepts(db, &actual_type)
     }
     (MemberType::Sum(exp_arms), MemberType::Sum(act_arms))
     | (MemberType::ListOfSum(exp_arms), MemberType::ListOfSum(act_arms))
@@ -82,7 +82,7 @@ pub fn member_types_compatible(
         None => return false,
       };
       let base = literal_base_type(db, act_val);
-      exp_type.is_compatible_with(db, &base)
+      exp_type.accepts(db, &base)
     }
 
     // An actual is assignable to a Sum expected if some arm matches
@@ -300,7 +300,7 @@ pub fn value_matches_member_type(
         Some(t) => t,
         None => return false,
       };
-      exp_type.is_compatible_with(db, actual)
+      exp_type.accepts(db, actual)
     }
     MemberType::Sum(members) => members
       .iter()

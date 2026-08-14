@@ -53,7 +53,7 @@ impl TdTypeLike for TdStrType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
     if self.as_id() == actual.as_id() {
       return true;
     }

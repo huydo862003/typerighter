@@ -218,7 +218,7 @@ fn check_tag(
   let inner_result = actual_node_type_member(db, inner);
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
   if let Some(actual_type) = lift_type_member_result(db, &inner_result)
-    && !expected_type.is_compatible_with(db, &actual_type)
+    && !expected_type.accepts(db, &actual_type)
   {
     let node = inner.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
@@ -271,7 +271,7 @@ fn check_call(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> V
     let arg_result = actual_node_type_member(db, *arg_hir);
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
     if let Some(arg_type) = lift_type_member_result(db, &arg_result)
-      && !param.is_compatible_with(db, &arg_type)
+      && !param.accepts(db, &arg_type)
     {
       let node = arg_hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -309,7 +309,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
       diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
       if let Some(idx_type) = lift_type_member_result(db, &idx_result) {
         let num_type = get_num_type(db);
-        if !num_type.is_compatible_with(db, &idx_type) {
+        if !num_type.accepts(db, &idx_type) {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::IndexTypeMismatch {
@@ -330,7 +330,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
         let idx_result = actual_node_type_member(db, *idx_hir);
         diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
         if let Some(idx_type) = lift_type_member_result(db, &idx_result)
-          && !key_type.is_compatible_with(db, &idx_type)
+          && !key_type.accepts(db, &idx_type)
         {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
@@ -352,7 +352,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
       diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
       if let Some(idx_type) = lift_type_member_result(db, &idx_result) {
         let num_type = get_num_type(db);
-        if !num_type.is_compatible_with(db, &idx_type) {
+        if !num_type.accepts(db, &idx_type) {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::IndexTypeMismatch {
@@ -396,7 +396,7 @@ fn check_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagno
     _ => return diagnostics,
   };
 
-  if !expected_type.is_compatible_with(db, &operand_type) {
+  if !expected_type.accepts(db, &operand_type) {
     let node = operand.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
     diagnostics.push(Diagnostic::OperandTypeMismatch {
@@ -431,7 +431,7 @@ fn check_binary(
     "+" | "-" | "*" | "/" | "%" | "**" => {
       let num_type: TdTypeEnum = get_num_type(db).into();
       if let Some(lt) = &left_type
-        && !num_type.is_compatible_with(db, lt)
+        && !num_type.accepts(db, lt)
       {
         let node = left.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -443,7 +443,7 @@ fn check_binary(
         });
       }
       if let Some(rt) = &right_type
-        && !num_type.is_compatible_with(db, rt)
+        && !num_type.accepts(db, rt)
       {
         let node = right.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -460,7 +460,7 @@ fn check_binary(
     "&&" | "||" => {
       let bool_type: TdTypeEnum = get_bool_type(db).into();
       if let Some(lt) = &left_type
-        && !bool_type.is_compatible_with(db, lt)
+        && !bool_type.accepts(db, lt)
       {
         let node = left.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -472,7 +472,7 @@ fn check_binary(
         });
       }
       if let Some(rt) = &right_type
-        && !bool_type.is_compatible_with(db, rt)
+        && !bool_type.accepts(db, rt)
       {
         let node = right.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -519,7 +519,7 @@ fn check_sequence(
     // Check item type against element type
     let item_result = actual_node_type_member(db, item);
     if let Some(item_type) = lift_type_member_result(db, &item_result)
-      && !elem_type.is_compatible_with(db, &item_type)
+      && !elem_type.accepts(db, &item_type)
     {
       let node = item.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();

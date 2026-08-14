@@ -70,7 +70,7 @@ impl TdTypeLike for TdDictType {
       vec![],
     )
   }
-  fn is_compatible_with(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
     if let TdTypeEnum::TdProductType(product) = actual {
       let value_type = match self.value(db).and_then(|l| l.resolve(db)) {
         Some(vt) => vt,
@@ -96,7 +96,7 @@ impl TdTypeLike for TdDictType {
     self_args
       .iter()
       .zip(actual_args.iter())
-      .all(|(s, a)| s.is_compatible_with(db, a))
+      .all(|(s, a)| s.accepts(db, a))
   }
   fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     match (

@@ -56,7 +56,7 @@ impl TdTypeLike for TdBlobType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
     self.as_id() == actual.as_id()
   }
   fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {

@@ -134,7 +134,7 @@ fn fref_completions(
         Some(typ) => typ,
         None => return false,
       };
-      expected_typ.is_compatible_with(db, &file_type)
+      expected_typ.accepts(db, &file_type)
     })
     .filter_map(|(path, _)| path.strip_prefix(&root).ok().map(|rel| rel.to_path_buf()))
     .map(|rel| CompletionItem {
