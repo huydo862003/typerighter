@@ -584,11 +584,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     // Parse remaining list items
-    loop {
-      // Peek past blank lines and prefix to check for a sibling bullet
-      let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
-        break;
-      };
+    while let Some(after_prefix) = self.peek_md_multinewline_and_prefix() {
       let next = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdSymbol {
         break;
@@ -822,11 +818,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     // Parse remaining list items
-    loop {
-      // Peek past blank lines and prefix to check for a sibling ordered item
-      let Some(after_prefix) = self.peek_md_multinewline_and_prefix() else {
-        break;
-      };
+    while let Some(after_prefix) = self.peek_md_multinewline_and_prefix() {
       let next = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
       if next.token.kind() != SyntaxKind::MdNumber {
         break;
