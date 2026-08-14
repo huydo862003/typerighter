@@ -9,7 +9,7 @@ use super::{TdObjectEnum, TdStrObj, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_blob_type;
 use crate::db::types::{
-  AssetKind, File, InstResult, MemberType, TypeMember, TypeMemberDescriptors,
+  AssetKind, File, InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors,
 };
 use typedown_incremental::Id;
 
@@ -43,20 +43,20 @@ impl TdTypeLike for TdBlobType {
     match name {
       "format" => Some(TypeMember::new(
         db,
-        MemberType::simple(str_type),
+        MemberType::Simple(LazyType::eager(str_type)),
         TypeMemberDescriptors::empty(),
       )),
       _ => None,
     }
   }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<TdTypeEnum>) -> InstResult {
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
     assert_eq!(args.len(), self.arity(db), "arity mismatch");
     InstResult::new(db, (*self).into(), vec![])
   }
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
     self.as_id() == actual.as_id()
   }
   fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {

@@ -111,7 +111,10 @@ fn fref_completions(
 ) -> Vec<CompletionItem> {
   // Resolve the expected type for the field containing this fref() call.
   let expected_type =
-    declared_field(db, project, file, node).and_then(|member| member.typ(db).resolve_type(db));
+    declared_field(db, project, file, node).and_then(|member| match member.typ(db) {
+      MemberType::Simple(lazy) => lazy.resolve(db),
+      _ => None,
+    });
 
   let root = project.root_dir(db);
   project
@@ -131,7 +134,7 @@ fn fref_completions(
         Some(typ) => typ,
         None => return false,
       };
-      expected_typ.is_compatible_with(db, &file_type)
+      expected_typ.accepts(db, &file_type)
     })
     .filter_map(|(path, _)| path.strip_prefix(&root).ok().map(|rel| rel.to_path_buf()))
     .map(|rel| CompletionItem {
@@ -167,7 +170,10 @@ fn enclosing_mapping_product(
   let mapping_expr = Expr::cast(mapping.clone())?;
   let hir = lower_node(db, project, file, mapping_expr.syntax().clone());
   let member = expected_node_type_member(db, hir).member(db)?;
-  let typ = member.typ(db).resolve_type(db)?;
+  let MemberType::Simple(lazy) = member.typ(db) else {
+    return None;
+  };
+  let typ = lazy.resolve(db)?;
   Some((typ.as_td_product_type().cloned()?, mapping))
 }
 
@@ -271,8 +277,8 @@ fn build_schema_snippet(
 // Generate a placeholder string for a type member
 fn member_placeholder(db: &TypedownDatabase, member: &MemberType, indent: usize) -> String {
   match member {
-    MemberType::Simple(_) => {
-      if let Some(typ) = member.resolve_type(db) {
+    MemberType::Simple(lazy) => {
+      if let Some(typ) = lazy.resolve(db) {
         simple_type_placeholder(db, &typ, indent)
       } else {
         "value".to_string()
@@ -313,6 +319,7 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
     TdTypeEnum::TdListType(list) => {
       let inner = list
         .elem(db)
+        .and_then(|elem| elem.resolve(db))
         .map(|elem| simple_type_placeholder(db, &elem, indent + 1))
         .unwrap_or_else(|| "value".to_string());
       let pad = "  ".repeat(indent);

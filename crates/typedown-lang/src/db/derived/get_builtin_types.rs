@@ -5,13 +5,13 @@ use typedown_macros::query_derived;
 use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
-use crate::db::types::BuiltinSchemaKind;
-use crate::db::types::FuncSignature;
+use std::collections::HashMap;
+
 use crate::db::types::{
-  InstResult, Symbol, SymbolKind, TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType,
-  TdDictObj, TdDictType, TdFuncType, TdListType, TdMathType, TdNumType, TdObjectType,
-  TdProductType, TdSchemaPropertyType, TdSchemaType, TdStrType, TdTimeType, TdTypeEnum, TdTypeLike,
-  TdTypeType,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, MemberType, Symbol, SymbolKind,
+  TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
+  TdListType, TdMathType, TdNumType, TdObjectType, TdProductType, TdStrType, TdTimeType,
+  TdTypeEnum, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
 };
 use typedown_incremental::QueryDatabase;
 
@@ -80,27 +80,46 @@ pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
   TdBoolObj::new(db, false)
 }
 
+// Schema is a metatype: its instances are user-defined types (product types)
+// Has a single field `properties` of type dict[string, SchemaProperty]
 #[query_derived]
-pub fn get_schema_property_type(db: &TypedownDatabase) -> TdSchemaPropertyType {
-  TdSchemaPropertyType::new(db)
-}
+pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
+  let properties_type = TdDictType::new(
+    db,
+    Some(LazyType::eager(get_str_type(db).into())),
+    Some(LazyType::eager(
+      crate::db::derived::schema_property::get_schema_property_type(db).into(),
+    )),
+  );
 
-// Schema type is actually a kind
-// and its a subtype of the "type" kind
-#[query_derived]
-pub fn get_schema_type(db: &TypedownDatabase) -> TdSchemaType {
-  TdSchemaType::new(db)
+  let fields = HashMap::from([(
+    "properties".to_string(),
+    TypeMember::new(
+      db,
+      MemberType::Simple(LazyType::eager(properties_type.into())),
+      TypeMemberDescriptors::empty(),
+    ),
+  )]);
+
+  TdProductType::new(
+    db,
+    Some("schema".to_string()),
+    get_type_type(db).into(),
+    fields,
+    HashMap::new(),
+  )
 }
 
 // A schema with no declared fields, used for typeless resources
 #[query_derived]
 pub fn get_schemaless_type(db: &TypedownDatabase) -> TdProductType {
-  let schema_type = get_schema_type(db);
-  let empty_dict = TdDictObj::new(db, std::collections::HashMap::new());
-  schema_type
-    .construct(db, vec![empty_dict.into()])
-    .and_then(|obj| obj.as_td_product_type().copied())
-    .expect("TdSchemaType::construct with empty dict must produce a TdProductType")
+  TdProductType::new(
+    db,
+    None,
+    get_schema_type(db).into(),
+    HashMap::new(),
+    HashMap::new(),
+  )
 }
 
 pub fn get_type_type_symbol(db: &TypedownDatabase) -> Symbol {
@@ -216,7 +235,7 @@ pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncT
 pub fn instantiate_type(
   db: &TypedownDatabase,
   constructor: TdTypeEnum,
-  args: Vec<TdTypeEnum>,
+  args: Vec<LazyType>,
 ) -> InstResult {
   let arity = constructor.arity(db);
   if arity != args.len() {
@@ -234,7 +253,7 @@ pub fn instantiate_type(
 
 #[cfg(test)]
 mod tests {
-  use crate::db::types::TdTypeEnum;
+  use crate::db::types::{LazyType, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
@@ -257,7 +276,7 @@ mod tests {
     let list = TdTypeEnum::from(get_list_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
 
-    let result = instantiate_type(&db, list, vec![str_type.clone()]);
+    let result = instantiate_type(&db, list, vec![LazyType::eager(str_type.clone())]);
 
     assert!(
       result.diagnostics(&db).is_empty(),
@@ -279,7 +298,11 @@ mod tests {
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let num_type = TdTypeEnum::from(get_num_type(&db));
 
-    let result = instantiate_type(&db, record, vec![str_type, num_type]);
+    let result = instantiate_type(
+      &db,
+      record,
+      vec![LazyType::eager(str_type), LazyType::eager(num_type)],
+    );
 
     assert!(
       result.diagnostics(&db).is_empty(),
@@ -319,7 +342,7 @@ mod tests {
     let str_type = TdTypeEnum::from(get_str_type(&db));
 
     // Only 1 arg, record needs 2
-    let result = instantiate_type(&db, record, vec![str_type]);
+    let result = instantiate_type(&db, record, vec![LazyType::eager(str_type)]);
 
     let diagnostics = result.diagnostics(&db);
     assert_eq!(diagnostics.len(), 1);
@@ -359,7 +382,7 @@ mod tests {
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let num_type = TdTypeEnum::from(get_num_type(&db));
 
-    let result = instantiate_type(&db, str_type, vec![num_type]);
+    let result = instantiate_type(&db, str_type, vec![LazyType::eager(num_type)]);
 
     let diagnostics = result.diagnostics(&db);
     assert_eq!(diagnostics.len(), 1);

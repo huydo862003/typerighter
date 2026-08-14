@@ -92,8 +92,20 @@ pub(crate) fn construct_from_hir(
     _ => {}
   }
 
-  // Normal construction: convert HIR to args, then call construct
+  // Anonymous mappings have no schema, evaluate as a dict
   let type_result = actual_node_type_member(db, hir);
+  if let HirValueKind::Mapping(entries) = hir.kind(db)
+    && let Some(member) = type_result.member(db)
+    && matches!(member.typ(db), MemberType::Structural(_))
+  {
+    let dict_entries: HashMap<_, _> = entries
+      .into_iter()
+      .map(|(k, v)| (k, Either::Left(v)))
+      .collect();
+    return Some(TdDictObj::new(db, dict_entries).into());
+  }
+
+  // Normal construction: convert HIR to args, then call construct
   let typ = lift_type_member_result(db, &type_result)?;
   match hir.kind(db) {
     HirValueKind::Str(val) => typ.construct(db, vec![TdStrObj::new(db, val).into()]),
@@ -300,7 +312,7 @@ fn evaluate_mapping(
   entries: Vec<(String, HirValue)>,
 ) -> Option<TdObjectEnum> {
   // Schema type
-  if typ.is_td_schema_type() {
+  if *typ == TdTypeEnum::from(get_schema_type(db)) {
     let properties_entries = match entries.iter().find(|(key, _)| key == "properties") {
       Some((_, props_hir)) => match props_hir.kind(db) {
         HirValueKind::Mapping(entries) => entries,
@@ -327,7 +339,9 @@ fn evaluate_mapping(
         fields.insert(prop_name, TypeMember::new(db, member_type, descriptors));
       }
     }
-    return Some(TdProductType::new(db, None, get_schema_type(db).into(), fields).into());
+    return Some(
+      TdProductType::new(db, None, get_schema_type(db).into(), fields, HashMap::new()).into(),
+    );
   }
 
   // Product type

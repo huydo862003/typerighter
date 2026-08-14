@@ -9,16 +9,14 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use typedown_incremental::Id;
 use typedown_types::either::Either;
 
-use crate::db::types::{
-  HirValue, InstResult, MemberType, Symbol, TypeMember, TypeMemberDescriptors,
-};
-use crate::db::utils::typecheck::member_types_compatible;
+use crate::db::types::{HirValue, InstResult, LazyType, MemberType, Symbol, TypeMember};
 
 #[query_derived]
 pub struct TdProductType {
   pub name: Option<String>,
   pub metatype: TdTypeEnum,
   pub fields: HashMap<String, TypeMember>,
+  pub vtable: HashMap<String, TdFuncObj>,
 }
 
 impl TdObjectLike for TdProductType {
@@ -40,40 +38,21 @@ impl TdTypeLike for TdProductType {
   fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdObjectType::get(db).into()
   }
-  fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    HashMap::new()
+  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+    self.vtable(db)
   }
   fn get_owned_field_type_member(&self, db: &TypedownDatabase, name: &str) -> Option<TypeMember> {
     self.fields(db).get(name).cloned()
   }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<TdTypeEnum>) -> InstResult {
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
     assert_eq!(args.len(), self.arity(db), "arity mismatch");
     InstResult::new(db, (*self).into(), vec![])
   }
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    if self.as_id().0 != actual.as_id().0 {
-      return false;
-    }
-    let self_fields = self.fields(db);
-    for (field_name, expected_member) in &self_fields {
-      let is_required = !expected_member
-        .descriptors(db)
-        .contains(TypeMemberDescriptors::OPTIONAL);
-      if !is_required {
-        continue;
-      }
-      let actual_member = match actual.get_owned_field_type_member(db, field_name) {
-        Some(member) => member,
-        None => return false,
-      };
-      if !member_types_compatible(db, &expected_member.typ(db), &actual_member.typ(db)) {
-        return false;
-      }
-    }
-    true
+  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    self.as_id() == actual.as_id()
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -104,9 +83,9 @@ impl TdTypeLike for TdProductType {
 
 pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> String {
   match member {
-    MemberType::Simple(either) => match either {
-      Either::Left(typ) => typ.display_name(db),
-      Either::Right(symbol) => symbol.name(db),
+    MemberType::Simple(lazy) => match lazy.resolve(db) {
+      Some(typ) => typ.display_name(db),
+      None => "?".to_string(),
     },
     MemberType::Sum(members) => members
       .iter()
@@ -130,6 +109,20 @@ pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> S
       format!("dict[{}]", inner)
     }
     MemberType::Literal(val) => format!("{:?}", val),
+    MemberType::Structural(fields) => {
+      if fields.is_empty() {
+        return "{}".to_string();
+      }
+      let mut parts: Vec<String> = fields
+        .iter()
+        .map(|(name, member)| {
+          let type_name = member_type_display_name(db, &member.typ(db));
+          format!("{}: {}", name, type_name)
+        })
+        .collect();
+      parts.sort();
+      format!("{{ {} }}", parts.join(", "))
+    }
     MemberType::Never => "never".to_string(),
   }
 }
