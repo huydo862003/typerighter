@@ -6,4 +6,5 @@ pub mod hir;
 pub mod name_resolver;
 pub mod parse_file;
 pub mod parse_schemas;
+pub mod schema_property;
 pub mod typechecker;

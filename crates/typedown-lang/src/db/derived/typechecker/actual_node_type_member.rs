@@ -7,7 +7,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_math_type, get_num_type, get_str_type,
-  get_time_type, get_type_type, instantiate_type,
+  get_time_type, instantiate_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -17,9 +17,8 @@ use crate::db::types::derived::object_system::{
   is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
-  BuiltinMacroKind, HirValue, HirValueKind, LiteralValue, MemberType, SymbolKind, TdProductType,
-  TdStrType, TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors, TypeMemberResult,
-  TypeResult,
+  BuiltinMacroKind, HirValue, HirValueKind, LiteralValue, MemberType, SymbolKind, TdStrType,
+  TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors, TypeMemberResult, TypeResult,
 };
 use crate::db::utils::lower_file;
 use crate::syntax::diagnostic::Diagnostic;
@@ -150,7 +149,7 @@ fn get_mapping_type(
     }
   }
 
-  // No _type: infer a product type from the entries
+  // No _type: infer a structural shape from the entries
   let mut diagnostics = vec![];
   let mut fields = HashMap::new();
   for (key, value_hir) in entries {
@@ -160,9 +159,13 @@ fn get_mapping_type(
       fields.insert(key, member);
     }
   }
-  simple_member_result(
+  TypeMemberResult::new(
     db,
-    TdProductType::new(db, None, get_type_type(db).into(), fields, HashMap::new()).into(),
+    Some(TypeMember::new(
+      db,
+      MemberType::Structural(fields),
+      TypeMemberDescriptors::empty(),
+    )),
     diagnostics,
   )
 }
@@ -532,12 +535,9 @@ mod tests {
     let hir = hir.expect("should parse");
     let result = actual_node_type_member(&db, hir);
     let member = result.member(&db).expect("should infer a type");
-    let typ = member
-      .typ(&db)
-      .evaluate_simple(&db)
-      .expect("top-level mapping should be Simple");
-    let product = typ.as_td_product_type().expect("should be a product type");
-    let fields = product.fields(&db);
+    let MemberType::Structural(fields) = member.typ(&db) else {
+      panic!("anonymous mapping should be Structural");
+    };
 
     // String literal narrows to Literal(Str)
     let name_member = fields.get("name").expect("should have name field");

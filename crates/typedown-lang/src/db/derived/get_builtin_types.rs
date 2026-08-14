@@ -4,17 +4,14 @@ use typedown_macros::query_derived;
 
 use crate::syntax::diagnostic::Diagnostic;
 
-use std::collections::HashMap;
-
 use crate::db::TypedownDatabase;
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, MemberType, Symbol, SymbolKind, TdBlobType,
-  TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictObj, TdDictType, TdFuncType, TdListType,
+  BuiltinSchemaKind, FuncSignature, InstResult, Symbol, SymbolKind, TdBlobType, TdBoolObj,
+  TdBoolType, TdDateTimeType, TdDateType, TdDictObj, TdDictType, TdFuncType, TdListType,
   TdMathType, TdNumType, TdObjectType, TdProductType, TdSchemaType, TdStrType, TdTimeType,
-  TdTypeEnum, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
+  TdTypeEnum, TdTypeLike, TdTypeType,
 };
 use typedown_incremental::QueryDatabase;
-use typedown_types::either::Either;
 
 #[query_derived]
 pub fn get_type_type(db: &TypedownDatabase) -> TdTypeType {
@@ -79,100 +76,6 @@ pub fn get_true(db: &TypedownDatabase) -> TdBoolObj {
 #[query_derived]
 pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
   TdBoolObj::new(db, false)
-}
-
-// A property descriptor inside a schema's `properties` field
-// Has a required `type` field and an optional `optional` field
-#[query_derived]
-pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
-  let type_type: TdTypeEnum = get_type_type(db).into();
-  let str_type: TdTypeEnum = get_str_type(db).into();
-  let bool_type: TdTypeEnum = get_bool_type(db).into();
-  let num_type: TdTypeEnum = get_num_type(db).into();
-
-  // The base scalar types that the `type` field accepts
-  let base_type_members = vec![
-    TypeMember::new(
-      db,
-      MemberType::eager_simple(type_type),
-      TypeMemberDescriptors::empty(),
-    ),
-    TypeMember::new(
-      db,
-      MemberType::eager_simple(str_type),
-      TypeMemberDescriptors::empty(),
-    ),
-    TypeMember::new(
-      db,
-      MemberType::eager_simple(bool_type.clone()),
-      TypeMemberDescriptors::empty(),
-    ),
-    TypeMember::new(
-      db,
-      MemberType::eager_simple(num_type),
-      TypeMemberDescriptors::empty(),
-    ),
-  ];
-
-  // Lazy self-reference to avoid recursive query
-  let self_symbol = get_schema_property_symbol(db);
-  let self_member = TypeMember::new(
-    db,
-    MemberType::Simple(Either::Right(self_symbol)),
-    TypeMemberDescriptors::empty(),
-  );
-
-  let type_field = TypeMember::new(
-    db,
-    MemberType::Sum(
-      [
-        base_type_members.clone(),
-        vec![
-          TypeMember::new(
-            db,
-            MemberType::ListOfSum([base_type_members.clone(), vec![self_member]].concat()),
-            TypeMemberDescriptors::empty(),
-          ),
-          TypeMember::new(
-            db,
-            MemberType::DictOfSum(
-              [
-                base_type_members,
-                vec![TypeMember::new(
-                  db,
-                  MemberType::Simple(Either::Right(self_symbol)),
-                  TypeMemberDescriptors::empty(),
-                )],
-              ]
-              .concat(),
-            ),
-            TypeMemberDescriptors::empty(),
-          ),
-        ],
-      ]
-      .concat(),
-    ),
-    TypeMemberDescriptors::empty(),
-  );
-
-  let optional_field = TypeMember::new(
-    db,
-    MemberType::eager_simple(get_bool_type(db).into()),
-    TypeMemberDescriptors::OPTIONAL,
-  );
-
-  let fields = HashMap::from([
-    ("type".to_string(), type_field),
-    ("optional".to_string(), optional_field),
-  ]);
-
-  TdProductType::new(
-    db,
-    Some("SchemaProperty".to_string()),
-    get_type_type(db).into(),
-    fields,
-    HashMap::new(),
-  )
 }
 
 // Schema type is actually a kind
@@ -289,15 +192,6 @@ pub fn get_dict_symbol(db: &TypedownDatabase) -> Symbol {
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Dict),
     "dict".to_string(),
     "@builtin::dict".to_string(),
-  )
-}
-
-pub fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::SchemaProperty),
-    "SchemaProperty".to_string(),
-    "@builtin::schema_property".to_string(),
   )
 }
 

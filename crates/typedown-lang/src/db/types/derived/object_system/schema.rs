@@ -8,9 +8,8 @@ use super::func::TdFuncObj;
 use super::{TdObjectEnum, TdProductType, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::derived::get_builtin_types::{
-  get_schema_property_type, get_schema_type, get_str_type,
-};
+use crate::db::derived::get_builtin_types::{get_schema_type, get_str_type};
+use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{InstResult, MemberType, TypeMember, TypeMemberDescriptors};
 use typedown_types::either::Either;
 

@@ -8,10 +8,10 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_math_type,
-  get_num_type, get_schema_property_type, get_schema_type, get_str_type, get_time_type,
-  get_type_type, instantiate_type,
+  get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type, instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
+use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LiteralValue, MemberType, Project, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors,
@@ -247,9 +247,7 @@ fn resolve_type_member(
           fields.insert(key.clone(), TypeMember::new(db, member_type, descriptors));
         }
       }
-      Some(MemberType::eager_simple(
-        TdProductType::new(db, None, get_type_type(db).into(), fields, HashMap::new()).into(),
-      ))
+      Some(MemberType::Structural(fields))
     }
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {

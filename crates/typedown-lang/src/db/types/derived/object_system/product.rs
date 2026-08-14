@@ -131,6 +131,20 @@ pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> S
       format!("dict[{}]", inner)
     }
     MemberType::Literal(val) => format!("{:?}", val),
+    MemberType::Structural(fields) => {
+      if fields.is_empty() {
+        return "{}".to_string();
+      }
+      let mut parts: Vec<String> = fields
+        .iter()
+        .map(|(name, member)| {
+          let type_name = member_type_display_name(db, &member.typ(db));
+          format!("{}: {}", name, type_name)
+        })
+        .collect();
+      parts.sort();
+      format!("{{ {} }}", parts.join(", "))
+    }
     MemberType::Never => "never".to_string(),
   }
 }

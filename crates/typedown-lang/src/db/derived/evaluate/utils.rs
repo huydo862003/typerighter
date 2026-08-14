@@ -92,8 +92,20 @@ pub(crate) fn construct_from_hir(
     _ => {}
   }
 
-  // Normal construction: convert HIR to args, then call construct
+  // Anonymous mappings have no schema, evaluate as a dict
   let type_result = actual_node_type_member(db, hir);
+  if let HirValueKind::Mapping(entries) = hir.kind(db)
+    && let Some(member) = type_result.member(db)
+    && matches!(member.typ(db), MemberType::Structural(_))
+  {
+    let dict_entries: HashMap<_, _> = entries
+      .into_iter()
+      .map(|(k, v)| (k, Either::Left(v)))
+      .collect();
+    return Some(TdDictObj::new(db, dict_entries).into());
+  }
+
+  // Normal construction: convert HIR to args, then call construct
   let typ = lift_type_member_result(db, &type_result)?;
   match hir.kind(db) {
     HirValueKind::Str(val) => typ.construct(db, vec![TdStrObj::new(db, val).into()]),

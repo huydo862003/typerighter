@@ -5,7 +5,8 @@ use crate::db::derived::get_builtin_types::{
   get_bool_type, get_dict_type, get_list_type, get_num_type, get_str_type,
 };
 use crate::db::types::{
-  HirValue, HirValueKind, LiteralValue, MemberType, TdTypeEnum, TdTypeLike, TypeMemberResult,
+  HirValue, HirValueKind, LiteralValue, MemberType, TdTypeEnum, TdTypeLike, TypeMemberDescriptors,
+  TypeMemberResult,
 };
 
 /// Extract a TdTypeEnum from a TypeMemberResult
@@ -30,6 +31,7 @@ pub fn lift_member_type(db: &TypedownDatabase, member_type: &MemberType) -> Opti
       let first = arms.first()?;
       lift_member_type(db, &first.typ(db))
     }
+    MemberType::Structural(_) => None,
     MemberType::Never => None,
   }
 }
@@ -55,11 +57,11 @@ pub fn member_types_compatible(
         Some(t) => t,
         None => return false,
       };
-      let act_type = match actual.evaluate_simple(db) {
+      let actual_type = match actual.evaluate_simple(db) {
         Some(t) => t,
         None => return false,
       };
-      exp_type.is_compatible_with(db, &act_type)
+      exp_type.is_compatible_with(db, &actual_type)
     }
     (MemberType::Sum(exp_arms), MemberType::Sum(act_arms))
     | (MemberType::ListOfSum(exp_arms), MemberType::ListOfSum(act_arms))
@@ -90,11 +92,11 @@ pub fn member_types_compatible(
 
     // ListOfSum is compatible with a Simple only if the simple is a list type whose elem type is compatible with some arm
     (MemberType::ListOfSum(exp_arms), MemberType::Simple(_)) => {
-      let act_type = match actual.evaluate_simple(db) {
+      let actual_type = match actual.evaluate_simple(db) {
         Some(t) => t,
         None => return false,
       };
-      match act_type.as_td_list_type() {
+      match actual_type.as_td_list_type() {
         Some(list) => match list.elem(db) {
           Some(elem) => {
             let elem_member = MemberType::eager_simple(elem);
@@ -110,11 +112,11 @@ pub fn member_types_compatible(
 
     // DictOfSum is compatible with a Simple if it's a dict type whose value matches some arm, or a product type whose every field's type matches some arm
     (MemberType::DictOfSum(exp_arms), MemberType::Simple(_)) => {
-      let act_type = match actual.evaluate_simple(db) {
+      let actual_type = match actual.evaluate_simple(db) {
         Some(t) => t,
         None => return false,
       };
-      if let Some(dict) = act_type.as_td_dict_type() {
+      if let Some(dict) = actual_type.as_td_dict_type() {
         return match dict.value(db) {
           Some(value) => {
             let value_member = MemberType::eager_simple(value);
@@ -125,7 +127,7 @@ pub fn member_types_compatible(
           None => true,
         };
       }
-      if let Some(product) = act_type.as_td_product_type() {
+      if let Some(product) = actual_type.as_td_product_type() {
         return product.fields(db).values().all(|field_member| {
           let field_typ = field_member.typ(db);
           exp_arms
@@ -188,6 +190,90 @@ pub fn member_types_compatible(
         });
       }
       false
+    }
+
+    // Structural vs Structural: every required expected field must exist and match in actual
+    (MemberType::Structural(exp_fields), MemberType::Structural(act_fields)) => {
+      exp_fields.iter().all(|(name, exp_member)| {
+        if exp_member
+          .descriptors(db)
+          .contains(TypeMemberDescriptors::OPTIONAL)
+        {
+          return true;
+        }
+        match act_fields.get(name) {
+          Some(actual_member) => member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db)),
+          None => false,
+        }
+      })
+    }
+
+    // Type expected accepts a structural actual if all required expected fields match
+    (MemberType::Simple(_), MemberType::Structural(act_fields)) => {
+      let exp_type = match expected.evaluate_simple(db) {
+        Some(t) => t,
+        None => return false,
+      };
+      // Product type accepts structural if all required fields are present and match
+      if let Some(product) = exp_type.as_td_product_type() {
+        return product.fields(db).iter().all(|(name, exp_member)| {
+          if exp_member
+            .descriptors(db)
+            .contains(TypeMemberDescriptors::OPTIONAL)
+          {
+            return true;
+          }
+          match act_fields.get(name) {
+            Some(actual_member) => {
+              member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
+            }
+            None => false,
+          }
+        });
+      }
+      // Dict type accepts structural if every field value matches the dict's value type
+      if let Some(dict) = exp_type.as_td_dict_type() {
+        return match dict.value(db) {
+          Some(value_type) => {
+            let value_member = MemberType::eager_simple(value_type);
+            act_fields
+              .values()
+              .all(|actual_member| member_types_compatible(db, &value_member, &actual_member.typ(db)))
+          }
+          None => true,
+        };
+      }
+      false
+    }
+
+    // Structural expected accepts a type if all required fields match
+    (MemberType::Structural(exp_fields), MemberType::Simple(_)) => {
+      let actual_type = match actual.evaluate_simple(db) {
+        Some(t) => t,
+        None => return false,
+      };
+      exp_fields.iter().all(|(name, exp_member)| {
+        if exp_member
+          .descriptors(db)
+          .contains(TypeMemberDescriptors::OPTIONAL)
+        {
+          return true;
+        }
+        match actual_type.get_owned_field_type_member(db, name) {
+          Some(actual_member) => member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db)),
+          None => false,
+        }
+      })
+    }
+
+    // DictOfSum expected accepts a structural actual if every field value matches some arm
+    (MemberType::DictOfSum(exp_arms), MemberType::Structural(act_fields)) => {
+      act_fields.values().all(|field_member| {
+        let field_typ = field_member.typ(db);
+        exp_arms
+          .iter()
+          .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &field_typ))
+      })
     }
 
     // A string is not assignable to "foo", so (Literal, Simple) correctly falls through to false
@@ -262,6 +348,7 @@ pub fn value_matches_member_type(
       }
       _ => false,
     },
+    MemberType::Structural(_) => false,
     MemberType::Never => false,
   }
 }
