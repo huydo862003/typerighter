@@ -3543,6 +3543,147 @@ more content
   );
 }
 
+#[test]
+fn parse_container_blank_line_before_close() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"::: note
+content
+
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_multiple_blank_lines_before_close() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"::: note
+content
+
+
+
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_with_slot_separator_blank_lines() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"::: tabs
+first
+
+=== second
+second content
+
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "tabs"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "first")))
+      "\n"
+      (MdContainerSlot)
+      "\n"
+      (MdContainerSlotSeparator
+        "==="
+        " "
+        "second"
+        "\n")
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "second"
+            " "
+            "content")))
+      "\n"
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
 // Error recovery
 
 // Recovers from unclosed link, emits UnclosedLink diagnostic
