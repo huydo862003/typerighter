@@ -327,7 +327,7 @@ fn evaluate_mapping(
         fields.insert(prop_name, TypeMember::new(db, member_type, descriptors));
       }
     }
-    return Some(TdProductType::new(db, None, get_schema_type(db).into(), fields).into());
+    return Some(TdProductType::new(db, None, get_schema_type(db).into(), fields, HashMap::new()).into());
   }
 
   // Product type

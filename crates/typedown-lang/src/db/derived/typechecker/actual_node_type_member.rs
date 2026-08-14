@@ -158,7 +158,7 @@ fn get_mapping_type(
   }
   simple_member_result(
     db,
-    TdProductType::new(db, None, get_type_type(db).into(), fields).into(),
+    TdProductType::new(db, None, get_type_type(db).into(), fields, HashMap::new()).into(),
     diagnostics,
   )
 }

@@ -96,6 +96,7 @@ fn evaluate_user_defined_schema(
             Some(schema_name.clone()),
             get_schema_type(db).into(),
             HashMap::new(),
+            HashMap::new(),
           )
           .into(),
         ),
@@ -121,7 +122,7 @@ fn evaluate_user_defined_schema(
 
   TypeResult::new(
     db,
-    Some(TdProductType::new(db, Some(schema_name), get_schema_type(db).into(), fields).into()),
+    Some(TdProductType::new(db, Some(schema_name), get_schema_type(db).into(), fields, HashMap::new()).into()),
     diagnostics,
   )
 }
@@ -236,7 +237,7 @@ fn resolve_type_member(
         }
       }
       Some(MemberType::simple(
-        TdProductType::new(db, None, get_type_type(db).into(), fields).into(),
+        TdProductType::new(db, None, get_type_type(db).into(), fields, HashMap::new()).into(),
       ))
     }
     // Generic type instantiation like `type: list[string]`
@@ -257,6 +258,7 @@ fn resolve_type_member(
                   db,
                   Some(symbol.name(db)),
                   get_schema_type(db).into(),
+                  HashMap::new(),
                   HashMap::new(),
                 )
                 .into(),
@@ -558,6 +560,7 @@ mod tests {
           TypeMemberDescriptors::empty(),
         ),
       )]),
+      HashMap::new(),
     );
     assert_eq!(product.display_name(&db), "{ name: string }");
   }

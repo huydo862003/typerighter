@@ -19,6 +19,7 @@ pub struct TdProductType {
   pub name: Option<String>,
   pub metatype: TdTypeEnum,
   pub fields: HashMap<String, TypeMember>,
+  pub vtable: HashMap<String, TdFuncObj>,
 }
 
 impl TdObjectLike for TdProductType {
@@ -40,8 +41,8 @@ impl TdTypeLike for TdProductType {
   fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdObjectType::get(db).into()
   }
-  fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    HashMap::new()
+  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+    self.vtable(db)
   }
   fn get_owned_field_type_member(&self, db: &TypedownDatabase, name: &str) -> Option<TypeMember> {
     self.fields(db).get(name).cloned()

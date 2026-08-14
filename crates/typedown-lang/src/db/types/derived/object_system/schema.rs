@@ -82,7 +82,7 @@ impl TdTypeLike for TdSchemaType {
         TypeMember::new(db, MemberType::simple(typ), TypeMemberDescriptors::empty()),
       );
     }
-    Some(TdProductType::new(db, None, TdSchemaType::get(db).into(), fields).into())
+    Some(TdProductType::new(db, None, TdSchemaType::get(db).into(), fields, HashMap::new()).into())
   }
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "schema".to_string()
