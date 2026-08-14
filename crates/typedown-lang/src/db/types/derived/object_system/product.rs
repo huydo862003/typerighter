@@ -54,27 +54,8 @@ impl TdTypeLike for TdProductType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    if self.as_id().0 != actual.as_id().0 {
-      return false;
-    }
-    let self_fields = self.fields(db);
-    for (field_name, expected_member) in &self_fields {
-      let is_required = !expected_member
-        .descriptors(db)
-        .contains(TypeMemberDescriptors::OPTIONAL);
-      if !is_required {
-        continue;
-      }
-      let actual_member = match actual.get_owned_field_type_member(db, field_name) {
-        Some(member) => member,
-        None => return false,
-      };
-      if !member_types_compatible(db, &expected_member.typ(db), &actual_member.typ(db)) {
-        return false;
-      }
-    }
-    true
+  fn is_compatible_with(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    self.as_id() == actual.as_id()
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
