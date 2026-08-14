@@ -11,10 +11,11 @@ use crate::db::derived::get_builtin_types::{
   get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type, instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
+use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{
-  BuiltinSchemaKind, File, HirValue, HirValueKind, LiteralValue, MemberType, Project, Symbol,
-  SymbolKind, TdBlobType, TdProductType, TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors,
-  TypeResult,
+  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, MemberType, Project,
+  Symbol, SymbolKind, TdBlobType, TdProductType, TdTypeEnum, TdTypeLike, TypeMember,
+  TypeMemberDescriptors, TypeResult,
 };
 use crate::db::utils::lower_file;
 use typedown_incremental::QueryDatabase;
@@ -35,6 +36,7 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
         BuiltinSchemaKind::Math => get_math_type(db).into(),
         BuiltinSchemaKind::Schema => get_schema_type(db).into(),
         BuiltinSchemaKind::TypeType => get_type_type(db).into(),
+        BuiltinSchemaKind::SchemaProperty => get_schema_property_type(db).into(),
       };
       TypeResult::new(db, Some(typ), vec![])
     }
@@ -96,6 +98,7 @@ fn evaluate_user_defined_schema(
             Some(schema_name.clone()),
             get_schema_type(db).into(),
             HashMap::new(),
+            HashMap::new(),
           )
           .into(),
         ),
@@ -121,7 +124,16 @@ fn evaluate_user_defined_schema(
 
   TypeResult::new(
     db,
-    Some(TdProductType::new(db, Some(schema_name), get_schema_type(db).into(), fields).into()),
+    Some(
+      TdProductType::new(
+        db,
+        Some(schema_name),
+        get_schema_type(db).into(),
+        fields,
+        HashMap::new(),
+      )
+      .into(),
+    ),
     diagnostics,
   )
 }
@@ -187,11 +199,13 @@ fn resolve_type_member(
       let resolved = referee(db, hir);
       match resolved.value(db) {
         Some(symbol) => match symbol.kind(db) {
-          SymbolKind::UserDefinedSchema(_, _) => Some(MemberType::schema_ref(symbol)),
+          SymbolKind::UserDefinedSchema(_, _) => Some(MemberType::Simple(LazyType::lazy(symbol))),
           _ => {
             let result = evaluate_type(db, symbol);
             diagnostics.extend(result.diagnostics(db).iter().cloned());
-            result.typ(db).map(MemberType::simple)
+            result
+              .typ(db)
+              .map(|t| MemberType::Simple(LazyType::eager(t)))
           }
         },
         None => {
@@ -235,16 +249,17 @@ fn resolve_type_member(
           fields.insert(key.clone(), TypeMember::new(db, member_type, descriptors));
         }
       }
-      Some(MemberType::simple(
-        TdProductType::new(db, None, get_type_type(db).into(), fields).into(),
-      ))
+      Some(MemberType::Structural(fields))
     }
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {
       let base = resolve_type_member(db, *expr, diagnostics)?;
-      let base_type = base.resolve_type(db)?;
+      let base_type = match base {
+        MemberType::Simple(lazy) => lazy.resolve(db)?,
+        _ => return None,
+      };
       if base_type.arity(db) == 0 {
-        return Some(MemberType::simple(base_type));
+        return Some(MemberType::Simple(LazyType::eager(base_type)));
       }
       let mut arg_types = vec![];
       for idx_hir in indices {
@@ -252,21 +267,13 @@ fn resolve_type_member(
         match resolved.value(db) {
           Some(symbol) => match symbol.kind(db) {
             SymbolKind::UserDefinedSchema(_, _) => {
-              arg_types.push(
-                TdProductType::new(
-                  db,
-                  Some(symbol.name(db)),
-                  get_schema_type(db).into(),
-                  HashMap::new(),
-                )
-                .into(),
-              );
+              arg_types.push(LazyType::lazy(symbol));
             }
             _ => {
               let result = evaluate_type(db, symbol);
               diagnostics.extend(result.diagnostics(db).iter().cloned());
               if let Some(typ) = result.typ(db) {
-                arg_types.push(typ);
+                arg_types.push(LazyType::eager(typ));
               }
             }
           },
@@ -284,7 +291,7 @@ fn resolve_type_member(
       }
       let inst_result = instantiate_type(db, base_type, arg_types);
       diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
-      Some(MemberType::simple(inst_result.typ(db)))
+      Some(MemberType::Simple(LazyType::eager(inst_result.typ(db))))
     }
     // Literal types
     HirValueKind::Str(val) => Some(MemberType::Literal(LiteralValue::Str(val))),
@@ -321,9 +328,9 @@ mod tests {
     derived::typechecker::actual_node_type_member::actual_node_type_member,
     fixtures::load_vault_fixture,
     types::{
-      BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LiteralValue,
-      MemberType, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
-      TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
+      BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
+      LiteralValue, MemberType, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType,
+      TdStrObj, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
     },
     utils::lower_file,
   };
@@ -349,7 +356,7 @@ mod tests {
     let expected = Some(TdTypeEnum::from(get_schema_type(&db)));
     assert!(
       result.typ(&db) == expected,
-      "builtin Schema symbol should evaluate to TdSchemaType"
+      "builtin Schema symbol should evaluate to schema type"
     );
     assert!(
       result.diagnostics(&db).is_empty(),
@@ -512,7 +519,7 @@ mod tests {
     let list_str = instantiate_type(
       &db,
       get_list_type(&db).into(),
-      vec![get_str_type(&db).into()],
+      vec![LazyType::eager(get_str_type(&db).into())],
     );
     assert_eq!(list_str.typ(&db).display_name(&db), "list[string]");
   }
@@ -524,7 +531,10 @@ mod tests {
     let dict_str_num = instantiate_type(
       &db,
       get_dict_type(&db).into(),
-      vec![get_str_type(&db).into(), get_num_type(&db).into()],
+      vec![
+        LazyType::eager(get_str_type(&db).into()),
+        LazyType::eager(get_num_type(&db).into()),
+      ],
     );
     assert_eq!(
       dict_str_num.typ(&db).display_name(&db),
@@ -554,10 +564,11 @@ mod tests {
         "name".to_string(),
         TypeMember::new(
           &db,
-          MemberType::simple(get_str_type(&db).into()),
+          MemberType::Simple(LazyType::eager(get_str_type(&db).into())),
           TypeMemberDescriptors::empty(),
         ),
       )]),
+      HashMap::new(),
     );
     assert_eq!(product.display_name(&db), "{ name: string }");
   }
@@ -652,7 +663,7 @@ mod tests {
     let list_num = instantiate_type(
       &db,
       get_list_type(&db).into(),
-      vec![get_num_type(&db).into()],
+      vec![LazyType::eager(get_num_type(&db).into())],
     );
     let items: Vec<TdObjectEnum> = vec![
       TdNumObj::new(&db, 1.0).into(),
@@ -751,10 +762,10 @@ age: 42
 
     let type_result = actual_node_type_member(&db, friend_hir);
     let member = type_result.member(&db).expect("fref should return a type");
-    let typ = member
-      .typ(&db)
-      .resolve_type(&db)
-      .expect("expected Simple type");
+    let MemberType::Simple(lazy) = member.typ(&db) else {
+      panic!("expected Simple type");
+    };
+    let typ = lazy.resolve(&db).expect("expected Simple type");
     assert_eq!(typ.display_name(&db), "Person");
   }
 

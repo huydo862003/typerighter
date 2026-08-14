@@ -142,8 +142,8 @@ pub fn export_property_descriptors(
   // Map a MemberType to a property descriptor with a widget hint
   fn member_to_descriptor(db: &TypedownDatabase, member: &MemberType) -> serde_json::Value {
     match member {
-      MemberType::Simple(_) => {
-        if let Some(typ) = member.resolve_type(db) {
+      MemberType::Simple(lazy) => {
+        if let Some(typ) = lazy.resolve(db) {
           simple_type_to_descriptor(db, &typ)
         } else {
           serde_json::json!({ "type": "string" })
@@ -203,7 +203,7 @@ pub fn export_property_descriptors(
       TdTypeEnum::TdDateType(_) => serde_json::json!({ "widget": Widget::Date }),
       TdTypeEnum::TdDateTimeType(_) => serde_json::json!({ "widget": Widget::Date }),
       TdTypeEnum::TdTimeType(_) => serde_json::json!({ "widget": Widget::Text }),
-      TdTypeEnum::TdListType(list) => match list.elem(db) {
+      TdTypeEnum::TdListType(list) => match list.elem(db).and_then(|e| e.resolve(db)) {
         Some(elem) => {
           let inner = simple_type_to_descriptor(db, &elem);
           serde_json::json!({ "widget": Widget::List, "items": inner })

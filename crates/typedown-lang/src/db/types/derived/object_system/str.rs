@@ -7,7 +7,7 @@ use super::native_fn::NativeFnKind;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_str_type;
-use crate::db::types::{FuncSignature, InstResult, TypeMember};
+use crate::db::types::{FuncSignature, InstResult, LazyType, TypeMember};
 use typedown_incremental::Id;
 
 #[query_derived]
@@ -46,14 +46,14 @@ impl TdTypeLike for TdStrType {
   fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
     None
   }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<TdTypeEnum>) -> InstResult {
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
     assert_eq!(args.len(), self.arity(db), "arity mismatch");
     InstResult::new(db, (*self).into(), vec![])
   }
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
     if self.as_id() == actual.as_id() {
       return true;
     }

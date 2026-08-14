@@ -11,7 +11,9 @@ use super::native_fn::NativeFnKind;
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
-use crate::db::types::{FuncSignature, InstResult, MemberType, TypeMember, TypeMemberDescriptors};
+use crate::db::types::{
+  FuncSignature, InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors,
+};
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
@@ -103,7 +105,7 @@ pub trait TdTypeLike: TdObjectLike {
     self.get_owned_field_type_member(db, name).or_else(|| {
       Some(TypeMember::new(
         db,
-        MemberType::simple(self.lookup_method(db, name)?.get_type(db)),
+        MemberType::Simple(LazyType::eager(self.lookup_method(db, name)?.get_type(db))),
         TypeMemberDescriptors::empty(),
       ))
     })
@@ -112,14 +114,10 @@ pub trait TdTypeLike: TdObjectLike {
   fn instantiate(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
-    args: Vec<TdTypeEnum>,
-  ) -> ::typedown_lang::db::types::InstResult;
+    args: Vec<LazyType>,
+  ) -> InstResult;
 
-  fn is_compatible_with(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    actual: &TdTypeEnum,
-  ) -> bool;
+  fn accepts(&self, db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool;
 
   fn get_type_args(&self, db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum>;
 
@@ -191,7 +189,7 @@ impl TdTypeLike for TdTypeType {
   fn instantiate(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<TdTypeEnum>,
+    _args: Vec<LazyType>,
   ) -> InstResult {
     InstResult::new(db, (*self).into(), vec![])
   }
@@ -199,11 +197,7 @@ impl TdTypeLike for TdTypeType {
     vec![]
   }
   // Any type is assignable to the metatype
-  fn is_compatible_with(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _actual: &TdTypeEnum,
-  ) -> bool {
+  fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, _actual: &TdTypeEnum) -> bool {
     true
   }
   fn construct(
@@ -275,18 +269,14 @@ impl TdTypeLike for TdObjectType {
   fn instantiate(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<TdTypeEnum>,
+    _args: Vec<LazyType>,
   ) -> InstResult {
     InstResult::new(db, (*self).into(), vec![])
   }
   fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn is_compatible_with(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    actual: &TdTypeEnum,
-  ) -> bool {
+  fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool {
     self.as_id() == actual.as_id()
   }
   fn construct(

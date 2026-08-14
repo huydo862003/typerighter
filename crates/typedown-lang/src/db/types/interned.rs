@@ -1,4 +1,5 @@
-use std::hash::Hasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use strum::FromRepr;
 use typedown_macros::query_interned;
@@ -32,11 +33,50 @@ impl StableHash for TypeMemberDescriptors {
   }
 }
 
-/// The type of a type member field
+// A type reference that may be eagerly resolved or lazily deferred to a symbol
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LazyType(Either<TdTypeEnum, Symbol>);
+
+impl LazyType {
+  pub fn eager(typ: TdTypeEnum) -> Self {
+    LazyType(Either::Left(typ))
+  }
+
+  pub fn lazy(symbol: Symbol) -> Self {
+    LazyType(Either::Right(symbol))
+  }
+
+  pub fn resolve(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    match &self.0 {
+      Either::Left(typ) => Some(typ.clone()),
+      Either::Right(symbol) => evaluate_type(db, *symbol).typ(db),
+    }
+  }
+}
+
+impl Encodable for LazyType {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.encode(buf, encoder);
+  }
+}
+
+impl Decodable for LazyType {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    LazyType(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
+  }
+}
+
+impl StableHash for LazyType {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.0.stable_hash(db, hasher);
+  }
+}
+
+/// The type of a type member field
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MemberType {
-  /// A reference to a type: either an evaluated type or a lazy schema symbol
-  Simple(Either<TdTypeEnum, Symbol>),
+  /// A reference to a type, either eagerly resolved or lazily deferred
+  Simple(LazyType),
   /// A union or enum type: each arm is itself a `TypeMember` (a type ref)
   Sum(Vec<TypeMember>),
   /// A literal value constraint (e.g. `"foo"`, `42`, `true`)
@@ -45,24 +85,30 @@ pub enum MemberType {
   ListOfSum(Vec<TypeMember>),
   /// A dict whose values are of the sum type
   DictOfSum(Vec<TypeMember>),
+  // Anonymous field map for typechecking only, never exists at runtime
+  Structural(HashMap<String, TypeMember>),
   /// The bottom type: no value can be assigned to this field
   Never,
 }
 
-impl MemberType {
-  pub fn simple(typ: TdTypeEnum) -> Self {
-    MemberType::Simple(Either::Left(typ))
-  }
-
-  pub fn schema_ref(symbol: Symbol) -> Self {
-    MemberType::Simple(Either::Right(symbol))
-  }
-
-  pub fn resolve_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+impl Hash for MemberType {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    std::mem::discriminant(self).hash(state);
     match self {
-      MemberType::Simple(Either::Left(typ)) => Some(typ.clone()),
-      MemberType::Simple(Either::Right(symbol)) => evaluate_type(db, *symbol).typ(db),
-      _ => None,
+      MemberType::Simple(v) => v.hash(state),
+      MemberType::Sum(v) => v.hash(state),
+      MemberType::Literal(v) => v.hash(state),
+      MemberType::ListOfSum(v) => v.hash(state),
+      MemberType::DictOfSum(v) => v.hash(state),
+      MemberType::Structural(fields) => {
+        let mut entries: Vec<_> = fields.iter().collect();
+        entries.sort_by_key(|(k, _)| *k);
+        for (k, v) in entries {
+          k.hash(state);
+          v.hash(state);
+        }
+      }
+      MemberType::Never => {}
     }
   }
 }
@@ -133,7 +179,8 @@ enum MemberTypeTag {
   Literal = 2,
   ListOfSum = 3,
   DictOfSum = 4,
-  Never = 5,
+  Structural = 5,
+  Never = 6,
 }
 
 impl Encodable for MemberType {
@@ -159,6 +206,10 @@ impl Encodable for MemberType {
         encoder.emit_u8(buf, MemberTypeTag::DictOfSum as u8);
         value.encode(buf, encoder);
       }
+      MemberType::Structural(fields) => {
+        encoder.emit_u8(buf, MemberTypeTag::Structural as u8);
+        fields.encode(buf, encoder);
+      }
       MemberType::Never => {
         encoder.emit_u8(buf, MemberTypeTag::Never as u8);
       }
@@ -170,13 +221,12 @@ impl Decodable for MemberType {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match MemberTypeTag::from_repr(tag).expect("unknown MemberType tag") {
-      MemberTypeTag::Simple => {
-        MemberType::Simple(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
-      }
+      MemberTypeTag::Simple => MemberType::Simple(LazyType::decode(data, decoder)),
       MemberTypeTag::Sum => MemberType::Sum(Vec::decode(data, decoder)),
       MemberTypeTag::Literal => MemberType::Literal(LiteralValue::decode(data, decoder)),
       MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),
       MemberTypeTag::DictOfSum => MemberType::DictOfSum(Vec::decode(data, decoder)),
+      MemberTypeTag::Structural => MemberType::Structural(HashMap::decode(data, decoder)),
       MemberTypeTag::Never => MemberType::Never,
     }
   }
@@ -191,6 +241,7 @@ impl StableHash for MemberType {
       MemberType::Literal(value) => value.stable_hash(db, hasher),
       MemberType::ListOfSum(members) => members.stable_hash(db, hasher),
       MemberType::DictOfSum(members) => members.stable_hash(db, hasher),
+      MemberType::Structural(fields) => fields.stable_hash(db, hasher),
       MemberType::Never => {}
     }
   }

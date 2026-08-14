@@ -11,11 +11,15 @@ use crate::db::derived::get_builtin_types::{get_bool_type, get_num_type};
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
+use std::collections::HashMap;
+
 use crate::db::types::{
-  HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, TdTypeLike, TypeMember,
+  HirValue, HirValueKind, InterpolatedPart, MemberType, TdTypeEnum, TdTypeLike, TypeMember,
   TypeMemberDescriptors, TypecheckResult, member_type_display_name,
 };
-use crate::db::utils::typecheck::{lift_type_member_result, member_types_compatible};
+use crate::db::utils::typecheck::{
+  lift_member_type, lift_type_member_result, member_types_compatible,
+};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -24,13 +28,11 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
   let mut diagnostics = type_result.diagnostics(db).clone();
 
   // Use expected type from schema if available, otherwise fall back to inferred type
-  let declared_type = if let Some(member) = expected_node_type_member(db, hir).member(db)
-    && let Some(typ) = member.typ(db).resolve_type(db)
-  {
-    typ
+  let declared_member_type = if let Some(member) = expected_node_type_member(db, hir).member(db) {
+    member.typ(db)
   } else {
-    match lift_type_member_result(db, &type_result) {
-      Some(typ) => typ,
+    match type_result.member(db) {
+      Some(member) => member.typ(db),
       None => return TypecheckResult::new(db, diagnostics),
     }
   };
@@ -39,11 +41,18 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
   match hir.kind(db) {
     // Check mapping fields against declared schema type
     HirValueKind::Mapping(entries) => {
-      diagnostics.extend(check_mapping_fields(db, hir, &entries, &declared_type));
+      diagnostics.extend(check_mapping_fields(
+        db,
+        hir,
+        &entries,
+        &declared_member_type,
+      ));
     }
     // Check tag inner matches the tag's schema
     HirValueKind::Tag { inner, .. } => {
-      diagnostics.extend(check_tag(db, &declared_type, *inner));
+      if let Some(typ) = lift_member_type(db, &declared_member_type) {
+        diagnostics.extend(check_tag(db, &typ, *inner));
+      }
     }
     // Check call arity and arg types against function signature
     HirValueKind::Call { callee, args } => {
@@ -51,7 +60,9 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
     }
     // Check each item against the list's element type
     HirValueKind::Sequence(items) => {
-      diagnostics.extend(check_sequence(db, &declared_type, items));
+      if let Some(typ) = lift_member_type(db, &declared_member_type) {
+        diagnostics.extend(check_sequence(db, &typ, items));
+      }
     }
     // Typecheck each embedded expression in an interpolated string
     HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
@@ -80,13 +91,35 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
   TypecheckResult::new(db, diagnostics)
 }
 
+// Extract the declared fields from a member type for mapping validation
+fn extract_declared_fields(
+  db: &TypedownDatabase,
+  member_type: &MemberType,
+) -> HashMap<String, TypeMember> {
+  match member_type {
+    MemberType::Structural(fields) => fields.clone(),
+    MemberType::Simple(lazy) => {
+      let typ = match lazy.resolve(db) {
+        Some(t) => t,
+        None => return HashMap::new(),
+      };
+      if let Some(product) = typ.as_td_product_type() {
+        return product.fields(db);
+      }
+      HashMap::new()
+    }
+    _ => HashMap::new(),
+  }
+}
+
 fn check_mapping_fields(
   db: &TypedownDatabase,
   mapping_hir: HirValue,
   entries: &[(String, HirValue)],
-  expected_type: &TdTypeEnum,
+  expected_member_type: &MemberType,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
+  let declared_fields = extract_declared_fields(db, expected_member_type);
 
   for (key, value_hir) in entries {
     // _type requires the value to resolve to a schema symbol
@@ -106,7 +139,7 @@ fn check_mapping_fields(
       }
       continue;
     }
-    if let Some(member) = expected_type.get_owned_field_type_member(db, key) {
+    if let Some(member) = declared_fields.get(key) {
       // Recursively typecheck the field value
       let tc_result = typecheck(db, *value_hir);
       diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
@@ -155,28 +188,10 @@ fn check_mapping_fields(
     }
   }
 
-  // Check required fields are present (not null are checked above)
+  // Check required fields are present (null values are checked above)
   let mapping_node = mapping_hir.node(db);
   let (tr_offset, tr_len) = mapping_node.trimmed_range();
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
-
-  // Enumerate declared fields to check required ones are present
-  let declared_fields: Vec<(String, TypeMember)> =
-    if let TdTypeEnum::TdProductType(product) = &expected_type {
-      product.fields(db).into_iter().collect()
-    } else if expected_type.is_td_schema_type() {
-      // TdSchemaType has a fixed set of fields
-      vec!["properties"]
-        .into_iter()
-        .filter_map(|name| {
-          expected_type
-            .get_owned_field_type_member(db, name)
-            .map(|member| (name.to_string(), member))
-        })
-        .collect()
-    } else {
-      vec![]
-    };
 
   for (field_name, member) in declared_fields {
     let is_optional = member
@@ -203,7 +218,7 @@ fn check_tag(
   let inner_result = actual_node_type_member(db, inner);
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
   if let Some(actual_type) = lift_type_member_result(db, &inner_result)
-    && !expected_type.is_compatible_with(db, &actual_type)
+    && !expected_type.accepts(db, &actual_type)
   {
     let node = inner.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
@@ -256,7 +271,7 @@ fn check_call(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> V
     let arg_result = actual_node_type_member(db, *arg_hir);
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
     if let Some(arg_type) = lift_type_member_result(db, &arg_result)
-      && !param.is_compatible_with(db, &arg_type)
+      && !param.accepts(db, &arg_type)
     {
       let node = arg_hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -294,7 +309,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
       diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
       if let Some(idx_type) = lift_type_member_result(db, &idx_result) {
         let num_type = get_num_type(db);
-        if !num_type.is_compatible_with(db, &idx_type) {
+        if !num_type.accepts(db, &idx_type) {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::IndexTypeMismatch {
@@ -310,12 +325,12 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
 
   // Dict element access: index must match key type
   if let TdTypeEnum::TdDictType(dict) = &expr_type {
-    if let Some(key_type) = dict.key(db) {
+    if let Some(key_type) = dict.key(db).and_then(|l| l.resolve(db)) {
       for idx_hir in &indices {
         let idx_result = actual_node_type_member(db, *idx_hir);
         diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
         if let Some(idx_type) = lift_type_member_result(db, &idx_result)
-          && !key_type.is_compatible_with(db, &idx_type)
+          && !key_type.accepts(db, &idx_type)
         {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
@@ -337,7 +352,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
       diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
       if let Some(idx_type) = lift_type_member_result(db, &idx_result) {
         let num_type = get_num_type(db);
-        if !num_type.is_compatible_with(db, &idx_type) {
+        if !num_type.accepts(db, &idx_type) {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::IndexTypeMismatch {
@@ -381,7 +396,7 @@ fn check_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagno
     _ => return diagnostics,
   };
 
-  if !expected_type.is_compatible_with(db, &operand_type) {
+  if !expected_type.accepts(db, &operand_type) {
     let node = operand.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
     diagnostics.push(Diagnostic::OperandTypeMismatch {
@@ -416,7 +431,7 @@ fn check_binary(
     "+" | "-" | "*" | "/" | "%" | "**" => {
       let num_type: TdTypeEnum = get_num_type(db).into();
       if let Some(lt) = &left_type
-        && !num_type.is_compatible_with(db, lt)
+        && !num_type.accepts(db, lt)
       {
         let node = left.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -428,7 +443,7 @@ fn check_binary(
         });
       }
       if let Some(rt) = &right_type
-        && !num_type.is_compatible_with(db, rt)
+        && !num_type.accepts(db, rt)
       {
         let node = right.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -445,7 +460,7 @@ fn check_binary(
     "&&" | "||" => {
       let bool_type: TdTypeEnum = get_bool_type(db).into();
       if let Some(lt) = &left_type
-        && !bool_type.is_compatible_with(db, lt)
+        && !bool_type.accepts(db, lt)
       {
         let node = left.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -457,7 +472,7 @@ fn check_binary(
         });
       }
       if let Some(rt) = &right_type
-        && !bool_type.is_compatible_with(db, rt)
+        && !bool_type.accepts(db, rt)
       {
         let node = right.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -490,7 +505,7 @@ fn check_sequence(
     return diagnostics;
   };
 
-  let elem_type = match list.elem(db) {
+  let elem_type = match list.elem(db).and_then(|e| e.resolve(db)) {
     Some(typ) => typ,
     // Uninstantiated list: no element type constraint
     None => return diagnostics,
@@ -504,7 +519,7 @@ fn check_sequence(
     // Check item type against element type
     let item_result = actual_node_type_member(db, item);
     if let Some(item_type) = lift_type_member_result(db, &item_result)
-      && !elem_type.is_compatible_with(db, &item_type)
+      && !elem_type.accepts(db, &item_type)
     {
       let node = item.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
