@@ -9,7 +9,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use typedown_incremental::Id;
 use typedown_types::either::Either;
 
-use crate::db::types::{HirValue, InstResult, MemberType, Symbol, TypeMember};
+use crate::db::types::{HirValue, InstResult, LazyType, MemberType, Symbol, TypeMember};
 
 #[query_derived]
 pub struct TdProductType {
@@ -44,7 +44,7 @@ impl TdTypeLike for TdProductType {
   fn get_owned_field_type_member(&self, db: &TypedownDatabase, name: &str) -> Option<TypeMember> {
     self.fields(db).get(name).cloned()
   }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<TdTypeEnum>) -> InstResult {
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
     assert_eq!(args.len(), self.arity(db), "arity mismatch");
     InstResult::new(db, (*self).into(), vec![])
   }

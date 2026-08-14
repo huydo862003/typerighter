@@ -9,7 +9,7 @@ use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_math_type;
-use crate::db::types::{FuncSignature, InstResult, TypeMember};
+use crate::db::types::{FuncSignature, InstResult, LazyType, TypeMember};
 
 #[query_derived]
 pub struct TdMathType {}
@@ -47,7 +47,7 @@ impl TdTypeLike for TdMathType {
   fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
     None
   }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<TdTypeEnum>) -> InstResult {
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
     assert_eq!(args.len(), self.arity(db), "arity mismatch");
     InstResult::new(db, (*self).into(), vec![])
   }

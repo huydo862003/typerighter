@@ -45,8 +45,8 @@ impl TdTypeLike for TdSchemaType {
       "properties" => {
         let properties_type = TdDictType::new(
           db,
-          Some(get_str_type(db).into()),
-          Some(get_schema_property_type(db).into()),
+          Some(LazyType::eager(get_str_type(db).into())),
+          Some(LazyType::eager(get_schema_property_type(db).into())),
         );
         Some(TypeMember::new(
           db,
@@ -57,7 +57,7 @@ impl TdTypeLike for TdSchemaType {
       _ => None,
     }
   }
-  fn instantiate(&self, db: &TypedownDatabase, _args: Vec<TdTypeEnum>) -> InstResult {
+  fn instantiate(&self, db: &TypedownDatabase, _args: Vec<LazyType>) -> InstResult {
     InstResult::new(db, (*self).into(), vec![])
   }
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {

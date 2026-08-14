@@ -319,6 +319,7 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
     TdTypeEnum::TdListType(list) => {
       let inner = list
         .elem(db)
+        .and_then(|elem| elem.resolve(db))
         .map(|elem| simple_type_placeholder(db, &elem, indent + 1))
         .unwrap_or_else(|| "value".to_string());
       let pad = "  ".repeat(indent);

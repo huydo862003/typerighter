@@ -99,7 +99,7 @@ pub fn member_types_compatible(
       match actual_type.as_td_list_type() {
         Some(list) => match list.elem(db) {
           Some(elem) => {
-            let elem_member = MemberType::Simple(LazyType::eager(elem));
+            let elem_member = MemberType::Simple(elem);
             exp_arms
               .iter()
               .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &elem_member))
@@ -117,7 +117,7 @@ pub fn member_types_compatible(
         None => return false,
       };
       if let Some(dict) = actual_type.as_td_dict_type() {
-        return match dict.value(db) {
+        return match dict.value(db).and_then(|l| l.resolve(db)) {
           Some(value) => {
             let value_member = MemberType::Simple(LazyType::eager(value));
             exp_arms
@@ -152,7 +152,7 @@ pub fn member_types_compatible(
       match exp_type.as_td_list_type() {
         Some(list) => match list.elem(db) {
           Some(elem) => {
-            let elem_member = MemberType::Simple(LazyType::eager(elem));
+            let elem_member = MemberType::Simple(elem);
             act_arms
               .iter()
               .all(|act_arm| member_types_compatible(db, &elem_member, &act_arm.typ(db)))
@@ -169,7 +169,7 @@ pub fn member_types_compatible(
         None => return false,
       };
       if let Some(dict) = exp_type.as_td_dict_type() {
-        return match dict.value(db) {
+        return match dict.value(db).and_then(|l| l.resolve(db)) {
           Some(value) => {
             let value_member = MemberType::Simple(LazyType::eager(value));
             act_arms
@@ -235,7 +235,7 @@ pub fn member_types_compatible(
       }
       // Dict type accepts structural if every field value matches the dict's value type
       if let Some(dict) = exp_type.as_td_dict_type() {
-        return match dict.value(db) {
+        return match dict.value(db).and_then(|l| l.resolve(db)) {
           Some(value_type) => {
             let value_member = MemberType::Simple(LazyType::eager(value_type));
             act_fields.values().all(|actual_member| {
@@ -308,7 +308,7 @@ pub fn value_matches_member_type(
     MemberType::ListOfSum(members) => {
       // Actual must be a list type, and its elem must match some arm
       match actual.as_td_list_type() {
-        Some(list) => match list.elem(db) {
+        Some(list) => match list.elem(db).and_then(|e| e.resolve(db)) {
           Some(elem) => members
             .iter()
             .any(|member| value_matches_member_type(db, &member.typ(db), &elem, value_hir)),
@@ -320,7 +320,7 @@ pub fn value_matches_member_type(
     MemberType::DictOfSum(members) => {
       // Actual must be a dict or product type, and its values must match some arm
       if let Some(dict) = actual.as_td_dict_type() {
-        return match dict.value(db) {
+        return match dict.value(db).and_then(|l| l.resolve(db)) {
           Some(value) => members
             .iter()
             .any(|member| value_matches_member_type(db, &member.typ(db), &value, value_hir)),

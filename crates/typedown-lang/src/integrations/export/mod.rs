@@ -203,7 +203,7 @@ pub fn export_property_descriptors(
       TdTypeEnum::TdDateType(_) => serde_json::json!({ "widget": Widget::Date }),
       TdTypeEnum::TdDateTimeType(_) => serde_json::json!({ "widget": Widget::Date }),
       TdTypeEnum::TdTimeType(_) => serde_json::json!({ "widget": Widget::Text }),
-      TdTypeEnum::TdListType(list) => match list.elem(db) {
+      TdTypeEnum::TdListType(list) => match list.elem(db).and_then(|e| e.resolve(db)) {
         Some(elem) => {
           let inner = simple_type_to_descriptor(db, &elem);
           serde_json::json!({ "widget": Widget::List, "items": inner })

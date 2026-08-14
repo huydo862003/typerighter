@@ -6,8 +6,8 @@ use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, Symbol, SymbolKind, TdBlobType, TdBoolObj,
-  TdBoolType, TdDateTimeType, TdDateType, TdDictObj, TdDictType, TdFuncType, TdListType,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, Symbol, SymbolKind, TdBlobType,
+  TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictObj, TdDictType, TdFuncType, TdListType,
   TdMathType, TdNumType, TdObjectType, TdProductType, TdSchemaType, TdStrType, TdTimeType,
   TdTypeEnum, TdTypeLike, TdTypeType,
 };
@@ -209,7 +209,7 @@ pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncT
 pub fn instantiate_type(
   db: &TypedownDatabase,
   constructor: TdTypeEnum,
-  args: Vec<TdTypeEnum>,
+  args: Vec<LazyType>,
 ) -> InstResult {
   let arity = constructor.arity(db);
   if arity != args.len() {
@@ -227,7 +227,7 @@ pub fn instantiate_type(
 
 #[cfg(test)]
 mod tests {
-  use crate::db::types::TdTypeEnum;
+  use crate::db::types::{LazyType, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
@@ -250,7 +250,7 @@ mod tests {
     let list = TdTypeEnum::from(get_list_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
 
-    let result = instantiate_type(&db, list, vec![str_type.clone()]);
+    let result = instantiate_type(&db, list, vec![LazyType::eager(str_type.clone())]);
 
     assert!(
       result.diagnostics(&db).is_empty(),
@@ -272,7 +272,11 @@ mod tests {
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let num_type = TdTypeEnum::from(get_num_type(&db));
 
-    let result = instantiate_type(&db, record, vec![str_type, num_type]);
+    let result = instantiate_type(
+      &db,
+      record,
+      vec![LazyType::eager(str_type), LazyType::eager(num_type)],
+    );
 
     assert!(
       result.diagnostics(&db).is_empty(),
@@ -312,7 +316,7 @@ mod tests {
     let str_type = TdTypeEnum::from(get_str_type(&db));
 
     // Only 1 arg, record needs 2
-    let result = instantiate_type(&db, record, vec![str_type]);
+    let result = instantiate_type(&db, record, vec![LazyType::eager(str_type)]);
 
     let diagnostics = result.diagnostics(&db);
     assert_eq!(diagnostics.len(), 1);
@@ -352,7 +356,7 @@ mod tests {
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let num_type = TdTypeEnum::from(get_num_type(&db));
 
-    let result = instantiate_type(&db, str_type, vec![num_type]);
+    let result = instantiate_type(&db, str_type, vec![LazyType::eager(num_type)]);
 
     let diagnostics = result.diagnostics(&db);
     assert_eq!(diagnostics.len(), 1);

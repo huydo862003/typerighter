@@ -38,6 +38,7 @@ use ambassador::Delegate;
 use derive_more::From;
 use enum_as_inner::EnumAsInner;
 
+use crate::db::types::{InstResult, LazyType};
 use typedown_incremental::Id;
 
 /// Use this instead of dyn

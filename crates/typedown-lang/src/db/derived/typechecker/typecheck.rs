@@ -335,7 +335,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
 
   // Dict element access: index must match key type
   if let TdTypeEnum::TdDictType(dict) = &expr_type {
-    if let Some(key_type) = dict.key(db) {
+    if let Some(key_type) = dict.key(db).and_then(|l| l.resolve(db)) {
       for idx_hir in &indices {
         let idx_result = actual_node_type_member(db, *idx_hir);
         diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
@@ -515,7 +515,7 @@ fn check_sequence(
     return diagnostics;
   };
 
-  let elem_type = match list.elem(db) {
+  let elem_type = match list.elem(db).and_then(|e| e.resolve(db)) {
     Some(typ) => typ,
     // Uninstantiated list: no element type constraint
     None => return diagnostics,

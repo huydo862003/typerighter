@@ -114,8 +114,8 @@ pub trait TdTypeLike: TdObjectLike {
   fn instantiate(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
-    args: Vec<TdTypeEnum>,
-  ) -> ::typedown_lang::db::types::InstResult;
+    args: Vec<LazyType>,
+  ) -> InstResult;
 
   fn is_compatible_with(
     &self,
@@ -193,7 +193,7 @@ impl TdTypeLike for TdTypeType {
   fn instantiate(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<TdTypeEnum>,
+    _args: Vec<LazyType>,
   ) -> InstResult {
     InstResult::new(db, (*self).into(), vec![])
   }
@@ -277,7 +277,7 @@ impl TdTypeLike for TdObjectType {
   fn instantiate(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<TdTypeEnum>,
+    _args: Vec<LazyType>,
   ) -> InstResult {
     InstResult::new(db, (*self).into(), vec![])
   }

@@ -267,22 +267,13 @@ fn resolve_type_member(
         match resolved.value(db) {
           Some(symbol) => match symbol.kind(db) {
             SymbolKind::UserDefinedSchema(_, _) => {
-              arg_types.push(
-                TdProductType::new(
-                  db,
-                  Some(symbol.name(db)),
-                  get_schema_type(db).into(),
-                  HashMap::new(),
-                  HashMap::new(),
-                )
-                .into(),
-              );
+              arg_types.push(LazyType::lazy(symbol));
             }
             _ => {
               let result = evaluate_type(db, symbol);
               diagnostics.extend(result.diagnostics(db).iter().cloned());
               if let Some(typ) = result.typ(db) {
-                arg_types.push(typ);
+                arg_types.push(LazyType::eager(typ));
               }
             }
           },
@@ -528,7 +519,7 @@ mod tests {
     let list_str = instantiate_type(
       &db,
       get_list_type(&db).into(),
-      vec![get_str_type(&db).into()],
+      vec![LazyType::eager(get_str_type(&db).into())],
     );
     assert_eq!(list_str.typ(&db).display_name(&db), "list[string]");
   }
@@ -540,7 +531,10 @@ mod tests {
     let dict_str_num = instantiate_type(
       &db,
       get_dict_type(&db).into(),
-      vec![get_str_type(&db).into(), get_num_type(&db).into()],
+      vec![
+        LazyType::eager(get_str_type(&db).into()),
+        LazyType::eager(get_num_type(&db).into()),
+      ],
     );
     assert_eq!(
       dict_str_num.typ(&db).display_name(&db),
@@ -669,7 +663,7 @@ mod tests {
     let list_num = instantiate_type(
       &db,
       get_list_type(&db).into(),
-      vec![get_num_type(&db).into()],
+      vec![LazyType::eager(get_num_type(&db).into())],
     );
     let items: Vec<TdObjectEnum> = vec![
       TdNumObj::new(&db, 1.0).into(),

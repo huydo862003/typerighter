@@ -331,7 +331,7 @@ fn traverse_field(
       }
       // Dict: any key maps to the value type
       if let Some(dict) = typ.as_td_dict_type()
-        && let Some(value_type) = dict.value(db)
+        && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db))
       {
         return Some(TypeMember::new(
           db,
@@ -359,7 +359,7 @@ fn traverse_index(db: &TypedownDatabase, member_type: &MemberType) -> Option<Typ
       let elem = list.elem(db)?;
       Some(TypeMember::new(
         db,
-        MemberType::Simple(LazyType::eager(elem)),
+        MemberType::Simple(elem),
         TypeMemberDescriptors::empty(),
       ))
     }

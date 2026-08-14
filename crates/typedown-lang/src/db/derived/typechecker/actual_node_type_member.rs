@@ -460,14 +460,18 @@ fn get_index_type(
         }
       }
     }
-    let inst_result = instantiate_type(db, expr_type, arg_types);
+    let inst_result = instantiate_type(
+      db,
+      expr_type,
+      arg_types.into_iter().map(LazyType::eager).collect(),
+    );
     diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
     return simple_member_result(db, inst_result.typ(db), diagnostics);
   }
 
   // Element access on instantiated list
   if let TdTypeEnum::TdListType(list) = &expr_type {
-    return match list.elem(db) {
+    return match list.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => simple_member_result(db, elem, diagnostics),
       None => TypeMemberResult::new(db, None, diagnostics),
     };
@@ -475,7 +479,7 @@ fn get_index_type(
 
   // Element access on instantiated dict
   if let TdTypeEnum::TdDictType(dict) = &expr_type {
-    return match dict.value(db) {
+    return match dict.value(db).and_then(|l| l.resolve(db)) {
       Some(value) => simple_member_result(db, value, diagnostics),
       None => TypeMemberResult::new(db, None, diagnostics),
     };
