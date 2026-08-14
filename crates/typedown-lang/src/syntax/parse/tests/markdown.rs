@@ -3232,6 +3232,159 @@ fn parse_indented_table_in_list() {
   );
 }
 
+#[test]
+fn parse_indented_table_in_blockquote() {
+  let tree = parse_body(
+    r#"> | a | b |
+> | --- | --- |
+> | 1 | 2 |
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdTable
+        (MdTableHeaderRow
+          "|"
+          (MdTableCell
+            " "
+            (MdText
+              "a"
+              " "
+              "|"
+              " "
+              "b"
+              " "
+              "|")))
+        "\n"
+        ">"
+        " "
+        (MdTableSeparatorRow
+          "|"
+          " "
+          "---"
+          " "
+          "|"
+          " "
+          "---"
+          " "
+          "|")
+        "\n"
+        ">"
+        " "
+        (MdTableDataRow
+          "|"
+          (MdTableCell
+            " "
+            (MdText
+              "1"
+              " "
+              "|"
+              " "
+              "2"
+              " "
+              "|")))))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_indented_table_in_list_with_continuation() {
+  let tree = parse_body(
+    r#"- parent
+
+  | a | b |
+  | --- | --- |
+  | 1 | 2 |
+
+  continued
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "parent"))
+        "\n"
+        "\n"
+        " "
+        " "
+        (MdTable
+          (MdTableHeaderRow
+            "|"
+            (MdTableCell
+              " "
+              (MdText
+                "a"
+                " "
+                "|"
+                " "
+                "b"
+                " "
+                "|")))
+          "\n"
+          " "
+          " "
+          (MdTableSeparatorRow
+            "|"
+            " "
+            "---"
+            " "
+            "|"
+            " "
+            "---"
+            " "
+            "|")
+          "\n"
+          " "
+          " "
+          (MdTableDataRow
+            "|"
+            (MdTableCell
+              " "
+              (MdText
+                "1"
+                " "
+                "|"
+                " "
+                "2"
+                " "
+                "|"))))
+        "\n"
+        "\n"
+        " "
+        " "
+        (MdParagraph
+          (MdText
+            "continued"))))
+    "\n"))"####
+  );
+}
+
 // Error recovery
 
 // Recovers from unclosed link, emits UnclosedLink diagnostic
