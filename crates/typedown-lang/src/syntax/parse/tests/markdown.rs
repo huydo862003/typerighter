@@ -3385,6 +3385,164 @@ fn parse_indented_table_in_list_with_continuation() {
   );
 }
 
+#[test]
+fn parse_container_after_list_item_no_diagnostics() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"- item
+
+    indented content
+
+::: details Title
+
+content
+
+:::
+
+## Heading
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        "\n"
+        " "
+        " "
+        " "
+        " "
+        (MdParagraph
+          (MdText
+            "indented"
+            " "
+            "content"))))
+    "\n"
+    "\n"
+    (MdContainerBlock
+      ":::"
+      " "
+      "details"
+      " "
+      "Title"
+      "\n"
+      (MdContainerSlot
+        (MdText
+          "\n")
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      "\n"
+      ":::")
+    "\n"
+    "\n"
+    (MdHeading
+      "##"
+      " "
+      (MdText
+        "Heading"))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_sequential_containers_no_diagnostics() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"::: details Solution
+
+content
+
+:::
+
+::: details Solution
+
+more content
+
+:::
+
+### Heading
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics, got: {diags:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "details"
+      " "
+      "Solution"
+      "\n"
+      (MdContainerSlot
+        (MdText
+          "\n")
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      "\n"
+      ":::")
+    "\n"
+    "\n"
+    (MdContainerBlock
+      ":::"
+      " "
+      "details"
+      " "
+      "Solution"
+      "\n"
+      (MdContainerSlot
+        (MdText
+          "\n")
+        (MdParagraph
+          (MdText
+            "more"
+            " "
+            "content")))
+      "\n"
+      "\n"
+      ":::")
+    "\n"
+    "\n"
+    (MdHeading
+      "###"
+      " "
+      (MdText
+        "Heading"))
+    "\n"))"####
+  );
+}
+
 // Error recovery
 
 // Recovers from unclosed link, emits UnclosedLink diagnostic

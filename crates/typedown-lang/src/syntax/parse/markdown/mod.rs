@@ -1131,6 +1131,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
     }
 
+    // Consume newlines and prefix before the closing `:::`
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline {
+      self.consume_md_multinewline_and_prefix(&mut children);
+    }
+
     // Consume closing `:::`
     self.consume_md_if(
       &mut children,
