@@ -1,0 +1,78 @@
+================
+Container shorthand simple
+================
+
+[[toc]]
+
+---
+
+(document
+  (section
+    (container_block_shorthand
+      (container_block_delimiter)
+      type: (container_type)
+      (container_block_delimiter))))
+
+================
+Container shorthand with props
+================
+
+[[grid {cols=2}]]
+
+---
+
+(document
+  (section
+    (container_block_shorthand
+      (container_block_delimiter)
+      type: (container_type)
+      props: (container_prop_block
+        (container_prop_item
+          key: (container_prop_key)
+          value: (container_prop_value
+            (container_prop_number))))
+      (container_block_delimiter))))
+
+================
+Container shorthand with multiple props
+================
+
+[[card {title="Hello" cols=2 flag}]]
+
+---
+
+(document
+  (section
+    (container_block_shorthand
+      (container_block_delimiter)
+      type: (container_type)
+      props: (container_prop_block
+        (container_prop_item
+          key: (container_prop_key)
+          value: (container_prop_value
+            (container_prop_string)))
+        (container_prop_item
+          key: (container_prop_key)
+          value: (container_prop_value
+            (container_prop_number)))
+        (container_prop_item
+          key: (container_prop_key)))
+      (container_block_delimiter))))
+
+================
+Container shorthand followed by paragraph
+================
+
+[[toc]]
+Hello world
+
+---
+
+(document
+  (section
+    (container_block_shorthand
+      (container_block_delimiter)
+      type: (container_type)
+      (container_block_delimiter))
+    (paragraph
+      (inline))))

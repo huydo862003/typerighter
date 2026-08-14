@@ -52,6 +52,7 @@
         { "include": "#md-math-block" },
         { "include": "#md-heading" },
         { "include": "#md-container" },
+        { "include": "#md-container-shorthand" },
         { "include": "#md-toggle-list" },
         { "include": "#md-block-quote" },
         { "include": "#md-table" },
@@ -200,6 +201,19 @@
       "captures": {
         "1": { "name": "keyword.control.container.separator.typedown" },
         "3": { "name": "entity.name.tag.slot.typedown" }
+      }
+    },
+    "md-container-shorthand": {
+      // Self-closing container shorthand: `[[identifier {props}]]`
+      "match": "(\\[\\[)([-a-zA-Z_]\\w*)(\\s*(\\{[^}]*\\}))?(\\]\\])",
+      "captures": {
+        "1": { "name": "keyword.control.container.begin.typedown" },
+        "2": { "name": "entity.name.tag.typedown" },
+        "4": {
+          "name": "meta.attribute.container.typedown",
+          "patterns": [{ "include": "#md-container-props" }]
+        },
+        "5": { "name": "keyword.control.container.end.typedown" }
       }
     },
     "md-toggle-list": {

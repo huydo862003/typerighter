@@ -40,6 +40,9 @@ enum TokenType {
   CONTAINER_CLOSE,
   CONTAINER_SLOT_SEPARATOR,
 
+  CONTAINER_SHORTHAND_OPEN,
+  CONTAINER_SHORTHAND_CLOSE,
+
   PIPE_TABLE_START,
   PIPE_TABLE_LINE_ENDING,
   PIPE_TABLE_DELIMITER_ROW,
@@ -790,6 +793,30 @@ bool tree_sitter_typedown_md_external_scanner_scan(void *payload,
         lexer->result_symbol = CONTAINER_OPEN;
         return true;
       }
+    }
+  }
+
+  // [[
+  if (lexer->lookahead == '[' && valid_symbols[CONTAINER_SHORTHAND_OPEN]) {
+    lexer->mark_end(lexer);
+    lexer->advance(lexer, false);
+    if (lexer->lookahead == '[') {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = CONTAINER_SHORTHAND_OPEN;
+      return true;
+    }
+  }
+
+  // ]]
+  if (lexer->lookahead == ']' && valid_symbols[CONTAINER_SHORTHAND_CLOSE]) {
+    lexer->mark_end(lexer);
+    lexer->advance(lexer, false);
+    if (lexer->lookahead == ']') {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = CONTAINER_SHORTHAND_CLOSE;
+      return true;
     }
   }
 
