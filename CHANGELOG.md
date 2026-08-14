@@ -1,3 +1,8 @@
+## [0.10.2] - 2026-08-14
+
+* crates/typedown-lang
+  - Container block incorrectly consuming ::: when parsing
+
 ## [0.10.1] - 2026-08-14
 
 * crates/typedown-lang
