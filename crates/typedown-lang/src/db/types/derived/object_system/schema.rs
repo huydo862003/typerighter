@@ -79,10 +79,23 @@ impl TdTypeLike for TdSchemaType {
       let typ = obj.as_type()?;
       fields.insert(
         name,
-        TypeMember::new(db, MemberType::eager_simple(typ), TypeMemberDescriptors::empty()),
+        TypeMember::new(
+          db,
+          MemberType::eager_simple(typ),
+          TypeMemberDescriptors::empty(),
+        ),
       );
     }
-    Some(TdProductType::new(db, None, TdSchemaType::get(db).into(), fields, HashMap::new()).into())
+    Some(
+      TdProductType::new(
+        db,
+        None,
+        TdSchemaType::get(db).into(),
+        fields,
+        HashMap::new(),
+      )
+      .into(),
+    )
   }
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "schema".to_string()

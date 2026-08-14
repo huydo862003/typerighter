@@ -255,6 +255,7 @@ pub enum BuiltinSchemaKind {
   List = 8,
   Dict = 9,
   Math = 10,
+  SchemaProperty = 11,
 }
 
 impl StableHash for BuiltinSchemaKind {

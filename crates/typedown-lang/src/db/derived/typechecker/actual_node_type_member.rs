@@ -113,9 +113,13 @@ fn simple_member_result(
 
 /// Convert a TypeResult to a TypeMemberResult wrapping as Simple
 fn type_result_to_member_result(db: &TypedownDatabase, result: TypeResult) -> TypeMemberResult {
-  let member = result
-    .typ(db)
-    .map(|typ| TypeMember::new(db, MemberType::eager_simple(typ), TypeMemberDescriptors::empty()));
+  let member = result.typ(db).map(|typ| {
+    TypeMember::new(
+      db,
+      MemberType::eager_simple(typ),
+      TypeMemberDescriptors::empty(),
+    )
+  });
   TypeMemberResult::new(db, member, result.diagnostics(db).clone())
 }
 
@@ -676,7 +680,10 @@ mod tests {
       let date_hir = date_hir.expect("should have date field");
       let result = actual_node_type_member(&db, date_hir);
       let member = result.member(&db).expect("should have a type");
-      let typ = member.typ(&db).evaluate_simple(&db).expect("should resolve");
+      let typ = member
+        .typ(&db)
+        .evaluate_simple(&db)
+        .expect("should resolve");
       assert_eq!(
         typ.display_name(&db),
         "date",

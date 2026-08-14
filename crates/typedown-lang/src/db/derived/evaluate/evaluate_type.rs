@@ -8,7 +8,8 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_math_type,
-  get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type, instantiate_type,
+  get_num_type, get_schema_property_type, get_schema_type, get_str_type, get_time_type,
+  get_type_type, instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{
@@ -35,6 +36,7 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
         BuiltinSchemaKind::Math => get_math_type(db).into(),
         BuiltinSchemaKind::Schema => get_schema_type(db).into(),
         BuiltinSchemaKind::TypeType => get_type_type(db).into(),
+        BuiltinSchemaKind::SchemaProperty => get_schema_property_type(db).into(),
       };
       TypeResult::new(db, Some(typ), vec![])
     }
@@ -122,7 +124,16 @@ fn evaluate_user_defined_schema(
 
   TypeResult::new(
     db,
-    Some(TdProductType::new(db, Some(schema_name), get_schema_type(db).into(), fields, HashMap::new()).into()),
+    Some(
+      TdProductType::new(
+        db,
+        Some(schema_name),
+        get_schema_type(db).into(),
+        fields,
+        HashMap::new(),
+      )
+      .into(),
+    ),
     diagnostics,
   )
 }
