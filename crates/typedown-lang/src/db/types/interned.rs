@@ -33,11 +33,50 @@ impl StableHash for TypeMemberDescriptors {
   }
 }
 
+// A type reference that may be eagerly resolved or lazily deferred to a symbol
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LazyType(Either<TdTypeEnum, Symbol>);
+
+impl LazyType {
+  pub fn eager(typ: TdTypeEnum) -> Self {
+    LazyType(Either::Left(typ))
+  }
+
+  pub fn lazy(symbol: Symbol) -> Self {
+    LazyType(Either::Right(symbol))
+  }
+
+  pub fn resolve(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    match &self.0 {
+      Either::Left(typ) => Some(typ.clone()),
+      Either::Right(symbol) => evaluate_type(db, *symbol).typ(db),
+    }
+  }
+}
+
+impl Encodable for LazyType {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.encode(buf, encoder);
+  }
+}
+
+impl Decodable for LazyType {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    LazyType(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
+  }
+}
+
+impl StableHash for LazyType {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.0.stable_hash(db, hasher);
+  }
+}
+
 /// The type of a type member field
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MemberType {
-  /// A reference to a type: either an evaluated type or a lazy schema symbol
-  Simple(Either<TdTypeEnum, Symbol>),
+  /// A reference to a type, either eagerly resolved or lazily deferred
+  Simple(LazyType),
   /// A union or enum type: each arm is itself a `TypeMember` (a type ref)
   Sum(Vec<TypeMember>),
   /// A literal value constraint (e.g. `"foo"`, `42`, `true`)
@@ -70,24 +109,6 @@ impl Hash for MemberType {
         }
       }
       MemberType::Never => {}
-    }
-  }
-}
-
-impl MemberType {
-  pub fn eager_simple(typ: TdTypeEnum) -> Self {
-    MemberType::Simple(Either::Left(typ))
-  }
-
-  pub fn lazy_simple(symbol: Symbol) -> Self {
-    MemberType::Simple(Either::Right(symbol))
-  }
-
-  pub fn evaluate_simple(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
-    match self {
-      MemberType::Simple(Either::Left(typ)) => Some(typ.clone()),
-      MemberType::Simple(Either::Right(symbol)) => evaluate_type(db, *symbol).typ(db),
-      _ => None,
     }
   }
 }
@@ -200,9 +221,7 @@ impl Decodable for MemberType {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match MemberTypeTag::from_repr(tag).expect("unknown MemberType tag") {
-      MemberTypeTag::Simple => {
-        MemberType::Simple(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
-      }
+      MemberTypeTag::Simple => MemberType::Simple(LazyType::decode(data, decoder)),
       MemberTypeTag::Sum => MemberType::Sum(Vec::decode(data, decoder)),
       MemberTypeTag::Literal => MemberType::Literal(LiteralValue::decode(data, decoder)),
       MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),

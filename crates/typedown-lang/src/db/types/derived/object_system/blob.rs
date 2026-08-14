@@ -9,7 +9,7 @@ use super::{TdObjectEnum, TdStrObj, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_blob_type;
 use crate::db::types::{
-  AssetKind, File, InstResult, MemberType, TypeMember, TypeMemberDescriptors,
+  AssetKind, File, InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors,
 };
 use typedown_incremental::Id;
 
@@ -43,7 +43,7 @@ impl TdTypeLike for TdBlobType {
     match name {
       "format" => Some(TypeMember::new(
         db,
-        MemberType::eager_simple(str_type),
+        MemberType::Simple(LazyType::eager(str_type)),
         TypeMemberDescriptors::empty(),
       )),
       _ => None,

@@ -10,7 +10,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_schema_type, get_str_type};
 use crate::db::derived::schema_property::get_schema_property_type;
-use crate::db::types::{InstResult, MemberType, TypeMember, TypeMemberDescriptors};
+use crate::db::types::{InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors};
 use typedown_types::either::Either;
 
 // Schema type is actually a kind
@@ -50,7 +50,7 @@ impl TdTypeLike for TdSchemaType {
         );
         Some(TypeMember::new(
           db,
-          MemberType::eager_simple(properties_type.into()),
+          MemberType::Simple(LazyType::eager(properties_type.into())),
           TypeMemberDescriptors::empty(),
         ))
       }
@@ -80,7 +80,7 @@ impl TdTypeLike for TdSchemaType {
         name,
         TypeMember::new(
           db,
-          MemberType::eager_simple(typ),
+          MemberType::Simple(LazyType::eager(typ)),
           TypeMemberDescriptors::empty(),
         ),
       );

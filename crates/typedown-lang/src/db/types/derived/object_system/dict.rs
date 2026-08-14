@@ -8,7 +8,7 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_dict_type;
-use crate::db::types::{HirValue, InstResult, MemberType, TypeMember};
+use crate::db::types::{HirValue, InstResult, LazyType, MemberType, TypeMember};
 use crate::db::utils::typecheck::member_types_compatible;
 use typedown_incremental::Id;
 
@@ -71,7 +71,7 @@ impl TdTypeLike for TdDictType {
         None => return true,
       };
       return product.fields(db).values().all(|member| {
-        let value_member = MemberType::eager_simple(value_type.clone());
+        let value_member = MemberType::Simple(LazyType::eager(value_type.clone()));
         member_types_compatible(db, &value_member, &member.typ(db))
       });
     }

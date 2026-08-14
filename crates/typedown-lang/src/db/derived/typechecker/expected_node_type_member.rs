@@ -8,7 +8,7 @@ use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::types::{
-  File, HirValue, MemberType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike,
+  File, HirValue, LazyType, MemberType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike,
   TypeMember, TypeMemberDescriptors, TypeMemberResult,
 };
 use crate::db::utils::is_schemaless_file;
@@ -55,7 +55,7 @@ pub fn expected_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMe
   // Traverse down the type structure following the path
   let mut current_member = TypeMember::new(
     db,
-    MemberType::eager_simple(anchor.typ),
+    MemberType::Simple(LazyType::eager(anchor.typ)),
     TypeMemberDescriptors::empty(),
   );
 
@@ -324,8 +324,8 @@ fn traverse_field(
   field_name: &str,
 ) -> Option<TypeMember> {
   match member_type {
-    MemberType::Simple(_) => {
-      let typ = member_type.evaluate_simple(db)?;
+    MemberType::Simple(lazy) => {
+      let typ = lazy.resolve(db)?;
       if let Some(member) = typ.get_owned_field_type_member(db, field_name) {
         return Some(member);
       }
@@ -335,7 +335,7 @@ fn traverse_field(
       {
         return Some(TypeMember::new(
           db,
-          MemberType::eager_simple(value_type),
+          MemberType::Simple(LazyType::eager(value_type)),
           TypeMemberDescriptors::empty(),
         ));
       }
@@ -353,13 +353,13 @@ fn traverse_field(
 /// Get the element type from a list or ListOfSum
 fn traverse_index(db: &TypedownDatabase, member_type: &MemberType) -> Option<TypeMember> {
   match member_type {
-    MemberType::Simple(_) => {
-      let typ = member_type.evaluate_simple(db)?;
+    MemberType::Simple(lazy) => {
+      let typ = lazy.resolve(db)?;
       let list = typ.as_td_list_type()?;
       let elem = list.elem(db)?;
       Some(TypeMember::new(
         db,
-        MemberType::eager_simple(elem),
+        MemberType::Simple(LazyType::eager(elem)),
         TypeMemberDescriptors::empty(),
       ))
     }
@@ -377,7 +377,7 @@ fn simple_schemaless_result(db: &TypedownDatabase) -> TypeMemberResult {
     db,
     Some(TypeMember::new(
       db,
-      MemberType::eager_simple(get_schemaless_type(db).into()),
+      MemberType::Simple(LazyType::eager(get_schemaless_type(db).into())),
       TypeMemberDescriptors::empty(),
     )),
     vec![],
@@ -429,10 +429,10 @@ mod tests {
     let member = result
       .member(&db)
       .expect("'name' field should have a declared TypeMember");
-    let typ = member
-      .typ(&db)
-      .evaluate_simple(&db)
-      .expect("expected Simple member type");
+    let MemberType::Simple(lazy) = member.typ(&db) else {
+      panic!("expected Simple member type");
+    };
+    let typ = lazy.resolve(&db).expect("expected Simple member type");
     assert_eq!(
       typ.display_name(&db),
       "string",
@@ -465,10 +465,10 @@ mod tests {
     let member = result
       .member(&db)
       .expect("schemaless file should return a type member");
-    let typ = member
-      .typ(&db)
-      .evaluate_simple(&db)
-      .expect("expected Simple member type");
+    let MemberType::Simple(lazy) = member.typ(&db) else {
+      panic!("expected Simple member type");
+    };
+    let typ = lazy.resolve(&db).expect("expected Simple member type");
     assert_eq!(
       typ.display_name(&db),
       "{}",

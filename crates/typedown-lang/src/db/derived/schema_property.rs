@@ -12,8 +12,8 @@ use crate::db::derived::get_builtin_types::{
   get_bool_type, get_num_type, get_str_type, get_type_type,
 };
 use crate::db::types::{
-  BuiltinSchemaKind, MemberType, Symbol, SymbolKind, TdProductType, TdTypeEnum, TypeMember,
-  TypeMemberDescriptors,
+  BuiltinSchemaKind, LazyType, MemberType, Symbol, SymbolKind, TdProductType, TdTypeEnum,
+  TypeMember, TypeMemberDescriptors,
 };
 
 fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
@@ -36,22 +36,22 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   let base_type_members = vec![
     TypeMember::new(
       db,
-      MemberType::eager_simple(type_type),
+      MemberType::Simple(LazyType::eager(type_type)),
       TypeMemberDescriptors::empty(),
     ),
     TypeMember::new(
       db,
-      MemberType::eager_simple(str_type),
+      MemberType::Simple(LazyType::eager(str_type)),
       TypeMemberDescriptors::empty(),
     ),
     TypeMember::new(
       db,
-      MemberType::eager_simple(bool_type.clone()),
+      MemberType::Simple(LazyType::eager(bool_type.clone())),
       TypeMemberDescriptors::empty(),
     ),
     TypeMember::new(
       db,
-      MemberType::eager_simple(num_type),
+      MemberType::Simple(LazyType::eager(num_type)),
       TypeMemberDescriptors::empty(),
     ),
   ];
@@ -60,7 +60,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   let self_symbol = get_schema_property_symbol(db);
   let self_member = TypeMember::new(
     db,
-    MemberType::lazy_simple(self_symbol),
+    MemberType::Simple(LazyType::lazy(self_symbol)),
     TypeMemberDescriptors::empty(),
   );
 
@@ -82,7 +82,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
                 base_type_members,
                 vec![TypeMember::new(
                   db,
-                  MemberType::lazy_simple(self_symbol),
+                  MemberType::Simple(LazyType::lazy(self_symbol)),
                   TypeMemberDescriptors::empty(),
                 )],
               ]
@@ -99,7 +99,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
 
   let optional_field = TypeMember::new(
     db,
-    MemberType::eager_simple(get_bool_type(db).into()),
+    MemberType::Simple(LazyType::eager(get_bool_type(db).into())),
     TypeMemberDescriptors::OPTIONAL,
   );
 

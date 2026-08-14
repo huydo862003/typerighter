@@ -5,8 +5,8 @@ use crate::db::derived::get_builtin_types::{
   get_bool_type, get_dict_type, get_list_type, get_num_type, get_str_type,
 };
 use crate::db::types::{
-  HirValue, HirValueKind, LiteralValue, MemberType, TdTypeEnum, TdTypeLike, TypeMemberDescriptors,
-  TypeMemberResult,
+  HirValue, HirValueKind, LazyType, LiteralValue, MemberType, TdTypeEnum, TdTypeLike,
+  TypeMemberDescriptors, TypeMemberResult,
 };
 
 /// Extract a TdTypeEnum from a TypeMemberResult
@@ -22,7 +22,7 @@ pub fn lift_type_member_result(
 /// NOTE: This causes loss of specificity
 pub fn lift_member_type(db: &TypedownDatabase, member_type: &MemberType) -> Option<TdTypeEnum> {
   match member_type {
-    MemberType::Simple(_) => member_type.evaluate_simple(db),
+    MemberType::Simple(lazy) => lazy.resolve(db),
     MemberType::Literal(lit) => Some(literal_base_type(db, lit)),
     MemberType::ListOfSum(_) => Some(get_list_type(db).into()),
     MemberType::DictOfSum(_) => Some(get_dict_type(db).into()),
@@ -52,12 +52,12 @@ pub fn member_types_compatible(
   actual: &MemberType,
 ) -> bool {
   match (expected, actual) {
-    (MemberType::Simple(_), MemberType::Simple(_)) => {
-      let exp_type = match expected.evaluate_simple(db) {
+    (MemberType::Simple(expected_lazy), MemberType::Simple(actual_lazy)) => {
+      let exp_type = match expected_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
-      let actual_type = match actual.evaluate_simple(db) {
+      let actual_type = match actual_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
@@ -76,8 +76,8 @@ pub fn member_types_compatible(
     }
 
     // Literal is a subtype of its base simple type
-    (MemberType::Simple(_), MemberType::Literal(act_val)) => {
-      let exp_type = match expected.evaluate_simple(db) {
+    (MemberType::Simple(expected_lazy), MemberType::Literal(act_val)) => {
+      let exp_type = match expected_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
@@ -91,15 +91,15 @@ pub fn member_types_compatible(
       .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), actual)),
 
     // ListOfSum is compatible with a Simple only if the simple is a list type whose elem type is compatible with some arm
-    (MemberType::ListOfSum(exp_arms), MemberType::Simple(_)) => {
-      let actual_type = match actual.evaluate_simple(db) {
+    (MemberType::ListOfSum(exp_arms), MemberType::Simple(actual_lazy)) => {
+      let actual_type = match actual_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
       match actual_type.as_td_list_type() {
         Some(list) => match list.elem(db) {
           Some(elem) => {
-            let elem_member = MemberType::eager_simple(elem);
+            let elem_member = MemberType::Simple(LazyType::eager(elem));
             exp_arms
               .iter()
               .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &elem_member))
@@ -111,15 +111,15 @@ pub fn member_types_compatible(
     }
 
     // DictOfSum is compatible with a Simple if it's a dict type whose value matches some arm, or a product type whose every field's type matches some arm
-    (MemberType::DictOfSum(exp_arms), MemberType::Simple(_)) => {
-      let actual_type = match actual.evaluate_simple(db) {
+    (MemberType::DictOfSum(exp_arms), MemberType::Simple(actual_lazy)) => {
+      let actual_type = match actual_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
       if let Some(dict) = actual_type.as_td_dict_type() {
         return match dict.value(db) {
           Some(value) => {
-            let value_member = MemberType::eager_simple(value);
+            let value_member = MemberType::Simple(LazyType::eager(value));
             exp_arms
               .iter()
               .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &value_member))
@@ -144,15 +144,15 @@ pub fn member_types_compatible(
       .all(|act_arm| member_types_compatible(db, expected, &act_arm.typ(db))),
 
     // ListOfSum assignable to simple if the simple is a list and every arm is compatible with its elem
-    (MemberType::Simple(_), MemberType::ListOfSum(act_arms)) => {
-      let exp_type = match expected.evaluate_simple(db) {
+    (MemberType::Simple(expected_lazy), MemberType::ListOfSum(act_arms)) => {
+      let exp_type = match expected_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
       match exp_type.as_td_list_type() {
         Some(list) => match list.elem(db) {
           Some(elem) => {
-            let elem_member = MemberType::eager_simple(elem);
+            let elem_member = MemberType::Simple(LazyType::eager(elem));
             act_arms
               .iter()
               .all(|act_arm| member_types_compatible(db, &elem_member, &act_arm.typ(db)))
@@ -163,15 +163,15 @@ pub fn member_types_compatible(
       }
     }
     // DictOfSum assignable to simple if the simple is a dict/product and every arm is compatible
-    (MemberType::Simple(_), MemberType::DictOfSum(act_arms)) => {
-      let exp_type = match expected.evaluate_simple(db) {
+    (MemberType::Simple(expected_lazy), MemberType::DictOfSum(act_arms)) => {
+      let exp_type = match expected_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
       if let Some(dict) = exp_type.as_td_dict_type() {
         return match dict.value(db) {
           Some(value) => {
-            let value_member = MemberType::eager_simple(value);
+            let value_member = MemberType::Simple(LazyType::eager(value));
             act_arms
               .iter()
               .all(|act_arm| member_types_compatible(db, &value_member, &act_arm.typ(db)))
@@ -202,15 +202,17 @@ pub fn member_types_compatible(
           return true;
         }
         match act_fields.get(name) {
-          Some(actual_member) => member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db)),
+          Some(actual_member) => {
+            member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
+          }
           None => false,
         }
       })
     }
 
     // Type expected accepts a structural actual if all required expected fields match
-    (MemberType::Simple(_), MemberType::Structural(act_fields)) => {
-      let exp_type = match expected.evaluate_simple(db) {
+    (MemberType::Simple(expected_lazy), MemberType::Structural(act_fields)) => {
+      let exp_type = match expected_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
@@ -235,10 +237,10 @@ pub fn member_types_compatible(
       if let Some(dict) = exp_type.as_td_dict_type() {
         return match dict.value(db) {
           Some(value_type) => {
-            let value_member = MemberType::eager_simple(value_type);
-            act_fields
-              .values()
-              .all(|actual_member| member_types_compatible(db, &value_member, &actual_member.typ(db)))
+            let value_member = MemberType::Simple(LazyType::eager(value_type));
+            act_fields.values().all(|actual_member| {
+              member_types_compatible(db, &value_member, &actual_member.typ(db))
+            })
           }
           None => true,
         };
@@ -247,8 +249,8 @@ pub fn member_types_compatible(
     }
 
     // Structural expected accepts a type if all required fields match
-    (MemberType::Structural(exp_fields), MemberType::Simple(_)) => {
-      let actual_type = match actual.evaluate_simple(db) {
+    (MemberType::Structural(exp_fields), MemberType::Simple(actual_lazy)) => {
+      let actual_type = match actual_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
@@ -260,7 +262,9 @@ pub fn member_types_compatible(
           return true;
         }
         match actual_type.get_owned_field_type_member(db, name) {
-          Some(actual_member) => member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db)),
+          Some(actual_member) => {
+            member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
+          }
           None => false,
         }
       })
@@ -291,8 +295,8 @@ pub fn value_matches_member_type(
   value_hir: HirValue,
 ) -> bool {
   match expected {
-    MemberType::Simple(_) => {
-      let exp_type = match expected.evaluate_simple(db) {
+    MemberType::Simple(expected_lazy) => {
+      let exp_type = match expected_lazy.resolve(db) {
         Some(t) => t,
         None => return false,
       };
@@ -325,7 +329,9 @@ pub fn value_matches_member_type(
       }
       if let Some(product) = actual.as_td_product_type() {
         return product.fields(db).values().all(|field_member| {
-          if let Some(field_type) = field_member.typ(db).evaluate_simple(db) {
+          if let MemberType::Simple(lazy) = field_member.typ(db)
+            && let Some(field_type) = lazy.resolve(db)
+          {
             members
               .iter()
               .any(|member| value_matches_member_type(db, &member.typ(db), &field_type, value_hir))
@@ -367,7 +373,7 @@ mod tests {
   }
 
   fn simple(_db: &TypedownDatabase, typ: TdTypeEnum) -> MemberType {
-    MemberType::eager_simple(typ)
+    MemberType::Simple(LazyType::eager(typ))
   }
 
   fn literal_str(val: &str) -> MemberType {

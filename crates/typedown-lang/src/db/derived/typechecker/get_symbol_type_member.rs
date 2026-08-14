@@ -5,8 +5,8 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::types::{
-  MemberType, Symbol, SymbolKind, TdBlobType, TdTypeType, TypeMember, TypeMemberDescriptors,
-  TypeMemberResult,
+  LazyType, MemberType, Symbol, SymbolKind, TdBlobType, TdTypeType, TypeMember,
+  TypeMemberDescriptors, TypeMemberResult,
 };
 use crate::db::utils::lower_file;
 use typedown_incremental::QueryDatabase;
@@ -18,7 +18,7 @@ pub fn get_symbol_type_member(db: &TypedownDatabase, symbol: Symbol) -> TypeMemb
       db,
       Some(TypeMember::new(
         db,
-        MemberType::eager_simple(TdTypeType::get(db).into()),
+        MemberType::Simple(LazyType::eager(TdTypeType::get(db).into())),
         TypeMemberDescriptors::empty(),
       )),
       vec![],
@@ -34,7 +34,7 @@ pub fn get_symbol_type_member(db: &TypedownDatabase, symbol: Symbol) -> TypeMemb
       db,
       Some(TypeMember::new(
         db,
-        MemberType::eager_simple(TdBlobType::get(db).into()),
+        MemberType::Simple(LazyType::eager(TdBlobType::get(db).into())),
         TypeMemberDescriptors::empty(),
       )),
       vec![],

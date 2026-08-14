@@ -111,7 +111,10 @@ fn fref_completions(
 ) -> Vec<CompletionItem> {
   // Resolve the expected type for the field containing this fref() call.
   let expected_type =
-    declared_field(db, project, file, node).and_then(|member| member.typ(db).evaluate_simple(db));
+    declared_field(db, project, file, node).and_then(|member| match member.typ(db) {
+      MemberType::Simple(lazy) => lazy.resolve(db),
+      _ => None,
+    });
 
   let root = project.root_dir(db);
   project
@@ -167,7 +170,10 @@ fn enclosing_mapping_product(
   let mapping_expr = Expr::cast(mapping.clone())?;
   let hir = lower_node(db, project, file, mapping_expr.syntax().clone());
   let member = expected_node_type_member(db, hir).member(db)?;
-  let typ = member.typ(db).evaluate_simple(db)?;
+  let MemberType::Simple(lazy) = member.typ(db) else {
+    return None;
+  };
+  let typ = lazy.resolve(db)?;
   Some((typ.as_td_product_type().cloned()?, mapping))
 }
 
@@ -271,8 +277,8 @@ fn build_schema_snippet(
 // Generate a placeholder string for a type member
 fn member_placeholder(db: &TypedownDatabase, member: &MemberType, indent: usize) -> String {
   match member {
-    MemberType::Simple(_) => {
-      if let Some(typ) = member.evaluate_simple(db) {
+    MemberType::Simple(lazy) => {
+      if let Some(typ) = lazy.resolve(db) {
         simple_type_placeholder(db, &typ, indent)
       } else {
         "value".to_string()

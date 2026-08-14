@@ -176,7 +176,9 @@ fn serialize_member_type(
   member: &MemberType,
   visiting: &mut HashSet<(usize, usize)>,
 ) -> Result<serde_json::Value, CircularRef> {
-  if let Some(TdTypeEnum::TdProductType(product)) = member.evaluate_simple(db) {
+  if let MemberType::Simple(lazy) = member
+    && let Some(TdTypeEnum::TdProductType(product)) = lazy.resolve(db)
+  {
     serialize(
       db,
       project,

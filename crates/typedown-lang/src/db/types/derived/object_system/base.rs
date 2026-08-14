@@ -11,7 +11,9 @@ use super::native_fn::NativeFnKind;
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
-use crate::db::types::{FuncSignature, InstResult, MemberType, TypeMember, TypeMemberDescriptors};
+use crate::db::types::{
+  FuncSignature, InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors,
+};
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
@@ -103,7 +105,7 @@ pub trait TdTypeLike: TdObjectLike {
     self.get_owned_field_type_member(db, name).or_else(|| {
       Some(TypeMember::new(
         db,
-        MemberType::eager_simple(self.lookup_method(db, name)?.get_type(db)),
+        MemberType::Simple(LazyType::eager(self.lookup_method(db, name)?.get_type(db))),
         TypeMemberDescriptors::empty(),
       ))
     })

@@ -98,8 +98,8 @@ fn extract_declared_fields(
 ) -> HashMap<String, TypeMember> {
   match member_type {
     MemberType::Structural(fields) => fields.clone(),
-    MemberType::Simple(_) => {
-      let typ = match member_type.evaluate_simple(db) {
+    MemberType::Simple(lazy) => {
+      let typ = match lazy.resolve(db) {
         Some(t) => t,
         None => return HashMap::new(),
       };

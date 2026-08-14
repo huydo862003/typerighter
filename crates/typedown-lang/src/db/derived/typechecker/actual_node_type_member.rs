@@ -17,8 +17,9 @@ use crate::db::types::derived::object_system::{
   is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
-  BuiltinMacroKind, HirValue, HirValueKind, LiteralValue, MemberType, SymbolKind, TdStrType,
-  TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors, TypeMemberResult, TypeResult,
+  BuiltinMacroKind, HirValue, HirValueKind, LazyType, LiteralValue, MemberType, SymbolKind,
+  TdStrType, TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors, TypeMemberResult,
+  TypeResult,
 };
 use crate::db::utils::lower_file;
 use crate::syntax::diagnostic::Diagnostic;
@@ -35,11 +36,11 @@ pub fn actual_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemb
     HirValueKind::Str(ref val) => {
       // Date/time subtypes are more specific than string literals
       let member_type = if is_valid_iso_datetime(val) {
-        MemberType::eager_simple(get_datetime_type(db).into())
+        MemberType::Simple(LazyType::eager(get_datetime_type(db).into()))
       } else if is_valid_iso_date(val) {
-        MemberType::eager_simple(get_date_type(db).into())
+        MemberType::Simple(LazyType::eager(get_date_type(db).into()))
       } else if is_valid_iso_time(val) {
-        MemberType::eager_simple(get_time_type(db).into())
+        MemberType::Simple(LazyType::eager(get_time_type(db).into()))
       } else {
         MemberType::Literal(LiteralValue::Str(val.clone()))
       };
@@ -103,7 +104,7 @@ fn simple_member_result(
     db,
     Some(TypeMember::new(
       db,
-      MemberType::eager_simple(typ),
+      MemberType::Simple(LazyType::eager(typ)),
       TypeMemberDescriptors::empty(),
     )),
     diagnostics,
@@ -115,7 +116,7 @@ fn type_result_to_member_result(db: &TypedownDatabase, result: TypeResult) -> Ty
   let member = result.typ(db).map(|typ| {
     TypeMember::new(
       db,
-      MemberType::eager_simple(typ),
+      MemberType::Simple(LazyType::eager(typ)),
       TypeMemberDescriptors::empty(),
     )
   });
@@ -218,9 +219,12 @@ fn get_binary_type(
       Some(member) => member,
       None => return TypeMemberResult::new(db, None, diagnostics),
     };
-    let left_type = match left_member.typ(db).evaluate_simple(db) {
-      Some(typ) => typ,
-      None => return TypeMemberResult::new(db, None, diagnostics),
+    let left_type = match left_member.typ(db) {
+      MemberType::Simple(lazy) => match lazy.resolve(db) {
+        Some(typ) => typ,
+        None => return TypeMemberResult::new(db, None, diagnostics),
+      },
+      _ => return TypeMemberResult::new(db, None, diagnostics),
     };
     let field_name = match right.kind(db) {
       HirValueKind::Ident(name) => name,
@@ -301,9 +305,12 @@ fn get_call_type(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -
     Some(member) => member,
     None => return TypeMemberResult::new(db, None, diagnostics),
   };
-  let callee_type = match callee_member.typ(db).evaluate_simple(db) {
-    Some(typ) => typ,
-    None => return TypeMemberResult::new(db, None, diagnostics),
+  let callee_type = match callee_member.typ(db) {
+    MemberType::Simple(lazy) => match lazy.resolve(db) {
+      Some(typ) => typ,
+      None => return TypeMemberResult::new(db, None, diagnostics),
+    },
+    _ => return TypeMemberResult::new(db, None, diagnostics),
   };
 
   if let TdTypeEnum::TdFuncType(func) = &callee_type {
@@ -406,9 +413,12 @@ fn get_index_type(
     Some(member) => member,
     None => return TypeMemberResult::new(db, None, diagnostics),
   };
-  let expr_type = match expr_member.typ(db).evaluate_simple(db) {
-    Some(typ) => typ,
-    None => return TypeMemberResult::new(db, None, diagnostics),
+  let expr_type = match expr_member.typ(db) {
+    MemberType::Simple(lazy) => match lazy.resolve(db) {
+      Some(typ) => typ,
+      None => return TypeMemberResult::new(db, None, diagnostics),
+    },
+    _ => return TypeMemberResult::new(db, None, diagnostics),
   };
 
   /* Generic instantiation */
@@ -680,10 +690,10 @@ mod tests {
       let date_hir = date_hir.expect("should have date field");
       let result = actual_node_type_member(&db, date_hir);
       let member = result.member(&db).expect("should have a type");
-      let typ = member
-        .typ(&db)
-        .evaluate_simple(&db)
-        .expect("should resolve");
+      let MemberType::Simple(lazy) = member.typ(&db) else {
+        panic!("expected Simple member type");
+      };
+      let typ = lazy.resolve(&db).expect("should resolve");
       assert_eq!(
         typ.display_name(&db),
         "date",
@@ -706,7 +716,8 @@ mod tests {
       let result = actual_node_type_member(&db, status_hir);
       // Should resolve to something (not None), and not be type_type
       if let Some(member) = result.member(&db)
-        && let Some(typ) = member.typ(&db).evaluate_simple(&db)
+        && let MemberType::Simple(lazy) = member.typ(&db)
+        && let Some(typ) = lazy.resolve(&db)
       {
         assert_ne!(
           typ.display_name(&db),

@@ -9,10 +9,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use typedown_incremental::Id;
 use typedown_types::either::Either;
 
-use crate::db::types::{
-  HirValue, InstResult, MemberType, Symbol, TypeMember, TypeMemberDescriptors,
-};
-use crate::db::utils::typecheck::member_types_compatible;
+use crate::db::types::{HirValue, InstResult, MemberType, Symbol, TypeMember};
 
 #[query_derived]
 pub struct TdProductType {
@@ -86,9 +83,9 @@ impl TdTypeLike for TdProductType {
 
 pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> String {
   match member {
-    MemberType::Simple(either) => match either {
-      Either::Left(typ) => typ.display_name(db),
-      Either::Right(symbol) => symbol.name(db),
+    MemberType::Simple(lazy) => match lazy.resolve(db) {
+      Some(typ) => typ.display_name(db),
+      None => "?".to_string(),
     },
     MemberType::Sum(members) => members
       .iter()
