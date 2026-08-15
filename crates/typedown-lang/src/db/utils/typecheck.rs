@@ -32,7 +32,6 @@ pub fn lift_member_type(db: &TypedownDatabase, member_type: &MemberType) -> Opti
       lift_member_type(db, &first.typ(db))
     }
     MemberType::Structural(_) => None,
-    MemberType::Never => None,
   }
 }
 
@@ -273,9 +272,6 @@ pub fn member_types_compatible(
 
     // A string is not assignable to "foo", so (Literal, Simple) correctly falls through to false
     (MemberType::Literal(exp_val), MemberType::Literal(act_val)) => exp_val == act_val,
-    // Never is the bottom type: assignable to anything, but nothing is assignable to it
-    (_, MemberType::Never) => true,
-    (MemberType::Never, _) => false,
     _ => false,
   }
 }
@@ -348,14 +344,15 @@ pub fn value_matches_member_type(
       _ => false,
     },
     MemberType::Structural(_) => false,
-    MemberType::Never => false,
   }
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::derived::get_builtin_types::{get_bool_type, get_num_type, get_str_type};
+  use crate::db::derived::get_builtin_types::{
+    get_bool_type, get_never_type, get_num_type, get_str_type,
+  };
   use crate::db::types::{TypeMember, TypeMemberDescriptors};
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -483,8 +480,9 @@ mod tests {
   fn never_is_bottom_type() {
     let db = db();
     let string = simple(&db, get_str_type(&db).into());
-    assert!(!member_types_compatible(&db, &MemberType::Never, &string));
-    assert!(member_types_compatible(&db, &string, &MemberType::Never));
+    let never = simple(&db, get_never_type(&db).into());
+    assert!(!member_types_compatible(&db, &never, &string));
+    assert!(member_types_compatible(&db, &string, &never));
   }
 
   // lift_member_type
@@ -505,9 +503,11 @@ mod tests {
   }
 
   #[test]
-  fn lift_never_returns_none() {
+  fn lift_never_returns_never_type() {
     let db = db();
-    assert!(lift_member_type(&db, &MemberType::Never).is_none());
+    let never = simple(&db, get_never_type(&db).into());
+    let lifted = lift_member_type(&db, &never);
+    assert!(lifted.is_some_and(|t| t.as_td_never_type().is_some()));
   }
 
   // DictOfSum compatibility

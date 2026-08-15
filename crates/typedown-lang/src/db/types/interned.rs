@@ -93,8 +93,6 @@ pub enum MemberType {
   DictOfSum(Vec<TypeMember>),
   // Anonymous field map for typechecking only, never exists at runtime
   Structural(HashMap<String, TypeMember>),
-  /// The bottom type: no value can be assigned to this field
-  Never,
 }
 
 impl MemberType {
@@ -128,7 +126,6 @@ impl Hash for MemberType {
           v.hash(state);
         }
       }
-      MemberType::Never => {}
     }
   }
 }
@@ -200,7 +197,6 @@ enum MemberTypeTag {
   ListOfSum = 3,
   DictOfSum = 4,
   Structural = 5,
-  Never = 6,
 }
 
 impl Encodable for MemberType {
@@ -230,9 +226,6 @@ impl Encodable for MemberType {
         encoder.emit_u8(buf, MemberTypeTag::Structural as u8);
         fields.encode(buf, encoder);
       }
-      MemberType::Never => {
-        encoder.emit_u8(buf, MemberTypeTag::Never as u8);
-      }
     }
   }
 }
@@ -247,7 +240,6 @@ impl Decodable for MemberType {
       MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),
       MemberTypeTag::DictOfSum => MemberType::DictOfSum(Vec::decode(data, decoder)),
       MemberTypeTag::Structural => MemberType::Structural(HashMap::decode(data, decoder)),
-      MemberTypeTag::Never => MemberType::Never,
     }
   }
 }
@@ -262,7 +254,6 @@ impl StableHash for MemberType {
       MemberType::ListOfSum(members) => members.stable_hash(db, hasher),
       MemberType::DictOfSum(members) => members.stable_hash(db, hasher),
       MemberType::Structural(fields) => fields.stable_hash(db, hasher),
-      MemberType::Never => {}
     }
   }
 }

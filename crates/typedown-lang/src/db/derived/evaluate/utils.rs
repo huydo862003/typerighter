@@ -10,10 +10,10 @@ use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType, MemberType,
-  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
-  TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj,
-  TypeMember, TypeMemberDescriptors,
+  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
+  MemberType, SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj,
+  TdObjectEnum, TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike,
+  TdVaultObj, TypeMember, TypeMemberDescriptors,
 };
 use crate::db::utils::typecheck::lift_type_member_result;
 use crate::syntax::diagnostic::Diagnostic;

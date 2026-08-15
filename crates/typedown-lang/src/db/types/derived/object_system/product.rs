@@ -130,7 +130,6 @@ pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> S
       parts.sort();
       format!("{{ {} }}", parts.join(", "))
     }
-    MemberType::Never => "never".to_string(),
   }
 }
 
