@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_date_type, get_datetime_type, get_math_type, get_num_type, get_str_type,
-  get_time_type, instantiate_type,
+  get_bool_type, get_date_type, get_datetime_type, get_math_type, get_null_type, get_num_type,
+  get_str_type, get_time_type, instantiate_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -73,7 +73,7 @@ pub fn actual_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemb
       diagnostics,
     ),
     HirValueKind::Interpolated(_) => simple_member_result(db, get_str_type(db).into(), vec![]),
-    HirValueKind::Null => TypeMemberResult::new(db, None, vec![]),
+    HirValueKind::Null => simple_member_result(db, get_null_type(db).into(), vec![]),
     HirValueKind::Ident(ref name) if name == "self" => get_self_type(db, hir),
     HirValueKind::Ident(_) => {
       let resolved = referee(db, hir);

@@ -11,8 +11,8 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, MemberType,
-  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNumObj, TdObjectEnum, TdObjectLike,
-  TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj, TypeMember,
+  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
+  TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj, TypeMember,
   TypeMemberDescriptors,
 };
 use crate::db::utils::typecheck::lift_type_member_result;
@@ -25,6 +25,9 @@ pub(crate) fn construct_from_hir(
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TdObjectEnum> {
   match hir.kind(db) {
+    HirValueKind::Null => {
+      return Some(TdNullObj::get(db).into());
+    }
     // self evaluates to the current file's resource object
     HirValueKind::Ident(name) if name == "self" => {
       let project = hir.project(db);
