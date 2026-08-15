@@ -8,11 +8,11 @@ use crate::db::TypedownDatabase;
 use std::collections::HashMap;
 
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, MemberType, Symbol, SymbolKind,
-  TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
-  TdListType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
-  TdProductType, TdStrType, TdTimeType, TdTypeEnum, TdTypeLike, TdTypeType, TypeMember,
-  TypeMemberDescriptors,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, MemberType, Symbol,
+  SymbolKind, TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType,
+  TdFuncType, TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
+  TdObjectType, TdProductType, TdStrType, TdTimeType, TdTypeEnum, TdTypeLike, TdTypeType,
+  TypeMember, TypeMemberDescriptors,
 };
 use typedown_incremental::QueryDatabase;
 
@@ -237,6 +237,11 @@ pub fn get_null_type(db: &TypedownDatabase) -> TdNullType {
 #[query_derived]
 pub fn get_never_type(db: &TypedownDatabase) -> TdNeverType {
   TdNeverType::new(db)
+}
+
+#[query_derived]
+pub fn get_literal_type(db: &TypedownDatabase, value: LiteralValue) -> TdLiteralType {
+  TdLiteralType::new(db, value)
 }
 
 #[query_derived]

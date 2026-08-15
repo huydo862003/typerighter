@@ -294,7 +294,7 @@ fn pick_most_specific_arm(
 
   let matching: Vec<_> = arms
     .iter()
-    .filter(|arm| value_matches_member_type(db, &arm.typ(db), &actual_type, hir))
+    .filter(|arm| value_matches_member_type(db, &arm.typ(db), &actual_type))
     .collect();
 
   if matching.is_empty() {
@@ -524,10 +524,10 @@ mod tests {
     let result = expected_node_type_member(&db, state_hir);
 
     let member = result.member(&db).expect("state should have expected type");
-    // Status schema declares state: "draft" (Literal type)
+    // Status schema declares state: "draft" (literal type wrapped in Simple)
     assert!(
-      matches!(member.typ(&db), MemberType::Literal(_)),
-      "expected Literal type for state field"
+      matches!(member.typ(&db), MemberType::Simple(lazy) if lazy.as_eager().is_some_and(|t| t.as_td_literal_type().is_some())),
+      "expected literal type for state field"
     );
   }
 

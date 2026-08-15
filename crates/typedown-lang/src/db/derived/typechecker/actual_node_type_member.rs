@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_date_type, get_datetime_type, get_math_type, get_null_type, get_num_type,
-  get_str_type, get_time_type, instantiate_type,
+  get_bool_type, get_date_type, get_datetime_type, get_literal_type, get_math_type, get_null_type,
+  get_num_type, get_str_type, get_time_type, instantiate_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -42,7 +42,9 @@ pub fn actual_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemb
       } else if is_valid_iso_time(val) {
         MemberType::Simple(LazyType::eager(get_time_type(db).into()))
       } else {
-        MemberType::Literal(LiteralValue::Str(val.clone()))
+        MemberType::Simple(LazyType::eager(
+          get_literal_type(db, LiteralValue::Str(val.clone())).into(),
+        ))
       };
       TypeMemberResult::new(
         db,
@@ -54,22 +56,14 @@ pub fn actual_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemb
         diagnostics,
       )
     }
-    HirValueKind::Num(ref val) => TypeMemberResult::new(
+    HirValueKind::Num(ref val) => simple_member_result(
       db,
-      Some(TypeMember::new(
-        db,
-        MemberType::Literal(LiteralValue::Num(val.clone())),
-        TypeMemberDescriptors::empty(),
-      )),
+      get_literal_type(db, LiteralValue::Num(val.clone())).into(),
       diagnostics,
     ),
-    HirValueKind::Bool(val) => TypeMemberResult::new(
+    HirValueKind::Bool(val) => simple_member_result(
       db,
-      Some(TypeMember::new(
-        db,
-        MemberType::Literal(LiteralValue::Bool(val)),
-        TypeMemberDescriptors::empty(),
-      )),
+      get_literal_type(db, LiteralValue::Bool(val)).into(),
       diagnostics,
     ),
     HirValueKind::Interpolated(_) => simple_member_result(db, get_str_type(db).into(), vec![]),
@@ -547,7 +541,35 @@ mod tests {
   };
 
   use super::actual_node_type_member;
+
   use crate::db::utils::typecheck::lift_type_member_result;
+
+  fn is_literal_str(db: &TypedownDatabase, member_type: &MemberType, expected: &str) -> bool {
+    if let MemberType::Simple(lazy) = member_type
+      && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.as_eager()
+    {
+      return lit.value(db) == LiteralValue::Str(expected.to_string());
+    }
+    false
+  }
+
+  fn is_literal_num(db: &TypedownDatabase, member_type: &MemberType, expected: &str) -> bool {
+    if let MemberType::Simple(lazy) = member_type
+      && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.as_eager()
+    {
+      return lit.value(db) == LiteralValue::Num(expected.to_string());
+    }
+    false
+  }
+
+  fn is_literal_bool(db: &TypedownDatabase, member_type: &MemberType, expected: bool) -> bool {
+    if let MemberType::Simple(lazy) = member_type
+      && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.as_eager()
+    {
+      return lit.value(db) == LiteralValue::Bool(expected);
+    }
+    false
+  }
 
   fn vault_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/evaluate_schema/my_vault")
@@ -565,28 +587,25 @@ mod tests {
       panic!("anonymous mapping should be Structural");
     };
 
-    // String literal narrows to Literal(Str)
+    // String literal narrows to Simple(TdLiteralType(Str))
     let name_member = fields.get("name").expect("should have name field");
     assert!(
-      matches!(name_member.typ(&db), MemberType::Literal(LiteralValue::Str(s)) if s == "Alice"),
-      "name should be Literal(Str(\"Alice\"))"
+      is_literal_str(&db, &name_member.typ(&db), "Alice"),
+      "name should be literal str \"Alice\""
     );
 
-    // Num literal narrows to Literal(Num)
+    // Num literal narrows to Simple(TdLiteralType(Num))
     let age_member = fields.get("age").expect("should have age field");
     assert!(
-      matches!(age_member.typ(&db), MemberType::Literal(LiteralValue::Num(n)) if n == "30"),
-      "age should be Literal(Num(\"30\"))"
+      is_literal_num(&db, &age_member.typ(&db), "30"),
+      "age should be literal num \"30\""
     );
 
-    // Bool literal narrows to Literal(Bool)
+    // Bool literal narrows to Simple(TdLiteralType(Bool))
     let active_member = fields.get("active").expect("should have active field");
     assert!(
-      matches!(
-        active_member.typ(&db),
-        MemberType::Literal(LiteralValue::Bool(true))
-      ),
-      "active should be Literal(Bool(true))"
+      is_literal_bool(&db, &active_member.typ(&db), true),
+      "active should be literal bool true"
     );
 
     // Sequence ["a", 3] narrows to ListOfSum with 2 arms
@@ -596,12 +615,12 @@ mod tests {
     };
     assert_eq!(arms.len(), 2, "tags should have 2 arms");
     assert!(
-      matches!(arms[0].typ(&db), MemberType::Literal(LiteralValue::Str(s)) if s == "a"),
-      "first arm should be Literal(Str(\"a\"))"
+      is_literal_str(&db, &arms[0].typ(&db), "a"),
+      "first arm should be literal str \"a\""
     );
     assert!(
-      matches!(arms[1].typ(&db), MemberType::Literal(LiteralValue::Num(n)) if n == "3"),
-      "second arm should be Literal(Num(\"3\"))"
+      is_literal_num(&db, &arms[1].typ(&db), "3"),
+      "second arm should be literal num \"3\""
     );
   }
 
@@ -650,8 +669,8 @@ mod tests {
       let result = actual_node_type_member(&db, name_hir);
       let member = result.member(&db).expect("should have a type");
       assert!(
-        matches!(member.typ(&db), MemberType::Literal(LiteralValue::Str(s)) if s == "Alice"),
-        "string value should be Literal(Str)"
+        is_literal_str(&db, &member.typ(&db), "Alice"),
+        "string value should be literal str"
       );
     }
   }
@@ -668,11 +687,8 @@ mod tests {
       let result = actual_node_type_member(&db, active_hir);
       let member = result.member(&db).expect("should have a type");
       assert!(
-        matches!(
-          member.typ(&db),
-          MemberType::Literal(LiteralValue::Bool(true))
-        ),
-        "bool value should be Literal(Bool)"
+        is_literal_bool(&db, &member.typ(&db), true),
+        "bool value should be literal bool"
       );
     }
   }
@@ -756,8 +772,8 @@ mod tests {
       let result = actual_node_type_member(&db, age_hir);
       let member = result.member(&db).expect("should have a type");
       assert!(
-        matches!(member.typ(&db), MemberType::Literal(LiteralValue::Num(n)) if n == "30"),
-        "number value should be Literal(Num)"
+        is_literal_num(&db, &member.typ(&db), "30"),
+        "number value should be literal num"
       );
     }
   }

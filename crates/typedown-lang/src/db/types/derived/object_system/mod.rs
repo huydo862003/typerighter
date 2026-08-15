@@ -5,6 +5,7 @@ mod datetime;
 mod dict;
 mod func;
 mod list;
+mod literal;
 mod math;
 mod native_fn;
 mod never;
@@ -29,6 +30,7 @@ pub use datetime::*;
 pub use dict::*;
 pub use func::*;
 pub use list::*;
+pub use literal::*;
 pub use math::*;
 pub use native_fn::*;
 pub use never::*;
@@ -67,6 +69,7 @@ pub enum TdTypeEnum {
   TdBlobType(TdBlobType),
   TdNullType(TdNullType),
   TdNeverType(TdNeverType),
+  TdLiteralType(TdLiteralType),
 }
 
 /// Use this instead of dyn
@@ -91,6 +94,7 @@ pub enum TdObjectEnum {
   TdBlobType(TdBlobType),
   TdNullType(TdNullType),
   TdNeverType(TdNeverType),
+  TdLiteralType(TdLiteralType),
   // Objects
   TdBoolObj(TdBoolObj),
   TdStrObj(TdStrObj),
@@ -127,6 +131,7 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdBlobType(v) => v.as_id(),
       TdTypeEnum::TdNullType(v) => v.as_id(),
       TdTypeEnum::TdNeverType(v) => v.as_id(),
+      TdTypeEnum::TdLiteralType(v) => v.as_id(),
     }
   }
 }
@@ -150,6 +155,7 @@ impl Id for TdObjectEnum {
       TdObjectEnum::TdBlobType(v) => v.as_id(),
       TdObjectEnum::TdNullType(v) => v.as_id(),
       TdObjectEnum::TdNeverType(v) => v.as_id(),
+      TdObjectEnum::TdLiteralType(v) => v.as_id(),
       TdObjectEnum::TdBoolObj(v) => v.as_id(),
       TdObjectEnum::TdStrObj(v) => v.as_id(),
       TdObjectEnum::TdNumObj(v) => v.as_id(),
@@ -187,6 +193,7 @@ impl From<TdTypeEnum> for TdObjectEnum {
       TdTypeEnum::TdBlobType(v) => TdObjectEnum::TdBlobType(v),
       TdTypeEnum::TdNullType(v) => TdObjectEnum::TdNullType(v),
       TdTypeEnum::TdNeverType(v) => TdObjectEnum::TdNeverType(v),
+      TdTypeEnum::TdLiteralType(v) => TdObjectEnum::TdLiteralType(v),
     }
   }
 }
@@ -210,6 +217,7 @@ impl TdObjectEnum {
       TdObjectEnum::TdBlobType(v) => Some(TdTypeEnum::TdBlobType(v)),
       TdObjectEnum::TdNullType(v) => Some(TdTypeEnum::TdNullType(v)),
       TdObjectEnum::TdNeverType(v) => Some(TdTypeEnum::TdNeverType(v)),
+      TdObjectEnum::TdLiteralType(v) => Some(TdTypeEnum::TdLiteralType(v)),
       _ => None,
     }
   }
@@ -264,6 +272,7 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdBlobType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdNullType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdNeverType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdLiteralType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -291,6 +300,7 @@ impl typedown_incremental::StableHash for TdObjectEnum {
       TdObjectEnum::TdBlobType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNullType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNeverType(v) => v.stable_hash(db, hasher),
+      TdObjectEnum::TdLiteralType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBoolObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdStrObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNumObj(v) => v.stable_hash(db, hasher),
@@ -328,6 +338,7 @@ pub enum TdTypeKind {
   Blob = 13,
   Null = 14,
   Never = 15,
+  Literal = 16,
 }
 
 #[derive(FromRepr)]
@@ -350,6 +361,7 @@ pub enum TdObjectKind {
   Blob = 13,
   Null = 14,
   Never = 15,
+  Literal = 16,
   // Object-only
   StrObj = 128,
   BoolObj = 129,
@@ -435,6 +447,10 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Never as u8);
         v.encode_field(buf, encoder);
       }
+      TdTypeEnum::TdLiteralType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Literal as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -459,6 +475,7 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Blob => TdBlobType::decode_field(data, decoder).into(),
       TdTypeKind::Null => TdNullType::decode_field(data, decoder).into(),
       TdTypeKind::Never => TdNeverType::decode_field(data, decoder).into(),
+      TdTypeKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
     }
   }
 }
@@ -530,6 +547,10 @@ impl Encodable for TdObjectEnum {
       }
       TdObjectEnum::TdNeverType(v) => {
         encoder.emit_u8(buf, TdObjectKind::Never as u8);
+        v.encode_field(buf, encoder);
+      }
+      TdObjectEnum::TdLiteralType(v) => {
+        encoder.emit_u8(buf, TdObjectKind::Literal as u8);
         v.encode_field(buf, encoder);
       }
       // Objects
@@ -613,6 +634,7 @@ impl Decodable for TdObjectEnum {
       TdObjectKind::Blob => TdBlobType::decode_field(data, decoder).into(),
       TdObjectKind::Null => TdNullType::decode_field(data, decoder).into(),
       TdObjectKind::Never => TdNeverType::decode_field(data, decoder).into(),
+      TdObjectKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
       TdObjectKind::StrObj => TdStrObj::decode_field(data, decoder).into(),
       TdObjectKind::BoolObj => TdBoolObj::decode_field(data, decoder).into(),
       TdObjectKind::NumObj => TdNumObj::decode_field(data, decoder).into(),

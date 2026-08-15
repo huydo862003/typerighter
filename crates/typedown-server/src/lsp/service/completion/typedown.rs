@@ -13,8 +13,7 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
 use typedown_lang::db::derived::typechecker::get_symbol_type_member::get_symbol_type_member;
 use typedown_lang::db::types::{
-  File, LiteralValue, MemberType, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
-  TypeMember,
+  File, LiteralValue, MemberType, Project, Scope, SymbolKind, TdProductType, TdTypeEnum, TypeMember,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
 use typedown_lang::db::utils::typecheck::lift_type_member_result;
@@ -285,13 +284,19 @@ fn member_placeholder(db: &TypedownDatabase, member: &MemberType, indent: usize)
     // Enum: use first option as default
     MemberType::Sum(members) => {
       let first = members.first().and_then(|m| match m.typ(db) {
-        MemberType::Literal(LiteralValue::Str(s)) => Some(s),
+        MemberType::Simple(lazy) => {
+          if let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
+            && let LiteralValue::Str(s) = lit.value(db)
+          {
+            return Some(s);
+          }
+          None
+        }
         _ => None,
       });
 
       first.unwrap_or_else(|| "value".to_string())
     }
-    MemberType::Literal(LiteralValue::Str(s)) => s.clone(),
     MemberType::ListOfSum(members) => {
       // List: generate a YAML list item
       let inner = members

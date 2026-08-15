@@ -115,7 +115,6 @@ pub fn member_type_display_name(db: &TypedownDatabase, member: &MemberType) -> S
         .join(" | ");
       format!("dict[{}]", inner)
     }
-    MemberType::Literal(val) => format!("{:?}", val),
     MemberType::Structural(fields) => {
       if fields.is_empty() {
         return "{}".to_string();

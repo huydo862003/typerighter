@@ -54,8 +54,18 @@ impl TdTypeLike for TdBoolType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
+      return true;
+    }
+    if self.as_id() == actual.as_id() {
+      return true;
+    }
+    // Accept literal subtypes
+    if let TdTypeEnum::TdLiteralType(lit) = actual {
+      return lit.underlying_type(db).as_id() == self.as_id();
+    }
+    false
   }
   fn construct(&self, _db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;

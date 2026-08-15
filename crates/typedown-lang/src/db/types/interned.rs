@@ -85,8 +85,6 @@ pub enum MemberType {
   Simple(LazyType),
   /// A union or enum type: each arm is itself a `TypeMember` (a type ref)
   Sum(Vec<TypeMember>),
-  /// A literal value constraint (e.g. `"foo"`, `42`, `true`)
-  Literal(LiteralValue),
   /// A list whose members are of the sum type
   ListOfSum(Vec<TypeMember>),
   /// A dict whose values are of the sum type
@@ -115,7 +113,6 @@ impl Hash for MemberType {
     match self {
       MemberType::Simple(v) => v.hash(state),
       MemberType::Sum(v) => v.hash(state),
-      MemberType::Literal(v) => v.hash(state),
       MemberType::ListOfSum(v) => v.hash(state),
       MemberType::DictOfSum(v) => v.hash(state),
       MemberType::Structural(fields) => {
@@ -193,7 +190,6 @@ impl StableHash for LiteralValue {
 enum MemberTypeTag {
   Simple = 0,
   Sum = 1,
-  Literal = 2,
   ListOfSum = 3,
   DictOfSum = 4,
   Structural = 5,
@@ -209,10 +205,6 @@ impl Encodable for MemberType {
       MemberType::Sum(members) => {
         encoder.emit_u8(buf, MemberTypeTag::Sum as u8);
         members.encode(buf, encoder);
-      }
-      MemberType::Literal(value) => {
-        encoder.emit_u8(buf, MemberTypeTag::Literal as u8);
-        value.encode(buf, encoder);
       }
       MemberType::ListOfSum(value) => {
         encoder.emit_u8(buf, MemberTypeTag::ListOfSum as u8);
@@ -236,7 +228,6 @@ impl Decodable for MemberType {
     match MemberTypeTag::from_repr(tag).expect("unknown MemberType tag") {
       MemberTypeTag::Simple => MemberType::Simple(LazyType::decode(data, decoder)),
       MemberTypeTag::Sum => MemberType::Sum(Vec::decode(data, decoder)),
-      MemberTypeTag::Literal => MemberType::Literal(LiteralValue::decode(data, decoder)),
       MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),
       MemberTypeTag::DictOfSum => MemberType::DictOfSum(Vec::decode(data, decoder)),
       MemberTypeTag::Structural => MemberType::Structural(HashMap::decode(data, decoder)),
@@ -250,7 +241,6 @@ impl StableHash for MemberType {
     match self {
       MemberType::Simple(typ) => typ.stable_hash(db, hasher),
       MemberType::Sum(members) => members.stable_hash(db, hasher),
-      MemberType::Literal(value) => value.stable_hash(db, hasher),
       MemberType::ListOfSum(members) => members.stable_hash(db, hasher),
       MemberType::DictOfSum(members) => members.stable_hash(db, hasher),
       MemberType::Structural(fields) => fields.stable_hash(db, hasher),

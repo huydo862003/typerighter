@@ -151,9 +151,15 @@ pub fn export_property_descriptors(
       MemberType::Sum(members) => {
         let literals: Vec<String> = members
           .iter()
-          .filter_map(|m| match m.typ(db) {
-            MemberType::Literal(LiteralValue::Str(s)) => Some(s),
-            _ => None,
+          .filter_map(|m| {
+            if let MemberType::Simple(lazy) = m.typ(db)
+              && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
+              && let LiteralValue::Str(s) = lit.value(db)
+            {
+              Some(s)
+            } else {
+              None
+            }
           })
           .collect();
 
@@ -164,17 +170,19 @@ pub fn export_property_descriptors(
         }
       }
 
-      MemberType::Literal(LiteralValue::Str(s)) => {
-        serde_json::json!({ "widget": Widget::Select, "options": [s] })
-      }
-
       // List of literals is a multi_select (multiple values from options)
       MemberType::ListOfSum(members) => {
         let literals: Vec<String> = members
           .iter()
-          .filter_map(|m| match m.typ(db) {
-            MemberType::Literal(LiteralValue::Str(s)) => Some(s),
-            _ => None,
+          .filter_map(|m| {
+            if let MemberType::Simple(lazy) = m.typ(db)
+              && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
+              && let LiteralValue::Str(s) = lit.value(db)
+            {
+              Some(s)
+            } else {
+              None
+            }
           })
           .collect();
 

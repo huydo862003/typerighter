@@ -6,9 +6,7 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::{
-  LiteralValue, MemberType, Project, Scope, SymbolKind, TdTypeEnum,
-};
+use typedown_lang::db::types::{LiteralValue, MemberType, Project, Scope, SymbolKind, TdTypeEnum};
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 
 use crate::core::analysis::Analysis;
@@ -105,6 +103,10 @@ fn default_value(db: &TypedownDatabase, member: &MemberType) -> String {
         return "\"\"".to_string();
       };
       match typ {
+        TdTypeEnum::TdLiteralType(lit) => match lit.value(db) {
+          LiteralValue::Str(s) => format!("\"{s}\""),
+          _ => "\"\"".to_string(),
+        },
         TdTypeEnum::TdStrType(_) => "\"\"".to_string(),
         TdTypeEnum::TdNumType(_) => "0".to_string(),
         TdTypeEnum::TdBoolType(_) => "false".to_string(),
@@ -124,12 +126,18 @@ fn default_value(db: &TypedownDatabase, member: &MemberType) -> String {
       members
         .first()
         .and_then(|m| match m.typ(db) {
-          MemberType::Literal(LiteralValue::Str(s)) => Some(format!("\"{s}\"")),
+          MemberType::Simple(lazy) => {
+            if let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
+              && let LiteralValue::Str(s) = lit.value(db)
+            {
+              return Some(format!("\"{s}\""));
+            }
+            None
+          }
           _ => None,
         })
         .unwrap_or_else(|| "\"\"".to_string())
     }
-    MemberType::Literal(LiteralValue::Str(s)) => format!("\"{s}\""),
     MemberType::ListOfSum(_) => "[]".to_string(),
     _ => "\"\"".to_string(),
   }

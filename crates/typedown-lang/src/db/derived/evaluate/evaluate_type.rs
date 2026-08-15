@@ -7,9 +7,9 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_math_type,
-  get_null_type, get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type,
-  instantiate_type,
+  get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_literal_type,
+  get_math_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_time_type,
+  get_type_type, instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
@@ -328,9 +328,15 @@ fn resolve_type_member(
       Some(MemberType::Simple(LazyType::eager(inst_result.typ(db))))
     }
     // Literal types
-    HirValueKind::Str(val) => Some(MemberType::Literal(LiteralValue::Str(val))),
-    HirValueKind::Num(val) => Some(MemberType::Literal(LiteralValue::Num(val))),
-    HirValueKind::Bool(val) => Some(MemberType::Literal(LiteralValue::Bool(val))),
+    HirValueKind::Str(val) => Some(MemberType::Simple(LazyType::eager(
+      get_literal_type(db, LiteralValue::Str(val)).into(),
+    ))),
+    HirValueKind::Num(val) => Some(MemberType::Simple(LazyType::eager(
+      get_literal_type(db, LiteralValue::Num(val)).into(),
+    ))),
+    HirValueKind::Bool(val) => Some(MemberType::Simple(LazyType::eager(
+      get_literal_type(db, LiteralValue::Bool(val)).into(),
+    ))),
     _ => {
       let node = hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -865,10 +871,16 @@ age: 42
     match value_field.typ(&db) {
       MemberType::Sum(members) => {
         assert_eq!(members.len(), 3, "should have 3 members in union");
-        assert!(
-          matches!(members[0].typ(&db), MemberType::Literal(LiteralValue::Str(s)) if s == "draft"),
-          "first member should be literal 'draft'"
+        let first = members[0].typ(&db);
+        let is_draft = matches!(
+          first,
+          MemberType::Simple(lazy)
+            if lazy.as_eager().is_some_and(|t| {
+              matches!(t, TdTypeEnum::TdLiteralType(lit)
+                if lit.value(&db) == LiteralValue::Str("draft".to_string()))
+            })
         );
+        assert!(is_draft, "first member should be literal 'draft'");
         assert!(
           matches!(members[1].typ(&db), MemberType::Simple(_)),
           "second member should be a simple type"
