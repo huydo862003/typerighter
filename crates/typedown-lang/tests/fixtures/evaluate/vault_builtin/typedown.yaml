@@ -1,4 +1,0 @@
-version: "1"
-vault:
-  content_dir: content
-  schema_dir: schemas
