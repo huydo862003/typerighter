@@ -8,7 +8,7 @@ use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_num_type;
-use crate::db::types::{FuncSignature, InstResult, LazyType, TypeMember};
+use crate::db::types::{FuncSignature, InstResult, LazyType};
 use typedown_incremental::Id;
 
 #[query_derived]
@@ -44,7 +44,7 @@ impl TdTypeLike for TdNumType {
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
-  fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
+  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
@@ -54,8 +54,17 @@ impl TdTypeLike for TdNumType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdNumType(_) => true,
+      TdTypeEnum::TdLiteralType(lit) => lit.underlying_type(db).as_id() == self.as_id(),
+      _ => false,
+    }
   }
   fn construct(&self, _db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;

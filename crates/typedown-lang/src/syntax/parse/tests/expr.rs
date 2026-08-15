@@ -223,11 +223,56 @@ fn parse_division() {
 fn parse_unary_negation() {
   let tree = parse_expr("-1");
   let expected = r#"(YamlMappingEntryValue
-  (UnaryExpr
+  (PrefixExpr
     " "
     "-"
     (NumberLit
       "1")))"#;
+  assert_eq!(tree, expected);
+}
+
+#[test]
+fn parse_postfix_question() {
+  let tree = parse_expr("string?");
+  let expected = r#"(YamlMappingEntryValue
+  (PostfixExpr
+    (IdentLit
+      " "
+      "string")
+    "?"))"#;
+  assert_eq!(tree, expected);
+}
+
+#[test]
+fn parse_postfix_question_on_member_access() {
+  let tree = parse_expr("a.b?");
+  let expected = r#"(YamlMappingEntryValue
+  (PostfixExpr
+    (BinaryExpr
+      (IdentLit
+        " "
+        "a")
+      "."
+      (IdentLit
+        "b"))
+    "?"))"#;
+  assert_eq!(tree, expected);
+}
+
+#[test]
+fn parse_postfix_question_on_index() {
+  let tree = parse_expr("list[string]?");
+  let expected = r#"(YamlMappingEntryValue
+  (PostfixExpr
+    (IndexExpr
+      (IdentLit
+        " "
+        "list")
+      "["
+      (IdentLit
+        "string")
+      "]")
+    "?"))"#;
   assert_eq!(tree, expected);
 }
 
@@ -476,7 +521,7 @@ fn parse_unary_minus_in_binary() {
   let tree = parse_expr("-1 + 2");
   let expected = r#"(YamlMappingEntryValue
   (BinaryExpr
-    (UnaryExpr
+    (PrefixExpr
       " "
       "-"
       (NumberLit
@@ -499,7 +544,7 @@ fn parse_unary_minus_right_side() {
       "1")
     " "
     "+"
-    (UnaryExpr
+    (PrefixExpr
       " "
       "-"
       (NumberLit

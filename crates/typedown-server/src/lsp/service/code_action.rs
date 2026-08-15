@@ -6,9 +6,8 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::{
-  LiteralValue, MemberType, Project, Scope, SymbolKind, TdTypeEnum, TypeMemberDescriptors,
-};
+use typedown_lang::db::types::{LazyType, LiteralValue, Project, Scope, SymbolKind, TdTypeEnum};
+use typedown_lang::db::utils::typecheck::is_nullable;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 
 use crate::core::analysis::Analysis;
@@ -81,11 +80,9 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 
       let mut template = String::new();
 
-      for (field_name, member) in &fields {
-        let default = default_value(db, &member.typ(db));
-        let optional = member
-          .descriptors(db)
-          .contains(TypeMemberDescriptors::OPTIONAL);
+      for (field_name, lazy) in &fields {
+        let default = default_value(db, lazy);
+        let optional = lazy.resolve(db).is_some_and(|t| is_nullable(db, &t));
 
         if optional {
           template.push_str(&format!("# {field_name}: {default}\n"));
@@ -99,40 +96,50 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
     .collect()
 }
 
-// Generate a default value string for a member type
-fn default_value(db: &TypedownDatabase, member: &MemberType) -> String {
-  match member {
-    MemberType::Simple(lazy) => {
-      let Some(typ) = lazy.resolve(db) else {
-        return "\"\"".to_string();
-      };
-      match typ {
-        TdTypeEnum::TdStrType(_) => "\"\"".to_string(),
-        TdTypeEnum::TdNumType(_) => "0".to_string(),
-        TdTypeEnum::TdBoolType(_) => "false".to_string(),
-        TdTypeEnum::TdDateType(_) => "\"\"".to_string(),
-        TdTypeEnum::TdDateTimeType(_) => "\"\"".to_string(),
-        TdTypeEnum::TdTimeType(_) => "\"\"".to_string(),
-        TdTypeEnum::TdProductType(product) => match product.name(db) {
-          Some(schema) => format!("fref(\"{schema}\")"),
-          None => "\"\"".to_string(),
-        },
-        TdTypeEnum::TdListType(_) => "[]".to_string(),
-        _ => "\"\"".to_string(),
+// Generate a default value string for a lazy type
+fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
+  let Some(typ) = lazy.resolve(db) else {
+    return "\"\"".to_string();
+  };
+  match typ {
+    TdTypeEnum::TdLiteralType(lit) => match lit.value(db) {
+      LiteralValue::Str(s) => format!("\"{s}\""),
+      _ => "\"\"".to_string(),
+    },
+    TdTypeEnum::TdStrType(_) => "\"\"".to_string(),
+    TdTypeEnum::TdNumType(_) => "0".to_string(),
+    TdTypeEnum::TdBoolType(_) => "false".to_string(),
+    TdTypeEnum::TdDateType(_) => "\"\"".to_string(),
+    TdTypeEnum::TdDateTimeType(_) => "\"\"".to_string(),
+    TdTypeEnum::TdTimeType(_) => "\"\"".to_string(),
+    TdTypeEnum::TdProductType(product) => match product.name(db) {
+      Some(schema) => format!("fref(\"{schema}\")"),
+      None => "\"\"".to_string(),
+    },
+    TdTypeEnum::TdListType(_) => "[]".to_string(),
+    TdTypeEnum::TdSumType(sum) => {
+      let members = sum.members(db);
+      // Optional type: use non-null member's default
+      let non_null: Vec<_> = members
+        .iter()
+        .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+        .collect();
+      if non_null.len() == 1 {
+        return default_value(db, non_null[0]);
       }
-    }
-    MemberType::Sum(members) => {
       // Enum: use first literal as default
       members
         .first()
-        .and_then(|m| match m.typ(db) {
-          MemberType::Literal(LiteralValue::Str(s)) => Some(format!("\"{s}\"")),
-          _ => None,
+        .and_then(|m| {
+          if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
+            && let LiteralValue::Str(s) = lit.value(db)
+          {
+            return Some(format!("\"{s}\""));
+          }
+          None
         })
         .unwrap_or_else(|| "\"\"".to_string())
     }
-    MemberType::Literal(LiteralValue::Str(s)) => format!("\"{s}\""),
-    MemberType::ListOfSum(_) => "[]".to_string(),
     _ => "\"\"".to_string(),
   }
 }

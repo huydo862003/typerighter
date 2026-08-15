@@ -4,10 +4,9 @@ use typedown_lang::db::types::TdTypeLike;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
-use typedown_lang::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
-use typedown_lang::db::types::{TypeMember, TypeMemberDescriptors, member_type_display_name};
-use typedown_lang::db::utils::typecheck::lift_type_member_result;
+use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
+use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
+use typedown_lang::db::types::TdTypeEnum;
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -42,7 +41,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
     let expr_node = nearest_expr_ancestor(&hovered_node)?;
     let hir = lower_node(db, project, file, expr_node);
 
-    let typ = lift_type_member_result(db, &actual_node_type_member(db, hir))?;
+    let typ = actual_node_type(db, hir).typ(db)?;
     typ.display_name(db)
   } else if find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey).is_some() {
     // Key position: show the field name with its declared type.
@@ -53,10 +52,10 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
       .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
     let value_expr = entry_value.children().find_map(Expr::cast)?;
     let hir = lower_node(db, project, file, value_expr.syntax().clone());
-    let member = expected_node_type_member(db, hir).member(db)?;
+    let typ = expected_node_type(db, hir).typ(db)?;
     let key_text = entry_key.text().trim().to_string();
 
-    format!("{key_text}: {}", member_type_label(db, &member))
+    format!("{key_text}: {}", type_label(db, &typ))
   } else {
     return None;
   };
@@ -70,16 +69,23 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
   })
 }
 
-fn member_type_label(db: &TypedownDatabase, member: &TypeMember) -> String {
-  let type_str = member_type_display_name(db, &member.typ(db));
-  if member
-    .descriptors(db)
-    .contains(TypeMemberDescriptors::OPTIONAL)
-  {
-    format!("{type_str}?")
-  } else {
-    type_str
+fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
+  if let Some(sum) = typ.as_td_sum_type() {
+    let members = sum.members(db);
+    let has_null = members
+      .iter()
+      .any(|m| m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()));
+    if has_null {
+      // Display non-null members joined by " | " with "?" suffix
+      let non_null: Vec<String> = members
+        .iter()
+        .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+        .filter_map(|m| m.resolve(db).map(|t| t.display_name(db)))
+        .collect();
+      return format!("{}?", non_null.join(" | "));
+    }
   }
+  typ.display_name(db)
 }
 
 #[cfg(test)]
@@ -223,7 +229,10 @@ name: "Ali|ce"
     );
     let (analysis, uri) = setup(&content);
     let text = hover_text(&analysis, uri, &content, offset).expect("expected hover");
-    assert!(text.contains("string"), "expected string type, got: {text}");
+    assert!(
+      text.contains("\"Alice\""),
+      "expected literal type, got: {text}"
+    );
   }
 
   #[test]

@@ -535,7 +535,7 @@ impl MdHtmlEntity {
 #[wrapper_ast_node(SyntaxKind = [
   NumberLit, StrLit, CodeLit, MathLit, IdentLit,
   ListLit, DictLit,
-  ParenExpr, CallExpr, UnaryExpr, BinaryExpr, IndexExpr,
+  ParenExpr, CallExpr, PrefixExpr, PostfixExpr, BinaryExpr, IndexExpr,
   YamlMapping, YamlSequence,
 ])]
 pub struct Expr(RedNode);
@@ -683,9 +683,24 @@ impl CallExpr {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct UnaryExpr(RedNode);
+pub struct PrefixExpr(RedNode);
 
-impl UnaryExpr {
+impl PrefixExpr {
+  /// Return the operand expression
+  pub fn expr(&self) -> Option<Expr> {
+    child::<Expr>(&self.0)
+  }
+
+  /// Return the operator
+  pub fn op(&self) -> Option<YamlOp> {
+    self.0.children().find_map(YamlOp::cast)
+  }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
+pub struct PostfixExpr(RedNode);
+
+impl PostfixExpr {
   /// Return the operand expression
   pub fn expr(&self) -> Option<Expr> {
     child::<Expr>(&self.0)

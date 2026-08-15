@@ -8,9 +8,7 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_dict_type;
-use crate::db::types::{HirValue, InstResult, LazyType, MemberType, TypeMember};
-use crate::db::utils::typecheck::member_types_compatible;
-use typedown_incremental::Id;
+use crate::db::types::{HirValue, InstResult, LazyType};
 
 #[query_derived]
 pub struct TdDictType {
@@ -56,7 +54,7 @@ impl TdTypeLike for TdDictType {
   fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     HashMap::new()
   }
-  fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
+  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
@@ -71,32 +69,50 @@ impl TdTypeLike for TdDictType {
     )
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    if let TdTypeEnum::TdProductType(product) = actual {
-      let value_type = match self.value(db).and_then(|l| l.resolve(db)) {
-        Some(vt) => vt,
-        None => return true,
-      };
-      return product.fields(db).values().all(|member| {
-        let value_member = MemberType::Simple(LazyType::eager(value_type.clone()));
-        member_types_compatible(db, &value_member, &member.typ(db))
-      });
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdProductType(product) => {
+        let value_type = match self.value(db).and_then(|l| l.resolve(db)) {
+          Some(vt) => vt,
+          None => return true,
+        };
+        product.fields(db).values().all(|field_lazy| {
+          field_lazy
+            .resolve(db)
+            .is_some_and(|field_type| value_type.accepts(db, &field_type))
+        })
+      }
+      TdTypeEnum::TdStructuralType(structural) => {
+        let value_type = match self.value(db).and_then(|l| l.resolve(db)) {
+          Some(vt) => vt,
+          None => return true,
+        };
+        structural.fields(db).values().all(|field_lazy| {
+          field_lazy
+            .resolve(db)
+            .is_some_and(|field_type| value_type.accepts(db, &field_type))
+        })
+      }
+      TdTypeEnum::TdDictType(_) => {
+        let self_args = self.get_type_args(db);
+        if self_args.is_empty() {
+          return true;
+        }
+        let actual_args = actual.get_type_args(db);
+        if actual_args.is_empty() {
+          return false;
+        }
+        self_args
+          .iter()
+          .zip(actual_args.iter())
+          .all(|(s, a)| s.accepts(db, a))
+      }
+      _ => false,
     }
-
-    if self.as_id().0 != actual.as_id().0 {
-      return false;
-    }
-    let self_args = self.get_type_args(db);
-    if self_args.is_empty() {
-      return true;
-    }
-    let actual_args = actual.get_type_args(db);
-    if actual_args.is_empty() {
-      return false;
-    }
-    self_args
-      .iter()
-      .zip(actual_args.iter())
-      .all(|(s, a)| s.accepts(db, a))
   }
   fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     match (

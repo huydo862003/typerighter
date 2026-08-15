@@ -4,18 +4,18 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_type::{evaluate_type, resolve_property_descriptor};
-use crate::db::derived::get_builtin_types::get_schema_type;
+use crate::db::derived::get_builtin_types::{
+  get_never_type, get_null_type, get_schema_type, get_sum_type,
+};
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
+use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, MemberType,
-  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNumObj, TdObjectEnum, TdObjectLike,
-  TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj, TypeMember,
-  TypeMemberDescriptors,
+  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
+  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
+  TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj,
 };
-use crate::db::utils::typecheck::lift_type_member_result;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
 
@@ -25,6 +25,9 @@ pub(crate) fn construct_from_hir(
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TdObjectEnum> {
   match hir.kind(db) {
+    HirValueKind::Null => {
+      return Some(TdNullObj::get(db).into());
+    }
     // self evaluates to the current file's resource object
     HirValueKind::Ident(name) if name == "self" => {
       let project = hir.project(db);
@@ -65,9 +68,13 @@ pub(crate) fn construct_from_hir(
     HirValueKind::Binary { op, left, right } => {
       return evaluate_binary(db, &op, *left, *right);
     }
-    // Unary operators
-    HirValueKind::Unary { op, operand } => {
-      return evaluate_unary(db, &op, *operand);
+    // Prefix operators
+    HirValueKind::Prefix { op, operand } => {
+      return evaluate_prefix(db, &op, *operand);
+    }
+    // Postfix operators
+    HirValueKind::Postfix { op, operand } => {
+      return evaluate_postfix(db, &op, *operand);
     }
     // Index access: list[n] or dict["key"]
     HirValueKind::Index { expr, indices } => {
@@ -112,10 +119,11 @@ pub(crate) fn construct_from_hir(
   }
 
   // Anonymous mappings have no schema, evaluate as a dict
-  let type_result = actual_node_type_member(db, hir);
+  let type_result = actual_node_type(db, hir);
   if let HirValueKind::Mapping(entries) = hir.kind(db)
-    && let Some(member) = type_result.member(db)
-    && matches!(member.typ(db), MemberType::Structural(_))
+    && type_result
+      .typ(db)
+      .is_some_and(|t| t.is_td_structural_type())
   {
     let dict_entries: HashMap<_, _> = entries
       .into_iter()
@@ -125,7 +133,7 @@ pub(crate) fn construct_from_hir(
   }
 
   // Normal construction: convert HIR to args, then call construct
-  let typ = lift_type_member_result(db, &type_result)?;
+  let typ = type_result.typ(db)?;
   match hir.kind(db) {
     HirValueKind::Str(val) => typ.construct(db, vec![TdStrObj::new(db, val).into()]),
     HirValueKind::Num(val) => {
@@ -158,7 +166,7 @@ pub(crate) fn construct_from_hir(
   }
 }
 
-fn evaluate_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
+fn evaluate_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
   let operand_obj = evaluate_node(db, operand).value(db)?;
   match op {
     "-" | "+" => {
@@ -175,6 +183,27 @@ fn evaluate_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<
     "~" => {
       let is_falsy = operand_obj.as_td_bool_obj().is_some_and(|b| !b.value(db));
       Some(TdBoolObj::new(db, is_falsy).into())
+    }
+    _ => None,
+  }
+}
+
+fn evaluate_postfix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
+  match op {
+    // T? evaluates to Sum([T, null]) as a type object
+    "?" => {
+      let inner = evaluate_node(db, operand).value(db)?;
+      let inner_type = inner.as_type()?;
+      Some(
+        get_sum_type(
+          db,
+          vec![
+            LazyType::eager(inner_type),
+            LazyType::eager(get_null_type(db).into()),
+          ],
+        )
+        .into(),
+      )
     }
     _ => None,
   }
@@ -346,20 +375,23 @@ fn evaluate_mapping(
         && prop_name != "_label"
         && prop_name != "_content"
       {
-        fields.insert(
-          prop_name,
-          TypeMember::new(db, MemberType::Never, TypeMemberDescriptors::empty()),
-        );
+        fields.insert(prop_name, LazyType::eager(get_never_type(db).into()));
         continue;
       }
-      if let Some((member_type, descriptors)) =
-        resolve_property_descriptor(db, prop_hir, &mut vec![])
-      {
-        fields.insert(prop_name, TypeMember::new(db, member_type, descriptors));
+      if let Some(lazy) = resolve_property_descriptor(db, prop_hir, &mut vec![]) {
+        fields.insert(prop_name, lazy);
       }
     }
     return Some(
-      TdProductType::new(db, None, get_schema_type(db).into(), fields, HashMap::new()).into(),
+      TdProductType::new(
+        db,
+        None,
+        get_schema_type(db).into(),
+        None,
+        fields,
+        HashMap::new(),
+      )
+      .into(),
     );
   }
 

@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use strum::FromRepr;
 use typedown_macros::query_interned;
@@ -10,27 +9,15 @@ use typedown_incremental::{
 
 use typedown_types::either::Either;
 
-use super::{Symbol, TdTypeEnum};
+use super::TdTypeEnum;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
+use crate::db::types::Symbol;
 
 #[query_interned]
 pub struct FuncSignature {
   pub params: Vec<TdTypeEnum>,
   pub ret: TdTypeEnum,
-}
-
-bitflags::bitflags! {
-  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-  pub struct TypeMemberDescriptors: u8 {
-    const OPTIONAL = 0b0000_0001;
-  }
-}
-
-impl StableHash for TypeMemberDescriptors {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
-    hasher.write_u8(self.bits());
-  }
 }
 
 // A type reference that may be eagerly resolved or lazily deferred to a symbol
@@ -52,6 +39,13 @@ impl LazyType {
       Either::Right(symbol) => evaluate_type(db, *symbol).typ(db),
     }
   }
+
+  pub fn as_eager(&self) -> Option<&TdTypeEnum> {
+    match &self.0 {
+      Either::Left(typ) => Some(typ),
+      Either::Right(_) => None,
+    }
+  }
 }
 
 impl Encodable for LazyType {
@@ -69,47 +63,6 @@ impl Decodable for LazyType {
 impl StableHash for LazyType {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
-  }
-}
-
-/// The type of a type member field
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MemberType {
-  /// A reference to a type, either eagerly resolved or lazily deferred
-  Simple(LazyType),
-  /// A union or enum type: each arm is itself a `TypeMember` (a type ref)
-  Sum(Vec<TypeMember>),
-  /// A literal value constraint (e.g. `"foo"`, `42`, `true`)
-  Literal(LiteralValue),
-  /// A list whose members are of the sum type
-  ListOfSum(Vec<TypeMember>),
-  /// A dict whose values are of the sum type
-  DictOfSum(Vec<TypeMember>),
-  // Anonymous field map for typechecking only, never exists at runtime
-  Structural(HashMap<String, TypeMember>),
-  /// The bottom type: no value can be assigned to this field
-  Never,
-}
-
-impl Hash for MemberType {
-  fn hash<H: Hasher>(&self, state: &mut H) {
-    std::mem::discriminant(self).hash(state);
-    match self {
-      MemberType::Simple(v) => v.hash(state),
-      MemberType::Sum(v) => v.hash(state),
-      MemberType::Literal(v) => v.hash(state),
-      MemberType::ListOfSum(v) => v.hash(state),
-      MemberType::DictOfSum(v) => v.hash(state),
-      MemberType::Structural(fields) => {
-        let mut entries: Vec<_> = fields.iter().collect();
-        entries.sort_by_key(|(k, _)| *k);
-        for (k, v) in entries {
-          k.hash(state);
-          v.hash(state);
-        }
-      }
-      MemberType::Never => {}
-    }
   }
 }
 
@@ -168,99 +121,5 @@ impl StableHash for LiteralValue {
       LiteralValue::Bool(value) => value.stable_hash(db, hasher),
       LiteralValue::Num(value) => value.stable_hash(db, hasher),
     }
-  }
-}
-
-#[derive(FromRepr)]
-#[repr(u8)]
-enum MemberTypeTag {
-  Simple = 0,
-  Sum = 1,
-  Literal = 2,
-  ListOfSum = 3,
-  DictOfSum = 4,
-  Structural = 5,
-  Never = 6,
-}
-
-impl Encodable for MemberType {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    match self {
-      MemberType::Simple(typ) => {
-        encoder.emit_u8(buf, MemberTypeTag::Simple as u8);
-        typ.encode(buf, encoder);
-      }
-      MemberType::Sum(members) => {
-        encoder.emit_u8(buf, MemberTypeTag::Sum as u8);
-        members.encode(buf, encoder);
-      }
-      MemberType::Literal(value) => {
-        encoder.emit_u8(buf, MemberTypeTag::Literal as u8);
-        value.encode(buf, encoder);
-      }
-      MemberType::ListOfSum(value) => {
-        encoder.emit_u8(buf, MemberTypeTag::ListOfSum as u8);
-        value.encode(buf, encoder);
-      }
-      MemberType::DictOfSum(value) => {
-        encoder.emit_u8(buf, MemberTypeTag::DictOfSum as u8);
-        value.encode(buf, encoder);
-      }
-      MemberType::Structural(fields) => {
-        encoder.emit_u8(buf, MemberTypeTag::Structural as u8);
-        fields.encode(buf, encoder);
-      }
-      MemberType::Never => {
-        encoder.emit_u8(buf, MemberTypeTag::Never as u8);
-      }
-    }
-  }
-}
-
-impl Decodable for MemberType {
-  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let tag = decoder.read_u8(data);
-    match MemberTypeTag::from_repr(tag).expect("unknown MemberType tag") {
-      MemberTypeTag::Simple => MemberType::Simple(LazyType::decode(data, decoder)),
-      MemberTypeTag::Sum => MemberType::Sum(Vec::decode(data, decoder)),
-      MemberTypeTag::Literal => MemberType::Literal(LiteralValue::decode(data, decoder)),
-      MemberTypeTag::ListOfSum => MemberType::ListOfSum(Vec::decode(data, decoder)),
-      MemberTypeTag::DictOfSum => MemberType::DictOfSum(Vec::decode(data, decoder)),
-      MemberTypeTag::Structural => MemberType::Structural(HashMap::decode(data, decoder)),
-      MemberTypeTag::Never => MemberType::Never,
-    }
-  }
-}
-
-impl StableHash for MemberType {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    std::mem::discriminant(self).stable_hash(db, hasher);
-    match self {
-      MemberType::Simple(typ) => typ.stable_hash(db, hasher),
-      MemberType::Sum(members) => members.stable_hash(db, hasher),
-      MemberType::Literal(value) => value.stable_hash(db, hasher),
-      MemberType::ListOfSum(members) => members.stable_hash(db, hasher),
-      MemberType::DictOfSum(members) => members.stable_hash(db, hasher),
-      MemberType::Structural(fields) => fields.stable_hash(db, hasher),
-      MemberType::Never => {}
-    }
-  }
-}
-
-#[query_interned]
-pub struct TypeMember {
-  pub typ: MemberType,
-  pub descriptors: TypeMemberDescriptors,
-}
-
-impl Encodable for TypeMemberDescriptors {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u8(buf, self.bits());
-  }
-}
-
-impl Decodable for TypeMemberDescriptors {
-  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    TypeMemberDescriptors::from_bits_truncate(decoder.read_u8(data))
   }
 }

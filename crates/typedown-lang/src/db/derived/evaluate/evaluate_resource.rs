@@ -61,8 +61,8 @@ mod tests {
   use crate::db::{
     QueryStorage, TypedownDatabase, derived::evaluate::evaluate_node::evaluate_node,
     derived::evaluate::evaluate_resource::evaluate_resource,
-    derived::name_resolver::file_symbol::file_symbol, fixtures::load_vault_fixture,
-    types::HirValueKind, utils::lower_file,
+    derived::name_resolver::file_symbol::file_symbol, derived::typechecker::typecheck::typecheck,
+    fixtures::load_vault_fixture, types::HirValueKind, utils::lower_file,
   };
 
   // A valid resource with _type produces an object with the declared fields
@@ -604,5 +604,142 @@ mod tests {
         kind
       );
     }
+  }
+
+  // null evaluates to TdNullObj
+  #[test]
+  fn null_evaluates_to_null_obj() {
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/null_value.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let result = obj
+      .get_owned_field(&db, "result")
+      .expect("should have result");
+    assert!(
+      result.as_td_null_obj().is_some(),
+      "null should evaluate to TdNullObj"
+    );
+  }
+
+  // string? field accepts null
+  #[test]
+  fn optional_field_accepts_null() {
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/with_null.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let name = obj.get_owned_field(&db, "name").expect("should have name");
+    assert_eq!(name.as_td_str_obj().unwrap().value(&db), "Alice");
+    let nickname = obj
+      .get_owned_field(&db, "nickname")
+      .expect("should have nickname");
+    assert!(
+      nickname.as_td_null_obj().is_some(),
+      "null value should be TdNullObj"
+    );
+  }
+
+  // string? field accepts a string value
+  #[test]
+  fn optional_field_accepts_value() {
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/with_value.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let nickname = obj
+      .get_owned_field(&db, "nickname")
+      .expect("should have nickname");
+    let str_obj = nickname.as_td_str_obj().expect("should be a string");
+    assert_eq!(str_obj.value(&db), "Bobby");
+  }
+
+  // string? field can be omitted
+  #[test]
+  fn optional_field_can_be_omitted() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/null_type", "content/without_optional.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_resource(&db, symbol);
+    assert!(
+      result.value(&db).is_some(),
+      "resource with omitted optional field should evaluate"
+    );
+  }
+
+  // string? field with wrong type produces typecheck error
+  #[test]
+  fn optional_field_wrong_type_has_diagnostics() {
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/wrong_type.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      !result.diagnostics(&db).is_empty(),
+      "number in string? field should produce diagnostics"
+    );
+  }
+
+  // _type: Schema? should produce a diagnostic
+  #[test]
+  fn nullable_type_ref_has_diagnostics() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/null_type", "content/nullable_type_ref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnresolvedSchema { .. })),
+      "_type: Schema? should produce UnresolvedSchema: {:?}",
+      diags
+    );
+  }
+
+  // Missing a required field (name: string) produces MissingRequiredField diagnostic
+  #[test]
+  fn missing_required_field_has_diagnostics() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/null_type", "content/missing_required.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "name")),
+      "missing required field 'name' should produce diagnostic: {:?}",
+      diags
+    );
+  }
+
+  // Missing a nullable field (nickname: string?) does NOT produce a diagnostic
+  #[test]
+  fn missing_nullable_field_no_diagnostics() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/null_type", "content/without_optional.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    let diags = result.diagnostics(&db);
+    assert!(
+      !diags.iter().any(
+        |d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "nickname")
+      ),
+      "missing nullable field should not produce diagnostic: {:?}",
+      diags
+    );
+  }
+
+  // Missing field on a product object evaluates to null at runtime
+  #[test]
+  fn missing_field_evaluates_to_null() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/null_type", "content/without_optional.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let nickname = obj
+      .get_owned_field(&db, "nickname")
+      .expect("missing field should return null, not None");
+    assert!(
+      nickname.as_td_null_obj().is_some(),
+      "missing field should evaluate to TdNullObj"
+    );
   }
 }

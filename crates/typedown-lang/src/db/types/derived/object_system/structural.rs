@@ -1,30 +1,23 @@
 use std::collections::HashMap;
 use typedown_macros::query_derived;
 
-use super::base::{TdObjectLike, TdObjectType, TdTypeLike};
+use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
 use super::func::TdFuncObj;
-use super::null::TdNullObj;
-use super::structural::fields_compatible;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::evaluate::evaluate_node::evaluate_node;
+use crate::db::types::{InstResult, LazyType};
+use crate::db::utils::typecheck::is_nullable;
 use typedown_incremental::Id;
-use typedown_types::either::Either;
 
-use crate::db::types::{HirValue, InstResult, LazyType, Symbol};
-
+// Anonymous structural type for typechecking, holds field name to type mappings
 #[query_derived]
-pub struct TdProductType {
-  pub name: Option<String>,
-  pub metatype: TdTypeEnum,
-  pub supertype: Option<TdTypeEnum>,
+pub struct TdStructuralType {
   pub fields: HashMap<String, LazyType>,
-  pub vtable: HashMap<String, TdFuncObj>,
 }
 
-impl TdObjectLike for TdProductType {
+impl TdObjectLike for TdStructuralType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    self.metatype(db)
+    TdTypeType::get(db).into()
   }
   fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
     None
@@ -34,17 +27,15 @@ impl TdObjectLike for TdProductType {
   }
 }
 
-impl TdTypeLike for TdProductType {
+impl TdTypeLike for TdStructuralType {
   fn arity(&self, _db: &TypedownDatabase) -> usize {
     0
   }
   fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    self
-      .supertype(db)
-      .unwrap_or_else(|| TdObjectType::get(db).into())
+    TdObjectType::get(db).into()
   }
-  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    self.vtable(db)
+  fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+    HashMap::new()
   }
   fn get_owned_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
     self.fields(db).get(name)?.resolve(db)
@@ -64,23 +55,19 @@ impl TdTypeLike for TdProductType {
         .iter()
         .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
       _ if self.as_id() == actual.as_id() => true,
+      TdTypeEnum::TdProductType(product) => {
+        fields_compatible(db, &self.fields(db), &product.fields(db))
+      }
       TdTypeEnum::TdStructuralType(structural) => {
         fields_compatible(db, &self.fields(db), &structural.fields(db))
       }
       _ => false,
     }
   }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
-    let arg = args.into_iter().next()?;
-    let dict = arg.as_td_dict_obj()?;
-    let fields = dict.entries(db);
-    Some(TdProductObj::new(db, (*self).into(), None, fields).into())
+  fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+    None
   }
   fn display_name(&self, db: &TypedownDatabase) -> String {
-    if let Some(name) = self.name(db) {
-      return name;
-    }
-    // Structural fallback for anonymous product types
     let fields = self.fields(db);
     if fields.is_empty() {
       return "{}".to_string();
@@ -98,26 +85,27 @@ impl TdTypeLike for TdProductType {
   }
 }
 
-#[query_derived]
-pub struct TdProductObj {
-  pub schema: TdTypeEnum,
-  pub file_symbol: Option<Symbol>,
-  pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
-}
-
-impl TdObjectLike for TdProductObj {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    self.schema(db)
-  }
-  fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
-    match self.fields(db).get(key).cloned() {
-      Some(Either::Left(hir)) => evaluate_node(db, hir).value(db),
-      Some(Either::Right(obj)) => Some(obj),
-      // Missing fields evaluate to null
-      None => Some(TdNullObj::get(db).into()),
+// Check if expected fields are compatible with actual fields
+pub fn fields_compatible(
+  db: &TypedownDatabase,
+  expected_fields: &HashMap<String, LazyType>,
+  actual_fields: &HashMap<String, LazyType>,
+) -> bool {
+  expected_fields.iter().all(|(name, expected_lazy)| {
+    let optional = expected_lazy
+      .resolve(db)
+      .is_some_and(|t| is_nullable(db, &t));
+    match actual_fields.get(name) {
+      Some(actual_lazy) => {
+        let Some(expected_type) = expected_lazy.resolve(db) else {
+          return false;
+        };
+        let Some(actual_type) = actual_lazy.resolve(db) else {
+          return false;
+        };
+        expected_type.accepts(db, &actual_type)
+      }
+      None => optional,
     }
-  }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
-    self.get_type(db).source_path(db)
-  }
+  })
 }

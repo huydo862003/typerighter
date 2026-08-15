@@ -38,7 +38,11 @@ pub enum HirValueKind {
     tag: Box<HirValue>,
     inner: Box<HirValue>,
   },
-  Unary {
+  Prefix {
+    op: String,
+    operand: Box<HirValue>,
+  },
+  Postfix {
     op: String,
     operand: Box<HirValue>,
   },
@@ -76,7 +80,7 @@ impl StableHash for HirValueKind {
         tag.stable_hash(db, hasher);
         inner.stable_hash(db, hasher);
       }
-      HirValueKind::Unary { op, operand } => {
+      HirValueKind::Prefix { op, operand } | HirValueKind::Postfix { op, operand } => {
         op.stable_hash(db, hasher);
         operand.stable_hash(db, hasher);
       }
@@ -121,10 +125,11 @@ enum HirValueKindTag {
   Interpolated = 8,
   Markdown = 9,
   Tag = 10,
-  Unary = 11,
-  Binary = 12,
-  Call = 13,
-  Index = 14,
+  Prefix = 11,
+  Postfix = 12,
+  Binary = 13,
+  Call = 14,
+  Index = 15,
 }
 
 #[derive(FromRepr)]
@@ -181,8 +186,13 @@ impl Encodable for HirValueKind {
         tag.encode(buf, encoder);
         inner.encode(buf, encoder);
       }
-      HirValueKind::Unary { op, operand } => {
-        encoder.emit_u8(buf, HirValueKindTag::Unary as u8);
+      HirValueKind::Prefix { op, operand } => {
+        encoder.emit_u8(buf, HirValueKindTag::Prefix as u8);
+        op.encode(buf, encoder);
+        operand.encode(buf, encoder);
+      }
+      HirValueKind::Postfix { op, operand } => {
+        encoder.emit_u8(buf, HirValueKindTag::Postfix as u8);
         op.encode(buf, encoder);
         operand.encode(buf, encoder);
       }
@@ -224,7 +234,11 @@ impl Decodable for HirValueKind {
         tag: Box::decode(data, decoder),
         inner: Box::decode(data, decoder),
       },
-      HirValueKindTag::Unary => HirValueKind::Unary {
+      HirValueKindTag::Prefix => HirValueKind::Prefix {
+        op: String::decode(data, decoder),
+        operand: Box::decode(data, decoder),
+      },
+      HirValueKindTag::Postfix => HirValueKind::Postfix {
         op: String::decode(data, decoder),
         operand: Box::decode(data, decoder),
       },

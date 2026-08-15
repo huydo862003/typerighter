@@ -5,13 +5,15 @@ use typedown_macros::query_derived;
 use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::schema_property::get_schema_property_type;
 use std::collections::HashMap;
 
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, MemberType, Symbol, SymbolKind,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Symbol, SymbolKind,
   TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
-  TdListType, TdMathType, TdNumType, TdObjectType, TdProductType, TdStrType, TdTimeType,
-  TdTypeEnum, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
+  TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
+  TdObjectType, TdProductType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeLike,
+  TdTypeType,
 };
 use typedown_incremental::QueryDatabase;
 
@@ -87,24 +89,19 @@ pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
   let properties_type = TdDictType::new(
     db,
     Some(LazyType::eager(get_str_type(db).into())),
-    Some(LazyType::eager(
-      crate::db::derived::schema_property::get_schema_property_type(db).into(),
-    )),
+    Some(LazyType::eager(get_schema_property_type(db).into())),
   );
 
   let fields = HashMap::from([(
     "properties".to_string(),
-    TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(properties_type.into())),
-      TypeMemberDescriptors::empty(),
-    ),
+    LazyType::eager(properties_type.into()),
   )]);
 
   TdProductType::new(
     db,
     Some("schema".to_string()),
     get_type_type(db).into(),
+    Some(get_type_type(db).into()),
     fields,
     HashMap::new(),
   )
@@ -117,6 +114,7 @@ pub fn get_schemaless_type(db: &TypedownDatabase) -> TdProductType {
     db,
     None,
     get_schema_type(db).into(),
+    None,
     HashMap::new(),
     HashMap::new(),
   )
@@ -227,8 +225,33 @@ pub fn get_blob_type(db: &TypedownDatabase) -> TdBlobType {
 }
 
 #[query_derived]
+pub fn get_null_type(db: &TypedownDatabase) -> TdNullType {
+  TdNullType::new(db)
+}
+
+#[query_derived]
+pub fn get_never_type(db: &TypedownDatabase) -> TdNeverType {
+  TdNeverType::new(db)
+}
+
+#[query_derived]
+pub fn get_literal_type(db: &TypedownDatabase, value: LiteralValue) -> TdLiteralType {
+  TdLiteralType::new(db, value)
+}
+
+#[query_derived]
+pub fn get_null_obj(db: &TypedownDatabase) -> TdNullObj {
+  TdNullObj::new(db)
+}
+
+#[query_derived]
 pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncType {
   TdFuncType::new(db, signature)
+}
+
+#[query_derived]
+pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
+  TdSumType::new(db, members)
 }
 
 #[query_derived]

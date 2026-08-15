@@ -11,9 +11,7 @@ use super::native_fn::NativeFnKind;
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
-use crate::db::types::{
-  FuncSignature, InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors,
-};
+use crate::db::types::{FuncSignature, InstResult, LazyType};
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
@@ -92,23 +90,19 @@ pub trait TdTypeLike: TdObjectLike {
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
   ) -> std::collections::HashMap<String, TdFuncObj>;
-  fn get_owned_field_type_member(
+  fn get_owned_field_type(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
     name: &str,
-  ) -> Option<::typedown_lang::db::types::TypeMember>;
-  fn lookup_field_type_member(
+  ) -> Option<TdTypeEnum>;
+  fn lookup_field_type(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
     name: &str,
-  ) -> Option<::typedown_lang::db::types::TypeMember> {
-    self.get_owned_field_type_member(db, name).or_else(|| {
+  ) -> Option<TdTypeEnum> {
+    self.get_owned_field_type(db, name).or_else(|| {
       let func = self.lookup_instance_method(db, name)?;
-      Some(TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(func.get_type(db))),
-        TypeMemberDescriptors::empty(),
-      ))
+      Some(func.get_type(db))
     })
   }
 
@@ -129,6 +123,25 @@ pub trait TdTypeLike: TdObjectLike {
     db: &::typedown_lang::db::TypedownDatabase,
     args: Vec<TdObjectEnum>,
   ) -> Option<TdObjectEnum>;
+
+  // Check if this type is TdTypeType or a subtype of TdTypeType
+  fn is_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> bool {
+    let type_type = get_type_type(db);
+    if type_type.as_id() == self.as_id() {
+      return true;
+    }
+    let mut current = self.get_supertype(db);
+    loop {
+      if type_type.as_id() == current.as_id() {
+        return true;
+      }
+      let next = current.get_supertype(db);
+      if next.as_id() == current.as_id() {
+        return false;
+      }
+      current = next;
+    }
+  }
 
   fn lookup_instance_method(
     &self,
@@ -180,11 +193,11 @@ impl TdTypeLike for TdTypeType {
   ) -> std::collections::HashMap<String, TdFuncObj> {
     HashMap::new()
   }
-  fn get_owned_field_type_member(
+  fn get_owned_field_type(
     &self,
     _db: &::typedown_lang::db::TypedownDatabase,
     _name: &str,
-  ) -> Option<TypeMember> {
+  ) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(
@@ -260,11 +273,11 @@ impl TdTypeLike for TdObjectType {
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
-  fn get_owned_field_type_member(
+  fn get_owned_field_type(
     &self,
     _db: &::typedown_lang::db::TypedownDatabase,
     _name: &str,
-  ) -> Option<TypeMember> {
+  ) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(
@@ -277,8 +290,15 @@ impl TdTypeLike for TdObjectType {
   fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+  fn accepts(&self, db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      _ => self.as_id() == actual.as_id(),
+    }
   }
   fn construct(
     &self,

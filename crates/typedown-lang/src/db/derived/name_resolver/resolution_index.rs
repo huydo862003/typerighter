@@ -134,7 +134,7 @@ fn collect_references(
       collect_references(db, *tag, map);
       collect_references(db, *inner, map);
     }
-    HirValueKind::Unary { operand, .. } => {
+    HirValueKind::Prefix { operand, .. } | HirValueKind::Postfix { operand, .. } => {
       collect_references(db, *operand, map);
     }
     HirValueKind::Binary { left, right, .. } => {
