@@ -223,7 +223,7 @@ fn parse_division() {
 fn parse_unary_negation() {
   let tree = parse_expr("-1");
   let expected = r#"(YamlMappingEntryValue
-  (UnaryExpr
+  (PrefixExpr
     " "
     "-"
     (NumberLit
@@ -476,7 +476,7 @@ fn parse_unary_minus_in_binary() {
   let tree = parse_expr("-1 + 2");
   let expected = r#"(YamlMappingEntryValue
   (BinaryExpr
-    (UnaryExpr
+    (PrefixExpr
       " "
       "-"
       (NumberLit
@@ -499,7 +499,7 @@ fn parse_unary_minus_right_side() {
       "1")
     " "
     "+"
-    (UnaryExpr
+    (PrefixExpr
       " "
       "-"
       (NumberLit

@@ -5,7 +5,7 @@ use typedown_macros::query_derived;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr, IdentLit, IndexExpr,
   InlineCode, InlineMath, InterpFragment, ListItem, ListLit, MathBlock, MathLit, MdBody, NumberLit,
-  ParenExpr, SourceFile, StrLit, UnaryExpr, YamlFrontmatter, YamlMapping, YamlSequence,
+  ParenExpr, SourceFile, StrLit, PrefixExpr, YamlFrontmatter, YamlMapping, YamlSequence,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
@@ -277,7 +277,7 @@ fn lower_expr_kind(
   }
 
   // Handle unary
-  if let Some(unary) = UnaryExpr::cast(inner.syntax().clone())
+  if let Some(unary) = PrefixExpr::cast(inner.syntax().clone())
     && let Some(operand) = unary.expr()
   {
     let op = unary

@@ -228,6 +228,14 @@ mod tests {
   }
 
   #[test]
+  fn yaml_question_mark_op() {
+    let tokens = lex_yaml("string?");
+    assert_eq!(tokens[0], (SyntaxKind::YamlIndent, "".to_string()));
+    assert_eq!(tokens[1], (SyntaxKind::Ident, "string".to_string()));
+    assert_eq!(tokens[2], (SyntaxKind::YamlOp, "?".to_string()));
+  }
+
+  #[test]
   fn yaml_brackets() {
     let tokens = lex_yaml("[]{}(),");
     assert_eq!(tokens[1], (SyntaxKind::LBracket, "[".to_string()));

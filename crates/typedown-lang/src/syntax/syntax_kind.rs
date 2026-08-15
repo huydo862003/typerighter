@@ -51,7 +51,8 @@ pub enum SyntaxKind {
   ParenExpr,         // (expr)
   CallExpr,          // func(args)
   IndexExpr,         // expr[expr, ...]
-  UnaryExpr,
+  PrefixExpr,
+  PostfixExpr,
   BinaryExpr,
 
   // Literals

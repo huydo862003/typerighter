@@ -121,7 +121,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         // Parse operand with the children's right binding power
         let (operand, exit) = self.pratt_parse_expr(right_bp, vec![], block_indent);
         children.push(operand);
-        (self.emit(SyntaxKind::UnaryExpr, &children), exit)
+        (self.emit(SyntaxKind::PrefixExpr, &children), exit)
       } else {
         // Not a children op, parse as primary
         self.parse_primary_expr(children, block_indent)
@@ -174,7 +174,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         }
         let mut children = vec![lhs];
         self.advance(&mut children, self.formula_expr_skip_flags(), mode);
-        lhs = self.emit(SyntaxKind::UnaryExpr, &children);
+        lhs = self.emit(SyntaxKind::PostfixExpr, &children);
         continue;
       }
 
