@@ -210,24 +210,8 @@ fn get_postfix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeM
   let operand_result = actual_node_type_member(db, operand);
   let diagnostics = operand_result.diagnostics(db).clone();
   match op {
-    // Desugar T? to Sum([T, null])
-    "?" => {
-      let operand_member = match operand_result.member(db) {
-        Some(m) => m,
-        None => return TypeMemberResult::new(db, None, diagnostics),
-      };
-      let null_member = TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
-        TypeMemberDescriptors::empty(),
-      );
-      let sum = MemberType::Sum(vec![operand_member, null_member]);
-      TypeMemberResult::new(
-        db,
-        Some(TypeMember::new(db, sum, TypeMemberDescriptors::empty())),
-        diagnostics,
-      )
-    }
+    // T? is a type operator, its result is a type
+    "?" => operand_result,
     _ => TypeMemberResult::new(db, None, diagnostics),
   }
 }

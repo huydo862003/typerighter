@@ -8,7 +8,8 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_math_type,
-  get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type, instantiate_type,
+  get_null_type, get_num_type, get_schema_type, get_str_type, get_time_type, get_type_type,
+  instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
@@ -194,6 +195,20 @@ fn resolve_type_member(
         end_offset: tr_offset + tr_len,
       });
       None
+    }
+
+    // Desugar T? to Sum([T, null])
+    HirValueKind::Postfix { op, operand } if op == "?" => {
+      let inner = resolve_type_member(db, *operand, diagnostics)?;
+      let null_member = TypeMember::new(
+        db,
+        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
+        TypeMemberDescriptors::empty(),
+      );
+      Some(MemberType::Sum(vec![
+        TypeMember::new(db, inner, TypeMemberDescriptors::empty()),
+        null_member,
+      ]))
     }
 
     // Simple type reference like `type: string`
