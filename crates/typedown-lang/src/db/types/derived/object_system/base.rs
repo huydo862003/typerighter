@@ -103,9 +103,10 @@ pub trait TdTypeLike: TdObjectLike {
     name: &str,
   ) -> Option<::typedown_lang::db::types::TypeMember> {
     self.get_owned_field_type_member(db, name).or_else(|| {
+      let func = self.lookup_instance_method(db, name)?;
       Some(TypeMember::new(
         db,
-        MemberType::Simple(LazyType::eager(self.lookup_method(db, name)?.get_type(db))),
+        MemberType::Simple(LazyType::eager(func.get_type(db))),
         TypeMemberDescriptors::empty(),
       ))
     })

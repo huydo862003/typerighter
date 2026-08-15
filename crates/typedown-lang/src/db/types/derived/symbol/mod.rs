@@ -16,6 +16,7 @@ pub enum SymbolKind {
   Asset(AssetKind, Project, File),
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
+  BuiltinGlobal(BuiltinGlobalKind),
 }
 
 #[derive(FromRepr)]
@@ -26,6 +27,7 @@ enum SymbolKindTag {
   BuiltinSchema = 2,
   BuiltinMacro = 3,
   Asset = 4,
+  BuiltinGlobal = 5,
 }
 
 impl SymbolKind {
@@ -74,6 +76,7 @@ impl StableHash for SymbolKind {
       }
       SymbolKind::BuiltinSchema(kind) => kind.stable_hash(db, hasher),
       SymbolKind::BuiltinMacro(kind) => kind.stable_hash(db, hasher),
+      SymbolKind::BuiltinGlobal(kind) => kind.stable_hash(db, hasher),
     }
   }
 }
@@ -105,6 +108,10 @@ impl Encodable for SymbolKind {
         encoder.emit_u8(buf, SymbolKindTag::BuiltinMacro as u8);
         kind.encode(buf, encoder);
       }
+      SymbolKind::BuiltinGlobal(kind) => {
+        encoder.emit_u8(buf, SymbolKindTag::BuiltinGlobal as u8);
+        kind.encode(buf, encoder);
+      }
     }
   }
 }
@@ -131,6 +138,9 @@ impl Decodable for SymbolKind {
       }
       SymbolKindTag::BuiltinMacro => {
         SymbolKind::BuiltinMacro(BuiltinMacroKind::decode(data, decoder))
+      }
+      SymbolKindTag::BuiltinGlobal => {
+        SymbolKind::BuiltinGlobal(BuiltinGlobalKind::decode(data, decoder))
       }
     }
   }
@@ -238,6 +248,31 @@ impl Decodable for BuiltinMacroKind {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     BuiltinMacroKind::from_repr(tag).expect("unknown BuiltinMacroKind tag")
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr)]
+#[repr(u8)]
+pub enum BuiltinGlobalKind {
+  Vault = 0,
+}
+
+impl StableHash for BuiltinGlobalKind {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    std::mem::discriminant(self).stable_hash(db, hasher);
+  }
+}
+
+impl Encodable for BuiltinGlobalKind {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u8(buf, *self as u8);
+  }
+}
+
+impl Decodable for BuiltinGlobalKind {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let tag = decoder.read_u8(data);
+    BuiltinGlobalKind::from_repr(tag).expect("unknown BuiltinGlobalKind tag")
   }
 }
 

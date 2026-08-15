@@ -216,20 +216,19 @@ pub fn member_types_compatible(
         Some(t) => t,
         None => return false,
       };
-      // Product type accepts structural if all required fields are present and match
+      // Product type accepts structural if all required fields are present and
+      // all present fields have compatible types
       if let Some(product) = exp_type.as_td_product_type() {
         return product.fields(db).iter().all(|(name, exp_member)| {
-          if exp_member
+          let is_optional = exp_member
             .descriptors(db)
-            .contains(TypeMemberDescriptors::OPTIONAL)
-          {
-            return true;
-          }
+            .contains(TypeMemberDescriptors::OPTIONAL);
           match act_fields.get(name) {
             Some(actual_member) => {
               member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
             }
-            None => false,
+            // Missing required field
+            None => is_optional,
           }
         });
       }

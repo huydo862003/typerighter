@@ -44,9 +44,9 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
       evaluate_user_defined_schema(db, symbol.name(db), project, file)
     }
     SymbolKind::Asset(_, _, _) => TypeResult::new(db, Some(TdBlobType::get(db).into()), vec![]),
-    SymbolKind::UserDefinedResource(_, _) | SymbolKind::BuiltinMacro(_) => {
-      TypeResult::new(db, None, vec![])
-    }
+    SymbolKind::UserDefinedResource(_, _)
+    | SymbolKind::BuiltinMacro(_)
+    | SymbolKind::BuiltinGlobal(_) => TypeResult::new(db, None, vec![]),
   }
 }
 

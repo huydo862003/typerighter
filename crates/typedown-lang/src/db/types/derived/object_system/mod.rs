@@ -10,6 +10,7 @@ mod native_fn;
 mod num;
 mod product;
 mod str;
+mod vault;
 
 use std::hash::{Hash, Hasher};
 
@@ -31,6 +32,7 @@ pub use native_fn::*;
 pub use num::*;
 pub use product::*;
 pub use str::*;
+pub use vault::*;
 
 use ambassador::Delegate;
 use derive_more::From;
@@ -94,6 +96,7 @@ pub enum TdObjectEnum {
   TdTimeObj(TdTimeObj),
   TdProductObj(TdProductObj),
   TdBlobObj(TdBlobObj),
+  TdVaultObj(TdVaultObj),
 }
 
 impl Id for TdTypeEnum {
@@ -146,6 +149,7 @@ impl Id for TdObjectEnum {
       TdObjectEnum::TdTimeObj(v) => v.as_id(),
       TdObjectEnum::TdProductObj(v) => v.as_id(),
       TdObjectEnum::TdBlobObj(v) => v.as_id(),
+      TdObjectEnum::TdVaultObj(v) => v.as_id(),
     }
   }
 }
@@ -277,6 +281,7 @@ impl typedown_incremental::StableHash for TdObjectEnum {
       TdObjectEnum::TdTimeObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdProductObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBlobObj(v) => v.stable_hash(db, hasher),
+      TdObjectEnum::TdVaultObj(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -331,6 +336,7 @@ pub enum TdObjectKind {
   DateObj = 137,
   TimeObj = 138,
   BlobObj = 139,
+  VaultObj = 140,
 }
 
 // TdTypeEnum
@@ -529,6 +535,10 @@ impl Encodable for TdObjectEnum {
         encoder.emit_u8(buf, TdObjectKind::BlobObj as u8);
         v.encode_field(buf, encoder);
       }
+      TdObjectEnum::TdVaultObj(v) => {
+        encoder.emit_u8(buf, TdObjectKind::VaultObj as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -563,6 +573,7 @@ impl Decodable for TdObjectEnum {
       TdObjectKind::DateObj => TdDateObj::decode_field(data, decoder).into(),
       TdObjectKind::TimeObj => TdTimeObj::decode_field(data, decoder).into(),
       TdObjectKind::BlobObj => TdBlobObj::decode_field(data, decoder).into(),
+      TdObjectKind::VaultObj => TdVaultObj::decode_field(data, decoder).into(),
     }
   }
 }

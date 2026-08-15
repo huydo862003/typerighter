@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use crate::db::derived::evaluate::evaluate_type::resolve_property_descriptor;
+use crate::db::derived::evaluate::evaluate_type::{evaluate_type, resolve_property_descriptor};
 use crate::db::derived::get_builtin_types::get_schema_type;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::types::{
-  BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, MemberType, SymbolKind, TdBoolObj,
-  TdDictObj, TdListObj, TdMathObj, TdNumObj, TdObjectEnum, TdObjectLike, TdProductObj,
-  TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TypeMember, TypeMemberDescriptors,
+  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, MemberType,
+  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNumObj, TdObjectEnum, TdObjectLike,
+  TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj, TypeMember,
+  TypeMemberDescriptors,
 };
 use crate::db::utils::typecheck::lift_type_member_result;
 use crate::syntax::diagnostic::Diagnostic;
@@ -30,6 +31,24 @@ pub(crate) fn construct_from_hir(
       let file = hir.file(db);
       let symbol = file_symbol(db, project, file).value(db)?;
       return evaluate_resource(db, symbol).value(db);
+    }
+    // Builtin globals and schema references resolve to objects
+    HirValueKind::Ident(_) => {
+      let resolved = referee(db, hir);
+      if let Some(symbol) = resolved.value(db) {
+        match symbol.kind(db) {
+          SymbolKind::BuiltinGlobal(kind) => {
+            return match kind {
+              BuiltinGlobalKind::Vault => Some(TdVaultObj::new(db, hir.project(db)).into()),
+            };
+          }
+          // Schema identifiers evaluate to the schema type as an object
+          SymbolKind::UserDefinedSchema(_, _) | SymbolKind::BuiltinSchema(_) => {
+            return evaluate_type(db, symbol).typ(db).map(TdObjectEnum::from);
+          }
+          _ => {}
+        }
+      }
     }
     // Tag expressions: the tag is a type hint for the typechecker; evaluation strips it
     HirValueKind::Tag { inner, .. } => {
