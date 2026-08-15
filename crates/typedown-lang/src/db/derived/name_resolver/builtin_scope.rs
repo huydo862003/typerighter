@@ -8,7 +8,7 @@ use crate::db::derived::get_builtin_types::{
   get_math_symbol, get_num_symbol, get_schema_symbol, get_str_symbol, get_time_symbol,
   get_type_type_symbol,
 };
-use crate::db::types::{BuiltinMacroKind, Symbol, SymbolKind};
+use crate::db::types::{BuiltinGlobalKind, BuiltinMacroKind, Symbol, SymbolKind};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -37,6 +37,15 @@ pub fn builtin_scope(db: &TypedownDatabase) -> BuiltinScopeMembers {
         SymbolKind::BuiltinMacro(BuiltinMacroKind::Fref),
         "fref".to_string(),
         "@builtin::fref".to_string(),
+      ),
+    ),
+    (
+      "vault".to_string(),
+      Symbol::new(
+        db,
+        SymbolKind::BuiltinGlobal(BuiltinGlobalKind::Vault),
+        "vault".to_string(),
+        "@builtin::vault".to_string(),
       ),
     ),
   ]);

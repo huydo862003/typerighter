@@ -8,3 +8,4 @@ pub mod parse_file;
 pub mod parse_schemas;
 pub mod schema_property;
 pub mod typechecker;
+pub mod vault;

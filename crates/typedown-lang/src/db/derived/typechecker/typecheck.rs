@@ -14,8 +14,8 @@ use crate::db::derived::typechecker::expected_node_type_member::expected_node_ty
 use std::collections::HashMap;
 
 use crate::db::types::{
-  HirValue, HirValueKind, InterpolatedPart, MemberType, TdTypeEnum, TdTypeLike, TypeMember,
-  TypeMemberDescriptors, TypecheckResult, member_type_display_name,
+  HirValue, HirValueKind, InterpolatedPart, LazyType, MemberType, TdTypeEnum, TdTypeLike,
+  TypeMember, TypeMemberDescriptors, TypecheckResult, member_type_display_name,
 };
 use crate::db::utils::typecheck::{
   lift_member_type, lift_type_member_result, member_types_compatible,
@@ -270,16 +270,17 @@ fn check_call(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> V
   for (param, arg_hir) in params.iter().zip(args.iter()) {
     let arg_result = actual_node_type_member(db, *arg_hir);
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
-    if let Some(arg_type) = lift_type_member_result(db, &arg_result)
-      && !param.accepts(db, &arg_type)
-    {
-      let node = arg_hir.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::ArgTypeMismatch {
-        expected: param.display_name(db),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
-      });
+    if let Some(arg_member) = arg_result.member(db) {
+      let expected = MemberType::Simple(LazyType::eager(param.clone()));
+      if !member_types_compatible(db, &expected, &arg_member.typ(db)) {
+        let node = arg_hir.node(db);
+        let (tr_offset, tr_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::ArgTypeMismatch {
+          expected: param.display_name(db),
+          start_offset: tr_offset,
+          end_offset: tr_offset + tr_len,
+        });
+      }
     }
   }
 
