@@ -3,6 +3,7 @@ use typedown_macros::query_derived;
 
 use super::base::{TdObjectLike, TdObjectType, TdTypeLike};
 use super::func::TdFuncObj;
+use super::null::TdNullObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -142,9 +143,11 @@ impl TdObjectLike for TdProductObj {
     self.schema(db)
   }
   fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
-    match self.fields(db).get(key).cloned()? {
-      Either::Left(hir) => evaluate_node(db, hir).value(db),
-      Either::Right(obj) => Some(obj),
+    match self.fields(db).get(key).cloned() {
+      Some(Either::Left(hir)) => evaluate_node(db, hir).value(db),
+      Some(Either::Right(obj)) => Some(obj),
+      // Missing fields evaluate to null
+      None => Some(TdNullObj::get(db).into()),
     }
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {

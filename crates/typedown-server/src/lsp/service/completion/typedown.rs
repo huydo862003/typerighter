@@ -14,7 +14,7 @@ use typedown_lang::db::derived::typechecker::expected_node_type_member::expected
 use typedown_lang::db::derived::typechecker::get_symbol_type_member::get_symbol_type_member;
 use typedown_lang::db::types::{
   File, LiteralValue, MemberType, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
-  TypeMember, TypeMemberDescriptors,
+  TypeMember,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
 use typedown_lang::db::utils::typecheck::lift_type_member_result;
@@ -195,9 +195,7 @@ fn value_completions(
 
   // Suggest null only for optional fields
   if let Some(field) = declared_field(db, project, file, node)
-    && field
-      .descriptors(db)
-      .contains(TypeMemberDescriptors::OPTIONAL)
+    && field.typ(db).is_nullable(db)
   {
     items.push(keyword_item("null"));
   }

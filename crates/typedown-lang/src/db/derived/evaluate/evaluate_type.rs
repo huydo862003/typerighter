@@ -153,7 +153,7 @@ pub(crate) fn resolve_property_descriptor(
   };
 
   let mut field_type: Option<MemberType> = None;
-  let mut descriptors = TypeMemberDescriptors::empty();
+  let mut is_optional = false;
 
   for (key, value) in &entries {
     match key.as_str() {
@@ -162,14 +162,31 @@ pub(crate) fn resolve_property_descriptor(
       }
       "optional" => {
         if let HirValueKind::Bool(true) = value.kind(db) {
-          descriptors |= TypeMemberDescriptors::OPTIONAL;
+          is_optional = true;
         }
       }
       _ => {}
     }
   }
 
-  field_type.map(|typ| (typ, descriptors))
+  field_type.map(|typ| {
+    if is_optional && !typ.is_nullable(db) {
+      let null_member = TypeMember::new(
+        db,
+        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
+        TypeMemberDescriptors::empty(),
+      );
+      (
+        MemberType::Sum(vec![
+          TypeMember::new(db, typ, TypeMemberDescriptors::empty()),
+          null_member,
+        ]),
+        TypeMemberDescriptors::empty(),
+      )
+    } else {
+      (typ, TypeMemberDescriptors::empty())
+    }
+  })
 }
 
 fn resolve_type_member(

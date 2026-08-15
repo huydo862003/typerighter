@@ -9,7 +9,7 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_num_type, get_str_type, get_type_type,
+  get_bool_type, get_null_type, get_num_type, get_str_type, get_type_type,
 };
 use crate::db::types::{
   BuiltinSchemaKind, LazyType, MemberType, Symbol, SymbolKind, TdProductType, TdTypeEnum,
@@ -99,8 +99,19 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
 
   let optional_field = TypeMember::new(
     db,
-    MemberType::Simple(LazyType::eager(get_bool_type(db).into())),
-    TypeMemberDescriptors::OPTIONAL,
+    MemberType::Sum(vec![
+      TypeMember::new(
+        db,
+        MemberType::Simple(LazyType::eager(get_bool_type(db).into())),
+        TypeMemberDescriptors::empty(),
+      ),
+      TypeMember::new(
+        db,
+        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
+        TypeMemberDescriptors::empty(),
+      ),
+    ]),
+    TypeMemberDescriptors::empty(),
   );
 
   let fields = HashMap::from([

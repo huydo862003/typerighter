@@ -6,7 +6,7 @@ use crate::db::derived::get_builtin_types::{
 };
 use crate::db::types::{
   HirValue, HirValueKind, LazyType, LiteralValue, MemberType, TdTypeEnum, TdTypeLike,
-  TypeMemberDescriptors, TypeMemberResult,
+  TypeMemberResult,
 };
 
 /// Extract a TdTypeEnum from a TypeMemberResult
@@ -195,10 +195,7 @@ pub fn member_types_compatible(
     // Structural vs Structural: every required expected field must exist and match in actual
     (MemberType::Structural(exp_fields), MemberType::Structural(act_fields)) => {
       exp_fields.iter().all(|(name, exp_member)| {
-        if exp_member
-          .descriptors(db)
-          .contains(TypeMemberDescriptors::OPTIONAL)
-        {
+        if exp_member.typ(db).is_nullable(db) {
           return true;
         }
         match act_fields.get(name) {
@@ -220,9 +217,7 @@ pub fn member_types_compatible(
       // all present fields have compatible types
       if let Some(product) = exp_type.as_td_product_type() {
         return product.fields(db).iter().all(|(name, exp_member)| {
-          let is_optional = exp_member
-            .descriptors(db)
-            .contains(TypeMemberDescriptors::OPTIONAL);
+          let is_optional = exp_member.typ(db).is_nullable(db);
           match act_fields.get(name) {
             Some(actual_member) => {
               member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
@@ -254,10 +249,7 @@ pub fn member_types_compatible(
         None => return false,
       };
       exp_fields.iter().all(|(name, exp_member)| {
-        if exp_member
-          .descriptors(db)
-          .contains(TypeMemberDescriptors::OPTIONAL)
-        {
+        if exp_member.typ(db).is_nullable(db) {
           return true;
         }
         match actual_type.get_owned_field_type_member(db, name) {

@@ -7,9 +7,7 @@ use typedown_incremental::Id;
 use super::{evaluate_lazy_field, resolve_ref};
 use crate::db::TypedownDatabase;
 use crate::db::types::derived::object_system::member_type_display_name;
-use crate::db::types::{
-  FileHandle, MemberType, Project, TdObjectEnum, TdTypeEnum, TypeMember, TypeMemberDescriptors,
-};
+use crate::db::types::{FileHandle, MemberType, Project, TdObjectEnum, TdTypeEnum, TypeMember};
 
 /// Serialize a FileHandle to a JSON object
 pub fn handle_to_json(handle: &FileHandle) -> serde_json::Value {
@@ -158,10 +156,7 @@ fn serialize_member(
   visiting: &mut HashSet<(usize, usize)>,
 ) -> Result<serde_json::Value, CircularRef> {
   let typ = serialize_member_type(db, project, &member.typ(db), visiting)?;
-  if member
-    .descriptors(db)
-    .contains(TypeMemberDescriptors::OPTIONAL)
-  {
+  if member.typ(db).is_nullable(db) {
     Ok(serde_json::json!({ "type": typ, "optional": true }))
   } else {
     Ok(typ)

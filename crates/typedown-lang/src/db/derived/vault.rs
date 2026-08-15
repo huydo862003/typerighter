@@ -5,7 +5,8 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
-  get_list_type, get_num_type, get_object_type, get_schema_type, get_str_type, get_type_type,
+  get_list_type, get_null_type, get_num_type, get_object_type, get_schema_type, get_str_type,
+  get_type_type,
 };
 use crate::db::types::{
   FuncSignature, LazyType, MemberType, NativeFnKind, TdFuncObj, TdProductType, TypeMember,
@@ -29,16 +30,38 @@ pub fn get_vault_type(db: &TypedownDatabase) -> TdProductType {
         "schema".to_string(),
         TypeMember::new(
           db,
-          MemberType::Simple(LazyType::eager(get_schema_type(db).into())),
-          TypeMemberDescriptors::OPTIONAL,
+          MemberType::Sum(vec![
+            TypeMember::new(
+              db,
+              MemberType::Simple(LazyType::eager(get_schema_type(db).into())),
+              TypeMemberDescriptors::empty(),
+            ),
+            TypeMember::new(
+              db,
+              MemberType::Simple(LazyType::eager(get_null_type(db).into())),
+              TypeMemberDescriptors::empty(),
+            ),
+          ]),
+          TypeMemberDescriptors::empty(),
         ),
       ),
       (
         "path".to_string(),
         TypeMember::new(
           db,
-          MemberType::Simple(LazyType::eager(get_str_type(db).into())),
-          TypeMemberDescriptors::OPTIONAL,
+          MemberType::Sum(vec![
+            TypeMember::new(
+              db,
+              MemberType::Simple(LazyType::eager(get_str_type(db).into())),
+              TypeMemberDescriptors::empty(),
+            ),
+            TypeMember::new(
+              db,
+              MemberType::Simple(LazyType::eager(get_null_type(db).into())),
+              TypeMemberDescriptors::empty(),
+            ),
+          ]),
+          TypeMemberDescriptors::empty(),
         ),
       ),
     ]),

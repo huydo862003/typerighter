@@ -7,7 +7,7 @@ use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{
-  LiteralValue, MemberType, Project, Scope, SymbolKind, TdTypeEnum, TypeMemberDescriptors,
+  LiteralValue, MemberType, Project, Scope, SymbolKind, TdTypeEnum,
 };
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 
@@ -83,9 +83,7 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 
       for (field_name, member) in &fields {
         let default = default_value(db, &member.typ(db));
-        let optional = member
-          .descriptors(db)
-          .contains(TypeMemberDescriptors::OPTIONAL);
+        let optional = member.typ(db).is_nullable(db);
 
         if optional {
           template.push_str(&format!("# {field_name}: {default}\n"));

@@ -23,7 +23,6 @@ pub struct FuncSignature {
 bitflags::bitflags! {
   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   pub struct TypeMemberDescriptors: u8 {
-    const OPTIONAL = 0b0000_0001;
   }
 }
 
@@ -50,6 +49,13 @@ impl LazyType {
     match &self.0 {
       Either::Left(typ) => Some(typ.clone()),
       Either::Right(symbol) => evaluate_type(db, *symbol).typ(db),
+    }
+  }
+
+  pub fn as_eager(&self) -> Option<&TdTypeEnum> {
+    match &self.0 {
+      Either::Left(typ) => Some(typ),
+      Either::Right(_) => None,
     }
   }
 }
@@ -89,6 +95,20 @@ pub enum MemberType {
   Structural(HashMap<String, TypeMember>),
   /// The bottom type: no value can be assigned to this field
   Never,
+}
+
+impl MemberType {
+  // Check if this type includes null (i.e. is T? or Sum containing null)
+  // Null is always eagerly resolved so no query cycles can occur
+  pub fn is_nullable(&self, db: &TypedownDatabase) -> bool {
+    match self {
+      MemberType::Simple(lazy) => lazy
+        .as_eager()
+        .is_some_and(|t| t.as_td_null_type().is_some()),
+      MemberType::Sum(arms) => arms.iter().any(|arm| arm.typ(db).is_nullable(db)),
+      _ => false,
+    }
+  }
 }
 
 impl Hash for MemberType {

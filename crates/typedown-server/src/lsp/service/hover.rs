@@ -6,7 +6,7 @@ use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use typedown_lang::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
-use typedown_lang::db::types::{TypeMember, TypeMemberDescriptors, member_type_display_name};
+use typedown_lang::db::types::{TypeMember, member_type_display_name};
 use typedown_lang::db::utils::typecheck::lift_type_member_result;
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -72,10 +72,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
 
 fn member_type_label(db: &TypedownDatabase, member: &TypeMember) -> String {
   let type_str = member_type_display_name(db, &member.typ(db));
-  if member
-    .descriptors(db)
-    .contains(TypeMemberDescriptors::OPTIONAL)
-  {
+  if member.typ(db).is_nullable(db) {
     format!("{type_str}?")
   } else {
     type_str

@@ -16,7 +16,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{
   File, FileHandle, HirValue, LiteralValue, MemberType, Project, Symbol, SymbolKind, TdBlobType,
-  TdObjectEnum, TdObjectLike, TdTypeEnum, TdTypeLike, TypeMemberDescriptors,
+  TdObjectEnum, TdObjectLike, TdTypeEnum, TdTypeLike,
 };
 use crate::db::utils::strip_content_extension;
 
@@ -127,10 +127,7 @@ pub fn export_property_descriptors(
   for (name, member) in &fields {
     let mut prop = member_to_descriptor(db, &member.typ(db));
 
-    if member
-      .descriptors(db)
-      .contains(TypeMemberDescriptors::OPTIONAL)
-    {
+    if member.typ(db).is_nullable(db) {
       prop["optional"] = serde_json::Value::Bool(true);
     }
 

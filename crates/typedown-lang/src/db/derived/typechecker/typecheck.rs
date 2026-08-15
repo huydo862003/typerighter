@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 use crate::db::types::{
   HirValue, HirValueKind, InterpolatedPart, LazyType, MemberType, TdTypeEnum, TdTypeLike,
-  TypeMember, TypeMemberDescriptors, TypecheckResult, member_type_display_name,
+  TypeMember, TypecheckResult, member_type_display_name,
 };
 use crate::db::utils::typecheck::{
   lift_member_type, lift_type_member_result, member_types_compatible,
@@ -150,9 +150,7 @@ fn check_mapping_fields(
 
       // Check synthesized type against expected field type
       let value_result = actual_node_type_member(db, *value_hir);
-      let is_optional = member
-        .descriptors(db)
-        .contains(TypeMemberDescriptors::OPTIONAL);
+      let is_optional = member.typ(db).is_nullable(db);
       match value_result.member(db) {
         Some(actual_member) => {
           if !member_types_compatible(db, &member.typ(db), &actual_member.typ(db)) {
@@ -198,9 +196,7 @@ fn check_mapping_fields(
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
 
   for (field_name, member) in declared_fields {
-    let is_optional = member
-      .descriptors(db)
-      .contains(TypeMemberDescriptors::OPTIONAL);
+    let is_optional = member.typ(db).is_nullable(db);
     if !is_optional && !present_keys.contains(field_name.as_str()) {
       diagnostics.push(Diagnostic::MissingRequiredField {
         field: field_name,
