@@ -1724,6 +1724,7 @@ pub(in crate::syntax::parse) fn infix_binding_power(op: &str) -> Option<(u8, u8)
 
 pub(in crate::syntax::parse) fn postfix_binding_power(op: &str) -> Option<(u8, ())> {
   let bp = match op {
+    "?" => 16,
     "(" | "[" => 19,
     _ => return None,
   };
