@@ -13,6 +13,8 @@ mod null;
 mod num;
 mod product;
 mod str;
+mod structural;
+mod sum;
 mod vault;
 
 use std::hash::{Hash, Hasher};
@@ -38,6 +40,8 @@ pub use null::*;
 pub use num::*;
 pub use product::*;
 pub use str::*;
+pub use structural::*;
+pub use sum::*;
 pub use vault::*;
 
 use ambassador::Delegate;
@@ -70,6 +74,8 @@ pub enum TdTypeEnum {
   TdNullType(TdNullType),
   TdNeverType(TdNeverType),
   TdLiteralType(TdLiteralType),
+  TdSumType(TdSumType),
+  TdStructuralType(TdStructuralType),
 }
 
 /// Use this instead of dyn
@@ -95,6 +101,8 @@ pub enum TdObjectEnum {
   TdNullType(TdNullType),
   TdNeverType(TdNeverType),
   TdLiteralType(TdLiteralType),
+  TdSumType(TdSumType),
+  TdStructuralType(TdStructuralType),
   // Objects
   TdBoolObj(TdBoolObj),
   TdStrObj(TdStrObj),
@@ -132,6 +140,8 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdNullType(v) => v.as_id(),
       TdTypeEnum::TdNeverType(v) => v.as_id(),
       TdTypeEnum::TdLiteralType(v) => v.as_id(),
+      TdTypeEnum::TdSumType(v) => v.as_id(),
+      TdTypeEnum::TdStructuralType(v) => v.as_id(),
     }
   }
 }
@@ -156,6 +166,8 @@ impl Id for TdObjectEnum {
       TdObjectEnum::TdNullType(v) => v.as_id(),
       TdObjectEnum::TdNeverType(v) => v.as_id(),
       TdObjectEnum::TdLiteralType(v) => v.as_id(),
+      TdObjectEnum::TdSumType(v) => v.as_id(),
+      TdObjectEnum::TdStructuralType(v) => v.as_id(),
       TdObjectEnum::TdBoolObj(v) => v.as_id(),
       TdObjectEnum::TdStrObj(v) => v.as_id(),
       TdObjectEnum::TdNumObj(v) => v.as_id(),
@@ -194,6 +206,8 @@ impl From<TdTypeEnum> for TdObjectEnum {
       TdTypeEnum::TdNullType(v) => TdObjectEnum::TdNullType(v),
       TdTypeEnum::TdNeverType(v) => TdObjectEnum::TdNeverType(v),
       TdTypeEnum::TdLiteralType(v) => TdObjectEnum::TdLiteralType(v),
+      TdTypeEnum::TdSumType(v) => TdObjectEnum::TdSumType(v),
+      TdTypeEnum::TdStructuralType(v) => TdObjectEnum::TdStructuralType(v),
     }
   }
 }
@@ -218,6 +232,8 @@ impl TdObjectEnum {
       TdObjectEnum::TdNullType(v) => Some(TdTypeEnum::TdNullType(v)),
       TdObjectEnum::TdNeverType(v) => Some(TdTypeEnum::TdNeverType(v)),
       TdObjectEnum::TdLiteralType(v) => Some(TdTypeEnum::TdLiteralType(v)),
+      TdObjectEnum::TdSumType(v) => Some(TdTypeEnum::TdSumType(v)),
+      TdObjectEnum::TdStructuralType(v) => Some(TdTypeEnum::TdStructuralType(v)),
       _ => None,
     }
   }
@@ -273,6 +289,8 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdNullType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdNeverType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdLiteralType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdSumType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -301,6 +319,8 @@ impl typedown_incremental::StableHash for TdObjectEnum {
       TdObjectEnum::TdNullType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNeverType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdLiteralType(v) => v.stable_hash(db, hasher),
+      TdObjectEnum::TdSumType(v) => v.stable_hash(db, hasher),
+      TdObjectEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBoolObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdStrObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNumObj(v) => v.stable_hash(db, hasher),
@@ -339,6 +359,8 @@ pub enum TdTypeKind {
   Null = 14,
   Never = 15,
   Literal = 16,
+  Sum = 17,
+  Structural = 18,
 }
 
 #[derive(FromRepr)]
@@ -362,6 +384,8 @@ pub enum TdObjectKind {
   Null = 14,
   Never = 15,
   Literal = 16,
+  Sum = 17,
+  Structural = 18,
   // Object-only
   StrObj = 128,
   BoolObj = 129,
@@ -451,6 +475,14 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Literal as u8);
         v.encode_field(buf, encoder);
       }
+      TdTypeEnum::TdSumType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Sum as u8);
+        v.encode_field(buf, encoder);
+      }
+      TdTypeEnum::TdStructuralType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Structural as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -476,6 +508,8 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Null => TdNullType::decode_field(data, decoder).into(),
       TdTypeKind::Never => TdNeverType::decode_field(data, decoder).into(),
       TdTypeKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
+      TdTypeKind::Sum => TdSumType::decode_field(data, decoder).into(),
+      TdTypeKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
     }
   }
 }
@@ -551,6 +585,14 @@ impl Encodable for TdObjectEnum {
       }
       TdObjectEnum::TdLiteralType(v) => {
         encoder.emit_u8(buf, TdObjectKind::Literal as u8);
+        v.encode_field(buf, encoder);
+      }
+      TdObjectEnum::TdSumType(v) => {
+        encoder.emit_u8(buf, TdObjectKind::Sum as u8);
+        v.encode_field(buf, encoder);
+      }
+      TdObjectEnum::TdStructuralType(v) => {
+        encoder.emit_u8(buf, TdObjectKind::Structural as u8);
         v.encode_field(buf, encoder);
       }
       // Objects
@@ -635,6 +677,8 @@ impl Decodable for TdObjectEnum {
       TdObjectKind::Null => TdNullType::decode_field(data, decoder).into(),
       TdObjectKind::Never => TdNeverType::decode_field(data, decoder).into(),
       TdObjectKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
+      TdObjectKind::Sum => TdSumType::decode_field(data, decoder).into(),
+      TdObjectKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
       TdObjectKind::StrObj => TdStrObj::decode_field(data, decoder).into(),
       TdObjectKind::BoolObj => TdBoolObj::decode_field(data, decoder).into(),
       TdObjectKind::NumObj => TdNumObj::decode_field(data, decoder).into(),

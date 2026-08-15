@@ -9,11 +9,10 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_null_type, get_num_type, get_str_type, get_type_type,
+  get_bool_type, get_null_type, get_num_type, get_str_type, get_sum_type, get_type_type,
 };
 use crate::db::types::{
-  BuiltinSchemaKind, LazyType, MemberType, Symbol, SymbolKind, TdProductType, TdTypeEnum,
-  TypeMember, TypeMemberDescriptors,
+  BuiltinSchemaKind, LazyType, Symbol, SymbolKind, TdDictType, TdListType, TdProductType,
 };
 
 fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
@@ -27,91 +26,63 @@ fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
 
 #[query_derived]
 pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
-  let type_type: TdTypeEnum = get_type_type(db).into();
-  let str_type: TdTypeEnum = get_str_type(db).into();
-  let bool_type: TdTypeEnum = get_bool_type(db).into();
-  let num_type: TdTypeEnum = get_num_type(db).into();
+  let type_type = get_type_type(db).into();
+  let str_type = get_str_type(db).into();
+  let bool_type = get_bool_type(db).into();
+  let num_type = get_num_type(db).into();
 
   // The base scalar types that the `type` field accepts
-  let base_type_members = vec![
-    TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(type_type)),
-      TypeMemberDescriptors::empty(),
-    ),
-    TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(str_type)),
-      TypeMemberDescriptors::empty(),
-    ),
-    TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(bool_type.clone())),
-      TypeMemberDescriptors::empty(),
-    ),
-    TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(num_type)),
-      TypeMemberDescriptors::empty(),
-    ),
+  let base_type_lazys = vec![
+    LazyType::eager(type_type),
+    LazyType::eager(str_type),
+    LazyType::eager(bool_type),
+    LazyType::eager(num_type),
   ];
 
   // Lazy self-reference to avoid recursive query
   let self_symbol = get_schema_property_symbol(db);
-  let self_member = TypeMember::new(
-    db,
-    MemberType::Simple(LazyType::lazy(self_symbol)),
-    TypeMemberDescriptors::empty(),
-  );
+  let self_lazy = LazyType::lazy(self_symbol);
 
-  let type_field = TypeMember::new(
+  // list[base | self]
+  let list_elem_sum = get_sum_type(
     db,
-    MemberType::Sum(
+    [base_type_lazys.clone(), vec![self_lazy.clone()]].concat(),
+  );
+  let list_type = TdListType::new(db, Some(LazyType::eager(list_elem_sum.into())));
+
+  // dict[base | self]
+  let dict_elem_sum = get_sum_type(
+    db,
+    [base_type_lazys.clone(), vec![LazyType::lazy(self_symbol)]].concat(),
+  );
+  let dict_type = TdDictType::new(db, None, Some(LazyType::eager(dict_elem_sum.into())));
+
+  // type field: sum of [base types, list[...], dict[...]]
+  let type_field = LazyType::eager(
+    get_sum_type(
+      db,
       [
-        base_type_members.clone(),
+        base_type_lazys,
         vec![
-          TypeMember::new(
-            db,
-            MemberType::ListOfSum([base_type_members.clone(), vec![self_member]].concat()),
-            TypeMemberDescriptors::empty(),
-          ),
-          TypeMember::new(
-            db,
-            MemberType::DictOfSum(
-              [
-                base_type_members,
-                vec![TypeMember::new(
-                  db,
-                  MemberType::Simple(LazyType::lazy(self_symbol)),
-                  TypeMemberDescriptors::empty(),
-                )],
-              ]
-              .concat(),
-            ),
-            TypeMemberDescriptors::empty(),
-          ),
+          LazyType::eager(list_type.into()),
+          LazyType::eager(dict_type.into()),
         ],
       ]
       .concat(),
-    ),
-    TypeMemberDescriptors::empty(),
+    )
+    .into(),
   );
 
-  let optional_field = TypeMember::new(
-    db,
-    MemberType::Sum(vec![
-      TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(get_bool_type(db).into())),
-        TypeMemberDescriptors::empty(),
-      ),
-      TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
-        TypeMemberDescriptors::empty(),
-      ),
-    ]),
-    TypeMemberDescriptors::empty(),
+  // optional field: boolean | null
+  let optional_field = LazyType::eager(
+    get_sum_type(
+      db,
+      vec![
+        LazyType::eager(get_bool_type(db).into()),
+        LazyType::eager(get_null_type(db).into()),
+      ],
+    )
+    .into(),
   );
 
   let fields = HashMap::from([

@@ -5,14 +5,15 @@ use typedown_macros::query_derived;
 use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::schema_property::get_schema_property_type;
 use std::collections::HashMap;
 
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, MemberType, Symbol,
-  SymbolKind, TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType,
-  TdFuncType, TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
-  TdObjectType, TdProductType, TdStrType, TdTimeType, TdTypeEnum, TdTypeLike, TdTypeType,
-  TypeMember, TypeMemberDescriptors,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Symbol, SymbolKind,
+  TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
+  TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
+  TdObjectType, TdProductType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeLike,
+  TdTypeType,
 };
 use typedown_incremental::QueryDatabase;
 
@@ -88,18 +89,12 @@ pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
   let properties_type = TdDictType::new(
     db,
     Some(LazyType::eager(get_str_type(db).into())),
-    Some(LazyType::eager(
-      crate::db::derived::schema_property::get_schema_property_type(db).into(),
-    )),
+    Some(LazyType::eager(get_schema_property_type(db).into())),
   );
 
   let fields = HashMap::from([(
     "properties".to_string(),
-    TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(properties_type.into())),
-      TypeMemberDescriptors::empty(),
-    ),
+    LazyType::eager(properties_type.into()),
   )]);
 
   TdProductType::new(
@@ -252,6 +247,11 @@ pub fn get_null_obj(db: &TypedownDatabase) -> TdNullObj {
 #[query_derived]
 pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncType {
   TdFuncType::new(db, signature)
+}
+
+#[query_derived]
+pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
+  TdSumType::new(db, members)
 }
 
 #[query_derived]

@@ -15,10 +15,11 @@ use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{
-  File, FileHandle, HirValue, LiteralValue, MemberType, Project, Symbol, SymbolKind, TdBlobType,
+  File, FileHandle, HirValue, LazyType, LiteralValue, Project, Symbol, SymbolKind, TdBlobType,
   TdObjectEnum, TdObjectLike, TdTypeEnum, TdTypeLike,
 };
 use crate::db::utils::strip_content_extension;
+use crate::db::utils::typecheck::is_nullable;
 
 use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
@@ -67,8 +68,15 @@ pub fn export_resource(
     });
   }
 
-  let product = obj.as_td_product_obj()?;
-  let schema_type = product.schema(db);
+  let (schema_type, header_obj) = if let Some(product) = obj.as_td_product_obj() {
+    (product.schema(db), obj.clone())
+  } else if obj.as_td_dict_obj().is_some() {
+    // Schemaless files may evaluate to a DictObj
+    (get_schemaless_type(db).into(), obj.clone())
+  } else {
+    return None;
+  };
+  let _ = &header_obj; // suppress unused warning
   let schemaless: TdTypeEnum = get_schemaless_type(db).into();
   let schema = if schema_type == schemaless {
     None
@@ -124,10 +132,10 @@ pub fn export_property_descriptors(
 
   let mut properties = serde_json::Map::new();
 
-  for (name, member) in &fields {
-    let mut prop = member_to_descriptor(db, &member.typ(db));
+  for (name, lazy) in &fields {
+    let mut prop = lazy_to_descriptor(db, lazy);
 
-    if member.typ(db).is_nullable(db) {
+    if lazy.resolve(db).is_some_and(|t| is_nullable(db, &t)) {
       prop["optional"] = serde_json::Value::Bool(true);
     }
 
@@ -136,68 +144,70 @@ pub fn export_property_descriptors(
 
   return Some(serde_json::Value::Object(properties));
 
-  // Map a MemberType to a property descriptor with a widget hint
-  fn member_to_descriptor(db: &TypedownDatabase, member: &MemberType) -> serde_json::Value {
-    match member {
-      MemberType::Simple(lazy) => {
-        if let Some(typ) = lazy.resolve(db) {
-          simple_type_to_descriptor(db, &typ)
-        } else {
-          serde_json::json!({ "type": "string" })
-        }
+  // Map a LazyType to a property descriptor with a widget hint
+  fn lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyType) -> serde_json::Value {
+    let Some(typ) = lazy.resolve(db) else {
+      return serde_json::json!({ "type": "string" });
+    };
+
+    // Sum of string literals is a select
+    if let Some(sum) = typ.as_td_sum_type() {
+      let members = sum.members(db);
+      let literals: Vec<String> = members
+        .iter()
+        .filter_map(|m| {
+          if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
+            && let LiteralValue::Str(s) = lit.value(db)
+          {
+            Some(s)
+          } else {
+            None
+          }
+        })
+        .collect();
+
+      if literals.len() == members.len() {
+        return serde_json::json!({ "widget": Widget::Select, "options": literals });
       }
-
-      // Sum of string literals is a select (single value from options)
-      MemberType::Sum(members) => {
-        let literals: Vec<String> = members
-          .iter()
-          .filter_map(|m| {
-            if let MemberType::Simple(lazy) = m.typ(db)
-              && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
-              && let LiteralValue::Str(s) = lit.value(db)
-            {
-              Some(s)
-            } else {
-              None
-            }
-          })
-          .collect();
-
-        if literals.len() == members.len() {
-          serde_json::json!({ "widget": Widget::Select, "options": literals })
-        } else {
-          serde_json::json!({ "widget": Widget::Text })
-        }
-      }
-
-      // List of literals is a multi_select (multiple values from options)
-      MemberType::ListOfSum(members) => {
-        let literals: Vec<String> = members
-          .iter()
-          .filter_map(|m| {
-            if let MemberType::Simple(lazy) = m.typ(db)
-              && let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
-              && let LiteralValue::Str(s) = lit.value(db)
-            {
-              Some(s)
-            } else {
-              None
-            }
-          })
-          .collect();
-
-        if literals.len() == members.len() && !literals.is_empty() {
-          serde_json::json!({ "widget": Widget::MultiSelect, "options": literals })
-        } else if members.len() == 1 {
-          let inner = member_to_descriptor(db, &members[0].typ(db));
-          serde_json::json!({ "widget": Widget::List, "items": inner })
-        } else {
-          serde_json::json!({ "widget": Widget::Text })
-        }
-      }
-
-      _ => serde_json::json!({ "widget": Widget::Text }),
+      return serde_json::json!({ "widget": Widget::Text });
     }
+
+    // List type: check if elem is a sum of string literals (multi_select)
+    if let Some(list) = typ.as_td_list_type() {
+      if let Some(elem_lazy) = list.elem(db)
+        && let Some(elem_typ) = elem_lazy.resolve(db)
+      {
+        if let Some(sum) = elem_typ.as_td_sum_type() {
+          let members = sum.members(db);
+          let literals: Vec<String> = members
+            .iter()
+            .filter_map(|m| {
+              if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
+                && let LiteralValue::Str(s) = lit.value(db)
+              {
+                Some(s)
+              } else {
+                None
+              }
+            })
+            .collect();
+
+          if literals.len() == members.len() && !literals.is_empty() {
+            return serde_json::json!({ "widget": Widget::MultiSelect, "options": literals });
+          }
+          if members.len() == 1 {
+            let inner = lazy_to_descriptor(db, &members[0]);
+            return serde_json::json!({ "widget": Widget::List, "items": inner });
+          }
+        } else {
+          let inner = lazy_to_descriptor(db, &elem_lazy);
+          return serde_json::json!({ "widget": Widget::List, "items": inner });
+        }
+      }
+      return serde_json::json!({ "widget": Widget::Text });
+    }
+
+    simple_type_to_descriptor(db, &typ)
   }
 
   fn simple_type_to_descriptor(db: &TypedownDatabase, typ: &TdTypeEnum) -> serde_json::Value {

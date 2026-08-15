@@ -8,9 +8,7 @@ use super::str::TdStrType;
 use super::{TdObjectEnum, TdStrObj, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_blob_type;
-use crate::db::types::{
-  AssetKind, File, InstResult, LazyType, MemberType, TypeMember, TypeMemberDescriptors,
-};
+use crate::db::types::{AssetKind, File, InstResult, LazyType};
 use typedown_incremental::Id;
 
 #[query_derived]
@@ -38,14 +36,9 @@ impl TdTypeLike for TdBlobType {
   fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     HashMap::new()
   }
-  fn get_owned_field_type_member(&self, db: &TypedownDatabase, name: &str) -> Option<TypeMember> {
-    let str_type: TdTypeEnum = TdStrType::get(db).into();
+  fn get_owned_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
     match name {
-      "format" => Some(TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(str_type)),
-        TypeMemberDescriptors::empty(),
-      )),
+      "format" => Some(TdStrType::get(db).into()),
       _ => None,
     }
   }
@@ -56,8 +49,15 @@ impl TdTypeLike for TdBlobType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      _ => self.as_id() == actual.as_id(),
+    }
   }
   fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     None

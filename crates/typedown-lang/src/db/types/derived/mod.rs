@@ -11,7 +11,7 @@ pub use symbol::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::{db::types::TypeMember, syntax::diagnostic::Diagnostic};
+use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
@@ -107,12 +107,6 @@ pub struct ResolveResult {
 #[query_derived]
 pub struct TypeResult {
   typ: Option<TdTypeEnum>,
-  diagnostics: Vec<Diagnostic>,
-}
-
-#[query_derived]
-pub struct TypeMemberResult {
-  member: Option<TypeMember>,
   diagnostics: Vec<Diagnostic>,
 }
 

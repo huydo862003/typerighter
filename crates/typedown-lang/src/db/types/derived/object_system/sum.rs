@@ -5,25 +5,26 @@ use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
 use super::func::TdFuncObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::get_never_type;
 use crate::db::types::{InstResult, LazyType};
-
+// A union type: accepts any of its member types
 #[query_derived]
-pub struct TdNeverType {}
+pub struct TdSumType {
+  pub members: Vec<LazyType>,
+}
 
-impl TdObjectLike for TdNeverType {
+impl TdObjectLike for TdSumType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
   fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
     None
   }
-  fn source_path(&self, _db: &TypedownDatabase) -> String {
-    "@builtin::never".to_string()
+  fn source_path(&self, db: &TypedownDatabase) -> String {
+    self.display_name(db)
   }
 }
 
-impl TdTypeLike for TdNeverType {
+impl TdTypeLike for TdSumType {
   fn arity(&self, _db: &TypedownDatabase) -> usize {
     0
   }
@@ -43,19 +44,36 @@ impl TdTypeLike for TdNeverType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    matches!(actual, TdTypeEnum::TdNeverType(_))
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(actual_sum) => {
+        // Every member of actual must be accepted by some member of self
+        actual_sum.members(db).iter().all(|actual_member| {
+          actual_member
+            .resolve(db)
+            .is_some_and(|actual_type| self.accepts(db, &actual_type))
+        })
+      }
+      _ => {
+        // Actual must be accepted by at least one member
+        self.members(db).iter().any(|member| {
+          member
+            .resolve(db)
+            .is_some_and(|member_type| member_type.accepts(db, actual))
+        })
+      }
+    }
   }
   fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     None
   }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "never".to_string()
-  }
-}
-
-impl TdNeverType {
-  pub fn get(db: &TypedownDatabase) -> TdNeverType {
-    get_never_type(db)
+  fn display_name(&self, db: &TypedownDatabase) -> String {
+    let parts: Vec<String> = self
+      .members(db)
+      .iter()
+      .filter_map(|m| m.resolve(db).map(|t| t.display_name(db)))
+      .collect();
+    parts.join(" | ")
   }
 }

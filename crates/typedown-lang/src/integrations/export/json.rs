@@ -6,8 +6,9 @@ use typedown_incremental::Id;
 
 use super::{evaluate_lazy_field, resolve_ref};
 use crate::db::TypedownDatabase;
-use crate::db::types::derived::object_system::member_type_display_name;
-use crate::db::types::{FileHandle, MemberType, Project, TdObjectEnum, TdTypeEnum, TypeMember};
+use crate::db::derived::get_builtin_types::get_sum_type;
+use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum, TdTypeLike};
+use crate::db::utils::typecheck::is_nullable;
 
 /// Serialize a FileHandle to a JSON object
 pub fn handle_to_json(handle: &FileHandle) -> serde_json::Value {
@@ -135,8 +136,8 @@ fn serialize(
         return Err(CircularRef);
       }
       let mut map = serde_json::Map::new();
-      for (name, member) in product.fields(db) {
-        map.insert(name, serialize_member(db, project, &member, visiting)?);
+      for (name, lazy) in product.fields(db) {
+        map.insert(name, serialize_lazy(db, project, &lazy, visiting)?);
       }
       visiting.remove(&id);
       Ok(serde_json::Value::Object(map))
@@ -147,33 +148,52 @@ fn serialize(
   }
 }
 
-/// Serialize a TypeMember to JSON
+/// Serialize a LazyType to JSON
 /// Wraps optional fields as `{ "type": ..., "optional": true }`.
-fn serialize_member(
+fn serialize_lazy(
   db: &TypedownDatabase,
   project: Project,
-  member: &TypeMember,
+  lazy: &LazyType,
   visiting: &mut HashSet<(usize, usize)>,
 ) -> Result<serde_json::Value, CircularRef> {
-  let typ = serialize_member_type(db, project, &member.typ(db), visiting)?;
-  if member.typ(db).is_nullable(db) {
+  if lazy.resolve(db).is_some_and(|t| is_nullable(db, &t)) {
+    // Strip null from sum and serialize the non-null portion
+    let stripped = strip_null(db, lazy);
+    let typ = serialize_lazy_type(db, project, &stripped, visiting)?;
     Ok(serde_json::json!({ "type": typ, "optional": true }))
   } else {
-    Ok(typ)
+    serialize_lazy_type(db, project, lazy, visiting)
   }
 }
 
-/// Serialize a MemberType to JSON
+fn strip_null(db: &TypedownDatabase, lazy: &LazyType) -> LazyType {
+  let Some(typ) = lazy.resolve(db) else {
+    return lazy.clone();
+  };
+  if let Some(sum) = typ.as_td_sum_type() {
+    let non_null: Vec<_> = sum
+      .members(db)
+      .into_iter()
+      .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+      .collect();
+    if non_null.len() == 1 {
+      return non_null[0].clone();
+    }
+    // Multiple non-null members: keep as sum without null
+    return LazyType::eager(get_sum_type(db, non_null).into());
+  }
+  lazy.clone()
+}
+
+/// Serialize a LazyType to JSON
 /// Recurses into nested product types, everything else becomes a string.
-fn serialize_member_type(
+fn serialize_lazy_type(
   db: &TypedownDatabase,
   project: Project,
-  member: &MemberType,
+  lazy: &LazyType,
   visiting: &mut HashSet<(usize, usize)>,
 ) -> Result<serde_json::Value, CircularRef> {
-  if let MemberType::Simple(lazy) = member
-    && let Some(TdTypeEnum::TdProductType(product)) = lazy.resolve(db)
-  {
+  if let Some(TdTypeEnum::TdProductType(product)) = lazy.resolve(db) {
     serialize(
       db,
       project,
@@ -182,9 +202,11 @@ fn serialize_member_type(
       true,
     )
   } else {
-    Ok(serde_json::Value::String(member_type_display_name(
-      db, member,
-    )))
+    Ok(serde_json::Value::String(
+      lazy
+        .resolve(db)
+        .map_or("?".to_string(), |t| t.display_name(db)),
+    ))
   }
 }
 

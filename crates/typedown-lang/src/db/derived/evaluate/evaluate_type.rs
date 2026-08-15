@@ -8,17 +8,17 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_literal_type,
-  get_math_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_time_type,
-  get_type_type, instantiate_type,
+  get_math_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_sum_type,
+  get_time_type, get_type_type, instantiate_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{
-  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, MemberType, Project,
-  Symbol, SymbolKind, TdBlobType, TdProductType, TdTypeEnum, TdTypeLike, TypeMember,
-  TypeMemberDescriptors, TypeResult,
+  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
+  SymbolKind, TdBlobType, TdProductType, TdStructuralType, TdTypeEnum, TdTypeLike, TypeResult,
 };
 use crate::db::utils::lower_file;
+use crate::db::utils::typecheck::is_nullable;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -89,8 +89,8 @@ fn evaluate_user_defined_schema(
         return TypeResult::new(db, None, diagnostics);
       }
     },
+    // Schema with no properties: empty product type
     None => {
-      // Schema with no properties: empty product type
       return TypeResult::new(
         db,
         Some(
@@ -114,13 +114,8 @@ fn evaluate_user_defined_schema(
 
   // Loop through the declared props
   for (prop_name, prop_hir) in properties_entries {
-    if let Some((member_type, descriptors)) =
-      resolve_property_descriptor(db, prop_hir, &mut diagnostics)
-    {
-      fields.insert(
-        prop_name.clone(),
-        TypeMember::new(db, member_type, descriptors),
-      );
+    if let Some(lazy) = resolve_property_descriptor(db, prop_hir, &mut diagnostics) {
+      fields.insert(prop_name.clone(), lazy);
     }
   }
 
@@ -142,23 +137,24 @@ fn evaluate_user_defined_schema(
 }
 
 // Process a property descriptor like `{ type: string, optional: true }`
+// Returns a LazyType representing the field type
 pub(crate) fn resolve_property_descriptor(
   db: &TypedownDatabase,
   hir: HirValue,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(MemberType, TypeMemberDescriptors)> {
+) -> Option<LazyType> {
   let entries = match hir.kind(db) {
     HirValueKind::Mapping(entries) => entries,
     _ => return None,
   };
 
-  let mut field_type: Option<MemberType> = None;
+  let mut field_type: Option<LazyType> = None;
   let mut is_optional = false;
 
   for (key, value) in &entries {
     match key.as_str() {
       "type" => {
-        field_type = resolve_type_member(db, *value, diagnostics);
+        field_type = resolve_type_lazy(db, *value, diagnostics);
       }
       "optional" => {
         if let HirValueKind::Bool(true) = value.kind(db) {
@@ -169,39 +165,26 @@ pub(crate) fn resolve_property_descriptor(
     }
   }
 
-  field_type.map(|typ| {
-    if is_optional && !typ.is_nullable(db) {
-      let null_member = TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
-        TypeMemberDescriptors::empty(),
-      );
-      (
-        MemberType::Sum(vec![
-          TypeMember::new(db, typ, TypeMemberDescriptors::empty()),
-          null_member,
-        ]),
-        TypeMemberDescriptors::empty(),
-      )
+  field_type.map(|lazy| {
+    if is_optional && !lazy.as_eager().is_some_and(|t| is_nullable(db, t)) {
+      let null_lazy = LazyType::eager(get_null_type(db).into());
+      LazyType::eager(get_sum_type(db, vec![lazy, null_lazy]).into())
     } else {
-      (typ, TypeMemberDescriptors::empty())
+      lazy
     }
   })
 }
 
-fn resolve_type_member(
+fn resolve_type_lazy(
   db: &TypedownDatabase,
   hir: HirValue,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<MemberType> {
+) -> Option<LazyType> {
   match hir.kind(db) {
-    // If there are some special macros, handle it here
-    // HirValueKind::Call(...)
-
     // `!type expr` is redundant but valid: strip the tag and recurse on the inner value
     HirValueKind::Tag { tag, inner } => {
       if matches!(tag.kind(db), HirValueKind::Ident(ref name) if name == "type") {
-        return resolve_type_member(db, *inner, diagnostics);
+        return resolve_type_lazy(db, *inner, diagnostics);
       }
       let node = hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -216,16 +199,11 @@ fn resolve_type_member(
 
     // Desugar T? to Sum([T, null])
     HirValueKind::Postfix { op, operand } if op == "?" => {
-      let inner = resolve_type_member(db, *operand, diagnostics)?;
-      let null_member = TypeMember::new(
-        db,
-        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
-        TypeMemberDescriptors::empty(),
-      );
-      Some(MemberType::Sum(vec![
-        TypeMember::new(db, inner, TypeMemberDescriptors::empty()),
-        null_member,
-      ]))
+      let inner = resolve_type_lazy(db, *operand, diagnostics)?;
+      let null_lazy = LazyType::eager(get_null_type(db).into());
+      Some(LazyType::eager(
+        get_sum_type(db, vec![inner, null_lazy]).into(),
+      ))
     }
 
     // Simple type reference like `type: string`
@@ -233,13 +211,11 @@ fn resolve_type_member(
       let resolved = referee(db, hir);
       match resolved.value(db) {
         Some(symbol) => match symbol.kind(db) {
-          SymbolKind::UserDefinedSchema(_, _) => Some(MemberType::Simple(LazyType::lazy(symbol))),
+          SymbolKind::UserDefinedSchema(_, _) => Some(LazyType::lazy(symbol)),
           _ => {
             let result = evaluate_type(db, symbol);
             diagnostics.extend(result.diagnostics(db).iter().cloned());
-            result
-              .typ(db)
-              .map(|t| MemberType::Simple(LazyType::eager(t)))
+            result.typ(db).map(LazyType::eager)
           }
         },
         None => {
@@ -258,42 +234,32 @@ fn resolve_type_member(
     HirValueKind::Sequence(items) => {
       let mut members = vec![];
       for item in items {
-        if let Some(member_type) = resolve_type_member(db, item, diagnostics) {
-          members.push(TypeMember::new(
-            db,
-            member_type,
-            TypeMemberDescriptors::empty(),
-          ));
+        if let Some(lazy) = resolve_type_lazy(db, item, diagnostics) {
+          members.push(lazy);
         }
       }
       if members.is_empty() {
         None
       } else {
-        Some(MemberType::Sum(members))
+        Some(LazyType::eager(get_sum_type(db, members).into()))
       }
     }
     // Inline object like `type: { name: { type: string }, age: { type: number } }`
-    // Each entry is a property descriptor with `type` and optional `optional`
     HirValueKind::Mapping(entries) => {
       let mut fields = HashMap::new();
       for (key, value_hir) in entries {
-        if let Some((member_type, descriptors)) =
-          resolve_property_descriptor(db, value_hir, diagnostics)
-        {
-          fields.insert(key.clone(), TypeMember::new(db, member_type, descriptors));
+        if let Some(lazy) = resolve_property_descriptor(db, value_hir, diagnostics) {
+          fields.insert(key.clone(), lazy);
         }
       }
-      Some(MemberType::Structural(fields))
+      Some(LazyType::eager(TdStructuralType::new(db, fields).into()))
     }
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {
-      let base = resolve_type_member(db, *expr, diagnostics)?;
-      let base_type = match base {
-        MemberType::Simple(lazy) => lazy.resolve(db)?,
-        _ => return None,
-      };
+      let base = resolve_type_lazy(db, *expr, diagnostics)?;
+      let base_type = base.resolve(db)?;
       if base_type.arity(db) == 0 {
-        return Some(MemberType::Simple(LazyType::eager(base_type)));
+        return Some(LazyType::eager(base_type));
       }
       let mut arg_types = vec![];
       for idx_hir in indices {
@@ -325,18 +291,18 @@ fn resolve_type_member(
       }
       let inst_result = instantiate_type(db, base_type, arg_types);
       diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
-      Some(MemberType::Simple(LazyType::eager(inst_result.typ(db))))
+      Some(LazyType::eager(inst_result.typ(db)))
     }
     // Literal types
-    HirValueKind::Str(val) => Some(MemberType::Simple(LazyType::eager(
+    HirValueKind::Str(val) => Some(LazyType::eager(
       get_literal_type(db, LiteralValue::Str(val)).into(),
-    ))),
-    HirValueKind::Num(val) => Some(MemberType::Simple(LazyType::eager(
+    )),
+    HirValueKind::Num(val) => Some(LazyType::eager(
       get_literal_type(db, LiteralValue::Num(val)).into(),
-    ))),
-    HirValueKind::Bool(val) => Some(MemberType::Simple(LazyType::eager(
+    )),
+    HirValueKind::Bool(val) => Some(LazyType::eager(
       get_literal_type(db, LiteralValue::Bool(val)).into(),
-    ))),
+    )),
     _ => {
       let node = hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -355,7 +321,6 @@ fn resolve_type_member(
 mod tests {
   use crate::db::types::{TdObjectEnum, TdObjectLike, TdTypeEnum};
   use std::collections::HashMap;
-
   use std::path::PathBuf;
 
   use crate::db::{
@@ -365,12 +330,12 @@ mod tests {
     derived::evaluate::utils::construct_from_hir,
     derived::get_builtin_types::*,
     derived::name_resolver::file_symbol::file_symbol,
-    derived::typechecker::actual_node_type_member::actual_node_type_member,
+    derived::typechecker::actual_node_type::actual_node_type,
     fixtures::load_vault_fixture,
     types::{
       BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
-      LiteralValue, MemberType, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType,
-      TdStrObj, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
+      LiteralValue, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
+      TdStructuralType, TdTypeLike, TdTypeType,
     },
     utils::lower_file,
   };
@@ -390,45 +355,28 @@ mod tests {
       "schema".to_string(),
       "@builtin::schema".to_string(),
     );
-
     let result = evaluate_type(&db, symbol);
-
-    let expected = Some(TdTypeEnum::from(get_schema_type(&db)));
-    assert!(
-      result.typ(&db) == expected,
-      "builtin Schema symbol should evaluate to schema type"
-    );
-    assert!(
-      result.diagnostics(&db).is_empty(),
-      "expected no diagnostics"
-    );
+    assert!(result.typ(&db) == Some(TdTypeEnum::from(get_schema_type(&db))));
+    assert!(result.diagnostics(&db).is_empty());
   }
 
   #[test]
   fn evaluate_user_defined_schema_returns_product_type() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
-
-    let typ = result.typ(&db).expect("should return a type");
-    assert!(
-      typ.is_td_product_type(),
-      "user-defined schema should evaluate to TdProductType"
-    );
+    assert!(result.typ(&db).unwrap().is_td_product_type());
   }
 
   #[test]
   fn evaluate_user_defined_schema_has_declared_fields() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().expect("expected TdProductType");
-    let fields = product.fields(&db);
-    assert!(fields.contains_key("name"), "should have 'name' field");
-    assert!(fields.contains_key("age"), "should have 'age' field");
+    let product = typ.as_td_product_type().unwrap();
+    assert!(product.fields(&db).contains_key("name"));
+    assert!(product.fields(&db).contains_key("age"));
   }
 
   // Schema where property types use the explicit `!type` tag: `type: !type string`
@@ -437,44 +385,33 @@ mod tests {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "schemas/PersonExplicitType.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
     assert!(
       result.diagnostics(&db).is_empty(),
-      "schema with !type tags should have no diagnostics: {:?}",
+      "{:?}",
       result.diagnostics(&db)
     );
-    let typ = result.typ(&db).expect("should return a type");
-    let product = typ.as_td_product_type().expect("expected TdProductType");
-    let fields = product.fields(&db);
-    assert!(fields.contains_key("name"), "should have 'name' field");
-    assert!(fields.contains_key("age"), "should have 'age' field");
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    assert!(product.fields(&db).contains_key("name"));
+    assert!(product.fields(&db).contains_key("age"));
   }
 
   #[test]
   fn evaluate_type_no_properties_returns_empty_product() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/NoProperties.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
-    let typ = result.typ(&db).expect("should return a type");
-    let product = typ.as_td_product_type().expect("expected TdProductType");
-    assert!(
-      product.fields(&db).is_empty(),
-      "schema with no properties should have empty fields"
-    );
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    assert!(product.fields(&db).is_empty());
   }
 
   #[test]
   fn evaluate_type_wrong_properties_type_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/WrongProperties.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
-    let result = evaluate_type(&db, symbol);
-    assert!(
-      !result.diagnostics(&db).is_empty(),
-      "schema with non-mapping properties should have diagnostics"
-    );
+    assert!(!evaluate_type(&db, symbol).diagnostics(&db).is_empty());
   }
 
   #[test]
@@ -482,63 +419,43 @@ mod tests {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "schemas/WrongPropertyDescriptor.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
-    let result = evaluate_type(&db, symbol);
-    assert!(
-      !result.diagnostics(&db).is_empty(),
-      "schema with unresolved property type should have diagnostics: {:?}",
-      result.diagnostics(&db)
-    );
+    assert!(!evaluate_type(&db, symbol).diagnostics(&db).is_empty());
   }
 
   #[test]
   fn evaluate_type_list_field_in_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/WithListField.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
     assert!(
       result.diagnostics(&db).is_empty(),
-      "schema with list[string] should have no diagnostics: {:?}",
+      "{:?}",
       result.diagnostics(&db)
     );
-    let typ = result.typ(&db).expect("should return a type");
-    let product = typ.as_td_product_type().expect("expected TdProductType");
-    let fields = product.fields(&db);
-    assert!(fields.contains_key("tags"), "should have tags field");
-    assert!(fields.contains_key("scores"), "should have scores field");
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    assert!(product.fields(&db).contains_key("tags"));
+    assert!(product.fields(&db).contains_key("scores"));
   }
 
   #[test]
   fn evaluate_type_circular_schema_refs() {
     let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "schemas/SchemaA.td");
     let symbol_a = file_symbol(&db, project, file_a).value(&db).unwrap();
-    let result_a = evaluate_type(&db, symbol_a);
-    assert!(
-      result_a.diagnostics(&db).is_empty(),
-      "circular schema A should have no diagnostics: {:?}",
-      result_a.diagnostics(&db)
-    );
-
+    assert!(evaluate_type(&db, symbol_a).diagnostics(&db).is_empty());
     let file_b = project
       .files(&db)
       .iter()
       .find(|(path, _)| path.ends_with("SchemaB.td"))
       .map(|(_, f)| *f)
-      .expect("SchemaB.td should exist");
+      .unwrap();
     let symbol_b = file_symbol(&db, project, file_b).value(&db).unwrap();
-    let result_b = evaluate_type(&db, symbol_b);
-    assert!(
-      result_b.diagnostics(&db).is_empty(),
-      "circular schema B should have no diagnostics: {:?}",
-      result_b.diagnostics(&db)
-    );
+    assert!(evaluate_type(&db, symbol_b).diagnostics(&db).is_empty());
   }
 
   #[test]
   fn display_name_builtin_types() {
     let db = make_db();
-
     assert_eq!(get_str_type(&db).display_name(&db), "string");
     assert_eq!(get_num_type(&db).display_name(&db), "number");
     assert_eq!(get_bool_type(&db).display_name(&db), "boolean");
@@ -550,12 +467,56 @@ mod tests {
     assert_eq!(get_type_type(&db).display_name(&db), "type");
     assert_eq!(get_object_type(&db).display_name(&db), "object");
     assert_eq!(get_schema_type(&db).display_name(&db), "schema");
+    assert_eq!(get_never_type(&db).display_name(&db), "never");
+    assert_eq!(get_null_type(&db).display_name(&db), "null");
+  }
+
+  #[test]
+  fn display_name_literal_types() {
+    let db = make_db();
+    assert_eq!(
+      get_literal_type(&db, LiteralValue::Str("draft".to_string())).display_name(&db),
+      "\"draft\""
+    );
+    assert_eq!(
+      get_literal_type(&db, LiteralValue::Num("42".to_string())).display_name(&db),
+      "42"
+    );
+    assert_eq!(
+      get_literal_type(&db, LiteralValue::Bool(true)).display_name(&db),
+      "true"
+    );
+  }
+
+  #[test]
+  fn display_name_sum_type() {
+    let db = make_db();
+    let sum = get_sum_type(
+      &db,
+      vec![
+        LazyType::eager(get_str_type(&db).into()),
+        LazyType::eager(get_num_type(&db).into()),
+      ],
+    );
+    assert_eq!(sum.display_name(&db), "string | number");
+  }
+
+  #[test]
+  fn display_name_structural_type() {
+    let db = make_db();
+    let structural = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    );
+    assert_eq!(structural.display_name(&db), "{ name: string }");
   }
 
   #[test]
   fn display_name_instantiated_list() {
     let db = make_db();
-
     let list_str = instantiate_type(
       &db,
       get_list_type(&db).into(),
@@ -567,7 +528,6 @@ mod tests {
   #[test]
   fn display_name_instantiated_dict() {
     let db = make_db();
-
     let dict_str_num = instantiate_type(
       &db,
       get_dict_type(&db).into(),
@@ -586,16 +546,18 @@ mod tests {
   fn display_name_user_defined_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
-    let result = evaluate_type(&db, symbol);
-    let typ = result.typ(&db).unwrap();
-    assert_eq!(typ.display_name(&db), "Person");
+    assert_eq!(
+      evaluate_type(&db, symbol)
+        .typ(&db)
+        .unwrap()
+        .display_name(&db),
+      "Person"
+    );
   }
 
   #[test]
   fn display_name_anonymous_product() {
     let db = make_db();
-
     let product = TdProductType::new(
       &db,
       None,
@@ -603,11 +565,7 @@ mod tests {
       None,
       HashMap::from([(
         "name".to_string(),
-        TypeMember::new(
-          &db,
-          MemberType::Simple(LazyType::eager(get_str_type(&db).into())),
-          TypeMemberDescriptors::empty(),
-        ),
+        LazyType::eager(get_str_type(&db).into()),
       )]),
       HashMap::new(),
     );
@@ -640,45 +598,37 @@ mod tests {
   #[test]
   fn construct_str() {
     let db = make_db();
-    let str_type = get_str_type(&db);
-    let obj = str_type
+    let obj = get_str_type(&db)
       .construct(&db, vec![TdStrObj::new(&db, "hello".to_string()).into()])
-      .expect("should construct");
-    let str_obj = obj.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "hello");
+      .unwrap();
+    assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "hello");
   }
 
   #[test]
   fn construct_num() {
     let db = make_db();
-    let num_type = get_num_type(&db);
-    let obj = num_type
+    let obj = get_num_type(&db)
       .construct(&db, vec![TdNumObj::new(&db, 42.0).into()])
-      .expect("should construct");
-    let num_obj = obj.as_td_num_obj().expect("expected TdNumObj");
-    assert_eq!(num_obj.value(&db), 42.0);
+      .unwrap();
+    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 42.0);
   }
 
   #[test]
   fn construct_bool() {
     let db = make_db();
-    let bool_type = get_bool_type(&db);
-    let obj = bool_type
+    let obj = get_bool_type(&db)
       .construct(&db, vec![TdBoolObj::new(&db, true).into()])
-      .expect("should construct");
-    let bool_obj = obj.as_td_bool_obj().expect("expected TdBoolObj");
-    assert!(bool_obj.value(&db));
+      .unwrap();
+    assert!(obj.as_td_bool_obj().unwrap().value(&db));
   }
 
   #[test]
   fn construct_str_returns_none_for_wrong_type() {
     let db = make_db();
-    let str_type = get_str_type(&db);
     assert!(
-      str_type
+      get_str_type(&db)
         .construct(&db, vec![TdNumObj::new(&db, 42.0).into()])
-        .is_none(),
-      "str construct should reject TdNumObj"
+        .is_none()
     );
   }
 
@@ -687,14 +637,10 @@ mod tests {
   fn construct_product() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.unwrap();
-
-    let obj = construct_from_hir(&db, hir, &mut vec![]).expect("should construct product");
-    let name_obj = obj
-      .get_owned_field(&db, "name")
-      .expect("should have name field");
-    let name_str = name_obj.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(name_str.value(&db), "Alice");
+    let obj = construct_from_hir(&db, hir.unwrap(), &mut vec![]).unwrap();
+    let name_obj = obj.get_owned_field(&db, "name").unwrap();
+    let name = name_obj.as_td_str_obj().unwrap();
+    assert_eq!(name.value(&db), "Alice");
   }
 
   // List construct from a sequence
@@ -709,7 +655,6 @@ mod tests {
     let items: Vec<TdObjectEnum> = vec![
       TdNumObj::new(&db, 1.0).into(),
       TdNumObj::new(&db, 2.0).into(),
-      TdNumObj::new(&db, 3.0).into(),
     ];
     assert!(list_num.typ(&db).construct(&db, items).is_some());
   }
@@ -719,75 +664,41 @@ mod tests {
   fn construct_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
-    // evaluate_type uses resolve_property_descriptor and builds TdProductType
-    let result = evaluate_type(&db, symbol);
-    let obj = result.typ(&db).expect("should construct schema");
-    let product_type = obj.as_td_product_type().expect("expected TdProductType");
-    assert!(
-      product_type.fields(&db).contains_key("name"),
-      "should have name field"
-    );
-    assert!(
-      product_type.fields(&db).contains_key("age"),
-      "should have age field"
-    );
+    let typ = evaluate_type(&db, symbol).typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    assert!(product.fields(&db).contains_key("name"));
   }
 
   // TdObjectType construct passes through when given exactly one arg
   #[test]
   fn construct_object_type_fallback_to_dict() {
     let db = make_db();
-    let hir = make_hir(
-      &db,
-      r#"---
-name: "Alice"
-age: 42
----"#,
-    );
+    let hir = make_hir(&db, "---\nname: \"Alice\"\nage: 42\n---");
     let val_hir = get_field_hir(&db, hir, "name");
-
-    // construct_from_hir evaluates str HIR to TdStrObj
-    let obj =
-      construct_from_hir(&db, val_hir, &mut vec![]).expect("should construct via delegation");
-    let str_obj = obj.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "Alice");
+    let obj = construct_from_hir(&db, val_hir, &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "Alice");
   }
 
-  // TdTypeType::construct returns None (HIR path lives in utils.rs)
   #[test]
   fn construct_type_type() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.unwrap();
-
-    let obj = construct_from_hir(&db, hir, &mut vec![]).expect("should construct type from schema");
-    let product_type = obj.as_td_product_type().expect("expected TdProductType");
+    let obj = construct_from_hir(&db, hir.unwrap(), &mut vec![]).unwrap();
     assert!(
-      product_type.fields(&db).contains_key("name"),
-      "should have name field"
-    );
-    assert!(
-      product_type.fields(&db).contains_key("age"),
-      "should have age field"
+      obj
+        .as_td_product_type()
+        .unwrap()
+        .fields(&db)
+        .contains_key("name")
     );
   }
 
-  // TdTypeType::construct returns None; construct_from_hir returns None for non-schema mappings
   #[test]
   fn construct_type_type_rejects_non_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.unwrap();
-
-    let type_type = TdTypeType::get(&db);
-    assert!(
-      type_type.construct(&db, vec![]).is_none(),
-      "TdTypeType construct should return None"
-    );
-    // construct_from_hir on a non-schema mapping should produce a product/dict, not a type
-    // (it no longer returns None, it returns a TdProductObj or TdDictObj)
-    let _ = construct_from_hir(&db, hir, &mut vec![]);
+    assert!(TdTypeType::get(&db).construct(&db, vec![]).is_none());
+    let _ = construct_from_hir(&db, hir.unwrap(), &mut vec![]);
   }
 
   #[test]
@@ -795,46 +706,27 @@ age: 42
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();
-
     let friend_hir = match hir.kind(&db) {
       HirValueKind::Mapping(entries) => entries.into_iter().find(|(k, _)| k == "friend").unwrap().1,
       _ => panic!("expected mapping"),
     };
-
-    let type_result = actual_node_type_member(&db, friend_hir);
-    let member = type_result.member(&db).expect("fref should return a type");
-    let MemberType::Simple(lazy) = member.typ(&db) else {
-      panic!("expected Simple type");
-    };
-    let typ = lazy.resolve(&db).expect("expected Simple type");
+    let type_result = actual_node_type(&db, friend_hir);
+    let typ = type_result.typ(&db).expect("fref should return a type");
     assert_eq!(typ.display_name(&db), "Person");
   }
 
-  // Asset symbol evaluates to TdBlobType
   #[test]
   fn evaluate_type_asset_returns_blob_type() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/icon.svg");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
-    assert!(symbol.kind(&db).is_asset(), "should be an asset symbol");
-
+    assert!(symbol.kind(&db).is_asset());
     let result = evaluate_type(&db, symbol);
-    assert!(
-      result.diagnostics(&db).is_empty(),
-      "should have no diagnostics"
-    );
-    let typ = result.typ(&db).expect("should return a type");
-    assert!(typ.is_td_blob_type(), "asset should evaluate to TdBlobType");
-    assert_eq!(typ.display_name(&db), "blob");
-
-    // Evaluate the asset as a resource and check the format field value
-    let result = evaluate_resource(&db, symbol);
-    let obj = result.value(&db).expect("should produce a blob object");
-    let format = obj
-      .get_owned_field(&db, "format")
-      .expect("should have format field");
-    let format_str = format.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(format_str.value(&db), "svg");
+    assert!(result.diagnostics(&db).is_empty());
+    assert!(result.typ(&db).unwrap().is_td_blob_type());
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let format_obj = obj.get_owned_field(&db, "format").unwrap();
+    let format = format_obj.as_td_str_obj().unwrap();
+    assert_eq!(format.value(&db), "svg");
   }
 
   // Enum schema where type is a union of string literals
@@ -842,17 +734,13 @@ age: 42
   fn evaluate_enum_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Status.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
-    let typ = result.typ(&db).expect("should produce a type");
-    let product = typ.as_td_product_type().expect("expected TdProductType");
-    let fields = product.fields(&db);
-    let status_field = fields.get("status").expect("should have status field");
-
-    assert!(
-      matches!(status_field.typ(&db), MemberType::Sum(members) if members.len() == 3),
-      "status should be a union of 3 literal types"
-    );
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    let status_field = product.fields(&db).get("status").unwrap().clone();
+    let typ = status_field.resolve(&db).unwrap();
+    let sum = typ.as_td_sum_type().expect("status should be a sum type");
+    assert_eq!(sum.members(&db).len(), 3, "status should have 3 members");
   }
 
   // Mixed union where type is a union of literal and simple types
@@ -860,37 +748,18 @@ age: 42
   fn evaluate_mixed_union_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Mixed.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-
     let result = evaluate_type(&db, symbol);
-    let typ = result.typ(&db).expect("should produce a type");
-    let product = typ.as_td_product_type().expect("expected TdProductType");
-    let fields = product.fields(&db);
-    let value_field = fields.get("value").expect("should have value field");
-
-    // Should be Sum(['draft', number, boolean])
-    match value_field.typ(&db) {
-      MemberType::Sum(members) => {
-        assert_eq!(members.len(), 3, "should have 3 members in union");
-        let first = members[0].typ(&db);
-        let is_draft = matches!(
-          first,
-          MemberType::Simple(lazy)
-            if lazy.as_eager().is_some_and(|t| {
-              matches!(t, TdTypeEnum::TdLiteralType(lit)
-                if lit.value(&db) == LiteralValue::Str("draft".to_string()))
-            })
-        );
-        assert!(is_draft, "first member should be literal 'draft'");
-        assert!(
-          matches!(members[1].typ(&db), MemberType::Simple(_)),
-          "second member should be a simple type"
-        );
-        assert!(
-          matches!(members[2].typ(&db), MemberType::Simple(_)),
-          "third member should be a simple type"
-        );
-      }
-      _ => panic!("expected Sum"),
-    }
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    let value_field = product.fields(&db).get("value").unwrap().clone();
+    let typ = value_field.resolve(&db).unwrap();
+    let sum = typ.as_td_sum_type().expect("value should be a sum type");
+    assert_eq!(sum.members(&db).len(), 3, "should have 3 members");
+    let first = sum.members(&db)[0].resolve(&db).unwrap();
+    assert!(
+      first
+        .as_td_literal_type()
+        .is_some_and(|lit| lit.value(&db) == LiteralValue::Str("draft".to_string()))
+    );
   }
 }

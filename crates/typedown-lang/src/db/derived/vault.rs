@@ -9,8 +9,7 @@ use crate::db::derived::get_builtin_types::{
   get_type_type,
 };
 use crate::db::types::{
-  FuncSignature, LazyType, MemberType, NativeFnKind, TdFuncObj, TdProductType, TypeMember,
-  TypeMemberDescriptors,
+  FuncSignature, LazyType, NativeFnKind, TdFuncObj, TdProductType, TdSumType,
 };
 
 #[query_derived]
@@ -28,40 +27,28 @@ pub fn get_vault_type(db: &TypedownDatabase) -> TdProductType {
     HashMap::from([
       (
         "schema".to_string(),
-        TypeMember::new(
-          db,
-          MemberType::Sum(vec![
-            TypeMember::new(
-              db,
-              MemberType::Simple(LazyType::eager(get_schema_type(db).into())),
-              TypeMemberDescriptors::empty(),
-            ),
-            TypeMember::new(
-              db,
-              MemberType::Simple(LazyType::eager(get_null_type(db).into())),
-              TypeMemberDescriptors::empty(),
-            ),
-          ]),
-          TypeMemberDescriptors::empty(),
+        LazyType::eager(
+          TdSumType::new(
+            db,
+            vec![
+              LazyType::eager(get_schema_type(db).into()),
+              LazyType::eager(get_null_type(db).into()),
+            ],
+          )
+          .into(),
         ),
       ),
       (
         "path".to_string(),
-        TypeMember::new(
-          db,
-          MemberType::Sum(vec![
-            TypeMember::new(
-              db,
-              MemberType::Simple(LazyType::eager(get_str_type(db).into())),
-              TypeMemberDescriptors::empty(),
-            ),
-            TypeMember::new(
-              db,
-              MemberType::Simple(LazyType::eager(get_null_type(db).into())),
-              TypeMemberDescriptors::empty(),
-            ),
-          ]),
-          TypeMemberDescriptors::empty(),
+        LazyType::eager(
+          TdSumType::new(
+            db,
+            vec![
+              LazyType::eager(get_str_type(db).into()),
+              LazyType::eager(get_null_type(db).into()),
+            ],
+          )
+          .into(),
         ),
       ),
     ]),

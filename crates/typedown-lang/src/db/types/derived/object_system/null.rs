@@ -6,7 +6,7 @@ use super::func::TdFuncObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_null_obj, get_null_type};
-use crate::db::types::{InstResult, LazyType, TypeMember};
+use crate::db::types::{InstResult, LazyType};
 use typedown_incremental::Id;
 
 #[query_derived]
@@ -34,7 +34,7 @@ impl TdTypeLike for TdNullType {
   fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     HashMap::new()
   }
-  fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
+  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
@@ -44,8 +44,15 @@ impl TdTypeLike for TdNullType {
   fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
-  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
+  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      _ => self.as_id() == actual.as_id(),
+    }
   }
   fn construct(&self, db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     Some(TdNullObj::get(db).into())

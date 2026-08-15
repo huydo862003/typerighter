@@ -8,8 +8,7 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_list_type;
-use crate::db::types::{HirValue, InstResult, LazyType, TypeMember};
-use typedown_incremental::Id;
+use crate::db::types::{HirValue, InstResult, LazyType};
 
 #[query_derived]
 pub struct TdListType {
@@ -41,7 +40,7 @@ impl TdTypeLike for TdListType {
   fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     HashMap::new()
   }
-  fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
+  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
@@ -54,25 +53,24 @@ impl TdTypeLike for TdListType {
     )
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
-      return true;
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdListType(actual_list) => {
+        match (
+          self.elem(db).and_then(|e| e.resolve(db)),
+          actual_list.elem(db).and_then(|e| e.resolve(db)),
+        ) {
+          (None, _) => true,
+          (Some(_), None) => false,
+          (Some(self_elem), Some(actual_elem)) => self_elem.accepts(db, &actual_elem),
+        }
+      }
+      _ => false,
     }
-    if self.as_id().0 != actual.as_id().0 {
-      return false;
-    }
-    let self_elem = match self.elem(db).and_then(|e| e.resolve(db)) {
-      Some(t) => t,
-      None => return true,
-    };
-    let actual_elem = match actual
-      .as_td_list_type()
-      .and_then(|l| l.elem(db))
-      .and_then(|e| e.resolve(db))
-    {
-      Some(t) => t,
-      None => return false,
-    };
-    self_elem.accepts(db, &actual_elem)
   }
   fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     self

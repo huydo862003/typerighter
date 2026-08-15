@@ -9,7 +9,7 @@ use super::str::TdStrObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_bool_type, get_num_type, get_str_type};
-use crate::db::types::{InstResult, LazyType, LiteralValue, TypeMember};
+use crate::db::types::{InstResult, LazyType, LiteralValue};
 
 #[query_derived]
 pub struct TdLiteralType {
@@ -43,7 +43,7 @@ impl TdTypeLike for TdLiteralType {
   fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     HashMap::new()
   }
-  fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
+  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
@@ -54,14 +54,15 @@ impl TdTypeLike for TdLiteralType {
     vec![]
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
-      return true;
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdLiteralType(other) => self.value(db) == other.value(db),
+      _ => false,
     }
-    // Only the same literal value matches
-    if let TdTypeEnum::TdLiteralType(other) = actual {
-      return self.value(db) == other.value(db);
-    }
-    false
   }
   fn construct(&self, db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     match self.value(db) {

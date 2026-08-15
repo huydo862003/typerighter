@@ -1,332 +1,36 @@
 //! Shared type compatibility utilities for typechecking
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_dict_type, get_list_type, get_num_type, get_str_type,
-};
-use crate::db::types::{
-  LazyType, LiteralValue, MemberType, TdTypeEnum, TdTypeLike, TypeMemberResult,
-};
+use crate::db::types::TdTypeEnum;
 
-/// Extract a TdTypeEnum from a TypeMemberResult
-pub fn lift_type_member_result(
-  db: &TypedownDatabase,
-  result: &TypeMemberResult,
-) -> Option<TdTypeEnum> {
-  let member = result.member(db)?;
-  lift_member_type(db, &member.typ(db))
-}
-
-/// Lift a MemberType to a TdTypeEnum
-/// NOTE: This causes loss of specificity
-pub fn lift_member_type(db: &TypedownDatabase, member_type: &MemberType) -> Option<TdTypeEnum> {
-  match member_type {
-    MemberType::Simple(lazy) => lazy.resolve(db),
-    MemberType::ListOfSum(_) => Some(get_list_type(db).into()),
-    MemberType::DictOfSum(_) => Some(get_dict_type(db).into()),
-    MemberType::Sum(arms) => {
-      // Return the first arm's type as a rough approximation
-      let first = arms.first()?;
-      lift_member_type(db, &first.typ(db))
-    }
-    MemberType::Structural(_) => None,
+// Check if a type includes null
+pub fn is_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
+  if typ.as_td_null_type().is_some() {
+    return true;
   }
-}
-
-/// Get the base TdTypeEnum for a literal value
-pub fn literal_base_type(db: &TypedownDatabase, lit: &LiteralValue) -> TdTypeEnum {
-  match lit {
-    LiteralValue::Str(_) => get_str_type(db).into(),
-    LiteralValue::Num(_) => get_num_type(db).into(),
-    LiteralValue::Bool(_) => get_bool_type(db).into(),
-  }
-}
-
-/// Check if actual MemberType can be assigned to expected MemberType
-pub fn member_types_compatible(
-  db: &TypedownDatabase,
-  expected: &MemberType,
-  actual: &MemberType,
-) -> bool {
-  match (expected, actual) {
-    (MemberType::Simple(expected_lazy), MemberType::Simple(actual_lazy)) => {
-      let exp_type = match expected_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      let actual_type = match actual_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      exp_type.accepts(db, &actual_type)
-    }
-    (MemberType::Sum(exp_arms), MemberType::Sum(act_arms))
-    | (MemberType::ListOfSum(exp_arms), MemberType::ListOfSum(act_arms))
-    | (MemberType::DictOfSum(exp_arms), MemberType::DictOfSum(act_arms)) => {
-      // Every arm in actual must be compatible with some arm in expected
-      act_arms.iter().all(|act_arm| {
-        let act_typ = act_arm.typ(db);
-        exp_arms
-          .iter()
-          .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &act_typ))
-      })
-    }
-
-    // An actual is assignable to a Sum expected if some arm matches
-    (MemberType::Sum(exp_arms), _) => exp_arms
+  if let Some(sum) = typ.as_td_sum_type() {
+    return sum
+      .members(db)
       .iter()
-      .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), actual)),
-
-    // ListOfSum is compatible with a Simple only if the simple is a list type whose elem type is compatible with some arm
-    (MemberType::ListOfSum(exp_arms), MemberType::Simple(actual_lazy)) => {
-      let actual_type = match actual_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      match actual_type.as_td_list_type() {
-        Some(list) => match list.elem(db) {
-          Some(elem) => {
-            let elem_member = MemberType::Simple(elem);
-            exp_arms
-              .iter()
-              .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &elem_member))
-          }
-          None => true,
-        },
-        None => false,
-      }
-    }
-
-    // DictOfSum is compatible with a Simple if it's a dict type whose value matches some arm, or a product type whose every field's type matches some arm
-    (MemberType::DictOfSum(exp_arms), MemberType::Simple(actual_lazy)) => {
-      let actual_type = match actual_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      if let Some(dict) = actual_type.as_td_dict_type() {
-        return match dict.value(db).and_then(|l| l.resolve(db)) {
-          Some(value) => {
-            let value_member = MemberType::Simple(LazyType::eager(value));
-            exp_arms
-              .iter()
-              .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &value_member))
-          }
-          None => true,
-        };
-      }
-      if let Some(product) = actual_type.as_td_product_type() {
-        return product.fields(db).values().all(|field_member| {
-          let field_typ = field_member.typ(db);
-          exp_arms
-            .iter()
-            .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &field_typ))
-        });
-      }
-      false
-    }
-
-    // Sum assignable to simple if every arm is compatible with the simple
-    (MemberType::Simple(_), MemberType::Sum(act_arms)) => act_arms
-      .iter()
-      .all(|act_arm| member_types_compatible(db, expected, &act_arm.typ(db))),
-
-    // ListOfSum assignable to simple if the simple is a list and every arm is compatible with its elem
-    (MemberType::Simple(expected_lazy), MemberType::ListOfSum(act_arms)) => {
-      let exp_type = match expected_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      match exp_type.as_td_list_type() {
-        Some(list) => match list.elem(db) {
-          Some(elem) => {
-            let elem_member = MemberType::Simple(elem);
-            act_arms
-              .iter()
-              .all(|act_arm| member_types_compatible(db, &elem_member, &act_arm.typ(db)))
-          }
-          None => true,
-        },
-        None => false,
-      }
-    }
-    // DictOfSum assignable to simple if the simple is a dict/product and every arm is compatible
-    (MemberType::Simple(expected_lazy), MemberType::DictOfSum(act_arms)) => {
-      let exp_type = match expected_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      if let Some(dict) = exp_type.as_td_dict_type() {
-        return match dict.value(db).and_then(|l| l.resolve(db)) {
-          Some(value) => {
-            let value_member = MemberType::Simple(LazyType::eager(value));
-            act_arms
-              .iter()
-              .all(|act_arm| member_types_compatible(db, &value_member, &act_arm.typ(db)))
-          }
-          None => true,
-        };
-      }
-
-      if let Some(product) = exp_type.as_td_product_type() {
-        // Every arm of the DictOfSum must be compatible with every field of the product
-        return product.fields(db).values().all(|field_member| {
-          let field_typ = field_member.typ(db);
-          act_arms
-            .iter()
-            .all(|act_arm| member_types_compatible(db, &field_typ, &act_arm.typ(db)))
-        });
-      }
-      false
-    }
-
-    // Structural vs Structural: every required expected field must exist and match in actual
-    (MemberType::Structural(exp_fields), MemberType::Structural(act_fields)) => {
-      exp_fields.iter().all(|(name, exp_member)| {
-        if exp_member.typ(db).is_nullable(db) {
-          return true;
-        }
-        match act_fields.get(name) {
-          Some(actual_member) => {
-            member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
-          }
-          None => false,
-        }
-      })
-    }
-
-    // Type expected accepts a structural actual if all required expected fields match
-    (MemberType::Simple(expected_lazy), MemberType::Structural(act_fields)) => {
-      let exp_type = match expected_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      // Product type accepts structural if all required fields are present and
-      // all present fields have compatible types
-      if let Some(product) = exp_type.as_td_product_type() {
-        return product.fields(db).iter().all(|(name, exp_member)| {
-          let is_optional = exp_member.typ(db).is_nullable(db);
-          match act_fields.get(name) {
-            Some(actual_member) => {
-              member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
-            }
-            // Missing required field
-            None => is_optional,
-          }
-        });
-      }
-      // Dict type accepts structural if every field value matches the dict's value type
-      if let Some(dict) = exp_type.as_td_dict_type() {
-        return match dict.value(db).and_then(|l| l.resolve(db)) {
-          Some(value_type) => {
-            let value_member = MemberType::Simple(LazyType::eager(value_type));
-            act_fields.values().all(|actual_member| {
-              member_types_compatible(db, &value_member, &actual_member.typ(db))
-            })
-          }
-          None => true,
-        };
-      }
-      false
-    }
-
-    // Structural expected accepts a type if all required fields match
-    (MemberType::Structural(exp_fields), MemberType::Simple(actual_lazy)) => {
-      let actual_type = match actual_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      exp_fields.iter().all(|(name, exp_member)| {
-        if exp_member.typ(db).is_nullable(db) {
-          return true;
-        }
-        match actual_type.get_owned_field_type_member(db, name) {
-          Some(actual_member) => {
-            member_types_compatible(db, &exp_member.typ(db), &actual_member.typ(db))
-          }
-          None => false,
-        }
-      })
-    }
-
-    // DictOfSum expected accepts a structural actual if every field value matches some arm
-    (MemberType::DictOfSum(exp_arms), MemberType::Structural(act_fields)) => {
-      act_fields.values().all(|field_member| {
-        let field_typ = field_member.typ(db);
-        exp_arms
-          .iter()
-          .any(|exp_arm| member_types_compatible(db, &exp_arm.typ(db), &field_typ))
-      })
-    }
-
-    _ => false,
+      .filter_map(|m| m.resolve(db))
+      .any(|t| is_nullable(db, &t));
   }
-}
-
-/// Check if a value's actual type matches the expected member type
-pub fn value_matches_member_type(
-  db: &TypedownDatabase,
-  expected: &MemberType,
-  actual: &TdTypeEnum,
-) -> bool {
-  match expected {
-    MemberType::Simple(expected_lazy) => {
-      let exp_type = match expected_lazy.resolve(db) {
-        Some(t) => t,
-        None => return false,
-      };
-      exp_type.accepts(db, actual)
-    }
-    MemberType::Sum(members) => members
-      .iter()
-      .any(|member| value_matches_member_type(db, &member.typ(db), actual)),
-    MemberType::ListOfSum(members) => {
-      // Actual must be a list type, and its elem must match some arm
-      match actual.as_td_list_type() {
-        Some(list) => match list.elem(db).and_then(|e| e.resolve(db)) {
-          Some(elem) => members
-            .iter()
-            .any(|member| value_matches_member_type(db, &member.typ(db), &elem)),
-          None => true,
-        },
-        None => false,
-      }
-    }
-    MemberType::DictOfSum(members) => {
-      // Actual must be a dict or product type, and its values must match some arm
-      if let Some(dict) = actual.as_td_dict_type() {
-        return match dict.value(db).and_then(|l| l.resolve(db)) {
-          Some(value) => members
-            .iter()
-            .any(|member| value_matches_member_type(db, &member.typ(db), &value)),
-          None => true,
-        };
-      }
-      if let Some(product) = actual.as_td_product_type() {
-        return product.fields(db).values().all(|field_member| {
-          if let MemberType::Simple(lazy) = field_member.typ(db)
-            && let Some(field_type) = lazy.resolve(db)
-          {
-            members
-              .iter()
-              .any(|member| value_matches_member_type(db, &member.typ(db), &field_type))
-          } else {
-            false
-          }
-        });
-      }
-      false
-    }
-    MemberType::Structural(_) => false,
-  }
+  false
 }
 
 #[cfg(test)]
 mod tests {
+  use std::collections::HashMap;
+
   use super::*;
   use crate::db::derived::get_builtin_types::{
-    get_bool_type, get_literal_type, get_never_type, get_num_type, get_str_type,
+    get_bool_type, get_date_type, get_datetime_type, get_list_type, get_literal_type,
+    get_never_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_sum_type,
+    get_time_type, get_type_type,
   };
-  use crate::db::types::{TypeMember, TypeMemberDescriptors};
+  use crate::db::types::{
+    LazyType, LiteralValue, TdDictType, TdListType, TdProductType, TdStructuralType, TdTypeLike,
+  };
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn db() -> TypedownDatabase {
@@ -335,314 +39,646 @@ mod tests {
     }
   }
 
-  fn simple(_db: &TypedownDatabase, typ: TdTypeEnum) -> MemberType {
-    MemberType::Simple(LazyType::eager(typ))
+  fn lit_str(db: &TypedownDatabase, val: &str) -> TdTypeEnum {
+    get_literal_type(db, LiteralValue::Str(val.to_string())).into()
   }
 
-  fn literal_str(db: &TypedownDatabase, val: &str) -> MemberType {
-    MemberType::Simple(LazyType::eager(
-      get_literal_type(db, LiteralValue::Str(val.to_string())).into(),
-    ))
+  fn lit_num(db: &TypedownDatabase, val: &str) -> TdTypeEnum {
+    get_literal_type(db, LiteralValue::Num(val.to_string())).into()
   }
 
-  fn literal_num(db: &TypedownDatabase, val: &str) -> MemberType {
-    MemberType::Simple(LazyType::eager(
-      get_literal_type(db, LiteralValue::Num(val.to_string())).into(),
-    ))
-  }
-
-  fn arm(db: &TypedownDatabase, member_type: MemberType) -> TypeMember {
-    TypeMember::new(db, member_type, TypeMemberDescriptors::empty())
+  fn sum(db: &TypedownDatabase, members: Vec<TdTypeEnum>) -> TdTypeEnum {
+    get_sum_type(db, members.into_iter().map(LazyType::eager).collect()).into()
   }
 
   // Simple vs Simple
+
   #[test]
   fn compatible_simple_same_type() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    assert!(member_types_compatible(&db, &string, &string));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(string.accepts(&db, &string));
   }
 
   #[test]
   fn incompatible_simple_different_type() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let number = simple(&db, get_num_type(&db).into());
-    assert!(!member_types_compatible(&db, &string, &number));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    assert!(!string.accepts(&db, &number));
   }
 
   // Literal vs Simple
+
   #[test]
   fn literal_compatible_with_base_simple() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let lit = literal_str(&db, "hello");
-    assert!(member_types_compatible(&db, &string, &lit));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let lit = lit_str(&db, "hello");
+    assert!(string.accepts(&db, &lit));
   }
 
   #[test]
   fn literal_incompatible_with_wrong_simple() {
     let db = db();
-    let number = simple(&db, get_num_type(&db).into());
-    let lit = literal_str(&db, "hello");
-    assert!(!member_types_compatible(&db, &number, &lit));
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let lit = lit_str(&db, "hello");
+    assert!(!number.accepts(&db, &lit));
   }
 
   // Literal vs Literal
+
   #[test]
   fn literal_compatible_same_value() {
     let db = db();
-    let lit1 = literal_str(&db, "draft");
-    let lit2 = literal_str(&db, "draft");
-    assert!(member_types_compatible(&db, &lit1, &lit2));
+    let lit1 = lit_str(&db, "draft");
+    let lit2 = lit_str(&db, "draft");
+    assert!(lit1.accepts(&db, &lit2));
   }
 
   #[test]
   fn literal_incompatible_different_value() {
     let db = db();
-    let lit1 = literal_str(&db, "draft");
-    let lit2 = literal_str(&db, "published");
-    assert!(!member_types_compatible(&db, &lit1, &lit2));
-  }
-
-  // Sum compatibility
-  #[test]
-  fn literal_compatible_with_sum_containing_base() {
-    let db = db();
-    let sum = MemberType::Sum(vec![
-      arm(&db, simple(&db, get_str_type(&db).into())),
-      arm(&db, simple(&db, get_num_type(&db).into())),
-    ]);
-    let lit = literal_str(&db, "hello");
-    assert!(member_types_compatible(&db, &sum, &lit));
-  }
-
-  #[test]
-  fn simple_incompatible_with_sum_no_match() {
-    let db = db();
-    let sum = MemberType::Sum(vec![
-      arm(&db, simple(&db, get_str_type(&db).into())),
-      arm(&db, simple(&db, get_num_type(&db).into())),
-    ]);
-    let boolean = simple(&db, get_bool_type(&db).into());
-    assert!(!member_types_compatible(&db, &sum, &boolean));
-  }
-
-  // ListOfSum compatibility
-  #[test]
-  fn list_of_sum_compatible_with_matching_arms() {
-    let db = db();
-    let expected = MemberType::ListOfSum(vec![
-      arm(&db, simple(&db, get_str_type(&db).into())),
-      arm(&db, simple(&db, get_num_type(&db).into())),
-    ]);
-    // Actual has literal arms that match base types
-    let actual = MemberType::ListOfSum(vec![
-      arm(&db, literal_str(&db, "hello")),
-      arm(&db, literal_num(&db, "42")),
-    ]);
-    assert!(member_types_compatible(&db, &expected, &actual));
-  }
-
-  #[test]
-  fn list_of_sum_incompatible_with_wrong_arm() {
-    let db = db();
-    let expected = MemberType::ListOfSum(vec![arm(&db, simple(&db, get_str_type(&db).into()))]);
-    let actual = MemberType::ListOfSum(vec![arm(&db, simple(&db, get_num_type(&db).into()))]);
-    assert!(!member_types_compatible(&db, &expected, &actual));
+    let lit1 = lit_str(&db, "draft");
+    let lit2 = lit_str(&db, "published");
+    assert!(!lit1.accepts(&db, &lit2));
   }
 
   // Never is the bottom type: assignable to anything, but nothing is assignable to it
+
   #[test]
   fn never_is_bottom_type() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let never = simple(&db, get_never_type(&db).into());
-    assert!(!member_types_compatible(&db, &never, &string));
-    assert!(member_types_compatible(&db, &string, &never));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let never: TdTypeEnum = get_never_type(&db).into();
+    assert!(!never.accepts(&db, &string));
+    assert!(string.accepts(&db, &never));
   }
 
-  // lift_member_type
-  #[test]
-  fn lift_simple_returns_type() {
-    let db = db();
-    let typ: TdTypeEnum = get_str_type(&db).into();
-    let member = simple(&db, typ.clone());
-    assert!(lift_member_type(&db, &member) == Some(typ));
-  }
-
-  #[test]
-  fn lift_literal_returns_literal_type() {
-    let db = db();
-    let member = literal_str(&db, "hello");
-    let expected: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("hello".to_string())).into();
-    assert!(lift_member_type(&db, &member) == Some(expected));
-  }
-
-  #[test]
-  fn lift_never_returns_never_type() {
-    let db = db();
-    let never = simple(&db, get_never_type(&db).into());
-    let lifted = lift_member_type(&db, &never);
-    assert!(lifted.is_some_and(|t| t.as_td_never_type().is_some()));
-  }
-
-  // DictOfSum compatibility
-  #[test]
-  fn dict_of_sum_compatible_with_matching_arms() {
-    let db = db();
-    let expected = MemberType::DictOfSum(vec![
-      arm(&db, simple(&db, get_str_type(&db).into())),
-      arm(&db, simple(&db, get_num_type(&db).into())),
-    ]);
-    let actual = MemberType::DictOfSum(vec![
-      arm(&db, literal_str(&db, "hello")),
-      arm(&db, literal_num(&db, "42")),
-    ]);
-    assert!(member_types_compatible(&db, &expected, &actual));
-  }
-
-  #[test]
-  fn dict_of_sum_incompatible_with_wrong_arm() {
-    let db = db();
-    let expected = MemberType::DictOfSum(vec![arm(&db, simple(&db, get_str_type(&db).into()))]);
-    let actual = MemberType::DictOfSum(vec![arm(&db, simple(&db, get_num_type(&db).into()))]);
-    assert!(!member_types_compatible(&db, &expected, &actual));
-  }
-
-  // Cross-variant: Sum vs Literal
-  #[test]
-  fn sum_compatible_with_literal_matching_arm() {
-    let db = db();
-    let sum = MemberType::Sum(vec![
-      arm(&db, literal_str(&db, "draft")),
-      arm(&db, literal_str(&db, "published")),
-    ]);
-    let lit = literal_str(&db, "draft");
-    assert!(member_types_compatible(&db, &sum, &lit));
-  }
-
-  #[test]
-  fn sum_incompatible_with_literal_no_match() {
-    let db = db();
-    let sum = MemberType::Sum(vec![
-      arm(&db, literal_str(&db, "draft")),
-      arm(&db, literal_str(&db, "published")),
-    ]);
-    let lit = literal_str(&db, "archived");
-    assert!(!member_types_compatible(&db, &sum, &lit));
-  }
-
-  // Cross-variant: Simple vs Sum
-  #[test]
-  fn simple_compatible_with_sum_all_arms_match() {
-    let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let sum = MemberType::Sum(vec![
-      arm(&db, literal_str(&db, "a")),
-      arm(&db, literal_str(&db, "b")),
-    ]);
-    // Sum assignable to Simple if every arm is compatible
-    assert!(member_types_compatible(&db, &string, &sum));
-  }
-
-  #[test]
-  fn simple_incompatible_with_sum_mixed_arms() {
-    let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let sum = MemberType::Sum(vec![
-      arm(&db, literal_str(&db, "a")),
-      arm(&db, simple(&db, get_num_type(&db).into())),
-    ]);
-    // Number arm not compatible with string
-    assert!(!member_types_compatible(&db, &string, &sum));
-  }
-
-  // Literal num
   #[test]
   fn literal_num_compatible_with_number() {
     let db = db();
-    let number = simple(&db, get_num_type(&db).into());
-    let lit = literal_num(&db, "42");
-    assert!(member_types_compatible(&db, &number, &lit));
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let lit = lit_num(&db, "42");
+    assert!(number.accepts(&db, &lit));
   }
 
   #[test]
   fn literal_num_incompatible_with_string() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let lit = literal_num(&db, "42");
-    assert!(!member_types_compatible(&db, &string, &lit));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let lit = lit_num(&db, "42");
+    assert!(!string.accepts(&db, &lit));
   }
-
-  // TdLiteralType tests
 
   #[test]
   fn string_accepts_string_literal() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let lit = simple(
-      &db,
-      get_literal_type(&db, LiteralValue::Str("hello".to_string())).into(),
-    );
-    assert!(member_types_compatible(&db, &string, &lit));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("hello".to_string())).into();
+    assert!(string.accepts(&db, &lit));
   }
 
   #[test]
   fn number_accepts_number_literal() {
     let db = db();
-    let number = simple(&db, get_num_type(&db).into());
-    let lit = simple(
-      &db,
-      get_literal_type(&db, LiteralValue::Num("42".to_string())).into(),
-    );
-    assert!(member_types_compatible(&db, &number, &lit));
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
+    assert!(number.accepts(&db, &lit));
   }
 
   #[test]
   fn boolean_accepts_boolean_literal() {
     let db = db();
-    let boolean = simple(&db, get_bool_type(&db).into());
-    let lit = simple(&db, get_literal_type(&db, LiteralValue::Bool(true)).into());
-    assert!(member_types_compatible(&db, &boolean, &lit));
+    let boolean: TdTypeEnum = get_bool_type(&db).into();
+    let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Bool(true)).into();
+    assert!(boolean.accepts(&db, &lit));
   }
 
   #[test]
   fn string_rejects_number_literal() {
     let db = db();
-    let string = simple(&db, get_str_type(&db).into());
-    let lit = simple(
-      &db,
-      get_literal_type(&db, LiteralValue::Num("42".to_string())).into(),
-    );
-    assert!(!member_types_compatible(&db, &string, &lit));
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
+    assert!(!string.accepts(&db, &lit));
   }
 
   #[test]
   fn literal_accepts_same_value() {
     let db = db();
-    let lit1 = simple(
-      &db,
-      get_literal_type(&db, LiteralValue::Str("draft".to_string())).into(),
-    );
-    let lit2 = simple(
-      &db,
-      get_literal_type(&db, LiteralValue::Str("draft".to_string())).into(),
-    );
-    assert!(member_types_compatible(&db, &lit1, &lit2));
+    let lit1: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("draft".to_string())).into();
+    let lit2: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("draft".to_string())).into();
+    assert!(lit1.accepts(&db, &lit2));
   }
 
   #[test]
   fn literal_rejects_different_value() {
     let db = db();
-    let lit1 = simple(
+    let lit1: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("draft".to_string())).into();
+    let lit2: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("published".to_string())).into();
+    assert!(!lit1.accepts(&db, &lit2));
+  }
+
+  // Sum type tests
+
+  #[test]
+  fn sum_accepts_member_type() {
+    let db = db();
+    let str_or_num = sum(
       &db,
-      get_literal_type(&db, LiteralValue::Str("draft".to_string())).into(),
+      vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
-    let lit2 = simple(
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(str_or_num.accepts(&db, &string));
+  }
+
+  #[test]
+  fn sum_rejects_non_member_type() {
+    let db = db();
+    let str_or_num = sum(
       &db,
-      get_literal_type(&db, LiteralValue::Str("published".to_string())).into(),
+      vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
-    assert!(!member_types_compatible(&db, &lit1, &lit2));
+    let boolean: TdTypeEnum = get_bool_type(&db).into();
+    assert!(!str_or_num.accepts(&db, &boolean));
+  }
+
+  #[test]
+  fn sum_accepts_literal_of_member_type() {
+    let db = db();
+    let str_or_num = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_num_type(&db).into()],
+    );
+    let lit = lit_str(&db, "hello");
+    assert!(str_or_num.accepts(&db, &lit));
+  }
+
+  #[test]
+  fn sum_accepts_sub_sum() {
+    let db = db();
+    let str_or_num = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_num_type(&db).into()],
+    );
+    let just_str = sum(&db, vec![get_str_type(&db).into()]);
+    assert!(str_or_num.accepts(&db, &just_str));
+  }
+
+  #[test]
+  fn sum_rejects_wider_sum() {
+    let db = db();
+    let just_str = sum(&db, vec![get_str_type(&db).into()]);
+    let str_or_num = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_num_type(&db).into()],
+    );
+    assert!(!just_str.accepts(&db, &str_or_num));
+  }
+
+  // Null type tests
+
+  #[test]
+  fn nullable_accepts_null() {
+    let db = db();
+    let nullable_str = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_null_type(&db).into()],
+    );
+    let null: TdTypeEnum = get_null_type(&db).into();
+    assert!(nullable_str.accepts(&db, &null));
+  }
+
+  #[test]
+  fn nullable_accepts_base_type() {
+    let db = db();
+    let nullable_str = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_null_type(&db).into()],
+    );
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(nullable_str.accepts(&db, &string));
+  }
+
+  #[test]
+  fn non_nullable_rejects_null() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let null: TdTypeEnum = get_null_type(&db).into();
+    assert!(!string.accepts(&db, &null));
+  }
+
+  // Never type tests
+
+  #[test]
+  fn never_accepted_by_any_type() {
+    let db = db();
+    let never: TdTypeEnum = get_never_type(&db).into();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let boolean: TdTypeEnum = get_bool_type(&db).into();
+    assert!(string.accepts(&db, &never));
+    assert!(number.accepts(&db, &never));
+    assert!(boolean.accepts(&db, &never));
+  }
+
+  #[test]
+  fn never_accepted_by_sum() {
+    let db = db();
+    let never: TdTypeEnum = get_never_type(&db).into();
+    let str_or_num = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_num_type(&db).into()],
+    );
+    assert!(str_or_num.accepts(&db, &never));
+  }
+
+  #[test]
+  fn nothing_accepted_by_never() {
+    let db = db();
+    let never: TdTypeEnum = get_never_type(&db).into();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(!never.accepts(&db, &string));
+  }
+
+  // Literal sum (enum) tests
+
+  #[test]
+  fn literal_sum_accepts_matching_literal() {
+    let db = db();
+    let status = sum(&db, vec![lit_str(&db, "draft"), lit_str(&db, "published")]);
+    let draft = lit_str(&db, "draft");
+    assert!(status.accepts(&db, &draft));
+  }
+
+  #[test]
+  fn literal_sum_rejects_non_matching_literal() {
+    let db = db();
+    let status = sum(&db, vec![lit_str(&db, "draft"), lit_str(&db, "published")]);
+    let archived = lit_str(&db, "archived");
+    assert!(!status.accepts(&db, &archived));
+  }
+
+  // String accepts sum of string literals
+  #[test]
+  fn string_accepts_sum_of_string_literals() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let status = sum(&db, vec![lit_str(&db, "draft"), lit_str(&db, "published")]);
+    assert!(string.accepts(&db, &status));
+  }
+
+  // String rejects sum with non-string member
+  #[test]
+  fn string_rejects_mixed_sum() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let mixed = sum(&db, vec![lit_str(&db, "draft"), get_num_type(&db).into()]);
+    assert!(!string.accepts(&db, &mixed));
+  }
+
+  // List type tests
+
+  #[test]
+  fn list_accepts_same_elem_type() {
+    let db = db();
+    let list_str: TdTypeEnum =
+      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    let list_str2: TdTypeEnum =
+      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    assert!(list_str.accepts(&db, &list_str2));
+  }
+
+  #[test]
+  fn list_rejects_different_elem_type() {
+    let db = db();
+    let list_str: TdTypeEnum =
+      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    let list_num: TdTypeEnum =
+      TdListType::new(&db, Some(LazyType::eager(get_num_type(&db).into()))).into();
+    assert!(!list_str.accepts(&db, &list_num));
+  }
+
+  #[test]
+  fn untyped_list_accepts_any_list() {
+    let db = db();
+    let untyped: TdTypeEnum = get_list_type(&db).into();
+    let list_str: TdTypeEnum =
+      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    assert!(untyped.accepts(&db, &list_str));
+  }
+
+  // Dict type tests
+
+  #[test]
+  fn dict_accepts_same_value_type() {
+    let db = db();
+    let dict_str: TdTypeEnum = TdDictType::new(
+      &db,
+      Some(LazyType::eager(get_str_type(&db).into())),
+      Some(LazyType::eager(get_str_type(&db).into())),
+    )
+    .into();
+    let dict_str2: TdTypeEnum = TdDictType::new(
+      &db,
+      Some(LazyType::eager(get_str_type(&db).into())),
+      Some(LazyType::eager(get_str_type(&db).into())),
+    )
+    .into();
+    assert!(dict_str.accepts(&db, &dict_str2));
+  }
+
+  #[test]
+  fn dict_rejects_different_value_type() {
+    let db = db();
+    let dict_str: TdTypeEnum = TdDictType::new(
+      &db,
+      Some(LazyType::eager(get_str_type(&db).into())),
+      Some(LazyType::eager(get_str_type(&db).into())),
+    )
+    .into();
+    let dict_num: TdTypeEnum = TdDictType::new(
+      &db,
+      Some(LazyType::eager(get_str_type(&db).into())),
+      Some(LazyType::eager(get_num_type(&db).into())),
+    )
+    .into();
+    assert!(!dict_str.accepts(&db, &dict_num));
+  }
+
+  // String accepts date/time subtypes
+
+  #[test]
+  fn string_accepts_date() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let date: TdTypeEnum = get_date_type(&db).into();
+    assert!(string.accepts(&db, &date));
+  }
+
+  #[test]
+  fn string_accepts_datetime() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let datetime: TdTypeEnum = get_datetime_type(&db).into();
+    assert!(string.accepts(&db, &datetime));
+  }
+
+  #[test]
+  fn string_accepts_time() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let time: TdTypeEnum = get_time_type(&db).into();
+    assert!(string.accepts(&db, &time));
+  }
+
+  #[test]
+  fn date_rejects_string() {
+    let db = db();
+    let date: TdTypeEnum = get_date_type(&db).into();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(!date.accepts(&db, &string));
+  }
+
+  // Structural type tests
+
+  #[test]
+  fn structural_accepts_matching_structural() {
+    let db = db();
+    let expected: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    let actual: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    assert!(expected.accepts(&db, &actual));
+  }
+
+  #[test]
+  fn structural_rejects_missing_required_field() {
+    let db = db();
+    let expected: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    let actual: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
+    assert!(!expected.accepts(&db, &actual));
+  }
+
+  #[test]
+  fn structural_accepts_missing_nullable_field() {
+    let db = db();
+    let nullable_str = sum(
+      &db,
+      vec![get_str_type(&db).into(), get_null_type(&db).into()],
+    );
+    let expected: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([("name".to_string(), LazyType::eager(nullable_str))]),
+    )
+    .into();
+    let actual: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
+    assert!(expected.accepts(&db, &actual));
+  }
+
+  #[test]
+  fn structural_rejects_wrong_field_type() {
+    let db = db();
+    let expected: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    let actual: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_num_type(&db).into()),
+      )]),
+    )
+    .into();
+    assert!(!expected.accepts(&db, &actual));
+  }
+
+  // Structural accepts superset of fields
+  #[test]
+  fn structural_accepts_superset_fields() {
+    let db = db();
+    let expected: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    let actual: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([
+        (
+          "name".to_string(),
+          LazyType::eager(get_str_type(&db).into()),
+        ),
+        ("age".to_string(), LazyType::eager(get_num_type(&db).into())),
+      ]),
+    )
+    .into();
+    assert!(expected.accepts(&db, &actual));
+  }
+
+  // Product accepts structural
+
+  #[test]
+  fn product_accepts_matching_structural() {
+    let db = db();
+    let product: TdTypeEnum = TdProductType::new(
+      &db,
+      Some("Test".to_string()),
+      get_type_type(&db).into(),
+      None,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+      HashMap::new(),
+    )
+    .into();
+    let structural: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    assert!(product.accepts(&db, &structural));
+  }
+
+  #[test]
+  fn product_rejects_structural_with_wrong_field() {
+    let db = db();
+    let product: TdTypeEnum = TdProductType::new(
+      &db,
+      Some("Test".to_string()),
+      get_type_type(&db).into(),
+      None,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+      HashMap::new(),
+    )
+    .into();
+    let structural: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_num_type(&db).into()),
+      )]),
+    )
+    .into();
+    assert!(!product.accepts(&db, &structural));
+  }
+
+  #[test]
+  fn product_rejects_structural_with_missing_required_field() {
+    let db = db();
+    let product: TdTypeEnum = TdProductType::new(
+      &db,
+      Some("Test".to_string()),
+      get_type_type(&db).into(),
+      None,
+      HashMap::from([
+        (
+          "name".to_string(),
+          LazyType::eager(get_str_type(&db).into()),
+        ),
+        ("age".to_string(), LazyType::eager(get_num_type(&db).into())),
+      ]),
+      HashMap::new(),
+    )
+    .into();
+    let structural: TdTypeEnum = TdStructuralType::new(
+      &db,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
+    )
+    .into();
+    assert!(!product.accepts(&db, &structural));
+  }
+
+  #[test]
+  fn null_rejects_non_null() {
+    let db = db();
+    let null: TdTypeEnum = get_null_type(&db).into();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(!null.accepts(&db, &string));
+  }
+
+  #[test]
+  fn list_rejects_non_list() {
+    let db = db();
+    let list_str: TdTypeEnum =
+      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(!list_str.accepts(&db, &string));
+  }
+
+  #[test]
+  fn dict_rejects_non_dict() {
+    let db = db();
+    let dict: TdTypeEnum = TdDictType::new(
+      &db,
+      Some(LazyType::eager(get_str_type(&db).into())),
+      Some(LazyType::eager(get_str_type(&db).into())),
+    )
+    .into();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    assert!(!dict.accepts(&db, &string));
+  }
+
+  // is_type tests
+
+  #[test]
+  fn builtin_type_is_type() {
+    let db = db();
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+    assert!(!str_type.is_type(&db), "string is not a metatype");
+  }
+
+  #[test]
+  fn type_type_is_type() {
+    let db = db();
+    let type_type: TdTypeEnum = get_type_type(&db).into();
+    assert!(type_type.is_type(&db), "type is a metatype");
+  }
+
+  #[test]
+  fn schema_is_type() {
+    let db = db();
+    let schema: TdTypeEnum = get_schema_type(&db).into();
+    assert!(
+      schema.is_type(&db),
+      "schema is a metatype (subtype of type)"
+    );
   }
 }

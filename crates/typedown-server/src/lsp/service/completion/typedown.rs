@@ -10,13 +10,13 @@ use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::derived::typechecker::expected_node_type_member::expected_node_type_member;
-use typedown_lang::db::derived::typechecker::get_symbol_type_member::get_symbol_type_member;
+use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
+use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::types::{
-  File, LiteralValue, MemberType, Project, Scope, SymbolKind, TdProductType, TdTypeEnum, TypeMember,
+  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
-use typedown_lang::db::utils::typecheck::lift_type_member_result;
+use typedown_lang::db::utils::typecheck::is_nullable;
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -109,11 +109,7 @@ fn fref_completions(
   node: &RedNode,
 ) -> Vec<CompletionItem> {
   // Resolve the expected type for the field containing this fref() call.
-  let expected_type =
-    declared_field(db, project, file, node).and_then(|member| match member.typ(db) {
-      MemberType::Simple(lazy) => lazy.resolve(db),
-      _ => None,
-    });
+  let expected_type = declared_field(db, project, file, node);
 
   let root = project.root_dir(db);
   project
@@ -129,7 +125,7 @@ fn fref_completions(
         Some(sym) => sym,
         None => return false,
       };
-      let file_type = match lift_type_member_result(db, &get_symbol_type_member(db, sym)) {
+      let file_type = match get_symbol_type(db, sym).typ(db) {
         Some(typ) => typ,
         None => return false,
       };
@@ -168,12 +164,24 @@ fn enclosing_mapping_product(
   // No explicit _type. Try resolving via the parent field's declared type.
   let mapping_expr = Expr::cast(mapping.clone())?;
   let hir = lower_node(db, project, file, mapping_expr.syntax().clone());
-  let member = expected_node_type_member(db, hir).member(db)?;
-  let MemberType::Simple(lazy) = member.typ(db) else {
-    return None;
-  };
-  let typ = lazy.resolve(db)?;
-  Some((typ.as_td_product_type().cloned()?, mapping))
+  let typ = expected_node_type(db, hir).typ(db)?;
+  // Both product types and structural types have fields we can complete
+  if let Some(product) = typ.as_td_product_type() {
+    return Some((*product, mapping));
+  }
+  if let Some(structural) = typ.as_td_structural_type() {
+    // Create a temporary product type from the structural fields for completion
+    let product = TdProductType::new(
+      db,
+      None,
+      typedown_lang::db::derived::get_builtin_types::get_type_type(db).into(),
+      None,
+      structural.fields(db),
+      std::collections::HashMap::new(),
+    );
+    return Some((product, mapping));
+  }
+  None
 }
 
 /// If the cursor is in a field value, return value completions
@@ -193,8 +201,8 @@ fn value_completions(
   let mut items = vec![keyword_item("true"), keyword_item("false")];
 
   // Suggest null only for optional fields
-  if let Some(field) = declared_field(db, project, file, node)
-    && field.typ(db).is_nullable(db)
+  if let Some(typ) = declared_field(db, project, file, node)
+    && is_nullable(db, &typ)
   {
     items.push(keyword_item("null"));
   }
@@ -202,18 +210,18 @@ fn value_completions(
   Some(items)
 }
 
-/// Resolve the `TypeMember` for the field whose value the cursor is currently in.
+/// Resolve the LazyType for the field whose value the cursor is currently in
 fn declared_field(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<TypeMember> {
+) -> Option<TdTypeEnum> {
   // Find the value expression node inside the enclosing YamlMappingEntryValue.
   let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
   let value_expr = entry_value.children().find_map(Expr::cast)?;
   let hir = lower_node(db, project, file, value_expr.syntax().clone());
-  expected_node_type_member(db, hir).member(db)
+  expected_node_type(db, hir).typ(db)
 }
 
 /// Build a keyword completion item (true, false, null).
@@ -261,8 +269,8 @@ fn build_schema_snippet(
 
   let fields = product.fields(db);
   let mut snippet = name.to_string();
-  for (tab_stop, (field_name, member)) in fields.iter().enumerate() {
-    let placeholder = member_placeholder(db, &member.typ(db), 0);
+  for (tab_stop, (field_name, lazy)) in fields.iter().enumerate() {
+    let placeholder = lazy_placeholder(db, lazy, 0);
     let idx = tab_stop + 1;
 
     snippet.push_str(&format!("\n{field_name}: ${{{idx}:{placeholder}}}"));
@@ -271,43 +279,34 @@ fn build_schema_snippet(
   snippet
 }
 
-// Generate a placeholder string for a type member
-fn member_placeholder(db: &TypedownDatabase, member: &MemberType, indent: usize) -> String {
-  match member {
-    MemberType::Simple(lazy) => {
-      if let Some(typ) = lazy.resolve(db) {
-        simple_type_placeholder(db, &typ, indent)
-      } else {
-        "value".to_string()
+// Generate a placeholder string for a lazy type
+fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> String {
+  let Some(typ) = lazy.resolve(db) else {
+    return "value".to_string();
+  };
+  match typ {
+    TdTypeEnum::TdSumType(sum) => {
+      let members = sum.members(db);
+      // Optional type: use non-null member's placeholder
+      let non_null: Vec<_> = members
+        .iter()
+        .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+        .collect();
+      if non_null.len() == 1 {
+        return lazy_placeholder(db, non_null[0], indent);
       }
-    }
-    // Enum: use first option as default
-    MemberType::Sum(members) => {
-      let first = members.first().and_then(|m| match m.typ(db) {
-        MemberType::Simple(lazy) => {
-          if let Some(TdTypeEnum::TdLiteralType(lit)) = lazy.resolve(db)
-            && let LiteralValue::Str(s) = lit.value(db)
-          {
-            return Some(s);
-          }
-          None
+      // Enum: use first literal string option as default
+      let first = members.first().and_then(|m| {
+        if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
+          && let LiteralValue::Str(s) = lit.value(db)
+        {
+          return Some(s);
         }
-        _ => None,
+        None
       });
-
       first.unwrap_or_else(|| "value".to_string())
     }
-    MemberType::ListOfSum(members) => {
-      // List: generate a YAML list item
-      let inner = members
-        .first()
-        .map(|m| member_placeholder(db, &m.typ(db), indent))
-        .unwrap_or_else(|| "value".to_string());
-      let pad = "  ".repeat(indent);
-
-      format!("\\n{pad}- {inner}")
-    }
-    _ => "value".to_string(),
+    _ => simple_type_placeholder(db, &typ, indent),
   }
 }
 
@@ -339,8 +338,8 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
         let pad = "  ".repeat(indent + 1);
         let mut nested = String::new();
 
-        for (field_name, member) in &fields {
-          let placeholder = member_placeholder(db, &member.typ(db), indent + 1);
+        for (field_name, lazy) in &fields {
+          let placeholder = lazy_placeholder(db, lazy, indent + 1);
 
           nested.push_str(&format!("\\n{pad}{field_name}: {placeholder}"));
         }

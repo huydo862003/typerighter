@@ -7,7 +7,7 @@ use super::native_fn::NativeFnKind;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_str_type;
-use crate::db::types::{FuncSignature, InstResult, LazyType, TypeMember};
+use crate::db::types::{FuncSignature, InstResult, LazyType};
 use typedown_incremental::Id;
 
 #[query_derived]
@@ -43,7 +43,7 @@ impl TdTypeLike for TdStrType {
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
-  fn get_owned_field_type_member(&self, _db: &TypedownDatabase, _name: &str) -> Option<TypeMember> {
+  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
     None
   }
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
@@ -54,23 +54,28 @@ impl TdTypeLike for TdStrType {
     vec![]
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
-      return true;
-    }
-    if self.as_id() == actual.as_id() {
-      return true;
-    }
-    // Accept subtypes of string (e.g. date, time, datetime) by walking the supertype chain
-    let mut current = actual.get_supertype(db);
-    loop {
-      if self.as_id() == current.as_id() {
-        return true;
+    match actual {
+      TdTypeEnum::TdNeverType(_) => true,
+      TdTypeEnum::TdSumType(sum) => sum
+        .members(db)
+        .iter()
+        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdLiteralType(lit) => matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_)),
+      _ if self.as_id() == actual.as_id() => true,
+      _ => {
+        // Accept subtypes of string (e.g. date, time, datetime) by walking the supertype chain
+        let mut current = actual.get_supertype(db);
+        loop {
+          if self.as_id() == current.as_id() {
+            break true;
+          }
+          let next = current.get_supertype(db);
+          if next.as_id() == current.as_id() {
+            break false;
+          }
+          current = next;
+        }
       }
-      let next = current.get_supertype(db);
-      if next.as_id() == current.as_id() {
-        return false;
-      }
-      current = next;
     }
   }
   fn construct(&self, _db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {

@@ -6,15 +6,11 @@ use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::get_schemaless_type;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
+use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
-  File, HirValue, LazyType, MemberType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike,
-  TypeMember, TypeMemberDescriptors, TypeMemberResult,
+  File, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
-use crate::db::utils::typecheck::{
-  lift_type_member_result, member_types_compatible, value_matches_member_type,
-};
 use crate::syntax::ast::{AstNode, Expr};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -31,14 +27,14 @@ struct AnchorResult {
 }
 
 #[query_derived]
-pub fn expected_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemberResult {
+pub fn expected_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
   let project = hir.project(db);
   let file = hir.file(db);
   let node = hir.node(db);
 
   // "Non-top-level expression nodes" (our fabricated concept) fall back to actual type
   if !is_top_level(&node) {
-    return actual_node_type_member(db, hir);
+    return actual_node_type(db, hir);
   }
 
   let anchor = match collect_path_to_anchor(db, project, file, &node) {
@@ -48,37 +44,32 @@ pub fn expected_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMe
       if is_schemaless_file(db, project, file) {
         return simple_schemaless_result(db);
       }
-      return TypeMemberResult::new(db, None, vec![]);
+      return TypeResult::new(db, None, vec![]);
     }
   };
 
   // Traverse down the type structure following the path
-  let mut current_member = TypeMember::new(
-    db,
-    MemberType::Simple(LazyType::eager(anchor.typ)),
-    TypeMemberDescriptors::empty(),
-  );
+  let mut current_type = LazyType::eager(anchor.typ);
 
   for (step, step_node) in &anchor.path {
     let step_hir = lower_node(db, project, file, step_node.clone());
-    let member_type = current_member.typ(db);
 
-    // Resolve Sum ambiguity using actual_node_type_member
-    let resolved = resolve_member_type(db, &member_type, step_hir);
+    // Resolve Sum ambiguity using actual_node_type
+    let resolved_type = resolve_lazy_type(db, &current_type, step_hir);
 
-    current_member = match step {
-      PathStep::Field(name) => match traverse_field(db, &resolved, name) {
-        Some(member) => member,
-        None => return TypeMemberResult::new(db, None, vec![]),
+    current_type = match step {
+      PathStep::Field(name) => match traverse_field(db, &resolved_type, name) {
+        Some(lazy) => lazy,
+        None => return TypeResult::new(db, None, vec![]),
       },
-      PathStep::Index => match traverse_index(db, &resolved) {
-        Some(member) => member,
-        None => return TypeMemberResult::new(db, None, vec![]),
+      PathStep::Index => match traverse_index(db, &resolved_type) {
+        Some(lazy) => lazy,
+        None => return TypeResult::new(db, None, vec![]),
       },
     };
   }
 
-  TypeMemberResult::new(db, Some(current_member), vec![])
+  TypeResult::new(db, current_type.resolve(db), vec![])
 }
 
 /// Check if a node is top-level in the YAML structure
@@ -272,116 +263,77 @@ fn resolve_type_anchor(
   None
 }
 
-/// Resolve a Sum MemberType by picking the most specific matching arm
-fn resolve_member_type(
-  db: &TypedownDatabase,
-  member_type: &MemberType,
-  hir: HirValue,
-) -> MemberType {
-  match member_type {
-    MemberType::Sum(arms) => pick_most_specific_arm(db, arms, hir).unwrap_or(member_type.clone()),
-    _ => member_type.clone(),
+/// Resolve a Sum type by picking the most specific matching arm
+fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> LazyType {
+  let Some(typ) = lazy.resolve(db) else {
+    return lazy.clone();
+  };
+  if let TdTypeEnum::TdSumType(sum) = &typ {
+    let members = sum.members(db);
+    if let Some(picked) = pick_most_specific_arm(db, &members, hir) {
+      return picked;
+    }
   }
+  lazy.clone()
 }
 
 /// Pick the most specific arm that matches the actual value
 fn pick_most_specific_arm(
   db: &TypedownDatabase,
-  arms: &[TypeMember],
+  arms: &[LazyType],
   hir: HirValue,
-) -> Option<MemberType> {
-  let actual_type = lift_type_member_result(db, &actual_node_type_member(db, hir))?;
+) -> Option<LazyType> {
+  let actual_type = actual_node_type(db, hir).typ(db)?;
 
   let matching: Vec<_> = arms
     .iter()
-    .filter(|arm| value_matches_member_type(db, &arm.typ(db), &actual_type))
+    .filter(|arm| arm.resolve(db).is_some_and(|t| t.accepts(db, &actual_type)))
     .collect();
 
   if matching.is_empty() {
     return None;
   }
   if matching.len() == 1 {
-    return Some(matching[0].typ(db));
+    return Some(matching[0].clone());
   }
 
   // If candidate is compatible with best, candidate is more specific
   let mut best = matching[0];
   for candidate in &matching[1..] {
-    let candidate_typ = candidate.typ(db);
-    let best_typ = best.typ(db);
-    if member_types_compatible(db, &best_typ, &candidate_typ) {
+    if let (Some(best_type), Some(cand_type)) = (best.resolve(db), candidate.resolve(db))
+      && best_type.accepts(db, &cand_type)
+    {
       best = candidate;
     }
   }
 
-  Some(best.typ(db))
+  Some(best.clone())
 }
 
 /// Look up a field in the resolved type
-fn traverse_field(
-  db: &TypedownDatabase,
-  member_type: &MemberType,
-  field_name: &str,
-) -> Option<TypeMember> {
-  match member_type {
-    MemberType::Simple(lazy) => {
-      let typ = lazy.resolve(db)?;
-      if let Some(member) = typ.get_owned_field_type_member(db, field_name) {
-        return Some(member);
-      }
-      // Dict: any key maps to the value type
-      if let Some(dict) = typ.as_td_dict_type()
-        && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db))
-      {
-        return Some(TypeMember::new(
-          db,
-          MemberType::Simple(LazyType::eager(value_type)),
-          TypeMemberDescriptors::empty(),
-        ));
-      }
-      None
-    }
-    MemberType::DictOfSum(arms) => Some(TypeMember::new(
-      db,
-      MemberType::Sum(arms.clone()),
-      TypeMemberDescriptors::empty(),
-    )),
-    _ => None,
+fn traverse_field(db: &TypedownDatabase, lazy: &LazyType, field_name: &str) -> Option<LazyType> {
+  let typ = lazy.resolve(db)?;
+  if let Some(field_type) = typ.get_owned_field_type(db, field_name) {
+    return Some(LazyType::eager(field_type));
   }
+  // Dict: any key maps to the value type
+  if let Some(dict) = typ.as_td_dict_type()
+    && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db))
+  {
+    return Some(LazyType::eager(value_type));
+  }
+  None
 }
 
-/// Get the element type from a list or ListOfSum
-fn traverse_index(db: &TypedownDatabase, member_type: &MemberType) -> Option<TypeMember> {
-  match member_type {
-    MemberType::Simple(lazy) => {
-      let typ = lazy.resolve(db)?;
-      let list = typ.as_td_list_type()?;
-      let elem = list.elem(db)?;
-      Some(TypeMember::new(
-        db,
-        MemberType::Simple(elem),
-        TypeMemberDescriptors::empty(),
-      ))
-    }
-    MemberType::ListOfSum(arms) => Some(TypeMember::new(
-      db,
-      MemberType::Sum(arms.clone()),
-      TypeMemberDescriptors::empty(),
-    )),
-    _ => None,
-  }
+/// Get the element type from a list
+fn traverse_index(db: &TypedownDatabase, lazy: &LazyType) -> Option<LazyType> {
+  let typ = lazy.resolve(db)?;
+  let list = typ.as_td_list_type()?;
+  list.elem(db)
 }
 
-fn simple_schemaless_result(db: &TypedownDatabase) -> TypeMemberResult {
-  TypeMemberResult::new(
-    db,
-    Some(TypeMember::new(
-      db,
-      MemberType::Simple(LazyType::eager(get_schemaless_type(db).into())),
-      TypeMemberDescriptors::empty(),
-    )),
-    vec![],
-  )
+fn simple_schemaless_result(db: &TypedownDatabase) -> TypeResult {
+  TypeResult::new(db, Some(get_schemaless_type(db).into()), vec![])
 }
 
 #[cfg(test)]
@@ -389,9 +341,9 @@ mod tests {
   use crate::db::TypedownDatabase;
   use crate::db::types::TdTypeLike;
   use crate::db::{
-    derived::typechecker::expected_node_type_member::expected_node_type_member,
+    derived::typechecker::expected_node_type::expected_node_type,
     fixtures::load_vault_fixture,
-    types::{File, HirValue, HirValueKind, MemberType, Project},
+    types::{File, HirValue, HirValueKind, Project},
     utils::lower_file,
   };
 
@@ -414,25 +366,21 @@ mod tests {
   }
 
   #[test]
-  fn expected_node_type_member_known_field_returns_member() {
+  fn expected_node_type_known_field_returns_member() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
     let name_hir = get_field_hir(&db, project, file, "name")
       .expect("valid_person.td should have a 'name' field");
 
-    let result = expected_node_type_member(&db, name_hir);
+    let result = expected_node_type(&db, name_hir);
 
     assert!(
       result.diagnostics(&db).is_empty(),
       "expected no diagnostics, got: {:?}",
       result.diagnostics(&db)
     );
-    let member = result
-      .member(&db)
-      .expect("'name' field should have a declared TypeMember");
-    let MemberType::Simple(lazy) = member.typ(&db) else {
-      panic!("expected Simple member type");
-    };
-    let typ = lazy.resolve(&db).expect("expected Simple member type");
+    let typ = result
+      .typ(&db)
+      .expect("'name' field should have a declared type");
     assert_eq!(
       typ.display_name(&db),
       "string",
@@ -442,33 +390,29 @@ mod tests {
   }
 
   #[test]
-  fn expected_node_type_member_untyped_mapping_returns_none() {
+  fn expected_node_type_untyped_mapping_returns_none() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/literal_value.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("literal_value.td should have parseable frontmatter");
 
-    let result = expected_node_type_member(&db, hir);
+    let result = expected_node_type(&db, hir);
 
     assert!(
-      result.member(&db).is_none(),
+      result.typ(&db).is_none(),
       "untyped mapping root should have no declared member"
     );
   }
 
   #[test]
-  fn expected_node_type_member_no_frontmatter_returns_schemaless() {
+  fn expected_node_type_no_frontmatter_returns_schemaless() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/no_frontmatter.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("no_frontmatter.td should produce HIR");
 
-    let result = expected_node_type_member(&db, hir);
-    let member = result
-      .member(&db)
-      .expect("schemaless file should return a type member");
-    let MemberType::Simple(lazy) = member.typ(&db) else {
-      panic!("expected Simple member type");
-    };
-    let typ = lazy.resolve(&db).expect("expected Simple member type");
+    let result = expected_node_type(&db, hir);
+    let typ = result
+      .typ(&db)
+      .expect("schemaless file should return a type");
     assert_eq!(
       typ.display_name(&db),
       "{}",
@@ -500,56 +444,46 @@ mod tests {
 
   // Nested field inside a schema property descriptor
   #[test]
-  fn expected_node_type_member_nested_schema_property_field() {
+  fn expected_node_type_nested_schema_property_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithUnion.td");
-    // WithUnion has: properties: { status: { type: ['draft', 'published', 'archived'] } }
-    // The 'type' field inside the status property descriptor should have expected type from SchemaProperty
     let type_hir = get_nested_field_hir(&db, project, file, &["properties", "status", "type"]);
     let type_hir = type_hir.expect("should find nested type field");
-    let result = expected_node_type_member(&db, type_hir);
+    let result = expected_node_type(&db, type_hir);
 
-    // The expected type should exist (from SchemaProperty's declared type for 'type')
     assert!(
-      result.member(&db).is_some(),
+      result.typ(&db).is_some(),
       "nested 'type' field should have an expected type from SchemaProperty"
     );
   }
 
-  // Schema with union: the 'status' field value should have expected type Sum
+  // Schema with union: the 'status' field value should have expected type
   #[test]
-  fn expected_node_type_member_union_field_value() {
+  fn expected_node_type_union_field_value() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_status.td");
-    // valid_status.td has: _type: Status, state: "draft"
     let state_hir = get_field_hir(&db, project, file, "state").expect("should have 'state' field");
-    let result = expected_node_type_member(&db, state_hir);
+    let result = expected_node_type(&db, state_hir);
 
-    let member = result.member(&db).expect("state should have expected type");
-    // Status schema declares state: "draft" (literal type wrapped in Simple)
+    let typ = result.typ(&db).expect("state should have expected type");
     assert!(
-      matches!(member.typ(&db), MemberType::Simple(lazy) if lazy.as_eager().is_some_and(|t| t.as_td_literal_type().is_some())),
+      typ.as_td_literal_type().is_some(),
       "expected literal type for state field"
     );
   }
 
   // Sequence item inside a list field should have expected type
   #[test]
-  fn expected_node_type_member_sequence_item() {
+  fn expected_node_type_sequence_item() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_event.td");
-    // valid_event.td has _type: Event with a list field
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
 
-    // Find the first sequence item if any
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
       for (_key, value) in entries {
         if let HirValueKind::Sequence(items) = value.kind(&db)
           && let Some(first_item) = items.first()
         {
-          let result = expected_node_type_member(&db, *first_item);
-          // Should have some expected type from the schema's list element type
-          // (or None if schema doesn't constrain elements)
-          // Just verify it doesn't panic
-          let _ = result.member(&db);
+          let result = expected_node_type(&db, *first_item);
+          let _ = result.typ(&db);
           return;
         }
       }
