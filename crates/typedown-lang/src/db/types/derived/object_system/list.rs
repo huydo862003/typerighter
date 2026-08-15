@@ -54,6 +54,9 @@ impl TdTypeLike for TdListType {
     )
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
+      return true;
+    }
     if self.as_id().0 != actual.as_id().0 {
       return false;
     }

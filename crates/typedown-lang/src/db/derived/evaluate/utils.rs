@@ -4,13 +4,13 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_type::{evaluate_type, resolve_property_descriptor};
-use crate::db::derived::get_builtin_types::get_schema_type;
+use crate::db::derived::get_builtin_types::{get_never_type, get_schema_type};
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_member;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, MemberType,
+  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType, MemberType,
   SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
   TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj,
   TypeMember, TypeMemberDescriptors,
@@ -355,7 +355,11 @@ fn evaluate_mapping(
       {
         fields.insert(
           prop_name,
-          TypeMember::new(db, MemberType::Never, TypeMemberDescriptors::empty()),
+          TypeMember::new(
+            db,
+            MemberType::Simple(LazyType::eager(get_never_type(db).into())),
+            TypeMemberDescriptors::empty(),
+          ),
         );
         continue;
       }

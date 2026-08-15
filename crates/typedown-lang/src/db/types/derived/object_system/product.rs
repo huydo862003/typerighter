@@ -56,6 +56,9 @@ impl TdTypeLike for TdProductType {
     vec![]
   }
   fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
+      return true;
+    }
     self.as_id() == actual.as_id()
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {

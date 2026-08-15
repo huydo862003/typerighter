@@ -55,7 +55,7 @@ impl TdTypeLike for TdNumType {
     vec![]
   }
   fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
   }
   fn construct(&self, _db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;

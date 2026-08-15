@@ -54,6 +54,9 @@ impl TdTypeLike for TdStrType {
     vec![]
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
+      return true;
+    }
     if self.as_id() == actual.as_id() {
       return true;
     }

@@ -71,6 +71,9 @@ impl TdTypeLike for TdDictType {
     )
   }
   fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
+    if matches!(actual, TdTypeEnum::TdNeverType(_)) {
+      return true;
+    }
     if let TdTypeEnum::TdProductType(product) = actual {
       let value_type = match self.value(db).and_then(|l| l.resolve(db)) {
         Some(vt) => vt,

@@ -60,7 +60,7 @@ impl TdTypeLike for TdDateTimeType {
     vec![]
   }
   fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -180,7 +180,7 @@ impl TdTypeLike for TdDateType {
     vec![]
   }
   fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -300,7 +300,7 @@ impl TdTypeLike for TdTimeType {
     vec![]
   }
   fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;

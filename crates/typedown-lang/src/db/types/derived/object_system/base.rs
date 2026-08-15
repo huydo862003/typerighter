@@ -297,7 +297,7 @@ impl TdTypeLike for TdObjectType {
     vec![]
   }
   fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
   }
   fn construct(
     &self,

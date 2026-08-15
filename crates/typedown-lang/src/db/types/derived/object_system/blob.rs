@@ -57,7 +57,7 @@ impl TdTypeLike for TdBlobType {
     vec![]
   }
   fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    self.as_id() == actual.as_id()
+    matches!(actual, TdTypeEnum::TdNeverType(_)) || self.as_id() == actual.as_id()
   }
   fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     None
