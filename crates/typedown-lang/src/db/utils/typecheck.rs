@@ -273,7 +273,9 @@ pub fn member_types_compatible(
 
     // A string is not assignable to "foo", so (Literal, Simple) correctly falls through to false
     (MemberType::Literal(exp_val), MemberType::Literal(act_val)) => exp_val == act_val,
-    (MemberType::Never, _) | (_, MemberType::Never) => false,
+    // Never is the bottom type: assignable to anything, but nothing is assignable to it
+    (_, MemberType::Never) => true,
+    (MemberType::Never, _) => false,
     _ => false,
   }
 }
@@ -476,13 +478,13 @@ mod tests {
     assert!(!member_types_compatible(&db, &expected, &actual));
   }
 
-  // Never
+  // Never is the bottom type: assignable to anything, but nothing is assignable to it
   #[test]
-  fn never_incompatible_with_anything() {
+  fn never_is_bottom_type() {
     let db = db();
     let string = simple(&db, get_str_type(&db).into());
     assert!(!member_types_compatible(&db, &MemberType::Never, &string));
-    assert!(!member_types_compatible(&db, &string, &MemberType::Never));
+    assert!(member_types_compatible(&db, &string, &MemberType::Never));
   }
 
   // lift_member_type
