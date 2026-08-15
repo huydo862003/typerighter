@@ -73,9 +73,13 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
         }
       }
     }
-    // Check unary operand type
-    HirValueKind::Unary { op, operand } => {
-      diagnostics.extend(check_unary(db, &op, *operand));
+    // Check prefix operand type
+    HirValueKind::Prefix { op, operand } => {
+      diagnostics.extend(check_prefix(db, &op, *operand));
+    }
+    // TODO: check postfix operand type
+    HirValueKind::Postfix { op, operand } => {
+      diagnostics.extend(check_postfix(db, &op, *operand));
     }
     // Check binary operand types
     HirValueKind::Binary { op, left, right } => {
@@ -378,7 +382,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
   diagnostics
 }
 
-fn check_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagnostic> {
+fn check_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   let tc_result = typecheck(db, operand);
@@ -409,6 +413,12 @@ fn check_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagno
   }
 
   diagnostics
+}
+
+// TODO: validate postfix operand types
+fn check_postfix(db: &TypedownDatabase, _op: &str, operand: HirValue) -> Vec<Diagnostic> {
+  let tc_result = typecheck(db, operand);
+  tc_result.diagnostics(db).clone()
 }
 
 fn check_binary(
@@ -659,7 +669,7 @@ mod tests {
 
   // Unary minus on number: no errors
   #[test]
-  fn typecheck_unary_valid() {
+  fn typecheck_prefix_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/unary_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -672,7 +682,7 @@ mod tests {
 
   // Unary minus on boolean: OperandTypeMismatch
   #[test]
-  fn typecheck_unary_wrong_type() {
+  fn typecheck_prefix_wrong_type() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "content/unary_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);

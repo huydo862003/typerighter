@@ -9,9 +9,9 @@ use std::collections::HashMap;
 
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, InstResult, LazyType, MemberType, Symbol, SymbolKind,
-  TdBlobType, TdBoolObj, TdBoolType, TdNullType, TdNullObj, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
-  TdListType, TdMathType, TdNumType, TdObjectType, TdProductType, TdStrType, TdTimeType,
-  TdTypeEnum, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
+  TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
+  TdListType, TdMathType, TdNullObj, TdNullType, TdNumType, TdObjectType, TdProductType, TdStrType,
+  TdTimeType, TdTypeEnum, TdTypeLike, TdTypeType, TypeMember, TypeMemberDescriptors,
 };
 use typedown_incremental::QueryDatabase;
 

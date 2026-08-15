@@ -5,7 +5,8 @@ use typedown_macros::query_derived;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr, IdentLit, IndexExpr,
   InlineCode, InlineMath, InterpFragment, ListItem, ListLit, MathBlock, MathLit, MdBody, NumberLit,
-  ParenExpr, SourceFile, StrLit, PrefixExpr, YamlFrontmatter, YamlMapping, YamlSequence,
+  ParenExpr, PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping,
+  YamlSequence,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
@@ -276,11 +277,11 @@ fn lower_expr_kind(
     };
   }
 
-  // Handle unary
-  if let Some(unary) = PrefixExpr::cast(inner.syntax().clone())
-    && let Some(operand) = unary.expr()
+  // Handle prefix
+  if let Some(prefix) = PrefixExpr::cast(inner.syntax().clone())
+    && let Some(operand) = prefix.expr()
   {
-    let op = unary
+    let op = prefix
       .op()
       .and_then(|o| o.syntax().as_token())
       .and_then(|t| t.text().map(|s| s.to_string()))
@@ -289,7 +290,7 @@ fn lower_expr_kind(
     // This is a tag expression
     if op.starts_with('!') && op.len() > 1 {
       let tag_name = op[1..].to_string();
-      let op_node = unary.op().unwrap().syntax().clone();
+      let op_node = prefix.op().unwrap().syntax().clone();
       let tag_hir = HirValue::new(
         db,
         project,
@@ -303,7 +304,23 @@ fn lower_expr_kind(
         inner: operand.into(),
       };
     }
-    return HirValueKind::Unary {
+    return HirValueKind::Prefix {
+      op,
+      operand: operand.into(),
+    };
+  }
+
+  // Handle postfix
+  if let Some(postfix) = PostfixExpr::cast(inner.syntax().clone())
+    && let Some(operand) = postfix.expr()
+  {
+    let op = postfix
+      .op()
+      .and_then(|o| o.syntax().as_token())
+      .and_then(|t| t.text().map(|s| s.to_string()))
+      .unwrap_or_default();
+    let operand = lower_node(db, project, file, operand.syntax().clone());
+    return HirValueKind::Postfix {
       op,
       operand: operand.into(),
     };

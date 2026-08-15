@@ -87,7 +87,8 @@ pub fn actual_node_type_member(db: &TypedownDatabase, hir: HirValue) -> TypeMemb
     HirValueKind::Call { callee, args } => get_call_type(db, *callee, args),
     HirValueKind::Index { expr, indices } => get_index_type(db, *expr, indices),
     HirValueKind::Tag { tag, .. } => get_tag_type(db, *tag),
-    HirValueKind::Unary { op, operand } => get_unary_type(db, &op, *operand),
+    HirValueKind::Prefix { op, operand } => get_prefix_type(db, &op, *operand),
+    HirValueKind::Postfix { op, operand } => get_postfix_type(db, &op, *operand),
     HirValueKind::Binary { op, left, right } => get_binary_type(db, &op, *left, *right),
     HirValueKind::Math(_) => simple_member_result(db, get_math_type(db).into(), vec![]),
     HirValueKind::Markdown(_) => simple_member_result(db, get_str_type(db).into(), vec![]),
@@ -192,14 +193,41 @@ fn get_tag_type(db: &TypedownDatabase, tag: HirValue) -> TypeMemberResult {
   }
 }
 
-/// Helper to get the return type of a unary expression
-fn get_unary_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeMemberResult {
+/// Helper to get the return type of a prefix expression
+fn get_prefix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeMemberResult {
   let operand_result = actual_node_type_member(db, operand);
   let diagnostics = operand_result.diagnostics(db).clone();
 
   match op {
     "-" | "+" => simple_member_result(db, get_num_type(db).into(), diagnostics),
     "~" => simple_member_result(db, get_bool_type(db).into(), diagnostics),
+    _ => TypeMemberResult::new(db, None, diagnostics),
+  }
+}
+
+/// Helper to get the return type of a postfix expression
+fn get_postfix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeMemberResult {
+  let operand_result = actual_node_type_member(db, operand);
+  let diagnostics = operand_result.diagnostics(db).clone();
+  match op {
+    // Desugar T? to Sum([T, null])
+    "?" => {
+      let operand_member = match operand_result.member(db) {
+        Some(m) => m,
+        None => return TypeMemberResult::new(db, None, diagnostics),
+      };
+      let null_member = TypeMember::new(
+        db,
+        MemberType::Simple(LazyType::eager(get_null_type(db).into())),
+        TypeMemberDescriptors::empty(),
+      );
+      let sum = MemberType::Sum(vec![operand_member, null_member]);
+      TypeMemberResult::new(
+        db,
+        Some(TypeMember::new(db, sum, TypeMemberDescriptors::empty())),
+        diagnostics,
+      )
+    }
     _ => TypeMemberResult::new(db, None, diagnostics),
   }
 }

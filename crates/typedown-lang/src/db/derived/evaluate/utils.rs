@@ -12,8 +12,8 @@ use crate::db::derived::typechecker::actual_node_type_member::actual_node_type_m
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, MemberType,
   SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
-  TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj, TypeMember,
-  TypeMemberDescriptors,
+  TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj,
+  TypeMember, TypeMemberDescriptors,
 };
 use crate::db::utils::typecheck::lift_type_member_result;
 use crate::syntax::diagnostic::Diagnostic;
@@ -68,9 +68,13 @@ pub(crate) fn construct_from_hir(
     HirValueKind::Binary { op, left, right } => {
       return evaluate_binary(db, &op, *left, *right);
     }
-    // Unary operators
-    HirValueKind::Unary { op, operand } => {
-      return evaluate_unary(db, &op, *operand);
+    // Prefix operators
+    HirValueKind::Prefix { op, operand } => {
+      return evaluate_prefix(db, &op, *operand);
+    }
+    // TODO: evaluate postfix expressions
+    HirValueKind::Postfix { .. } => {
+      return None;
     }
     // Index access: list[n] or dict["key"]
     HirValueKind::Index { expr, indices } => {
@@ -161,7 +165,7 @@ pub(crate) fn construct_from_hir(
   }
 }
 
-fn evaluate_unary(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
+fn evaluate_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
   let operand_obj = evaluate_node(db, operand).value(db)?;
   match op {
     "-" | "+" => {

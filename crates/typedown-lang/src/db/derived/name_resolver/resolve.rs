@@ -53,7 +53,7 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
       collect_unresolved(db, *tag, diagnostics);
       collect_unresolved(db, *inner, diagnostics);
     }
-    HirValueKind::Unary { operand, .. } => {
+    HirValueKind::Prefix { operand, .. } | HirValueKind::Postfix { operand, .. } => {
       collect_unresolved(db, *operand, diagnostics);
     }
     HirValueKind::Binary { op, left, right } => {
