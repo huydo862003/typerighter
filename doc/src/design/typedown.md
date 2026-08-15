@@ -474,12 +474,9 @@ Expressions can reference:
 
 ## Typedown Schema
 
-A schema file self-identifies by setting `_type: schema`. It defines the shape of resources that reference it: what properties they have, their types, and whether each property is required or optional.
+A schema file self-identifies by setting `_type: schema`. It defines the shape of resources that reference it: what properties they have and their types.
 
-Each property supports the following fields:
-
-- `type`: the type of the property, as a `!type` expression, a literal value, or a list (union)
-- `optional`: whether the property may be absent on the resource (default: `false`)
+Use the `?` postfix operator to mark a property as nullable. A nullable property accepts either its declared type or `null`. Omitted nullable fields default to `null`.
 
 ```yaml
 ---
@@ -488,11 +485,9 @@ properties:
   first_name:
     type: !type string
   birth_date:
-    type: !type date
-    optional: true
+    type: !type date?
   tags:
-    type: !type list[string]
-    optional: true
+    type: !type list[string]?
   status:
     type: !type ["draft", "published", "archived"]
 ---
