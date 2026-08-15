@@ -366,7 +366,15 @@ fn evaluate_mapping(
       }
     }
     return Some(
-      TdProductType::new(db, None, get_schema_type(db).into(), fields, HashMap::new()).into(),
+      TdProductType::new(
+        db,
+        None,
+        get_schema_type(db).into(),
+        None,
+        fields,
+        HashMap::new(),
+      )
+      .into(),
     );
   }
 

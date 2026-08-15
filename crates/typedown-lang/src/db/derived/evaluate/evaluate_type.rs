@@ -97,6 +97,7 @@ fn evaluate_user_defined_schema(
             db,
             Some(schema_name.clone()),
             get_schema_type(db).into(),
+            None,
             HashMap::new(),
             HashMap::new(),
           )
@@ -129,6 +130,7 @@ fn evaluate_user_defined_schema(
         db,
         Some(schema_name),
         get_schema_type(db).into(),
+        None,
         fields,
         HashMap::new(),
       )
@@ -560,6 +562,7 @@ mod tests {
       &db,
       None,
       get_type_type(&db).into(),
+      None,
       HashMap::from([(
         "name".to_string(),
         TypeMember::new(

@@ -415,10 +415,28 @@ fn check_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagn
   diagnostics
 }
 
-// TODO: validate postfix operand types
-fn check_postfix(db: &TypedownDatabase, _op: &str, operand: HirValue) -> Vec<Diagnostic> {
+fn check_postfix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagnostic> {
+  let mut diagnostics = vec![];
   let tc_result = typecheck(db, operand);
-  tc_result.diagnostics(db).clone()
+  diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+
+  if op == "?" {
+    let operand_result = actual_node_type_member(db, operand);
+    if let Some(operand_type) = lift_type_member_result(db, &operand_result)
+      && !operand_type.is_type(db)
+    {
+      let node = operand.node(db);
+      let (tr_offset, tr_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::OperandTypeMismatch {
+        op: "?".to_string(),
+        expected: "type".to_string(),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      });
+    }
+  }
+
+  diagnostics
 }
 
 fn check_binary(

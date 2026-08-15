@@ -15,6 +15,7 @@ use crate::db::types::{HirValue, InstResult, LazyType, MemberType, Symbol, TypeM
 pub struct TdProductType {
   pub name: Option<String>,
   pub metatype: TdTypeEnum,
+  pub supertype: Option<TdTypeEnum>,
   pub fields: HashMap<String, TypeMember>,
   pub vtable: HashMap<String, TdFuncObj>,
 }
@@ -36,7 +37,9 @@ impl TdTypeLike for TdProductType {
     0
   }
   fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
+    self
+      .supertype(db)
+      .unwrap_or_else(|| TdObjectType::get(db).into())
   }
   fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     self.vtable(db)

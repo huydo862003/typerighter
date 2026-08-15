@@ -130,6 +130,25 @@ pub trait TdTypeLike: TdObjectLike {
     args: Vec<TdObjectEnum>,
   ) -> Option<TdObjectEnum>;
 
+  // Check if this type is TdTypeType or a subtype of TdTypeType
+  fn is_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> bool {
+    let type_type = get_type_type(db);
+    if type_type.as_id() == self.as_id() {
+      return true;
+    }
+    let mut current = self.get_supertype(db);
+    loop {
+      if type_type.as_id() == current.as_id() {
+        return true;
+      }
+      let next = current.get_supertype(db);
+      if next.as_id() == current.as_id() {
+        return false;
+      }
+      current = next;
+    }
+  }
+
   fn lookup_instance_method(
     &self,
     db: &::typedown_lang::db::TypedownDatabase,

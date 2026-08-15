@@ -112,6 +112,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("SchemaProperty".to_string()),
     get_type_type(db).into(),
+    None,
     fields,
     HashMap::new(),
   )

@@ -23,6 +23,7 @@ pub fn get_vault_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("VaultFilter".to_string()),
     get_type_type(db).into(),
+    None,
     HashMap::from([
       (
         "schema".to_string(),
@@ -91,6 +92,7 @@ pub fn get_vault_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("vault".to_string()),
     get_type_type(db).into(),
+    None,
     HashMap::new(),
     vtable,
   )
