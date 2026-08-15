@@ -675,4 +675,21 @@ mod tests {
       "number in string? field should produce diagnostics"
     );
   }
+
+  // _type: Schema? should produce a diagnostic
+  #[test]
+  fn nullable_type_ref_has_diagnostics() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/null_type", "content/nullable_type_ref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnresolvedSchema { .. })),
+      "_type: Schema? should produce UnresolvedSchema: {:?}",
+      diags
+    );
+  }
 }
