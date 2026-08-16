@@ -6,9 +6,11 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
-use crate::db::types::{MembersResult, Project, Scope, ScopeKind};
+use crate::db::types::{MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
 use crate::db::utils::is_content_file;
+use crate::syntax::ast::{AstNode, ClosureExpr};
 use typedown_incremental::QueryDatabase;
+use typedown_types::either::Either;
 
 /// Schema-only members (fast path for _type resolution)
 #[query_derived]

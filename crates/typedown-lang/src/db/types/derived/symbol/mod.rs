@@ -403,19 +403,21 @@ impl Scope {
     Self::new(db, ScopeKind::Builtin)
   }
 
-  pub fn project_scope(
-    db: &(impl QueryDatabase + ?Sized),
-    project: Project,
-  ) -> Self {
+  pub fn project_scope(db: &(impl QueryDatabase + ?Sized), project: Project) -> Self {
     Self::new(db, ScopeKind::Project(project))
   }
 
-  pub fn file_scope(
+  pub fn file_scope(db: &(impl QueryDatabase + ?Sized), project: Project, file: File) -> Self {
+    Self::new(db, ScopeKind::File(project, file))
+  }
+
+  pub fn fn_scope(
     db: &(impl QueryDatabase + ?Sized),
     project: Project,
     file: File,
+    value: HirValue,
   ) -> Self {
-    Self::new(db, ScopeKind::File(project, file))
+    Self::new(db, ScopeKind::Fn(project, file, value))
   }
 }
 

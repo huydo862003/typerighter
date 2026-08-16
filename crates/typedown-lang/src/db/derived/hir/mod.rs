@@ -3,10 +3,10 @@
 use typedown_macros::query_derived;
 
 use crate::syntax::ast::{
-  AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr, IdentLit, IndexExpr,
-  InlineCode, InlineMath, InterpFragment, ListItem, ListLit, MathBlock, MathLit, MdBody, NumberLit,
-  ParenExpr, PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping,
-  YamlSequence,
+  AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr,
+  IdentLit, IndexExpr, InlineCode, InlineMath, InterpFragment, ListItem, ListLit, MathBlock,
+  MathLit, MdBody, NumberLit, ParenExpr, PostfixExpr, PrefixExpr, SourceFile, StrLit,
+  YamlFrontmatter, YamlMapping, YamlSequence,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
@@ -644,7 +644,10 @@ fn: (a, b) -> a + b
       HirValueKind::Mapping(e) => e,
       _ => panic!("expected mapping"),
     };
-    let fn_entry = entries.iter().find(|(k, _)| k == "fn").expect("fn field missing");
+    let fn_entry = entries
+      .iter()
+      .find(|(k, _)| k == "fn")
+      .expect("fn field missing");
     match fn_entry.1.kind(&db) {
       HirValueKind::Closure { params, body } => {
         assert_eq!(params, vec!["a", "b"]);
@@ -669,7 +672,10 @@ fn: x -> x + 1
       HirValueKind::Mapping(e) => e,
       _ => panic!("expected mapping"),
     };
-    let fn_entry = entries.iter().find(|(k, _)| k == "fn").expect("fn field missing");
+    let fn_entry = entries
+      .iter()
+      .find(|(k, _)| k == "fn")
+      .expect("fn field missing");
     match fn_entry.1.kind(&db) {
       HirValueKind::Closure { params, body } => {
         assert_eq!(params, vec!["x"]);
@@ -694,7 +700,10 @@ fn: (self, x) -> self + x
       HirValueKind::Mapping(e) => e,
       _ => panic!("expected mapping"),
     };
-    let fn_entry = entries.iter().find(|(k, _)| k == "fn").expect("fn field missing");
+    let fn_entry = entries
+      .iter()
+      .find(|(k, _)| k == "fn")
+      .expect("fn field missing");
     assert!(
       fn_entry
         .1

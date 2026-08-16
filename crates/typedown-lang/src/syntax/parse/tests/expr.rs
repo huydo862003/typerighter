@@ -579,14 +579,17 @@ fn parse_unclosed_param_list() {
 fn parse_unclosed_empty_param_list() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(");
   assert!(
-    diagnostics
-      .iter()
-      .any(|d| matches!(d, Diagnostic::MissingSyntaxNode { expected: SyntaxKind::PrimaryExpr, .. })),
+    diagnostics.iter().any(|d| matches!(
+      d,
+      Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::PrimaryExpr,
+        ..
+      }
+    )),
     "expected MissingSyntaxNode(PrimaryExpr): {:?}",
     diagnostics
   );
 }
-
 
 // Positive test: bare identifier as closure param with full tree assertion
 #[test]
@@ -694,7 +697,8 @@ key: x -> x + 1
     .next()
     .unwrap();
 
-  let closure2 = ClosureExpr::cast(expr2.syntax().clone()).expect("expected ClosureExpr for bare ident");
+  let closure2 =
+    ClosureExpr::cast(expr2.syntax().clone()).expect("expected ClosureExpr for bare ident");
 
   match closure2.params() {
     Some(Either::Right(ident)) => {
@@ -703,8 +707,6 @@ key: x -> x + 1
     _ => panic!("expected IdentLit in closure params"),
   }
 }
-
-
 
 // Non-identifier in param list emits diagnostic
 #[test]

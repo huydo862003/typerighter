@@ -138,13 +138,16 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Check for dangling param list
     // If current lhs is a closed param list and the next non-trivial token isn't ->
     if lhs.kind() == SyntaxKind::ParamListExpr {
-      let is_closed = lhs
-        .as_node()
-        .map_or(false, |node| node.children().iter().any(|c| c.kind() == SyntaxKind::RParen));
+      let is_closed = lhs.as_node().map_or(false, |node| {
+        node
+          .children()
+          .iter()
+          .any(|c| c.kind() == SyntaxKind::RParen)
+      });
       if is_closed {
         let peek = self.lex_ctx.peek(self.formula_expr_skip_flags(), mode);
-        let is_arrow = peek.token.kind() == SyntaxKind::YamlOp
-          && peek.token.chars().collect::<String>() == "->";
+        let is_arrow =
+          peek.token.kind() == SyntaxKind::YamlOp && peek.token.chars().collect::<String>() == "->";
         if !is_arrow {
           self.diagnostics.push(Diagnostic::DanglingParamList {
             start_offset: self.offset() - lhs.text_len(),
