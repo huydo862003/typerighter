@@ -1,3 +1,5 @@
+use typedown_types::either::Either::{self, Left};
+
 use crate::QueryDatabase;
 
 /// https://github.com/rust-lang/rust/blob/63f05e3635171e7ac3f9ca78bad6c71052cda5a3/compiler/rustc_data_structures/src/stable_hash.rs#L117-L132
@@ -69,6 +71,19 @@ impl<T: StableOrd> StableCompare for T {
 
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
     self.cmp(other)
+  }
+}
+
+impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
+  const CAN_USE_UNSTABLE_SORT: bool = L::CAN_USE_UNSTABLE_SORT && R::CAN_USE_UNSTABLE_SORT;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    match (self, other) {
+      (Either::Left(_), Either::Right(_)) => std::cmp::Ordering::Less,
+      (Either::Right(_), Either::Left(_)) => std::cmp::Ordering::Greater,
+      (Either::Left(s), Either::Left(o)) => s.stable_cmp(db, o),
+      (Either::Right(s), Either::Right(o)) => s.stable_cmp(db, o),
+    }
   }
 }
 
