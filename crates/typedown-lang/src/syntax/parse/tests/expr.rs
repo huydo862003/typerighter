@@ -1,6 +1,9 @@
 use super::helpers::*;
+use crate::syntax::ast::{AstNode, ClosureExpr, SourceFile};
 use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
+use typedown_types::either::Either;
 
 fn parse_expr(input: &str) -> String {
   let program = format!("---\nkey: {}\n---\n", input);
@@ -637,6 +640,68 @@ fn parse_closure_trailing_comma_params() {
         " "
         "b"))))"#;
   assert_eq!(tree, expected);
+}
+
+// AST node tests for ClosureExpr and ParamListExpr
+#[test]
+fn ast_closure_expr_and_param_list() {
+  let (root_syntax, _) = parse(
+    r#"---
+key: (a, b) -> a + b
+---
+"#,
+  );
+  let root_red = RedNode::new_root(root_syntax.as_node().unwrap().clone());
+  let source = SourceFile::cast(root_red).unwrap();
+  let expr = source
+    .frontmatter()
+    .unwrap()
+    .mapping()
+    .unwrap()
+    .values()
+    .next()
+    .unwrap();
+
+  let closure = ClosureExpr::cast(expr.syntax().clone()).expect("expected ClosureExpr");
+
+  // Test params() returning Either::Left(ParamListExpr)
+  match closure.params() {
+    Some(Either::Left(param_list)) => {
+      let params: Vec<String> = param_list.params().filter_map(|id| id.value()).collect();
+      assert_eq!(params, vec!["a", "b"]);
+    }
+    _ => panic!("expected ParamListExpr in closure params"),
+  }
+
+  // Test body() returning Expr
+  assert!(closure.body().is_some());
+
+  // Test single bare ident parameter closure
+  let (root_syntax2, _) = parse(
+    r#"---
+key: x -> x + 1
+---
+"#,
+  );
+  let root_red2 = RedNode::new_root(root_syntax2.as_node().unwrap().clone());
+  let source2 = SourceFile::cast(root_red2).unwrap();
+  let expr2 = source2
+    .frontmatter()
+    .unwrap()
+    .mapping()
+    .unwrap()
+    .values()
+    .next()
+    .unwrap();
+
+  let closure2 = ClosureExpr::cast(expr2.syntax().clone()).expect("expected ClosureExpr for bare ident");
+
+  match closure2.params() {
+    Some(Either::Right(ident)) => {
+      assert_eq!(ident.value().as_deref(), Some("x"));
+    }
+    _ => panic!("expected IdentLit in closure params"),
+  }
 }
 
 
