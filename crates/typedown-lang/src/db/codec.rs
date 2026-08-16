@@ -689,6 +689,27 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
+      Diagnostic::DanglingParamList {
+        start_offset,
+        end_offset,
+      } => {
+        encoder.emit_usize(buf, *start_offset);
+        encoder.emit_usize(buf, *end_offset);
+      }
+      Diagnostic::InvalidClosureParams {
+        start_offset,
+        end_offset,
+      } => {
+        encoder.emit_usize(buf, *start_offset);
+        encoder.emit_usize(buf, *end_offset);
+      }
+      Diagnostic::UnclosedParamList {
+        start_offset,
+        end_offset,
+      } => {
+        encoder.emit_usize(buf, *start_offset);
+        encoder.emit_usize(buf, *end_offset);
+      }
     }
   }
 }
@@ -1258,6 +1279,30 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::DanglingParamList => {
+        let start_offset = decoder.read_usize(data);
+        let end_offset = decoder.read_usize(data);
+        Diagnostic::DanglingParamList {
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::InvalidClosureParams => {
+        let start_offset = decoder.read_usize(data);
+        let end_offset = decoder.read_usize(data);
+        Diagnostic::InvalidClosureParams {
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnclosedParamList => {
+        let start_offset = decoder.read_usize(data);
+        let end_offset = decoder.read_usize(data);
+        Diagnostic::UnclosedParamList {
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1654,6 +1699,18 @@ impl StableHash for Diagnostic {
         end_offset,
       }
       | Diagnostic::InvalidCodeRangeIndicator {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::DanglingParamList {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::InvalidClosureParams {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnclosedParamList {
         start_offset,
         end_offset,
       } => {

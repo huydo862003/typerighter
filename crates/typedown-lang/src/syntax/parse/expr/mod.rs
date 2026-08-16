@@ -121,7 +121,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
         // Parse operand with the children's right binding power
         let (operand, exit) = self.pratt_parse_expr(right_bp, vec![], block_indent);
         children.push(operand);
-        (self.emit(SyntaxKind::PrefixExpr, &children), exit)
+        let kind = if op_text == "->" {
+          SyntaxKind::ClosureExpr
+        } else {
+          SyntaxKind::PrefixExpr
+        };
+        (self.emit(kind, &children), exit)
       } else {
         // Not a children op, parse as primary
         self.parse_primary_expr(children, block_indent)
@@ -129,6 +134,25 @@ impl<S: Utf8Stream> ParseCtx<S> {
     } else {
       self.parse_primary_expr(children, block_indent)
     };
+
+    // Check for dangling param list
+    // If current lhs is a closed param list and the next non-trivial token isn't ->
+    if lhs.kind() == SyntaxKind::ParamListExpr {
+      let is_closed = lhs
+        .as_node()
+        .map_or(false, |node| node.children().iter().any(|c| c.kind() == SyntaxKind::RParen));
+      if is_closed {
+        let peek = self.lex_ctx.peek(self.formula_expr_skip_flags(), mode);
+        let is_arrow = peek.token.kind() == SyntaxKind::YamlOp
+          && peek.token.chars().collect::<String>() == "->";
+        if !is_arrow {
+          self.diagnostics.push(Diagnostic::DanglingParamList {
+            start_offset: self.offset() - lhs.text_len(),
+            end_offset: self.offset(),
+          });
+        }
+      }
+    }
 
     if early_exit.is_some() {
       return (lhs, early_exit);
@@ -189,7 +213,37 @@ impl<S: Utf8Stream> ParseCtx<S> {
         // Parse right-hand side
         let (rhs, exit) = self.pratt_parse_expr(right_bp, vec![], block_indent);
         children.push(rhs);
-        lhs = self.emit(SyntaxKind::BinaryExpr, &children);
+
+        // Special handling for closure
+        if op_text == "->" {
+          let lhs_kind = children[0].kind();
+          match lhs_kind {
+            // Single-param (x) parses as ParenExpr, convert for consistent closure AST
+            SyntaxKind::ParenExpr => {
+              // FIXME: This is prone to breakage should children structure changes a bit
+              let node = children[0].as_node().unwrap();
+              children[0] = self.emit(SyntaxKind::ParamListExpr, node.children());
+              self.validate_param_list(&children[0]);
+            }
+            // (a, b) or () already parsed as ParamListExpr
+            SyntaxKind::ParamListExpr => {
+              self.validate_param_list(&children[0]);
+            }
+            // Bare identifier like `x -> x + 1`
+            SyntaxKind::IdentLit => {}
+            // Anything else is invalid
+            _ => {
+              self.diagnostics.push(Diagnostic::InvalidClosureParams {
+                start_offset: self.offset() - children[0].text_len(),
+                end_offset: self.offset(),
+              });
+            }
+          }
+
+          lhs = self.emit(SyntaxKind::ClosureExpr, &children);
+        } else {
+          lhs = self.emit(SyntaxKind::BinaryExpr, &children);
+        }
         if exit.is_some() {
           return (lhs, exit);
         }
@@ -473,6 +527,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse a parenthesized expression: `(expr)`.
+  /// If empty `()` or comma-separated `(a, b)`, emits ParamListExpr instead.
   pub(in crate::syntax::parse) fn parse_paren_expr(
     &mut self,
     children: Vec<GreenNode>,
@@ -487,6 +542,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         == SyntaxKind::LParen,
       "[ParseCtx::parse_paren_expr] Expected next token to be LParen"
     );
+    let mode = self.lex_ctx.mode();
     let mut children = children;
     self.expr_ctx_stack.enter(ExprCtx::Paren);
 
@@ -495,7 +551,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.consume(
       &mut children,
       SKIP_ALL_TRIVIA,
-      self.lex_ctx.mode(),
+      mode,
       SyntaxKind::LParen,
       Diagnostic::MissingSyntaxNode {
         expected: SyntaxKind::LParen,
@@ -504,7 +560,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
       },
     );
 
-    // Parse inner expression
+    // Empty parens `()` -> ParamListExpr
+    let peek = self.lex_ctx.peek(SKIP_ALL_TRIVIA, mode);
+    if peek.token.kind() == SyntaxKind::RParen {
+      self.advance(&mut children, SKIP_ALL_TRIVIA, mode);
+      self.expr_ctx_stack.exit(ExprCtx::Paren);
+      return (self.emit(SyntaxKind::ParamListExpr, &children), None);
+    }
+
+    // Parse first inner expression
     let (inner, early_exit) = self.parse_formula_expr(vec![], block_indent);
     children.push(inner);
 
@@ -513,12 +577,18 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return (self.emit(SyntaxKind::ParenExpr, &children), early_exit);
     }
 
+    // Comma after first expression -> switch to ParamListExpr
+    let peek = self.lex_ctx.peek(SKIP_ALL_TRIVIA, mode);
+    if peek.token.kind() == SyntaxKind::Comma {
+      return self.parse_param_list_rest(children, block_indent);
+    }
+
     // Consume `)`
     let offset = self.offset();
     self.consume(
       &mut children,
       SKIP_ALL_TRIVIA,
-      self.lex_ctx.mode(),
+      mode,
       SyntaxKind::RParen,
       Diagnostic::MissingSyntaxNode {
         expected: SyntaxKind::RParen,
@@ -529,6 +599,108 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.exit(ExprCtx::Paren);
     (self.emit(SyntaxKind::ParenExpr, &children), None)
+  }
+
+  /// Continue parsing a param list after `(first,` has been seen.
+  /// children already contains `(` and the first expression.
+  fn parse_param_list_rest(
+    &mut self,
+    mut children: Vec<GreenNode>,
+    block_indent: usize,
+  ) -> (GreenNode, Option<ExprCtx>) {
+    let mode = self.lex_ctx.mode();
+    let mut closed = false;
+
+    loop {
+      let peek = self.lex_ctx.peek(SKIP_ALL_TRIVIA, mode);
+      match peek.token.kind() {
+        SyntaxKind::RParen => {
+          self.advance(&mut children, SKIP_ALL_TRIVIA, mode);
+          closed = true;
+          break;
+        }
+        SyntaxKind::Comma => {
+          self.advance(&mut children, SKIP_ALL_TRIVIA, mode);
+
+          // Trailing comma before `)` is allowed
+          let peek = self.lex_ctx.peek(SKIP_ALL_TRIVIA, mode);
+          if peek.token.kind() == SyntaxKind::RParen {
+            self.advance(&mut children, SKIP_ALL_TRIVIA, mode);
+            closed = true;
+            break;
+          }
+
+          let (param, early_exit) = self.parse_formula_expr(vec![], block_indent);
+          children.push(param);
+          if early_exit.is_some_and(|ctx| ctx != ExprCtx::Paren) {
+            self.expr_ctx_stack.exit(ExprCtx::Paren);
+            let node = self.emit(SyntaxKind::ParamListExpr, &children);
+            self.diagnostics.push(Diagnostic::UnclosedParamList {
+              start_offset: self.offset() - node.text_len(),
+              end_offset: self.offset(),
+            });
+            return (node, early_exit);
+          }
+        }
+        SyntaxKind::Eof => {
+          break;
+        }
+        _ => {
+          let handler = self.expr_ctx_stack.find_handler(&peek.token);
+          if handler.is_some_and(|ctx| ctx != ExprCtx::Paren) {
+            self.expr_ctx_stack.exit(ExprCtx::Paren);
+            let node = self.emit(SyntaxKind::ParamListExpr, &children);
+            self.diagnostics.push(Diagnostic::UnclosedParamList {
+              start_offset: self.offset() - node.text_len(),
+              end_offset: self.offset(),
+            });
+            return (node, handler);
+          }
+          // Consume unexpected token as error
+          let mut error_children = vec![];
+          self.advance(&mut error_children, SKIP_ALL_TRIVIA, mode);
+          children.push(self.emit(SyntaxKind::Error, &error_children));
+        }
+      }
+    }
+
+    if !closed {
+      let total_len: usize = children.iter().map(|c| c.text_len()).sum();
+      self.diagnostics.push(Diagnostic::UnclosedParamList {
+        start_offset: self.offset() - total_len,
+        end_offset: self.offset(),
+      });
+    }
+
+    self.expr_ctx_stack.exit(ExprCtx::Paren);
+    (self.emit(SyntaxKind::ParamListExpr, &children), None)
+  }
+
+  // Check that all non-trivia, non-delimiter children in a ParamListExpr are identifiers
+  fn validate_param_list(&mut self, param_list: &GreenNode) {
+    let node = match param_list.as_node() {
+      Some(node) => node,
+      None => return,
+    };
+    for child in node.children() {
+      match child.kind() {
+        // Skip delimiters, commas, and trivia
+        SyntaxKind::LParen
+        | SyntaxKind::RParen
+        | SyntaxKind::Comma
+        | SyntaxKind::Whitespace
+        | SyntaxKind::Newline
+        | SyntaxKind::YamlComment => continue,
+        SyntaxKind::IdentLit => continue,
+        _ => {
+          self.diagnostics.push(Diagnostic::InvalidClosureParams {
+            start_offset: self.offset() - param_list.text_len(),
+            end_offset: self.offset(),
+          });
+          return;
+        }
+      }
+    }
   }
 
   /// Parse a flow list literal: `[expr, expr, ...]`.
@@ -1701,6 +1873,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 pub(in crate::syntax::parse) fn children_binding_power(op: &str) -> Option<((), u8)> {
   let bp = match op {
     _ if op.starts_with('!') => 1,
+    "->" => 1,
     "~" | "-" | "+" => 15,
     _ => return None,
   };
@@ -1709,6 +1882,7 @@ pub(in crate::syntax::parse) fn children_binding_power(op: &str) -> Option<((), 
 
 pub(in crate::syntax::parse) fn infix_binding_power(op: &str) -> Option<(u8, u8)> {
   let bp = match op {
+    "->" => (2, 1),                     // closure (right-associative)
     "||" => (3, 4),                     // logical OR
     "&&" => (5, 6),                     // logical AND
     "==" | "!=" => (7, 8),              // equality

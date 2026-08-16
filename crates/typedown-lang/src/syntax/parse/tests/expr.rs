@@ -277,6 +277,449 @@ fn parse_postfix_question_on_index() {
 }
 
 #[test]
+fn parse_nullary_closure() {
+  let tree = parse_expr("-> today()");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    " "
+    "->"
+    (CallExpr
+      (IdentLit
+        " "
+        "today")
+      "("
+      ")")))"#;
+  assert_eq!(tree, expected);
+}
+
+#[test]
+fn parse_closure_with_params() {
+  let tree = parse_expr("(self) -> self.title");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (ParamListExpr
+      " "
+      "("
+      (IdentLit
+        "self")
+      ")")
+    " "
+    "->"
+    (BinaryExpr
+      (IdentLit
+        " "
+        "self")
+      "."
+      (IdentLit
+        "title"))))"#;
+  assert_eq!(tree, expected);
+}
+
+#[test]
+fn parse_closure_with_method_call() {
+  let tree = parse_expr("(self) -> self.title.slugify()");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (ParamListExpr
+      " "
+      "("
+      (IdentLit
+        "self")
+      ")")
+    " "
+    "->"
+    (CallExpr
+      (BinaryExpr
+        (BinaryExpr
+          (IdentLit
+            " "
+            "self")
+          "."
+          (IdentLit
+            "title"))
+        "."
+        (IdentLit
+          "slugify"))
+      "("
+      ")")))"#;
+  assert_eq!(tree, expected);
+}
+
+// Nullary closure with simple identifier body
+#[test]
+fn parse_nullary_closure_ident() {
+  let tree = parse_expr("-> null");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    " "
+    "->"
+    (IdentLit
+      " "
+      "null")))"#;
+  assert_eq!(tree, expected);
+}
+
+// Closure body captures the full expression
+#[test]
+fn parse_nullary_closure_with_binary_body() {
+  let tree = parse_expr("-> 1 + 2");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    " "
+    "->"
+    (BinaryExpr
+      (NumberLit
+        " "
+        "1")
+      " "
+      "+"
+      (NumberLit
+        " "
+        "2"))))"#;
+  assert_eq!(tree, expected);
+}
+
+// Closure with postfix ? in body
+#[test]
+fn parse_closure_with_postfix() {
+  let tree = parse_expr("(self) -> self.name?");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (ParamListExpr
+      " "
+      "("
+      (IdentLit
+        "self")
+      ")")
+    " "
+    "->"
+    (PostfixExpr
+      (BinaryExpr
+        (IdentLit
+          " "
+          "self")
+        "."
+        (IdentLit
+          "name"))
+      "?")))"#;
+  assert_eq!(tree, expected);
+}
+
+// Empty param list closure
+#[test]
+fn parse_empty_param_list_closure() {
+  let tree = parse_expr("() -> today()");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (ParamListExpr
+      " "
+      "("
+      ")")
+    " "
+    "->"
+    (CallExpr
+      (IdentLit
+        " "
+        "today")
+      "("
+      ")")))"#;
+  assert_eq!(tree, expected);
+}
+
+// Multi-param closure
+#[test]
+fn parse_multi_param_closure() {
+  let tree = parse_expr("(a, b) -> a + b");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (ParamListExpr
+      " "
+      "("
+      (IdentLit
+        "a")
+      ","
+      (IdentLit
+        " "
+        "b")
+      ")")
+    " "
+    "->"
+    (BinaryExpr
+      (IdentLit
+        " "
+        "a")
+      " "
+      "+"
+      (IdentLit
+        " "
+        "b"))))"#;
+  assert_eq!(tree, expected);
+}
+
+// Nested closure
+#[test]
+fn parse_nested_closure() {
+  let tree = parse_expr("-> -> 1");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    " "
+    "->"
+    (ClosureExpr
+      " "
+      "->"
+      (NumberLit
+        " "
+        "1"))))"#;
+  assert_eq!(tree, expected);
+}
+
+// Closure as right operand of binary expression
+#[test]
+fn parse_closure_as_rhs() {
+  let tree = parse_expr("a + -> b");
+  let expected = r#"(YamlMappingEntryValue
+  (BinaryExpr
+    (IdentLit
+      " "
+      "a")
+    " "
+    "+"
+    (ClosureExpr
+      " "
+      "->"
+      (IdentLit
+        " "
+        "b"))))"#;
+  assert_eq!(tree, expected);
+}
+
+// Dangling param list without -> emits diagnostic
+#[test]
+fn parse_dangling_param_list() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(a, b)");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::DanglingParamList { .. })),
+    "expected DanglingParamList: {:?}",
+    diagnostics
+  );
+}
+
+// Empty param list without -> emits diagnostic
+#[test]
+fn parse_dangling_empty_param_list() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("()");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::DanglingParamList { .. })),
+    "expected DanglingParamList: {:?}",
+    diagnostics
+  );
+}
+
+// Dangling param list with trailing whitespace emits diagnostic
+#[test]
+fn parse_dangling_param_list_with_whitespace() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(a, b)   ");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::DanglingParamList { .. })),
+    "expected DanglingParamList: {:?}",
+    diagnostics
+  );
+}
+
+// Dangling param list as LHS of binary expression emits diagnostic
+#[test]
+fn parse_dangling_param_list_as_lhs() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(a, b) + 1");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::DanglingParamList { .. })),
+    "expected DanglingParamList: {:?}",
+    diagnostics
+  );
+}
+
+// Dangling param list as RHS of binary expression emits diagnostic
+#[test]
+fn parse_dangling_param_list_as_rhs() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("1 + (a, b)");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::DanglingParamList { .. })),
+    "expected DanglingParamList: {:?}",
+    diagnostics
+  );
+}
+
+// Unclosed param list missing closing paren emits UnclosedParamList
+#[test]
+fn parse_unclosed_param_list() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(a, b");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::UnclosedParamList { .. })),
+    "expected UnclosedParamList for unclosed param list: {:?}",
+    diagnostics
+  );
+}
+
+// Unclosed empty param list `(` emits MissingSyntaxNode for PrimaryExpr
+#[test]
+fn parse_unclosed_empty_param_list() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::MissingSyntaxNode { expected: SyntaxKind::PrimaryExpr, .. })),
+    "expected MissingSyntaxNode(PrimaryExpr): {:?}",
+    diagnostics
+  );
+}
+
+
+// Positive test: bare identifier as closure param with full tree assertion
+#[test]
+fn parse_closure_bare_ident_param() {
+  let tree = parse_expr("x -> x + 1");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (IdentLit
+      " "
+      "x")
+    " "
+    "->"
+    (BinaryExpr
+      (IdentLit
+        " "
+        "x")
+      " "
+      "+"
+      (NumberLit
+        " "
+        "1"))))"#;
+  assert_eq!(tree, expected);
+}
+
+// Positive test: param list with trailing comma with full tree assertion
+#[test]
+fn parse_closure_trailing_comma_params() {
+  let tree = parse_expr("(a, b,) -> a * b");
+  let expected = r#"(YamlMappingEntryValue
+  (ClosureExpr
+    (ParamListExpr
+      " "
+      "("
+      (IdentLit
+        "a")
+      ","
+      (IdentLit
+        " "
+        "b")
+      ","
+      ")")
+    " "
+    "->"
+    (BinaryExpr
+      (IdentLit
+        " "
+        "a")
+      " "
+      "*"
+      (IdentLit
+        " "
+        "b"))))"#;
+  assert_eq!(tree, expected);
+}
+
+
+
+// Non-identifier in param list emits diagnostic
+#[test]
+fn parse_closure_non_ident_param() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(1, 2) -> 3");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::InvalidClosureParams { .. })),
+    "expected InvalidClosureParams: {:?}",
+    diagnostics
+  );
+}
+
+// Expression in single-param paren emits diagnostic
+#[test]
+fn parse_closure_expr_param() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(1 + 2) -> 3");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::InvalidClosureParams { .. })),
+    "expected InvalidClosureParams: {:?}",
+    diagnostics
+  );
+}
+
+// Invalid LHS like a number literal emits diagnostic
+#[test]
+fn parse_closure_invalid_lhs() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("42 -> 3");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::InvalidClosureParams { .. })),
+    "expected InvalidClosureParams: {:?}",
+    diagnostics
+  );
+}
+
+// Valid single-param closure has no closure diagnostics
+#[test]
+fn parse_closure_valid_single_param_no_diagnostic() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(x) -> x");
+  assert!(
+    !diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::InvalidClosureParams { .. })),
+    "unexpected InvalidClosureParams: {:?}",
+    diagnostics
+  );
+}
+
+// Valid multi-param closure has no closure diagnostics
+#[test]
+fn parse_closure_valid_multi_param_no_diagnostic() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("(a, b) -> a");
+  assert!(
+    !diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::InvalidClosureParams { .. })),
+    "unexpected InvalidClosureParams: {:?}",
+    diagnostics
+  );
+}
+
+// Bare identifier as closure param is valid
+#[test]
+fn parse_closure_bare_ident_no_diagnostic() {
+  let (_, diagnostics) = parse_expr_with_diagnostics("x -> x");
+  assert!(
+    !diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::InvalidClosureParams { .. })),
+    "unexpected InvalidClosureParams: {:?}",
+    diagnostics
+  );
+}
+
+#[test]
 fn parse_precedence_multiply_add() {
   let tree = parse_expr("1 + 2 * 3");
   let expected = r#"(YamlMappingEntryValue
