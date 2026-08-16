@@ -381,19 +381,19 @@ pub struct Scope {
 }
 
 impl Scope {
-  pub fn builtin_scope(db: &(impl typedown_incremental::QueryDatabase + ?Sized)) -> Self {
+  pub fn builtin_scope(db: &(impl QueryDatabase + ?Sized)) -> Self {
     Self::new(db, ScopeKind::Builtin)
   }
 
   pub fn project_scope(
-    db: &(impl typedown_incremental::QueryDatabase + ?Sized),
+    db: &(impl QueryDatabase + ?Sized),
     project: Project,
   ) -> Self {
     Self::new(db, ScopeKind::Project(project))
   }
 
   pub fn file_scope(
-    db: &(impl typedown_incremental::QueryDatabase + ?Sized),
+    db: &(impl QueryDatabase + ?Sized),
     project: Project,
     file: File,
   ) -> Self {
