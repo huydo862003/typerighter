@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use strum::FromRepr;
 use typedown_macros::{query_derived, query_interned};
 
-use crate::db::types::{File, Project};
+use crate::db::types::{File, HirValue, Project};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
   StableCompare, StableHash, StableHasher,
@@ -317,6 +317,7 @@ pub enum ScopeKind {
   Builtin,
   Project(Project),
   File(Project, File),
+  Fn(Project, File, HirValue),
 }
 
 #[derive(FromRepr)]
@@ -325,6 +326,7 @@ enum ScopeKindTag {
   Builtin = 0,
   Project = 1,
   File = 2,
+  Fn = 3,
 }
 
 impl StableHash for ScopeKind {
@@ -336,7 +338,12 @@ impl StableHash for ScopeKind {
       ScopeKind::File(project, file) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
-      }
+      },
+      ScopeKind::Fn(project, file, value) => {
+        project.stable_hash(db, hasher);
+        file.stable_hash(db, hasher);
+        value.stable_hash(db, hasher);
+      },
     }
   }
 }
@@ -356,6 +363,12 @@ impl Encodable for ScopeKind {
         project.encode_field(buf, encoder);
         file.encode_field(buf, encoder);
       }
+      ScopeKind::Fn(project, file, value) => {
+        encoder.emit_u8(buf, ScopeKindTag::Fn as u8);
+        project.encode_field(buf, encoder);
+        file.encode_field(buf, encoder);
+        value.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -369,6 +382,11 @@ impl Decodable for ScopeKind {
       ScopeKindTag::File => ScopeKind::File(
         Project::decode_field(data, decoder),
         File::decode_field(data, decoder),
+      ),
+      ScopeKindTag::Fn => ScopeKind::Fn(
+        Project::decode_field(data, decoder),
+        File::decode_field(data, decoder),
+        HirValue::decode_field(data, decoder),
       ),
     }
   }
