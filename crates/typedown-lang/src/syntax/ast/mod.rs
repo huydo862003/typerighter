@@ -767,10 +767,8 @@ impl ClosureExpr {
   pub fn params(&self) -> Option<Either<ParamListExpr, IdentLit>> {
     if let Some(param_list) = child::<ParamListExpr>(&self.0) {
       Some(Either::Left(param_list))
-    } else if let Some(ident) = child::<IdentLit>(&self.0) {
-      Some(Either::Right(ident))
     } else {
-      None
+      child::<IdentLit>(&self.0).map(Either::Right)
     }
   }
 

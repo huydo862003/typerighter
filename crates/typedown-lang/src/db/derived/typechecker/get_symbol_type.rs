@@ -25,7 +25,9 @@ pub fn get_symbol_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
       }
     }
     SymbolKind::Asset(_, _, _) => TypeResult::new(db, Some(TdBlobType::get(db).into()), vec![]),
+    // Builtin macro call return types are evaluated for the call expression as a whole in actual_node_type, not from the macro symbol itself
     SymbolKind::BuiltinMacro(_) => TypeResult::new(db, None, vec![]),
+    SymbolKind::FnParam(_, _) => TypeResult::new(db, None, vec![]),
     SymbolKind::BuiltinGlobal(kind) => {
       let typ = match kind {
         BuiltinGlobalKind::Vault => get_vault_type(db).into(),

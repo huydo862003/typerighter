@@ -138,7 +138,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Check for dangling param list
     // If current lhs is a closed param list and the next non-trivial token isn't ->
     if lhs.kind() == SyntaxKind::ParamListExpr {
-      let is_closed = lhs.as_node().map_or(false, |node| {
+      let is_closed = lhs.as_node().is_some_and(|node| {
         node
           .children()
           .iter()

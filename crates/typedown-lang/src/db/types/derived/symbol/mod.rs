@@ -17,6 +17,7 @@ pub enum SymbolKind {
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
+  FnParam(Project, File),
 }
 
 #[derive(FromRepr)]
@@ -28,6 +29,7 @@ enum SymbolKindTag {
   BuiltinMacro = 3,
   Asset = 4,
   BuiltinGlobal = 5,
+  FnParam = 6,
 }
 
 impl SymbolKind {
@@ -52,6 +54,7 @@ impl SymbolKind {
       SymbolKind::UserDefinedSchema(_, _)
         | SymbolKind::UserDefinedResource(_, _)
         | SymbolKind::Asset(_, _, _)
+        | SymbolKind::FnParam(_, _)
     )
   }
 
@@ -65,7 +68,8 @@ impl StableHash for SymbolKind {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
       SymbolKind::UserDefinedSchema(project, file)
-      | SymbolKind::UserDefinedResource(project, file) => {
+      | SymbolKind::UserDefinedResource(project, file)
+      | SymbolKind::FnParam(project, file) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
       }
@@ -112,6 +116,11 @@ impl Encodable for SymbolKind {
         encoder.emit_u8(buf, SymbolKindTag::BuiltinGlobal as u8);
         kind.encode(buf, encoder);
       }
+      SymbolKind::FnParam(project, file) => {
+        encoder.emit_u8(buf, SymbolKindTag::FnParam as u8);
+        project.encode_field(buf, encoder);
+        file.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -142,6 +151,10 @@ impl Decodable for SymbolKind {
       SymbolKindTag::BuiltinGlobal => {
         SymbolKind::BuiltinGlobal(BuiltinGlobalKind::decode(data, decoder))
       }
+      SymbolKindTag::FnParam => SymbolKind::FnParam(
+        Project::decode_field(data, decoder),
+        File::decode_field(data, decoder),
+      ),
     }
   }
 }
@@ -338,12 +351,12 @@ impl StableHash for ScopeKind {
       ScopeKind::File(project, file) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
-      },
+      }
       ScopeKind::Fn(project, file, value) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
         value.stable_hash(db, hasher);
-      },
+      }
     }
   }
 }

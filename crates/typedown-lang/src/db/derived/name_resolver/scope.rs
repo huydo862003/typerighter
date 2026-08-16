@@ -46,7 +46,7 @@ mod tests {
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{HirValueKind, InterpolatedPart};
   use crate::db::utils::lower_file;
-  use crate::syntax::ast::AstNode;
+
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
 

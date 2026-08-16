@@ -76,7 +76,7 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
       }
     }
     HirValueKind::Closure { body, .. } => {
-      todo!();
+      collect_unresolved(db, *body, diagnostics);
     }
     HirValueKind::Str(_)
     | HirValueKind::Num(_)
@@ -89,6 +89,57 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
           collect_unresolved(db, expr, diagnostics);
         }
       }
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::derived::hir::lower_node;
+  use crate::db::fixtures::load_vault_fixture;
+  use crate::syntax::parse::tests::helpers::parse;
+  use crate::syntax::red::RedNode;
+
+  #[test]
+  fn resolve_closure_params_are_not_unresolved() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (root, _) = parse(
+      r#"---
+fn: (a, b) -> a + b
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let res = resolve(&db, hir);
+    let diags = res.diagnostics(&db);
+    assert!(
+      diags.is_empty(),
+      "closure parameters 'a' and 'b' should resolve cleanly, got: {:?}",
+      diags
+    );
+  }
+
+  #[test]
+  fn resolve_closure_unresolved_ident_emits_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (root, _) = parse(
+      r#"---
+fn: (a) -> a + missing_variable
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let res = resolve(&db, hir);
+    let diags = res.diagnostics(&db);
+    assert_eq!(diags.len(), 1);
+    match &diags[0] {
+      Diagnostic::UnresolvedIdentifier { name, .. } => {
+        assert_eq!(name.trim(), "missing_variable");
+      }
+      d => panic!("expected UnresolvedIdentifier diagnostic, got: {:?}", d),
     }
   }
 }

@@ -47,8 +47,8 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
     SymbolKind::Asset(_, _, _) => TypeResult::new(db, Some(TdBlobType::get(db).into()), vec![]),
     SymbolKind::UserDefinedResource(_, _)
     | SymbolKind::BuiltinMacro(_)
-    | SymbolKind::BuiltinGlobal(_)
-    | SymbolKind::FnParam(_, _) => TypeResult::new(db, None, vec![]),
+    | SymbolKind::BuiltinGlobal(_) => TypeResult::new(db, None, vec![]),
+    SymbolKind::FnParam(_, _) => TypeResult::new(db, None, vec![]),
   }
 }
 

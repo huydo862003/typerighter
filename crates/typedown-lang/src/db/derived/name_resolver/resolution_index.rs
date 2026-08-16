@@ -164,7 +164,7 @@ fn collect_references(
       }
     }
     HirValueKind::Closure { body, .. } => {
-      todo!();
+      collect_references(db, *body, map);
     }
     // Only Ident nodes resolve to symbols via referee
     HirValueKind::Ident(_) => {

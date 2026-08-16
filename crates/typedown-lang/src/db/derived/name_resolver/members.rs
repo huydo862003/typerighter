@@ -82,7 +82,32 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
       MembersResult::new(db, members)
     }
     ScopeKind::Fn(project, file, value) => {
-      todo!()
+      let func = value.node(db);
+      let closure = ClosureExpr::cast(func).expect("expected ClosureExpr");
+      let mut members = HashMap::new();
+
+      if let Some(params) = closure.params() {
+        let param_idents: Vec<_> = match params {
+          Either::Left(param_list) => param_list.params().collect(),
+          Either::Right(ident) => vec![ident],
+        };
+
+        for ident in param_idents {
+          if let Some(name) = ident.value()
+            && name != "self"
+          {
+            let sym = Symbol::new(
+              db,
+              SymbolKind::FnParam(project, file),
+              name.clone(),
+              format!("@param::{}", name),
+            );
+            members.insert(name, sym);
+          }
+        }
+      }
+
+      MembersResult::new(db, members)
     }
   }
 }
