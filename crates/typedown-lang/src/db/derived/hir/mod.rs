@@ -3,7 +3,7 @@
 use typedown_macros::query_derived;
 
 use crate::syntax::ast::{
-  AstNode, BinaryExpr, CallExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr, IdentLit, IndexExpr,
+  AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr, IdentLit, IndexExpr,
   InlineCode, InlineMath, InterpFragment, ListItem, ListLit, MathBlock, MathLit, MdBody, NumberLit,
   ParenExpr, PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping,
   YamlSequence,
@@ -376,6 +376,35 @@ fn lower_expr_kind(
     };
   }
 
+  // Handle closure expression
+  if let Some(closure) = ClosureExpr::cast(inner.syntax().clone()) {
+    let params = match closure.params() {
+      Some(Either::Left(param_list)) => param_list
+        .params()
+        .filter_map(|id| id.value())
+        .collect(),
+      Some(Either::Right(ident)) => ident.value().into_iter().collect(),
+      None => vec![],
+    };
+    let body = closure
+      .body()
+      .map(|b| lower_node(db, project, file, b.syntax().clone()))
+      .unwrap_or_else(|| {
+        HirValue::new(
+          db,
+          project,
+          file,
+          inner.syntax().clone(),
+          HirValueKind::Null,
+          vec![],
+        )
+      });
+    return HirValueKind::Closure {
+      params,
+      body: body.into(),
+    };
+  }
+
   HirValueKind::Str(inner.syntax().text().trim().to_string())
 }
 
@@ -436,9 +465,12 @@ fn lower_source_file(
 
 #[cfg(test)]
 mod tests {
+  use super::lower_node;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{HirValueKind, InterpolatedPart};
   use crate::db::utils::lower_file;
+  use crate::syntax::parse::tests::helpers::parse;
+  use crate::syntax::red::RedNode;
 
   #[test]
   fn markdown_body_plain_text() {
@@ -582,5 +614,55 @@ mod tests {
       has_code,
       "expected code block as literal with ``` delimiter"
     );
+  }
+
+  #[test]
+  fn lower_closure_expression() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/simple.td");
+    let (root, _) = parse(
+      r#"---
+fn: (a, b) -> a + b
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(e) => e,
+      _ => panic!("expected mapping"),
+    };
+    let fn_entry = entries.iter().find(|(k, _)| k == "fn").expect("fn field missing");
+    match fn_entry.1.kind(&db) {
+      HirValueKind::Closure { params, body } => {
+        assert_eq!(params, vec!["a", "b"]);
+        assert!(matches!(body.kind(&db), HirValueKind::Binary { .. }));
+      }
+      _ => panic!("expected Closure HIR kind"),
+    }
+  }
+
+  #[test]
+  fn lower_bare_ident_closure_expression() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/simple.td");
+    let (root, _) = parse(
+      r#"---
+fn: x -> x + 1
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(e) => e,
+      _ => panic!("expected mapping"),
+    };
+    let fn_entry = entries.iter().find(|(k, _)| k == "fn").expect("fn field missing");
+    match fn_entry.1.kind(&db) {
+      HirValueKind::Closure { params, body } => {
+        assert_eq!(params, vec!["x"]);
+        assert!(matches!(body.kind(&db), HirValueKind::Binary { .. }));
+      }
+      _ => panic!("expected Closure HIR kind"),
+    }
   }
 }

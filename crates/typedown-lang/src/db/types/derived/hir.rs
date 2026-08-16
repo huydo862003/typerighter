@@ -59,6 +59,10 @@ pub enum HirValueKind {
     expr: Box<HirValue>,
     indices: Vec<HirValue>,
   },
+  Closure {
+    params: Vec<String>,
+    body: Box<HirValue>,
+  },
 }
 
 impl StableHash for HirValueKind {
@@ -97,6 +101,10 @@ impl StableHash for HirValueKind {
         expr.stable_hash(db, hasher);
         indices.stable_hash(db, hasher);
       }
+      HirValueKind::Closure { params, body } => {
+        params.stable_hash(db, hasher);
+        body.stable_hash(db, hasher);
+      }
     }
   }
 }
@@ -130,6 +138,7 @@ enum HirValueKindTag {
   Binary = 13,
   Call = 14,
   Index = 15,
+  Closure = 16,
 }
 
 #[derive(FromRepr)]
@@ -212,6 +221,11 @@ impl Encodable for HirValueKind {
         expr.encode(buf, encoder);
         indices.encode(buf, encoder);
       }
+      HirValueKind::Closure { params, body } => {
+        encoder.emit_u8(buf, HirValueKindTag::Closure as u8);
+        params.encode(buf, encoder);
+        body.encode(buf, encoder);
+      }
     }
   }
 }
@@ -254,6 +268,10 @@ impl Decodable for HirValueKind {
       HirValueKindTag::Index => HirValueKind::Index {
         expr: Box::decode(data, decoder),
         indices: Vec::decode(data, decoder),
+      },
+      HirValueKindTag::Closure => HirValueKind::Closure {
+        params: Vec::decode(data, decoder),
+        body: Box::decode(data, decoder),
       },
     }
   }

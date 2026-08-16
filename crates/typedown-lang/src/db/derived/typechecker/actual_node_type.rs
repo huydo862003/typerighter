@@ -75,6 +75,7 @@ pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     HirValueKind::Binary { op, left, right } => get_binary_type(db, &op, *left, *right),
     HirValueKind::Math(_) => TypeResult::new(db, Some(get_math_type(db).into()), vec![]),
     HirValueKind::Markdown(_) => TypeResult::new(db, Some(get_str_type(db).into()), vec![]),
+    HirValueKind::Closure { .. } => TypeResult::new(db, None, vec![]),
   }
 }
 

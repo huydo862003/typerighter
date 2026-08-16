@@ -75,6 +75,9 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
         collect_unresolved(db, idx, diagnostics);
       }
     }
+    HirValueKind::Closure { body, .. } => {
+      todo!();
+    }
     HirValueKind::Str(_)
     | HirValueKind::Num(_)
     | HirValueKind::Math(_)
