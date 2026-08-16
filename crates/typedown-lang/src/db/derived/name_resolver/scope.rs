@@ -20,5 +20,6 @@ pub fn parent_scope(db: &TypedownDatabase, scope: Scope) -> MaybeScope {
     ScopeKind::Builtin => MaybeScope::new(db, None),
     ScopeKind::Project(_) => MaybeScope::new(db, Some(Scope::builtin_scope(db))),
     ScopeKind::File(project, _) => MaybeScope::new(db, Some(Scope::project_scope(db, project))),
+    ScopeKind::Fn(project, file, value) => todo!(),
   }
 }

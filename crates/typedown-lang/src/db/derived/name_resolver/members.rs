@@ -79,5 +79,8 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
 
       MembersResult::new(db, members)
     }
+    ScopeKind::Fn(project, file, value) => {
+      todo!()
+    }
   }
 }
