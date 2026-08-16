@@ -2,7 +2,16 @@
 //! based on `rustc`: https://github.com/rust-lang/rust/blob/63f05e3635171e7ac3f9ca78bad6c71052cda5a3/compiler/rustc_data_structures/src/stable_hash.rs#L76-L78
 
 use rustc_stable_hash::StableSipHasher128;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
+use std::mem::Discriminant;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::SystemTime;
 
 use super::StableCompare;
 
@@ -152,23 +161,23 @@ impl StableHash for String {
     self[..].stable_hash(db, hasher);
   }
 }
-impl StableHash for std::ffi::OsStr {
+impl StableHash for OsStr {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.as_encoded_bytes().stable_hash(db, hasher);
   }
 }
-impl StableHash for std::path::Path {
+impl StableHash for Path {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.as_os_str().stable_hash(db, hasher);
   }
 }
-impl StableHash for std::path::PathBuf {
+impl StableHash for PathBuf {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.as_path().stable_hash(db, hasher);
   }
 }
 
-impl StableHash for &std::path::Path {
+impl StableHash for &Path {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     (*self).stable_hash(db, hasher);
   }
@@ -184,13 +193,13 @@ impl StableHash for f64 {
   }
 }
 
-impl StableHash for std::cmp::Ordering {
+impl StableHash for Ordering {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     (*self as i8).stable_hash(db, hasher);
   }
 }
 
-impl<T> StableHash for std::marker::PhantomData<T> {
+impl<T> StableHash for PhantomData<T> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, _hasher: &mut StableHasher) {}
 }
 
@@ -199,12 +208,12 @@ impl<T: StableHash + ?Sized> StableHash for Box<T> {
     (**self).stable_hash(db, hasher);
   }
 }
-impl<T: StableHash + ?Sized> StableHash for std::rc::Rc<T> {
+impl<T: StableHash + ?Sized> StableHash for Rc<T> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     (**self).stable_hash(db, hasher);
   }
 }
-impl<T: StableHash + ?Sized> StableHash for std::sync::Arc<T> {
+impl<T: StableHash + ?Sized> StableHash for Arc<T> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     (**self).stable_hash(db, hasher);
   }
@@ -220,13 +229,13 @@ impl<T1: StableHash, T2: StableHash> StableHash for Result<T1, T2> {
     }
   }
 }
-impl<T> StableHash for std::mem::Discriminant<T> {
+impl<T> StableHash for Discriminant<T> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
     Hash::hash(self, hasher);
   }
 }
 
-impl<K: StableHash + StableOrd, V: StableHash> StableHash for std::collections::BTreeMap<K, V> {
+impl<K: StableHash + StableOrd, V: StableHash> StableHash for BTreeMap<K, V> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     for entry in self.iter() {
@@ -234,7 +243,7 @@ impl<K: StableHash + StableOrd, V: StableHash> StableHash for std::collections::
     }
   }
 }
-impl<K: StableHash + StableOrd> StableHash for std::collections::BTreeSet<K> {
+impl<K: StableHash + StableOrd> StableHash for BTreeSet<K> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     for entry in self.iter() {
@@ -289,7 +298,7 @@ impl<T1: StableHash, T2: StableHash, T3: StableHash, T4: StableHash> StableHash
   }
 }
 
-impl<K: StableHash + StableCompare, V: StableHash> StableHash for std::collections::HashMap<K, V> {
+impl<K: StableHash + StableCompare, V: StableHash> StableHash for HashMap<K, V> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     let mut entries: Vec<(&K, &V)> = self.iter().collect();
@@ -301,7 +310,7 @@ impl<K: StableHash + StableCompare, V: StableHash> StableHash for std::collectio
   }
 }
 
-impl<K: StableHash + StableCompare> StableHash for std::collections::HashSet<K> {
+impl<K: StableHash + StableCompare> StableHash for HashSet<K> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     let mut entries: Vec<&K> = self.iter().collect();
@@ -312,7 +321,7 @@ impl<K: StableHash + StableCompare> StableHash for std::collections::HashSet<K> 
   }
 }
 
-impl StableHash for std::time::SystemTime {
+impl StableHash for SystemTime {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     match self.duration_since(std::time::UNIX_EPOCH) {
       Ok(dur) => {
