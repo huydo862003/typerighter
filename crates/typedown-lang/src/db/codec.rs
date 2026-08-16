@@ -710,6 +710,13 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
+      Diagnostic::InvalidSelfClosureParams {
+        start_offset,
+        end_offset,
+      } => {
+        encoder.emit_usize(buf, *start_offset);
+        encoder.emit_usize(buf, *end_offset);
+      }
     }
   }
 }
@@ -1303,6 +1310,14 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::InvalidSelfClosureParams => {
+        let start_offset = decoder.read_usize(data);
+        let end_offset = decoder.read_usize(data);
+        Diagnostic::InvalidSelfClosureParams {
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1707,6 +1722,10 @@ impl StableHash for Diagnostic {
         end_offset,
       }
       | Diagnostic::InvalidClosureParams {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::InvalidSelfClosureParams {
         start_offset,
         end_offset,
       }

@@ -378,14 +378,26 @@ fn lower_expr_kind(
 
   // Handle closure expression
   if let Some(closure) = ClosureExpr::cast(inner.syntax().clone()) {
-    let params = match closure.params() {
-      Some(Either::Left(param_list)) => param_list
-        .params()
-        .filter_map(|id| id.value())
-        .collect(),
-      Some(Either::Right(ident)) => ident.value().into_iter().collect(),
+    let param_idents: Vec<IdentLit> = match closure.params() {
+      Some(Either::Left(param_list)) => param_list.params().collect(),
+      Some(Either::Right(ident)) => vec![ident],
       None => vec![],
     };
+    let mut params = Vec::new();
+    for id in param_idents {
+      if let Some(name) = id.value() {
+        if name == "self" {
+          let node = id.syntax();
+          let (tr_offset, tr_len) = node.trimmed_range();
+          diagnostics.push(Diagnostic::InvalidSelfClosureParams {
+            start_offset: tr_offset,
+            end_offset: tr_offset + tr_len,
+          });
+        } else {
+          params.push(name);
+        }
+      }
+    }
     let body = closure
       .body()
       .map(|b| lower_node(db, project, file, b.syntax().clone()))
@@ -469,6 +481,7 @@ mod tests {
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{HirValueKind, InterpolatedPart};
   use crate::db::utils::lower_file;
+  use crate::syntax::diagnostic::Diagnostic;
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
 
@@ -661,6 +674,38 @@ fn: x -> x + 1
       HirValueKind::Closure { params, body } => {
         assert_eq!(params, vec!["x"]);
         assert!(matches!(body.kind(&db), HirValueKind::Binary { .. }));
+      }
+      _ => panic!("expected Closure HIR kind"),
+    }
+  }
+
+  #[test]
+  fn lower_closure_forbids_self_param() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/simple.td");
+    let (root, _) = parse(
+      r#"---
+fn: (self, x) -> self + x
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(e) => e,
+      _ => panic!("expected mapping"),
+    };
+    let fn_entry = entries.iter().find(|(k, _)| k == "fn").expect("fn field missing");
+    assert!(
+      fn_entry
+        .1
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::InvalidSelfClosureParams { .. })),
+      "expected InvalidSelfClosureParams diagnostic for 'self' parameter"
+    );
+    match fn_entry.1.kind(&db) {
+      HirValueKind::Closure { params, .. } => {
+        assert_eq!(params, vec!["x"]);
       }
       _ => panic!("expected Closure HIR kind"),
     }
