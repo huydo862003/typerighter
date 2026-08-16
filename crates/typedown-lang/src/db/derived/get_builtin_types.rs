@@ -6,7 +6,7 @@ use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::schema_property::get_schema_property_type;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Symbol, SymbolKind,
@@ -251,6 +251,34 @@ pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncT
 
 #[query_derived]
 pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
+  fn flatten_sum_members(db: &TypedownDatabase, members: Vec<LazyType>) -> Vec<LazyType> {
+    fn recurse(
+      db: &TypedownDatabase,
+      members: Vec<LazyType>,
+      visited: &mut HashSet<TdSumType>,
+      out: &mut Vec<LazyType>,
+    ) {
+      for member in members {
+        if let Some(TdTypeEnum::TdSumType(sum)) = member.as_eager() {
+          if visited.insert(*sum) {
+            recurse(db, sum.members(db), visited, out);
+          } else {
+            out.push(member);
+          }
+        } else {
+          out.push(member);
+        }
+      }
+    }
+  
+    let mut out = Vec::new();
+    let mut visited = HashSet::new();
+    recurse(db, members, &mut visited, &mut out);
+    out
+  }
+
+  let members = flatten_sum_members(db, members);
+
   TdSumType::new(db, members)
 }
 
@@ -278,6 +306,7 @@ pub fn instantiate_type(
 mod tests {
   use crate::db::types::{LazyType, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
+  use super::{get_bool_type, get_sum_type};
 
   use crate::db::{
     QueryStorage, TypedownDatabase,
@@ -419,5 +448,22 @@ mod tests {
       ),
       "expected WrongTypeArgCount diagnostic"
     );
+  }
+
+  #[test]
+  fn sum_type_flattening() {
+    let db = make_db();
+    let str_t = LazyType::eager(get_str_type(&db).into());
+    let num_t = LazyType::eager(get_num_type(&db).into());
+    let bool_t = LazyType::eager(get_bool_type(&db).into());
+
+    let inner_sum = get_sum_type(&db, vec![num_t.clone(), bool_t.clone()]);
+    let outer_sum = get_sum_type(&db, vec![str_t.clone(), LazyType::eager(inner_sum.into())]);
+
+    let members = outer_sum.members(&db);
+    assert_eq!(members.len(), 3);
+    assert_eq!(members[0], str_t);
+    assert_eq!(members[1], num_t);
+    assert_eq!(members[2], bool_t);
   }
 }

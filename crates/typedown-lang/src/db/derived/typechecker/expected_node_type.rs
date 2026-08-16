@@ -3,7 +3,7 @@
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
-use crate::db::derived::get_builtin_types::get_schemaless_type;
+use crate::db::derived::get_builtin_types::{get_schemaless_type, get_sum_type};
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
@@ -277,7 +277,7 @@ fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> L
   lazy.clone()
 }
 
-/// Pick the most specific arm that matches the actual value
+/// Pick the matching arms for the actual value
 fn pick_most_specific_arm(
   db: &TypedownDatabase,
   arms: &[LazyType],
@@ -288,6 +288,7 @@ fn pick_most_specific_arm(
   let matching: Vec<_> = arms
     .iter()
     .filter(|arm| arm.resolve(db).is_some_and(|t| t.accepts(db, &actual_type)))
+    .cloned()
     .collect();
 
   if matching.is_empty() {
@@ -297,17 +298,7 @@ fn pick_most_specific_arm(
     return Some(matching[0].clone());
   }
 
-  // If candidate is compatible with best, candidate is more specific
-  let mut best = matching[0];
-  for candidate in &matching[1..] {
-    if let (Some(best_type), Some(cand_type)) = (best.resolve(db), candidate.resolve(db))
-      && best_type.accepts(db, &cand_type)
-    {
-      best = candidate;
-    }
-  }
-
-  Some(best.clone())
+  Some(LazyType::eager(get_sum_type(db, matching).into()))
 }
 
 /// Look up a field in the resolved type

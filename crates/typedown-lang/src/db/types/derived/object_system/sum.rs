@@ -6,6 +6,7 @@ use super::func::TdFuncObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::types::{InstResult, LazyType};
+
 // A union type: accepts any of its member types
 #[query_derived]
 pub struct TdSumType {
