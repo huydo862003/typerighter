@@ -14,7 +14,7 @@ use crate::db::derived::get_builtin_types::{
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{
-  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Set, Symbol,
+  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdStructuralType, TdTypeEnum, TdTypeLike, TypeResult,
 };
 use crate::db::utils::lower_file;
@@ -168,7 +168,7 @@ pub(crate) fn resolve_property_descriptor(
   field_type.map(|lazy| {
     if is_optional && !lazy.as_eager().is_some_and(|t| is_nullable(db, t)) {
       let null_lazy = LazyType::eager(get_null_type(db).into());
-      LazyType::eager(get_sum_type(db, Set::from([lazy, null_lazy])).into())
+      LazyType::eager(get_sum_type(db, vec![lazy, null_lazy]).into())
     } else {
       lazy
     }
@@ -202,7 +202,7 @@ fn resolve_type_lazy(
       let inner = resolve_type_lazy(db, *operand, diagnostics)?;
       let null_lazy = LazyType::eager(get_null_type(db).into());
       Some(LazyType::eager(
-        get_sum_type(db, Set::from([inner, null_lazy])).into(),
+        get_sum_type(db, vec![inner, null_lazy]).into(),
       ))
     }
 
@@ -336,7 +336,7 @@ mod tests {
     fixtures::load_vault_fixture,
     types::{
       BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
-      LiteralValue, Project, Set, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
+      LiteralValue, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
       TdStructuralType, TdTypeLike, TdTypeType,
     },
     utils::lower_file,
@@ -495,10 +495,10 @@ mod tests {
     let db = make_db();
     let sum = get_sum_type(
       &db,
-      Set::from([
+      vec![
         LazyType::eager(get_str_type(&db).into()),
         LazyType::eager(get_num_type(&db).into()),
-      ]),
+      ],
     );
     assert_eq!(sum.display_name(&db), "string | number");
   }

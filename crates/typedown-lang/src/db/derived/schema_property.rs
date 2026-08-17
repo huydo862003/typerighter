@@ -12,7 +12,7 @@ use crate::db::derived::get_builtin_types::{
   get_bool_type, get_null_type, get_num_type, get_str_type, get_sum_type, get_type_type,
 };
 use crate::db::types::{
-  BuiltinSchemaKind, LazyType, Set, Symbol, SymbolKind, TdDictType, TdListType, TdProductType,
+  BuiltinSchemaKind, LazyType, Symbol, SymbolKind, TdDictType, TdListType, TdProductType,
 };
 
 fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
@@ -85,10 +85,10 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   let optional_field = LazyType::eager(
     get_sum_type(
       db,
-      Set::from([
+      vec![
         LazyType::eager(get_bool_type(db).into()),
         LazyType::eager(get_null_type(db).into()),
-      ]),
+      ],
     )
     .into(),
   );

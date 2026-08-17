@@ -2,14 +2,15 @@
 // I think this is the idea of bidirectional typechecking
 
 use crate::db::TypedownDatabase;
+use std::collections::HashSet;
+
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{get_schemaless_type, get_sum_type};
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
-  File, HirValue, LazyType, Project, Set, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike,
-  TypeResult,
+  File, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
 use crate::syntax::ast::{AstNode, Expr};
@@ -281,12 +282,12 @@ fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> L
 /// Pick the matching arms for the actual value
 fn pick_most_specific_arm(
   db: &TypedownDatabase,
-  arms: &Set<LazyType>,
+  arms: &HashSet<LazyType>,
   hir: HirValue,
 ) -> Option<LazyType> {
   let actual_type = actual_node_type(db, hir).typ(db)?;
 
-  let matching: Set<_> = arms
+  let matching: Vec<_> = arms
     .iter()
     .filter(|arm| arm.resolve(db).is_some_and(|t| t.accepts(db, &actual_type)))
     .cloned()

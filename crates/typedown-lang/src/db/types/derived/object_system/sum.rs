@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use typedown_incremental::StableCompare;
 use typedown_macros::query_derived;
 
@@ -6,12 +6,12 @@ use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
 use super::func::TdFuncObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::types::{InstResult, LazyType, Set};
+use crate::db::types::{InstResult, LazyType};
 
 // A union type: accepts any of its member types
 #[query_derived]
 pub struct TdSumType {
-  pub members: Set<LazyType>,
+  pub members: HashSet<LazyType>,
 }
 
 impl TdObjectLike for TdSumType {
