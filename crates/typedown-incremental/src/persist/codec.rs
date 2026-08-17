@@ -658,9 +658,7 @@ impl<V: FieldDecodable + Eq + Hash> Decodable for HashSet<V> {
     let len = decoder.read_u32(data) as usize;
     let mut map = HashSet::with_capacity(len);
     for _ in 0..len {
-      map.insert(
-        V::decode_field(data, decoder),
-      );
+      map.insert(V::decode_field(data, decoder));
     }
     map
   }

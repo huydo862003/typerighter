@@ -270,7 +270,7 @@ pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType 
         }
       }
     }
-  
+
     let mut out = Vec::new();
     let mut visited = HashSet::new();
     recurse(db, members, &mut visited, &mut out);
@@ -304,9 +304,9 @@ pub fn instantiate_type(
 
 #[cfg(test)]
 mod tests {
+  use super::{get_bool_type, get_sum_type};
   use crate::db::types::{LazyType, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
-  use super::{get_bool_type, get_sum_type};
 
   use crate::db::{
     QueryStorage, TypedownDatabase,

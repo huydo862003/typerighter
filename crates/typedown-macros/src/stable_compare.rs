@@ -7,31 +7,27 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
   let name = &input.ident;
 
   let body = match &input.data {
-    Data::Struct(data) => {
-      match &data.fields {
-        Fields::Named(fields) => {
-          let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-          quote! {
-            ::std::cmp::Ordering::Equal
-            #(
-              .then_with(|| self.#field_names.stable_cmp(db, &other.#field_names))
-            )*
-          }
+    Data::Struct(data) => match &data.fields {
+      Fields::Named(fields) => {
+        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+        quote! {
+          ::std::cmp::Ordering::Equal
+          #(
+            .then_with(|| self.#field_names.stable_cmp(db, &other.#field_names))
+          )*
         }
-        Fields::Unnamed(fields) => {
-          let indices: Vec<syn::Index> = (0..fields.unnamed.len())
-            .map(syn::Index::from)
-            .collect();
-          quote! {
-            ::std::cmp::Ordering::Equal
-            #(
-              .then_with(|| self.#indices.stable_cmp(db, &other.#indices))
-            )*
-          }
-        }
-        Fields::Unit => quote! { ::std::cmp::Ordering::Equal },
       }
-    }
+      Fields::Unnamed(fields) => {
+        let indices: Vec<syn::Index> = (0..fields.unnamed.len()).map(syn::Index::from).collect();
+        quote! {
+          ::std::cmp::Ordering::Equal
+          #(
+            .then_with(|| self.#indices.stable_cmp(db, &other.#indices))
+          )*
+        }
+      }
+      Fields::Unit => quote! { ::std::cmp::Ordering::Equal },
+    },
     Data::Enum(data) => {
       let disc_arms: Vec<_> = data
         .variants

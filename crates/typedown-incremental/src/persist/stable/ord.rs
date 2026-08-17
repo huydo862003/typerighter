@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use typedown_types::either::Either::{self, Left};
+use typedown_types::either::Either::{self};
 
 use crate::QueryDatabase;
 

@@ -6,7 +6,7 @@ use typedown_macros::{query_derived, query_interned};
 use crate::db::types::{File, Project};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
-  StableCompare, StableHash, StableHasher,
+  StableHash, StableHasher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -406,14 +406,6 @@ pub struct Symbol {
   kind: SymbolKind,
   name: String,
   def_id: String,
-}
-
-impl StableCompare for Symbol {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
-    self.def_id(db).cmp(&other.def_id(db))
-  }
 }
 
 #[query_derived]
