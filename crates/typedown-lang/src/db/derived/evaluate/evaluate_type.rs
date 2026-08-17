@@ -241,7 +241,9 @@ fn resolve_type_lazy(
       if members.is_empty() {
         None
       } else {
-        Some(LazyType::eager(get_sum_type(db, members).into()))
+        Some(LazyType::eager(
+          get_sum_type(db, members.into_iter().collect()).into(),
+        ))
       }
     }
     // Inline object like `type: { name: { type: string }, age: { type: number } }`

@@ -229,7 +229,7 @@ fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult 
   let elem = if arms.len() == 1 {
     arms.into_iter().next().unwrap()
   } else {
-    LazyType::eager(get_sum_type(db, arms).into())
+    LazyType::eager(get_sum_type(db, arms.into_iter().collect()).into())
   };
   let list_type = TdListType::new(db, Some(elem));
   TypeResult::new(db, Some(list_type.into()), diagnostics)
