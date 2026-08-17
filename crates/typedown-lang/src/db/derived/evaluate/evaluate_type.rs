@@ -14,7 +14,7 @@ use crate::db::derived::get_builtin_types::{
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{
-  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
+  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Set, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdStructuralType, TdTypeEnum, TdTypeLike, TypeResult,
 };
 use crate::db::utils::lower_file;
@@ -168,7 +168,7 @@ pub(crate) fn resolve_property_descriptor(
   field_type.map(|lazy| {
     if is_optional && !lazy.as_eager().is_some_and(|t| is_nullable(db, t)) {
       let null_lazy = LazyType::eager(get_null_type(db).into());
-      LazyType::eager(get_sum_type(db, vec![lazy, null_lazy]).into())
+      LazyType::eager(get_sum_type(db, Set::from([lazy, null_lazy])).into())
     } else {
       lazy
     }
@@ -202,7 +202,7 @@ fn resolve_type_lazy(
       let inner = resolve_type_lazy(db, *operand, diagnostics)?;
       let null_lazy = LazyType::eager(get_null_type(db).into());
       Some(LazyType::eager(
-        get_sum_type(db, vec![inner, null_lazy]).into(),
+        get_sum_type(db, Set::from([inner, null_lazy])).into(),
       ))
     }
 
@@ -241,7 +241,9 @@ fn resolve_type_lazy(
       if members.is_empty() {
         None
       } else {
-        Some(LazyType::eager(get_sum_type(db, members).into()))
+        Some(LazyType::eager(
+          get_sum_type(db, members.into_iter().collect()).into(),
+        ))
       }
     }
     // Inline object like `type: { name: { type: string }, age: { type: number } }`
@@ -334,7 +336,7 @@ mod tests {
     fixtures::load_vault_fixture,
     types::{
       BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
-      LiteralValue, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
+      LiteralValue, Project, Set, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
       TdStructuralType, TdTypeLike, TdTypeType,
     },
     utils::lower_file,
@@ -493,10 +495,10 @@ mod tests {
     let db = make_db();
     let sum = get_sum_type(
       &db,
-      vec![
+      Set::from([
         LazyType::eager(get_str_type(&db).into()),
         LazyType::eager(get_num_type(&db).into()),
-      ],
+      ]),
     );
     assert_eq!(sum.display_name(&db), "string | number");
   }
@@ -755,11 +757,12 @@ mod tests {
     let typ = value_field.resolve(&db).unwrap();
     let sum = typ.as_td_sum_type().expect("value should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "should have 3 members");
-    let first = sum.members(&db)[0].resolve(&db).unwrap();
-    assert!(
-      first
-        .as_td_literal_type()
-        .is_some_and(|lit| lit.value(&db) == LiteralValue::Str("draft".to_string()))
-    );
+    let has_draft = sum.members(&db).iter().any(|m| {
+      m.resolve(&db).is_some_and(|t| {
+        t.as_td_literal_type()
+          .is_some_and(|lit| lit.value(&db) == LiteralValue::Str("draft".to_string()))
+      })
+    });
+    assert!(has_draft, "sum members should contain 'draft'");
   }
 }

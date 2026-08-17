@@ -12,7 +12,7 @@ use crate::db::derived::get_builtin_types::{
   get_bool_type, get_null_type, get_num_type, get_str_type, get_sum_type, get_type_type,
 };
 use crate::db::types::{
-  BuiltinSchemaKind, LazyType, Symbol, SymbolKind, TdDictType, TdListType, TdProductType,
+  BuiltinSchemaKind, LazyType, Set, Symbol, SymbolKind, TdDictType, TdListType, TdProductType,
 };
 
 fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
@@ -46,14 +46,20 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   // list[base | self]
   let list_elem_sum = get_sum_type(
     db,
-    [base_type_lazys.clone(), vec![self_lazy.clone()]].concat(),
+    [base_type_lazys.clone(), vec![self_lazy.clone()]]
+      .concat()
+      .into_iter()
+      .collect(),
   );
   let list_type = TdListType::new(db, Some(LazyType::eager(list_elem_sum.into())));
 
   // dict[base | self]
   let dict_elem_sum = get_sum_type(
     db,
-    [base_type_lazys.clone(), vec![LazyType::lazy(self_symbol)]].concat(),
+    [base_type_lazys.clone(), vec![LazyType::lazy(self_symbol)]]
+      .concat()
+      .into_iter()
+      .collect(),
   );
   let dict_type = TdDictType::new(db, None, Some(LazyType::eager(dict_elem_sum.into())));
 
@@ -68,7 +74,9 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
           LazyType::eager(dict_type.into()),
         ],
       ]
-      .concat(),
+      .concat()
+      .into_iter()
+      .collect(),
     )
     .into(),
   );
@@ -77,10 +85,10 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   let optional_field = LazyType::eager(
     get_sum_type(
       db,
-      vec![
+      Set::from([
         LazyType::eager(get_bool_type(db).into()),
         LazyType::eager(get_null_type(db).into()),
-      ],
+      ]),
     )
     .into(),
   );

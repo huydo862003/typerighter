@@ -8,7 +8,8 @@ use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
-  File, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike, TypeResult,
+  File, HirValue, LazyType, Project, Set, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike,
+  TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
 use crate::syntax::ast::{AstNode, Expr};
@@ -280,12 +281,12 @@ fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> L
 /// Pick the matching arms for the actual value
 fn pick_most_specific_arm(
   db: &TypedownDatabase,
-  arms: &[LazyType],
+  arms: &Set<LazyType>,
   hir: HirValue,
 ) -> Option<LazyType> {
   let actual_type = actual_node_type(db, hir).typ(db)?;
 
-  let matching: Vec<_> = arms
+  let matching: Set<_> = arms
     .iter()
     .filter(|arm| arm.resolve(db).is_some_and(|t| t.accepts(db, &actual_type)))
     .cloned()
@@ -295,7 +296,7 @@ fn pick_most_specific_arm(
     return None;
   }
   if matching.len() == 1 {
-    return Some(matching[0].clone());
+    return Some(matching.into_iter().next().unwrap());
   }
 
   Some(LazyType::eager(get_sum_type(db, matching).into()))

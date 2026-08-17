@@ -15,19 +15,19 @@ use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
-use typedown_macros::query_derived;
+use typedown_macros::{StableCompare, query_derived};
 
 use crate::syntax::red::RedNode;
 
 use super::inputs::{File, FileHandle, Project};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum AssetsDirMode {
   Local = 0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub struct AssetsDir {
   pub mode: AssetsDirMode,
   pub path: String,

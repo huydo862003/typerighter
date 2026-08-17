@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use strum::FromRepr;
-use typedown_macros::{query_derived, query_interned};
+use typedown_macros::{StableCompare, query_derived, query_interned};
 
 use crate::db::types::{File, Project};
 use typedown_incremental::{
@@ -9,7 +9,7 @@ use typedown_incremental::{
   StableHash, StableHasher,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub enum SymbolKind {
   UserDefinedSchema(Project, File),
   UserDefinedResource(Project, File),
@@ -146,7 +146,7 @@ impl Decodable for SymbolKind {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum AssetKind {
   Pdf = 0,
@@ -226,7 +226,7 @@ mod tests {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum BuiltinMacroKind {
   Fref = 0,
@@ -251,7 +251,7 @@ impl Decodable for BuiltinMacroKind {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum BuiltinGlobalKind {
   Vault = 0,
@@ -276,7 +276,7 @@ impl Decodable for BuiltinGlobalKind {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum BuiltinSchemaKind {
   TypeType = 0,
@@ -312,7 +312,7 @@ impl Decodable for BuiltinSchemaKind {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub enum ScopeKind {
   Builtin,
   Project(Project),

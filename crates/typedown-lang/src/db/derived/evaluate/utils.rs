@@ -12,7 +12,7 @@ use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
+  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType, Set,
   SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
   TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj,
 };
@@ -197,10 +197,10 @@ fn evaluate_postfix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Optio
       Some(
         get_sum_type(
           db,
-          vec![
+          Set::from([
             LazyType::eager(inner_type),
             LazyType::eager(get_null_type(db).into()),
-          ],
+          ]),
         )
         .into(),
       )

@@ -7,7 +7,7 @@ use typedown_incremental::Id;
 use super::{evaluate_lazy_field, resolve_ref};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_sum_type;
-use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum, TdTypeLike};
+use crate::db::types::{FileHandle, LazyType, Project, Set, TdObjectEnum, TdTypeEnum, TdTypeLike};
 use crate::db::utils::typecheck::is_nullable;
 
 /// Serialize a FileHandle to a JSON object
@@ -171,13 +171,13 @@ fn strip_null(db: &TypedownDatabase, lazy: &LazyType) -> LazyType {
     return lazy.clone();
   };
   if let Some(sum) = typ.as_td_sum_type() {
-    let non_null: Vec<_> = sum
+    let non_null: Set<_> = sum
       .members(db)
       .into_iter()
       .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
       .collect();
     if non_null.len() == 1 {
-      return non_null[0].clone();
+      return non_null.into_iter().next().unwrap();
     }
     // Multiple non-null members: keep as sum without null
     return LazyType::eager(get_sum_type(db, non_null).into());

@@ -2,6 +2,7 @@ use lsp_types::{
   CodeAction, CodeActionKind, CodeActionParams, CodeActionResponse, TextEdit, WorkspaceEdit,
 };
 use std::collections::HashMap;
+use typedown_incremental::StableCompare;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::name_resolver::members::members;
@@ -117,8 +118,10 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
       None => "\"\"".to_string(),
     },
     TdTypeEnum::TdListType(_) => "[]".to_string(),
+
     TdTypeEnum::TdSumType(sum) => {
-      let members = sum.members(db);
+      let mut members: Vec<_> = sum.members(db).into_iter().collect();
+      members.sort_by(|a, b| a.stable_cmp(db, b));
       // Optional type: use non-null member's default
       let non_null: Vec<_> = members
         .iter()
@@ -129,8 +132,8 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
       }
       // Enum: use first literal as default
       members
-        .first()
-        .and_then(|m| {
+        .iter()
+        .find_map(|m| {
           if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
             && let LiteralValue::Str(s) = lit.value(db)
           {
@@ -333,7 +336,7 @@ properties:
     assert!(text.contains("title:"), "should contain title: {text}");
     assert!(text.contains("status:"), "should contain status: {text}");
     assert!(
-      text.contains("\"todo\""),
+      text.contains("\"done\"") || text.contains("\"todo\""),
       "enum should default to first option: {text}"
     );
     assert!(

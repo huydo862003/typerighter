@@ -9,7 +9,7 @@ use crate::db::derived::schema_property::get_schema_property_type;
 use std::collections::{HashMap, HashSet};
 
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Symbol, SymbolKind,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Set, Symbol, SymbolKind,
   TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
   TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
   TdObjectType, TdProductType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeLike,
@@ -250,28 +250,26 @@ pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncT
 }
 
 #[query_derived]
-pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
-  fn flatten_sum_members(db: &TypedownDatabase, members: Vec<LazyType>) -> Vec<LazyType> {
+pub fn get_sum_type(db: &TypedownDatabase, members: Set<LazyType>) -> TdSumType {
+  fn flatten_sum_members(db: &TypedownDatabase, members: Set<LazyType>) -> Set<LazyType> {
     fn recurse(
       db: &TypedownDatabase,
-      members: Vec<LazyType>,
+      members: Set<LazyType>,
       visited: &mut HashSet<TdSumType>,
-      out: &mut Vec<LazyType>,
+      out: &mut Set<LazyType>,
     ) {
       for member in members {
         if let Some(TdTypeEnum::TdSumType(sum)) = member.as_eager() {
           if visited.insert(*sum) {
             recurse(db, sum.members(db), visited, out);
-          } else {
-            out.push(member);
           }
         } else {
-          out.push(member);
+          out.insert(member);
         }
       }
     }
 
-    let mut out = Vec::new();
+    let mut out = Set::new();
     let mut visited = HashSet::new();
     recurse(db, members, &mut visited, &mut out);
     out
@@ -305,7 +303,7 @@ pub fn instantiate_type(
 #[cfg(test)]
 mod tests {
   use super::{get_bool_type, get_sum_type};
-  use crate::db::types::{LazyType, TdTypeEnum};
+  use crate::db::types::{LazyType, Set, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
@@ -457,13 +455,16 @@ mod tests {
     let num_t = LazyType::eager(get_num_type(&db).into());
     let bool_t = LazyType::eager(get_bool_type(&db).into());
 
-    let inner_sum = get_sum_type(&db, vec![num_t.clone(), bool_t.clone()]);
-    let outer_sum = get_sum_type(&db, vec![str_t.clone(), LazyType::eager(inner_sum.into())]);
+    let inner_sum = get_sum_type(&db, Set::from([num_t.clone(), bool_t.clone()]));
+    let outer_sum = get_sum_type(
+      &db,
+      Set::from([str_t.clone(), LazyType::eager(inner_sum.into())]),
+    );
 
     let members = outer_sum.members(&db);
     assert_eq!(members.len(), 3);
-    assert_eq!(members[0], str_t);
-    assert_eq!(members[1], num_t);
-    assert_eq!(members[2], bool_t);
+    assert!(members.contains(&str_t));
+    assert!(members.contains(&num_t));
+    assert!(members.contains(&bool_t));
   }
 }

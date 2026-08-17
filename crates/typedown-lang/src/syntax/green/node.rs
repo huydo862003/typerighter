@@ -3,6 +3,8 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use typedown_incremental::{QueryDatabase, StableCompare};
+
 use super::GreenNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -129,3 +131,15 @@ impl Hash for SyntaxNode {
 
 unsafe impl Send for SyntaxNode {}
 unsafe impl Sync for SyntaxNode {}
+
+impl StableCompare for SyntaxNode {
+  const CAN_USE_UNSTABLE_SORT: bool = true;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    std::cmp::Ordering::Equal
+      .then_with(|| self.kind().stable_cmp(db, &other.kind()))
+      .then_with(|| self.text_len().stable_cmp(db, &other.text_len()))
+      .then_with(|| self.n_children().stable_cmp(db, &other.n_children()))
+      .then_with(|| self.children().stable_cmp(db, other.children()))
+  }
+}
