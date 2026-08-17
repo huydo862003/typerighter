@@ -76,6 +76,19 @@ impl<T: StableOrd> StableCompare for T {
   }
 }
 
+impl<T: StableCompare> StableCompare for Option<T> {
+  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    match (self, other) {
+      (None, None) => std::cmp::Ordering::Equal,
+      (None, Some(_)) => std::cmp::Ordering::Less,
+      (Some(_), None) => std::cmp::Ordering::Greater,
+      (Some(l), Some(r)) => l.stable_cmp(db, r),
+    }
+  }
+}
+
 impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
   const CAN_USE_UNSTABLE_SORT: bool = L::CAN_USE_UNSTABLE_SORT && R::CAN_USE_UNSTABLE_SORT;
 
@@ -173,10 +186,6 @@ impl StableOrd for () {
 }
 impl StableOrd for bool {
   const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-
-impl<T: StableOrd> StableOrd for Option<T> {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
 }
 
 impl<T: StableOrd> StableOrd for (T,) {
