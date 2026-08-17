@@ -177,7 +177,7 @@ fn strip_null(db: &TypedownDatabase, lazy: &LazyType) -> LazyType {
       .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
       .collect();
     if non_null.len() == 1 {
-      return non_null[0].clone();
+      return non_null.into_iter().next().unwrap();
     }
     // Multiple non-null members: keep as sum without null
     return LazyType::eager(get_sum_type(db, non_null).into());

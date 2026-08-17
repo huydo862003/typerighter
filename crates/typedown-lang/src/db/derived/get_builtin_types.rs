@@ -15,7 +15,7 @@ use crate::db::types::{
   TdObjectType, TdProductType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeLike,
   TdTypeType,
 };
-use typedown_incremental::QueryDatabase;
+use typedown_incremental::{QueryDatabase, StableCompare};
 
 #[query_derived]
 pub fn get_type_type(db: &TypedownDatabase) -> TdTypeType {
@@ -251,22 +251,21 @@ pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncT
 
 #[query_derived]
 pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
-  fn flatten_sum_members(db: &TypedownDatabase, members: Vec<LazyType>) -> Vec<LazyType> {
+  fn flatten_sum_members(db: &TypedownDatabase, members: &[LazyType]) -> Vec<LazyType> {
     fn recurse(
       db: &TypedownDatabase,
-      members: Vec<LazyType>,
+      members: &[LazyType],
       visited: &mut HashSet<TdSumType>,
       out: &mut Vec<LazyType>,
     ) {
       for member in members {
         if let Some(TdTypeEnum::TdSumType(sum)) = member.as_eager() {
           if visited.insert(*sum) {
-            recurse(db, sum.members(db), visited, out);
-          } else {
-            out.push(member);
+            let sum_members: Vec<_> = sum.members(db).into_iter().collect();
+            recurse(db, &sum_members, visited, out);
           }
         } else {
-          out.push(member);
+          out.push(member.clone());
         }
       }
     }
@@ -277,9 +276,17 @@ pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType 
     out
   }
 
-  let members = flatten_sum_members(db, members);
+  let flat_members = flatten_sum_members(db, &members);
+  let mut sorted = flat_members;
+  sorted.sort_by(|a, b| a.stable_cmp(db, b));
+  sorted.dedup();
 
-  TdSumType::new(db, members)
+  if sorted != members {
+    get_sum_type(db, sorted)
+  } else {
+    let members_set: HashSet<LazyType> = sorted.into_iter().collect();
+    TdSumType::new(db, members_set)
+  }
 }
 
 #[query_derived]
@@ -462,8 +469,8 @@ mod tests {
 
     let members = outer_sum.members(&db);
     assert_eq!(members.len(), 3);
-    assert_eq!(members[0], str_t);
-    assert_eq!(members[1], num_t);
-    assert_eq!(members[2], bool_t);
+    assert!(members.contains(&str_t));
+    assert!(members.contains(&num_t));
+    assert!(members.contains(&bool_t));
   }
 }

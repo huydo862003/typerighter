@@ -540,16 +540,14 @@ mod tests {
       .expect("elem should be a sum type");
     let members = sum.members(&db);
     assert_eq!(members.len(), 2, "tags should have 2 arms");
-    let first = members[0].resolve(&db).expect("first arm should resolve");
-    assert!(
-      is_literal_str(&db, &first, "a"),
-      "first arm should be literal str \"a\""
-    );
-    let second = members[1].resolve(&db).expect("second arm should resolve");
-    assert!(
-      is_literal_num(&db, &second, "3"),
-      "second arm should be literal num \"3\""
-    );
+    let has_a = members
+      .iter()
+      .any(|m| m.resolve(&db).is_some_and(|t| is_literal_str(&db, &t, "a")));
+    let has_3 = members
+      .iter()
+      .any(|m| m.resolve(&db).is_some_and(|t| is_literal_num(&db, &t, "3")));
+    assert!(has_a, "arms should contain literal str 'a'");
+    assert!(has_3, "arms should contain literal num '3'");
   }
 
   #[test]

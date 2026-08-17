@@ -2,6 +2,8 @@
 // I think this is the idea of bidirectional typechecking
 
 use crate::db::TypedownDatabase;
+use std::collections::HashSet;
+
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{get_schemaless_type, get_sum_type};
 use crate::db::derived::hir::lower_node;
@@ -280,7 +282,7 @@ fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> L
 /// Pick the matching arms for the actual value
 fn pick_most_specific_arm(
   db: &TypedownDatabase,
-  arms: &[LazyType],
+  arms: &HashSet<LazyType>,
   hir: HirValue,
 ) -> Option<LazyType> {
   let actual_type = actual_node_type(db, hir).typ(db)?;
@@ -295,7 +297,7 @@ fn pick_most_specific_arm(
     return None;
   }
   if matching.len() == 1 {
-    return Some(matching[0].clone());
+    return Some(matching.into_iter().next().unwrap());
   }
 
   Some(LazyType::eager(get_sum_type(db, matching).into()))

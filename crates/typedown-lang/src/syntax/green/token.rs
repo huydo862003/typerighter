@@ -4,6 +4,8 @@
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use typedown_incremental::{QueryDatabase, StableCompare};
+
 use crate::syntax::green::cache::Cache;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -108,3 +110,14 @@ impl Hash for SyntaxToken {
 
 unsafe impl Send for SyntaxToken {}
 unsafe impl Sync for SyntaxToken {}
+
+impl StableCompare for SyntaxToken {
+  const CAN_USE_UNSTABLE_SORT: bool = true;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    std::cmp::Ordering::Equal
+      .then_with(|| self.kind().stable_cmp(db, &other.kind()))
+      .then_with(|| self.text_len().stable_cmp(db, &other.text_len()))
+      .then_with(|| self.bytes().stable_cmp(db, other.bytes()))
+  }
+}

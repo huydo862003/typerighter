@@ -1,6 +1,7 @@
 use strum::{EnumIter, FromRepr};
+use typedown_macros::StableCompare;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, EnumIter, FromRepr)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, EnumIter, FromRepr, StableCompare)]
 #[repr(u16)]
 pub enum SyntaxKind {
   // Top-level

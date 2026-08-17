@@ -6,6 +6,7 @@ pub mod token;
 
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+use typedown_incremental::{QueryDatabase, StableCompare};
 use typedown_types::either::Either;
 
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -170,3 +171,22 @@ impl Hash for GreenNode {
 
 unsafe impl Send for GreenNode {}
 unsafe impl Sync for GreenNode {}
+
+impl StableCompare for GreenNode {
+  const CAN_USE_UNSTABLE_SORT: bool = true;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    match (self.is_node(), other.is_node()) {
+      (true, false) => std::cmp::Ordering::Less,
+      (false, true) => std::cmp::Ordering::Greater,
+      (true, true) => self
+        .as_node()
+        .unwrap()
+        .stable_cmp(db, other.as_node().unwrap()),
+      (false, false) => self
+        .as_token()
+        .unwrap()
+        .stable_cmp(db, &other.as_token().unwrap()),
+    }
+  }
+}
