@@ -2393,6 +2393,7 @@ dependencies = [
 name = "typedown-macros"
 version = "0.10.2"
 dependencies = [
+ "proc-macro2",
  "quote",
  "syn 2.0.119",
 ]

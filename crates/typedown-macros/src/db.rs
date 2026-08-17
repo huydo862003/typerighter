@@ -245,6 +245,17 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
       }
 
+      impl ::typedown_incremental::StableCompare for #struct_name {
+        const CAN_USE_UNSTABLE_SORT: bool = true;
+
+        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+          ::std::cmp::Ordering::Equal
+          #(
+            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
+          )*
+        }
+      }
+
       impl ::typedown_incremental::Encodable for #struct_name {
         fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
@@ -738,6 +749,17 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         }
       }
 
+      impl ::typedown_incremental::StableCompare for #struct_name {
+        const CAN_USE_UNSTABLE_SORT: bool = true;
+
+        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+          ::std::cmp::Ordering::Equal
+          #(
+            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
+          )*
+        }
+      }
+
       impl ::typedown_incremental::Encodable for #struct_name {
         fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
@@ -940,6 +962,17 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
             self.#field_names(db).stable_hash(db, hasher);
+          )*
+        }
+      }
+
+      impl ::typedown_incremental::StableCompare for #struct_name {
+        const CAN_USE_UNSTABLE_SORT: bool = true;
+
+        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+          ::std::cmp::Ordering::Equal
+          #(
+            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
           )*
         }
       }
