@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use typedown_types::either::Either::{self, Left};
 
 use crate::QueryDatabase;
@@ -84,6 +86,44 @@ impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
       (Either::Left(s), Either::Left(o)) => s.stable_cmp(db, o),
       (Either::Right(s), Either::Right(o)) => s.stable_cmp(db, o),
     }
+  }
+}
+
+impl<K: StableCompare, V: StableCompare> StableCompare for HashMap<K, V> {
+  const CAN_USE_UNSTABLE_SORT: bool = K::CAN_USE_UNSTABLE_SORT && V::CAN_USE_UNSTABLE_SORT;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    self.len().cmp(&other.len()).then_with(|| {
+      let mut self_entries: Vec<_> = self.iter().collect();
+      let mut other_entries: Vec<_> = other.iter().collect();
+      self_entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(db, k2));
+      other_entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(db, k2));
+      self_entries
+        .iter()
+        .zip(other_entries.iter())
+        .map(|((k1, v1), (k2, v2))| k1.stable_cmp(db, k2).then_with(|| v1.stable_cmp(db, v2)))
+        .find(|o| o.is_ne())
+        .unwrap_or(std::cmp::Ordering::Equal)
+    })
+  }
+}
+
+impl<V: StableCompare> StableCompare for HashSet<V> {
+  const CAN_USE_UNSTABLE_SORT: bool = V::CAN_USE_UNSTABLE_SORT;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    self.len().cmp(&other.len()).then_with(|| {
+      let mut self_entries: Vec<_> = self.iter().collect();
+      let mut other_entries: Vec<_> = other.iter().collect();
+      self_entries.sort_by(|a, b| a.stable_cmp(db, b));
+      other_entries.sort_by(|a, b| a.stable_cmp(db, b));
+      self_entries
+        .iter()
+        .zip(other_entries.iter())
+        .map(|(a, b)| a.stable_cmp(db, b))
+        .find(|o| o.is_ne())
+        .unwrap_or(std::cmp::Ordering::Equal)
+    })
   }
 }
 
