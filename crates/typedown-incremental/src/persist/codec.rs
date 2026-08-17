@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -637,6 +637,28 @@ impl<K: FieldDecodable + Eq + Hash, V: FieldDecodable> Decodable for HashMap<K, 
         K::decode_field(data, decoder),
         V::decode_field(data, decoder),
       );
+    }
+    map
+  }
+}
+
+// HashSet
+impl<V: FieldEncodable + StableCompare> Encodable for HashSet<V> {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buf, self.len() as u32);
+    let mut entries: Vec<&V> = self.iter().collect();
+    entries.sort_by(|v1, v2| v1.stable_cmp(encoder.db(), v2));
+    for v in entries {
+      v.encode_field(buf, encoder);
+    }
+  }
+}
+impl<V: FieldDecodable + Eq + Hash> Decodable for HashSet<V> {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let len = decoder.read_u32(data) as usize;
+    let mut map = HashSet::with_capacity(len);
+    for _ in 0..len {
+      map.insert(V::decode_field(data, decoder));
     }
     map
   }

@@ -7,7 +7,7 @@ use strum::FromRepr;
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
-use typedown_macros::query_derived;
+use typedown_macros::{StableCompare, query_derived};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::referee::referee;
@@ -17,7 +17,7 @@ use crate::db::types::{
 use crate::db::utils::lower_file;
 
 /// How a symbol is referenced at a particular site
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, FromRepr)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum ReferenceKind {
   /// An identifier that resolves to the symbol (e.g. `_type: Person`)
@@ -46,7 +46,7 @@ impl StableHash for ReferenceKind {
 }
 
 /// A single reference to a symbol
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, StableCompare)]
 pub struct Reference {
   pub hir: HirValue,
   pub kind: ReferenceKind,

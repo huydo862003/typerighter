@@ -8,6 +8,8 @@ use std::{
   ops::Deref,
 };
 
+use typedown_incremental::{QueryDatabase, StableCompare};
+
 use crate::syntax::green::{GreenNode, node::SyntaxNode};
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -198,5 +200,17 @@ impl Iterator for RedNodeChildren {
       parent: Some(Box::new(self.parent.clone())),
       green: child.clone(),
     }))
+  }
+}
+
+impl StableCompare for RedNode {
+  const CAN_USE_UNSTABLE_SORT: bool = true;
+
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    self
+      .0
+      .offset
+      .stable_cmp(db, &other.0.offset)
+      .then_with(|| self.0.green.stable_cmp(db, &other.0.green))
   }
 }

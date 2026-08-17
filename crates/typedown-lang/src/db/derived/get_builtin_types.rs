@@ -6,10 +6,10 @@ use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::schema_property::get_schema_property_type;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::db::types::{
-  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Symbol, SymbolKind,
+  BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Set, Symbol, SymbolKind,
   TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
   TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
   TdObjectType, TdProductType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeLike,
@@ -250,7 +250,33 @@ pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncT
 }
 
 #[query_derived]
-pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
+pub fn get_sum_type(db: &TypedownDatabase, members: Set<LazyType>) -> TdSumType {
+  fn flatten_sum_members(db: &TypedownDatabase, members: Set<LazyType>) -> Set<LazyType> {
+    fn recurse(
+      db: &TypedownDatabase,
+      members: Set<LazyType>,
+      visited: &mut HashSet<TdSumType>,
+      out: &mut Set<LazyType>,
+    ) {
+      for member in members {
+        if let Some(TdTypeEnum::TdSumType(sum)) = member.as_eager() {
+          if visited.insert(*sum) {
+            recurse(db, sum.members(db), visited, out);
+          }
+        } else {
+          out.insert(member);
+        }
+      }
+    }
+
+    let mut out = Set::new();
+    let mut visited = HashSet::new();
+    recurse(db, members, &mut visited, &mut out);
+    out
+  }
+
+  let members = flatten_sum_members(db, members);
+
   TdSumType::new(db, members)
 }
 
@@ -276,7 +302,8 @@ pub fn instantiate_type(
 
 #[cfg(test)]
 mod tests {
-  use crate::db::types::{LazyType, TdTypeEnum};
+  use super::{get_bool_type, get_sum_type};
+  use crate::db::types::{LazyType, Set, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
@@ -419,5 +446,25 @@ mod tests {
       ),
       "expected WrongTypeArgCount diagnostic"
     );
+  }
+
+  #[test]
+  fn sum_type_flattening() {
+    let db = make_db();
+    let str_t = LazyType::eager(get_str_type(&db).into());
+    let num_t = LazyType::eager(get_num_type(&db).into());
+    let bool_t = LazyType::eager(get_bool_type(&db).into());
+
+    let inner_sum = get_sum_type(&db, Set::from([num_t.clone(), bool_t.clone()]));
+    let outer_sum = get_sum_type(
+      &db,
+      Set::from([str_t.clone(), LazyType::eager(inner_sum.into())]),
+    );
+
+    let members = outer_sum.members(&db);
+    assert_eq!(members.len(), 3);
+    assert!(members.contains(&str_t));
+    assert!(members.contains(&num_t));
+    assert!(members.contains(&bool_t));
   }
 }

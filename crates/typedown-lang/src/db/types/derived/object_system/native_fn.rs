@@ -1,4 +1,5 @@
 use strum::FromRepr;
+use typedown_macros::StableCompare;
 
 use super::TdObjectEnum;
 use super::base::TdObjectLike;
@@ -10,7 +11,7 @@ use typedown_incremental::{
 
 type NativeFn = fn(&TypedownDatabase, TdObjectEnum, Vec<TdObjectEnum>) -> Option<TdObjectEnum>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum NativeFnKind {
   StrToString = 0,

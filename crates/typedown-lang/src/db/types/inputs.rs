@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, fs, io, path::PathBuf, time::SystemTime};
 
-use typedown_macros::query_input;
+use typedown_macros::{StableCompare, query_input};
 
 use typedown_types::{file_stream::FileStream, stream::Utf8Stream};
 
@@ -11,7 +11,7 @@ use strum::FromRepr;
 use typedown_incremental::{Decodable, Decoder, Encodable, Encoder};
 
 /// File metadata
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub struct FileMetadata {
   /// Last modification time
   pub mtime: SystemTime,
@@ -47,7 +47,7 @@ impl FileMetadata {
 }
 
 /// Types of file-handle: path-based or editor-managed content
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub enum FileHandle {
   /// A file on disk with metadata
   Path(PathBuf, FileMetadata),

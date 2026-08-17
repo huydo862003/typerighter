@@ -1,3 +1,4 @@
+use typedown_incremental::StableCompare;
 use typedown_lang::db::types::TdTypeLike;
 use typedown_lang::db::utils::is_content_file;
 
@@ -286,7 +287,8 @@ fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> St
   };
   match typ {
     TdTypeEnum::TdSumType(sum) => {
-      let members = sum.members(db);
+      let mut members: Vec<_> = sum.members(db).into_iter().collect();
+      members.sort_by(|a, b| a.stable_cmp(db, b));
       // Optional type: use non-null member's placeholder
       let non_null: Vec<_> = members
         .iter()
@@ -296,7 +298,7 @@ fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> St
         return lazy_placeholder(db, non_null[0], indent);
       }
       // Enum: use first literal string option as default
-      let first = members.first().and_then(|m| {
+      let first = members.iter().find_map(|m| {
         if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
           && let LiteralValue::Str(s) = lit.value(db)
         {
@@ -666,7 +668,7 @@ _type: |
     let snippet = task.insert_text.as_ref().expect("should have insert_text");
 
     assert!(
-      snippet.contains("todo"),
+      snippet.contains("done") || snippet.contains("todo"),
       "enum field should have first option as placeholder: {snippet}"
     );
     assert!(

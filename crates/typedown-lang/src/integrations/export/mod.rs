@@ -153,7 +153,7 @@ pub fn export_property_descriptors(
     // Sum of string literals is a select
     if let Some(sum) = typ.as_td_sum_type() {
       let members = sum.members(db);
-      let literals: Vec<String> = members
+      let mut literals: Vec<String> = members
         .iter()
         .filter_map(|m| {
           if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
@@ -165,6 +165,7 @@ pub fn export_property_descriptors(
           }
         })
         .collect();
+      literals.sort();
 
       if literals.len() == members.len() {
         return serde_json::json!({ "widget": Widget::Select, "options": literals });
@@ -179,7 +180,7 @@ pub fn export_property_descriptors(
       {
         if let Some(sum) = elem_typ.as_td_sum_type() {
           let members = sum.members(db);
-          let literals: Vec<String> = members
+          let mut literals: Vec<String> = members
             .iter()
             .filter_map(|m| {
               if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
@@ -191,12 +192,14 @@ pub fn export_property_descriptors(
               }
             })
             .collect();
+          literals.sort();
 
           if literals.len() == members.len() && !literals.is_empty() {
             return serde_json::json!({ "widget": Widget::MultiSelect, "options": literals });
           }
           if members.len() == 1 {
-            let inner = lazy_to_descriptor(db, &members[0]);
+            let first_member = members.iter().next().unwrap();
+            let inner = lazy_to_descriptor(db, first_member);
             return serde_json::json!({ "widget": Widget::List, "items": inner });
           }
         } else {
@@ -917,7 +920,7 @@ mod tests {
     assert_eq!(props["status"]["widget"], "select");
     assert_eq!(
       props["status"]["options"],
-      serde_json::json!(["draft", "published", "archived"])
+      serde_json::json!(["archived", "draft", "published"])
     );
   }
 
