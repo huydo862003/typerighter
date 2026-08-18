@@ -41,6 +41,8 @@ impl TdTypeLike for TdNumType {
       TdNumType::get(db).into(),
       sig,
       NativeFnKind::NumToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

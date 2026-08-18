@@ -270,6 +270,8 @@ impl TdTypeLike for TdObjectType {
       get_object_type(db).into(),
       sig,
       NativeFnKind::ObjectToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

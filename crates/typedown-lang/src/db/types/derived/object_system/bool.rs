@@ -41,6 +41,8 @@ impl TdTypeLike for TdBoolType {
       TdBoolType::get(db).into(),
       sig,
       NativeFnKind::BoolToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

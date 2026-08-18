@@ -8,7 +8,7 @@ use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_func_type;
-use crate::db::types::{FuncSignature, InstResult, LazyType};
+use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, Scope};
 
 #[query_derived]
 pub struct TdFuncType {
@@ -50,6 +50,8 @@ impl TdTypeLike for TdFuncType {
       (*self).into(),
       sig,
       NativeFnKind::FuncToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
@@ -114,6 +116,10 @@ pub struct TdFuncObj {
   #[id]
   pub signature: FuncSignature,
   pub func: NativeFnKind,
+  // For closures: the closure HIR and its defining scope
+  // None for native functions
+  pub code: Option<HirValue>,
+  pub env: Option<Scope>,
 }
 
 impl TdFuncObj {

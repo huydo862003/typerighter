@@ -46,6 +46,8 @@ impl TdTypeLike for TdDateTimeType {
       TdDateTimeType::get(db).into(),
       sig,
       NativeFnKind::DateTimeToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
@@ -173,6 +175,8 @@ impl TdTypeLike for TdDateType {
       TdDateType::get(db).into(),
       sig,
       NativeFnKind::DateToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
@@ -300,6 +304,8 @@ impl TdTypeLike for TdTimeType {
       TdTimeType::get(db).into(),
       sig,
       NativeFnKind::TimeToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

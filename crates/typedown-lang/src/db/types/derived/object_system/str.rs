@@ -40,6 +40,8 @@ impl TdTypeLike for TdStrType {
       TdStrType::get(db).into(),
       sig,
       NativeFnKind::StrToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

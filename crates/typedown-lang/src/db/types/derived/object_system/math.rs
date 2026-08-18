@@ -41,6 +41,8 @@ impl TdTypeLike for TdMathType {
       TdMathType::get(db).into(),
       sig,
       NativeFnKind::MathToString,
+      None,
+      None,
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
