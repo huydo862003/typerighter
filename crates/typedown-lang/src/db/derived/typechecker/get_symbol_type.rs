@@ -8,8 +8,7 @@ use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::derived::vault::get_vault_type;
 use crate::db::types::{
-  BuiltinGlobalKind, HirValue, HirValueKind, Symbol, SymbolKind, TdBlobType, TdTypeEnum,
-  TypeResult,
+  BuiltinGlobalKind, HirValue, HirValueKind, Symbol, SymbolKind, TdBlobType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
 use typedown_incremental::QueryDatabase;
@@ -53,12 +52,14 @@ fn get_fn_param_type(db: &TypedownDatabase, symbol: Symbol, closure: HirValue) -
   let param_name = symbol.name(db);
 
   // Find param position in the closure's param list
-  if let HirValueKind::Closure { params: param_names, .. } = closure.kind(db) {
-    if let Some(idx) = param_names.iter().position(|n| *n == param_name) {
-      if let Some(typ) = params.get(idx) {
-        return TypeResult::new(db, Some(typ.clone()), vec![]);
-      }
-    }
+  if let HirValueKind::Closure {
+    params: param_names,
+    ..
+  } = closure.kind(db)
+    && let Some(idx) = param_names.iter().position(|n| *n == param_name)
+    && let Some(typ) = params.get(idx)
+  {
+    return TypeResult::new(db, Some(typ.clone()), vec![]);
   }
 
   TypeResult::new(db, None, vec![])

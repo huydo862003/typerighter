@@ -5,17 +5,20 @@ use crate::db::TypedownDatabase;
 use std::collections::HashSet;
 
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
-use crate::db::derived::get_builtin_types::{get_schemaless_type, get_sum_type};
+use crate::db::derived::get_builtin_types::{
+  get_bool_type, get_func_type, get_num_type, get_schemaless_type, get_sum_type,
+};
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
-use crate::db::derived::get_builtin_types::get_func_type;
 use crate::db::types::{
   File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum,
   TdTypeLike, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
-use crate::syntax::ast::{AstNode, CallExpr, ClosureExpr, Expr};
+use crate::syntax::ast::{
+  AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, ParenExpr, PrefixExpr, YamlOpKind,
+};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
@@ -92,10 +95,7 @@ fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     let expr_children: Vec<Expr> = parent.children().filter_map(Expr::cast).collect();
 
     // Is it the callee (first Expr child)?
-    if expr_children
-      .first()
-      .is_some_and(|c| *c.syntax() == node)
-    {
+    if expr_children.first().is_some_and(|c| *c.syntax() == node) {
       return get_expected_call_callee_type(db, project, file, &call);
     }
 
@@ -110,13 +110,30 @@ fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
   }
 
   // ClosureExpr: body gets the return type from expected(closure)
-  if let Some(closure) = ClosureExpr::cast(parent.clone()) {
-    if closure
-      .body()
-      .is_some_and(|b| *b.syntax() == node)
-    {
-      return get_expected_closure_body_type(db, project, file, &closure);
-    }
+  if let Some(closure) = ClosureExpr::cast(parent.clone())
+    && closure.body().is_some_and(|b| *b.syntax() == node)
+  {
+    return get_expected_closure_body_type(db, project, file, &closure);
+  }
+
+  // ParenExpr: transparent, forward expected type from parent
+  if ParenExpr::cast(parent.clone()).is_some() {
+    let paren_hir = lower_node(db, project, file, parent);
+    return expected_node_type(db, paren_hir);
+  }
+
+  // BinaryExpr: propagate expected types to operands based on operator
+  if let Some(bin) = BinaryExpr::cast(parent.clone())
+    && let Some(op) = bin.op().and_then(|o| o.kind())
+  {
+    return get_expected_binary_operand_type(db, &op);
+  }
+
+  // PrefixExpr: propagate expected type to operand based on operator
+  if let Some(pre) = PrefixExpr::cast(parent.clone())
+    && let Some(op) = pre.op().and_then(|o| o.kind())
+  {
+    return get_expected_prefix_operand_type(db, &op);
   }
 
   // No expression propagation rule matched, fall back to actual type
@@ -124,6 +141,7 @@ fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
 }
 
 // expected(arg_i) = param_i from actual(callee)
+// Macros have no TdFuncType so this returns None for macro args (they validate internally)
 fn get_expected_call_arg_type(
   db: &TypedownDatabase,
   project: Project,
@@ -189,6 +207,32 @@ fn get_expected_closure_body_type(
       let ret = f.signature(db).ret(db);
       TypeResult::new(db, Some(ret), vec![])
     }
+    _ => TypeResult::new(db, None, vec![]),
+  }
+}
+
+fn get_expected_binary_operand_type(db: &TypedownDatabase, op: &YamlOpKind) -> TypeResult {
+  match op {
+    // Arithmetic and power expect number
+    YamlOpKind::Plus
+    | YamlOpKind::Minus
+    | YamlOpKind::Mul
+    | YamlOpKind::Div
+    | YamlOpKind::Mod
+    | YamlOpKind::Pow => TypeResult::new(db, Some(get_num_type(db).into()), vec![]),
+    // Logical expects boolean
+    YamlOpKind::And | YamlOpKind::Or => TypeResult::new(db, Some(get_bool_type(db).into()), vec![]),
+    // Comparison and dot access have no operand constraint
+    _ => TypeResult::new(db, None, vec![]),
+  }
+}
+
+fn get_expected_prefix_operand_type(db: &TypedownDatabase, op: &YamlOpKind) -> TypeResult {
+  match op {
+    YamlOpKind::Plus | YamlOpKind::Minus => {
+      TypeResult::new(db, Some(get_num_type(db).into()), vec![])
+    }
+    YamlOpKind::Tilde => TypeResult::new(db, Some(get_bool_type(db).into()), vec![]),
     _ => TypeResult::new(db, None, vec![]),
   }
 }
