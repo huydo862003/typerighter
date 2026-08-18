@@ -173,8 +173,6 @@ unsafe impl Send for GreenNode {}
 unsafe impl Sync for GreenNode {}
 
 impl StableCompare for GreenNode {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     match (self.is_node(), other.is_node()) {
       (true, false) => std::cmp::Ordering::Less,

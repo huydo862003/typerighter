@@ -112,8 +112,6 @@ unsafe impl Send for SyntaxToken {}
 unsafe impl Sync for SyntaxToken {}
 
 impl StableCompare for SyntaxToken {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     std::cmp::Ordering::Equal
       .then_with(|| self.kind().stable_cmp(db, &other.kind()))

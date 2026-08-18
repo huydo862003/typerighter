@@ -102,8 +102,6 @@ impl<T: StableHash + StableCompare + Eq + Hash> StableHash for Set<T> {
 }
 
 impl<T: StableCompare + Eq + Hash> StableCompare for Set<T> {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self.0.stable_cmp(db, &other.0)
   }

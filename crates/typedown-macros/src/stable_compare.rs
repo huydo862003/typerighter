@@ -1,9 +1,9 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, Fields};
+use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
 pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
-  let input: DeriveInput = syn::parse(item).unwrap();
+  let input = parse_macro_input!(item as DeriveInput);
   let name = &input.ident;
 
   let body = match &input.data {
@@ -26,7 +26,9 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
           )*
         }
       }
-      Fields::Unit => quote! { ::std::cmp::Ordering::Equal },
+      Fields::Unit => {
+        quote! { let _ = db; ::std::cmp::Ordering::Equal }
+      }
     },
     Data::Enum(data) => {
       let disc_arms: Vec<_> = data
@@ -35,11 +37,10 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
         .enumerate()
         .map(|(i, variant)| {
           let vname = &variant.ident;
-          let idx = i;
           match &variant.fields {
-            Fields::Named(_) => quote! { #name::#vname { .. } => #idx, },
-            Fields::Unnamed(_) => quote! { #name::#vname(..) => #idx, },
-            Fields::Unit => quote! { #name::#vname => #idx, },
+            Fields::Named(_) => quote! { #name::#vname { .. } => #i, },
+            Fields::Unnamed(_) => quote! { #name::#vname(..) => #i, },
+            Fields::Unit => quote! { #name::#vname => #i, },
           }
         })
         .collect();
@@ -104,11 +105,12 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
 
       quote! {
         {
-          let __disc_idx = |v: &#name| -> usize {
+          fn __disc_idx(v: &#name) -> usize {
             match v {
               #(#disc_arms)*
             }
-          };
+          }
+          let _ = db;
           match (self, other) {
             #(#cmp_arms)*
             _ => __disc_idx(self).cmp(&__disc_idx(other)),
@@ -116,13 +118,15 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
         }
       }
     }
-    Data::Union(_) => panic!("StableCompare cannot be derived for unions"),
+    Data::Union(_) => {
+      return syn::Error::new_spanned(&input.ident, "StableCompare cannot be derived for unions")
+        .to_compile_error()
+        .into();
+    }
   };
 
   quote! {
     impl ::typedown_incremental::StableCompare for #name {
-      const CAN_USE_UNSTABLE_SORT: bool = true;
-
       fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
         #body
       }
