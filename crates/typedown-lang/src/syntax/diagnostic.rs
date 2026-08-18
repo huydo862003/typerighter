@@ -69,6 +69,10 @@ pub enum DiagnosticCode {
   UnclosedContainerPropBlock = 60,
   UnexpectedContainerSlotSeparatorToken = 61,
   UnresolvedIdentifier = 62,
+  DanglingParamList = 63,
+  InvalidClosureParams = 64,
+  UnclosedParamList = 65,
+  InvalidSelfClosureParams = 66,
 }
 
 impl DiagnosticCode {
@@ -136,6 +140,10 @@ impl DiagnosticCode {
       DiagnosticCode::DuplicateKey => "duplicate-key",
       DiagnosticCode::UnresolvedFileRef => "unresolved-file-ref",
       DiagnosticCode::UnresolvedIdentifier => "unresolved-identifier",
+      DiagnosticCode::DanglingParamList => "dangling-param-list",
+      DiagnosticCode::InvalidClosureParams => "invalid-closure-params",
+      DiagnosticCode::UnclosedParamList => "unclosed-param-list",
+      DiagnosticCode::InvalidSelfClosureParams => "invalid-self-closure-params",
       DiagnosticCode::UnknownField => "unknown-field",
       DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
       DiagnosticCode::NestedSchemaFile => "nested-schema-file",
@@ -541,6 +549,26 @@ pub enum Diagnostic {
     start_offset: usize,
     end_offset: usize,
   },
+  /// Parameter list must be followed by `->`
+  DanglingParamList {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// Closure parameters must be identifiers
+  InvalidClosureParams {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// `self` cannot be used as a closure parameter name
+  InvalidSelfClosureParams {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// Parameter list is missing closing `)`
+  UnclosedParamList {
+    start_offset: usize,
+    end_offset: usize,
+  },
 }
 
 impl Diagnostic {
@@ -800,6 +828,22 @@ impl Diagnostic {
       | Diagnostic::InvalidCodeRangeIndicator {
         start_offset,
         end_offset,
+      }
+      | Diagnostic::DanglingParamList {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::InvalidClosureParams {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::InvalidSelfClosureParams {
+        start_offset,
+        end_offset,
+      }
+      | Diagnostic::UnclosedParamList {
+        start_offset,
+        end_offset,
       } => Some((*start_offset, *end_offset)),
       Diagnostic::MissingVaultConfig { .. }
       | Diagnostic::VaultConfigReadError { .. }
@@ -984,6 +1028,12 @@ impl Diagnostic {
       Diagnostic::InvalidCodeRangeIndicator { .. } => {
         "invalid code block line range indicator".into()
       }
+      Diagnostic::DanglingParamList { .. } => "parameter list must be followed by `->`".into(),
+      Diagnostic::InvalidClosureParams { .. } => "closure parameters must be identifiers".into(),
+      Diagnostic::InvalidSelfClosureParams { .. } => {
+        "self cannot be used as a closure parameter name".into()
+      }
+      Diagnostic::UnclosedParamList { .. } => "unclosed parameter list".into(),
     }
   }
 
@@ -1063,6 +1113,10 @@ impl Diagnostic {
       Diagnostic::NestedSchemaFile { .. } => DiagnosticCode::NestedSchemaFile,
       Diagnostic::VaultConfigInvalidValue { .. } => DiagnosticCode::VaultConfigInvalidValue,
       Diagnostic::InvalidCodeRangeIndicator { .. } => DiagnosticCode::InvalidCodeRangeIndicator,
+      Diagnostic::DanglingParamList { .. } => DiagnosticCode::DanglingParamList,
+      Diagnostic::InvalidClosureParams { .. } => DiagnosticCode::InvalidClosureParams,
+      Diagnostic::InvalidSelfClosureParams { .. } => DiagnosticCode::InvalidSelfClosureParams,
+      Diagnostic::UnclosedParamList { .. } => DiagnosticCode::UnclosedParamList,
     }
   }
 }

@@ -6,9 +6,11 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
-use crate::db::types::{MembersResult, Project, Scope, ScopeKind};
+use crate::db::types::{MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
 use crate::db::utils::is_content_file;
+use crate::syntax::ast::{AstNode, ClosureExpr};
 use typedown_incremental::QueryDatabase;
+use typedown_types::either::Either;
 
 /// Schema-only members (fast path for _type resolution)
 #[query_derived]
@@ -54,6 +56,9 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
         if !name.is_empty() {
           members.insert(name, sym);
         }
+
+        // self resolves to the file's own resource symbol
+        members.insert("self".to_string(), sym);
       }
 
       MembersResult::new(db, members)
@@ -74,6 +79,34 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
             .unwrap_or_default()
             .to_string();
           members.insert(name, sym);
+        }
+      }
+
+      MembersResult::new(db, members)
+    }
+    ScopeKind::Fn(project, file, value) => {
+      let func = value.node(db);
+      let closure = ClosureExpr::cast(func).expect("expected ClosureExpr");
+      let mut members = HashMap::new();
+
+      if let Some(params) = closure.params() {
+        let param_idents: Vec<_> = match params {
+          Either::Left(param_list) => param_list.params().collect(),
+          Either::Right(ident) => vec![ident],
+        };
+
+        for ident in param_idents {
+          if let Some(name) = ident.value()
+            && name != "self"
+          {
+            let sym = Symbol::new(
+              db,
+              SymbolKind::FnParam(project, file, value),
+              name.clone(),
+              format!("@param::{}", name),
+            );
+            members.insert(name, sym);
+          }
         }
       }
 

@@ -85,10 +85,14 @@ fn is_dot_rhs(node: &RedNode) -> bool {
 
 #[cfg(test)]
 mod tests {
+  use crate::db::TypedownDatabase;
+  use crate::db::derived::hir::lower_node;
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{HirValue, HirValueKind, SymbolKind};
   use crate::db::utils::lower_file;
+  use crate::syntax::parse::tests::helpers::parse;
+  use crate::syntax::red::RedNode;
 
   use super::referee;
 
@@ -154,6 +158,110 @@ mod tests {
     assert!(
       resolved.value(&db).is_none(),
       "nonexistent path should not resolve"
+    );
+  }
+
+  /// Recursively searches the HIR value tree for the first `Ident` node matching `target_name`
+  fn find_ident(db: &TypedownDatabase, root: HirValue, target_name: &str) -> Option<HirValue> {
+    if let HirValueKind::Ident(name) = root.kind(db)
+      && name == target_name
+    {
+      return Some(root);
+    }
+    match root.kind(db) {
+      HirValueKind::Mapping(entries) => {
+        for (_, v) in entries {
+          if let Some(found) = find_ident(db, v, target_name) {
+            return Some(found);
+          }
+        }
+      }
+      HirValueKind::Sequence(items) => {
+        for item in items {
+          if let Some(found) = find_ident(db, item, target_name) {
+            return Some(found);
+          }
+        }
+      }
+      HirValueKind::Binary { left, right, .. } => {
+        if let Some(found) = find_ident(db, *left, target_name) {
+          return Some(found);
+        }
+        if let Some(found) = find_ident(db, *right, target_name) {
+          return Some(found);
+        }
+      }
+      HirValueKind::Closure { body, .. } => {
+        if let Some(found) = find_ident(db, *body, target_name) {
+          return Some(found);
+        }
+      }
+      _ => {}
+    }
+    None
+  }
+
+  #[test]
+  fn referee_resolves_closure_param() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (root, _) = parse(
+      r#"---
+fn: (a, b) -> a + b
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let a_hir = find_ident(&db, hir, "a").expect("should find Ident('a')");
+    let resolved_a = referee(&db, a_hir).value(&db).expect("a should resolve");
+    assert_eq!(resolved_a.name(&db), "a");
+    assert!(matches!(resolved_a.kind(&db), SymbolKind::FnParam(..)));
+
+    let b_hir = find_ident(&db, hir, "b").expect("should find Ident('b')");
+    let resolved_b = referee(&db, b_hir).value(&db).expect("b should resolve");
+    assert_eq!(resolved_b.name(&db), "b");
+    assert!(matches!(resolved_b.kind(&db), SymbolKind::FnParam(..)));
+  }
+
+  #[test]
+  fn referee_resolves_nested_closure_outer_param() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (root, _) = parse(
+      r#"---
+fn: (a) -> (b) -> a + b
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let a_hir = find_ident(&db, hir, "a").expect("should find Ident('a')");
+    let resolved_a = referee(&db, a_hir).value(&db).expect("a should resolve");
+    assert_eq!(resolved_a.name(&db), "a");
+    assert!(matches!(resolved_a.kind(&db), SymbolKind::FnParam(..)));
+
+    let b_hir = find_ident(&db, hir, "b").expect("should find Ident('b')");
+    let resolved_b = referee(&db, b_hir).value(&db).expect("b should resolve");
+    assert_eq!(resolved_b.name(&db), "b");
+    assert!(matches!(resolved_b.kind(&db), SymbolKind::FnParam(..)));
+  }
+
+  #[test]
+  fn referee_unresolved_ident_in_closure_returns_none() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (root, _) = parse(
+      r#"---
+fn: (a) -> a + unknown_var
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let unknown_hir =
+      find_ident(&db, hir, "unknown_var").expect("should find Ident('unknown_var')");
+    let resolved = referee(&db, unknown_hir);
+    assert!(
+      resolved.value(&db).is_none(),
+      "unknown_var in closure should resolve to None"
     );
   }
 }

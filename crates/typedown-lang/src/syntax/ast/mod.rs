@@ -536,6 +536,7 @@ impl MdHtmlEntity {
   NumberLit, StrLit, CodeLit, MathLit, IdentLit,
   ListLit, DictLit,
   ParenExpr, CallExpr, PrefixExpr, PostfixExpr, BinaryExpr, IndexExpr,
+  ClosureExpr,
   YamlMapping, YamlSequence,
 ])]
 pub struct Expr(RedNode);
@@ -744,6 +745,36 @@ impl IndexExpr {
   /// Return all index argument expressions
   pub fn indices(&self) -> Vec<Expr> {
     children::<Expr>(&self.0).skip(1).collect()
+  }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
+pub struct ParamListExpr(RedNode);
+
+impl ParamListExpr {
+  /// Return all parameter identifier expressions in the parameter list
+  pub fn params(&self) -> impl Iterator<Item = IdentLit> {
+    children::<IdentLit>(&self.0)
+  }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
+pub struct ClosureExpr(RedNode);
+
+impl ClosureExpr {
+  /// Return the parameters of the closure: either a parameter list `(a, b)` or `()`
+  /// or a single bare identifier `x`
+  pub fn params(&self) -> Option<Either<ParamListExpr, IdentLit>> {
+    if let Some(param_list) = child::<ParamListExpr>(&self.0) {
+      Some(Either::Left(param_list))
+    } else {
+      child::<IdentLit>(&self.0).map(Either::Right)
+    }
+  }
+
+  /// Return the body expression of the closure
+  pub fn body(&self) -> Option<Expr> {
+    children::<Expr>(&self.0).last()
   }
 }
 

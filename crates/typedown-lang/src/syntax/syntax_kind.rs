@@ -55,6 +55,8 @@ pub enum SyntaxKind {
   PrefixExpr,
   PostfixExpr,
   BinaryExpr,
+  ClosureExpr,   // -> body or (params) -> body
+  ParamListExpr, // (a, b) or ()
 
   // Literals
   // All literals must be wrapped in a primary expr to be treated as an expression

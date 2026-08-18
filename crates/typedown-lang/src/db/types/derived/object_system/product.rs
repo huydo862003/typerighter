@@ -11,7 +11,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use typedown_incremental::Id;
 use typedown_types::either::Either;
 
-use crate::db::types::{HirValue, InstResult, LazyType, Symbol};
+use crate::db::types::{HirValue, InstResult, LazyType, RuntimeScope, Symbol};
 
 #[query_derived]
 pub struct TdProductType {
@@ -111,7 +111,7 @@ impl TdObjectLike for TdProductObj {
   }
   fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
     match self.fields(db).get(key).cloned() {
-      Some(Either::Left(hir)) => evaluate_node(db, hir).value(db),
+      Some(Either::Left(hir)) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
       Some(Either::Right(obj)) => Some(obj),
       // Missing fields evaluate to null
       None => Some(TdNullObj::get(db).into()),

@@ -76,6 +76,11 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
     HirValueKind::Index { expr, indices } => {
       diagnostics.extend(check_index(db, *expr, indices));
     }
+    // Recurse into closure body
+    HirValueKind::Closure { body, .. } => {
+      let tc_result = typecheck(db, *body);
+      diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+    }
     _ => {}
   }
 
@@ -1191,6 +1196,199 @@ mod tests {
     assert!(
       result.diagnostics(&db).is_empty(),
       "fref narrower: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Binary expression in a schema number field should pass
+  #[test]
+  fn typecheck_binary_expr_in_schema_number_field() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/binary_schema_valid.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "age: 10 + 20 should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Binary expression with wrong operand type should fail
+  #[test]
+  fn typecheck_binary_expr_wrong_operand_type() {
+    let (db, project, file) = load_vault_fixture(
+      "typecheck/my_vault",
+      "content/binary_schema_wrong_operand.td",
+    );
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+      "1 + true should report operand mismatch"
+    );
+  }
+
+  // Binary expression result assigned to wrong field type should fail
+  #[test]
+  fn typecheck_binary_expr_wrong_field_type() {
+    let (db, project, file) = load_vault_fixture(
+      "typecheck/my_vault",
+      "content/binary_schema_wrong_field_type.td",
+    );
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "name")),
+      "name: 1 + 2 should report field type mismatch"
+    );
+  }
+
+  // Parenthesized expression in schema field should pass
+  #[test]
+  fn typecheck_paren_expr_in_schema_field() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/paren_schema_valid.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "age: (10 + 20) * 3 should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Unary expression in schema number field should pass
+  #[test]
+  fn typecheck_unary_expr_in_schema_field() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/unary_schema_valid.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "age: -42 should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Nested parenthesized binary: (1 + 2) * (3 + 4) in number field
+  #[test]
+  fn typecheck_nested_paren_binary_valid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/nested_binary_valid.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "(1 + 2) * (3 + 4) should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Nested binary with wrong operand deep inside parens
+  #[test]
+  fn typecheck_nested_paren_binary_wrong() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/nested_binary_wrong.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+      "(1 + true) * 3 should report operand mismatch"
+    );
+  }
+
+  // Comparison expression is valid schemaless
+  #[test]
+  fn typecheck_comparison_valid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/comparison_valid.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "1 == 2 should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Logical operators with comparison operands
+  #[test]
+  fn typecheck_logical_with_comparisons_valid() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/logical_valid.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "(1 == 2) && (3 == 4) should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Comparison with null should be valid
+  #[test]
+  fn typecheck_comparison_null_valid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/comparison_null.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "1 == null should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // null == null should be valid
+  #[test]
+  fn typecheck_comparison_null_null_valid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/comparison_null_null.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "null == null should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Logical operators with non-boolean operands
+  #[test]
+  fn typecheck_logical_wrong_operand() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/logical_wrong_operand.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+      "1 && 2 should report operand mismatch"
+    );
+  }
+
+  // Closure referencing self should typecheck
+  #[test]
+  fn typecheck_closure_self_ref() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "closure referencing self.a should pass: {:?}",
       result.diagnostics(&db)
     );
   }

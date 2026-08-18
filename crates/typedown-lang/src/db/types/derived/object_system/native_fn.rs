@@ -5,8 +5,10 @@ use super::TdObjectEnum;
 use super::base::TdObjectLike;
 use super::str::TdStrObj;
 use crate::db::TypedownDatabase;
+use crate::db::types::{HirValue, RuntimeScope};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
+  StableHash, StableHasher,
 };
 
 type NativeFn = fn(&TypedownDatabase, TdObjectEnum, Vec<TdObjectEnum>) -> Option<TdObjectEnum>;
@@ -41,6 +43,61 @@ impl Decodable for NativeFnKind {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     NativeFnKind::from_repr(tag).expect("unknown NativeFnKind tag")
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
+pub enum FnKind {
+  Native(NativeFnKind),
+  UserDefined(HirValue, RuntimeScope),
+}
+
+#[derive(FromRepr)]
+#[repr(u8)]
+enum FnKindTag {
+  Native = 0,
+  UserDefined = 1,
+}
+
+impl StableHash for FnKind {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    std::mem::discriminant(self).stable_hash(db, hasher);
+    match self {
+      FnKind::Native(kind) => kind.stable_hash(db, hasher),
+      FnKind::UserDefined(hir, runtime_scope) => {
+        hir.stable_hash(db, hasher);
+        runtime_scope.stable_hash(db, hasher);
+      }
+    }
+  }
+}
+
+impl Encodable for FnKind {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    match self {
+      FnKind::Native(kind) => {
+        encoder.emit_u8(buf, FnKindTag::Native as u8);
+        kind.encode(buf, encoder);
+      }
+      FnKind::UserDefined(hir, runtime_scope) => {
+        encoder.emit_u8(buf, FnKindTag::UserDefined as u8);
+        hir.encode_field(buf, encoder);
+        runtime_scope.encode_field(buf, encoder);
+      }
+    }
+  }
+}
+
+impl Decodable for FnKind {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let tag = decoder.read_u8(data);
+    match FnKindTag::from_repr(tag).expect("unknown FnKind tag") {
+      FnKindTag::Native => FnKind::Native(NativeFnKind::decode(data, decoder)),
+      FnKindTag::UserDefined => FnKind::UserDefined(
+        HirValue::decode_field(data, decoder),
+        RuntimeScope::decode_field(data, decoder),
+      ),
+    }
   }
 }
 

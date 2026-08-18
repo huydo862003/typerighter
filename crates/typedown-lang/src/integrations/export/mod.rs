@@ -15,8 +15,8 @@ use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{
-  File, FileHandle, HirValue, LazyType, LiteralValue, Project, Symbol, SymbolKind, TdBlobType,
-  TdObjectEnum, TdObjectLike, TdTypeEnum, TdTypeLike,
+  File, FileHandle, HirValue, LazyType, LiteralValue, Project, RuntimeScope, Symbol, SymbolKind,
+  TdBlobType, TdObjectEnum, TdObjectLike, TdTypeEnum, TdTypeLike,
 };
 use crate::db::utils::strip_content_extension;
 use crate::db::utils::typecheck::is_nullable;
@@ -592,11 +592,10 @@ impl<'a> MarkdownExporter<'a> {
         return;
       }
       let hir = lower_node(self.db, self.project, self.file, expr_node);
-      if let Some(obj) = evaluate_node(self.db, hir).value(self.db)
+      if let Some(obj) = evaluate_node(self.db, hir, RuntimeScope::empty(self.db)).value(self.db)
         && let Some(func) = obj.lookup_method(self.db, "to_string")
       {
-        let native_fn = func.func(self.db).resolve();
-        if let Some(result) = native_fn(self.db, obj, vec![])
+        if let Some(result) = func.call(self.db, obj, vec![])
           && let Some(str_obj) = result.as_td_str_obj()
         {
           self.write(&str_obj.value(self.db));
@@ -730,7 +729,7 @@ pub(super) fn evaluate_lazy_field(
 ) -> Option<TdObjectEnum> {
   match field {
     Either::Right(obj) => Some(obj),
-    Either::Left(hir) => evaluate_node(db, hir).value(db),
+    Either::Left(hir) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
   }
 }
 

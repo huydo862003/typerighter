@@ -163,6 +163,9 @@ fn collect_references(
         collect_references(db, idx, map);
       }
     }
+    HirValueKind::Closure { body, .. } => {
+      collect_references(db, *body, map);
+    }
     // Only Ident nodes resolve to symbols via referee
     HirValueKind::Ident(_) => {
       if let Some(symbol) = referee(db, hir).value(db) {

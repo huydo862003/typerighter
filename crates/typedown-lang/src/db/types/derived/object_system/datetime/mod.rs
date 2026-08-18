@@ -5,7 +5,7 @@ use typedown_macros::query_derived;
 
 use super::base::{TdObjectLike, TdTypeLike, TdTypeType};
 use super::func::TdFuncObj;
-use super::native_fn::NativeFnKind;
+use super::native_fn::{FnKind, NativeFnKind};
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
@@ -45,7 +45,7 @@ impl TdTypeLike for TdDateTimeType {
       "to_string".to_string(),
       TdDateTimeType::get(db).into(),
       sig,
-      NativeFnKind::DateTimeToString,
+      FnKind::Native(NativeFnKind::DateTimeToString),
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
@@ -172,7 +172,7 @@ impl TdTypeLike for TdDateType {
       "to_string".to_string(),
       TdDateType::get(db).into(),
       sig,
-      NativeFnKind::DateToString,
+      FnKind::Native(NativeFnKind::DateToString),
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
@@ -299,7 +299,7 @@ impl TdTypeLike for TdTimeType {
       "to_string".to_string(),
       TdTimeType::get(db).into(),
       sig,
-      NativeFnKind::TimeToString,
+      FnKind::Native(NativeFnKind::TimeToString),
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

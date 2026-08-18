@@ -29,7 +29,8 @@ mod tests {
     get_time_type, get_type_type,
   };
   use crate::db::types::{
-    LazyType, LiteralValue, TdDictType, TdListType, TdProductType, TdStructuralType, TdTypeLike,
+    LazyType, LiteralValue, TdDictType, TdFuncType, TdListType, TdProductType, TdStructuralType,
+    TdTypeLike,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -680,5 +681,87 @@ mod tests {
       schema.is_type(&db),
       "schema is a metatype (subtype of type)"
     );
+  }
+
+  // Function type variance
+
+  #[test]
+  fn func_accepts_same_signature() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let func = TdFuncType::get(&db, vec![string.clone()], number.clone());
+    let func2 = TdFuncType::get(&db, vec![string], number);
+    let func_type: TdTypeEnum = func.into();
+    let func2_type: TdTypeEnum = func2.into();
+    assert!(func_type.accepts(&db, &func2_type));
+  }
+
+  #[test]
+  fn func_accepts_covariant_return() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let literal: TdTypeEnum = lit_str(&db, "hello");
+    // fn(string) -> string should accept fn(string) -> literal "hello"
+    let expected = TdFuncType::get(&db, vec![string.clone()], string.clone());
+    let actual = TdFuncType::get(&db, vec![string], literal);
+    let expected_type: TdTypeEnum = expected.into();
+    let actual_type: TdTypeEnum = actual.into();
+    assert!(expected_type.accepts(&db, &actual_type));
+  }
+
+  #[test]
+  fn func_rejects_wider_return() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    // fn() -> string should reject fn() -> number
+    let expected = TdFuncType::get(&db, vec![], string);
+    let actual = TdFuncType::get(&db, vec![], number);
+    let expected_type: TdTypeEnum = expected.into();
+    let actual_type: TdTypeEnum = actual.into();
+    assert!(!expected_type.accepts(&db, &actual_type));
+  }
+
+  #[test]
+  fn func_accepts_contravariant_param() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let literal: TdTypeEnum = lit_str(&db, "hello");
+    let number: TdTypeEnum = get_num_type(&db).into();
+    // fn(literal "hello") -> number should accept fn(string) -> number
+    // because string accepts literal "hello" (contravariant)
+    let expected = TdFuncType::get(&db, vec![literal], number.clone());
+    let actual = TdFuncType::get(&db, vec![string], number);
+    let expected_type: TdTypeEnum = expected.into();
+    let actual_type: TdTypeEnum = actual.into();
+    assert!(expected_type.accepts(&db, &actual_type));
+  }
+
+  #[test]
+  fn func_rejects_narrower_param() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let literal: TdTypeEnum = lit_str(&db, "hello");
+    let number: TdTypeEnum = get_num_type(&db).into();
+    // fn(string) -> number should reject fn(literal "hello") -> number
+    // because literal "hello" does not accept string (too narrow)
+    let expected = TdFuncType::get(&db, vec![string], number.clone());
+    let actual = TdFuncType::get(&db, vec![literal], number);
+    let expected_type: TdTypeEnum = expected.into();
+    let actual_type: TdTypeEnum = actual.into();
+    assert!(!expected_type.accepts(&db, &actual_type));
+  }
+
+  #[test]
+  fn func_rejects_arity_mismatch() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let expected = TdFuncType::get(&db, vec![string.clone()], number.clone());
+    let actual = TdFuncType::get(&db, vec![string, number.clone()], number);
+    let expected_type: TdTypeEnum = expected.into();
+    let actual_type: TdTypeEnum = actual.into();
+    assert!(!expected_type.accepts(&db, &actual_type));
   }
 }

@@ -3,12 +3,13 @@ use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
 use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
-use super::native_fn::NativeFnKind;
+use super::native_fn::{FnKind, NativeFnKind};
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
+use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_func_type;
-use crate::db::types::{FuncSignature, InstResult, LazyType};
+use crate::db::types::{FuncSignature, HirValueKind, InstResult, LazyType, RuntimeScope};
 
 #[query_derived]
 pub struct TdFuncType {
@@ -49,7 +50,7 @@ impl TdTypeLike for TdFuncType {
       "to_string".to_string(),
       (*self).into(),
       sig,
-      NativeFnKind::FuncToString,
+      FnKind::Native(NativeFnKind::FuncToString),
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
@@ -70,14 +71,35 @@ impl TdTypeLike for TdFuncType {
         .members(db)
         .iter()
         .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdFuncType(actual_func) => {
+        let expected_sig = self.signature(db);
+        let actual_sig = actual_func.signature(db);
+        let expected_params = expected_sig.params(db);
+        let actual_params = actual_sig.params(db);
+        // Arity must match
+        if expected_params.len() != actual_params.len() {
+          return false;
+        }
+        // Params are contravariant: actual param must accept expected param
+        for (expected_param, actual_param) in expected_params.iter().zip(actual_params.iter()) {
+          if !actual_param.accepts(db, expected_param) {
+            return false;
+          }
+        }
+        // Return type is covariant: expected return must accept actual return
+        expected_sig.ret(db).accepts(db, &actual_sig.ret(db))
+      }
       _ => self.as_id() == actual.as_id(),
     }
   }
   fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     None
   }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "function".to_string()
+  fn display_name(&self, db: &TypedownDatabase) -> String {
+    let sig = self.signature(db);
+    let params: Vec<String> = sig.params(db).iter().map(|p| p.display_name(db)).collect();
+    let ret = sig.ret(db).display_name(db);
+    format!("fn({}) -> {}", params.join(", "), ret)
   }
 }
 
@@ -95,7 +117,7 @@ pub struct TdFuncObj {
   pub typ: TdTypeEnum,
   #[id]
   pub signature: FuncSignature,
-  pub func: NativeFnKind,
+  pub func: FnKind,
 }
 
 impl TdFuncObj {
@@ -105,7 +127,23 @@ impl TdFuncObj {
     this: TdObjectEnum,
     args: Vec<TdObjectEnum>,
   ) -> Option<TdObjectEnum> {
-    (self.func(db).resolve())(db, this, args)
+    match self.func(db) {
+      FnKind::Native(kind) => (kind.resolve())(db, this, args),
+      FnKind::UserDefined(closure_hir, defining_scope) => {
+        let HirValueKind::Closure { params, body } = closure_hir.kind(db) else {
+          return None;
+        };
+        let bindings: Vec<(String, TdObjectEnum)> = params.into_iter().zip(args).collect();
+        // Chain the defining scope as parent so nested closures can resolve outer params
+        let runtime_scope = RuntimeScope::new(
+          db,
+          defining_scope.scope(db),
+          bindings,
+          Some(Box::new(defining_scope)),
+        );
+        evaluate_node(db, *body, runtime_scope).value(db)
+      }
+    }
   }
 }
 

@@ -6,28 +6,27 @@ use std::collections::HashMap;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_date_type, get_datetime_type, get_literal_type, get_math_type, get_null_type,
-  get_num_type, get_str_type, get_sum_type, get_time_type, instantiate_type,
+  get_bool_type, get_date_type, get_datetime_type, get_func_type, get_literal_type, get_math_type,
+  get_null_type, get_num_type, get_str_type, get_sum_type, get_time_type, instantiate_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
+use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use crate::db::types::derived::object_system::{
   TdStructuralType, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
-  BuiltinMacroKind, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind, TdListType,
-  TdStrType, TdTypeEnum, TdTypeLike, TypeResult,
+  BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind,
+  TdListType, TdStrType, TdTypeEnum, TdTypeLike, TypeResult,
 };
-use crate::db::utils::lower_file;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
 
-// Infer the type of an HIR
-// This function never relies on the declared type of the hir (it can rely on the declared type of the referenced hir)
-// It always guesses based on the structure of the hir alone
+// Infer the type of an HIR bottom-up from its structure
+// Exception: closures read expected(closure) to get param types (see README.md)
 #[query_derived]
 pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
   let diagnostics = vec![];
@@ -57,7 +56,6 @@ pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     ),
     HirValueKind::Interpolated(_) => TypeResult::new(db, Some(get_str_type(db).into()), vec![]),
     HirValueKind::Null => TypeResult::new(db, Some(get_null_type(db).into()), vec![]),
-    HirValueKind::Ident(ref name) if name == "self" => get_self_type(db, hir),
     HirValueKind::Ident(_) => {
       let resolved = referee(db, hir);
       match resolved.value(db) {
@@ -70,15 +68,16 @@ pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     HirValueKind::Call { callee, args } => get_call_type(db, *callee, args),
     HirValueKind::Index { expr, indices } => get_index_type(db, *expr, indices),
     HirValueKind::Tag { tag, .. } => get_tag_type(db, *tag),
-    HirValueKind::Prefix { op, operand } => get_prefix_type(db, &op, *operand),
+    HirValueKind::Prefix { op, .. } => get_prefix_type(db, &op),
     HirValueKind::Postfix { op, operand } => get_postfix_type(db, &op, *operand),
     HirValueKind::Binary { op, left, right } => get_binary_type(db, &op, *left, *right),
     HirValueKind::Math(_) => TypeResult::new(db, Some(get_math_type(db).into()), vec![]),
     HirValueKind::Markdown(_) => TypeResult::new(db, Some(get_str_type(db).into()), vec![]),
+    HirValueKind::Closure { params, body } => get_closure_type(db, hir, params, *body),
   }
 }
 
-/// Helper to get the type of a mapping
+// Helper to get the type of a mapping
 fn get_mapping_type(
   db: &TypedownDatabase,
   _hir: HirValue,
@@ -122,7 +121,7 @@ fn get_mapping_type(
   )
 }
 
-/// Resolve a tag expression like `!Person { name: "John" }`
+// Resolve a tag expression like !Person { name: "John" }
 fn get_tag_type(db: &TypedownDatabase, tag: HirValue) -> TypeResult {
   let resolved = referee(db, tag);
   match resolved.value(db) {
@@ -143,32 +142,27 @@ fn get_tag_type(db: &TypedownDatabase, tag: HirValue) -> TypeResult {
   }
 }
 
-/// Helper to get the return type of a prefix expression
-fn get_prefix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeResult {
-  let operand_result = actual_node_type(db, operand);
-  let diagnostics = operand_result.diagnostics(db).clone();
-
+// Synthesize the result type of a prefix expression
+fn get_prefix_type(db: &TypedownDatabase, op: &str) -> TypeResult {
   match op {
-    "-" | "+" => TypeResult::new(db, Some(get_num_type(db).into()), diagnostics),
-    "~" => TypeResult::new(db, Some(get_bool_type(db).into()), diagnostics),
-    _ => TypeResult::new(db, None, diagnostics),
+    "-" | "+" => TypeResult::new(db, Some(get_num_type(db).into()), vec![]),
+    "~" => TypeResult::new(db, Some(get_bool_type(db).into()), vec![]),
+    _ => TypeResult::new(db, None, vec![]),
   }
 }
 
-/// Helper to get the return type of a postfix expression
+// Synthesize the result type of a postfix expression
 fn get_postfix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeResult {
-  let operand_result = actual_node_type(db, operand);
-  let diagnostics = operand_result.diagnostics(db).clone();
   match op {
-    // T? is a type operator, its result is a type
-    "?" => operand_result,
-    _ => TypeResult::new(db, None, diagnostics),
+    // T? is a type operator, its result is the operand type
+    "?" => actual_node_type(db, operand),
+    _ => TypeResult::new(db, None, vec![]),
   }
 }
 
-/// Helper to get the return type of a binary expression
+// Synthesize the result type of a binary expression
 fn get_binary_type(db: &TypedownDatabase, op: &str, left: HirValue, right: HirValue) -> TypeResult {
-  // Field access such as `obj.field`
+  // Field access needs actual(left) to look up the field type
   if op == "." {
     let left_result = actual_node_type(db, left);
     let mut diagnostics = left_result.diagnostics(db).clone();
@@ -196,24 +190,19 @@ fn get_binary_type(db: &TypedownDatabase, op: &str, left: HirValue, right: HirVa
     };
   }
 
-  let left_result = actual_node_type(db, left);
-  let right_result = actual_node_type(db, right);
-  let mut diagnostics = left_result.diagnostics(db).clone();
-  diagnostics.extend(right_result.diagnostics(db).iter().cloned());
-
   match op {
     "+" | "-" | "*" | "/" | "%" | "**" => {
-      TypeResult::new(db, Some(get_num_type(db).into()), diagnostics)
+      TypeResult::new(db, Some(get_num_type(db).into()), vec![])
     }
     "==" | "!=" | "<" | ">" | "<=" | ">=" => {
-      TypeResult::new(db, Some(get_bool_type(db).into()), diagnostics)
+      TypeResult::new(db, Some(get_bool_type(db).into()), vec![])
     }
-    "&&" | "||" => TypeResult::new(db, Some(get_bool_type(db).into()), diagnostics),
-    _ => TypeResult::new(db, None, diagnostics),
+    "&&" | "||" => TypeResult::new(db, Some(get_bool_type(db).into()), vec![]),
+    _ => TypeResult::new(db, None, vec![]),
   }
 }
 
-/// Helper to get the type of a sequence
+// Helper to get the type of a sequence
 fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult {
   let mut diagnostics = vec![];
   let mut arms = vec![];
@@ -235,7 +224,7 @@ fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult 
   TypeResult::new(db, Some(list_type.into()), diagnostics)
 }
 
-/// Helper to get the type of a call expression
+// Helper to get the type of a call expression
 fn get_call_type(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> TypeResult {
   // Check if callee is a macro
   let resolved = referee(db, callee);
@@ -340,7 +329,7 @@ fn get_fref_type(db: &TypedownDatabase, args: Vec<HirValue>) -> TypeResult {
   }
 }
 
-/// Helper to get the type of an index expression
+// Helper to get the type of an index expression
 fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) -> TypeResult {
   let expr_result = actual_node_type(db, expr);
   let mut diagnostics = expr_result.diagnostics(db).clone();
@@ -422,28 +411,47 @@ fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>)
   TypeResult::new(db, None, diagnostics)
 }
 
-/// Return the type of `self` in the current file
-fn get_self_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
-  let project = hir.project(db);
-  let file = hir.file(db);
-  let (mapping_hir, _) = lower_file(db, project, file);
-  let mapping_hir = match mapping_hir {
-    Some(mapping_hir) => mapping_hir,
-    None => return TypeResult::new(db, None, vec![]),
+// actual(closure) = fn(params from expected, return from actual(body))
+fn get_closure_type(
+  db: &TypedownDatabase,
+  hir: HirValue,
+  params: Vec<String>,
+  body: HirValue,
+) -> TypeResult {
+  let expected = expected_node_type(db, hir).typ(db);
+  let param_types = match expected {
+    Some(TdTypeEnum::TdFuncType(f)) => f.signature(db).params(db),
+    _ => return TypeResult::new(db, None, vec![]),
   };
 
-  if let HirValueKind::Mapping(entries) = mapping_hir.kind(db) {
-    for (key, val_hir) in entries {
-      if key == "_type" {
-        let resolved = referee(db, val_hir);
-        return match resolved.value(db) {
-          Some(symbol) => evaluate_type(db, symbol),
-          None => TypeResult::new(db, None, vec![]),
-        };
-      }
-    }
+  if param_types.len() != params.len() {
+    let node = hir.node(db);
+    let (tr_offset, tr_len) = node.trimmed_range();
+    return TypeResult::new(
+      db,
+      None,
+      vec![Diagnostic::WrongArgCount {
+        expected: param_types.len(),
+        got: params.len(),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      }],
+    );
   }
-  TypeResult::new(db, None, vec![])
+
+  let body_result = actual_node_type(db, body);
+  let ret = match body_result.typ(db) {
+    Some(t) => t,
+    None => return TypeResult::new(db, None, body_result.diagnostics(db).clone()),
+  };
+
+  let sig = FuncSignature::new(db, param_types, ret);
+  let func_type = get_func_type(db, sig);
+  TypeResult::new(
+    db,
+    Some(func_type.into()),
+    body_result.diagnostics(db).clone(),
+  )
 }
 
 #[cfg(test)]

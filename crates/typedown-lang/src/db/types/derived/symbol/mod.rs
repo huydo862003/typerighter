@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived, query_interned};
 
-use crate::db::types::{File, Project};
+use crate::db::types::{File, HirValue, Project, TdObjectEnum};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
   StableHash, StableHasher,
@@ -17,6 +17,7 @@ pub enum SymbolKind {
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
+  FnParam(Project, File, HirValue),
 }
 
 #[derive(FromRepr)]
@@ -28,6 +29,7 @@ enum SymbolKindTag {
   BuiltinMacro = 3,
   Asset = 4,
   BuiltinGlobal = 5,
+  FnParam = 6,
 }
 
 impl SymbolKind {
@@ -52,6 +54,7 @@ impl SymbolKind {
       SymbolKind::UserDefinedSchema(_, _)
         | SymbolKind::UserDefinedResource(_, _)
         | SymbolKind::Asset(_, _, _)
+        | SymbolKind::FnParam(_, _, _)
     )
   }
 
@@ -68,6 +71,11 @@ impl StableHash for SymbolKind {
       | SymbolKind::UserDefinedResource(project, file) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
+      }
+      SymbolKind::FnParam(project, file, closure) => {
+        project.stable_hash(db, hasher);
+        file.stable_hash(db, hasher);
+        closure.stable_hash(db, hasher);
       }
       SymbolKind::Asset(asset_kind, project, file) => {
         asset_kind.stable_hash(db, hasher);
@@ -112,6 +120,12 @@ impl Encodable for SymbolKind {
         encoder.emit_u8(buf, SymbolKindTag::BuiltinGlobal as u8);
         kind.encode(buf, encoder);
       }
+      SymbolKind::FnParam(project, file, closure) => {
+        encoder.emit_u8(buf, SymbolKindTag::FnParam as u8);
+        project.encode_field(buf, encoder);
+        file.encode_field(buf, encoder);
+        closure.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -142,6 +156,11 @@ impl Decodable for SymbolKind {
       SymbolKindTag::BuiltinGlobal => {
         SymbolKind::BuiltinGlobal(BuiltinGlobalKind::decode(data, decoder))
       }
+      SymbolKindTag::FnParam => SymbolKind::FnParam(
+        Project::decode_field(data, decoder),
+        File::decode_field(data, decoder),
+        HirValue::decode_field(data, decoder),
+      ),
     }
   }
 }
@@ -317,6 +336,7 @@ pub enum ScopeKind {
   Builtin,
   Project(Project),
   File(Project, File),
+  Fn(Project, File, HirValue),
 }
 
 #[derive(FromRepr)]
@@ -325,6 +345,7 @@ enum ScopeKindTag {
   Builtin = 0,
   Project = 1,
   File = 2,
+  Fn = 3,
 }
 
 impl StableHash for ScopeKind {
@@ -336,6 +357,11 @@ impl StableHash for ScopeKind {
       ScopeKind::File(project, file) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
+      }
+      ScopeKind::Fn(project, file, value) => {
+        project.stable_hash(db, hasher);
+        file.stable_hash(db, hasher);
+        value.stable_hash(db, hasher);
       }
     }
   }
@@ -356,6 +382,12 @@ impl Encodable for ScopeKind {
         project.encode_field(buf, encoder);
         file.encode_field(buf, encoder);
       }
+      ScopeKind::Fn(project, file, value) => {
+        encoder.emit_u8(buf, ScopeKindTag::Fn as u8);
+        project.encode_field(buf, encoder);
+        file.encode_field(buf, encoder);
+        value.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -370,6 +402,11 @@ impl Decodable for ScopeKind {
         Project::decode_field(data, decoder),
         File::decode_field(data, decoder),
       ),
+      ScopeKindTag::Fn => ScopeKind::Fn(
+        Project::decode_field(data, decoder),
+        File::decode_field(data, decoder),
+        HirValue::decode_field(data, decoder),
+      ),
     }
   }
 }
@@ -381,23 +418,52 @@ pub struct Scope {
 }
 
 impl Scope {
-  pub fn builtin_scope(db: &(impl typedown_incremental::QueryDatabase + ?Sized)) -> Self {
+  pub fn builtin_scope(db: &(impl QueryDatabase + ?Sized)) -> Self {
     Self::new(db, ScopeKind::Builtin)
   }
 
-  pub fn project_scope(
-    db: &(impl typedown_incremental::QueryDatabase + ?Sized),
-    project: Project,
-  ) -> Self {
+  pub fn project_scope(db: &(impl QueryDatabase + ?Sized), project: Project) -> Self {
     Self::new(db, ScopeKind::Project(project))
   }
 
-  pub fn file_scope(
-    db: &(impl typedown_incremental::QueryDatabase + ?Sized),
+  pub fn file_scope(db: &(impl QueryDatabase + ?Sized), project: Project, file: File) -> Self {
+    Self::new(db, ScopeKind::File(project, file))
+  }
+
+  pub fn fn_scope(
+    db: &(impl QueryDatabase + ?Sized),
     project: Project,
     file: File,
+    value: HirValue,
   ) -> Self {
-    Self::new(db, ScopeKind::File(project, file))
+    Self::new(db, ScopeKind::Fn(project, file, value))
+  }
+}
+
+// Runtime scope for closure evaluation
+// Carries param bindings and a reference to the syntactic scope
+#[query_derived]
+pub struct RuntimeScope {
+  scope: Scope,
+  bindings: Vec<(String, TdObjectEnum)>,
+  parent: Option<Box<RuntimeScope>>,
+}
+
+impl RuntimeScope {
+  pub fn empty(db: &(impl QueryDatabase + ?Sized)) -> Self {
+    Self::new(db, Scope::builtin_scope(db), vec![], None)
+  }
+
+  pub fn lookup(&self, db: &(impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum> {
+    for (key, val) in &self.bindings(db) {
+      if key == name {
+        return Some(val.clone());
+      }
+    }
+    if let Some(parent) = self.parent(db).as_ref() {
+      return parent.lookup(db, name);
+    }
+    None
   }
 }
 

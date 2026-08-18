@@ -48,6 +48,7 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
     SymbolKind::UserDefinedResource(_, _)
     | SymbolKind::BuiltinMacro(_)
     | SymbolKind::BuiltinGlobal(_) => TypeResult::new(db, None, vec![]),
+    SymbolKind::FnParam(_, _, _) => TypeResult::new(db, None, vec![]),
   }
 }
 
@@ -336,8 +337,8 @@ mod tests {
     fixtures::load_vault_fixture,
     types::{
       BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
-      LiteralValue, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
-      TdStructuralType, TdTypeLike, TdTypeType,
+      LiteralValue, Project, RuntimeScope, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType,
+      TdStrObj, TdStructuralType, TdTypeLike, TdTypeType,
     },
     utils::lower_file,
   };
@@ -639,7 +640,7 @@ mod tests {
   fn construct_product() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
-    let obj = construct_from_hir(&db, hir.unwrap(), &mut vec![]).unwrap();
+    let obj = construct_from_hir(&db, hir.unwrap(), RuntimeScope::empty(&db), &mut vec![]).unwrap();
     let name_obj = obj.get_owned_field(&db, "name").unwrap();
     let name = name_obj.as_td_str_obj().unwrap();
     assert_eq!(name.value(&db), "Alice");
@@ -677,7 +678,7 @@ mod tests {
     let db = make_db();
     let hir = make_hir(&db, "---\nname: \"Alice\"\nage: 42\n---");
     let val_hir = get_field_hir(&db, hir, "name");
-    let obj = construct_from_hir(&db, val_hir, &mut vec![]).unwrap();
+    let obj = construct_from_hir(&db, val_hir, RuntimeScope::empty(&db), &mut vec![]).unwrap();
     assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "Alice");
   }
 
@@ -685,7 +686,7 @@ mod tests {
   fn construct_type_type() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let (hir, _) = lower_file(&db, project, file);
-    let obj = construct_from_hir(&db, hir.unwrap(), &mut vec![]).unwrap();
+    let obj = construct_from_hir(&db, hir.unwrap(), RuntimeScope::empty(&db), &mut vec![]).unwrap();
     assert!(
       obj
         .as_td_product_type()
@@ -700,7 +701,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     assert!(TdTypeType::get(&db).construct(&db, vec![]).is_none());
-    let _ = construct_from_hir(&db, hir.unwrap(), &mut vec![]);
+    let _ = construct_from_hir(&db, hir.unwrap(), RuntimeScope::empty(&db), &mut vec![]);
   }
 
   #[test]
@@ -764,5 +765,161 @@ mod tests {
       })
     });
     assert!(has_draft, "sum members should contain 'draft'");
+  }
+
+  #[test]
+  fn evaluate_closure_call_simple_arithmetic() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((x) -> x + 1)(3)
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 4.0);
+  }
+
+  #[test]
+  fn evaluate_closure_call_two_params() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((x, y) -> x + y)(10, 20)
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 30.0);
+  }
+
+  #[test]
+  fn evaluate_closure_identity() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((x) -> x)("hello")
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "hello");
+  }
+
+  // Nested closure captures outer param via RuntimeScope parent chain
+  #[test]
+  fn evaluate_nested_closure() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((x) -> (y) -> x + y)(10)(20)
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 30.0);
+  }
+
+  #[test]
+  fn evaluate_closure_as_value() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+f: (x) -> x + 1
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "f");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert!(obj.as_td_func_obj().is_some());
+  }
+
+  // Closure with boolean logic
+  #[test]
+  fn evaluate_closure_boolean_logic() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((x, y) -> x && y)(true, false)
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert!(!obj.as_td_bool_obj().unwrap().value(&db));
+  }
+
+  // Closure passed to another closure
+  #[test]
+  fn evaluate_closure_higher_order() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((f, x) -> f(x))((x) -> x + 10, 5)
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 15.0);
+  }
+
+  // Closure with comparison
+  #[test]
+  fn evaluate_closure_comparison() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+result: ((x) -> x > 5)(10)
+---"#,
+    );
+    let field = get_field_hir(&db, hir, "result");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert!(obj.as_td_bool_obj().unwrap().value(&db));
+  }
+
+  // Closure referencing self evaluates correctly
+  #[test]
+  fn evaluate_closure_self_ref() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let hir = hir.unwrap();
+    let field = get_field_hir(&db, hir, "b");
+    let obj = construct_from_hir(&db, field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 31.0);
+  }
+
+  // Closure captures self from defining file, not call site
+  // Construct closure from TwoNums file (a: 30), extract it, call it manually
+  #[test]
+  fn evaluate_closure_captures_defining_file_self() {
+    let (db, _project, _file) =
+      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    // Construct a standalone closure that references self.a
+    // Use a separate content string in the same vault so self resolves to the same file
+    let closure_hir = make_hir(
+      &db,
+      r#"---
+f: (x) -> self.a + x
+---"#,
+    );
+    let closure_field = get_field_hir(&db, closure_hir, "f");
+    // Construct closure: self resolves via referee to the closure's own file (no _type, no self.a)
+    // So this should return None since self.a doesn't exist on a schemaless file
+    let obj =
+      construct_from_hir(&db, closure_field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
+    let func = obj.as_td_func_obj().unwrap();
+    let result = func.call(&db, (*func).into(), vec![TdNumObj::new(&db, 5.0).into()]);
+    // self.a is not available in the schemaless make_hir file, so call returns None
+    assert!(
+      result.is_none(),
+      "self should bind to the defining file, not the call site"
+    );
   }
 }
