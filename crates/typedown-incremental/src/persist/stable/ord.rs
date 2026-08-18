@@ -32,7 +32,7 @@ use crate::QueryDatabase;
 ///  - `DefIndex`, `CrateNum`, `LocalDefId`, because their concrete
 ///    values depend on state that might be different between
 ///    compilation sessions.
-/// '''
+///    '''
 pub trait StableOrd: Ord {}
 
 /// TIL: Ordering of a reference is exactly that of the referent

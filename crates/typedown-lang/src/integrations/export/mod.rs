@@ -594,12 +594,10 @@ impl<'a> MarkdownExporter<'a> {
       let hir = lower_node(self.db, self.project, self.file, expr_node);
       if let Some(obj) = evaluate_node(self.db, hir, RuntimeScope::empty(self.db)).value(self.db)
         && let Some(func) = obj.lookup_method(self.db, "to_string")
+        && let Some(result) = func.call(self.db, obj, vec![])
+        && let Some(str_obj) = result.as_td_str_obj()
       {
-        if let Some(result) = func.call(self.db, obj, vec![])
-          && let Some(str_obj) = result.as_td_str_obj()
-        {
-          self.write(&str_obj.value(self.db));
-        }
+        self.write(&str_obj.value(self.db));
       }
       return;
     }
