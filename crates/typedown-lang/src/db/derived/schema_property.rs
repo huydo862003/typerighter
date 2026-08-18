@@ -46,14 +46,20 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   // list[base | self]
   let list_elem_sum = get_sum_type(
     db,
-    [base_type_lazys.clone(), vec![self_lazy.clone()]].concat(),
+    [base_type_lazys.clone(), vec![self_lazy.clone()]]
+      .concat()
+      .into_iter()
+      .collect(),
   );
   let list_type = TdListType::new(db, Some(LazyType::eager(list_elem_sum.into())));
 
   // dict[base | self]
   let dict_elem_sum = get_sum_type(
     db,
-    [base_type_lazys.clone(), vec![LazyType::lazy(self_symbol)]].concat(),
+    [base_type_lazys.clone(), vec![LazyType::lazy(self_symbol)]]
+      .concat()
+      .into_iter()
+      .collect(),
   );
   let dict_type = TdDictType::new(db, None, Some(LazyType::eager(dict_elem_sum.into())));
 
@@ -68,7 +74,9 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
           LazyType::eager(dict_type.into()),
         ],
       ]
-      .concat(),
+      .concat()
+      .into_iter()
+      .collect(),
     )
     .into(),
   );

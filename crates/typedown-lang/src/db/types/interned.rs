@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use strum::FromRepr;
-use typedown_macros::query_interned;
+use typedown_macros::{StableCompare, query_interned};
 
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
@@ -21,7 +21,7 @@ pub struct FuncSignature {
 }
 
 // A type reference that may be eagerly resolved or lazily deferred to a symbol
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub struct LazyType(Either<TdTypeEnum, Symbol>);
 
 impl LazyType {
@@ -67,7 +67,7 @@ impl StableHash for LazyType {
 }
 
 /// A concrete literal value used in literal constraints
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub enum LiteralValue {
   Str(String),
   Bool(bool),

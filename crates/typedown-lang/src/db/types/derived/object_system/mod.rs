@@ -47,13 +47,14 @@ pub use vault::*;
 use ambassador::Delegate;
 use derive_more::From;
 use enum_as_inner::EnumAsInner;
+use typedown_macros::StableCompare;
 
 use crate::db::types::{InstResult, LazyType};
 use typedown_incremental::Id;
 
 /// Use this instead of dyn
 /// The primitive types are fixed anyways
-#[derive(Debug, Clone, From, Delegate, EnumAsInner)]
+#[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
 #[delegate(TdObjectLike)]
 #[delegate(TdTypeLike)]
 pub enum TdTypeEnum {
@@ -80,7 +81,7 @@ pub enum TdTypeEnum {
 
 /// Use this instead of dyn
 /// The primitive object kinds are fixed anyways
-#[derive(Debug, Clone, From, Delegate, EnumAsInner)]
+#[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
 #[delegate(TdObjectLike)]
 pub enum TdObjectEnum {
   // Types are objects

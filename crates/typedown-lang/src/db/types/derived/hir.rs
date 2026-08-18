@@ -1,7 +1,7 @@
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
 use strum::FromRepr;
-use typedown_macros::query_derived;
+use typedown_macros::{StableCompare, query_derived};
 
 use crate::db::types::{File, Project};
 use typedown_incremental::{
@@ -22,7 +22,7 @@ pub struct HirValue {
   pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, StableCompare)]
 pub enum HirValueKind {
   Str(String),
   Num(String),
@@ -277,7 +277,7 @@ impl Decodable for HirValueKind {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, StableCompare)]
 pub enum InterpolatedPart {
   Literal(String),
   Expr(HirValue),

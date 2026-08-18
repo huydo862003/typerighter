@@ -1,9 +1,10 @@
 use strum::FromRepr;
+use typedown_macros::StableCompare;
 
 use crate::syntax::syntax_kind::SyntaxKind;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr, StableCompare)]
 pub enum DiagnosticCode {
   UnexpectedEof = 0,
   UnexpectedChar = 1,
@@ -154,7 +155,7 @@ impl DiagnosticCode {
 
 /// Compilation diagnostics.
 /// When multiple variants match, use the first (most specific) one.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, StableCompare)]
 pub enum Diagnostic {
   /* Lexer diagnostics */
   /// Expected a specific character but reached end of input.

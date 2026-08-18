@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use typedown_incremental::StableCompare;
 use typedown_macros::query_derived;
 
 use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
@@ -6,10 +7,11 @@ use super::func::TdFuncObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::types::{InstResult, LazyType};
+
 // A union type: accepts any of its member types
 #[query_derived]
 pub struct TdSumType {
-  pub members: Vec<LazyType>,
+  pub members: HashSet<LazyType>,
 }
 
 impl TdObjectLike for TdSumType {
@@ -69,8 +71,9 @@ impl TdTypeLike for TdSumType {
     None
   }
   fn display_name(&self, db: &TypedownDatabase) -> String {
-    let parts: Vec<String> = self
-      .members(db)
+    let mut members: Vec<_> = self.members(db).into_iter().collect();
+    members.sort_by(|a, b| a.stable_cmp(db, b));
+    let parts: Vec<String> = members
       .iter()
       .filter_map(|m| m.resolve(db).map(|t| t.display_name(db)))
       .collect();

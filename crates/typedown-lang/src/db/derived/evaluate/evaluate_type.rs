@@ -242,7 +242,9 @@ fn resolve_type_lazy(
       if members.is_empty() {
         None
       } else {
-        Some(LazyType::eager(get_sum_type(db, members).into()))
+        Some(LazyType::eager(
+          get_sum_type(db, members.into_iter().collect()).into(),
+        ))
       }
     }
     // Inline object like `type: { name: { type: string }, age: { type: number } }`
@@ -756,11 +758,12 @@ mod tests {
     let typ = value_field.resolve(&db).unwrap();
     let sum = typ.as_td_sum_type().expect("value should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "should have 3 members");
-    let first = sum.members(&db)[0].resolve(&db).unwrap();
-    assert!(
-      first
-        .as_td_literal_type()
-        .is_some_and(|lit| lit.value(&db) == LiteralValue::Str("draft".to_string()))
-    );
+    let has_draft = sum.members(&db).iter().any(|m| {
+      m.resolve(&db).is_some_and(|t| {
+        t.as_td_literal_type()
+          .is_some_and(|lit| lit.value(&db) == LiteralValue::Str("draft".to_string()))
+      })
+    });
+    assert!(has_draft, "sum members should contain 'draft'");
   }
 }
