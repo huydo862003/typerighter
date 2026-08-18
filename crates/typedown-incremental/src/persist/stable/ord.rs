@@ -32,20 +32,12 @@ use crate::QueryDatabase;
 ///  - `DefIndex`, `CrateNum`, `LocalDefId`, because their concrete
 ///    values depend on state that might be different between
 ///    compilation sessions.
-///
-/// The associated constant `CAN_USE_UNSTABLE_SORT` denotes whether
-/// unstable sorting can be used for this type. Set to true if and
-/// only if `a == b` implies `a` and `b` are fully indistinguishable.
 /// '''
-pub trait StableOrd: Ord {
-  const CAN_USE_UNSTABLE_SORT: bool;
-}
+pub trait StableOrd: Ord {}
 
 /// TIL: Ordering of a reference is exactly that of the referent
 /// This is not the case for raw pointers though
-impl<T: StableOrd> StableOrd for &T {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-}
+impl<T: StableOrd> StableOrd for &T {}
 
 // https://github.com/rust-lang/rust/blob/63f05e3635171e7ac3f9ca78bad6c71052cda5a3/compiler/rustc_data_structures/src/stable_hash.rs#L144-L148
 /// Their original comment:
@@ -63,22 +55,16 @@ impl<T: StableOrd> StableOrd for &T {
 /// '''
 /// So StableCompare is weaker
 pub trait StableCompare {
-  const CAN_USE_UNSTABLE_SORT: bool;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering;
 }
 
-impl<T: StableOrd> StableCompare for T {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
-    self.cmp(other)
+impl<T: StableCompare> StableCompare for Box<T> {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    (**self).stable_cmp(db, other)
   }
 }
 
 impl<T: StableCompare> StableCompare for Option<T> {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     match (self, other) {
       (None, None) => std::cmp::Ordering::Equal,
@@ -90,8 +76,6 @@ impl<T: StableCompare> StableCompare for Option<T> {
 }
 
 impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
-  const CAN_USE_UNSTABLE_SORT: bool = L::CAN_USE_UNSTABLE_SORT && R::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     match (self, other) {
       (Either::Left(_), Either::Right(_)) => std::cmp::Ordering::Less,
@@ -103,8 +87,6 @@ impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
 }
 
 impl<K: StableCompare, V: StableCompare> StableCompare for HashMap<K, V> {
-  const CAN_USE_UNSTABLE_SORT: bool = K::CAN_USE_UNSTABLE_SORT && V::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self.len().cmp(&other.len()).then_with(|| {
       let mut self_entries: Vec<_> = self.iter().collect();
@@ -122,8 +104,6 @@ impl<K: StableCompare, V: StableCompare> StableCompare for HashMap<K, V> {
 }
 
 impl<V: StableCompare> StableCompare for HashSet<V> {
-  const CAN_USE_UNSTABLE_SORT: bool = V::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self.len().cmp(&other.len()).then_with(|| {
       let mut self_entries: Vec<_> = self.iter().collect();
@@ -141,8 +121,6 @@ impl<V: StableCompare> StableCompare for HashSet<V> {
 }
 
 impl<T: StableCompare> StableCompare for [T] {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     let l1 = self.len();
     let l2 = other.len();
@@ -157,72 +135,75 @@ impl<T: StableCompare> StableCompare for [T] {
 }
 
 impl<T: StableCompare> StableCompare for Vec<T> {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self.as_slice().stable_cmp(db, other.as_slice())
   }
 }
 
-impl StableOrd for i8 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for i16 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for i32 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for i64 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for i128 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for isize {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
+macro_rules! impl_stable_compare_via_ord {
+  ($($ty:ty),*) => {
+    $(
+      impl StableCompare for $ty {
+        fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+          self.cmp(other)
+        }
+      }
+    )*
+  };
 }
 
-impl StableOrd for u8 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for u16 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for u32 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for u64 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for u128 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for usize {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
+impl_stable_compare_via_ord!(
+  i8,
+  i16,
+  i32,
+  i64,
+  i128,
+  isize,
+  u8,
+  u16,
+  u32,
+  u64,
+  u128,
+  usize,
+  char,
+  (),
+  bool,
+  String,
+  std::path::PathBuf,
+  std::time::SystemTime
+);
+
+impl StableCompare for &str {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+    self.cmp(other)
+  }
 }
 
-impl StableOrd for char {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for () {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for bool {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
+impl StableOrd for i8 {}
+impl StableOrd for i16 {}
+impl StableOrd for i32 {}
+impl StableOrd for i64 {}
+impl StableOrd for i128 {}
+impl StableOrd for isize {}
+
+impl StableOrd for u8 {}
+impl StableOrd for u16 {}
+impl StableOrd for u32 {}
+impl StableOrd for u64 {}
+impl StableOrd for u128 {}
+impl StableOrd for usize {}
+
+impl StableOrd for char {}
+impl StableOrd for () {}
+impl StableOrd for bool {}
 
 impl<T: StableCompare> StableCompare for (T,) {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self.0.stable_cmp(db, &other.0)
   }
 }
 
 impl<T1: StableCompare, T2: StableCompare> StableCompare for (T1, T2) {
-  const CAN_USE_UNSTABLE_SORT: bool = T1::CAN_USE_UNSTABLE_SORT && T2::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self
       .0
@@ -232,9 +213,6 @@ impl<T1: StableCompare, T2: StableCompare> StableCompare for (T1, T2) {
 }
 
 impl<T1: StableCompare, T2: StableCompare, T3: StableCompare> StableCompare for (T1, T2, T3) {
-  const CAN_USE_UNSTABLE_SORT: bool =
-    T1::CAN_USE_UNSTABLE_SORT && T2::CAN_USE_UNSTABLE_SORT && T3::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self
       .0
@@ -247,11 +225,6 @@ impl<T1: StableCompare, T2: StableCompare, T3: StableCompare> StableCompare for 
 impl<T1: StableCompare, T2: StableCompare, T3: StableCompare, T4: StableCompare> StableCompare
   for (T1, T2, T3, T4)
 {
-  const CAN_USE_UNSTABLE_SORT: bool = T1::CAN_USE_UNSTABLE_SORT
-    && T2::CAN_USE_UNSTABLE_SORT
-    && T3::CAN_USE_UNSTABLE_SORT
-    && T4::CAN_USE_UNSTABLE_SORT;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self
       .0
@@ -263,43 +236,25 @@ impl<T1: StableCompare, T2: StableCompare, T3: StableCompare, T4: StableCompare>
 }
 
 impl StableCompare for f32 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
     self.total_cmp(other)
   }
 }
 
 impl StableCompare for f64 {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
     self.total_cmp(other)
   }
 }
 
-impl StableOrd for str {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
+impl StableOrd for str {}
 
-impl<T: StableOrd> StableOrd for &[T] {
-  const CAN_USE_UNSTABLE_SORT: bool = T::CAN_USE_UNSTABLE_SORT;
-}
+impl<T: StableOrd> StableOrd for &[T] {}
 
-impl StableOrd for String {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
+impl StableOrd for String {}
 
-impl StableOrd for std::ffi::OsStr {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for std::path::Path {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
-impl StableOrd for std::path::PathBuf {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
+impl StableOrd for std::ffi::OsStr {}
+impl StableOrd for std::path::Path {}
+impl StableOrd for std::path::PathBuf {}
 
-impl StableOrd for std::time::SystemTime {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-}
+impl StableOrd for std::time::SystemTime {}

@@ -133,8 +133,6 @@ unsafe impl Send for SyntaxNode {}
 unsafe impl Sync for SyntaxNode {}
 
 impl StableCompare for SyntaxNode {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     std::cmp::Ordering::Equal
       .then_with(|| self.kind().stable_cmp(db, &other.kind()))

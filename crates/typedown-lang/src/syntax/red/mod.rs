@@ -204,8 +204,6 @@ impl Iterator for RedNodeChildren {
 }
 
 impl StableCompare for RedNode {
-  const CAN_USE_UNSTABLE_SORT: bool = true;
-
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
     self
       .0

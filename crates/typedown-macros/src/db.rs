@@ -246,9 +246,8 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
       }
 
       impl ::typedown_incremental::StableCompare for #struct_name {
-        const CAN_USE_UNSTABLE_SORT: bool = true;
-
         fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+          let _ = db;
           ::std::cmp::Ordering::Equal
           #(
             .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
@@ -750,9 +749,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
       }
 
       impl ::typedown_incremental::StableCompare for #struct_name {
-        const CAN_USE_UNSTABLE_SORT: bool = true;
-
         fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+          let _ = db;
           ::std::cmp::Ordering::Equal
           #(
             .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
@@ -967,9 +965,8 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       }
 
       impl ::typedown_incremental::StableCompare for #struct_name {
-        const CAN_USE_UNSTABLE_SORT: bool = true;
-
         fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+          let _ = db;
           ::std::cmp::Ordering::Equal
           #(
             .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
