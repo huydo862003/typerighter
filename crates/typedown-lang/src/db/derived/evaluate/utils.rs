@@ -12,9 +12,10 @@ use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
-  SymbolKind, TdBoolObj, TdDictObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum,
-  TdObjectLike, TdProductObj, TdProductType, TdStrObj, TdTypeEnum, TdTypeLike, TdVaultObj,
+  BuiltinGlobalKind, BuiltinMacroKind, FnKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
+  RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType, TdListObj, TdMathObj,
+  TdNullObj, TdNumObj, TdObjectEnum, TdObjectLike, TdProductObj, TdProductType, TdStrObj,
+  TdTypeEnum, TdTypeLike, TdVaultObj,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -22,6 +23,7 @@ use typedown_types::either::Either;
 pub(crate) fn construct_from_hir(
   db: &TypedownDatabase,
   hir: HirValue,
+  runtime_scope: RuntimeScope,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TdObjectEnum> {
   match hir.kind(db) {
@@ -35,8 +37,11 @@ pub(crate) fn construct_from_hir(
       let symbol = file_symbol(db, project, file).value(db)?;
       return evaluate_resource(db, symbol).value(db);
     }
-    // Builtin globals and schema references resolve to objects
-    HirValueKind::Ident(_) => {
+    // Ident: check runtime scope first (for closure params), then normal resolution
+    HirValueKind::Ident(ref name) => {
+      if let Some(obj) = runtime_scope.lookup(db, name) {
+        return Some(obj);
+      }
       let resolved = referee(db, hir);
       if let Some(symbol) = resolved.value(db) {
         match symbol.kind(db) {
@@ -53,43 +58,43 @@ pub(crate) fn construct_from_hir(
         }
       }
     }
-    // Tag expressions: the tag is a type hint for the typechecker; evaluation strips it
+    // Tag expressions: the tag is a type hint for the typechecker
     HirValueKind::Tag { inner, .. } => {
-      return evaluate_node(db, *inner).value(db);
+      return evaluate_node(db, *inner, runtime_scope).value(db);
     }
     // Field access: obj.field
     HirValueKind::Binary { op, left, right } if op == "." => {
       if let HirValueKind::Ident(field_name) = right.kind(db) {
-        let this = evaluate_node(db, *left).value(db)?;
+        let this = evaluate_node(db, *left, runtime_scope).value(db)?;
         return this.lookup_field(db, &field_name);
       }
     }
     // Arithmetic, comparison, and logical binary operators
     HirValueKind::Binary { op, left, right } => {
-      return evaluate_binary(db, &op, *left, *right);
+      return evaluate_binary(db, &op, *left, *right, runtime_scope);
     }
     // Prefix operators
     HirValueKind::Prefix { op, operand } => {
-      return evaluate_prefix(db, &op, *operand);
+      return evaluate_prefix(db, &op, *operand, runtime_scope);
     }
     // Postfix operators
     HirValueKind::Postfix { op, operand } => {
-      return evaluate_postfix(db, &op, *operand);
+      return evaluate_postfix(db, &op, *operand, runtime_scope);
     }
     // Index access: list[n] or dict["key"]
     HirValueKind::Index { expr, indices } => {
-      return evaluate_index(db, *expr, indices, diagnostics);
+      return evaluate_index(db, *expr, indices, runtime_scope, diagnostics);
     }
     HirValueKind::Call { callee, args } => {
       match callee.kind(db) {
         // Method call: obj.method(args)
         HirValueKind::Binary { op, left, right } if op == "." => {
           if let HirValueKind::Ident(method_name) = right.kind(db) {
-            let this = evaluate_node(db, *left).value(db)?;
+            let this = evaluate_node(db, *left, runtime_scope).value(db)?;
             let func_obj = this.lookup_method(db, &method_name)?;
             let arg_objs: Vec<_> = args
               .into_iter()
-              .filter_map(|arg| evaluate_node(db, arg).value(db))
+              .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
               .collect();
             return func_obj.call(db, this, arg_objs);
           }
@@ -103,17 +108,37 @@ pub(crate) fn construct_from_hir(
             return construct_macro(db, kind, args);
           }
           // Plain function call: evaluate callee, check if it's a function, call it
-          let callee_obj = evaluate_node(db, *callee).value(db)?;
+          let callee_obj = evaluate_node(db, *callee, runtime_scope).value(db)?;
           if let TdObjectEnum::TdFuncObj(func_obj) = &callee_obj {
             let func_obj = *func_obj;
             let arg_objs: Vec<_> = args
               .into_iter()
-              .filter_map(|arg| evaluate_node(db, arg).value(db))
+              .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
               .collect();
             return func_obj.call(db, callee_obj, arg_objs);
           }
         }
       }
+    }
+    // Closure: create a TdFuncObj capturing the defining scope
+    HirValueKind::Closure { ref params, .. } => {
+      let func_type = match actual_node_type(db, hir).typ(db) {
+        Some(TdTypeEnum::TdFuncType(f)) => f,
+        // No expected type context: assume never for params and return
+        _ => {
+          let never: TdTypeEnum = get_never_type(db).into();
+          let param_types = vec![never.clone(); params.len()];
+          TdFuncType::get(db, param_types, never)
+        }
+      };
+      let func_obj = TdFuncObj::new(
+        db,
+        "<closure>".to_string(),
+        func_type.into(),
+        func_type.signature(db),
+        FnKind::UserDefined(hir, runtime_scope),
+      );
+      return Some(func_obj.into());
     }
     _ => {}
   }
@@ -143,7 +168,7 @@ pub(crate) fn construct_from_hir(
     HirValueKind::Bool(val) => typ.construct(db, vec![TdBoolObj::new(db, val).into()]),
     HirValueKind::Math(val) => typ.construct(db, vec![TdMathObj::new(db, val).into()]),
     HirValueKind::Interpolated(parts) => {
-      let obj = evaluate_interpolated(db, parts)?;
+      let obj = evaluate_interpolated(db, runtime_scope, parts)?;
       typ.construct(db, vec![obj])
     }
     HirValueKind::Sequence(items) => {
@@ -153,21 +178,26 @@ pub(crate) fn construct_from_hir(
       }
       let args: Vec<_> = items
         .into_iter()
-        .filter_map(|item| evaluate_node(db, item).value(db))
+        .filter_map(|item| evaluate_node(db, item, runtime_scope).value(db))
         .collect();
       typ.construct(db, args)
     }
     HirValueKind::Mapping(entries) => evaluate_mapping(db, &typ, entries),
     HirValueKind::Markdown(parts) => {
-      let obj = evaluate_interpolated(db, parts)?;
+      let obj = evaluate_interpolated(db, runtime_scope, parts)?;
       typ.construct(db, vec![obj])
     }
     _ => None,
   }
 }
 
-fn evaluate_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
-  let operand_obj = evaluate_node(db, operand).value(db)?;
+fn evaluate_prefix(
+  db: &TypedownDatabase,
+  op: &str,
+  operand: HirValue,
+  runtime_scope: RuntimeScope,
+) -> Option<TdObjectEnum> {
+  let operand_obj = evaluate_node(db, operand, runtime_scope).value(db)?;
   match op {
     "-" | "+" => {
       let num = operand_obj.as_td_num_obj()?;
@@ -188,11 +218,16 @@ fn evaluate_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option
   }
 }
 
-fn evaluate_postfix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Option<TdObjectEnum> {
+fn evaluate_postfix(
+  db: &TypedownDatabase,
+  op: &str,
+  operand: HirValue,
+  runtime_scope: RuntimeScope,
+) -> Option<TdObjectEnum> {
   match op {
     // T? evaluates to Sum([T, null]) as a type object
     "?" => {
-      let inner = evaluate_node(db, operand).value(db)?;
+      let inner = evaluate_node(db, operand, runtime_scope).value(db)?;
       let inner_type = inner.as_type()?;
       Some(
         get_sum_type(
@@ -214,9 +249,10 @@ fn evaluate_binary(
   op: &str,
   left: HirValue,
   right: HirValue,
+  runtime_scope: RuntimeScope,
 ) -> Option<TdObjectEnum> {
-  let left_obj = evaluate_node(db, left).value(db)?;
-  let right_obj = evaluate_node(db, right).value(db)?;
+  let left_obj = evaluate_node(db, left, runtime_scope).value(db)?;
+  let right_obj = evaluate_node(db, right, runtime_scope).value(db)?;
   match op {
     "+" | "-" | "*" | "/" | "%" | "**" => {
       let lnum = left_obj.as_td_num_obj()?;
@@ -273,14 +309,15 @@ fn evaluate_index(
   db: &TypedownDatabase,
   expr: HirValue,
   indices: Vec<HirValue>,
+  runtime_scope: RuntimeScope,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TdObjectEnum> {
   if indices.len() != 1 {
     return None;
   }
   let index_hir = indices[0];
-  let container = evaluate_node(db, expr).value(db)?;
-  let index_obj = evaluate_node(db, index_hir).value(db)?;
+  let container = evaluate_node(db, expr, runtime_scope).value(db)?;
+  let index_obj = evaluate_node(db, index_hir, runtime_scope).value(db)?;
 
   if let TdObjectEnum::TdListObj(list) = &container {
     let num = index_obj.as_td_num_obj()?;
@@ -335,6 +372,7 @@ fn construct_macro(
 
 fn evaluate_interpolated(
   db: &TypedownDatabase,
+  runtime_scope: RuntimeScope,
   parts: Vec<InterpolatedPart>,
 ) -> Option<TdObjectEnum> {
   let mut val = String::new();
@@ -342,7 +380,7 @@ fn evaluate_interpolated(
     match part {
       InterpolatedPart::Literal(lit) => val.push_str(&lit),
       InterpolatedPart::Expr(expr) => {
-        let obj = evaluate_node(db, expr).value(db)?;
+        let obj = evaluate_node(db, expr, runtime_scope).value(db)?;
         let to_string_fn = obj.lookup_method(db, "to_string")?;
         let str_obj = to_string_fn.call(db, obj, vec![])?;
         let str_val = str_obj.as_td_str_obj()?;

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived, query_interned};
 
-use crate::db::types::{File, HirValue, Project};
+use crate::db::types::{File, HirValue, Project, TdObjectEnum};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
   StableHash, StableHasher,
@@ -437,6 +437,33 @@ impl Scope {
     value: HirValue,
   ) -> Self {
     Self::new(db, ScopeKind::Fn(project, file, value))
+  }
+}
+
+// Runtime scope for closure evaluation
+// Carries param bindings and a reference to the syntactic scope
+#[query_derived]
+pub struct RuntimeScope {
+  scope: Scope,
+  bindings: Vec<(String, TdObjectEnum)>,
+  parent: Option<Box<RuntimeScope>>,
+}
+
+impl RuntimeScope {
+  pub fn empty(db: &(impl QueryDatabase + ?Sized)) -> Self {
+    Self::new(db, Scope::builtin_scope(db), vec![], None)
+  }
+
+  pub fn lookup(&self, db: &(impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum> {
+    for (key, val) in &self.bindings(db) {
+      if key == name {
+        return Some(val.clone());
+      }
+    }
+    if let Some(parent) = self.parent(db).as_ref() {
+      return parent.lookup(db, name);
+    }
+    None
   }
 }
 

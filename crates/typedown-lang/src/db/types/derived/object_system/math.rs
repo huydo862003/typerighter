@@ -4,7 +4,7 @@ use typedown_macros::query_derived;
 
 use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
 use super::func::TdFuncObj;
-use super::native_fn::NativeFnKind;
+use super::native_fn::{FnKind, NativeFnKind};
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
@@ -40,9 +40,7 @@ impl TdTypeLike for TdMathType {
       "to_string".to_string(),
       TdMathType::get(db).into(),
       sig,
-      NativeFnKind::MathToString,
-      None,
-      None,
+      FnKind::Native(NativeFnKind::MathToString),
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }

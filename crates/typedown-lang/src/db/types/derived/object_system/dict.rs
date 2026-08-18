@@ -8,7 +8,7 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_dict_type;
-use crate::db::types::{HirValue, InstResult, LazyType};
+use crate::db::types::{HirValue, InstResult, LazyType, RuntimeScope};
 
 #[query_derived]
 pub struct TdDictType {
@@ -167,7 +167,7 @@ impl TdObjectLike for TdDictObj {
   }
   fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
     match self.entries(db).get(key).cloned()? {
-      Either::Left(hir) => evaluate_node(db, hir).value(db),
+      Either::Left(hir) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
       Either::Right(obj) => Some(obj),
     }
   }

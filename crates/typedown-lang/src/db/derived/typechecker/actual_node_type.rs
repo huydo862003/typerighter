@@ -427,7 +427,18 @@ fn get_closure_type(
   };
 
   if param_types.len() != params.len() {
-    return TypeResult::new(db, None, vec![]);
+    let node = hir.node(db);
+    let (tr_offset, tr_len) = node.trimmed_range();
+    return TypeResult::new(
+      db,
+      None,
+      vec![Diagnostic::WrongArgCount {
+        expected: param_types.len(),
+        got: params.len(),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      }],
+    );
   }
 
   let body_result = actual_node_type(db, body);

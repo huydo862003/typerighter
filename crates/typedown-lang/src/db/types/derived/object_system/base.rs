@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use ambassador::delegatable_trait;
 
 use super::func::TdFuncObj;
-use super::native_fn::NativeFnKind;
+use super::native_fn::{FnKind, NativeFnKind};
 use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
@@ -269,9 +269,7 @@ impl TdTypeLike for TdObjectType {
       "to_string".to_string(),
       get_object_type(db).into(),
       sig,
-      NativeFnKind::ObjectToString,
-      None,
-      None,
+      FnKind::Native(NativeFnKind::ObjectToString),
     );
     HashMap::from([("to_string".to_string(), func_obj)])
   }
