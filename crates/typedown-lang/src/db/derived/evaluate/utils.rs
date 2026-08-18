@@ -30,13 +30,6 @@ pub(crate) fn construct_from_hir(
     HirValueKind::Null => {
       return Some(TdNullObj::get(db).into());
     }
-    // self evaluates to the current file's resource object
-    HirValueKind::Ident(name) if name == "self" => {
-      let project = hir.project(db);
-      let file = hir.file(db);
-      let symbol = file_symbol(db, project, file).value(db)?;
-      return evaluate_resource(db, symbol).value(db);
-    }
     // Ident: check runtime scope first (for closure params), then normal resolution
     HirValueKind::Ident(ref name) => {
       if let Some(obj) = runtime_scope.lookup(db, name) {
@@ -53,6 +46,10 @@ pub(crate) fn construct_from_hir(
           // Schema identifiers evaluate to the schema type as an object
           SymbolKind::UserDefinedSchema(_, _) | SymbolKind::BuiltinSchema(_) => {
             return evaluate_type(db, symbol).typ(db).map(TdObjectEnum::from);
+          }
+          // Resource identifiers (including self) evaluate to the resource object
+          SymbolKind::UserDefinedResource(_, _) => {
+            return evaluate_resource(db, symbol).value(db);
           }
           _ => {}
         }

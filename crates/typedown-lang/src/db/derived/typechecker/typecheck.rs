@@ -1378,4 +1378,18 @@ mod tests {
       "1 && 2 should report operand mismatch"
     );
   }
+
+  // Closure referencing self should typecheck
+  #[test]
+  fn typecheck_closure_self_ref() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "closure referencing self.a should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
 }

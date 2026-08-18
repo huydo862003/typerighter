@@ -21,7 +21,6 @@ use crate::db::types::{
   BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind,
   TdListType, TdStrType, TdTypeEnum, TdTypeLike, TypeResult,
 };
-use crate::db::utils::lower_file;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
@@ -57,7 +56,6 @@ pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     ),
     HirValueKind::Interpolated(_) => TypeResult::new(db, Some(get_str_type(db).into()), vec![]),
     HirValueKind::Null => TypeResult::new(db, Some(get_null_type(db).into()), vec![]),
-    HirValueKind::Ident(ref name) if name == "self" => get_self_type(db, hir),
     HirValueKind::Ident(_) => {
       let resolved = referee(db, hir);
       match resolved.value(db) {
@@ -454,30 +452,6 @@ fn get_closure_type(
     Some(func_type.into()),
     body_result.diagnostics(db).clone(),
   )
-}
-
-// Return the type of self in the current file
-fn get_self_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
-  let project = hir.project(db);
-  let file = hir.file(db);
-  let (mapping_hir, _) = lower_file(db, project, file);
-  let mapping_hir = match mapping_hir {
-    Some(mapping_hir) => mapping_hir,
-    None => return TypeResult::new(db, None, vec![]),
-  };
-
-  if let HirValueKind::Mapping(entries) = mapping_hir.kind(db) {
-    for (key, val_hir) in entries {
-      if key == "_type" {
-        let resolved = referee(db, val_hir);
-        return match resolved.value(db) {
-          Some(symbol) => evaluate_type(db, symbol),
-          None => TypeResult::new(db, None, vec![]),
-        };
-      }
-    }
-  }
-  TypeResult::new(db, None, vec![])
 }
 
 #[cfg(test)]

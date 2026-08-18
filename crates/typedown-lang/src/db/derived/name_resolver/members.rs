@@ -56,6 +56,9 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
         if !name.is_empty() {
           members.insert(name, sym);
         }
+
+        // self resolves to the file's own resource symbol
+        members.insert("self".to_string(), sym);
       }
 
       MembersResult::new(db, members)
