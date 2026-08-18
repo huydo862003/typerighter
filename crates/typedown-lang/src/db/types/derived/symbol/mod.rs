@@ -17,7 +17,7 @@ pub enum SymbolKind {
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
-  FnParam(Project, File),
+  FnParam(Project, File, HirValue),
 }
 
 #[derive(FromRepr)]
@@ -54,7 +54,7 @@ impl SymbolKind {
       SymbolKind::UserDefinedSchema(_, _)
         | SymbolKind::UserDefinedResource(_, _)
         | SymbolKind::Asset(_, _, _)
-        | SymbolKind::FnParam(_, _)
+        | SymbolKind::FnParam(_, _, _)
     )
   }
 
@@ -68,10 +68,14 @@ impl StableHash for SymbolKind {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
       SymbolKind::UserDefinedSchema(project, file)
-      | SymbolKind::UserDefinedResource(project, file)
-      | SymbolKind::FnParam(project, file) => {
+      | SymbolKind::UserDefinedResource(project, file) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
+      }
+      SymbolKind::FnParam(project, file, closure) => {
+        project.stable_hash(db, hasher);
+        file.stable_hash(db, hasher);
+        closure.stable_hash(db, hasher);
       }
       SymbolKind::Asset(asset_kind, project, file) => {
         asset_kind.stable_hash(db, hasher);
@@ -116,10 +120,11 @@ impl Encodable for SymbolKind {
         encoder.emit_u8(buf, SymbolKindTag::BuiltinGlobal as u8);
         kind.encode(buf, encoder);
       }
-      SymbolKind::FnParam(project, file) => {
+      SymbolKind::FnParam(project, file, closure) => {
         encoder.emit_u8(buf, SymbolKindTag::FnParam as u8);
         project.encode_field(buf, encoder);
         file.encode_field(buf, encoder);
+        closure.encode_field(buf, encoder);
       }
     }
   }
@@ -154,6 +159,7 @@ impl Decodable for SymbolKind {
       SymbolKindTag::FnParam => SymbolKind::FnParam(
         Project::decode_field(data, decoder),
         File::decode_field(data, decoder),
+        HirValue::decode_field(data, decoder),
       ),
     }
   }

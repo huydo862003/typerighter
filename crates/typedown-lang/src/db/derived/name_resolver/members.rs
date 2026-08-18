@@ -98,7 +98,7 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
           {
             let sym = Symbol::new(
               db,
-              SymbolKind::FnParam(project, file),
+              SymbolKind::FnParam(project, file, value),
               name.clone(),
               format!("@param::{}", name),
             );

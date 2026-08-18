@@ -48,7 +48,7 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
     SymbolKind::UserDefinedResource(_, _)
     | SymbolKind::BuiltinMacro(_)
     | SymbolKind::BuiltinGlobal(_) => TypeResult::new(db, None, vec![]),
-    SymbolKind::FnParam(_, _) => TypeResult::new(db, None, vec![]),
+    SymbolKind::FnParam(_, _, _) => TypeResult::new(db, None, vec![]),
   }
 }
 

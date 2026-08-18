@@ -15,7 +15,7 @@ use crate::db::types::{
   TdTypeLike, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
-use crate::syntax::ast::{AstNode, CallExpr, Expr};
+use crate::syntax::ast::{AstNode, CallExpr, ClosureExpr, Expr};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
@@ -109,6 +109,16 @@ fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     }
   }
 
+  // ClosureExpr: body gets the return type from expected(closure)
+  if let Some(closure) = ClosureExpr::cast(parent.clone()) {
+    if closure
+      .body()
+      .is_some_and(|b| *b.syntax() == node)
+    {
+      return get_expected_closure_body_type(db, project, file, &closure);
+    }
+  }
+
   // No expression propagation rule matched, fall back to actual type
   actual_node_type(db, hir)
 }
@@ -163,6 +173,24 @@ fn get_expected_call_callee_type(
   let sig = FuncSignature::new(db, param_types, ret);
   let func_type = get_func_type(db, sig);
   TypeResult::new(db, Some(func_type.into()), vec![])
+}
+
+// expected(body) = return type from expected(closure)
+fn get_expected_closure_body_type(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  closure: &ClosureExpr,
+) -> TypeResult {
+  let closure_hir = lower_node(db, project, file, closure.syntax().clone());
+  let expected = expected_node_type(db, closure_hir).typ(db);
+  match expected {
+    Some(TdTypeEnum::TdFuncType(f)) => {
+      let ret = f.signature(db).ret(db);
+      TypeResult::new(db, Some(ret), vec![])
+    }
+    _ => TypeResult::new(db, None, vec![]),
+  }
 }
 
 /// Check if a node is top-level in the YAML structure
