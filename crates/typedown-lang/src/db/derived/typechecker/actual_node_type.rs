@@ -16,18 +16,19 @@ use crate::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use crate::db::types::derived::object_system::{
   TdStructuralType, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
+use crate::db::derived::get_builtin_types::get_func_type;
+use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::types::{
-  BuiltinMacroKind, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind, TdListType,
-  TdStrType, TdTypeEnum, TdTypeLike, TypeResult,
+  BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind,
+  TdListType, TdStrType, TdTypeEnum, TdTypeLike, TypeResult,
 };
 use crate::db::utils::lower_file;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
 
-// Infer the type of an HIR
-// This function never relies on the declared type of the hir (it can rely on the declared type of the referenced hir)
-// It always guesses based on the structure of the hir alone
+// Infer the type of an HIR bottom-up from its structure
+// Exception: closures read expected(closure) to get param types (see README.md)
 #[query_derived]
 pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
   let diagnostics = vec![];
@@ -75,7 +76,7 @@ pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
     HirValueKind::Binary { op, left, right } => get_binary_type(db, &op, *left, *right),
     HirValueKind::Math(_) => TypeResult::new(db, Some(get_math_type(db).into()), vec![]),
     HirValueKind::Markdown(_) => TypeResult::new(db, Some(get_str_type(db).into()), vec![]),
-    HirValueKind::Closure { .. } => TypeResult::new(db, None, vec![]),
+    HirValueKind::Closure { params, body } => get_closure_type(db, hir, params, *body),
   }
 }
 
@@ -421,6 +422,34 @@ fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>)
   }
 
   TypeResult::new(db, None, diagnostics)
+}
+
+// actual(closure) = fn(params from expected, return from actual(body))
+fn get_closure_type(
+  db: &TypedownDatabase,
+  hir: HirValue,
+  params: Vec<String>,
+  body: HirValue,
+) -> TypeResult {
+  let expected = expected_node_type(db, hir).typ(db);
+  let param_types = match expected {
+    Some(TdTypeEnum::TdFuncType(f)) => f.signature(db).params(db),
+    _ => return TypeResult::new(db, None, vec![]),
+  };
+
+  if param_types.len() != params.len() {
+    return TypeResult::new(db, None, vec![]);
+  }
+
+  let body_result = actual_node_type(db, body);
+  let ret = match body_result.typ(db) {
+    Some(t) => t,
+    None => return TypeResult::new(db, None, body_result.diagnostics(db).clone()),
+  };
+
+  let sig = FuncSignature::new(db, param_types, ret);
+  let func_type = get_func_type(db, sig);
+  TypeResult::new(db, Some(func_type.into()), body_result.diagnostics(db).clone())
 }
 
 /// Return the type of `self` in the current file
