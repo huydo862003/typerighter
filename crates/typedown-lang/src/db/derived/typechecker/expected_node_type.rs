@@ -9,11 +9,13 @@ use crate::db::derived::get_builtin_types::{get_schemaless_type, get_sum_type};
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
+use crate::db::derived::get_builtin_types::get_func_type;
 use crate::db::types::{
-  File, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum, TdTypeLike, TypeResult,
+  File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum,
+  TdTypeLike, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
-use crate::syntax::ast::{AstNode, Expr};
+use crate::syntax::ast::{AstNode, CallExpr, Expr};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
@@ -34,9 +36,9 @@ pub fn expected_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
   let file = hir.file(db);
   let node = hir.node(db);
 
-  // "Non-top-level expression nodes" (our fabricated concept) fall back to actual type
+  // Expression nodes propagate expected types through expression structure
   if !is_top_level(&node) {
-    return actual_node_type(db, hir);
+    return get_expected_expr_type(db, hir);
   }
 
   let anchor = match collect_path_to_anchor(db, project, file, &node) {
@@ -72,6 +74,95 @@ pub fn expected_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
   }
 
   TypeResult::new(db, current_type.resolve(db), vec![])
+}
+
+// Propagate expected type through expression structure
+fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
+  let node = hir.node(db);
+  let project = hir.project(db);
+  let file = hir.file(db);
+
+  let parent = match node.parent() {
+    Some(p) => p,
+    None => return TypeResult::new(db, None, vec![]),
+  };
+
+  // CallExpr: first Expr child is callee, rest are args
+  if let Some(call) = CallExpr::cast(parent.clone()) {
+    let expr_children: Vec<Expr> = parent.children().filter_map(Expr::cast).collect();
+
+    // Is it the callee (first Expr child)?
+    if expr_children
+      .first()
+      .is_some_and(|c| *c.syntax() == node)
+    {
+      return get_expected_call_callee_type(db, project, file, &call);
+    }
+
+    // Is it an arg? Find its position (0-indexed, skipping callee)
+    let arg_index = expr_children
+      .iter()
+      .skip(1)
+      .position(|c| *c.syntax() == node);
+    if let Some(idx) = arg_index {
+      return get_expected_call_arg_type(db, project, file, &call, idx);
+    }
+  }
+
+  // No expression propagation rule matched, fall back to actual type
+  actual_node_type(db, hir)
+}
+
+// expected(arg_i) = param_i from actual(callee)
+fn get_expected_call_arg_type(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  call: &CallExpr,
+  arg_index: usize,
+) -> TypeResult {
+  let callee_node = match call.callee() {
+    Some(c) => c,
+    None => return TypeResult::new(db, None, vec![]),
+  };
+  let callee_hir = lower_node(db, project, file, callee_node.syntax().clone());
+  let callee_type = actual_node_type(db, callee_hir).typ(db);
+
+  if let Some(TdTypeEnum::TdFuncType(func)) = callee_type {
+    let params = func.signature(db).params(db);
+    if let Some(param_type) = params.get(arg_index) {
+      return TypeResult::new(db, Some(param_type.clone()), vec![]);
+    }
+  }
+
+  TypeResult::new(db, None, vec![])
+}
+
+// expected(callee) = fn(actual(arg_i)...) -> expected(call)
+fn get_expected_call_callee_type(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  call: &CallExpr,
+) -> TypeResult {
+  let call_hir = lower_node(db, project, file, call.syntax().clone());
+  let ret = match expected_node_type(db, call_hir).typ(db) {
+    Some(t) => t,
+    None => return TypeResult::new(db, None, vec![]),
+  };
+
+  let mut param_types = vec![];
+  for arg in call.args() {
+    let arg_hir = lower_node(db, project, file, arg.syntax().clone());
+    match actual_node_type(db, arg_hir).typ(db) {
+      Some(t) => param_types.push(t),
+      None => return TypeResult::new(db, None, vec![]),
+    }
+  }
+
+  let sig = FuncSignature::new(db, param_types, ret);
+  let func_type = get_func_type(db, sig);
+  TypeResult::new(db, Some(func_type.into()), vec![])
 }
 
 /// Check if a node is top-level in the YAML structure
