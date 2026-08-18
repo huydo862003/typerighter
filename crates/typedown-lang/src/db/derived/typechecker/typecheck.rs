@@ -76,6 +76,11 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
     HirValueKind::Index { expr, indices } => {
       diagnostics.extend(check_index(db, *expr, indices));
     }
+    // Recurse into closure body
+    HirValueKind::Closure { body, .. } => {
+      let tc_result = typecheck(db, *body);
+      diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+    }
     _ => {}
   }
 

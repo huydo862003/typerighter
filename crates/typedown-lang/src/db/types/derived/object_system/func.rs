@@ -70,6 +70,24 @@ impl TdTypeLike for TdFuncType {
         .members(db)
         .iter()
         .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
+      TdTypeEnum::TdFuncType(actual_func) => {
+        let expected_sig = self.signature(db);
+        let actual_sig = actual_func.signature(db);
+        let expected_params = expected_sig.params(db);
+        let actual_params = actual_sig.params(db);
+        // Arity must match
+        if expected_params.len() != actual_params.len() {
+          return false;
+        }
+        // Params are contravariant: actual param must accept expected param
+        for (expected_param, actual_param) in expected_params.iter().zip(actual_params.iter()) {
+          if !actual_param.accepts(db, expected_param) {
+            return false;
+          }
+        }
+        // Return type is covariant: expected return must accept actual return
+        expected_sig.ret(db).accepts(db, &actual_sig.ret(db))
+      }
       _ => self.as_id() == actual.as_id(),
     }
   }
