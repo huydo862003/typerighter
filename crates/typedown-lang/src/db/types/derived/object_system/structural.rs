@@ -10,6 +10,7 @@ use crate::db::utils::typecheck::is_nullable;
 use typedown_incremental::Id;
 
 // Anonymous structural type for typechecking, holds field name to type mappings
+// This type never MATERIALIZES at runtime
 #[query_derived]
 pub struct TdStructuralType {
   pub fields: HashMap<String, LazyType>,
