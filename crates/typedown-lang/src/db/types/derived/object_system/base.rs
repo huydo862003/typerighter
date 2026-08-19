@@ -84,6 +84,10 @@ pub trait TdObjectLike: Id {
 // We access via the enum, not via dyn trait
 #[delegatable_trait]
 pub trait TdTypeLike: TdObjectLike {
+  // TIL: Just realized the distinction between parameterized types and universal types
+  // - Parameterized types are type constructors (kind Type -> Type) that need args to become concrete
+  // - Universal types (forall T. T -> T) are already concrete types (kind Type) inhabited by polymorphic values
+  // Our arity system is parameterized types, not universal quantification
   fn arity(&self, db: &::typedown_lang::db::TypedownDatabase) -> usize;
   fn get_supertype(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum;
   fn get_vtable(

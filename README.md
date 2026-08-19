@@ -155,6 +155,17 @@ Two problems:
 - **Race condition**: Vite's watcher fires before Rust finishes re-indexing, so we suppress `handleHotUpdate` for `.td` files and let the Rust RPC events (`onContentChanged`, etc.) drive invalidation instead.
 - **Client-side hot reload**: `.td` files become Vue SFCs, so Vue's HMR runtime handles `import.meta.hot.accept()` automatically. No full page reload needed.
 
+### Parameterized Types vs Universal Types
+
+These are different things despite both involving type parameters:
+
+- **Parameterized type** (type constructor): `List :: Type -> Type`. Not a type by itself, needs args applied to become one (`List[string]`). This is what our `arity` system implements.
+- **Universal type**: `forall T. T -> T :: Type`. Already a concrete type (kind `Type`). Values of this type are polymorphic functions (e.g. the identity function). The `forall` binds `T` internally.
+
+A **higher-kinded type (HKT)** is a type _variable_ ranging over type constructors (e.g. `f` in `forall f. f Int -> f String` where `f` could be `List`, `Maybe`, etc.). We don't have this.
+
+An **existential type** `exists T. SchemaProperty[T]` means "there is some `T`, but I don't tell you which". Useful for heterogeneous collections where each entry independently picks its `T`.
+
 ### LSP: Dynamic vs Static Registration
 
 When a client advertises `dynamicRegistration: true` for `workspace.fileOperations` (as VSCode does), some clients **ignore** static capabilities declared in `InitializeResult`. The server must use `client/registerCapability` to dynamically register for `workspace/willRenameFiles` and `workspace/didRenameFiles` at runtime.
