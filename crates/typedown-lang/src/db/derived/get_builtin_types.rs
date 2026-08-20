@@ -12,19 +12,13 @@ use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, InstResult, LazyType, LiteralValue, Symbol, SymbolKind,
   TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
   TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
-  TdObjectType, TdProductType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeLike,
-  TdTypeType,
+  TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
 #[query_derived]
 pub fn get_type_type(db: &TypedownDatabase) -> TdTypeType {
   TdTypeType::new(db)
-}
-
-#[query_derived]
-pub fn get_object_type(db: &TypedownDatabase) -> TdObjectType {
-  TdObjectType::new(db)
 }
 
 #[query_derived]
@@ -101,7 +95,6 @@ pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("schema".to_string()),
     get_type_type(db).into(),
-    Some(get_type_type(db).into()),
     fields,
     HashMap::new(),
   )
@@ -114,7 +107,6 @@ pub fn get_schemaless_type(db: &TypedownDatabase) -> TdProductType {
     db,
     None,
     get_schema_type(db).into(),
-    None,
     HashMap::new(),
     HashMap::new(),
   )
@@ -295,23 +287,27 @@ pub fn instantiate_type(
   constructor: TdTypeEnum,
   args: Vec<LazyType>,
 ) -> InstResult {
-  let arity = constructor.arity(db);
-  if arity != args.len() {
+  let a = constructor.arity(db);
+  if a != args.len() {
     return InstResult::new(
       db,
       constructor.clone(),
       vec![Diagnostic::WrongTypeArgCount {
-        expected: arity,
+        expected: a,
         got: args.len(),
       }],
     );
   }
-  constructor.instantiate(db, args)
+  match constructor.instantiate(db, args) {
+    Some(result) => InstResult::new(db, result, vec![]),
+    None => InstResult::new(db, constructor, vec![]),
+  }
 }
 
 #[cfg(test)]
 mod tests {
   use super::{get_bool_type, get_sum_type};
+  use crate::db::types::derived::object_system::TdStaticType;
   use crate::db::types::{LazyType, TdTypeEnum};
   use crate::syntax::diagnostic::Diagnostic;
 
@@ -320,7 +316,6 @@ mod tests {
     derived::get_builtin_types::{
       get_dict_type, get_list_type, get_num_type, get_str_type, instantiate_type,
     },
-    types::TdTypeLike,
   };
 
   fn make_db() -> TypedownDatabase {

@@ -1,17 +1,14 @@
-use std::collections::HashMap;
 use typedown_macros::query_derived;
 
-use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
-use super::func::TdFuncObj;
+use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_never_type;
-use crate::db::types::{InstResult, LazyType};
 
 #[query_derived]
 pub struct TdNeverType {}
 
-impl TdObjectLike for TdNeverType {
+impl TdRuntimeObject for TdNeverType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -23,32 +20,7 @@ impl TdObjectLike for TdNeverType {
   }
 }
 
-impl TdTypeLike for TdNeverType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
-  }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
-  }
-  fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    HashMap::new()
-  }
-  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, _db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    matches!(actual, TdTypeEnum::TdNeverType(_))
-  }
-  fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
-    None
-  }
+impl TdStaticType for TdNeverType {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "never".to_string()
   }

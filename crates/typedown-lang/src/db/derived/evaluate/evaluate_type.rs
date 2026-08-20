@@ -15,7 +15,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
-  SymbolKind, TdBlobType, TdProductType, TdStructuralType, TdTypeEnum, TdTypeLike, TypeResult,
+  SymbolKind, TdBlobType, TdProductType, TdStaticType, TdStructuralType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
 use crate::db::utils::typecheck::is_nullable;
@@ -99,7 +99,6 @@ fn evaluate_user_defined_schema(
             db,
             Some(schema_name.clone()),
             get_schema_type(db).into(),
-            None,
             HashMap::new(),
             HashMap::new(),
           )
@@ -127,7 +126,6 @@ fn evaluate_user_defined_schema(
         db,
         Some(schema_name),
         get_schema_type(db).into(),
-        None,
         fields,
         HashMap::new(),
       )
@@ -322,7 +320,9 @@ fn resolve_type_lazy(
 
 #[cfg(test)]
 mod tests {
-  use crate::db::types::{TdObjectEnum, TdObjectLike, TdTypeEnum};
+  use crate::db::types::derived::object_system::TdStaticType;
+  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum};
+
   use std::collections::HashMap;
   use std::path::PathBuf;
 
@@ -338,7 +338,7 @@ mod tests {
     types::{
       BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
       LiteralValue, Project, RuntimeScope, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType,
-      TdStrObj, TdStructuralType, TdTypeLike, TdTypeType,
+      TdStrObj, TdStructuralType, TdTypeType,
     },
     utils::lower_file,
   };
@@ -459,34 +459,35 @@ mod tests {
   #[test]
   fn display_name_builtin_types() {
     let db = make_db();
-    assert_eq!(get_str_type(&db).display_name(&db), "string");
-    assert_eq!(get_num_type(&db).display_name(&db), "number");
-    assert_eq!(get_bool_type(&db).display_name(&db), "boolean");
-    assert_eq!(get_date_type(&db).display_name(&db), "date");
-    assert_eq!(get_datetime_type(&db).display_name(&db), "datetime");
-    assert_eq!(get_time_type(&db).display_name(&db), "time");
-    assert_eq!(get_list_type(&db).display_name(&db), "list");
-    assert_eq!(get_dict_type(&db).display_name(&db), "dict");
-    assert_eq!(get_type_type(&db).display_name(&db), "type");
-    assert_eq!(get_object_type(&db).display_name(&db), "object");
-    assert_eq!(get_schema_type(&db).display_name(&db), "schema");
-    assert_eq!(get_never_type(&db).display_name(&db), "never");
-    assert_eq!(get_null_type(&db).display_name(&db), "null");
+    let dn = |t: TdTypeEnum| t.display_name(&db);
+    assert_eq!(dn(get_str_type(&db).into()), "string");
+    assert_eq!(dn(get_num_type(&db).into()), "number");
+    assert_eq!(dn(get_bool_type(&db).into()), "boolean");
+    assert_eq!(dn(get_date_type(&db).into()), "date");
+    assert_eq!(dn(get_datetime_type(&db).into()), "datetime");
+    assert_eq!(dn(get_time_type(&db).into()), "time");
+    assert_eq!(dn(get_list_type(&db).into()), "list");
+    assert_eq!(dn(get_dict_type(&db).into()), "dict");
+    assert_eq!(dn(get_type_type(&db).into()), "type");
+    assert_eq!(dn(get_schema_type(&db).into()), "schema");
+    assert_eq!(dn(get_never_type(&db).into()), "never");
+    assert_eq!(dn(get_null_type(&db).into()), "null");
   }
 
   #[test]
   fn display_name_literal_types() {
     let db = make_db();
+    let dn = |t: TdTypeEnum| t.display_name(&db);
     assert_eq!(
-      get_literal_type(&db, LiteralValue::Str("draft".to_string())).display_name(&db),
+      dn(get_literal_type(&db, LiteralValue::Str("draft".to_string())).into()),
       "\"draft\""
     );
     assert_eq!(
-      get_literal_type(&db, LiteralValue::Num("42".to_string())).display_name(&db),
+      dn(get_literal_type(&db, LiteralValue::Num("42".to_string())).into()),
       "42"
     );
     assert_eq!(
-      get_literal_type(&db, LiteralValue::Bool(true)).display_name(&db),
+      dn(get_literal_type(&db, LiteralValue::Bool(true)).into()),
       "true"
     );
   }
@@ -501,7 +502,8 @@ mod tests {
         LazyType::eager(get_num_type(&db).into()),
       ],
     );
-    assert_eq!(sum.display_name(&db), "string | number");
+    let sum_type: TdTypeEnum = sum.into();
+    assert_eq!(sum_type.display_name(&db), "string | number");
   }
 
   #[test]
@@ -514,7 +516,8 @@ mod tests {
         LazyType::eager(get_str_type(&db).into()),
       )]),
     );
-    assert_eq!(structural.display_name(&db), "{ name: string }");
+    let structural_type: TdTypeEnum = structural.into();
+    assert_eq!(structural_type.display_name(&db), "{ name: string }");
   }
 
   #[test]
@@ -549,13 +552,8 @@ mod tests {
   fn display_name_user_defined_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    assert_eq!(
-      evaluate_type(&db, symbol)
-        .typ(&db)
-        .unwrap()
-        .display_name(&db),
-      "Person"
-    );
+    let typ = evaluate_type(&db, symbol).typ(&db).unwrap();
+    assert_eq!(typ.display_name(&db), "Person");
   }
 
   #[test]
@@ -565,14 +563,14 @@ mod tests {
       &db,
       None,
       get_type_type(&db).into(),
-      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
       HashMap::new(),
     );
-    assert_eq!(product.display_name(&db), "{ name: string }");
+    let product_type: TdTypeEnum = product.into();
+    assert_eq!(product_type.display_name(&db), "{ name: string }");
   }
 
   // Helper to create an HirValue from a frontmatter string
@@ -672,7 +670,6 @@ mod tests {
     assert!(product.fields(&db).contains_key("name"));
   }
 
-  // TdObjectType construct passes through when given exactly one arg
   #[test]
   fn construct_object_type_fallback_to_dict() {
     let db = make_db();
@@ -689,7 +686,8 @@ mod tests {
     let obj = construct_from_hir(&db, hir.unwrap(), RuntimeScope::empty(&db), &mut vec![]).unwrap();
     assert!(
       obj
-        .as_td_product_type()
+        .as_td_type_obj()
+        .and_then(|t| t.as_td_product_type())
         .unwrap()
         .fields(&db)
         .contains_key("name")
@@ -915,7 +913,9 @@ f: (x) -> self.a + x
     let obj =
       construct_from_hir(&db, closure_field, RuntimeScope::empty(&db), &mut vec![]).unwrap();
     let func = obj.as_td_func_obj().unwrap();
-    let result = func.call(&db, (*func).into(), vec![TdNumObj::new(&db, 5.0).into()]);
+    let result = func
+      .call(&db, None, vec![TdNumObj::new(&db, 5.0).into()])
+      .ok();
     // self.a is not available in the schemaless make_hir file, so call returns None
     assert!(
       result.is_none(),

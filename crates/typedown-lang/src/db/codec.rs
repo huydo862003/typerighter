@@ -717,6 +717,15 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
+      Diagnostic::NotConstructible {
+        type_name,
+        start_offset,
+        end_offset,
+      } => {
+        type_name.encode(buf, encoder);
+        encoder.emit_usize(buf, *start_offset);
+        encoder.emit_usize(buf, *end_offset);
+      }
     }
   }
 }
@@ -1318,6 +1327,16 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::NotConstructible => {
+        let type_name = String::decode(data, decoder);
+        let start_offset = decoder.read_usize(data);
+        let end_offset = decoder.read_usize(data);
+        Diagnostic::NotConstructible {
+          type_name,
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1754,6 +1773,15 @@ impl StableHash for Diagnostic {
       }
       Diagnostic::MissingContainerPropValueAfterEq { offset } => {
         offset.stable_hash(db, hasher);
+      }
+      Diagnostic::NotConstructible {
+        type_name,
+        start_offset,
+        end_offset,
+      } => {
+        type_name.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
       }
     }
   }

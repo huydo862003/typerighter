@@ -17,6 +17,7 @@ mod structural;
 mod sum;
 mod vault;
 
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use strum::FromRepr;
@@ -49,17 +50,17 @@ use derive_more::From;
 use enum_as_inner::EnumAsInner;
 use typedown_macros::StableCompare;
 
-use crate::db::types::{InstResult, LazyType};
+use crate::db::types::FuncSignature;
+use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::Id;
 
-/// Use this instead of dyn
-/// The primitive types are fixed anyways
+// Use this instead of dyn
+// The primitive types are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
-#[delegate(TdObjectLike)]
-#[delegate(TdTypeLike)]
+#[delegate(TdRuntimeObject)]
+#[delegate(TdStaticType)]
 pub enum TdTypeEnum {
   TdTypeType(TdTypeType),
-  TdObjectType(TdObjectType),
   TdBoolType(TdBoolType),
   TdStrType(TdStrType),
   TdNumType(TdNumType),
@@ -79,31 +80,13 @@ pub enum TdTypeEnum {
   TdStructuralType(TdStructuralType),
 }
 
-/// Use this instead of dyn
-/// The primitive object kinds are fixed anyways
+// Use this instead of dyn
+// The primitive object kinds are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
-#[delegate(TdObjectLike)]
+#[delegate(TdRuntimeObject)]
 pub enum TdObjectEnum {
   // Types are objects
-  TdTypeType(TdTypeType),
-  TdObjectType(TdObjectType),
-  TdBoolType(TdBoolType),
-  TdStrType(TdStrType),
-  TdNumType(TdNumType),
-  TdMathType(TdMathType),
-  TdFuncType(TdFuncType),
-  TdListType(TdListType),
-  TdDictType(TdDictType),
-  TdDateTimeType(TdDateTimeType),
-  TdDateType(TdDateType),
-  TdTimeType(TdTimeType),
-  TdProductType(TdProductType),
-  TdBlobType(TdBlobType),
-  TdNullType(TdNullType),
-  TdNeverType(TdNeverType),
-  TdLiteralType(TdLiteralType),
-  TdSumType(TdSumType),
-  TdStructuralType(TdStructuralType),
+  TdTypeObj(TdTypeEnum),
   // Objects
   TdBoolObj(TdBoolObj),
   TdStrObj(TdStrObj),
@@ -121,11 +104,44 @@ pub enum TdObjectEnum {
   TdVaultObj(TdVaultObj),
 }
 
+// Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
+macro_rules! impl_from_type_for_obj_enum {
+  ($($ty:ident),+ $(,)?) => {
+    $(
+      impl From<$ty> for TdObjectEnum {
+        fn from(v: $ty) -> Self {
+          TdObjectEnum::TdTypeObj(TdTypeEnum::from(v))
+        }
+      }
+    )+
+  };
+}
+
+impl_from_type_for_obj_enum!(
+  TdTypeType,
+  TdBoolType,
+  TdStrType,
+  TdNumType,
+  TdMathType,
+  TdFuncType,
+  TdListType,
+  TdDictType,
+  TdDateTimeType,
+  TdDateType,
+  TdTimeType,
+  TdProductType,
+  TdBlobType,
+  TdNullType,
+  TdNeverType,
+  TdLiteralType,
+  TdSumType,
+  TdStructuralType,
+);
+
 impl Id for TdTypeEnum {
   fn as_id(&self) -> (usize, usize) {
     match self {
       TdTypeEnum::TdTypeType(v) => v.as_id(),
-      TdTypeEnum::TdObjectType(v) => v.as_id(),
       TdTypeEnum::TdBoolType(v) => v.as_id(),
       TdTypeEnum::TdStrType(v) => v.as_id(),
       TdTypeEnum::TdNumType(v) => v.as_id(),
@@ -150,25 +166,7 @@ impl Id for TdTypeEnum {
 impl Id for TdObjectEnum {
   fn as_id(&self) -> (usize, usize) {
     match self {
-      TdObjectEnum::TdTypeType(v) => v.as_id(),
-      TdObjectEnum::TdObjectType(v) => v.as_id(),
-      TdObjectEnum::TdBoolType(v) => v.as_id(),
-      TdObjectEnum::TdStrType(v) => v.as_id(),
-      TdObjectEnum::TdNumType(v) => v.as_id(),
-      TdObjectEnum::TdMathType(v) => v.as_id(),
-      TdObjectEnum::TdFuncType(v) => v.as_id(),
-      TdObjectEnum::TdListType(v) => v.as_id(),
-      TdObjectEnum::TdDictType(v) => v.as_id(),
-      TdObjectEnum::TdDateTimeType(v) => v.as_id(),
-      TdObjectEnum::TdDateType(v) => v.as_id(),
-      TdObjectEnum::TdTimeType(v) => v.as_id(),
-      TdObjectEnum::TdProductType(v) => v.as_id(),
-      TdObjectEnum::TdBlobType(v) => v.as_id(),
-      TdObjectEnum::TdNullType(v) => v.as_id(),
-      TdObjectEnum::TdNeverType(v) => v.as_id(),
-      TdObjectEnum::TdLiteralType(v) => v.as_id(),
-      TdObjectEnum::TdSumType(v) => v.as_id(),
-      TdObjectEnum::TdStructuralType(v) => v.as_id(),
+      TdObjectEnum::TdTypeObj(v) => v.as_id(),
       TdObjectEnum::TdBoolObj(v) => v.as_id(),
       TdObjectEnum::TdStrObj(v) => v.as_id(),
       TdObjectEnum::TdNumObj(v) => v.as_id(),
@@ -183,59 +181,6 @@ impl Id for TdObjectEnum {
       TdObjectEnum::TdBlobObj(v) => v.as_id(),
       TdObjectEnum::TdNullObj(v) => v.as_id(),
       TdObjectEnum::TdVaultObj(v) => v.as_id(),
-    }
-  }
-}
-
-impl From<TdTypeEnum> for TdObjectEnum {
-  fn from(ty: TdTypeEnum) -> Self {
-    match ty {
-      TdTypeEnum::TdTypeType(v) => TdObjectEnum::TdTypeType(v),
-      TdTypeEnum::TdObjectType(v) => TdObjectEnum::TdObjectType(v),
-      TdTypeEnum::TdBoolType(v) => TdObjectEnum::TdBoolType(v),
-      TdTypeEnum::TdStrType(v) => TdObjectEnum::TdStrType(v),
-      TdTypeEnum::TdNumType(v) => TdObjectEnum::TdNumType(v),
-      TdTypeEnum::TdMathType(v) => TdObjectEnum::TdMathType(v),
-      TdTypeEnum::TdFuncType(v) => TdObjectEnum::TdFuncType(v),
-      TdTypeEnum::TdListType(v) => TdObjectEnum::TdListType(v),
-      TdTypeEnum::TdDictType(v) => TdObjectEnum::TdDictType(v),
-      TdTypeEnum::TdDateTimeType(v) => TdObjectEnum::TdDateTimeType(v),
-      TdTypeEnum::TdDateType(v) => TdObjectEnum::TdDateType(v),
-      TdTypeEnum::TdTimeType(v) => TdObjectEnum::TdTimeType(v),
-      TdTypeEnum::TdProductType(v) => TdObjectEnum::TdProductType(v),
-      TdTypeEnum::TdBlobType(v) => TdObjectEnum::TdBlobType(v),
-      TdTypeEnum::TdNullType(v) => TdObjectEnum::TdNullType(v),
-      TdTypeEnum::TdNeverType(v) => TdObjectEnum::TdNeverType(v),
-      TdTypeEnum::TdLiteralType(v) => TdObjectEnum::TdLiteralType(v),
-      TdTypeEnum::TdSumType(v) => TdObjectEnum::TdSumType(v),
-      TdTypeEnum::TdStructuralType(v) => TdObjectEnum::TdStructuralType(v),
-    }
-  }
-}
-
-impl TdObjectEnum {
-  pub fn as_type(self) -> Option<TdTypeEnum> {
-    match self {
-      TdObjectEnum::TdTypeType(v) => Some(TdTypeEnum::TdTypeType(v)),
-      TdObjectEnum::TdObjectType(v) => Some(TdTypeEnum::TdObjectType(v)),
-      TdObjectEnum::TdBoolType(v) => Some(TdTypeEnum::TdBoolType(v)),
-      TdObjectEnum::TdStrType(v) => Some(TdTypeEnum::TdStrType(v)),
-      TdObjectEnum::TdNumType(v) => Some(TdTypeEnum::TdNumType(v)),
-      TdObjectEnum::TdMathType(v) => Some(TdTypeEnum::TdMathType(v)),
-      TdObjectEnum::TdFuncType(v) => Some(TdTypeEnum::TdFuncType(v)),
-      TdObjectEnum::TdListType(v) => Some(TdTypeEnum::TdListType(v)),
-      TdObjectEnum::TdDictType(v) => Some(TdTypeEnum::TdDictType(v)),
-      TdObjectEnum::TdDateTimeType(v) => Some(TdTypeEnum::TdDateTimeType(v)),
-      TdObjectEnum::TdDateType(v) => Some(TdTypeEnum::TdDateType(v)),
-      TdObjectEnum::TdTimeType(v) => Some(TdTypeEnum::TdTimeType(v)),
-      TdObjectEnum::TdProductType(v) => Some(TdTypeEnum::TdProductType(v)),
-      TdObjectEnum::TdBlobType(v) => Some(TdTypeEnum::TdBlobType(v)),
-      TdObjectEnum::TdNullType(v) => Some(TdTypeEnum::TdNullType(v)),
-      TdObjectEnum::TdNeverType(v) => Some(TdTypeEnum::TdNeverType(v)),
-      TdObjectEnum::TdLiteralType(v) => Some(TdTypeEnum::TdLiteralType(v)),
-      TdObjectEnum::TdSumType(v) => Some(TdTypeEnum::TdSumType(v)),
-      TdObjectEnum::TdStructuralType(v) => Some(TdTypeEnum::TdStructuralType(v)),
-      _ => None,
     }
   }
 }
@@ -274,7 +219,6 @@ impl typedown_incremental::StableHash for TdTypeEnum {
   ) {
     match self {
       TdTypeEnum::TdTypeType(v) => v.stable_hash(db, hasher),
-      TdTypeEnum::TdObjectType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdBoolType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdStrType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdNumType(v) => v.stable_hash(db, hasher),
@@ -303,25 +247,7 @@ impl typedown_incremental::StableHash for TdObjectEnum {
     hasher: &mut typedown_incremental::StableHasher,
   ) {
     match self {
-      TdObjectEnum::TdTypeType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdObjectType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdBoolType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdStrType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdNumType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdMathType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdFuncType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdListType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdDictType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdDateTimeType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdDateType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdTimeType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdProductType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdBlobType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdNullType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdNeverType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdLiteralType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdSumType(v) => v.stable_hash(db, hasher),
-      TdObjectEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
+      TdObjectEnum::TdTypeObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBoolObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdStrObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNumObj(v) => v.stable_hash(db, hasher),
@@ -344,7 +270,6 @@ impl typedown_incremental::StableHash for TdObjectEnum {
 #[repr(u8)]
 pub enum TdTypeKind {
   Type = 0,
-  Object = 1,
   Str = 2,
   Bool = 3,
   Num = 4,
@@ -367,26 +292,8 @@ pub enum TdTypeKind {
 #[derive(FromRepr)]
 #[repr(u8)]
 pub enum TdObjectKind {
-  // Types (also objects)
+  // Types (wraps TdTypeEnum)
   Type = 0,
-  Object = 1,
-  Str = 2,
-  Bool = 3,
-  Num = 4,
-  Math = 5,
-  List = 6,
-  Dict = 7,
-  Func = 8,
-  Product = 9,
-  DateTime = 10,
-  Date = 11,
-  Time = 12,
-  Blob = 13,
-  Null = 14,
-  Never = 15,
-  Literal = 16,
-  Sum = 17,
-  Structural = 18,
   // Object-only
   StrObj = 128,
   BoolObj = 129,
@@ -410,10 +317,6 @@ impl Encodable for TdTypeEnum {
     match self {
       TdTypeEnum::TdTypeType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Type as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdTypeEnum::TdObjectType(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Object as u8);
         v.encode_field(buf, encoder);
       }
       TdTypeEnum::TdStrType(v) => {
@@ -493,7 +396,6 @@ impl Decodable for TdTypeEnum {
     let tag = decoder.read_u8(data);
     match TdTypeKind::from_repr(tag).expect("unknown TdTypeKind tag") {
       TdTypeKind::Type => TdTypeType::decode_field(data, decoder).into(),
-      TdTypeKind::Object => TdObjectType::decode_field(data, decoder).into(),
       TdTypeKind::Str => TdStrType::decode_field(data, decoder).into(),
       TdTypeKind::Bool => TdBoolType::decode_field(data, decoder).into(),
       TdTypeKind::Num => TdNumType::decode_field(data, decoder).into(),
@@ -519,82 +421,9 @@ impl Decodable for TdTypeEnum {
 impl Encodable for TdObjectEnum {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      // Types
-      TdObjectEnum::TdTypeType(v) => {
+      TdObjectEnum::TdTypeObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::Type as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdObjectType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Object as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdStrType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Str as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdBoolType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Bool as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdNumType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Num as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdMathType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Math as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdListType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::List as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdDictType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Dict as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdFuncType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Func as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdProductType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Product as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdDateTimeType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::DateTime as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdDateType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Date as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdTimeType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Time as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdBlobType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Blob as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdNullType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Null as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdNeverType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Never as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdLiteralType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Literal as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdSumType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Sum as u8);
-        v.encode_field(buf, encoder);
-      }
-      TdObjectEnum::TdStructuralType(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Structural as u8);
-        v.encode_field(buf, encoder);
+        v.encode(buf, encoder);
       }
       // Objects
       TdObjectEnum::TdStrObj(v) => {
@@ -660,40 +489,23 @@ impl Encodable for TdObjectEnum {
 impl Decodable for TdObjectEnum {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
-    match TdObjectKind::from_repr(tag).expect("unknown TdObjectKind tag") {
-      TdObjectKind::Type => TdTypeType::decode_field(data, decoder).into(),
-      TdObjectKind::Object => TdObjectType::decode_field(data, decoder).into(),
-      TdObjectKind::Str => TdStrType::decode_field(data, decoder).into(),
-      TdObjectKind::Bool => TdBoolType::decode_field(data, decoder).into(),
-      TdObjectKind::Num => TdNumType::decode_field(data, decoder).into(),
-      TdObjectKind::Math => TdMathType::decode_field(data, decoder).into(),
-      TdObjectKind::List => TdListType::decode_field(data, decoder).into(),
-      TdObjectKind::Dict => TdDictType::decode_field(data, decoder).into(),
-      TdObjectKind::Func => TdFuncType::decode_field(data, decoder).into(),
-      TdObjectKind::Product => TdProductType::decode_field(data, decoder).into(),
-      TdObjectKind::DateTime => TdDateTimeType::decode_field(data, decoder).into(),
-      TdObjectKind::Date => TdDateType::decode_field(data, decoder).into(),
-      TdObjectKind::Time => TdTimeType::decode_field(data, decoder).into(),
-      TdObjectKind::Blob => TdBlobType::decode_field(data, decoder).into(),
-      TdObjectKind::Null => TdNullType::decode_field(data, decoder).into(),
-      TdObjectKind::Never => TdNeverType::decode_field(data, decoder).into(),
-      TdObjectKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
-      TdObjectKind::Sum => TdSumType::decode_field(data, decoder).into(),
-      TdObjectKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
-      TdObjectKind::StrObj => TdStrObj::decode_field(data, decoder).into(),
-      TdObjectKind::BoolObj => TdBoolObj::decode_field(data, decoder).into(),
-      TdObjectKind::NumObj => TdNumObj::decode_field(data, decoder).into(),
-      TdObjectKind::MathObj => TdMathObj::decode_field(data, decoder).into(),
-      TdObjectKind::ListObj => TdListObj::decode_field(data, decoder).into(),
-      TdObjectKind::DictObj => TdDictObj::decode_field(data, decoder).into(),
-      TdObjectKind::FuncObj => TdFuncObj::decode_field(data, decoder).into(),
-      TdObjectKind::ProductObj => TdProductObj::decode_field(data, decoder).into(),
-      TdObjectKind::DateTimeObj => TdDateTimeObj::decode_field(data, decoder).into(),
-      TdObjectKind::DateObj => TdDateObj::decode_field(data, decoder).into(),
-      TdObjectKind::TimeObj => TdTimeObj::decode_field(data, decoder).into(),
-      TdObjectKind::BlobObj => TdBlobObj::decode_field(data, decoder).into(),
-      TdObjectKind::NullObj => TdNullObj::decode_field(data, decoder).into(),
-      TdObjectKind::VaultObj => TdVaultObj::decode_field(data, decoder).into(),
+    match TdObjectKind::from_repr(tag) {
+      Some(TdObjectKind::Type) => TdObjectEnum::TdTypeObj(TdTypeEnum::decode(data, decoder)),
+      Some(TdObjectKind::StrObj) => TdStrObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::BoolObj) => TdBoolObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::NumObj) => TdNumObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::MathObj) => TdMathObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::ListObj) => TdListObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::DictObj) => TdDictObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::FuncObj) => TdFuncObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::ProductObj) => TdProductObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::DateTimeObj) => TdDateTimeObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::DateObj) => TdDateObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::TimeObj) => TdTimeObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::BlobObj) => TdBlobObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::NullObj) => TdNullObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::VaultObj) => TdVaultObj::decode_field(data, decoder).into(),
+      None => panic!("unknown TdObjectKind tag: {}", tag),
     }
   }
 }

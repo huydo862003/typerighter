@@ -1,19 +1,16 @@
-use std::collections::HashMap;
 use typedown_macros::query_derived;
 
-use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
-use super::func::TdFuncObj;
-use super::native_fn::{FnKind, NativeFnKind};
+use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::get_str_type;
-use crate::db::types::{FuncSignature, InstResult, LazyType};
+use crate::db::derived::get_builtin_types::{get_num_type, get_str_type};
+use crate::db::types::FuncSignature;
 use typedown_incremental::Id;
 
 #[query_derived]
 pub struct TdStrType {}
 
-impl TdObjectLike for TdStrType {
+impl TdRuntimeObject for TdStrType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -25,66 +22,21 @@ impl TdObjectLike for TdStrType {
   }
 }
 
-impl TdTypeLike for TdStrType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
+impl TdStaticType for TdStrType {
+  fn display_name(&self, _db: &TypedownDatabase) -> String {
+    "string".to_string()
   }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
-  }
-  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    let sig = FuncSignature::new(db, vec![], TdStrType::get(db).into());
-    let func_obj = TdFuncObj::new(
-      db,
-      "to_string".to_string(),
-      TdStrType::get(db).into(),
-      sig,
-      FnKind::Native(NativeFnKind::StrToString),
-    );
-    HashMap::from([("to_string".to_string(), func_obj)])
-  }
-  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      TdTypeEnum::TdLiteralType(lit) => matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_)),
-      _ if self.as_id() == actual.as_id() => true,
-      _ => {
-        // Accept subtypes of string (e.g. date, time, datetime) by walking the supertype chain
-        let mut current = actual.get_supertype(db);
-        loop {
-          if self.as_id() == current.as_id() {
-            break true;
-          }
-          let next = current.get_supertype(db);
-          if next.as_id() == current.as_id() {
-            break false;
-          }
-          current = next;
-        }
-      }
-    }
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
   fn construct(&self, _db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
     arg.as_td_str_obj()?;
     Some(arg)
   }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "string".to_string()
+  fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {
+    let key_type: TdTypeEnum = get_num_type(db).into();
+    Some(FuncSignature::new(db, vec![key_type], (*self).into()))
   }
 }
 
@@ -99,7 +51,7 @@ pub struct TdStrObj {
   pub value: String,
 }
 
-impl TdObjectLike for TdStrObj {
+impl TdRuntimeObject for TdStrObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdStrType::get(db).into()
   }
@@ -108,6 +60,18 @@ impl TdObjectLike for TdStrObj {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
+  }
+  fn to_display_string(&self, db: &TypedownDatabase) -> String {
+    self.value(db)
+  }
+  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+    let num = key.as_td_num_obj()?;
+    let idx = num.value(db) as usize;
+    let ch = self.value(db).chars().nth(idx)?;
+    Some(TdStrObj::new(db, ch.to_string()).into())
+  }
+  fn len(&self, db: &TypedownDatabase) -> Option<usize> {
+    Some(self.value(db).chars().count())
   }
   fn eq(&self, db: &TypedownDatabase, other: &TdObjectEnum) -> bool {
     if let TdObjectEnum::TdStrObj(other) = other {

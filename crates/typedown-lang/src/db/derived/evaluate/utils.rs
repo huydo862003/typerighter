@@ -14,8 +14,8 @@ use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, FnKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
   RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType, TdListObj, TdMathObj,
-  TdNullObj, TdNumObj, TdObjectEnum, TdObjectLike, TdProductObj, TdProductType, TdStrObj,
-  TdTypeEnum, TdTypeLike, TdVaultObj,
+  TdNullObj, TdNumObj, TdObjectEnum, TdProductObj, TdProductType, TdRuntimeObject, TdStaticType,
+  TdStrObj, TdTypeEnum, TdVaultObj,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -93,7 +93,7 @@ pub(crate) fn construct_from_hir(
               .into_iter()
               .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
               .collect();
-            return func_obj.call(db, this, arg_objs);
+            return func_obj.call(db, Some(this), arg_objs).ok();
           }
         }
         // Macro calls: pass raw HIR args (macros need project context from HIR)
@@ -104,16 +104,13 @@ pub(crate) fn construct_from_hir(
           {
             return construct_macro(db, kind, args);
           }
-          // Plain function call: evaluate callee, check if it's a function, call it
+          // Plain function call: evaluate callee, call it via protocol
           let callee_obj = evaluate_node(db, *callee, runtime_scope).value(db)?;
-          if let TdObjectEnum::TdFuncObj(func_obj) = &callee_obj {
-            let func_obj = *func_obj;
-            let arg_objs: Vec<_> = args
-              .into_iter()
-              .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
-              .collect();
-            return func_obj.call(db, callee_obj, arg_objs);
-          }
+          let arg_objs: Vec<_> = args
+            .into_iter()
+            .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
+            .collect();
+          return callee_obj.call(db, None, arg_objs).ok();
         }
       }
     }
@@ -131,7 +128,6 @@ pub(crate) fn construct_from_hir(
       let func_obj = TdFuncObj::new(
         db,
         "<closure>".to_string(),
-        func_type.into(),
         func_type.signature(db),
         FnKind::UserDefined(hir, runtime_scope),
       );
@@ -155,7 +151,19 @@ pub(crate) fn construct_from_hir(
   }
 
   // Normal construction: convert HIR to args, then call construct
-  let typ = type_result.typ(db)?;
+  let raw_typ = type_result.typ(db)?;
+  let typ = match raw_typ.runtime_type(db) {
+    Some(t) => t,
+    None => {
+      let (start, len) = hir.node(db).trimmed_range();
+      diagnostics.push(Diagnostic::NotConstructible {
+        type_name: raw_typ.display_name(db),
+        start_offset: start,
+        end_offset: start + len,
+      });
+      return None;
+    }
+  };
   match hir.kind(db) {
     HirValueKind::Str(val) => typ.construct(db, vec![TdStrObj::new(db, val).into()]),
     HirValueKind::Num(val) => {
@@ -225,7 +233,7 @@ fn evaluate_postfix(
     // T? evaluates to Sum([T, null]) as a type object
     "?" => {
       let inner = evaluate_node(db, operand, runtime_scope).value(db)?;
-      let inner_type = inner.as_type()?;
+      let inner_type = inner.into_td_type_obj().ok()?;
       Some(
         get_sum_type(
           db,
@@ -292,8 +300,8 @@ fn compare_objects(
   right: &TdObjectEnum,
 ) -> bool {
   match op {
-    "==" => TdObjectLike::eq(left, db, right),
-    "!=" => !TdObjectLike::eq(left, db, right),
+    "==" => TdRuntimeObject::eq(left, db, right),
+    "!=" => !TdRuntimeObject::eq(left, db, right),
     "<" => left.lt(db, right),
     ">" => left.gt(db, right),
     "<=" => left.le(db, right),
@@ -316,10 +324,11 @@ fn evaluate_index(
   let container = evaluate_node(db, expr, runtime_scope).value(db)?;
   let index_obj = evaluate_node(db, index_hir, runtime_scope).value(db)?;
 
-  if let TdObjectEnum::TdListObj(list) = &container {
-    let num = index_obj.as_td_num_obj()?;
+  // Bounds check for diagnostics before delegating to protocol
+  if let Some(num) = index_obj.as_td_num_obj()
+    && let Some(len) = container.len(db)
+  {
     let idx = num.value(db) as usize;
-    let len = list.len(db);
     if idx >= len {
       let node = index_hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -331,30 +340,8 @@ fn evaluate_index(
       });
       return None;
     }
-    return list.get(db, idx);
   }
-  if let TdObjectEnum::TdDictObj(dict) = &container {
-    let key = index_obj.as_td_str_obj()?;
-    return dict.get_owned_field(db, &key.value(db));
-  }
-  if let TdObjectEnum::TdStrObj(str_obj) = &container {
-    let num = index_obj.as_td_num_obj()?;
-    let idx = num.value(db) as usize;
-    let chars: Vec<char> = str_obj.value(db).chars().collect();
-    if idx >= chars.len() {
-      let node = index_hir.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::IndexOutOfBounds {
-        index: idx,
-        length: chars.len(),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
-      });
-      return None;
-    }
-    return Some(TdStrObj::new(db, chars[idx].to_string()).into());
-  }
-  None
+  container.index(db, &index_obj)
 }
 
 fn construct_macro(
@@ -379,7 +366,7 @@ fn evaluate_interpolated(
       InterpolatedPart::Expr(expr) => {
         let obj = evaluate_node(db, expr, runtime_scope).value(db)?;
         let to_string_fn = obj.lookup_method(db, "to_string")?;
-        let str_obj = to_string_fn.call(db, obj, vec![])?;
+        let str_obj = to_string_fn.call(db, Some(obj), vec![]).ok()?;
         let str_val = str_obj.as_td_str_obj()?;
         val.push_str(&str_val.value(db));
       }
@@ -418,15 +405,7 @@ fn evaluate_mapping(
       }
     }
     return Some(
-      TdProductType::new(
-        db,
-        None,
-        get_schema_type(db).into(),
-        None,
-        fields,
-        HashMap::new(),
-      )
-      .into(),
+      TdProductType::new(db, None, get_schema_type(db).into(), fields, HashMap::new()).into(),
     );
   }
 
@@ -469,4 +448,171 @@ fn construct_fref(db: &TypedownDatabase, args: Vec<HirValue>) -> Option<TdObject
   let target_symbol = file_symbol(db, project, target_file).value(db)?;
 
   evaluate_resource(db, target_symbol).value(db)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::derived::get_builtin_types::{
+    get_bool_type, get_dict_type, get_list_type, get_literal_type, get_never_type, get_null_type,
+    get_num_type, get_str_type, get_sum_type, get_type_type,
+  };
+  use crate::db::types::derived::object_system::TdFuncObj;
+  use crate::db::types::{
+    File, FileHandle, FileMetadata, FnKind, FuncSignature, LazyType, LiteralValue, NativeFnKind,
+    PROTOCOL_CALL, PROTOCOL_INDEX, Project, RuntimeScope, TdStructuralType, TdTypeEnum,
+  };
+  use crate::db::utils::lower_file;
+  use crate::db::{QueryStorage, TypedownDatabase};
+
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+
+  fn make_db() -> TypedownDatabase {
+    TypedownDatabase {
+      storage: QueryStorage::default(),
+    }
+  }
+
+  #[test]
+  fn test_runtime_type_mapping() {
+    let db = make_db();
+
+    // Literal types resolve to primitive underlying types
+    let lit_str: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("hello".into())).into();
+    let lit_num: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".into())).into();
+    let lit_bool: TdTypeEnum = get_literal_type(&db, LiteralValue::Bool(true)).into();
+
+    assert_eq!(lit_str.runtime_type(&db), Some(get_str_type(&db).into()));
+    assert_eq!(lit_num.runtime_type(&db), Some(get_num_type(&db).into()));
+    assert_eq!(lit_bool.runtime_type(&db), Some(get_bool_type(&db).into()));
+
+    // Primitive constructible types return themselves
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+    let num_type: TdTypeEnum = get_num_type(&db).into();
+    let bool_type: TdTypeEnum = get_bool_type(&db).into();
+    let list_type: TdTypeEnum = get_list_type(&db).into();
+    let dict_type: TdTypeEnum = get_dict_type(&db).into();
+    let null_type: TdTypeEnum = get_null_type(&db).into();
+
+    assert_eq!(str_type.runtime_type(&db), Some(str_type.clone()));
+    assert_eq!(num_type.runtime_type(&db), Some(num_type.clone()));
+    assert_eq!(bool_type.runtime_type(&db), Some(bool_type.clone()));
+    // Uninstantiated generics are not constructible
+    assert_eq!(list_type.runtime_type(&db), None);
+    assert_eq!(dict_type.runtime_type(&db), None);
+    assert_eq!(null_type.runtime_type(&db), Some(null_type.clone()));
+
+    // Instantiated generics are constructible
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .unwrap();
+    let dict_str_num: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_num_type(&db).into()),
+        ],
+      )
+      .unwrap();
+    assert_eq!(list_str.runtime_type(&db), Some(list_str.clone()));
+    assert_eq!(dict_str_num.runtime_type(&db), Some(dict_str_num.clone()));
+
+    // Non-constructible types return None
+    let sum_type: TdTypeEnum = get_sum_type(
+      &db,
+      vec![LazyType::eager(str_type), LazyType::eager(num_type)],
+    )
+    .into();
+    let never_type: TdTypeEnum = get_never_type(&db).into();
+    let structural_type: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
+
+    let type_type_val: TdTypeEnum = get_type_type(&db).into();
+    assert_eq!(type_type_val.runtime_type(&db), Some(type_type_val.clone()));
+    assert_eq!(sum_type.runtime_type(&db), None);
+    assert_eq!(never_type.runtime_type(&db), None);
+    assert_eq!(structural_type.runtime_type(&db), None);
+  }
+
+  #[test]
+  fn test_not_constructible_diagnostic_emitted() {
+    let db = make_db();
+
+    // Verify runtime_type returns None for non-constructible sum type
+    let sum_type: TdTypeEnum = get_sum_type(
+      &db,
+      vec![
+        LazyType::eager(get_str_type(&db).into()),
+        LazyType::eager(get_num_type(&db).into()),
+      ],
+    )
+    .into();
+    assert_eq!(sum_type.runtime_type(&db), None);
+
+    // Verify runtime_type returns None for never type
+    let never_type: TdTypeEnum = get_never_type(&db).into();
+    assert_eq!(never_type.runtime_type(&db), None);
+
+    // Verify construct_from_hir on constructible literal succeeds cleanly
+    let file = File::new(
+      &db,
+      FileHandle::Content(
+        PathBuf::from("test.td"),
+        "\"hello\"\n".into(),
+        FileMetadata::default(),
+      ),
+    );
+    let project = Project::new(&db, PathBuf::from("/vault"), HashMap::new());
+    let (hir, _) = lower_file(&db, project, file);
+    let str_hir = hir.expect("file should parse");
+
+    let mut diagnostics = vec![];
+    let scope = RuntimeScope::empty(&db);
+    let obj = construct_from_hir(&db, str_hir, scope, &mut diagnostics);
+    assert!(obj.is_some());
+    assert!(diagnostics.is_empty());
+  }
+
+  #[test]
+  fn test_dunder_methods_call_and_index() {
+    let db = make_db();
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+    let sig = FuncSignature::new(&db, vec![str_type.clone()], str_type.clone());
+    let index_fn = TdFuncObj::new(
+      &db,
+      PROTOCOL_INDEX.to_string(),
+      sig,
+      FnKind::Native(NativeFnKind::ToStringMethod),
+    );
+    let call_fn = TdFuncObj::new(
+      &db,
+      PROTOCOL_CALL.to_string(),
+      sig,
+      FnKind::Native(NativeFnKind::ToStringMethod),
+    );
+
+    let mut vtable = HashMap::new();
+    vtable.insert(PROTOCOL_INDEX.to_string(), index_fn);
+    vtable.insert(PROTOCOL_CALL.to_string(), call_fn);
+
+    let product_type = TdProductType::new(
+      &db,
+      Some("CustomContainer".into()),
+      get_type_type(&db).into(),
+      HashMap::new(),
+      vtable,
+    );
+    let product_enum: TdTypeEnum = product_type.into();
+
+    // Verify static typechecking detects [[index]] and [[call]] return types
+    assert_eq!(
+      product_enum.index_type(&db, &get_num_type(&db).into()),
+      Some(sig)
+    );
+    assert_eq!(
+      product_enum.call_type(&db, vec![get_str_type(&db).into()]),
+      Some(sig)
+    );
+  }
 }

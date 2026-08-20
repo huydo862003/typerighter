@@ -1,5 +1,6 @@
 //! Shared utilities for derived queries
 
+pub mod static_type;
 pub mod typecheck;
 
 use crate::syntax::ast::{AstNode, SourceFile};

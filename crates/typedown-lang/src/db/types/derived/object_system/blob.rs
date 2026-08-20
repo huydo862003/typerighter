@@ -1,20 +1,15 @@
-use std::collections::HashMap;
-
 use typedown_macros::query_derived;
 
-use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
-use super::func::TdFuncObj;
-use super::str::TdStrType;
+use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdStrObj, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::get_blob_type;
-use crate::db::types::{AssetKind, File, InstResult, LazyType};
-use typedown_incremental::Id;
+use crate::db::derived::get_builtin_types::{get_blob_type, get_str_type};
+use crate::db::types::{AssetKind, File};
 
 #[query_derived]
 pub struct TdBlobType {}
 
-impl TdObjectLike for TdBlobType {
+impl TdRuntimeObject for TdBlobType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -26,44 +21,18 @@ impl TdObjectLike for TdBlobType {
   }
 }
 
-impl TdTypeLike for TdBlobType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
+impl TdStaticType for TdBlobType {
+  fn display_name(&self, _db: &TypedownDatabase) -> String {
+    "blob".to_string()
   }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
-  }
-  fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    HashMap::new()
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
   fn get_owned_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
     match name {
-      "format" => Some(TdStrType::get(db).into()),
+      "format" => Some(get_str_type(db).into()),
       _ => None,
     }
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      _ => self.as_id() == actual.as_id(),
-    }
-  }
-  fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
-    None
-  }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "blob".to_string()
   }
 }
 
@@ -79,7 +48,7 @@ pub struct TdBlobObj {
   file: File,
 }
 
-impl TdObjectLike for TdBlobObj {
+impl TdRuntimeObject for TdBlobObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdBlobType::get(db).into()
   }

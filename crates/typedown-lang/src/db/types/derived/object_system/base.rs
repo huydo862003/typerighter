@@ -1,6 +1,6 @@
-//! We follow a simple system for supertypes
-//! - Only owned fields can be accessed via the object
-//! - Methods can be inheritted via supertypes
+//! Type system core traits
+//! - TdStaticType: static properties for the typechecker (display_name, arity, etc)
+//! - TdRuntimeObject: runtime object protocol for the evaluator (field access, method dispatch)
 
 use std::collections::HashMap;
 
@@ -8,18 +8,162 @@ use ambassador::delegatable_trait;
 
 use super::func::TdFuncObj;
 use super::native_fn::{FnKind, NativeFnKind};
-use super::str::TdStrType;
 use super::{TdObjectEnum, TdTypeEnum};
-use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
-use crate::db::types::{FuncSignature, InstResult, LazyType};
+use crate::db::derived::get_builtin_types::{get_str_type, get_type_type};
+use crate::db::types::FuncSignature;
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
-// Everything is an object
-// This need not be object-safe
-// We access via the enum, not via dyn trait
+use crate::syntax::diagnostic::Diagnostic;
+
+/// Special protocol method names (bracketed)
+pub const PROTOCOL_INDEX: &str = "[[index]]";
+
+pub const PROTOCOL_CALL: &str = "[[call]]";
+
+/// Built-in method names
+pub const BUILTIN_TO_STRING: &str = "to_string";
+
+// Static type properties for the typechecker
+// Each type defines its own display name, arity, and type arguments
 #[delegatable_trait]
-pub trait TdObjectLike: Id {
+pub trait TdStaticType {
+  fn display_name(&self, db: &::typedown_lang::db::TypedownDatabase) -> String;
+
+  fn arity(&self, _db: &::typedown_lang::db::TypedownDatabase) -> usize {
+    0
+  }
+
+  fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
+    vec![]
+  }
+
+  // The runtime-constructible type equivalent
+  // Most types are their own runtime equivalent
+  fn runtime_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<TdTypeEnum> {
+    None
+  }
+
+  // Construct a runtime instance of this type from args
+  fn construct(
+    &self,
+    _db: &::typedown_lang::db::TypedownDatabase,
+    _args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
+    None
+  }
+
+  // Instantiate a generic type with type arguments (list[string], dict[string, number])
+  fn instantiate(
+    &self,
+    _db: &::typedown_lang::db::TypedownDatabase,
+    _args: Vec<::typedown_lang::db::types::LazyType>,
+  ) -> Option<TdTypeEnum> {
+    None
+  }
+
+  /// Parent type for prototype chain method lookup and type hierarchy
+  fn parent_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<TdTypeEnum> {
+    None
+  }
+
+  /// Runtime vtable mapping method names to TdFuncObj instances
+  fn runtime_vtable(
+    &self,
+    db: &::typedown_lang::db::TypedownDatabase,
+  ) -> HashMap<String, TdFuncObj> {
+    let mut result = self
+      .parent_type(db)
+      .map(|p| p.runtime_vtable(db))
+      .unwrap_or_default();
+    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let to_string_fn = TdFuncObj::new(
+      db,
+      BUILTIN_TO_STRING.to_string(),
+      sig,
+      FnKind::Native(NativeFnKind::ToStringMethod),
+    );
+    result
+      .entry(BUILTIN_TO_STRING.to_string())
+      .or_insert(to_string_fn);
+    result
+  }
+
+  // Return types of methods available on instances of this static type
+  fn static_vtable(
+    &self,
+    db: &::typedown_lang::db::TypedownDatabase,
+  ) -> HashMap<String, TdTypeEnum> {
+    let mut result = self
+      .parent_type(db)
+      .map(|p| p.static_vtable(db))
+      .unwrap_or_default();
+    result.insert(BUILTIN_TO_STRING.to_string(), get_str_type(db).into());
+    result
+  }
+
+  // Get all declared fields from a static type
+  fn get_fields(
+    &self,
+    _db: &::typedown_lang::db::TypedownDatabase,
+  ) -> HashMap<String, ::typedown_lang::db::types::LazyType> {
+    HashMap::new()
+  }
+
+  // Get the type of a named field on this type
+  fn get_owned_field_type(
+    &self,
+    db: &::typedown_lang::db::TypedownDatabase,
+    name: &str,
+  ) -> Option<TdTypeEnum> {
+    self.get_fields(db).get(name)?.resolve(db)
+  }
+
+  // Look up the type of a field or method on this type
+  fn lookup_field_type(
+    &self,
+    db: &::typedown_lang::db::TypedownDatabase,
+    name: &str,
+  ) -> Option<TdTypeEnum> {
+    if let Some(field) = self.get_owned_field_type(db, name) {
+      return Some(field);
+    }
+    self.static_vtable(db).get(name).cloned()
+  }
+
+  // Check if this is a metatype (a type whose instances are types)
+  fn is_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> bool {
+    false
+  }
+
+  // Signature when indexing an instance of this static type with a key type
+  fn index_type(
+    &self,
+    db: &::typedown_lang::db::TypedownDatabase,
+    _key_type: &TdTypeEnum,
+  ) -> Option<FuncSignature> {
+    if let Some(TdTypeEnum::TdFuncType(func)) = self.lookup_field_type(db, PROTOCOL_INDEX) {
+      return Some(func.signature(db));
+    }
+    None
+  }
+
+  // Signature when calling an instance of this static type as a function
+  fn call_type(
+    &self,
+    db: &::typedown_lang::db::TypedownDatabase,
+    _arg_types: Vec<TdTypeEnum>,
+  ) -> Option<FuncSignature> {
+    if let Some(TdTypeEnum::TdFuncType(func)) = self.lookup_field_type(db, PROTOCOL_CALL) {
+      return Some(func.signature(db));
+    }
+    None
+  }
+}
+
+// Runtime object protocol for the evaluator
+#[delegatable_trait]
+pub trait TdRuntimeObject: Id {
   fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum;
 
   fn lookup_method(
@@ -27,17 +171,14 @@ pub trait TdObjectLike: Id {
     db: &::typedown_lang::db::TypedownDatabase,
     key: &str,
   ) -> Option<TdFuncObj> {
-    let mut current = self.get_type(db);
-    loop {
-      if let Some(func_obj) = current.get_vtable(db).remove(key) {
-        return Some(func_obj);
+    let mut current = Some(self.get_type(db));
+    while let Some(typ) = current {
+      if let Some(func) = typ.runtime_vtable(db).get(key) {
+        return Some(*func);
       }
-      let supertype = current.get_supertype(db);
-      if supertype.as_id() == current.as_id() {
-        return None;
-      }
-      current = supertype;
+      current = typ.parent_type(db);
     }
+    None
   }
 
   fn lookup_field(
@@ -78,97 +219,39 @@ pub trait TdObjectLike: Id {
   fn ge(&self, _db: &::typedown_lang::db::TypedownDatabase, other: &TdObjectEnum) -> bool {
     self.as_id() >= other.as_id()
   }
-}
 
-// This need not be object-safe
-// We access via the enum, not via dyn trait
-#[delegatable_trait]
-pub trait TdTypeLike: TdObjectLike {
-  // TIL: Just realized the distinction between parameterized types and universal types
-  // - Parameterized types are type constructors (kind Type -> Type) that need args to become concrete
-  // - Universal types (forall T. T -> T) are already concrete types (kind Type) inhabited by polymorphic values
-  // Our arity system is parameterized types, not universal quantification
-  fn arity(&self, db: &::typedown_lang::db::TypedownDatabase) -> usize;
-  fn get_supertype(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum;
-  fn get_vtable(
+  fn call(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-  ) -> std::collections::HashMap<String, TdFuncObj>;
-  fn get_owned_field_type(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    name: &str,
-  ) -> Option<TdTypeEnum>;
-  fn lookup_field_type(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    name: &str,
-  ) -> Option<TdTypeEnum> {
-    self.get_owned_field_type(db, name).or_else(|| {
-      let func = self.lookup_instance_method(db, name)?;
-      Some(func.get_type(db))
-    })
+    _db: &::typedown_lang::db::TypedownDatabase,
+    _this: Option<TdObjectEnum>,
+    _args: Vec<TdObjectEnum>,
+  ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+    Err(vec![])
   }
 
-  fn instantiate(
+  fn index(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    args: Vec<LazyType>,
-  ) -> InstResult;
-
-  fn accepts(&self, db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool;
-
-  fn get_type_args(&self, db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum>;
-
-  fn display_name(&self, db: &::typedown_lang::db::TypedownDatabase) -> String;
-
-  fn construct(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum>;
-
-  // Check if this type is TdTypeType or a subtype of TdTypeType
-  fn is_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> bool {
-    let type_type = get_type_type(db);
-    if type_type.as_id() == self.as_id() {
-      return true;
-    }
-    let mut current = self.get_supertype(db);
-    loop {
-      if type_type.as_id() == current.as_id() {
-        return true;
-      }
-      let next = current.get_supertype(db);
-      if next.as_id() == current.as_id() {
-        return false;
-      }
-      current = next;
-    }
+    _db: &::typedown_lang::db::TypedownDatabase,
+    _key: &TdObjectEnum,
+  ) -> Option<TdObjectEnum> {
+    None
   }
 
-  fn lookup_instance_method(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    key: &str,
-  ) -> Option<TdFuncObj> {
-    if let Some(func_obj) = self.get_vtable(db).get(key) {
-      return Some(*func_obj);
-    }
-    let supertype = self.get_supertype(db);
-    if supertype.as_id() == self.as_id() {
-      return None;
-    }
-    supertype.lookup_instance_method(db, key)
+  fn len(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<usize> {
+    None
+  }
+
+  fn to_display_string(&self, db: &::typedown_lang::db::TypedownDatabase) -> String {
+    self.source_path(db)
   }
 }
 
-/// The metatype is the type of all types.
-/// It's an instance of itself and the type of every type.
+// The metatype is the type of all types
+// It is an instance of itself and the type of every type
 #[query_derived]
 pub struct TdTypeType {}
 
-impl TdObjectLike for TdTypeType {
+impl TdRuntimeObject for TdTypeType {
   fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -184,140 +267,20 @@ impl TdObjectLike for TdTypeType {
   }
 }
 
-impl TdTypeLike for TdTypeType {
-  fn arity(&self, _db: &::typedown_lang::db::TypedownDatabase) -> usize {
-    0
-  }
-  fn get_supertype(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
-  }
-  fn get_vtable(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-  ) -> std::collections::HashMap<String, TdFuncObj> {
-    HashMap::new()
-  }
-  fn get_owned_field_type(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _name: &str,
-  ) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<LazyType>,
-  ) -> InstResult {
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  // Any type is assignable to the metatype
-  fn accepts(&self, _db: &::typedown_lang::db::TypedownDatabase, _actual: &TdTypeEnum) -> bool {
-    true
-  }
-  fn construct(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
-    None
-  }
+impl TdStaticType for TdTypeType {
   fn display_name(&self, _db: &::typedown_lang::db::TypedownDatabase) -> String {
     "type".to_string()
+  }
+  fn is_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> bool {
+    true
+  }
+  fn runtime_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
 }
 
 impl TdTypeType {
   pub fn get(db: &::typedown_lang::db::TypedownDatabase) -> TdTypeType {
     get_type_type(db)
-  }
-}
-
-/// The base type for all objects in Typedown
-#[query_derived]
-pub struct TdObjectType {}
-
-impl TdObjectLike for TdObjectType {
-  fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {
-    TdTypeType::get(db).into()
-  }
-  fn get_owned_field(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _key: &str,
-  ) -> Option<TdObjectEnum> {
-    None
-  }
-  fn source_path(&self, _db: &::typedown_lang::db::TypedownDatabase) -> String {
-    "@builtin::object".to_string()
-  }
-}
-
-impl TdTypeLike for TdObjectType {
-  fn arity(&self, _db: &::typedown_lang::db::TypedownDatabase) -> usize {
-    0
-  }
-  fn get_supertype(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
-  }
-  fn get_vtable(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-  ) -> std::collections::HashMap<String, TdFuncObj> {
-    let sig = FuncSignature::new(db, vec![], TdStrType::get(db).into());
-    let func_obj = TdFuncObj::new(
-      db,
-      "to_string".to_string(),
-      get_object_type(db).into(),
-      sig,
-      FnKind::Native(NativeFnKind::ObjectToString),
-    );
-    HashMap::from([("to_string".to_string(), func_obj)])
-  }
-  fn get_owned_field_type(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _name: &str,
-  ) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<LazyType>,
-  ) -> InstResult {
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &::typedown_lang::db::TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      _ => self.as_id() == actual.as_id(),
-    }
-  }
-  fn construct(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
-    args.into_iter().next()
-  }
-  fn display_name(&self, _db: &::typedown_lang::db::TypedownDatabase) -> String {
-    "object".to_string()
-  }
-}
-
-impl TdObjectType {
-  pub fn get(db: &::typedown_lang::db::TypedownDatabase) -> TdObjectType {
-    get_object_type(db)
   }
 }

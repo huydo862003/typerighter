@@ -15,11 +15,11 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use crate::db::types::derived::object_system::{
-  TdStructuralType, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
+  TdStaticType, TdStructuralType, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
   BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind,
-  TdListType, TdStrType, TdTypeEnum, TdTypeLike, TypeResult,
+  TdListType, TdTypeEnum, TypeResult,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
@@ -242,8 +242,12 @@ fn get_call_type(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -
     None => return TypeResult::new(db, None, diagnostics),
   };
 
-  if let TdTypeEnum::TdFuncType(func) = &callee_type {
-    let sig = func.signature(db);
+  let arg_types: Vec<TdTypeEnum> = args
+    .iter()
+    .filter_map(|arg| actual_node_type(db, *arg).typ(db))
+    .collect();
+
+  if let Some(sig) = callee_type.call_type(db, arg_types) {
     return TypeResult::new(db, Some(sig.ret(db)), diagnostics);
   }
 
@@ -387,25 +391,13 @@ fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>)
     return TypeResult::new(db, Some(inst_result.typ(db)), diagnostics);
   }
 
-  // Element access on instantiated list
-  if let TdTypeEnum::TdListType(list) = &expr_type {
-    return match list.elem(db).and_then(|e| e.resolve(db)) {
-      Some(elem) => TypeResult::new(db, Some(elem), diagnostics),
-      None => TypeResult::new(db, None, diagnostics),
-    };
-  }
+  let key_type = indices
+    .first()
+    .and_then(|idx| actual_node_type(db, *idx).typ(db))
+    .unwrap_or_else(|| get_num_type(db).into());
 
-  // Element access on instantiated dict
-  if let TdTypeEnum::TdDictType(dict) = &expr_type {
-    return match dict.value(db).and_then(|l| l.resolve(db)) {
-      Some(value) => TypeResult::new(db, Some(value), diagnostics),
-      None => TypeResult::new(db, None, diagnostics),
-    };
-  }
-
-  // Element access on string
-  if expr_type.is_td_str_type() {
-    return TypeResult::new(db, Some(TdStrType::get(db).into()), diagnostics);
+  if let Some(sig) = expr_type.index_type(db, &key_type) {
+    return TypeResult::new(db, Some(sig.ret(db)), diagnostics);
   }
 
   TypeResult::new(db, None, diagnostics)
@@ -457,6 +449,7 @@ fn get_closure_type(
 #[cfg(test)]
 mod tests {
   use crate::db::types::TdTypeEnum;
+  use crate::db::types::derived::object_system::TdStaticType;
   use std::{collections::HashMap, path::PathBuf};
 
   use crate::db::{
@@ -468,7 +461,7 @@ mod tests {
 
   use crate::db::{
     fixtures::load_vault_fixture,
-    types::{HirValueKind, LiteralValue, TdTypeLike},
+    types::{HirValueKind, LiteralValue},
   };
 
   use super::actual_node_type;

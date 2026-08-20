@@ -1,5 +1,4 @@
 use typedown_incremental::StableCompare;
-use typedown_lang::db::types::TdTypeLike;
 use typedown_lang::db::utils::is_content_file;
 
 use lsp_types::{
@@ -17,7 +16,7 @@ use typedown_lang::db::types::{
   File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
-use typedown_lang::db::utils::typecheck::is_nullable;
+use typedown_lang::db::utils::typecheck::{is_assignable_from, is_nullable};
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -130,7 +129,7 @@ fn fref_completions(
         Some(typ) => typ,
         None => return false,
       };
-      expected_typ.accepts(db, &file_type)
+      is_assignable_from(db, expected_typ, &file_type)
     })
     .filter_map(|(path, _)| path.strip_prefix(&root).ok().map(|rel| rel.to_path_buf()))
     .map(|rel| CompletionItem {
@@ -176,7 +175,6 @@ fn enclosing_mapping_product(
       db,
       None,
       typedown_lang::db::derived::get_builtin_types::get_type_type(db).into(),
-      None,
       structural.fields(db),
       std::collections::HashMap::new(),
     );

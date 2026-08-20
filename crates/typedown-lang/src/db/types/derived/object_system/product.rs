@@ -1,74 +1,55 @@
 use std::collections::HashMap;
 use typedown_macros::query_derived;
 
-use super::base::{TdObjectLike, TdObjectType, TdTypeLike};
+use super::base::{TdRuntimeObject, TdStaticType};
 use super::func::TdFuncObj;
 use super::null::TdNullObj;
-use super::structural::fields_compatible;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
+use crate::db::utils::static_type::format_field_map;
 use typedown_incremental::Id;
 use typedown_types::either::Either;
 
-use crate::db::types::{HirValue, InstResult, LazyType, RuntimeScope, Symbol};
+use crate::db::derived::get_builtin_types::{get_func_type, get_str_type, get_type_type};
+use crate::db::types::derived::object_system::base::{
+  BUILTIN_TO_STRING, PROTOCOL_CALL, PROTOCOL_INDEX,
+};
+use crate::db::types::{
+  FnKind, FuncSignature, HirValue, LazyType, NativeFnKind, RuntimeScope, Symbol,
+};
+use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
 pub struct TdProductType {
   pub name: Option<String>,
   pub metatype: TdTypeEnum,
-  pub supertype: Option<TdTypeEnum>,
   pub fields: HashMap<String, LazyType>,
   pub vtable: HashMap<String, TdFuncObj>,
 }
 
-impl TdObjectLike for TdProductType {
+impl TdRuntimeObject for TdProductType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     self.metatype(db)
   }
   fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
     None
   }
+
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.display_name(db)
   }
 }
 
-impl TdTypeLike for TdProductType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
-  }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    self
-      .supertype(db)
-      .unwrap_or_else(|| TdObjectType::get(db).into())
-  }
-  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    self.vtable(db)
-  }
-  fn get_owned_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
-    self.fields(db).get(name)?.resolve(db)
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      _ if self.as_id() == actual.as_id() => true,
-      TdTypeEnum::TdStructuralType(structural) => {
-        fields_compatible(db, &self.fields(db), &structural.fields(db))
-      }
-      _ => false,
+impl TdStaticType for TdProductType {
+  fn display_name(&self, db: &TypedownDatabase) -> String {
+    if let Some(name) = self.name(db) {
+      return name;
     }
+    format_field_map(db, &self.fields(db))
+  }
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -76,25 +57,38 @@ impl TdTypeLike for TdProductType {
     let fields = dict.entries(db);
     Some(TdProductObj::new(db, (*self).into(), None, fields).into())
   }
-  fn display_name(&self, db: &TypedownDatabase) -> String {
-    if let Some(name) = self.name(db) {
-      return name;
+  fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+    let mut result = self
+      .parent_type(db)
+      .map(|p| p.runtime_vtable(db))
+      .unwrap_or_default();
+    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let to_string_fn = TdFuncObj::new(
+      db,
+      BUILTIN_TO_STRING.to_string(),
+      sig,
+      FnKind::Native(NativeFnKind::ToStringMethod),
+    );
+    result
+      .entry(BUILTIN_TO_STRING.to_string())
+      .or_insert(to_string_fn);
+    result.extend(self.vtable(db));
+    result
+  }
+  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+    let mut result = HashMap::new();
+    result.insert(BUILTIN_TO_STRING.to_string(), get_str_type(db).into());
+    for (name, func_obj) in self.vtable(db) {
+      result.insert(name, get_func_type(db, func_obj.signature(db)).into());
     }
-    // Structural fallback for anonymous product types
-    let fields = self.fields(db);
-    if fields.is_empty() {
-      return "{}".to_string();
-    }
-    let mut parts: Vec<String> = fields
-      .iter()
-      .filter_map(|(name, lazy)| {
-        lazy
-          .resolve(db)
-          .map(|t| format!("{}: {}", name, t.display_name(db)))
-      })
-      .collect();
-    parts.sort();
-    format!("{{ {} }}", parts.join(", "))
+    result
+  }
+  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+    self.fields(db)
+  }
+  fn is_type(&self, db: &TypedownDatabase) -> bool {
+    let type_type = get_type_type(db);
+    self.metatype(db).as_id() == TdTypeEnum::from(type_type).as_id()
   }
 }
 
@@ -105,7 +99,7 @@ pub struct TdProductObj {
   pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
 
-impl TdObjectLike for TdProductObj {
+impl TdRuntimeObject for TdProductObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     self.schema(db)
   }
@@ -119,5 +113,23 @@ impl TdObjectLike for TdProductObj {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
+  }
+  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+    let this: TdObjectEnum = (*self).into();
+    self
+      .lookup_method(db, PROTOCOL_INDEX)?
+      .call(db, Some(this), vec![key.clone()])
+      .ok()
+  }
+  fn call(
+    &self,
+    db: &TypedownDatabase,
+    this: Option<TdObjectEnum>,
+    args: Vec<TdObjectEnum>,
+  ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+    let Some(func) = self.lookup_method(db, PROTOCOL_CALL) else {
+      return Err(vec![]);
+    };
+    func.call(db, this, args)
   }
 }

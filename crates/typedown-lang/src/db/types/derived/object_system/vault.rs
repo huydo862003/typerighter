@@ -1,6 +1,6 @@
 use typedown_macros::query_derived;
 
-use super::base::TdObjectLike;
+use super::base::TdRuntimeObject;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::vault::get_vault_type;
@@ -11,7 +11,7 @@ pub struct TdVaultObj {
   pub project: Project,
 }
 
-impl TdObjectLike for TdVaultObj {
+impl TdRuntimeObject for TdVaultObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     get_vault_type(db).into()
   }
