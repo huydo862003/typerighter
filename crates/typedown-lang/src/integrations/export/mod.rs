@@ -14,9 +14,10 @@ use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
+use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
   File, FileHandle, HirValue, LazyType, LiteralValue, Project, RuntimeScope, Symbol, SymbolKind,
-  TdBlobType, TdObjectEnum, TdObjectLike, TdTypeEnum, TdTypeLike,
+  TdBlobType, TdObjectEnum, TdRuntimeObject, TdTypeEnum,
 };
 use crate::db::utils::strip_content_extension;
 use crate::db::utils::typecheck::is_nullable;
@@ -594,7 +595,7 @@ impl<'a> MarkdownExporter<'a> {
       let hir = lower_node(self.db, self.project, self.file, expr_node);
       if let Some(obj) = evaluate_node(self.db, hir, RuntimeScope::empty(self.db)).value(self.db)
         && let Some(func) = obj.lookup_method(self.db, "to_string")
-        && let Some(result) = func.call(self.db, obj, vec![])
+        && let Ok(result) = func.call(self.db, Some(obj), vec![])
         && let Some(str_obj) = result.as_td_str_obj()
       {
         self.write(&str_obj.value(self.db));

@@ -166,6 +166,24 @@ A **higher-kinded type (HKT)** is a type _variable_ ranging over type constructo
 
 An **existential type** `exists T. SchemaProperty[T]` means "there is some `T`, but I don't tell you which". Useful for heterogeneous collections where each entry independently picks its `T`.
 
+### Static Types vs Runtime Objects
+
+We were conflating three things in a single `TdTypeLike` trait:
+
+1. **Static type shape**: What the type checker sees (assignability, field types, generics)
+2. **Runtime object shape**: What the evaluator sees (field access, method dispatch)
+3. **User mental model of runtime shape**: What the user thinks values look like
+
+Compare with real languages:
+
+- **JavaScript**: at runtime, an object has a hidden class (V8's internal shape for optimization), a prototype chain (user-visible runtime shape), and no static types. The engine's internal shape and the user's mental model are different things.
+- **TypeScript**: adds a third layer. The static type describes the value shape for the checker. At runtime, it is erased completely. The JS engine never sees it.
+- **Rust**: at runtime, values are just bytes. No type objects, no reflection, no access to static information. The compiler knows everything, the binary knows nothing about types.
+
+Our old design had the evaluator continuously querying the same type objects that the typechecker uses. The evaluator called `accepts()`, the typechecker called `construct()`. No enforcement of who accesses what. Schema evaluation and content evaluation both produced the same type representations.
+
+The fix: split into two systems.
+
 ### LSP: Dynamic vs Static Registration
 
 When a client advertises `dynamicRegistration: true` for `workspace.fileOperations` (as VSCode does), some clients **ignore** static capabilities declared in `InitializeResult`. The server must use `client/registerCapability` to dynamically register for `workspace/willRenameFiles` and `workspace/didRenameFiles` at runtime.

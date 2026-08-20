@@ -2,7 +2,7 @@ use strum::FromRepr;
 use typedown_macros::StableCompare;
 
 use super::TdObjectEnum;
-use super::base::TdObjectLike;
+use super::base::TdRuntimeObject;
 use super::str::TdStrObj;
 use crate::db::TypedownDatabase;
 use crate::db::types::{HirValue, RuntimeScope};
@@ -11,20 +11,18 @@ use typedown_incremental::{
   StableHash, StableHasher,
 };
 
-type NativeFn = fn(&TypedownDatabase, TdObjectEnum, Vec<TdObjectEnum>) -> Option<TdObjectEnum>;
+use crate::syntax::diagnostic::Diagnostic;
+
+type NativeFn = fn(
+  &TypedownDatabase,
+  Option<TdObjectEnum>,
+  Vec<TdObjectEnum>,
+) -> Result<TdObjectEnum, Vec<Diagnostic>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum NativeFnKind {
-  StrToString = 0,
-  NumToString = 1,
-  BoolToString = 2,
-  MathToString = 3,
-  ObjectToString = 4,
-  FuncToString = 5,
-  DateTimeToString = 6,
-  DateToString = 7,
-  TimeToString = 8,
+  ToStringMethod = 0,
 }
 
 impl StableHash for NativeFnKind {
@@ -44,6 +42,25 @@ impl Decodable for NativeFnKind {
     let tag = decoder.read_u8(data);
     NativeFnKind::from_repr(tag).expect("unknown NativeFnKind tag")
   }
+}
+
+impl NativeFnKind {
+  pub fn resolve(self) -> NativeFn {
+    match self {
+      NativeFnKind::ToStringMethod => to_string_method,
+    }
+  }
+}
+
+fn to_string_method(
+  db: &TypedownDatabase,
+  this: Option<TdObjectEnum>,
+  _args: Vec<TdObjectEnum>,
+) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+  let Some(this) = this else {
+    return Err(vec![]);
+  };
+  Ok(TdStrObj::new(db, this.to_display_string(db)).into())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
@@ -101,98 +118,34 @@ impl Decodable for FnKind {
   }
 }
 
-impl NativeFnKind {
-  pub fn resolve(self) -> NativeFn {
-    match self {
-      NativeFnKind::StrToString => str_to_string,
-      NativeFnKind::NumToString => num_to_string,
-      NativeFnKind::BoolToString => bool_to_string,
-      NativeFnKind::MathToString => math_to_string,
-      NativeFnKind::ObjectToString => object_to_string,
-      NativeFnKind::FuncToString => func_to_string,
-      NativeFnKind::DateTimeToString => datetime_to_string,
-      NativeFnKind::DateToString => date_to_string,
-      NativeFnKind::TimeToString => time_to_string,
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::QueryStorage;
+  use crate::db::types::TdNumObj;
+
+  fn make_db() -> TypedownDatabase {
+    TypedownDatabase {
+      storage: QueryStorage::default(),
     }
   }
-}
 
-fn str_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_str_obj()?;
-  Some(TdStrObj::new(db, obj.value(db)).into())
-}
+  #[test]
+  fn test_native_fn_optional_this() {
+    let db = make_db();
+    let native_fn = NativeFnKind::ToStringMethod.resolve();
+    let num_obj: TdObjectEnum = TdNumObj::new(&db, 42.0).into();
 
-fn num_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_num_obj()?;
-  Some(TdStrObj::new(db, obj.value(db).to_string()).into())
-}
+    // With `this` passed (method call)
+    let result_with_this = native_fn(&db, Some(num_obj), vec![]);
+    assert!(result_with_this.is_ok());
+    assert_eq!(
+      result_with_this.unwrap().to_display_string(&db),
+      "42".to_string()
+    );
 
-fn bool_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_bool_obj()?;
-  Some(TdStrObj::new(db, obj.value(db).to_string()).into())
-}
-
-fn math_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_math_obj()?;
-  Some(TdStrObj::new(db, format!("${}$", obj.value(db))).into())
-}
-
-fn object_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  Some(TdStrObj::new(db, this.source_path(db)).into())
-}
-
-fn func_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let func = this.as_td_func_obj()?;
-  Some(TdStrObj::new(db, func.name(db)).into())
-}
-
-fn datetime_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_date_time_obj()?;
-  Some(TdStrObj::new(db, obj.value(db)).into())
-}
-
-fn date_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_date_obj()?;
-  Some(TdStrObj::new(db, obj.value(db)).into())
-}
-
-fn time_to_string(
-  db: &TypedownDatabase,
-  this: TdObjectEnum,
-  _args: Vec<TdObjectEnum>,
-) -> Option<TdObjectEnum> {
-  let obj = this.as_td_time_obj()?;
-  Some(TdStrObj::new(db, obj.value(db)).into())
+    // Without `this` passed (free function call)
+    let result_no_this = native_fn(&db, None, vec![]);
+    assert!(result_no_this.is_err());
+  }
 }

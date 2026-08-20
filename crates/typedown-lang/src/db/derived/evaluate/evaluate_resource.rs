@@ -56,7 +56,7 @@ mod tests {
 
   use crate::db::types::{
     AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdBlobObj,
-    TdObjectEnum, TdObjectLike,
+    TdObjectEnum, TdRuntimeObject,
   };
   use crate::syntax::diagnostic::Diagnostic;
 
@@ -125,7 +125,10 @@ mod tests {
       result.diagnostics(&db)
     );
     let obj = result.value(&db).unwrap();
-    let product_type = obj.as_td_product_type().expect("expected TdProductType");
+    let product_type = obj
+      .as_td_type_obj()
+      .and_then(|t| t.as_td_product_type())
+      .expect("expected TdProductType");
     assert!(
       product_type.fields(&db).contains_key("title"),
       "should have title field"

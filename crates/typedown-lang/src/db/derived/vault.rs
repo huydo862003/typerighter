@@ -13,7 +13,6 @@ pub fn get_vault_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("vault".to_string()),
     get_type_type(db).into(),
-    None,
     HashMap::new(),
     HashMap::new(),
   )

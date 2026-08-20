@@ -73,6 +73,7 @@ pub enum DiagnosticCode {
   InvalidClosureParams = 64,
   UnclosedParamList = 65,
   InvalidSelfClosureParams = 66,
+  NotConstructible = 67,
 }
 
 impl DiagnosticCode {
@@ -144,6 +145,7 @@ impl DiagnosticCode {
       DiagnosticCode::InvalidClosureParams => "invalid-closure-params",
       DiagnosticCode::UnclosedParamList => "unclosed-param-list",
       DiagnosticCode::InvalidSelfClosureParams => "invalid-self-closure-params",
+      DiagnosticCode::NotConstructible => "not-constructible",
       DiagnosticCode::UnknownField => "unknown-field",
       DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
       DiagnosticCode::NestedSchemaFile => "nested-schema-file",
@@ -569,6 +571,12 @@ pub enum Diagnostic {
     start_offset: usize,
     end_offset: usize,
   },
+  /// Type cannot be constructed into a runtime value.
+  NotConstructible {
+    type_name: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
 }
 
 impl Diagnostic {
@@ -844,6 +852,11 @@ impl Diagnostic {
       | Diagnostic::UnclosedParamList {
         start_offset,
         end_offset,
+      }
+      | Diagnostic::NotConstructible {
+        start_offset,
+        end_offset,
+        ..
       } => Some((*start_offset, *end_offset)),
       Diagnostic::MissingVaultConfig { .. }
       | Diagnostic::VaultConfigReadError { .. }
@@ -1034,6 +1047,9 @@ impl Diagnostic {
         "self cannot be used as a closure parameter name".into()
       }
       Diagnostic::UnclosedParamList { .. } => "unclosed parameter list".into(),
+      Diagnostic::NotConstructible { type_name, .. } => {
+        format!("type '{type_name}' is not constructible at runtime")
+      }
     }
   }
 
@@ -1117,6 +1133,7 @@ impl Diagnostic {
       Diagnostic::InvalidClosureParams { .. } => DiagnosticCode::InvalidClosureParams,
       Diagnostic::InvalidSelfClosureParams { .. } => DiagnosticCode::InvalidSelfClosureParams,
       Diagnostic::UnclosedParamList { .. } => DiagnosticCode::UnclosedParamList,
+      Diagnostic::NotConstructible { .. } => DiagnosticCode::NotConstructible,
     }
   }
 }

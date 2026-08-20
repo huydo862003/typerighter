@@ -11,11 +11,13 @@ use crate::db::derived::get_builtin_types::{
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
+use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
   File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum,
-  TdTypeLike, TypeResult,
+  TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
+use crate::db::utils::typecheck::is_assignable_from;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, ParenExpr, PrefixExpr, YamlOpKind,
 };
@@ -452,7 +454,11 @@ fn pick_most_specific_arm(
 
   let matching: Vec<_> = arms
     .iter()
-    .filter(|arm| arm.resolve(db).is_some_and(|t| t.accepts(db, &actual_type)))
+    .filter(|arm| {
+      arm
+        .resolve(db)
+        .is_some_and(|t| is_assignable_from(db, &t, &actual_type))
+    })
     .cloned()
     .collect();
 
@@ -495,7 +501,8 @@ fn simple_schemaless_result(db: &TypedownDatabase) -> TypeResult {
 #[cfg(test)]
 mod tests {
   use crate::db::TypedownDatabase;
-  use crate::db::types::TdTypeLike;
+  use crate::db::types::derived::object_system::TdStaticType;
+
   use crate::db::{
     derived::typechecker::expected_node_type::expected_node_type,
     fixtures::load_vault_fixture,

@@ -7,7 +7,8 @@ use typedown_incremental::Id;
 use super::{evaluate_lazy_field, resolve_ref};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_sum_type;
-use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum, TdTypeLike};
+use crate::db::types::derived::object_system::TdStaticType;
+use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum};
 use crate::db::utils::typecheck::is_nullable;
 
 /// Serialize a FileHandle to a JSON object
@@ -130,7 +131,7 @@ fn serialize(
     }
 
     // Product types (schema files) serialize as a map of field name to field type descriptor
-    TdObjectEnum::TdProductType(product) => {
+    TdObjectEnum::TdTypeObj(TdTypeEnum::TdProductType(product)) => {
       let id = product.as_id();
       if !visiting.insert(id) {
         return Err(CircularRef);
@@ -197,7 +198,7 @@ fn serialize_lazy_type(
     serialize(
       db,
       project,
-      &TdObjectEnum::TdProductType(product),
+      &TdObjectEnum::TdTypeObj(TdTypeEnum::TdProductType(product)),
       visiting,
       true,
     )

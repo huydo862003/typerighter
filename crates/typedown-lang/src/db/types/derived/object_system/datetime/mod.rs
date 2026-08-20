@@ -1,16 +1,11 @@
 mod utils;
 
-use std::collections::HashMap;
 use typedown_macros::query_derived;
 
-use super::base::{TdObjectLike, TdTypeLike, TdTypeType};
-use super::func::TdFuncObj;
-use super::native_fn::{FnKind, NativeFnKind};
-use super::str::TdStrType;
+use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_date_type, get_datetime_type, get_time_type};
-use crate::db::types::{FuncSignature, InstResult, LazyType};
 use typedown_incremental::Id;
 pub(crate) use utils::{is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time};
 
@@ -19,7 +14,7 @@ pub(crate) use utils::{is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_ti
 #[query_derived]
 pub struct TdDateTimeType {}
 
-impl TdObjectLike for TdDateTimeType {
+impl TdRuntimeObject for TdDateTimeType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -31,43 +26,12 @@ impl TdObjectLike for TdDateTimeType {
   }
 }
 
-impl TdTypeLike for TdDateTimeType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
+impl TdStaticType for TdDateTimeType {
+  fn display_name(&self, _db: &TypedownDatabase) -> String {
+    "datetime".to_string()
   }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdStrType::get(db).into()
-  }
-  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    let sig = FuncSignature::new(db, vec![], TdStrType::get(db).into());
-    let func_obj = TdFuncObj::new(
-      db,
-      "to_string".to_string(),
-      TdDateTimeType::get(db).into(),
-      sig,
-      FnKind::Native(NativeFnKind::DateTimeToString),
-    );
-    HashMap::from([("to_string".to_string(), func_obj)])
-  }
-  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      _ => self.as_id() == actual.as_id(),
-    }
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -77,9 +41,6 @@ impl TdTypeLike for TdDateTimeType {
       return Some(TdDateTimeObj::new(db, val).into());
     }
     None
-  }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "datetime".to_string()
   }
 }
 
@@ -94,7 +55,7 @@ pub struct TdDateTimeObj {
   pub value: String,
 }
 
-impl TdObjectLike for TdDateTimeObj {
+impl TdRuntimeObject for TdDateTimeObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdDateTimeType::get(db).into()
   }
@@ -103,6 +64,9 @@ impl TdObjectLike for TdDateTimeObj {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
+  }
+  fn to_display_string(&self, db: &TypedownDatabase) -> String {
+    self.value(db)
   }
   fn eq(&self, db: &TypedownDatabase, other: &TdObjectEnum) -> bool {
     if let TdObjectEnum::TdDateTimeObj(other) = other {
@@ -146,7 +110,7 @@ impl TdObjectLike for TdDateTimeObj {
 #[query_derived]
 pub struct TdDateType {}
 
-impl TdObjectLike for TdDateType {
+impl TdRuntimeObject for TdDateType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -158,43 +122,12 @@ impl TdObjectLike for TdDateType {
   }
 }
 
-impl TdTypeLike for TdDateType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
+impl TdStaticType for TdDateType {
+  fn display_name(&self, _db: &TypedownDatabase) -> String {
+    "date".to_string()
   }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdStrType::get(db).into()
-  }
-  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    let sig = FuncSignature::new(db, vec![], TdStrType::get(db).into());
-    let func_obj = TdFuncObj::new(
-      db,
-      "to_string".to_string(),
-      TdDateType::get(db).into(),
-      sig,
-      FnKind::Native(NativeFnKind::DateToString),
-    );
-    HashMap::from([("to_string".to_string(), func_obj)])
-  }
-  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      _ => self.as_id() == actual.as_id(),
-    }
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -204,9 +137,6 @@ impl TdTypeLike for TdDateType {
       return Some(TdDateObj::new(db, val).into());
     }
     None
-  }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "date".to_string()
   }
 }
 
@@ -221,7 +151,7 @@ pub struct TdDateObj {
   pub value: String,
 }
 
-impl TdObjectLike for TdDateObj {
+impl TdRuntimeObject for TdDateObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdDateType::get(db).into()
   }
@@ -230,6 +160,9 @@ impl TdObjectLike for TdDateObj {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
+  }
+  fn to_display_string(&self, db: &TypedownDatabase) -> String {
+    self.value(db)
   }
   fn eq(&self, db: &TypedownDatabase, other: &TdObjectEnum) -> bool {
     if let TdObjectEnum::TdDateObj(other) = other {
@@ -273,7 +206,7 @@ impl TdObjectLike for TdDateObj {
 #[query_derived]
 pub struct TdTimeType {}
 
-impl TdObjectLike for TdTimeType {
+impl TdRuntimeObject for TdTimeType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -285,43 +218,12 @@ impl TdObjectLike for TdTimeType {
   }
 }
 
-impl TdTypeLike for TdTimeType {
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
-    0
+impl TdStaticType for TdTimeType {
+  fn display_name(&self, _db: &TypedownDatabase) -> String {
+    "time".to_string()
   }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdStrType::get(db).into()
-  }
-  fn get_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    let sig = FuncSignature::new(db, vec![], TdStrType::get(db).into());
-    let func_obj = TdFuncObj::new(
-      db,
-      "to_string".to_string(),
-      TdTimeType::get(db).into(),
-      sig,
-      FnKind::Native(NativeFnKind::TimeToString),
-    );
-    HashMap::from([("to_string".to_string(), func_obj)])
-  }
-  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    InstResult::new(db, (*self).into(), vec![])
-  }
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    vec![]
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      _ => self.as_id() == actual.as_id(),
-    }
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some((*self).into())
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -331,9 +233,6 @@ impl TdTypeLike for TdTimeType {
       return Some(TdTimeObj::new(db, val).into());
     }
     None
-  }
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
-    "time".to_string()
   }
 }
 
@@ -348,7 +247,7 @@ pub struct TdTimeObj {
   pub value: String,
 }
 
-impl TdObjectLike for TdTimeObj {
+impl TdRuntimeObject for TdTimeObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTimeType::get(db).into()
   }
@@ -357,6 +256,9 @@ impl TdObjectLike for TdTimeObj {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
+  }
+  fn to_display_string(&self, db: &TypedownDatabase) -> String {
+    self.value(db)
   }
   fn eq(&self, db: &TypedownDatabase, other: &TdObjectEnum) -> bool {
     if let TdObjectEnum::TdTimeObj(other) = other {

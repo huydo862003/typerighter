@@ -1,21 +1,19 @@
-use std::collections::HashMap;
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
-use super::base::{TdObjectLike, TdObjectType, TdTypeLike, TdTypeType};
-use super::func::TdFuncObj;
+use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::derived::get_builtin_types::get_list_type;
-use crate::db::types::{HirValue, InstResult, LazyType, RuntimeScope};
+use crate::db::derived::get_builtin_types::{get_list_type, get_num_type};
+use crate::db::types::{FuncSignature, HirValue, LazyType, RuntimeScope};
 
 #[query_derived]
 pub struct TdListType {
   pub elem: Option<LazyType>,
 }
 
-impl TdObjectLike for TdListType {
+impl TdRuntimeObject for TdListType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -28,66 +26,53 @@ impl TdObjectLike for TdListType {
       None => "@builtin::list".to_string(),
     }
   }
+  // Type instantiation: list[string] at runtime
+  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+    let arg_type = key.as_td_type_obj()?.clone();
+    let result = self.instantiate(db, vec![LazyType::eager(arg_type)])?;
+    Some(TdObjectEnum::from(result))
+  }
 }
 
-impl TdTypeLike for TdListType {
-  fn arity(&self, db: &TypedownDatabase) -> usize {
-    if self.elem(db).is_none() { 1 } else { 0 }
-  }
-  fn get_supertype(&self, db: &TypedownDatabase) -> TdTypeEnum {
-    TdObjectType::get(db).into()
-  }
-  fn get_vtable(&self, _db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    HashMap::new()
-  }
-  fn get_owned_field_type(&self, _db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
-    None
-  }
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
-    assert_eq!(args.len(), self.arity(db), "arity mismatch");
-    let mut iter = args.into_iter();
-    InstResult::new(
-      db,
-      TdListType::new(db, Some(iter.next().unwrap())).into(),
-      vec![],
-    )
-  }
-  fn accepts(&self, db: &TypedownDatabase, actual: &TdTypeEnum) -> bool {
-    match actual {
-      TdTypeEnum::TdNeverType(_) => true,
-      TdTypeEnum::TdSumType(sum) => sum
-        .members(db)
-        .iter()
-        .all(|m| m.resolve(db).is_some_and(|t| self.accepts(db, &t))),
-      TdTypeEnum::TdListType(actual_list) => {
-        match (
-          self.elem(db).and_then(|e| e.resolve(db)),
-          actual_list.elem(db).and_then(|e| e.resolve(db)),
-        ) {
-          (None, _) => true,
-          (Some(_), None) => false,
-          (Some(self_elem), Some(actual_elem)) => self_elem.accepts(db, &actual_elem),
-        }
-      }
-      _ => false,
-    }
-  }
-  fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
-    self
-      .elem(db)
-      .and_then(|e| e.resolve(db))
-      .into_iter()
-      .collect()
-  }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
-    let items = args.into_iter().map(Either::Right).collect();
-    Some(TdListObj::new(db, items).into())
-  }
+impl TdStaticType for TdListType {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     match self.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => format!("list[{}]", elem.display_name(db)),
       None => "list".to_string(),
     }
+  }
+
+  fn runtime_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    self.elem(db)?;
+    Some((*self).into())
+  }
+  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+    let items = args.into_iter().map(Either::Right).collect();
+    Some(TdListObj::new(db, items).into())
+  }
+
+  fn arity(&self, db: &TypedownDatabase) -> usize {
+    if self.elem(db).is_some() { 0 } else { 1 }
+  }
+
+  fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
+    match self.elem(db).and_then(|e| e.resolve(db)) {
+      Some(elem) => vec![elem],
+      None => vec![],
+    }
+  }
+
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TdTypeEnum> {
+    if args.len() != 1 {
+      return None;
+    }
+    Some(TdListType::new(db, Some(args.into_iter().next().unwrap())).into())
+  }
+
+  fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {
+    let elem = self.elem(db).and_then(|e| e.resolve(db))?;
+    let key_type: TdTypeEnum = get_num_type(db).into();
+    Some(FuncSignature::new(db, vec![key_type], elem))
   }
 }
 
@@ -102,7 +87,7 @@ pub struct TdListObj {
   pub items: Vec<Either<HirValue, TdObjectEnum>>,
 }
 
-impl TdObjectLike for TdListObj {
+impl TdRuntimeObject for TdListObj {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdListType::get(db).into()
   }
@@ -112,6 +97,14 @@ impl TdObjectLike for TdListObj {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
+  }
+  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+    let num = key.as_td_num_obj()?;
+    let idx = num.value(db) as usize;
+    self.get(db, idx)
+  }
+  fn len(&self, db: &TypedownDatabase) -> Option<usize> {
+    Some(self.items(db).len())
   }
 }
 

@@ -1,5 +1,4 @@
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
-use typedown_lang::db::types::TdTypeLike;
 
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::hir::lower_node;
@@ -7,6 +6,7 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::types::TdTypeEnum;
+use typedown_lang::db::types::derived::object_system::TdStaticType;
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
