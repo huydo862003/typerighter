@@ -36,13 +36,7 @@ pub fn get_num_type(db: &TypedownDatabase) -> TdNumType {
 
 #[query_derived]
 pub fn get_list_type(db: &TypedownDatabase) -> TdListType {
-  let params = TypeParams::new(
-    db,
-    vec![TypeVariable {
-      bound: None,
-      value: None,
-    }],
-  );
+  let params = TypeParams::new(db, vec![TypeVariable::new(None, None)]);
   TdListType::new(db, params)
 }
 
@@ -50,16 +44,7 @@ pub fn get_list_type(db: &TypedownDatabase) -> TdListType {
 pub fn get_dict_type(db: &TypedownDatabase) -> TdDictType {
   let params = TypeParams::new(
     db,
-    vec![
-      TypeVariable {
-        bound: None,
-        value: None,
-      },
-      TypeVariable {
-        bound: None,
-        value: None,
-      },
-    ],
+    vec![TypeVariable::new(None, None), TypeVariable::new(None, None)],
   );
   TdDictType::new(db, params)
 }
@@ -455,10 +440,7 @@ mod tests {
       &db,
       TypeParams::new(
         &db,
-        vec![TypeVariable {
-          bound: Some(LazyType::eager(num_type)),
-          value: None,
-        }],
+        vec![TypeVariable::new(Some(LazyType::eager(num_type)), None)],
       ),
     );
 

@@ -27,155 +27,182 @@ pub fn validate_type_params(
     for (idx, (p, arg)) in params_vec.iter().zip(args.iter()).enumerate() {
       if let Some(bound) = p.bound.as_ref().and_then(|b| b.resolve(db))
         && let Some(arg_type) = arg.resolve(db)
-          && !is_assignable_from(db, &bound, &arg_type) {
-            diagnostics.push(Diagnostic::TypeArgBoundViolation {
-              index: idx,
-              expected_bound: bound.display_name(db),
-              got: arg_type.display_name(db),
-            });
-          }
+        && !is_subtype_of(db, &arg_type, &bound)
+      {
+        diagnostics.push(Diagnostic::TypeArgBoundViolation {
+          index: idx,
+          expected_bound: bound.display_name(db),
+          got: arg_type.display_name(db),
+        });
+      }
     }
   }
   diagnostics
 }
 
-// Check if expected type accepts actual type
-pub fn is_assignable_from(
+/// Check if `subtype` is a subtype of `supertype` (subtyping check)
+pub fn is_subtype_of(
   db: &TypedownDatabase,
-  expected: &TdTypeEnum,
-  actual: &TdTypeEnum,
+  subtype: &TdTypeEnum,
+  supertype: &TdTypeEnum,
 ) -> bool {
-  if actual.as_td_never_type().is_some() {
-    return true;
-  }
-  if let Some(sum) = actual.as_td_sum_type() {
-    return sum.members(db).iter().all(|m| {
-      m.resolve(db)
-        .is_some_and(|t| is_assignable_from(db, expected, &t))
-    });
-  }
-  if expected.as_id() == actual.as_id() {
-    return true;
-  }
-  match expected {
-    TdTypeEnum::TdTypeType(_) => true,
-    TdTypeEnum::TdNeverType(_) => false,
-    TdTypeEnum::TdSumType(sum) => sum.members(db).iter().any(|member| {
-      member
-        .resolve(db)
-        .is_some_and(|member_type| is_assignable_from(db, &member_type, actual))
-    }),
-    TdTypeEnum::TdLiteralType(_) => false,
-    TdTypeEnum::TdStrType(_) => {
-      matches!(
-        actual,
-        TdTypeEnum::TdLiteralType(lit)
-          if matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_))
-      ) || matches!(
-        actual,
-        TdTypeEnum::TdDateTimeType(_) | TdTypeEnum::TdDateType(_) | TdTypeEnum::TdTimeType(_)
-      )
+  /// Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance.
+  fn are_constructors_compatible(
+    db: &TypedownDatabase,
+    subtype: &TdTypeEnum,
+    supertype: &TdTypeEnum,
+  ) -> bool {
+    if subtype.as_id() == supertype.as_id() {
+      return true;
     }
-    TdTypeEnum::TdNumType(_) => matches!(
-      actual,
-      TdTypeEnum::TdLiteralType(lit)
-        if matches!(lit.underlying_type(db), TdTypeEnum::TdNumType(_))
-    ),
-    TdTypeEnum::TdBoolType(_) => matches!(
-      actual,
-      TdTypeEnum::TdLiteralType(lit)
-        if matches!(lit.underlying_type(db), TdTypeEnum::TdBoolType(_))
-    ),
-    TdTypeEnum::TdFuncType(expected_func) => {
-      if let TdTypeEnum::TdFuncType(actual_func) = actual {
-        let expected_sig = expected_func.signature(db);
-        let actual_sig = actual_func.signature(db);
-        let expected_params = expected_sig.params(db);
-        let actual_params = actual_sig.params(db);
-        if expected_params.len() != actual_params.len() {
+    match supertype {
+      TdTypeEnum::TdTypeType(_) => true,
+      TdTypeEnum::TdNeverType(_) => false,
+      TdTypeEnum::TdSumType(sum) => sum.members(db).iter().any(|member| {
+        member
+          .resolve(db)
+          .is_some_and(|m| is_subtype_of(db, subtype, &m))
+      }),
+      TdTypeEnum::TdLiteralType(_) => false,
+      TdTypeEnum::TdStrType(_) => {
+        matches!(
+          subtype,
+          TdTypeEnum::TdLiteralType(lit)
+            if matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_))
+        ) || matches!(
+          subtype,
+          TdTypeEnum::TdDateTimeType(_) | TdTypeEnum::TdDateType(_) | TdTypeEnum::TdTimeType(_)
+        )
+      }
+      TdTypeEnum::TdNumType(_) => matches!(
+        subtype,
+        TdTypeEnum::TdLiteralType(lit)
+          if matches!(lit.underlying_type(db), TdTypeEnum::TdNumType(_))
+      ),
+      TdTypeEnum::TdBoolType(_) => matches!(
+        subtype,
+        TdTypeEnum::TdLiteralType(lit)
+          if matches!(lit.underlying_type(db), TdTypeEnum::TdBoolType(_))
+      ),
+      TdTypeEnum::TdListType(_) => matches!(subtype, TdTypeEnum::TdListType(_)),
+      TdTypeEnum::TdDictType(expected_dict) => match subtype {
+        TdTypeEnum::TdDictType(_) => true,
+        TdTypeEnum::TdProductType(product) => {
+          let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
+            Some(vt) => vt,
+            None => return true,
+          };
+          product.fields(db).values().all(|field_lazy| {
+            field_lazy
+              .resolve(db)
+              .is_some_and(|ft| is_subtype_of(db, &ft, &value_type))
+          })
+        }
+        TdTypeEnum::TdStructuralType(structural) => {
+          let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
+            Some(vt) => vt,
+            None => return true,
+          };
+          structural.fields(db).values().all(|field_lazy| {
+            field_lazy
+              .resolve(db)
+              .is_some_and(|ft| is_subtype_of(db, &ft, &value_type))
+          })
+        }
+        _ => false,
+      },
+      TdTypeEnum::TdFuncType(_) => matches!(subtype, TdTypeEnum::TdFuncType(_)),
+      TdTypeEnum::TdProductType(expected_product) => match subtype {
+        TdTypeEnum::TdProductType(product) => {
+          fields_compatible(db, &expected_product.fields(db), &product.fields(db))
+        }
+        TdTypeEnum::TdStructuralType(structural) => {
+          fields_compatible(db, &expected_product.fields(db), &structural.fields(db))
+        }
+        _ => false,
+      },
+      TdTypeEnum::TdStructuralType(expected_structural) => match subtype {
+        TdTypeEnum::TdProductType(product) => {
+          fields_compatible(db, &expected_structural.fields(db), &product.fields(db))
+        }
+        TdTypeEnum::TdStructuralType(structural) => {
+          fields_compatible(db, &expected_structural.fields(db), &structural.fields(db))
+        }
+        _ => false,
+      },
+      _ => false,
+    }
+  }
+
+  /// Phase 2: Check type arguments and parameter variance between compatible constructors.
+  fn are_type_args_compatible(
+    db: &TypedownDatabase,
+    subtype: &TdTypeEnum,
+    supertype: &TdTypeEnum,
+  ) -> bool {
+    match (subtype, supertype) {
+      (TdTypeEnum::TdListType(sub_list), TdTypeEnum::TdListType(super_list)) => {
+        match (
+          sub_list.elem(db).and_then(|e| e.resolve(db)),
+          super_list.elem(db).and_then(|e| e.resolve(db)),
+        ) {
+          (_, None) => true,
+          (None, Some(_)) => false,
+          (Some(sub_elem), Some(super_elem)) => is_subtype_of(db, &sub_elem, &super_elem),
+        }
+      }
+      (TdTypeEnum::TdDictType(_), TdTypeEnum::TdDictType(_)) => {
+        let super_args = supertype.get_type_args(db);
+        if super_args.is_empty() {
+          return true;
+        }
+        let sub_args = subtype.get_type_args(db);
+        if sub_args.is_empty() {
           return false;
         }
-        for (ep, ap) in expected_params.iter().zip(actual_params.iter()) {
-          if !is_assignable_from(db, ap, ep) {
+        sub_args
+          .iter()
+          .zip(super_args.iter())
+          .all(|(s, p)| is_subtype_of(db, s, p))
+      }
+      (TdTypeEnum::TdFuncType(sub_func), TdTypeEnum::TdFuncType(super_func)) => {
+        let sub_sig = sub_func.signature(db);
+        let super_sig = super_func.signature(db);
+        let sub_params = sub_sig.params(db);
+        let super_params = super_sig.params(db);
+        if sub_params.len() != super_params.len() {
+          return false;
+        }
+        // Function parameters are contravariant: super_p must be a subtype of sub_p
+        for (sub_p, super_p) in sub_params.iter().zip(super_params.iter()) {
+          if !is_subtype_of(db, super_p, sub_p) {
             return false;
           }
         }
-        is_assignable_from(db, &expected_sig.ret(db), &actual_sig.ret(db))
-      } else {
-        false
+        // Return type is covariant: sub_ret must be a subtype of super_ret
+        is_subtype_of(db, &sub_sig.ret(db), &super_sig.ret(db))
       }
+      _ => true,
     }
-    TdTypeEnum::TdListType(expected_list) => {
-      if let TdTypeEnum::TdListType(actual_list) = actual {
-        match (
-          expected_list.elem(db).and_then(|e| e.resolve(db)),
-          actual_list.elem(db).and_then(|e| e.resolve(db)),
-        ) {
-          (None, _) => true,
-          (Some(_), None) => false,
-          (Some(exp_elem), Some(act_elem)) => is_assignable_from(db, &exp_elem, &act_elem),
-        }
-      } else {
-        false
-      }
-    }
-    TdTypeEnum::TdDictType(expected_dict) => match actual {
-      TdTypeEnum::TdDictType(_) => {
-        let self_args = expected.get_type_args(db);
-        if self_args.is_empty() {
-          return true;
-        }
-        let actual_args = actual.get_type_args(db);
-        if actual_args.is_empty() {
-          return false;
-        }
-        self_args
-          .iter()
-          .zip(actual_args.iter())
-          .all(|(s, a)| is_assignable_from(db, s, a))
-      }
-      TdTypeEnum::TdProductType(product) => {
-        let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
-          Some(vt) => vt,
-          None => return true,
-        };
-        product.fields(db).values().all(|field_lazy| {
-          field_lazy
-            .resolve(db)
-            .is_some_and(|ft| is_assignable_from(db, &value_type, &ft))
-        })
-      }
-      TdTypeEnum::TdStructuralType(structural) => {
-        let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
-          Some(vt) => vt,
-          None => return true,
-        };
-        structural.fields(db).values().all(|field_lazy| {
-          field_lazy
-            .resolve(db)
-            .is_some_and(|ft| is_assignable_from(db, &value_type, &ft))
-        })
-      }
-      _ => false,
-    },
-    TdTypeEnum::TdProductType(expected_product) => {
-      if let TdTypeEnum::TdStructuralType(structural) = actual {
-        fields_compatible(db, &expected_product.fields(db), &structural.fields(db))
-      } else {
-        false
-      }
-    }
-    TdTypeEnum::TdStructuralType(expected_structural) => match actual {
-      TdTypeEnum::TdProductType(product) => {
-        fields_compatible(db, &expected_structural.fields(db), &product.fields(db))
-      }
-      TdTypeEnum::TdStructuralType(structural) => {
-        fields_compatible(db, &expected_structural.fields(db), &structural.fields(db))
-      }
-      _ => false,
-    },
-    _ => false,
   }
+
+  if subtype.as_td_never_type().is_some() {
+    return true;
+  }
+  if let Some(sum) = subtype.as_td_sum_type() {
+    return sum.members(db).iter().all(|m| {
+      m.resolve(db)
+        .is_some_and(|t| is_subtype_of(db, &t, supertype))
+    });
+  }
+
+  // Phase 1: Type constructor compatibility check
+  if !are_constructors_compatible(db, subtype, supertype) {
+    return false;
+  }
+
+  // Phase 2: Same-nature parameter and variance check
+  are_type_args_compatible(db, subtype, supertype)
 }
 
 // Check if a type includes null
@@ -203,9 +230,7 @@ mod tests {
     get_literal_type, get_never_type, get_null_type, get_num_type, get_schema_type, get_str_type,
     get_sum_type, get_time_type, get_type_type,
   };
-  use crate::db::types::{
-    LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType,
-  };
+  use crate::db::types::{LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType};
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn db() -> TypedownDatabase {
@@ -232,7 +257,7 @@ mod tests {
   fn compatible_simple_same_type() {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(is_assignable_from(&db, &string, &string));
+    assert!(is_subtype_of(&db, &string, &string));
   }
 
   #[test]
@@ -240,7 +265,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let number: TdTypeEnum = get_num_type(&db).into();
-    assert!(!is_assignable_from(&db, &string, &number));
+    assert!(!is_subtype_of(&db, &number, &string));
   }
 
   // Literal vs Simple
@@ -250,7 +275,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let lit = lit_str(&db, "hello");
-    assert!(is_assignable_from(&db, &string, &lit));
+    assert!(is_subtype_of(&db, &lit, &string));
   }
 
   #[test]
@@ -258,7 +283,7 @@ mod tests {
     let db = db();
     let number: TdTypeEnum = get_num_type(&db).into();
     let lit = lit_str(&db, "hello");
-    assert!(!is_assignable_from(&db, &number, &lit));
+    assert!(!is_subtype_of(&db, &lit, &number));
   }
 
   // Literal vs Literal
@@ -268,7 +293,7 @@ mod tests {
     let db = db();
     let lit1 = lit_str(&db, "draft");
     let lit2 = lit_str(&db, "draft");
-    assert!(is_assignable_from(&db, &lit1, &lit2));
+    assert!(is_subtype_of(&db, &lit2, &lit1));
   }
 
   #[test]
@@ -276,7 +301,7 @@ mod tests {
     let db = db();
     let lit1 = lit_str(&db, "draft");
     let lit2 = lit_str(&db, "published");
-    assert!(!is_assignable_from(&db, &lit1, &lit2));
+    assert!(!is_subtype_of(&db, &lit2, &lit1));
   }
 
   // Never is the bottom type: assignable to anything, but nothing is assignable to it
@@ -286,8 +311,8 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let never: TdTypeEnum = get_never_type(&db).into();
-    assert!(!is_assignable_from(&db, &never, &string));
-    assert!(is_assignable_from(&db, &string, &never));
+    assert!(!is_subtype_of(&db, &string, &never));
+    assert!(is_subtype_of(&db, &never, &string));
   }
 
   #[test]
@@ -295,7 +320,7 @@ mod tests {
     let db = db();
     let number: TdTypeEnum = get_num_type(&db).into();
     let lit = lit_num(&db, "42");
-    assert!(is_assignable_from(&db, &number, &lit));
+    assert!(is_subtype_of(&db, &lit, &number));
   }
 
   #[test]
@@ -303,7 +328,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let lit = lit_num(&db, "42");
-    assert!(!is_assignable_from(&db, &string, &lit));
+    assert!(!is_subtype_of(&db, &lit, &string));
   }
 
   #[test]
@@ -311,7 +336,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("hello".to_string())).into();
-    assert!(is_assignable_from(&db, &string, &lit));
+    assert!(is_subtype_of(&db, &lit, &string));
   }
 
   #[test]
@@ -319,7 +344,7 @@ mod tests {
     let db = db();
     let number: TdTypeEnum = get_num_type(&db).into();
     let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
-    assert!(is_assignable_from(&db, &number, &lit));
+    assert!(is_subtype_of(&db, &lit, &number));
   }
 
   #[test]
@@ -327,7 +352,7 @@ mod tests {
     let db = db();
     let boolean: TdTypeEnum = get_bool_type(&db).into();
     let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Bool(true)).into();
-    assert!(is_assignable_from(&db, &boolean, &lit));
+    assert!(is_subtype_of(&db, &lit, &boolean));
   }
 
   #[test]
@@ -335,7 +360,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
-    assert!(!is_assignable_from(&db, &string, &lit));
+    assert!(!is_subtype_of(&db, &lit, &string));
   }
 
   #[test]
@@ -343,7 +368,7 @@ mod tests {
     let db = db();
     let lit1: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("draft".to_string())).into();
     let lit2: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("draft".to_string())).into();
-    assert!(is_assignable_from(&db, &lit1, &lit2));
+    assert!(is_subtype_of(&db, &lit2, &lit1));
   }
 
   #[test]
@@ -351,7 +376,7 @@ mod tests {
     let db = db();
     let lit1: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("draft".to_string())).into();
     let lit2: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("published".to_string())).into();
-    assert!(!is_assignable_from(&db, &lit1, &lit2));
+    assert!(!is_subtype_of(&db, &lit2, &lit1));
   }
 
   // Sum type tests
@@ -364,7 +389,7 @@ mod tests {
       vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(is_assignable_from(&db, &str_or_num, &string));
+    assert!(is_subtype_of(&db, &string, &str_or_num));
   }
 
   #[test]
@@ -375,7 +400,7 @@ mod tests {
       vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
     let boolean: TdTypeEnum = get_bool_type(&db).into();
-    assert!(!is_assignable_from(&db, &str_or_num, &boolean));
+    assert!(!is_subtype_of(&db, &boolean, &str_or_num));
   }
 
   #[test]
@@ -386,7 +411,7 @@ mod tests {
       vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
     let lit = lit_str(&db, "hello");
-    assert!(is_assignable_from(&db, &str_or_num, &lit));
+    assert!(is_subtype_of(&db, &lit, &str_or_num));
   }
 
   #[test]
@@ -397,7 +422,7 @@ mod tests {
       vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
     let just_str = sum(&db, vec![get_str_type(&db).into()]);
-    assert!(is_assignable_from(&db, &str_or_num, &just_str));
+    assert!(is_subtype_of(&db, &just_str, &str_or_num));
   }
 
   #[test]
@@ -408,7 +433,7 @@ mod tests {
       &db,
       vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
-    assert!(!is_assignable_from(&db, &just_str, &str_or_num));
+    assert!(!is_subtype_of(&db, &str_or_num, &just_str));
   }
 
   // Null type tests
@@ -421,7 +446,7 @@ mod tests {
       vec![get_str_type(&db).into(), get_null_type(&db).into()],
     );
     let null: TdTypeEnum = get_null_type(&db).into();
-    assert!(is_assignable_from(&db, &nullable_str, &null));
+    assert!(is_subtype_of(&db, &null, &nullable_str));
   }
 
   #[test]
@@ -432,7 +457,7 @@ mod tests {
       vec![get_str_type(&db).into(), get_null_type(&db).into()],
     );
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(is_assignable_from(&db, &nullable_str, &string));
+    assert!(is_subtype_of(&db, &string, &nullable_str));
   }
 
   #[test]
@@ -440,7 +465,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let null: TdTypeEnum = get_null_type(&db).into();
-    assert!(!is_assignable_from(&db, &string, &null));
+    assert!(!is_subtype_of(&db, &null, &string));
   }
 
   // Never type tests
@@ -452,9 +477,9 @@ mod tests {
     let string: TdTypeEnum = get_str_type(&db).into();
     let number: TdTypeEnum = get_num_type(&db).into();
     let boolean: TdTypeEnum = get_bool_type(&db).into();
-    assert!(is_assignable_from(&db, &string, &never));
-    assert!(is_assignable_from(&db, &number, &never));
-    assert!(is_assignable_from(&db, &boolean, &never));
+    assert!(is_subtype_of(&db, &never, &string));
+    assert!(is_subtype_of(&db, &never, &number));
+    assert!(is_subtype_of(&db, &never, &boolean));
   }
 
   #[test]
@@ -465,7 +490,7 @@ mod tests {
       &db,
       vec![get_str_type(&db).into(), get_num_type(&db).into()],
     );
-    assert!(is_assignable_from(&db, &str_or_num, &never));
+    assert!(is_subtype_of(&db, &never, &str_or_num));
   }
 
   #[test]
@@ -473,7 +498,7 @@ mod tests {
     let db = db();
     let never: TdTypeEnum = get_never_type(&db).into();
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(!is_assignable_from(&db, &never, &string));
+    assert!(!is_subtype_of(&db, &string, &never));
   }
 
   // Literal sum (enum) tests
@@ -483,7 +508,7 @@ mod tests {
     let db = db();
     let status = sum(&db, vec![lit_str(&db, "draft"), lit_str(&db, "published")]);
     let draft = lit_str(&db, "draft");
-    assert!(is_assignable_from(&db, &status, &draft));
+    assert!(is_subtype_of(&db, &draft, &status));
   }
 
   #[test]
@@ -491,7 +516,7 @@ mod tests {
     let db = db();
     let status = sum(&db, vec![lit_str(&db, "draft"), lit_str(&db, "published")]);
     let archived = lit_str(&db, "archived");
-    assert!(!is_assignable_from(&db, &status, &archived));
+    assert!(!is_subtype_of(&db, &archived, &status));
   }
 
   // String accepts sum of string literals
@@ -500,7 +525,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let status = sum(&db, vec![lit_str(&db, "draft"), lit_str(&db, "published")]);
-    assert!(is_assignable_from(&db, &string, &status));
+    assert!(is_subtype_of(&db, &status, &string));
   }
 
   // String rejects sum with non-string member
@@ -509,7 +534,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let mixed = sum(&db, vec![lit_str(&db, "draft"), get_num_type(&db).into()]);
-    assert!(!is_assignable_from(&db, &string, &mixed));
+    assert!(!is_subtype_of(&db, &mixed, &string));
   }
 
   // List type tests
@@ -523,7 +548,31 @@ mod tests {
     let list_str2: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
       .typ(&db);
-    assert!(is_assignable_from(&db, &list_str, &list_str2));
+    assert!(is_subtype_of(&db, &list_str2, &list_str));
+  }
+
+  #[test]
+  fn list_accepts_covariant_elem_type() {
+    let db = db();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .typ(&db);
+    let list_lit: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(lit_str(&db, "hello"))])
+      .typ(&db);
+    assert!(is_subtype_of(&db, &list_lit, &list_str));
+  }
+
+  #[test]
+  fn list_rejects_wider_elem_type() {
+    let db = db();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .typ(&db);
+    let list_lit: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(lit_str(&db, "hello"))])
+      .typ(&db);
+    assert!(!is_subtype_of(&db, &list_str, &list_lit));
   }
 
   #[test]
@@ -535,7 +584,7 @@ mod tests {
     let list_num: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())])
       .typ(&db);
-    assert!(!is_assignable_from(&db, &list_str, &list_num));
+    assert!(!is_subtype_of(&db, &list_num, &list_str));
   }
 
   #[test]
@@ -545,7 +594,17 @@ mod tests {
     let list_str: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
       .typ(&db);
-    assert!(is_assignable_from(&db, &untyped, &list_str));
+    assert!(is_subtype_of(&db, &list_str, &untyped));
+  }
+
+  #[test]
+  fn typed_list_rejects_untyped_list() {
+    let db = db();
+    let untyped: TdTypeEnum = get_list_type(&db).into();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .typ(&db);
+    assert!(!is_subtype_of(&db, &untyped, &list_str));
   }
 
   // Dict type tests
@@ -571,7 +630,55 @@ mod tests {
         ],
       )
       .typ(&db);
-    assert!(is_assignable_from(&db, &dict_str, &dict_str2));
+    assert!(is_subtype_of(&db, &dict_str2, &dict_str));
+  }
+
+  #[test]
+  fn dict_accepts_covariant_key_and_value_types() {
+    let db = db();
+    let dict_str: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .typ(&db);
+    let dict_lit: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(lit_str(&db, "key")),
+          LazyType::eager(lit_str(&db, "value")),
+        ],
+      )
+      .typ(&db);
+    assert!(is_subtype_of(&db, &dict_lit, &dict_str));
+  }
+
+  #[test]
+  fn dict_rejects_wider_value_type() {
+    let db = db();
+    let dict_str: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .typ(&db);
+    let dict_lit: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(lit_str(&db, "key")),
+          LazyType::eager(lit_str(&db, "value")),
+        ],
+      )
+      .typ(&db);
+    assert!(!is_subtype_of(&db, &dict_str, &dict_lit));
   }
 
   #[test]
@@ -595,7 +702,39 @@ mod tests {
         ],
       )
       .typ(&db);
-    assert!(!is_assignable_from(&db, &dict_str, &dict_num));
+    assert!(!is_subtype_of(&db, &dict_num, &dict_str));
+  }
+
+  #[test]
+  fn untyped_dict_accepts_typed_dict() {
+    let db = db();
+    let untyped: TdTypeEnum = get_dict_type(&db).into();
+    let dict_str: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .typ(&db);
+    assert!(is_subtype_of(&db, &dict_str, &untyped));
+  }
+
+  #[test]
+  fn typed_dict_rejects_untyped_dict() {
+    let db = db();
+    let untyped: TdTypeEnum = get_dict_type(&db).into();
+    let dict_str: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .typ(&db);
+    assert!(!is_subtype_of(&db, &untyped, &dict_str));
   }
 
   // String accepts date/time subtypes
@@ -605,7 +744,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let date: TdTypeEnum = get_date_type(&db).into();
-    assert!(is_assignable_from(&db, &string, &date));
+    assert!(is_subtype_of(&db, &date, &string));
   }
 
   #[test]
@@ -613,7 +752,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let datetime: TdTypeEnum = get_datetime_type(&db).into();
-    assert!(is_assignable_from(&db, &string, &datetime));
+    assert!(is_subtype_of(&db, &datetime, &string));
   }
 
   #[test]
@@ -621,7 +760,7 @@ mod tests {
     let db = db();
     let string: TdTypeEnum = get_str_type(&db).into();
     let time: TdTypeEnum = get_time_type(&db).into();
-    assert!(is_assignable_from(&db, &string, &time));
+    assert!(is_subtype_of(&db, &time, &string));
   }
 
   #[test]
@@ -629,7 +768,7 @@ mod tests {
     let db = db();
     let date: TdTypeEnum = get_date_type(&db).into();
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(!is_assignable_from(&db, &date, &string));
+    assert!(!is_subtype_of(&db, &string, &date));
   }
 
   // Structural type tests
@@ -653,7 +792,7 @@ mod tests {
       )]),
     )
     .into();
-    assert!(is_assignable_from(&db, &expected, &actual));
+    assert!(is_subtype_of(&db, &actual, &expected));
   }
 
   #[test]
@@ -668,7 +807,7 @@ mod tests {
     )
     .into();
     let actual: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
-    assert!(!is_assignable_from(&db, &expected, &actual));
+    assert!(!is_subtype_of(&db, &actual, &expected));
   }
 
   #[test]
@@ -684,7 +823,7 @@ mod tests {
     )
     .into();
     let actual: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
-    assert!(is_assignable_from(&db, &expected, &actual));
+    assert!(is_subtype_of(&db, &actual, &expected));
   }
 
   #[test]
@@ -706,7 +845,7 @@ mod tests {
       )]),
     )
     .into();
-    assert!(!is_assignable_from(&db, &expected, &actual));
+    assert!(!is_subtype_of(&db, &actual, &expected));
   }
 
   // Structural accepts superset of fields
@@ -732,7 +871,7 @@ mod tests {
       ]),
     )
     .into();
-    assert!(is_assignable_from(&db, &expected, &actual));
+    assert!(is_subtype_of(&db, &actual, &expected));
   }
 
   // Product accepts structural
@@ -759,7 +898,7 @@ mod tests {
       )]),
     )
     .into();
-    assert!(is_assignable_from(&db, &product, &structural));
+    assert!(is_subtype_of(&db, &structural, &product));
   }
 
   #[test]
@@ -784,7 +923,7 @@ mod tests {
       )]),
     )
     .into();
-    assert!(!is_assignable_from(&db, &product, &structural));
+    assert!(!is_subtype_of(&db, &structural, &product));
   }
 
   #[test]
@@ -812,7 +951,7 @@ mod tests {
       )]),
     )
     .into();
-    assert!(!is_assignable_from(&db, &product, &structural));
+    assert!(!is_subtype_of(&db, &structural, &product));
   }
 
   #[test]
@@ -820,7 +959,7 @@ mod tests {
     let db = db();
     let null: TdTypeEnum = get_null_type(&db).into();
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(!is_assignable_from(&db, &null, &string));
+    assert!(!is_subtype_of(&db, &string, &null));
   }
 
   #[test]
@@ -830,7 +969,7 @@ mod tests {
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
       .typ(&db);
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(!is_assignable_from(&db, &list_str, &string));
+    assert!(!is_subtype_of(&db, &string, &list_str));
   }
 
   #[test]
@@ -846,7 +985,7 @@ mod tests {
       )
       .typ(&db);
     let string: TdTypeEnum = get_str_type(&db).into();
-    assert!(!is_assignable_from(&db, &dict, &string));
+    assert!(!is_subtype_of(&db, &string, &dict));
   }
 
   // is_type tests
@@ -886,7 +1025,7 @@ mod tests {
     let func2 = TdFuncType::get(&db, vec![string], number);
     let func_type: TdTypeEnum = func.into();
     let func2_type: TdTypeEnum = func2.into();
-    assert!(is_assignable_from(&db, &func_type, &func2_type));
+    assert!(is_subtype_of(&db, &func2_type, &func_type));
   }
 
   #[test]
@@ -899,7 +1038,7 @@ mod tests {
     let actual = TdFuncType::get(&db, vec![string], literal);
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
-    assert!(is_assignable_from(&db, &expected_type, &actual_type));
+    assert!(is_subtype_of(&db, &actual_type, &expected_type));
   }
 
   #[test]
@@ -912,7 +1051,7 @@ mod tests {
     let actual = TdFuncType::get(&db, vec![], number);
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
-    assert!(!is_assignable_from(&db, &expected_type, &actual_type));
+    assert!(!is_subtype_of(&db, &actual_type, &expected_type));
   }
 
   #[test]
@@ -927,7 +1066,7 @@ mod tests {
     let actual = TdFuncType::get(&db, vec![string], number);
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
-    assert!(is_assignable_from(&db, &expected_type, &actual_type));
+    assert!(is_subtype_of(&db, &actual_type, &expected_type));
   }
 
   #[test]
@@ -942,7 +1081,7 @@ mod tests {
     let actual = TdFuncType::get(&db, vec![literal], number);
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
-    assert!(!is_assignable_from(&db, &expected_type, &actual_type));
+    assert!(!is_subtype_of(&db, &actual_type, &expected_type));
   }
 
   #[test]
@@ -954,6 +1093,6 @@ mod tests {
     let actual = TdFuncType::get(&db, vec![string, number.clone()], number);
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
-    assert!(!is_assignable_from(&db, &expected_type, &actual_type));
+    assert!(!is_subtype_of(&db, &actual_type, &expected_type));
   }
 }

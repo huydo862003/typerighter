@@ -17,7 +17,7 @@ use crate::db::types::{
   TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
-use crate::db::utils::typecheck::is_assignable_from;
+use crate::db::utils::typecheck::is_subtype_of;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, ParenExpr, PrefixExpr, YamlOpKind,
 };
@@ -457,7 +457,7 @@ fn pick_most_specific_arm(
     .filter(|arm| {
       arm
         .resolve(db)
-        .is_some_and(|t| is_assignable_from(db, &t, &actual_type))
+        .is_some_and(|t| is_subtype_of(db, &actual_type, &t))
     })
     .cloned()
     .collect();

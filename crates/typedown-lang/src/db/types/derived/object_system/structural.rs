@@ -6,7 +6,7 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::types::LazyType;
 use crate::db::utils::static_type::format_field_map;
-use crate::db::utils::typecheck::{is_assignable_from, is_nullable};
+use crate::db::utils::typecheck::{is_nullable, is_subtype_of};
 
 // Anonymous structural type for typechecking, holds field name to type mappings
 // This type never MATERIALIZES at runtime
@@ -54,7 +54,7 @@ pub fn fields_compatible(
         let Some(actual_type) = actual_lazy.resolve(db) else {
           return false;
         };
-        is_assignable_from(db, &expected_type, &actual_type)
+        is_subtype_of(db, &actual_type, &expected_type)
       }
       None => optional,
     }

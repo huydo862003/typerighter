@@ -557,10 +557,7 @@ mod tests {
       &db,
       TypeParams::new(
         &db,
-        vec![TypeVariable {
-          bound: Some(LazyType::eager(num_type)),
-          value: None,
-        }],
+        vec![TypeVariable::new(Some(LazyType::eager(num_type)), None)],
       ),
     );
 

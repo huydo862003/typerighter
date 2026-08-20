@@ -14,7 +14,7 @@ use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, TypecheckResult};
-use crate::db::utils::typecheck::{is_assignable_from, is_nullable};
+use crate::db::utils::typecheck::{is_nullable, is_subtype_of};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -124,7 +124,7 @@ fn check_mapping_fields(
       let is_optional = is_nullable(db, &field_type);
       match value_result.typ(db) {
         Some(actual_type) => {
-          if !is_assignable_from(db, &field_type, &actual_type) {
+          if !is_subtype_of(db, &actual_type, &field_type) {
             let node = value_hir.node(db);
             let (tr_offset, tr_len) = node.trimmed_range();
             diagnostics.push(Diagnostic::FieldTypeMismatch {
@@ -189,7 +189,7 @@ fn check_tag(
   let inner_result = actual_node_type(db, inner);
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
   if let Some(actual_type) = inner_result.typ(db)
-    && !is_assignable_from(db, expected_type, &actual_type)
+    && !is_subtype_of(db, &actual_type, expected_type)
   {
     let node = inner.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
@@ -246,7 +246,7 @@ fn check_call(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> V
     let arg_result = actual_node_type(db, *arg_hir);
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
     if let Some(arg_type) = arg_result.typ(db)
-      && !is_assignable_from(db, param, &arg_type)
+      && !is_subtype_of(db, &arg_type, param)
     {
       let node = arg_hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -284,7 +284,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
       diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
       if let Some(idx_type) = idx_result.typ(db) {
         let num_type = get_num_type(db);
-        if !is_assignable_from(db, &num_type.into(), &idx_type) {
+        if !is_subtype_of(db, &idx_type, &num_type.into()) {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::IndexTypeMismatch {
@@ -305,7 +305,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
         let idx_result = actual_node_type(db, *idx_hir);
         diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
         if let Some(idx_type) = idx_result.typ(db)
-          && !is_assignable_from(db, &key_type, &idx_type)
+          && !is_subtype_of(db, &idx_type, &key_type)
         {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
@@ -327,7 +327,7 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
       diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
       if let Some(idx_type) = idx_result.typ(db) {
         let num_type = get_num_type(db);
-        if !is_assignable_from(db, &num_type.into(), &idx_type) {
+        if !is_subtype_of(db, &idx_type, &num_type.into()) {
           let node = idx_hir.node(db);
           let (tr_offset, tr_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::IndexTypeMismatch {
@@ -371,7 +371,7 @@ fn check_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagn
     _ => return diagnostics,
   };
 
-  if !is_assignable_from(db, &expected_type, &operand_type) {
+  if !is_subtype_of(db, &operand_type, &expected_type) {
     let node = operand.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
     diagnostics.push(Diagnostic::OperandTypeMismatch {
@@ -430,7 +430,7 @@ fn check_binary(
     "+" | "-" | "*" | "/" | "%" | "**" => {
       let num_type: TdTypeEnum = get_num_type(db).into();
       if let Some(lt) = &left_type
-        && !is_assignable_from(db, &num_type, lt)
+        && !is_subtype_of(db, lt, &num_type)
       {
         let node = left.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -442,7 +442,7 @@ fn check_binary(
         });
       }
       if let Some(rt) = &right_type
-        && !is_assignable_from(db, &num_type, rt)
+        && !is_subtype_of(db, rt, &num_type)
       {
         let node = right.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -458,7 +458,7 @@ fn check_binary(
     "&&" | "||" => {
       let bool_type: TdTypeEnum = get_bool_type(db).into();
       if let Some(lt) = &left_type
-        && !is_assignable_from(db, &bool_type, lt)
+        && !is_subtype_of(db, lt, &bool_type)
       {
         let node = left.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -470,7 +470,7 @@ fn check_binary(
         });
       }
       if let Some(rt) = &right_type
-        && !is_assignable_from(db, &bool_type, rt)
+        && !is_subtype_of(db, rt, &bool_type)
       {
         let node = right.node(db);
         let (tr_offset, tr_len) = node.trimmed_range();
@@ -516,7 +516,7 @@ fn check_sequence(
     // Check item type against element type
     let item_result = actual_node_type(db, item);
     if let Some(item_type) = item_result.typ(db)
-      && !is_assignable_from(db, &elem_type, &item_type)
+      && !is_subtype_of(db, &item_type, &elem_type)
     {
       let node = item.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();

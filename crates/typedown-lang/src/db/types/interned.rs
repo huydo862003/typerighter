@@ -20,16 +20,70 @@ pub struct FuncSignature {
   pub ret: TdTypeEnum,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
+#[repr(u8)]
+#[derive(Default)]
+pub enum Variance {
+  #[default]
+  Covariant = 0,
+  Contravariant = 1,
+  Invariant = 2,
+}
+
+impl StableHash for Variance {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    (*self as u8).hash(hasher);
+  }
+}
+
+impl Encodable for Variance {
+  fn encode(&self, buf: &mut Vec<u8>, _encoder: &mut Encoder) {
+    buf.push(*self as u8);
+  }
+}
+
+impl Decodable for Variance {
+  fn decode(data: &mut &[u8], _decoder: &Decoder) -> Self {
+    let tag = data[0];
+    *data = &data[1..];
+    Variance::from_repr(tag).unwrap_or(Variance::Covariant)
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub struct TypeVariable {
   pub bound: Option<LazyType>,
   pub value: Option<LazyType>,
+  pub variance: Variance,
+}
+
+impl TypeVariable {
+  pub fn new(bound: Option<LazyType>, value: Option<LazyType>) -> Self {
+    Self {
+      bound,
+      value,
+      variance: Variance::Covariant,
+    }
+  }
+
+  pub fn with_variance(
+    bound: Option<LazyType>,
+    value: Option<LazyType>,
+    variance: Variance,
+  ) -> Self {
+    Self {
+      bound,
+      value,
+      variance,
+    }
+  }
 }
 
 impl StableHash for TypeVariable {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.bound.stable_hash(db, hasher);
     self.value.stable_hash(db, hasher);
+    self.variance.stable_hash(db, hasher);
   }
 }
 
@@ -37,6 +91,7 @@ impl Encodable for TypeVariable {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.bound.encode(buf, encoder);
     self.value.encode(buf, encoder);
+    self.variance.encode(buf, encoder);
   }
 }
 
@@ -45,6 +100,7 @@ impl Decodable for TypeVariable {
     Self {
       bound: Option::<LazyType>::decode(data, decoder),
       value: Option::<LazyType>::decode(data, decoder),
+      variance: Variance::decode(data, decoder),
     }
   }
 }
@@ -70,6 +126,7 @@ impl TypeParams {
       .map(|(p, arg)| TypeVariable {
         bound: p.bound.clone(),
         value: Some(arg),
+        variance: p.variance,
       })
       .collect();
     Some(TypeParams::new(db, new_params))
@@ -88,6 +145,7 @@ impl TypeParams {
           TypeVariable {
             bound: p.bound.clone(),
             value: Some(arg.clone()),
+            variance: p.variance,
           }
         } else {
           p.clone()

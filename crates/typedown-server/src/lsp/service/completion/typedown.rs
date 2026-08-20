@@ -16,7 +16,7 @@ use typedown_lang::db::types::{
   File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
-use typedown_lang::db::utils::typecheck::{is_assignable_from, is_nullable};
+use typedown_lang::db::utils::typecheck::{is_nullable, is_subtype_of};
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -129,7 +129,7 @@ fn fref_completions(
         Some(typ) => typ,
         None => return false,
       };
-      is_assignable_from(db, expected_typ, &file_type)
+      is_subtype_of(db, &file_type, expected_typ)
     })
     .filter_map(|(path, _)| path.strip_prefix(&root).ok().map(|rel| rel.to_path_buf()))
     .map(|rel| CompletionItem {
