@@ -13,7 +13,7 @@ use crate::db::types::{
   TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
   TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
   TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
-  TypeParamPair, TypeParams, TypeVariable,
+  TypeParams, TypeVariable,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -41,9 +41,8 @@ pub fn get_num_type(db: &TypedownDatabase) -> TdNumType {
 pub fn get_list_type(db: &TypedownDatabase) -> TdListType {
   let params = TypeParams::new(
     db,
-    vec![TypeParamPair {
-      name: "T".to_string(),
-      var: TypeVariable { bound: None },
+    vec![TypeVariable {
+      bound: None,
       value: None,
     }],
   );
@@ -55,14 +54,12 @@ pub fn get_dict_type(db: &TypedownDatabase) -> TdDictType {
   let params = TypeParams::new(
     db,
     vec![
-      TypeParamPair {
-        name: "K".to_string(),
-        var: TypeVariable { bound: None },
+      TypeVariable {
+        bound: None,
         value: None,
       },
-      TypeParamPair {
-        name: "V".to_string(),
-        var: TypeVariable { bound: None },
+      TypeVariable {
+        bound: None,
         value: None,
       },
     ],
