@@ -50,7 +50,7 @@ impl Decodable for Variance {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
+#[query_interned]
 pub struct TypeVariable {
   pub bound: Option<LazyType>,
   pub value: Option<LazyType>,
@@ -58,50 +58,17 @@ pub struct TypeVariable {
 }
 
 impl TypeVariable {
-  pub fn new(bound: Option<LazyType>, value: Option<LazyType>) -> Self {
-    Self {
-      bound,
-      value,
-      variance: Variance::Covariant,
-    }
+  pub fn get(db: &TypedownDatabase, bound: Option<LazyType>, value: Option<LazyType>) -> Self {
+    TypeVariable::new(db, bound, value, Variance::Covariant)
   }
 
-  pub fn with_variance(
+  pub fn get_with_variance(
+    db: &TypedownDatabase,
     bound: Option<LazyType>,
     value: Option<LazyType>,
     variance: Variance,
   ) -> Self {
-    Self {
-      bound,
-      value,
-      variance,
-    }
-  }
-}
-
-impl StableHash for TypeVariable {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.bound.stable_hash(db, hasher);
-    self.value.stable_hash(db, hasher);
-    self.variance.stable_hash(db, hasher);
-  }
-}
-
-impl Encodable for TypeVariable {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.bound.encode(buf, encoder);
-    self.value.encode(buf, encoder);
-    self.variance.encode(buf, encoder);
-  }
-}
-
-impl Decodable for TypeVariable {
-  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    Self {
-      bound: Option::<LazyType>::decode(data, decoder),
-      value: Option::<LazyType>::decode(data, decoder),
-      variance: Variance::decode(data, decoder),
-    }
+    TypeVariable::new(db, bound, value, variance)
   }
 }
 
@@ -112,7 +79,7 @@ pub struct TypeParams {
 
 impl TypeParams {
   pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
-    self.params(db).get(index).cloned()
+    self.params(db).get(index).copied()
   }
 
   pub fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TypeParams> {
@@ -123,11 +90,7 @@ impl TypeParams {
     let new_params = current_params
       .iter()
       .zip(args)
-      .map(|(p, arg)| TypeVariable {
-        bound: p.bound.clone(),
-        value: Some(arg),
-        variance: p.variance,
-      })
+      .map(|(p, arg)| TypeVariable::new(db, p.bound(db), Some(arg), p.variance(db)))
       .collect();
     Some(TypeParams::new(db, new_params))
   }
@@ -142,13 +105,9 @@ impl TypeParams {
       .enumerate()
       .map(|(i, p)| {
         if i == index {
-          TypeVariable {
-            bound: p.bound.clone(),
-            value: Some(arg.clone()),
-            variance: p.variance,
-          }
+          TypeVariable::new(db, p.bound(db), Some(arg.clone()), p.variance(db))
         } else {
-          p.clone()
+          *p
         }
       })
       .collect();
@@ -157,7 +116,7 @@ impl TypeParams {
 
   pub fn is_instantiated(&self, db: &TypedownDatabase) -> bool {
     let current = self.params(db);
-    !current.is_empty() && current.iter().all(|p| p.value.is_some())
+    !current.is_empty() && current.iter().all(|p| p.value(db).is_some())
   }
 
   pub fn len(&self, db: &TypedownDatabase) -> usize {

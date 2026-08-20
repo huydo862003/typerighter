@@ -25,7 +25,7 @@ pub fn validate_type_params(
   if let Some(params) = type_params {
     let params_vec = params.params(db);
     for (idx, (p, arg)) in params_vec.iter().zip(args.iter()).enumerate() {
-      if let Some(bound) = p.bound.as_ref().and_then(|b| b.resolve(db))
+      if let Some(bound) = p.bound(db).as_ref().and_then(|b| b.resolve(db))
         && let Some(arg_type) = arg.resolve(db)
         && !is_subtype_of(db, &arg_type, &bound)
       {
@@ -41,11 +41,7 @@ pub fn validate_type_params(
 }
 
 /// Check if `subtype` is a subtype of `supertype` (subtyping check)
-pub fn is_subtype_of(
-  db: &TypedownDatabase,
-  subtype: &TdTypeEnum,
-  supertype: &TdTypeEnum,
-) -> bool {
+pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &TdTypeEnum) -> bool {
   /// Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance.
   fn are_constructors_compatible(
     db: &TypedownDatabase,

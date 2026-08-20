@@ -15,6 +15,7 @@ mod product;
 mod str;
 mod structural;
 mod sum;
+mod variable;
 mod vault;
 
 use std::collections::HashMap;
@@ -43,6 +44,7 @@ pub use product::*;
 pub use str::*;
 pub use structural::*;
 pub use sum::*;
+pub use variable::*;
 pub use vault::*;
 
 use ambassador::Delegate;
@@ -79,6 +81,7 @@ pub enum TdTypeEnum {
   TdLiteralType(TdLiteralType),
   TdSumType(TdSumType),
   TdStructuralType(TdStructuralType),
+  TdVariableType(TdVariableType),
 }
 
 // Use this instead of dyn
@@ -137,6 +140,7 @@ impl_from_type_for_obj_enum!(
   TdLiteralType,
   TdSumType,
   TdStructuralType,
+  TdVariableType,
 );
 
 impl Id for TdTypeEnum {
@@ -160,6 +164,7 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdLiteralType(v) => v.as_id(),
       TdTypeEnum::TdSumType(v) => v.as_id(),
       TdTypeEnum::TdStructuralType(v) => v.as_id(),
+      TdTypeEnum::TdVariableType(v) => v.as_id(),
     }
   }
 }
@@ -237,6 +242,7 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdLiteralType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdSumType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdVariableType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -288,6 +294,7 @@ pub enum TdTypeKind {
   Literal = 16,
   Sum = 17,
   Structural = 18,
+  Variable = 20,
 }
 
 #[derive(FromRepr)]
@@ -388,6 +395,10 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Structural as u8);
         v.encode_field(buf, encoder);
       }
+      TdTypeEnum::TdVariableType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Variable as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -414,6 +425,7 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
       TdTypeKind::Sum => TdSumType::decode_field(data, decoder).into(),
       TdTypeKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
+      TdTypeKind::Variable => TdVariableType::decode_field(data, decoder).into(),
     }
   }
 }

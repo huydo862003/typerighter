@@ -21,14 +21,14 @@ impl TdDictType {
     self
       .type_params(db)
       .get_by_index(db, 0)
-      .and_then(|p| p.value)
+      .and_then(|p| p.value(db))
   }
 
   pub fn value(&self, db: &TypedownDatabase) -> Option<LazyType> {
     self
       .type_params(db)
       .get_by_index(db, 1)
-      .and_then(|p| p.value)
+      .and_then(|p| p.value(db))
   }
 }
 
