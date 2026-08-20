@@ -13,6 +13,7 @@ use crate::db::types::{
   TdBlobType, TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType,
   TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
   TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
+  TypeParamPair, TypeParams, TypeVariable,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -38,12 +39,35 @@ pub fn get_num_type(db: &TypedownDatabase) -> TdNumType {
 
 #[query_derived]
 pub fn get_list_type(db: &TypedownDatabase) -> TdListType {
-  TdListType::new(db, None)
+  let params = TypeParams::new(
+    db,
+    vec![TypeParamPair {
+      name: "T".to_string(),
+      var: TypeVariable { bound: None },
+      value: None,
+    }],
+  );
+  TdListType::new(db, params)
 }
 
 #[query_derived]
 pub fn get_dict_type(db: &TypedownDatabase) -> TdDictType {
-  TdDictType::new(db, None, None)
+  let params = TypeParams::new(
+    db,
+    vec![
+      TypeParamPair {
+        name: "K".to_string(),
+        var: TypeVariable { bound: None },
+        value: None,
+      },
+      TypeParamPair {
+        name: "V".to_string(),
+        var: TypeVariable { bound: None },
+        value: None,
+      },
+    ],
+  );
+  TdDictType::new(db, params)
 }
 
 #[query_derived]
@@ -80,15 +104,19 @@ pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
 // Has a single field `properties` of type dict[string, SchemaProperty]
 #[query_derived]
 pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
-  let properties_type = TdDictType::new(
-    db,
-    Some(LazyType::eager(get_str_type(db).into())),
-    Some(LazyType::eager(get_schema_property_type(db).into())),
-  );
+  let properties_type = get_dict_type(db)
+    .instantiate(
+      db,
+      vec![
+        LazyType::eager(get_str_type(db).into()),
+        LazyType::eager(get_schema_property_type(db).into()),
+      ],
+    )
+    .unwrap();
 
   let fields = HashMap::from([(
     "properties".to_string(),
-    LazyType::eager(properties_type.into()),
+    LazyType::eager(properties_type),
   )]);
 
   TdProductType::new(

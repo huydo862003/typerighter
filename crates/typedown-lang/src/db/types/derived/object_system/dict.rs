@@ -7,12 +7,27 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_dict_type, get_str_type};
-use crate::db::types::{FuncSignature, HirValue, LazyType, RuntimeScope};
+use crate::db::types::{FuncSignature, HirValue, LazyType, RuntimeScope, TypeParams};
 
 #[query_derived]
 pub struct TdDictType {
-  pub key: Option<LazyType>,
-  pub value: Option<LazyType>,
+  pub type_params: TypeParams,
+}
+
+impl TdDictType {
+  pub fn key(&self, db: &TypedownDatabase) -> Option<LazyType> {
+    self
+      .type_params(db)
+      .get_by_index(db, 0)
+      .and_then(|p| p.value)
+  }
+
+  pub fn value(&self, db: &TypedownDatabase) -> Option<LazyType> {
+    self
+      .type_params(db)
+      .get_by_index(db, 1)
+      .and_then(|p| p.value)
+  }
 }
 
 impl TdRuntimeObject for TdDictType {
@@ -72,7 +87,11 @@ impl TdStaticType for TdDictType {
   }
 
   fn arity(&self, db: &TypedownDatabase) -> usize {
-    if self.key(db).is_some() { 0 } else { 2 }
+    if self.type_params(db).is_instantiated(db) {
+      0
+    } else {
+      self.type_params(db).len(db)
+    }
   }
 
   fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
@@ -86,13 +105,8 @@ impl TdStaticType for TdDictType {
   }
 
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TdTypeEnum> {
-    if args.len() != 2 {
-      return None;
-    }
-    let mut iter = args.into_iter();
-    let key = iter.next().unwrap();
-    let value = iter.next().unwrap();
-    Some(TdDictType::new(db, Some(key), Some(value)).into())
+    let new_params = self.type_params(db).instantiate(db, args)?;
+    Some(TdDictType::new(db, new_params).into())
   }
 
   fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {
