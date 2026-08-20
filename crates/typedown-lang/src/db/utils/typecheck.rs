@@ -166,12 +166,12 @@ mod tests {
 
   use super::*;
   use crate::db::derived::get_builtin_types::{
-    get_bool_type, get_date_type, get_datetime_type, get_list_type, get_literal_type,
-    get_never_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_sum_type,
-    get_time_type, get_type_type,
+    get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type,
+    get_literal_type, get_never_type, get_null_type, get_num_type, get_schema_type, get_str_type,
+    get_sum_type, get_time_type, get_type_type,
   };
   use crate::db::types::{
-    LazyType, LiteralValue, TdDictType, TdFuncType, TdListType, TdProductType, TdStructuralType,
+    LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -484,20 +484,24 @@ mod tests {
   #[test]
   fn list_accepts_same_elem_type() {
     let db = db();
-    let list_str: TdTypeEnum =
-      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
-    let list_str2: TdTypeEnum =
-      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .unwrap();
+    let list_str2: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .unwrap();
     assert!(is_assignable_from(&db, &list_str, &list_str2));
   }
 
   #[test]
   fn list_rejects_different_elem_type() {
     let db = db();
-    let list_str: TdTypeEnum =
-      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
-    let list_num: TdTypeEnum =
-      TdListType::new(&db, Some(LazyType::eager(get_num_type(&db).into()))).into();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .unwrap();
+    let list_num: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())])
+      .unwrap();
     assert!(!is_assignable_from(&db, &list_str, &list_num));
   }
 
@@ -505,8 +509,9 @@ mod tests {
   fn untyped_list_accepts_any_list() {
     let db = db();
     let untyped: TdTypeEnum = get_list_type(&db).into();
-    let list_str: TdTypeEnum =
-      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .unwrap();
     assert!(is_assignable_from(&db, &untyped, &list_str));
   }
 
@@ -515,36 +520,48 @@ mod tests {
   #[test]
   fn dict_accepts_same_value_type() {
     let db = db();
-    let dict_str: TdTypeEnum = TdDictType::new(
-      &db,
-      Some(LazyType::eager(get_str_type(&db).into())),
-      Some(LazyType::eager(get_str_type(&db).into())),
-    )
-    .into();
-    let dict_str2: TdTypeEnum = TdDictType::new(
-      &db,
-      Some(LazyType::eager(get_str_type(&db).into())),
-      Some(LazyType::eager(get_str_type(&db).into())),
-    )
-    .into();
+    let dict_str: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .unwrap();
+    let dict_str2: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .unwrap();
     assert!(is_assignable_from(&db, &dict_str, &dict_str2));
   }
 
   #[test]
   fn dict_rejects_different_value_type() {
     let db = db();
-    let dict_str: TdTypeEnum = TdDictType::new(
-      &db,
-      Some(LazyType::eager(get_str_type(&db).into())),
-      Some(LazyType::eager(get_str_type(&db).into())),
-    )
-    .into();
-    let dict_num: TdTypeEnum = TdDictType::new(
-      &db,
-      Some(LazyType::eager(get_str_type(&db).into())),
-      Some(LazyType::eager(get_num_type(&db).into())),
-    )
-    .into();
+    let dict_str: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .unwrap();
+    let dict_num: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_num_type(&db).into()),
+        ],
+      )
+      .unwrap();
     assert!(!is_assignable_from(&db, &dict_str, &dict_num));
   }
 
@@ -776,8 +793,9 @@ mod tests {
   #[test]
   fn list_rejects_non_list() {
     let db = db();
-    let list_str: TdTypeEnum =
-      TdListType::new(&db, Some(LazyType::eager(get_str_type(&db).into()))).into();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .unwrap();
     let string: TdTypeEnum = get_str_type(&db).into();
     assert!(!is_assignable_from(&db, &list_str, &string));
   }
@@ -785,12 +803,15 @@ mod tests {
   #[test]
   fn dict_rejects_non_dict() {
     let db = db();
-    let dict: TdTypeEnum = TdDictType::new(
-      &db,
-      Some(LazyType::eager(get_str_type(&db).into())),
-      Some(LazyType::eager(get_str_type(&db).into())),
-    )
-    .into();
+    let dict: TdTypeEnum = get_dict_type(&db)
+      .instantiate(
+        &db,
+        vec![
+          LazyType::eager(get_str_type(&db).into()),
+          LazyType::eager(get_str_type(&db).into()),
+        ],
+      )
+      .unwrap();
     let string: TdTypeEnum = get_str_type(&db).into();
     assert!(!is_assignable_from(&db, &dict, &string));
   }

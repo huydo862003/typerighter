@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_date_type, get_datetime_type, get_func_type, get_literal_type, get_math_type,
-  get_null_type, get_num_type, get_str_type, get_sum_type, get_time_type, instantiate_type,
+  get_bool_type, get_date_type, get_datetime_type, get_func_type, get_list_type, get_literal_type,
+  get_math_type, get_null_type, get_num_type, get_str_type, get_sum_type, get_time_type,
+  instantiate_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -19,7 +20,7 @@ use crate::db::types::derived::object_system::{
 };
 use crate::db::types::{
   BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind,
-  TdListType, TdTypeEnum, TypeResult,
+  TdTypeEnum, TypeResult,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
@@ -220,8 +221,8 @@ fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult 
   } else {
     LazyType::eager(get_sum_type(db, arms.into_iter().collect()).into())
   };
-  let list_type = TdListType::new(db, Some(elem));
-  TypeResult::new(db, Some(list_type.into()), diagnostics)
+  let list_type = get_list_type(db).instantiate(db, vec![elem]).unwrap();
+  TypeResult::new(db, Some(list_type), diagnostics)
 }
 
 // Helper to get the type of a call expression
