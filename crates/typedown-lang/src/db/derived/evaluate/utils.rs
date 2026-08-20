@@ -506,7 +506,7 @@ mod tests {
     // Instantiated generics are constructible
     let list_str: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     let dict_str_num: TdTypeEnum = get_dict_type(&db)
       .instantiate(
         &db,
@@ -515,7 +515,7 @@ mod tests {
           LazyType::eager(get_num_type(&db).into()),
         ],
       )
-      .unwrap();
+      .typ(&db);
     assert_eq!(list_str.runtime_type(&db), Some(list_str.clone()));
     assert_eq!(dict_str_num.runtime_type(&db), Some(dict_str_num.clone()));
 

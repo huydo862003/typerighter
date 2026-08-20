@@ -7,7 +7,9 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_dict_type, get_str_type};
-use crate::db::types::{FuncSignature, HirValue, LazyType, RuntimeScope, TypeParams};
+use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, RuntimeScope, TypeParams};
+use crate::db::utils::typecheck::validate_type_params;
+use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
 pub struct TdDictType {
@@ -104,9 +106,28 @@ impl TdStaticType for TdDictType {
     }
   }
 
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TdTypeEnum> {
-    let new_params = self.type_params(db).instantiate(db, args)?;
-    Some(TdDictType::new(db, new_params).into())
+  fn to_type_enum(&self, _db: &TypedownDatabase) -> TdTypeEnum {
+    (*self).into()
+  }
+
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
+    let self_type: TdTypeEnum = (*self).into();
+    let params = self.type_params(db);
+    let diagnostics = validate_type_params(db, Some(&params), &args);
+    if diagnostics
+      .iter()
+      .any(|d| matches!(d, Diagnostic::WrongTypeArgCount { .. }))
+    {
+      return InstResult::new(db, self_type, diagnostics);
+    }
+    match params.instantiate(db, args) {
+      Some(new_params) => InstResult::new(db, TdDictType::new(db, new_params).into(), diagnostics),
+      None => InstResult::new(db, self_type, diagnostics),
+    }
+  }
+
+  fn type_params(&self, db: &TypedownDatabase) -> Option<TypeParams> {
+    Some((*self).type_params(db))
   }
 
   fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {

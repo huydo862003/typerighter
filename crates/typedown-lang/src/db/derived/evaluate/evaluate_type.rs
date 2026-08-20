@@ -9,7 +9,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_literal_type,
   get_math_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_sum_type,
-  get_time_type, get_type_type, instantiate_type,
+  get_time_type, get_type_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
@@ -290,7 +290,7 @@ fn resolve_type_lazy(
           }
         }
       }
-      let inst_result = instantiate_type(db, base_type, arg_types);
+      let inst_result = base_type.instantiate(db, arg_types);
       diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
       Some(LazyType::eager(inst_result.typ(db)))
     }
@@ -321,7 +321,10 @@ fn resolve_type_lazy(
 #[cfg(test)]
 mod tests {
   use crate::db::types::derived::object_system::TdStaticType;
-  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum};
+  use crate::db::types::{
+    TdListType, TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable,
+  };
+  use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::HashMap;
   use std::path::PathBuf;
@@ -523,20 +526,16 @@ mod tests {
   #[test]
   fn display_name_instantiated_list() {
     let db = make_db();
-    let list_str = instantiate_type(
-      &db,
-      get_list_type(&db).into(),
-      vec![LazyType::eager(get_str_type(&db).into())],
-    );
+    let list_str = TdTypeEnum::from(get_list_type(&db))
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())]);
     assert_eq!(list_str.typ(&db).display_name(&db), "list[string]");
   }
 
   #[test]
   fn display_name_instantiated_dict() {
     let db = make_db();
-    let dict_str_num = instantiate_type(
+    let dict_str_num = TdTypeEnum::from(get_dict_type(&db)).instantiate(
       &db,
-      get_dict_type(&db).into(),
       vec![
         LazyType::eager(get_str_type(&db).into()),
         LazyType::eager(get_num_type(&db).into()),
@@ -545,6 +544,35 @@ mod tests {
     assert_eq!(
       dict_str_num.typ(&db).display_name(&db),
       "dict[string, number]"
+    );
+  }
+
+  #[test]
+  fn evaluate_type_instantiate_bounded_type_violating_bound_produces_diagnostic() {
+    let db = make_db();
+    let num_type = TdTypeEnum::from(get_num_type(&db));
+    let str_type = TdTypeEnum::from(get_str_type(&db));
+
+    let bounded_list = TdListType::new(
+      &db,
+      TypeParams::new(
+        &db,
+        vec![TypeVariable {
+          bound: Some(LazyType::eager(num_type)),
+          value: None,
+        }],
+      ),
+    );
+
+    let result = TdTypeEnum::from(bounded_list).instantiate(&db, vec![LazyType::eager(str_type)]);
+    let diagnostics = result.diagnostics(&db);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+      matches!(
+        diagnostics[0],
+        Diagnostic::TypeArgBoundViolation { index: 0, .. }
+      ),
+      "expected TypeArgBoundViolation diagnostic in evaluate_type"
     );
   }
 
@@ -648,11 +676,8 @@ mod tests {
   #[test]
   fn construct_list() {
     let db = make_db();
-    let list_num = instantiate_type(
-      &db,
-      get_list_type(&db).into(),
-      vec![LazyType::eager(get_num_type(&db).into())],
-    );
+    let list_num = TdTypeEnum::from(get_list_type(&db))
+      .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())]);
     let items: Vec<TdObjectEnum> = vec![
       TdNumObj::new(&db, 1.0).into(),
       TdNumObj::new(&db, 2.0).into(),

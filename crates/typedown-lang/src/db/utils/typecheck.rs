@@ -1,10 +1,43 @@
 //! Shared type compatibility utilities for typechecking
 
 use crate::db::TypedownDatabase;
-use crate::db::types::{LazyType, TdTypeEnum};
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::fields_compatible;
+use crate::db::types::{LazyType, TdTypeEnum, TypeParams};
+use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::Id;
+
+/// Validate type arguments against type parameters for both arity and bounds
+pub fn validate_type_params(
+  db: &TypedownDatabase,
+  type_params: Option<&TypeParams>,
+  args: &[LazyType],
+) -> Vec<Diagnostic> {
+  let expected_arity = type_params.map_or(0, |p| p.len(db));
+  if expected_arity != args.len() {
+    return vec![Diagnostic::WrongTypeArgCount {
+      expected: expected_arity,
+      got: args.len(),
+    }];
+  }
+
+  let mut diagnostics = Vec::new();
+  if let Some(params) = type_params {
+    let params_vec = params.params(db);
+    for (idx, (p, arg)) in params_vec.iter().zip(args.iter()).enumerate() {
+      if let Some(bound) = p.bound.as_ref().and_then(|b| b.resolve(db))
+        && let Some(arg_type) = arg.resolve(db)
+          && !is_assignable_from(db, &bound, &arg_type) {
+            diagnostics.push(Diagnostic::TypeArgBoundViolation {
+              index: idx,
+              expected_bound: bound.display_name(db),
+              got: arg_type.display_name(db),
+            });
+          }
+    }
+  }
+  diagnostics
+}
 
 // Check if expected type accepts actual type
 pub fn is_assignable_from(
@@ -20,11 +53,6 @@ pub fn is_assignable_from(
       m.resolve(db)
         .is_some_and(|t| is_assignable_from(db, expected, &t))
     });
-  }
-  if let Some(ex) = actual.as_td_existential_type() {
-    if let Some(body) = ex.body(db).and_then(|b| b.resolve(db)) {
-      return is_assignable_from(db, expected, &body);
-    }
   }
   if expected.as_id() == actual.as_id() {
     return true;
@@ -146,35 +174,6 @@ pub fn is_assignable_from(
       }
       _ => false,
     },
-    TdTypeEnum::TdExistentialType(expected_ex) => {
-      if let Some(body_type) = expected_ex.body(db).and_then(|b| b.resolve(db)) {
-        let params = expected_ex.type_params(db);
-        if params.is_empty(db) {
-          is_assignable_from(db, &body_type, actual)
-        } else {
-          let actual_args = actual.get_type_args(db);
-          if !actual_args.is_empty() && actual_args.len() == params.len(db) {
-            let lazy_args: Vec<LazyType> = actual_args.into_iter().map(LazyType::eager).collect();
-            let params_vec = params.params(db);
-            for (p, arg) in params_vec.iter().zip(lazy_args.iter()) {
-              if let Some(bound) = p.bound.as_ref().and_then(|b| b.resolve(db)) {
-                if let Some(arg_type) = arg.resolve(db) {
-                  if !is_assignable_from(db, &bound, &arg_type) {
-                    return false;
-                  }
-                }
-              }
-            }
-            if let Some(instantiated_body) = body_type.instantiate(db, lazy_args) {
-              return is_assignable_from(db, &instantiated_body, actual);
-            }
-          }
-          is_assignable_from(db, &body_type, actual)
-        }
-      } else {
-        false
-      }
-    }
     _ => false,
   }
 }
@@ -205,8 +204,7 @@ mod tests {
     get_sum_type, get_time_type, get_type_type,
   };
   use crate::db::types::{
-    LazyType, LiteralValue, TdExistentialType, TdFuncType, TdProductType, TdStructuralType,
-    TypeParams, TypeVariable,
+    LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -521,10 +519,10 @@ mod tests {
     let db = db();
     let list_str: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     let list_str2: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     assert!(is_assignable_from(&db, &list_str, &list_str2));
   }
 
@@ -533,10 +531,10 @@ mod tests {
     let db = db();
     let list_str: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     let list_num: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     assert!(!is_assignable_from(&db, &list_str, &list_num));
   }
 
@@ -546,7 +544,7 @@ mod tests {
     let untyped: TdTypeEnum = get_list_type(&db).into();
     let list_str: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     assert!(is_assignable_from(&db, &untyped, &list_str));
   }
 
@@ -563,7 +561,7 @@ mod tests {
           LazyType::eager(get_str_type(&db).into()),
         ],
       )
-      .unwrap();
+      .typ(&db);
     let dict_str2: TdTypeEnum = get_dict_type(&db)
       .instantiate(
         &db,
@@ -572,7 +570,7 @@ mod tests {
           LazyType::eager(get_str_type(&db).into()),
         ],
       )
-      .unwrap();
+      .typ(&db);
     assert!(is_assignable_from(&db, &dict_str, &dict_str2));
   }
 
@@ -587,7 +585,7 @@ mod tests {
           LazyType::eager(get_str_type(&db).into()),
         ],
       )
-      .unwrap();
+      .typ(&db);
     let dict_num: TdTypeEnum = get_dict_type(&db)
       .instantiate(
         &db,
@@ -596,7 +594,7 @@ mod tests {
           LazyType::eager(get_num_type(&db).into()),
         ],
       )
-      .unwrap();
+      .typ(&db);
     assert!(!is_assignable_from(&db, &dict_str, &dict_num));
   }
 
@@ -830,7 +828,7 @@ mod tests {
     let db = db();
     let list_str: TdTypeEnum = get_list_type(&db)
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
+      .typ(&db);
     let string: TdTypeEnum = get_str_type(&db).into();
     assert!(!is_assignable_from(&db, &list_str, &string));
   }
@@ -846,7 +844,7 @@ mod tests {
           LazyType::eager(get_str_type(&db).into()),
         ],
       )
-      .unwrap();
+      .typ(&db);
     let string: TdTypeEnum = get_str_type(&db).into();
     assert!(!is_assignable_from(&db, &dict, &string));
   }
@@ -957,27 +955,5 @@ mod tests {
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
     assert!(!is_assignable_from(&db, &expected_type, &actual_type));
-  }
-
-  #[test]
-  fn existential_type_accepts_matching_instantiated_type() {
-    let db = db();
-    let uninstantiated_list: TdTypeEnum = get_list_type(&db).into();
-    let existential = TdExistentialType::new(
-      &db,
-      TypeParams::new(
-        &db,
-        vec![TypeVariable {
-          bound: None,
-          value: None,
-        }],
-      ),
-      Some(LazyType::eager(uninstantiated_list)),
-    );
-    let expected: TdTypeEnum = existential.into();
-    let actual: TdTypeEnum = get_list_type(&db)
-      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
-      .unwrap();
-    assert!(is_assignable_from(&db, &expected, &actual));
   }
 }

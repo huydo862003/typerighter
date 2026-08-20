@@ -726,6 +726,15 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
+      Diagnostic::TypeArgBoundViolation {
+        index,
+        expected_bound,
+        got,
+      } => {
+        index.encode(buf, encoder);
+        expected_bound.encode(buf, encoder);
+        got.encode(buf, encoder);
+      }
     }
   }
 }
@@ -1337,6 +1346,16 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::TypeArgBoundViolation => {
+        let index = usize::decode(data, decoder);
+        let expected_bound = String::decode(data, decoder);
+        let got = String::decode(data, decoder);
+        Diagnostic::TypeArgBoundViolation {
+          index,
+          expected_bound,
+          got,
+        }
+      }
     }
   }
 }
@@ -1782,6 +1801,15 @@ impl StableHash for Diagnostic {
         type_name.stable_hash(db, hasher);
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::TypeArgBoundViolation {
+        index,
+        expected_bound,
+        got,
+      } => {
+        index.stable_hash(db, hasher);
+        expected_bound.stable_hash(db, hasher);
+        got.stable_hash(db, hasher);
       }
     }
   }

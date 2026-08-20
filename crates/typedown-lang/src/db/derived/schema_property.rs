@@ -54,7 +54,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
   );
   let list_type = get_list_type(db)
     .instantiate(db, vec![LazyType::eager(list_elem_sum.into())])
-    .unwrap();
+    .typ(db);
 
   // dict[base | self]
   let dict_elem_sum = get_sum_type(
@@ -72,7 +72,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
         LazyType::eager(dict_elem_sum.into()),
       ],
     )
-    .unwrap();
+    .typ(db);
 
   // type field: sum of [base types, list[...], dict[...]]
   let type_field = LazyType::eager(
@@ -80,10 +80,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
       db,
       [
         base_type_lazys,
-        vec![
-          LazyType::eager(list_type),
-          LazyType::eager(dict_type),
-        ],
+        vec![LazyType::eager(list_type), LazyType::eager(dict_type)],
       ]
       .concat()
       .into_iter()

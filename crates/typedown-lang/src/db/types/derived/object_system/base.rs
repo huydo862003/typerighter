@@ -9,8 +9,10 @@ use ambassador::delegatable_trait;
 use super::func::TdFuncObj;
 use super::native_fn::{FnKind, NativeFnKind};
 use super::{TdObjectEnum, TdTypeEnum};
+use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_str_type, get_type_type};
-use crate::db::types::FuncSignature;
+use crate::db::types::{FuncSignature, InstResult, LazyType, TypeParams};
+use crate::db::utils::typecheck::validate_type_params;
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
@@ -28,50 +30,52 @@ pub const BUILTIN_TO_STRING: &str = "to_string";
 // Each type defines its own display name, arity, and type arguments
 #[delegatable_trait]
 pub trait TdStaticType {
-  fn display_name(&self, db: &::typedown_lang::db::TypedownDatabase) -> String;
+  fn display_name(&self, db: &TypedownDatabase) -> String;
 
-  fn arity(&self, _db: &::typedown_lang::db::TypedownDatabase) -> usize {
+  fn arity(&self, _db: &TypedownDatabase) -> usize {
     0
   }
 
-  fn get_type_args(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Vec<TdTypeEnum> {
+  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
     vec![]
   }
 
   // The runtime-constructible type equivalent
   // Most types are their own runtime equivalent
-  fn runtime_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     None
   }
 
   // Construct a runtime instance of this type from args
-  fn construct(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+  fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     None
   }
 
+  fn to_type_enum(&self, db: &TypedownDatabase) -> TdTypeEnum {
+    self
+      .runtime_type(db)
+      .expect("to_type_enum must be implemented for types without runtime_type")
+  }
+
   // Instantiate a generic type with type arguments (list[string], dict[string, number])
-  fn instantiate(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _args: Vec<::typedown_lang::db::types::LazyType>,
-  ) -> Option<TdTypeEnum> {
+  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
+    let self_type = self.to_type_enum(db);
+    let diagnostics = validate_type_params(db, self.type_params(db).as_ref(), &args);
+    InstResult::new(db, self_type, diagnostics)
+  }
+
+  /// Type parameters declared on this generic type
+  fn type_params(&self, _db: &TypedownDatabase) -> Option<TypeParams> {
     None
   }
 
   /// Parent type for prototype chain method lookup and type hierarchy
-  fn parent_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     None
   }
 
   /// Runtime vtable mapping method names to TdFuncObj instances
-  fn runtime_vtable(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-  ) -> HashMap<String, TdFuncObj> {
+  fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     let mut result = self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))

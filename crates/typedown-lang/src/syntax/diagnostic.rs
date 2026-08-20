@@ -74,6 +74,7 @@ pub enum DiagnosticCode {
   UnclosedParamList = 65,
   InvalidSelfClosureParams = 66,
   NotConstructible = 67,
+  TypeArgBoundViolation = 68,
 }
 
 impl DiagnosticCode {
@@ -146,6 +147,7 @@ impl DiagnosticCode {
       DiagnosticCode::UnclosedParamList => "unclosed-param-list",
       DiagnosticCode::InvalidSelfClosureParams => "invalid-self-closure-params",
       DiagnosticCode::NotConstructible => "not-constructible",
+      DiagnosticCode::TypeArgBoundViolation => "type-arg-bound-violation",
       DiagnosticCode::UnknownField => "unknown-field",
       DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
       DiagnosticCode::NestedSchemaFile => "nested-schema-file",
@@ -429,6 +431,13 @@ pub enum Diagnostic {
 
   /// Wrong number of type arguments passed to a type constructor.
   WrongTypeArgCount { expected: usize, got: usize },
+
+  /// Type argument violates parameter bound.
+  TypeArgBoundViolation {
+    index: usize,
+    expected_bound: String,
+    got: String,
+  },
 
   /// Callee expression is not callable.
   NotCallable {
@@ -862,6 +871,7 @@ impl Diagnostic {
       | Diagnostic::VaultConfigReadError { .. }
       | Diagnostic::VaultConfigEmpty { .. }
       | Diagnostic::WrongTypeArgCount { .. }
+      | Diagnostic::TypeArgBoundViolation { .. }
       | Diagnostic::NestedSchemaFile { .. } => None,
     }
   }
@@ -1050,6 +1060,13 @@ impl Diagnostic {
       Diagnostic::NotConstructible { type_name, .. } => {
         format!("type '{type_name}' is not constructible at runtime")
       }
+      Diagnostic::TypeArgBoundViolation {
+        index,
+        expected_bound,
+        got,
+      } => {
+        format!("type argument at index {index} violates bound '{expected_bound}': got '{got}'")
+      }
     }
   }
 
@@ -1134,6 +1151,7 @@ impl Diagnostic {
       Diagnostic::InvalidSelfClosureParams { .. } => DiagnosticCode::InvalidSelfClosureParams,
       Diagnostic::UnclosedParamList { .. } => DiagnosticCode::UnclosedParamList,
       Diagnostic::NotConstructible { .. } => DiagnosticCode::NotConstructible,
+      Diagnostic::TypeArgBoundViolation { .. } => DiagnosticCode::TypeArgBoundViolation,
     }
   }
 }

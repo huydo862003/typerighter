@@ -8,7 +8,6 @@ use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_func_type, get_list_type, get_literal_type,
   get_math_type, get_null_type, get_num_type, get_str_type, get_sum_type, get_time_type,
-  instantiate_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -221,7 +220,7 @@ fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult 
   } else {
     LazyType::eager(get_sum_type(db, arms.into_iter().collect()).into())
   };
-  let list_type = get_list_type(db).instantiate(db, vec![elem]).unwrap();
+  let list_type = get_list_type(db).instantiate(db, vec![elem]).typ(db);
   TypeResult::new(db, Some(list_type), diagnostics)
 }
 
@@ -383,11 +382,8 @@ fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>)
         }
       }
     }
-    let inst_result = instantiate_type(
-      db,
-      expr_type,
-      arg_types.into_iter().map(LazyType::eager).collect(),
-    );
+    let inst_result =
+      expr_type.instantiate(db, arg_types.into_iter().map(LazyType::eager).collect());
     diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
     return TypeResult::new(db, Some(inst_result.typ(db)), diagnostics);
   }
