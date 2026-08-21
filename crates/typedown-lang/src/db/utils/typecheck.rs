@@ -25,7 +25,8 @@ pub fn validate_type_params(
   if let Some(params) = type_params {
     let params_vec = params.params(db);
     for (idx, (p, arg)) in params_vec.iter().zip(args.iter()).enumerate() {
-      if let Some(bound) = p.bound(db).as_ref().and_then(|b| b.resolve(db))
+      if let Some(bound) = p.bound(db).resolve(db)
+        && bound.as_td_object_type().is_none()
         && let Some(arg_type) = arg.resolve(db)
         && !is_subtype_of(db, &arg_type, &bound)
       {
@@ -52,7 +53,7 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       return true;
     }
     match supertype {
-      TdTypeEnum::TdTypeType(_) => true,
+      TdTypeEnum::TdObjectType(_) | TdTypeEnum::TdTypeType(_) => true,
       TdTypeEnum::TdNeverType(_) => false,
       // WARNING: This only works because subtype is not a sum type
       TdTypeEnum::TdSumType(sum) => sum.members(db).iter().any(|member| {
@@ -208,7 +209,7 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       let v_sub = var_sub.variable(db);
       if let Some(val) = v_sub.value(db).and_then(|l| l.resolve(db)) {
         is_subtype_of(db, &val, supertype)
-      } else if let Some(bound) = v_sub.bound(db).and_then(|l| l.resolve(db)) {
+      } else if let Some(bound) = v_sub.bound(db).resolve(db) {
         is_subtype_of(db, &bound, supertype)
       } else {
         false

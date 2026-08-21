@@ -11,6 +11,7 @@ mod native_fn;
 mod never;
 mod null;
 mod num;
+mod object;
 mod product;
 mod str;
 mod structural;
@@ -40,6 +41,7 @@ pub use native_fn::*;
 pub use never::*;
 pub use null::*;
 pub use num::*;
+pub use object::*;
 pub use product::*;
 pub use str::*;
 pub use structural::*;
@@ -82,6 +84,7 @@ pub enum TdTypeEnum {
   TdSumType(TdSumType),
   TdStructuralType(TdStructuralType),
   TdVariableType(TdVariableType),
+  TdObjectType(TdObjectType),
 }
 
 // Use this instead of dyn
@@ -141,6 +144,7 @@ impl_from_type_for_obj_enum!(
   TdSumType,
   TdStructuralType,
   TdVariableType,
+  TdObjectType,
 );
 
 impl Id for TdTypeEnum {
@@ -165,6 +169,7 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdSumType(v) => v.as_id(),
       TdTypeEnum::TdStructuralType(v) => v.as_id(),
       TdTypeEnum::TdVariableType(v) => v.as_id(),
+      TdTypeEnum::TdObjectType(v) => v.as_id(),
     }
   }
 }
@@ -243,6 +248,7 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdSumType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdVariableType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdObjectType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -277,6 +283,7 @@ impl typedown_incremental::StableHash for TdObjectEnum {
 #[repr(u8)]
 pub enum TdTypeKind {
   Type = 0,
+  Object = 1,
   Str = 2,
   Bool = 3,
   Num = 4,
@@ -399,6 +406,10 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Variable as u8);
         v.encode_field(buf, encoder);
       }
+      TdTypeEnum::TdObjectType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Object as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -426,6 +437,7 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Sum => TdSumType::decode_field(data, decoder).into(),
       TdTypeKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
       TdTypeKind::Variable => TdVariableType::decode_field(data, decoder).into(),
+      TdTypeKind::Object => TdObjectType::decode_field(data, decoder).into(),
     }
   }
 }

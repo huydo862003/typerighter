@@ -12,6 +12,7 @@ use typedown_types::either::Either;
 use super::TdTypeEnum;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
+use crate::db::derived::get_builtin_types::get_object_type;
 use crate::db::types::Symbol;
 
 #[query_interned]
@@ -52,13 +53,14 @@ impl Decodable for Variance {
 
 #[query_interned]
 pub struct TypeVariable {
-  pub bound: Option<LazyType>,
+  pub bound: LazyType,
   pub value: Option<LazyType>,
   pub variance: Variance,
 }
 
 impl TypeVariable {
   pub fn get(db: &TypedownDatabase, bound: Option<LazyType>, value: Option<LazyType>) -> Self {
+    let bound = bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
     TypeVariable::new(db, bound, value, Variance::Covariant)
   }
 
@@ -68,6 +70,7 @@ impl TypeVariable {
     value: Option<LazyType>,
     variance: Variance,
   ) -> Self {
+    let bound = bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
     TypeVariable::new(db, bound, value, variance)
   }
 }
