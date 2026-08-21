@@ -3,7 +3,8 @@
 use crate::db::TypedownDatabase;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::fields_compatible;
-use crate::db::types::{LazyType, TdTypeEnum, TypeParams};
+use std::collections::HashMap;
+use crate::db::types::{LazyType, TdTypeEnum, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::Id;
 
@@ -43,244 +44,258 @@ pub fn validate_type_params(
 
 /// Check if `subtype` is a subtype of `supertype` (subtyping check)
 pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &TdTypeEnum) -> bool {
-  /// Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance
-  fn are_constructors_compatible(
-    db: &TypedownDatabase,
-    subtype: &TdTypeEnum, // INVARIANT: Due to sum type elimination, sub type cannot be a sum type here
-    supertype: &TdTypeEnum,
-  ) -> bool {
-    if subtype.as_id() == supertype.as_id() {
-      return true;
-    }
-    match supertype {
-      TdTypeEnum::TdObjectType(_) | TdTypeEnum::TdTypeType(_) => true,
-      TdTypeEnum::TdNeverType(_) => false,
-      // WARNING: This only works because subtype is not a sum type
-      TdTypeEnum::TdSumType(sum) => sum.members(db).iter().any(|member| {
-        member
-          .resolve(db)
-          .is_some_and(|m| is_subtype_of(db, subtype, &m))
-      }),
-      TdTypeEnum::TdLiteralType(_) => false,
-      TdTypeEnum::TdStrType(_) => {
-        matches!(
-          subtype,
-          TdTypeEnum::TdLiteralType(lit)
-            if matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_))
-        ) || matches!(
-          subtype,
-          TdTypeEnum::TdDateTimeType(_) | TdTypeEnum::TdDateType(_) | TdTypeEnum::TdTimeType(_)
-        )
-      }
-      TdTypeEnum::TdNumType(_) => matches!(
-        subtype,
-        TdTypeEnum::TdLiteralType(lit)
-          if matches!(lit.underlying_type(db), TdTypeEnum::TdNumType(_))
-      ),
-      TdTypeEnum::TdBoolType(_) => matches!(
-        subtype,
-        TdTypeEnum::TdLiteralType(lit)
-          if matches!(lit.underlying_type(db), TdTypeEnum::TdBoolType(_))
-      ),
-      TdTypeEnum::TdListType(_) => matches!(subtype, TdTypeEnum::TdListType(_)),
-      TdTypeEnum::TdDictType(expected_dict) => match subtype {
-        TdTypeEnum::TdDictType(_) => true,
-        TdTypeEnum::TdProductType(product) => {
-          let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
-            Some(vt) => vt,
-            None => return true,
-          };
-          product.fields(db).values().all(|field_lazy| {
-            field_lazy
-              .resolve(db)
-              .is_some_and(|ft| is_subtype_of(db, &ft, &value_type))
-          })
-        }
-        TdTypeEnum::TdStructuralType(structural) => {
-          let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
-            Some(vt) => vt,
-            None => return true,
-          };
-          structural.fields(db).values().all(|field_lazy| {
-            field_lazy
-              .resolve(db)
-              .is_some_and(|ft| is_subtype_of(db, &ft, &value_type))
-          })
-        }
-        _ => false,
-      },
-      TdTypeEnum::TdFuncType(_) => matches!(subtype, TdTypeEnum::TdFuncType(_)),
-      TdTypeEnum::TdProductType(expected_product) => match subtype {
-        TdTypeEnum::TdProductType(product) => {
-          fields_compatible(db, &expected_product.fields(db), &product.fields(db))
-        }
-        TdTypeEnum::TdStructuralType(structural) => {
-          fields_compatible(db, &expected_product.fields(db), &structural.fields(db))
-        }
-        _ => false,
-      },
-      TdTypeEnum::TdStructuralType(expected_structural) => match subtype {
-        TdTypeEnum::TdProductType(product) => {
-          fields_compatible(db, &expected_structural.fields(db), &product.fields(db))
-        }
-        TdTypeEnum::TdStructuralType(structural) => {
-          fields_compatible(db, &expected_structural.fields(db), &structural.fields(db))
-        }
-        _ => false,
-      },
-      TdTypeEnum::TdMathType(_)
-      | TdTypeEnum::TdDateTimeType(_)
-      | TdTypeEnum::TdDateType(_)
-      | TdTypeEnum::TdTimeType(_)
-      | TdTypeEnum::TdBlobType(_)
-      | TdTypeEnum::TdNullType(_) => false,
-      TdTypeEnum::TdVariableType(_) | TdTypeEnum::TdExistentialType(_) => false,
-    }
-  }
+  let mut env = HashMap::<TypeVariable, TdTypeEnum>::new();
 
-  /// Phase 2: Check type arguments and parameter variance between compatible constructors
-  fn are_type_args_compatible(
+  fn is_subtype_of_env(
     db: &TypedownDatabase,
     subtype: &TdTypeEnum,
     supertype: &TdTypeEnum,
+    env: &mut HashMap<TypeVariable, TdTypeEnum>,
   ) -> bool {
-    match (subtype, supertype) {
-      (TdTypeEnum::TdListType(sub_list), TdTypeEnum::TdListType(super_list)) => {
-        match (
-          sub_list.elem(db).and_then(|e| e.resolve(db)),
-          super_list.elem(db).and_then(|e| e.resolve(db)),
-        ) {
-          (_, None) => true,
-          (None, Some(_)) => false,
-          (Some(sub_elem), Some(super_elem)) => is_subtype_of(db, &sub_elem, &super_elem),
-        }
+    /// Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance
+    fn are_constructors_compatible(
+      db: &TypedownDatabase,
+      subtype: &TdTypeEnum, // INVARIANT: Due to sum type elimination, sub type cannot be a sum type here
+      supertype: &TdTypeEnum,
+      env: &mut HashMap<TypeVariable, TdTypeEnum>,
+    ) -> bool {
+      if subtype.as_id() == supertype.as_id() {
+        return true;
       }
-      (TdTypeEnum::TdDictType(_), TdTypeEnum::TdDictType(_)) => {
-        let super_args = supertype.get_type_args(db);
-        if super_args.is_empty() {
-          return true;
+      match supertype {
+        TdTypeEnum::TdObjectType(_) | TdTypeEnum::TdTypeType(_) => true,
+        TdTypeEnum::TdNeverType(_) => false,
+        // WARNING: This only works because subtype is not a sum type
+        TdTypeEnum::TdSumType(sum) => sum.members(db).iter().any(|member| {
+          member
+            .resolve(db)
+            .is_some_and(|m| is_subtype_of_env(db, subtype, &m, env))
+        }),
+        TdTypeEnum::TdLiteralType(_) => false,
+        TdTypeEnum::TdStrType(_) => {
+          matches!(
+            subtype,
+            TdTypeEnum::TdLiteralType(lit)
+              if matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_))
+          ) || matches!(
+            subtype,
+            TdTypeEnum::TdDateTimeType(_) | TdTypeEnum::TdDateType(_) | TdTypeEnum::TdTimeType(_)
+          )
         }
-        let sub_args = subtype.get_type_args(db);
-        if sub_args.is_empty() {
-          return false;
-        }
-        sub_args
-          .iter()
-          .zip(super_args.iter())
-          .all(|(s, p)| is_subtype_of(db, s, p))
+        TdTypeEnum::TdNumType(_) => matches!(
+          subtype,
+          TdTypeEnum::TdLiteralType(lit)
+            if matches!(lit.underlying_type(db), TdTypeEnum::TdNumType(_))
+        ),
+        TdTypeEnum::TdBoolType(_) => matches!(
+          subtype,
+          TdTypeEnum::TdLiteralType(lit)
+            if matches!(lit.underlying_type(db), TdTypeEnum::TdBoolType(_))
+        ),
+        TdTypeEnum::TdListType(_) => matches!(subtype, TdTypeEnum::TdListType(_)),
+        TdTypeEnum::TdDictType(expected_dict) => match subtype {
+          TdTypeEnum::TdDictType(_) => true,
+          TdTypeEnum::TdProductType(product) => {
+            let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
+              Some(vt) => vt,
+              None => return true,
+            };
+            product.fields(db).values().all(|field_lazy| {
+              field_lazy
+                .resolve(db)
+                .is_some_and(|ft| is_subtype_of_env(db, &ft, &value_type, env))
+            })
+          }
+          TdTypeEnum::TdStructuralType(structural) => {
+            let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
+              Some(vt) => vt,
+              None => return true,
+            };
+            structural.fields(db).values().all(|field_lazy| {
+              field_lazy
+                .resolve(db)
+                .is_some_and(|ft| is_subtype_of_env(db, &ft, &value_type, env))
+            })
+          }
+          _ => false,
+        },
+        TdTypeEnum::TdFuncType(_) => matches!(subtype, TdTypeEnum::TdFuncType(_)),
+        TdTypeEnum::TdProductType(expected_product) => match subtype {
+          TdTypeEnum::TdProductType(product) => {
+            fields_compatible(db, &expected_product.fields(db), &product.fields(db))
+          }
+          TdTypeEnum::TdStructuralType(structural) => {
+            fields_compatible(db, &expected_product.fields(db), &structural.fields(db))
+          }
+          _ => false,
+        },
+        TdTypeEnum::TdStructuralType(expected_structural) => match subtype {
+          TdTypeEnum::TdProductType(product) => {
+            fields_compatible(db, &expected_structural.fields(db), &product.fields(db))
+          }
+          TdTypeEnum::TdStructuralType(structural) => {
+            fields_compatible(db, &expected_structural.fields(db), &structural.fields(db))
+          }
+          _ => false,
+        },
+        TdTypeEnum::TdMathType(_)
+        | TdTypeEnum::TdDateTimeType(_)
+        | TdTypeEnum::TdDateType(_)
+        | TdTypeEnum::TdTimeType(_)
+        | TdTypeEnum::TdBlobType(_)
+        | TdTypeEnum::TdNullType(_) => false,
+        TdTypeEnum::TdVariableType(_) | TdTypeEnum::TdExistentialType(_) => false,
       }
-      (TdTypeEnum::TdFuncType(sub_func), TdTypeEnum::TdFuncType(super_func)) => {
-        let sub_sig = sub_func.signature(db);
-        let super_sig = super_func.signature(db);
-        let sub_params = sub_sig.params(db);
-        let super_params = super_sig.params(db);
-        if sub_params.len() != super_params.len() {
-          return false;
-        }
-        // Function parameters are contravariant: super_p must be a subtype of sub_p
-        for (sub_p, super_p) in sub_params.iter().zip(super_params.iter()) {
-          if !is_subtype_of(db, super_p, sub_p) {
-            return false;
+    }
+
+    /// Phase 2: Check type arguments and parameter variance between compatible constructors
+    fn are_type_args_compatible(
+      db: &TypedownDatabase,
+      subtype: &TdTypeEnum,
+      supertype: &TdTypeEnum,
+      env: &mut HashMap<TypeVariable, TdTypeEnum>,
+    ) -> bool {
+      match (subtype, supertype) {
+        (TdTypeEnum::TdListType(sub_list), TdTypeEnum::TdListType(super_list)) => {
+          match (
+            sub_list.elem(db).and_then(|e| e.resolve(db)),
+            super_list.elem(db).and_then(|e| e.resolve(db)),
+          ) {
+            (_, None) => true,
+            (None, Some(_)) => false,
+            (Some(sub_elem), Some(super_elem)) => is_subtype_of_env(db, &sub_elem, &super_elem, env),
           }
         }
-        // Return type is covariant: sub_ret must be a subtype of super_ret
-        is_subtype_of(db, &sub_sig.ret(db), &super_sig.ret(db))
+        (TdTypeEnum::TdDictType(_), TdTypeEnum::TdDictType(_)) => {
+          let super_args = supertype.get_type_args(db);
+          if super_args.is_empty() {
+            return true;
+          }
+          let sub_args = subtype.get_type_args(db);
+          if sub_args.is_empty() {
+            return false;
+          }
+          sub_args
+            .iter()
+            .zip(super_args.iter())
+            .all(|(s, p)| is_subtype_of_env(db, s, p, env))
+        }
+        (TdTypeEnum::TdFuncType(sub_func), TdTypeEnum::TdFuncType(super_func)) => {
+          let sub_sig = sub_func.signature(db);
+          let super_sig = super_func.signature(db);
+          let sub_params = sub_sig.params(db);
+          let super_params = super_sig.params(db);
+          if sub_params.len() != super_params.len() {
+            return false;
+          }
+          // Function parameters are contravariant: super_p must be a subtype of sub_p
+          for (sub_p, super_p) in sub_params.iter().zip(super_params.iter()) {
+            if !is_subtype_of_env(db, super_p, sub_p, env) {
+              return false;
+            }
+          }
+          // Return type is covariant: sub_ret must be a subtype of super_ret
+          is_subtype_of_env(db, &sub_sig.ret(db), &super_sig.ret(db), env)
+        }
+        _ => true,
       }
-      _ => true,
+    }
+
+    // Phase 0: Special pre-check
+    match (subtype, supertype) {
+      // INVARIANT regarding type variables: If type expression 1 <: type expression 2, that means for
+      // any real type values assigned to the type variables, the above subtyping relation still hold
+      (TdTypeEnum::TdVariableType(var_sub), TdTypeEnum::TdVariableType(_var_super)) => {
+        if subtype == supertype {
+          return true;
+        }
+        let v_sub = var_sub.variable(db);
+        if let Some(bound) = v_sub.upper_bound(db).resolve(db) {
+          is_subtype_of_env(db, &bound, supertype, env)
+        } else {
+          false
+        }
+      }
+      (TdTypeEnum::TdVariableType(var_sub), _) => {
+        let v_sub = var_sub.variable(db);
+        if let Some(bound) = v_sub.upper_bound(db).resolve(db) {
+          is_subtype_of_env(db, &bound, supertype, env)
+        } else {
+          false
+        }
+      }
+      (_, TdTypeEnum::TdVariableType(_)) => false,
+      (TdTypeEnum::TdExistentialType(ex_subtype), TdTypeEnum::TdExistentialType(_)) => {
+        // If candidate is exists T1 <: S1. P1[T1] and the supertype is exists T2 <: S2. P2[T2]
+        // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
+        // iff
+        // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
+        // - This should imply that x is also of type P2[T2] for some T2 <: S2
+        // Question: How to prove such T2 exists for all T1 <: S1?
+
+        // Answer: Well this is just a special case of the below case, technically can be merged...
+        ex_subtype
+          .body(db)
+          .and_then(|b| b.resolve(db))
+          .is_some_and(|body| {
+            is_subtype_of_env(
+              db,
+              &body,
+              supertype,
+              env,
+            )
+          })
+      }
+      (TdTypeEnum::TdExistentialType(ex_subtype), supertype) => {
+        // If candidate is exists T1 <: S1. P1[T1] and the supertype is P2[T2]
+        // (exists T1 <: S1. P1[T1]) <: P2[T2]
+        // iff
+        // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
+        // - This should imply that x is also of type P2[T2]
+        // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless 
+        // Question: How to prove P1[T1] <: P2[T2] for all T1 <: S1
+
+        // Answer: Well this is already resolved due to the type variable invariant listed above
+        ex_subtype
+          .body(db)
+          .and_then(|b| b.resolve(db))
+          .is_some_and(|body| is_subtype_of_env(db, &body, supertype, env))
+      }
+      (_subtype, TdTypeEnum::TdExistentialType(_ex_supertype)) => {
+        // If candidate is P1[T1] and the supertype is exists T2 <: S2. P2[T2]
+        // P1[T1] <: (exists T2 <: S2. P2[T2])
+        // iff
+        // P1[T1] is a subtype of some P2[T2] where T2 <: S2
+        // Question: How to prove such T2 exists or not??
+        todo!("Non-existential vs Existential subtyping")
+      }
+      _ => {
+        if subtype.as_td_never_type().is_some() {
+          return true;
+        }
+
+        // Sum type elimination
+        if let Some(sum) = subtype.as_td_sum_type() {
+          return sum.members(db).iter().all(|m| {
+            m.resolve(db)
+              .is_some_and(|t| is_subtype_of_env(db, &t, supertype, env))
+          });
+        }
+
+        // It's sensible that subtype cannot be a sum type here
+
+        // Phase 1: Type constructor compatibility check
+        if !are_constructors_compatible(db, subtype, supertype, env) {
+          return false;
+        }
+
+        // Phase 2: Same-nature parameter and variance check
+        are_type_args_compatible(db, subtype, supertype, env)
+      }
     }
   }
 
-  // Phase 0: Special pre-check
-  match (subtype, supertype) {
-    // INVARIANT regarding type variables: If type expression 1 <: type expression 2, that means for
-    // any real type values assigned to the type variables, the above subtyping relation still hold
-    (TdTypeEnum::TdVariableType(var_sub), TdTypeEnum::TdVariableType(_var_super)) => {
-      if subtype == supertype {
-        return true;
-      }
-      let v_sub = var_sub.variable(db);
-      if let Some(bound) = v_sub.upper_bound(db).resolve(db) {
-        is_subtype_of(db, &bound, supertype)
-      } else {
-        false
-      }
-    }
-    (TdTypeEnum::TdVariableType(var_sub), _) => {
-      let v_sub = var_sub.variable(db);
-      if let Some(bound) = v_sub.upper_bound(db).resolve(db) {
-        is_subtype_of(db, &bound, supertype)
-      } else {
-        false
-      }
-    }
-    (_, TdTypeEnum::TdVariableType(_)) => false,
-    (TdTypeEnum::TdExistentialType(ex_subtype), TdTypeEnum::TdExistentialType(_)) => {
-      // If candidate is exists T1 <: S1. P1[T1] and the supertype is exists T2 <: S2. P2[T2]
-      // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
-      // iff
-      // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
-      // - This should imply that x is also of type P2[T2] for some T2 <: S2
-      // Question: How to prove such T2 exists for all T1 <: S1?
-
-      // Answer: Well this is just a special case of the below case, technically can be merged...
-      ex_subtype
-        .body(db)
-        .and_then(|b| b.resolve(db))
-        .is_some_and(|body| {
-          is_subtype_of(
-            db,
-            &body,
-            supertype,
-          )
-        })
-    }
-    (TdTypeEnum::TdExistentialType(ex_subtype), supertype) => {
-      // If candidate is exists T1 <: S1. P1[T1] and the supertype is P2[T2]
-      // (exists T1 <: S1. P1[T1]) <: P2[T2]
-      // iff
-      // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
-      // - This should imply that x is also of type P2[T2]
-      // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless 
-      // Question: How to prove P1[T1] <: P2[T2] for all T1 <: S1
-
-      // Answer: Well this is already resolved due to the type variable invariant listed above
-      ex_subtype
-        .body(db)
-        .and_then(|b| b.resolve(db))
-        .is_some_and(|body| is_subtype_of(db, &body, supertype))
-    }
-    (_subtype, TdTypeEnum::TdExistentialType(_ex_supertype)) => {
-      // If candidate is P1[T1] and the supertype is exists T2 <: S2. P2[T2]
-      // P1[T1] <: (exists T2 <: S2. P2[T2])
-      // iff
-      // P1[T1] is a subtype of some P2[T2] where T2 <: S2
-      // Question: How to prove such T2 exists or not??
-      todo!("Non-existential vs Existential subtyping")
-    }
-    _ => {
-      if subtype.as_td_never_type().is_some() {
-        return true;
-      }
-
-      // Sum type elimination
-      if let Some(sum) = subtype.as_td_sum_type() {
-        return sum.members(db).iter().all(|m| {
-          m.resolve(db)
-            .is_some_and(|t| is_subtype_of(db, &t, supertype))
-        });
-      }
-
-      // It's sensible that subtype cannot be a sum type here
-
-      // Phase 1: Type constructor compatibility check
-      if !are_constructors_compatible(db, subtype, supertype) {
-        return false;
-      }
-
-      // Phase 2: Same-nature parameter and variance check
-      are_type_args_compatible(db, subtype, supertype)
-    }
-  }
+  is_subtype_of_env(db, subtype, supertype, &mut env)
 }
 
 // Check if a type includes null
