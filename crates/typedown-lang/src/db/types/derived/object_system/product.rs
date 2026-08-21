@@ -77,7 +77,9 @@ impl TdStaticType for TdProductType {
   }
   fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
     let mut result = HashMap::new();
-    result.insert(BUILTIN_TO_STRING.to_string(), get_str_type(db).into());
+    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let func_type = get_func_type(db, sig).into();
+    result.insert(BUILTIN_TO_STRING.to_string(), func_type);
     for (name, func_obj) in self.vtable(db) {
       result.insert(name, get_func_type(db, func_obj.signature(db)).into());
     }
