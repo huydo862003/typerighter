@@ -132,7 +132,7 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       | TdTypeEnum::TdTimeType(_)
       | TdTypeEnum::TdBlobType(_)
       | TdTypeEnum::TdNullType(_) => false,
-      TdTypeEnum::TdVariableType(_) => false,
+      TdTypeEnum::TdVariableType(_) | TdTypeEnum::TdExistentialType(_) => false,
     }
   }
 

@@ -3,6 +3,7 @@ mod blob;
 mod bool;
 mod datetime;
 mod dict;
+mod existential;
 mod func;
 mod list;
 mod literal;
@@ -32,6 +33,7 @@ pub use blob::*;
 pub use bool::*;
 pub use datetime::*;
 pub use dict::*;
+pub use existential::*;
 pub use func::*;
 pub use list::*;
 pub use literal::*;
@@ -82,6 +84,7 @@ pub enum TdTypeEnum {
   TdSumType(TdSumType),
   TdStructuralType(TdStructuralType),
   TdVariableType(TdVariableType),
+  TdExistentialType(TdExistentialType),
 }
 
 // Use this instead of dyn
@@ -141,6 +144,7 @@ impl_from_type_for_obj_enum!(
   TdSumType,
   TdStructuralType,
   TdVariableType,
+  TdExistentialType,
 );
 
 impl Id for TdTypeEnum {
@@ -165,6 +169,7 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdSumType(v) => v.as_id(),
       TdTypeEnum::TdStructuralType(v) => v.as_id(),
       TdTypeEnum::TdVariableType(v) => v.as_id(),
+      TdTypeEnum::TdExistentialType(v) => v.as_id(),
     }
   }
 }
@@ -243,6 +248,7 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdSumType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdVariableType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdExistentialType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -294,6 +300,7 @@ pub enum TdTypeKind {
   Literal = 16,
   Sum = 17,
   Structural = 18,
+  Existential = 19,
   Variable = 20,
 }
 
@@ -399,6 +406,10 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Variable as u8);
         v.encode_field(buf, encoder);
       }
+      TdTypeEnum::TdExistentialType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Existential as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -425,6 +436,7 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
       TdTypeKind::Sum => TdSumType::decode_field(data, decoder).into(),
       TdTypeKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
+      TdTypeKind::Existential => TdExistentialType::decode_field(data, decoder).into(),
       TdTypeKind::Variable => TdVariableType::decode_field(data, decoder).into(),
     }
   }
