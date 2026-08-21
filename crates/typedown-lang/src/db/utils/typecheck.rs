@@ -192,6 +192,8 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
 
   // Phase 0: Special pre-check
   match (subtype, supertype) {
+    // INVARIANT regarding type variables: If type expression 1 <: type expression 2, that means for
+    // any real type values assigned to the type variables, the above subtyping relation still hold
     (TdTypeEnum::TdVariableType(var_sub), TdTypeEnum::TdVariableType(var_super)) => {
       if subtype == supertype {
         return true;
