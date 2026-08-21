@@ -223,19 +223,25 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
         false
       }
     }
-    (TdTypeEnum::TdExistentialType(_ex_sub), TdTypeEnum::TdExistentialType(_ex_super)) => {
+    (TdTypeEnum::TdExistentialType(ex_subtype), TdTypeEnum::TdExistentialType(ex_supertype)) => {
       // If candidate is exists T1 <: S1. P1[T1] and the supertype is exists T2 <: S2. P2[T2]
       // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
       // iff
+      // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
+      // - This should imply that x is also of type P2[T2] for some T2 <: S2
       todo!("Existential vs Existential subtyping")
     }
-    (TdTypeEnum::TdExistentialType(_ex_sub), _supertype) => {
+    (TdTypeEnum::TdExistentialType(ex_subtype), supertype) => {
       // If candidate is exists T1 <: S1. P1[T1] and the supertype is P2[T2]
       // (exists T1 <: S1. P1[T1]) <: P2[T2]
       // iff
+      // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
+      // - This should imply that x is also of type P2[T2]
+      // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless 
+      // Question: How to prove P1[T1] <: P2[T2] for all T1 <: S1
       todo!("Existential vs Non-existential subtyping")
     }
-    (subtype, TdTypeEnum::TdExistentialType(ex_super)) => {
+    (subtype, TdTypeEnum::TdExistentialType(ex_supertype)) => {
       // If candidate is P1[T1] and the supertype is exists T2 <: S2. P2[T2]
       // P1[T1] <: (exists T2 <: S2. P2[T2])
       // iff
