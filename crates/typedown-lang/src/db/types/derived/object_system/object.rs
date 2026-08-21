@@ -7,7 +7,7 @@ use super::func::TdFuncObj;
 use super::native_fn::{FnKind, NativeFnKind};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::get_str_type;
+use crate::db::derived::get_builtin_types::{get_func_type, get_str_type};
 use crate::db::types::FuncSignature;
 
 /// Top type: `Object` (the universal supertype of all value types)
@@ -38,7 +38,9 @@ impl TdStaticType for TdObjectType {
 
   fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
     let mut result = HashMap::new();
-    result.insert(BUILTIN_TO_STRING.to_string(), get_str_type(db).into());
+    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let func_type = get_func_type(db, sig).into();
+    result.insert(BUILTIN_TO_STRING.to_string(), func_type);
     result
   }
 }
