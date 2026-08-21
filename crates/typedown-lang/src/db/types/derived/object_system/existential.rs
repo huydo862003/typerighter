@@ -3,7 +3,7 @@ use typedown_macros::query_derived;
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::types::{LazyType, TypeParams};
+use crate::db::types::{FuncSignature, LazyType, TypeParams};
 
 /// Existential type: `exists <T0 <: Bound, ...>. Body`
 #[query_derived]
@@ -51,22 +51,14 @@ impl TdStaticType for TdExistentialType {
       .lookup_field_type(db, name)
   }
 
-  fn index_type(
-    &self,
-    db: &TypedownDatabase,
-    key_type: &TdTypeEnum,
-  ) -> Option<crate::db::types::FuncSignature> {
+  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))?
       .index_type(db, key_type)
   }
 
-  fn call_type(
-    &self,
-    db: &TypedownDatabase,
-    arg_types: Vec<TdTypeEnum>,
-  ) -> Option<crate::db::types::FuncSignature> {
+  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))?
