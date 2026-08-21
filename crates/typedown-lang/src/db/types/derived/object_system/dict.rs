@@ -7,10 +7,10 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_dict_type, get_object_type, get_str_type};
+use crate::db::typecheck::utils::validate_type_params;
 use crate::db::types::{
   FuncSignature, HirValue, InstResult, LazyType, RuntimeScope, TypeParams, TypeVariable,
 };
-use crate::db::utils::typecheck::validate_type_params;
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]

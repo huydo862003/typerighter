@@ -13,12 +13,12 @@ use crate::db::derived::get_builtin_types::{
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
+use crate::db::typecheck::utils::is_nullable;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdStaticType, TdStructuralType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
-use crate::db::utils::typecheck::is_nullable;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -321,9 +321,9 @@ fn resolve_type_lazy(
 
 #[cfg(test)]
 mod tests {
+  use crate::db::typecheck::utils::validate_type_params;
   use crate::db::types::derived::object_system::TdStaticType;
   use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
-  use crate::db::utils::typecheck::validate_type_params;
   use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::HashMap;

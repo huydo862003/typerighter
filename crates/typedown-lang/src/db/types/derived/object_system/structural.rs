@@ -4,9 +4,9 @@ use typedown_macros::query_derived;
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
+use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
 use crate::db::types::LazyType;
 use crate::db::utils::static_type::format_field_map;
-use crate::db::utils::typecheck::{is_nullable, is_subtype_of};
 
 // Anonymous structural type for typechecking, holds field name to type mappings
 // This type never MATERIALIZES at runtime

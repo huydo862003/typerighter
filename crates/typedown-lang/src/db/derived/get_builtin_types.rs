@@ -297,9 +297,9 @@ pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType 
 #[cfg(test)]
 mod tests {
   use super::{get_bool_type, get_sum_type};
+  use crate::db::typecheck::utils::validate_type_params;
   use crate::db::types::derived::object_system::TdStaticType;
   use crate::db::types::{LazyType, TdTypeEnum, TypeParams, TypeVariable};
-  use crate::db::utils::typecheck::validate_type_params;
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{

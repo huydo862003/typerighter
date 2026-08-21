@@ -14,13 +14,13 @@ use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
+use crate::db::typecheck::utils::is_nullable;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
   File, FileHandle, HirValue, LazyType, LiteralValue, Project, RuntimeScope, Symbol, SymbolKind,
   TdBlobType, TdObjectEnum, TdRuntimeObject, TdTypeEnum,
 };
 use crate::db::utils::strip_content_extension;
-use crate::db::utils::typecheck::is_nullable;
 
 use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
 use crate::syntax::red::RedNode;

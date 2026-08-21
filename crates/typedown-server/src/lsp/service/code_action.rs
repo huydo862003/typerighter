@@ -7,8 +7,8 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
+use typedown_lang::db::typecheck::utils::is_nullable;
 use typedown_lang::db::types::{LazyType, LiteralValue, Project, Scope, SymbolKind, TdTypeEnum};
-use typedown_lang::db::utils::typecheck::is_nullable;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 
 use crate::core::analysis::Analysis;

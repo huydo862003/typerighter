@@ -54,7 +54,7 @@ impl Decodable for Variance {
 #[query_interned]
 pub struct TypeVariable {
   pub upper_bound: LazyType,
-  pub variance: Variance,
+  pub variance: Variance, // Existential type variables always have INVARIANCE because variance is irrelevant
 }
 
 impl TypeVariable {
