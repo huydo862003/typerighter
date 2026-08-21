@@ -43,6 +43,35 @@ impl TdStaticType for TdExistentialType {
       format!("exists <{}>. {}", params_str, body_str)
     }
   }
+
+  fn lookup_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
+    self
+      .body(db)
+      .and_then(|b| b.resolve(db))?
+      .lookup_field_type(db, name)
+  }
+
+  fn index_type(
+    &self,
+    db: &TypedownDatabase,
+    key_type: &TdTypeEnum,
+  ) -> Option<crate::db::types::FuncSignature> {
+    self
+      .body(db)
+      .and_then(|b| b.resolve(db))?
+      .index_type(db, key_type)
+  }
+
+  fn call_type(
+    &self,
+    db: &TypedownDatabase,
+    arg_types: Vec<TdTypeEnum>,
+  ) -> Option<crate::db::types::FuncSignature> {
+    self
+      .body(db)
+      .and_then(|b| b.resolve(db))?
+      .call_type(db, arg_types)
+  }
 }
 
 impl TdRuntimeObject for TdExistentialType {

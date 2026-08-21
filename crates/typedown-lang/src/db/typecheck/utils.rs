@@ -1424,7 +1424,11 @@ mod tests {
 
     // witness string violates bound number
     // List[string] <= exists T2 <: number. List[T2]
-    assert!(!is_subtype_of(&db, &list_string, &existential_list_num_bound));
+    assert!(!is_subtype_of(
+      &db,
+      &list_string,
+      &existential_list_num_bound
+    ));
 
     let func_str_string: TdTypeEnum =
       TdFuncType::get(&db, vec![string.clone()], string.clone()).into();
@@ -1496,7 +1500,10 @@ mod tests {
     let dict_variable_str_bound: TdTypeEnum = get_dict_type(&db)
       .instantiate(
         &db,
-        vec![LazyType::eager(variable_1), LazyType::eager(variable_2_string)],
+        vec![
+          LazyType::eager(variable_1),
+          LazyType::eager(variable_2_string),
+        ],
       )
       .typ(&db);
     let existential_dict_str_bound: TdTypeEnum = TdExistentialType::new(
