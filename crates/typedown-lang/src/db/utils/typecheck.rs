@@ -126,7 +126,13 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
         }
         _ => false,
       },
-      _ => false,
+      TdTypeEnum::TdMathType(_)
+      | TdTypeEnum::TdDateTimeType(_)
+      | TdTypeEnum::TdDateType(_)
+      | TdTypeEnum::TdTimeType(_)
+      | TdTypeEnum::TdBlobType(_)
+      | TdTypeEnum::TdNullType(_) => false,
+      TdTypeEnum::TdVariableType(_) => false,
     }
   }
 
@@ -182,23 +188,58 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
     }
   }
 
-  if subtype.as_td_never_type().is_some() {
-    return true;
-  }
-  if let Some(sum) = subtype.as_td_sum_type() {
-    return sum.members(db).iter().all(|m| {
-      m.resolve(db)
-        .is_some_and(|t| is_subtype_of(db, &t, supertype))
-    });
-  }
+  match (subtype, supertype) {
+    (TdTypeEnum::TdVariableType(var_sub), TdTypeEnum::TdVariableType(var_super)) => {
+      if subtype == supertype {
+        return true;
+      }
+      let v_sub = var_sub.variable(db);
+      let v_super = var_super.variable(db);
+      if let Some(val_sub) = v_sub.value(db).and_then(|l| l.resolve(db))
+        && let Some(val_super) = v_super.value(db).and_then(|l| l.resolve(db))
+      {
+        return is_subtype_of(db, &val_sub, &val_super);
+      }
+      false
+    }
+    (TdTypeEnum::TdVariableType(var_sub), _) => {
+      let v_sub = var_sub.variable(db);
+      if let Some(val) = v_sub.value(db).and_then(|l| l.resolve(db)) {
+        is_subtype_of(db, &val, supertype)
+      } else if let Some(bound) = v_sub.bound(db).and_then(|l| l.resolve(db)) {
+        is_subtype_of(db, &bound, supertype)
+      } else {
+        false
+      }
+    }
+    (_, TdTypeEnum::TdVariableType(var_super)) => {
+      let v_super = var_super.variable(db);
+      if let Some(val) = v_super.value(db).and_then(|l| l.resolve(db)) {
+        is_subtype_of(db, subtype, &val)
+      } else {
+        false
+      }
+    }
+    _ => {
+      if subtype.as_td_never_type().is_some() {
+        return true;
+      }
+      if let Some(sum) = subtype.as_td_sum_type() {
+        return sum.members(db).iter().all(|m| {
+          m.resolve(db)
+            .is_some_and(|t| is_subtype_of(db, &t, supertype))
+        });
+      }
 
-  // Phase 1: Type constructor compatibility check
-  if !are_constructors_compatible(db, subtype, supertype) {
-    return false;
-  }
+      // Phase 1: Type constructor compatibility check
+      if !are_constructors_compatible(db, subtype, supertype) {
+        return false;
+      }
 
-  // Phase 2: Same-nature parameter and variance check
-  are_type_args_compatible(db, subtype, supertype)
+      // Phase 2: Same-nature parameter and variance check
+      are_type_args_compatible(db, subtype, supertype)
+    }
+  }
 }
 
 // Check if a type includes null
@@ -226,7 +267,10 @@ mod tests {
     get_literal_type, get_never_type, get_null_type, get_num_type, get_schema_type, get_str_type,
     get_sum_type, get_time_type, get_type_type,
   };
-  use crate::db::types::{LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType};
+  use crate::db::types::{
+    LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType, TdVariableType,
+    TypeVariable,
+  };
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn db() -> TypedownDatabase {
@@ -1090,5 +1134,82 @@ mod tests {
     let expected_type: TdTypeEnum = expected.into();
     let actual_type: TdTypeEnum = actual.into();
     assert!(!is_subtype_of(&db, &actual_type, &expected_type));
+  }
+
+  // Type variable (TdVariableType) tests
+
+  #[test]
+  fn type_var_strict_equality() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let tv1 = TypeVariable::get(&db, Some(LazyType::eager(string)), None);
+    let tv2 = TypeVariable::get(&db, Some(LazyType::eager(number)), None);
+    let var1: TdTypeEnum = TdVariableType::new(&db, 0, tv1).into();
+    let var2: TdTypeEnum = TdVariableType::new(&db, 1, tv2).into();
+    assert!(is_subtype_of(&db, &var1, &var1));
+    assert!(!is_subtype_of(&db, &var1, &var2));
+  }
+
+  #[test]
+  fn type_var_instantiated_delegation() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let tv = TypeVariable::get(&db, None, Some(LazyType::eager(string.clone())));
+    let var: TdTypeEnum = TdVariableType::new(&db, 0, tv).into();
+    assert!(is_subtype_of(&db, &var, &string));
+  }
+
+  #[test]
+  fn type_var_bounded_delegation() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let number: TdTypeEnum = get_num_type(&db).into();
+    let tv = TypeVariable::get(&db, Some(LazyType::eager(string.clone())), None);
+    let var: TdTypeEnum = TdVariableType::new(&db, 0, tv).into();
+    assert!(is_subtype_of(&db, &var, &string));
+    assert!(!is_subtype_of(&db, &var, &number));
+  }
+
+  #[test]
+  fn type_var_both_instantiated_subtyping() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let literal: TdTypeEnum = lit_str(&db, "hello");
+    let tv_lit = TypeVariable::get(&db, None, Some(LazyType::eager(literal)));
+    let tv_str = TypeVariable::get(&db, None, Some(LazyType::eager(string.clone())));
+    let var_lit: TdTypeEnum = TdVariableType::new(&db, 0, tv_lit).into();
+    let var_str: TdTypeEnum = TdVariableType::new(&db, 1, tv_str).into();
+    assert!(is_subtype_of(&db, &var_lit, &var_str));
+    assert!(!is_subtype_of(&db, &var_str, &var_lit));
+  }
+
+  #[test]
+  fn type_var_unbound_rejects_concrete_type() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let tv_unbound = TypeVariable::get(&db, None, None);
+    let var: TdTypeEnum = TdVariableType::new(&db, 0, tv_unbound).into();
+    assert!(!is_subtype_of(&db, &var, &string));
+    assert!(!is_subtype_of(&db, &string, &var));
+  }
+
+  #[test]
+  fn type_var_in_list_covariance() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let literal: TdTypeEnum = lit_str(&db, "hello");
+    let tv_lit = TypeVariable::get(&db, None, Some(LazyType::eager(literal)));
+    let var_lit: TdTypeEnum = TdVariableType::new(&db, 0, tv_lit).into();
+
+    let list_var = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(var_lit)])
+      .typ(&db);
+    let list_str = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(string)])
+      .typ(&db);
+
+    assert!(is_subtype_of(&db, &list_var, &list_str));
+    assert!(!is_subtype_of(&db, &list_str, &list_var));
   }
 }

@@ -8,7 +8,9 @@ use crate::db::types::TypeVariable;
 /// A type variable reference within a type expression
 #[query_derived]
 pub struct TdVariableType {
+  #[id]
   pub index: usize,
+  #[id]
   pub variable: TypeVariable,
 }
 
