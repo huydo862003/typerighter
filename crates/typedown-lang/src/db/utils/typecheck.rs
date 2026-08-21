@@ -42,10 +42,10 @@ pub fn validate_type_params(
 
 /// Check if `subtype` is a subtype of `supertype` (subtyping check)
 pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &TdTypeEnum) -> bool {
-  /// Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance.
+  /// Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance
   fn are_constructors_compatible(
     db: &TypedownDatabase,
-    subtype: &TdTypeEnum,
+    subtype: &TdTypeEnum, // INVARIANT: Due to sum type elimination, sub type cannot be a sum type here
     supertype: &TdTypeEnum,
   ) -> bool {
     if subtype.as_id() == supertype.as_id() {
@@ -54,6 +54,7 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
     match supertype {
       TdTypeEnum::TdTypeType(_) => true,
       TdTypeEnum::TdNeverType(_) => false,
+      // WARNING: This only works because subtype is not a sum type
       TdTypeEnum::TdSumType(sum) => sum.members(db).iter().any(|member| {
         member
           .resolve(db)
@@ -136,7 +137,7 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
     }
   }
 
-  /// Phase 2: Check type arguments and parameter variance between compatible constructors.
+  /// Phase 2: Check type arguments and parameter variance between compatible constructors
   fn are_type_args_compatible(
     db: &TypedownDatabase,
     subtype: &TdTypeEnum,
@@ -188,6 +189,7 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
     }
   }
 
+  // Phase 0: Special pre-check
   match (subtype, supertype) {
     (TdTypeEnum::TdVariableType(var_sub), TdTypeEnum::TdVariableType(var_super)) => {
       if subtype == supertype {
@@ -224,12 +226,16 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       if subtype.as_td_never_type().is_some() {
         return true;
       }
+
+      // Sum type elimination
       if let Some(sum) = subtype.as_td_sum_type() {
         return sum.members(db).iter().all(|m| {
           m.resolve(db)
             .is_some_and(|t| is_subtype_of(db, &t, supertype))
         });
       }
+
+      // It's sensible that subtype cannot be a sum type here
 
       // Phase 1: Type constructor compatibility check
       if !are_constructors_compatible(db, subtype, supertype) {
