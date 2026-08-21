@@ -231,7 +231,19 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       // iff
       // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
       // - This should imply that x is also of type P2[T2] for some T2 <: S2
-      todo!("Existential vs Existential subtyping")
+      // Question: How to prove such T2 exists for all T1 <: S1?
+
+      // Answer: Well this is just a special case of the below case, technically can be merged...
+      ex_subtype
+        .body(db)
+        .and_then(|b| b.resolve(db))
+        .is_some_and(|body| {
+          is_subtype_of(
+            db,
+            &body,
+            supertype,
+          )
+        })
     }
     (TdTypeEnum::TdExistentialType(ex_subtype), supertype) => {
       // If candidate is exists T1 <: S1. P1[T1] and the supertype is P2[T2]
@@ -241,7 +253,12 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       // - This should imply that x is also of type P2[T2]
       // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless 
       // Question: How to prove P1[T1] <: P2[T2] for all T1 <: S1
-      todo!("Existential vs Non-existential subtyping")
+
+      // Answer: Well this is already resolved due to the type variable invariant listed above
+      ex_subtype
+        .body(db)
+        .and_then(|b| b.resolve(db))
+        .is_some_and(|body| is_subtype_of(db, &body, supertype))
     }
     (subtype, TdTypeEnum::TdExistentialType(ex_supertype)) => {
       // If candidate is P1[T1] and the supertype is exists T2 <: S2. P2[T2]
@@ -300,7 +317,7 @@ mod tests {
   use crate::db::derived::get_builtin_types::{
     get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type,
     get_literal_type, get_never_type, get_null_type, get_num_type, get_schema_type, get_str_type,
-    get_sum_type, get_time_type, get_type_type,
+    get_sum_type, get_time_type, get_type_type, get_object_type,
   };
   use crate::db::types::{
     LazyType, LiteralValue, TdExistentialType, TdFuncType, TdProductType, TdStructuralType,
@@ -1264,5 +1281,47 @@ mod tests {
     .into();
     // List[string] <= exists. List[string] via supertype witnessing
     assert!(is_subtype_of(&db, &list_str, &ex));
+  }
+
+  #[test]
+  fn existential_subtype_bounded_body() {
+    let db = db();
+    let string: TdTypeEnum = get_str_type(&db).into();
+    let object: TdTypeEnum = get_object_type(&db).into();
+
+    let tv_str = TypeVariable::get(&db, Some(LazyType::eager(string.clone())), None);
+    let var_str: TdTypeEnum = TdVariableType::new(&db, 0, tv_str).into();
+    let ex_var: TdTypeEnum = TdExistentialType::new(
+      &db,
+      TypeParams::new(&db, vec![tv_str]),
+      Some(LazyType::eager(var_str)),
+    )
+    .into();
+
+    // exists T1 <: string. T1 <= string
+    assert!(is_subtype_of(&db, &ex_var, &string));
+
+    let tv_obj = TypeVariable::get(&db, Some(LazyType::eager(object.clone())), None);
+    let var_obj: TdTypeEnum = TdVariableType::new(&db, 0, tv_obj).into();
+    let list_var: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(var_obj)])
+      .typ(&db);
+    let ex_list: TdTypeEnum = TdExistentialType::new(
+      &db,
+      TypeParams::new(&db, vec![tv_obj]),
+      Some(LazyType::eager(list_var)),
+    )
+    .into();
+    let list_obj: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(object)])
+      .typ(&db);
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(string)])
+      .typ(&db);
+
+    // exists T1 <: Object. List[T1] <= List[Object]
+    assert!(is_subtype_of(&db, &ex_list, &list_obj));
+    // exists T1 <: Object. List[T1] <= List[string] is false
+    assert!(!is_subtype_of(&db, &ex_list, &list_str));
   }
 }
