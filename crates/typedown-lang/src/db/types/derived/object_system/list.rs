@@ -20,7 +20,7 @@ impl TdListType {
     self
       .type_params(db)
       .get_by_index(db, 0)
-      .and_then(|p| p.value)
+      .and_then(|p| p.value(db))
   }
 }
 
