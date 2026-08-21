@@ -7,10 +7,9 @@ use std::collections::HashMap;
 use ambassador::delegatable_trait;
 
 use super::func::TdFuncObj;
-use super::native_fn::{FnKind, NativeFnKind};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::{get_str_type, get_type_type};
+use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
 use crate::db::types::{FuncSignature, InstResult, LazyType, TypeParams};
 use crate::db::utils::typecheck::validate_type_params;
 use typedown_incremental::Id;
@@ -70,27 +69,16 @@ pub trait TdStaticType {
   }
 
   /// Parent type for prototype chain method lookup and type hierarchy
-  fn parent_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
-    None
+  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    Some(get_object_type(db).into())
   }
 
   /// Runtime vtable mapping method names to TdFuncObj instances
   fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
-    let mut result = self
+    self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
-      .unwrap_or_default();
-    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
-    let to_string_fn = TdFuncObj::new(
-      db,
-      BUILTIN_TO_STRING.to_string(),
-      sig,
-      FnKind::Native(NativeFnKind::ToStringMethod),
-    );
-    result
-      .entry(BUILTIN_TO_STRING.to_string())
-      .or_insert(to_string_fn);
-    result
+      .unwrap_or_default()
   }
 
   // Return types of methods available on instances of this static type
@@ -98,12 +86,10 @@ pub trait TdStaticType {
     &self,
     db: &::typedown_lang::db::TypedownDatabase,
   ) -> HashMap<String, TdTypeEnum> {
-    let mut result = self
+    self
       .parent_type(db)
       .map(|p| p.static_vtable(db))
-      .unwrap_or_default();
-    result.insert(BUILTIN_TO_STRING.to_string(), get_str_type(db).into());
-    result
+      .unwrap_or_default()
   }
 
   // Get all declared fields from a static type

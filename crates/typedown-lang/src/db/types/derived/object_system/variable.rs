@@ -19,8 +19,12 @@ impl TdStaticType for TdVariableType {
     let var = self.variable(db);
     if let Some(val) = var.value(db).as_ref().and_then(|l| l.resolve(db)) {
       val.display_name(db)
-    } else if let Some(b) = var.bound(db).as_ref().and_then(|l| l.resolve(db)) {
-      format!("T{} <: {}", self.index(db), b.display_name(db))
+    } else if let Some(b) = var.bound(db).resolve(db) {
+      if b.as_td_object_type().is_some() {
+        format!("T{}", self.index(db))
+      } else {
+        format!("T{} <: {}", self.index(db), b.display_name(db))
+      }
     } else {
       format!("T{}", self.index(db))
     }

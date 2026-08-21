@@ -12,6 +12,7 @@ mod native_fn;
 mod never;
 mod null;
 mod num;
+mod object;
 mod product;
 mod str;
 mod structural;
@@ -42,6 +43,7 @@ pub use native_fn::*;
 pub use never::*;
 pub use null::*;
 pub use num::*;
+pub use object::*;
 pub use product::*;
 pub use str::*;
 pub use structural::*;
@@ -85,6 +87,7 @@ pub enum TdTypeEnum {
   TdStructuralType(TdStructuralType),
   TdVariableType(TdVariableType),
   TdExistentialType(TdExistentialType),
+  TdObjectType(TdObjectType),
 }
 
 // Use this instead of dyn
@@ -145,6 +148,7 @@ impl_from_type_for_obj_enum!(
   TdStructuralType,
   TdVariableType,
   TdExistentialType,
+  TdObjectType,
 );
 
 impl Id for TdTypeEnum {
@@ -170,6 +174,7 @@ impl Id for TdTypeEnum {
       TdTypeEnum::TdStructuralType(v) => v.as_id(),
       TdTypeEnum::TdVariableType(v) => v.as_id(),
       TdTypeEnum::TdExistentialType(v) => v.as_id(),
+      TdTypeEnum::TdObjectType(v) => v.as_id(),
     }
   }
 }
@@ -249,6 +254,7 @@ impl typedown_incremental::StableHash for TdTypeEnum {
       TdTypeEnum::TdStructuralType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdVariableType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdExistentialType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdObjectType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -283,6 +289,7 @@ impl typedown_incremental::StableHash for TdObjectEnum {
 #[repr(u8)]
 pub enum TdTypeKind {
   Type = 0,
+  Object = 1,
   Str = 2,
   Bool = 3,
   Num = 4,
@@ -410,6 +417,10 @@ impl Encodable for TdTypeEnum {
         encoder.emit_u8(buf, TdTypeKind::Existential as u8);
         v.encode_field(buf, encoder);
       }
+      TdTypeEnum::TdObjectType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Object as u8);
+        v.encode_field(buf, encoder);
+      }
     }
   }
 }
@@ -438,6 +449,7 @@ impl Decodable for TdTypeEnum {
       TdTypeKind::Structural => TdStructuralType::decode_field(data, decoder).into(),
       TdTypeKind::Existential => TdExistentialType::decode_field(data, decoder).into(),
       TdTypeKind::Variable => TdVariableType::decode_field(data, decoder).into(),
+      TdTypeKind::Object => TdObjectType::decode_field(data, decoder).into(),
     }
   }
 }

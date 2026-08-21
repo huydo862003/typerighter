@@ -8,8 +8,8 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_literal_type,
-  get_math_type, get_null_type, get_num_type, get_schema_type, get_str_type, get_sum_type,
-  get_time_type, get_type_type,
+  get_math_type, get_null_type, get_num_type, get_object_type, get_schema_type, get_str_type,
+  get_sum_type, get_time_type, get_type_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
@@ -38,6 +38,7 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
         BuiltinSchemaKind::Schema => get_schema_type(db).into(),
         BuiltinSchemaKind::TypeType => get_type_type(db).into(),
         BuiltinSchemaKind::SchemaProperty => get_schema_property_type(db).into(),
+        BuiltinSchemaKind::Object => get_object_type(db).into(),
       };
       TypeResult::new(db, Some(typ), vec![])
     }

@@ -9,14 +9,20 @@ use std::collections::{HashMap, HashSet};
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, LazyType, LiteralValue, Symbol, SymbolKind, TdBlobType,
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdListType,
-  TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdProductType,
-  TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType, TypeParams, TypeVariable,
+  TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
+  TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
+  TypeParams, TypeVariable,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
 #[query_derived]
 pub fn get_type_type(db: &TypedownDatabase) -> TdTypeType {
   TdTypeType::new(db)
+}
+
+#[query_derived]
+pub fn get_object_type(db: &TypedownDatabase) -> TdObjectType {
+  TdObjectType::new(db)
 }
 
 #[query_derived]
@@ -125,6 +131,15 @@ pub fn get_type_type_symbol(db: &TypedownDatabase) -> Symbol {
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypeType),
     "type".to_string(),
     "@builtin::type".to_string(),
+  )
+}
+
+pub fn get_object_symbol(db: &TypedownDatabase) -> Symbol {
+  Symbol::new(
+    db,
+    SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypeType),
+    "Object".to_string(),
+    "@builtin::Object".to_string(),
   )
 }
 
