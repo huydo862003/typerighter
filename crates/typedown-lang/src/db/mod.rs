@@ -3,6 +3,7 @@ pub mod derived;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod serde;
+pub mod typecheck;
 pub mod types;
 pub mod utils;
 

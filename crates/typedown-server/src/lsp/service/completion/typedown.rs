@@ -12,11 +12,11 @@ use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
+use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
   File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
-use typedown_lang::db::utils::typecheck::{is_nullable, is_subtype_of};
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;

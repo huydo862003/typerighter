@@ -7,9 +7,9 @@ use typedown_incremental::Id;
 use super::{evaluate_lazy_field, resolve_ref};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_sum_type;
+use crate::db::typecheck::utils::is_nullable;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum};
-use crate::db::utils::typecheck::is_nullable;
 
 /// Serialize a FileHandle to a JSON object
 pub fn handle_to_json(handle: &FileHandle) -> serde_json::Value {

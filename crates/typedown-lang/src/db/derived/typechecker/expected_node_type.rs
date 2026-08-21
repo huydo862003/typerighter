@@ -11,13 +11,13 @@ use crate::db::derived::get_builtin_types::{
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
+use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
   File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum,
   TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
-use crate::db::utils::typecheck::is_subtype_of;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, ParenExpr, PrefixExpr, YamlOpKind,
 };
