@@ -11,7 +11,6 @@ use crate::db::types::{
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdListType,
   TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
   TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
-  TypeParams, TypeVariable,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -42,20 +41,12 @@ pub fn get_num_type(db: &TypedownDatabase) -> TdNumType {
 
 #[query_derived]
 pub fn get_list_type(db: &TypedownDatabase) -> TdListType {
-  let params = TypeParams::new(db, vec![TypeVariable::get(db, None, None)]);
-  TdListType::new(db, params)
+  TdListType::new(db, None)
 }
 
 #[query_derived]
 pub fn get_dict_type(db: &TypedownDatabase) -> TdDictType {
-  let params = TypeParams::new(
-    db,
-    vec![
-      TypeVariable::get(db, None, None),
-      TypeVariable::get(db, None, None),
-    ],
-  );
-  TdDictType::new(db, params)
+  TdDictType::new(db, None, None)
 }
 
 #[query_derived]
@@ -307,7 +298,8 @@ pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType 
 mod tests {
   use super::{get_bool_type, get_sum_type};
   use crate::db::types::derived::object_system::TdStaticType;
-  use crate::db::types::{LazyType, TdListType, TdTypeEnum, TypeParams, TypeVariable};
+  use crate::db::types::{LazyType, TdTypeEnum, TypeParams, TypeVariable};
+  use crate::db::utils::typecheck::validate_type_params;
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
@@ -454,20 +446,12 @@ mod tests {
     let num_type = TdTypeEnum::from(get_num_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
 
-    let bounded_list = TdListType::new(
+    let params = TypeParams::new(
       &db,
-      TypeParams::new(
-        &db,
-        vec![TypeVariable::get(
-          &db,
-          Some(LazyType::eager(num_type)),
-          None,
-        )],
-      ),
+      vec![TypeVariable::get(&db, Some(LazyType::eager(num_type)))],
+      vec![],
     );
-
-    let result = TdTypeEnum::from(bounded_list).instantiate(&db, vec![LazyType::eager(str_type)]);
-    let diagnostics = result.diagnostics(&db);
+    let diagnostics = validate_type_params(&db, Some(&params), &[LazyType::eager(str_type)]);
     assert_eq!(diagnostics.len(), 1);
     assert!(
       matches!(

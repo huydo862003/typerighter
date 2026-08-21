@@ -53,73 +53,76 @@ impl Decodable for Variance {
 
 #[query_interned]
 pub struct TypeVariable {
-  pub bound: LazyType,
-  pub value: Option<LazyType>,
+  pub upper_bound: LazyType,
   pub variance: Variance,
 }
 
 impl TypeVariable {
-  pub fn get(db: &TypedownDatabase, bound: Option<LazyType>, value: Option<LazyType>) -> Self {
-    let bound = bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
-    TypeVariable::new(db, bound, value, Variance::Covariant)
+  pub fn get(db: &TypedownDatabase, upper_bound: Option<LazyType>) -> Self {
+    let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
+    TypeVariable::new(db, upper_bound, Variance::Covariant)
   }
 
   pub fn get_with_variance(
     db: &TypedownDatabase,
-    bound: Option<LazyType>,
-    value: Option<LazyType>,
+    upper_bound: Option<LazyType>,
     variance: Variance,
   ) -> Self {
-    let bound = bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
-    TypeVariable::new(db, bound, value, variance)
+    let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
+    TypeVariable::new(db, upper_bound, variance)
   }
 }
 
 #[query_interned]
 pub struct TypeParams {
   pub params: Vec<TypeVariable>,
+  pub bindings: Vec<LazyType>,
 }
 
 impl TypeParams {
+  pub fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TypeParams> {
+    let params = self.params(db);
+    if params.len() != args.len() {
+      return None;
+    }
+    Some(TypeParams::new(db, params, args))
+  }
+
+  pub fn bind(&self, db: &TypedownDatabase, index: usize, arg: LazyType) -> Option<TypeParams> {
+    let params = self.params(db);
+    let mut bindings = self.bindings(db);
+    if index >= params.len() {
+      return None;
+    }
+    if bindings.len() <= index {
+      bindings.resize(index + 1, arg.clone());
+    }
+    bindings[index] = arg;
+    Some(TypeParams::new(db, params, bindings))
+  }
+
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
+    self.params(db).get(index).copied()
+  }
+
+  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType> {
+    self.bindings(db).get(index).cloned()
+  }
+
   pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
     self.params(db).get(index).copied()
   }
 
-  pub fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TypeParams> {
-    let current_params = self.params(db);
-    if current_params.len() != args.len() {
-      return None;
-    }
-    let new_params = current_params
-      .iter()
-      .zip(args)
-      .map(|(p, arg)| TypeVariable::new(db, p.bound(db), Some(arg), p.variance(db)))
-      .collect();
-    Some(TypeParams::new(db, new_params))
-  }
-
-  pub fn bind(&self, db: &TypedownDatabase, index: usize, arg: LazyType) -> Option<TypeParams> {
-    let current_params = self.params(db);
-    if index >= current_params.len() {
-      return None;
-    }
-    let new_params = current_params
-      .iter()
-      .enumerate()
-      .map(|(i, p)| {
-        if i == index {
-          TypeVariable::new(db, p.bound(db), Some(arg.clone()), p.variance(db))
-        } else {
-          *p
-        }
-      })
-      .collect();
-    Some(TypeParams::new(db, new_params))
-  }
-
   pub fn is_instantiated(&self, db: &TypedownDatabase) -> bool {
-    let current = self.params(db);
-    !current.is_empty() && current.iter().all(|p| p.value(db).is_some())
+    let params = self.params(db);
+    let bindings = self.bindings(db);
+    !params.is_empty() && params.len() == bindings.len()
+  }
+
+  pub fn arity(&self, db: &TypedownDatabase) -> usize {
+    let params = self.params(db).len();
+    let bound = self.bindings(db).len();
+    params.saturating_sub(bound)
   }
 
   pub fn len(&self, db: &TypedownDatabase) -> usize {
