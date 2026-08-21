@@ -56,3 +56,28 @@ impl TdRuntimeObject for TdObjectType {
     self.display_name(db)
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::derived::get_builtin_types::{get_func_type, get_object_type, get_str_type};
+  use crate::db::{QueryStorage, TypedownDatabase};
+
+  fn make_db() -> TypedownDatabase {
+    TypedownDatabase {
+      storage: QueryStorage::default(),
+    }
+  }
+
+  #[test]
+  fn object_type_to_string_lookup_returns_func_type() {
+    let db = make_db();
+    let obj_type = get_object_type(&db);
+
+    let to_string_type = obj_type.lookup_field_type(&db, "to_string").unwrap();
+    let expected_sig = FuncSignature::new(&db, vec![], get_str_type(&db).into());
+    let expected_func_type: TdTypeEnum = get_func_type(&db, expected_sig).into();
+
+    assert_eq!(to_string_type, expected_func_type);
+  }
+}

@@ -445,21 +445,17 @@ fn get_closure_type(
 
 #[cfg(test)]
 mod tests {
+  use crate::db::derived::get_builtin_types::{
+    get_func_type, get_literal_type, get_schema_type, get_str_type,
+  };
   use crate::db::types::TdTypeEnum;
   use crate::db::types::derived::object_system::TdStaticType;
+  use crate::db::types::{File, FileHandle, FileMetadata, FuncSignature, LiteralValue, Project};
   use std::{collections::HashMap, path::PathBuf};
 
-  use crate::db::{
-    QueryStorage, TypedownDatabase,
-    derived::get_builtin_types::get_schema_type,
-    types::{File, FileHandle, FileMetadata, Project},
-    utils::lower_file,
-  };
+  use crate::db::{QueryStorage, TypedownDatabase, utils::lower_file};
 
-  use crate::db::{
-    fixtures::load_vault_fixture,
-    types::{HirValueKind, LiteralValue},
-  };
+  use crate::db::{fixtures::load_vault_fixture, types::HirValueKind};
 
   use super::actual_node_type;
 
@@ -689,6 +685,38 @@ mod tests {
         is_literal_num(&db, &typ, "30"),
         "number value should be literal num"
       );
+    }
+  }
+
+  #[test]
+  fn actual_node_type_to_string_field_access_returns_func_type() {
+    let (db, _, _) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let num_lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
+
+    let field_type = num_lit
+      .lookup_field_type(&db, "to_string")
+      .expect("should have to_string method");
+    let expected_sig = FuncSignature::new(&db, vec![], get_str_type(&db).into());
+    let expected_func_type: TdTypeEnum = get_func_type(&db, expected_sig).into();
+
+    assert_eq!(field_type, expected_func_type);
+  }
+
+  #[test]
+  fn actual_node_type_method_call_to_string_returns_string_type() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/method_call.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let hir = hir.expect("should parse");
+    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
+      let res_hir = entries
+        .iter()
+        .find(|(k, _)| k == "result")
+        .map(|(_, v)| *v)
+        .unwrap();
+      let result = actual_node_type(&db, res_hir);
+      let typ = result.typ(&db).expect("should have a type");
+      let str_type: TdTypeEnum = get_str_type(&db).into();
+      assert_eq!(typ, str_type);
     }
   }
 }
