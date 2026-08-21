@@ -222,6 +222,17 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
         false
       }
     }
+    (TdTypeEnum::TdExistentialType(_ex_sub), TdTypeEnum::TdExistentialType(_ex_super)) => {
+      todo!("Existential vs Existential subtyping")
+    }
+    (TdTypeEnum::TdExistentialType(_ex_sub), _supertype) => {
+      todo!("Existential vs Non-existential subtyping")
+    }
+    (subtype, TdTypeEnum::TdExistentialType(ex_super)) => {
+      // For example:
+      // - exists T <: S. P[T] is a supertype of P[string] as long as S is a supertype of string
+      todo!("Non-existential vs Existential subtyping")
+    }
     _ => {
       if subtype.as_td_never_type().is_some() {
         return true;
@@ -274,8 +285,8 @@ mod tests {
     get_sum_type, get_time_type, get_type_type,
   };
   use crate::db::types::{
-    LazyType, LiteralValue, TdFuncType, TdProductType, TdStructuralType, TdVariableType,
-    TypeVariable,
+    LazyType, LiteralValue, TdExistentialType, TdFuncType, TdProductType, TdStructuralType,
+    TdVariableType, TypeVariable,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -1217,5 +1228,23 @@ mod tests {
 
     assert!(is_subtype_of(&db, &list_var, &list_str));
     assert!(!is_subtype_of(&db, &list_str, &list_var));
+  }
+
+  // Existential type precheck test
+
+  #[test]
+  fn existential_supertype_witnesses_body() {
+    let db = db();
+    let list_str: TdTypeEnum = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+      .typ(&db);
+    let ex: TdTypeEnum = TdExistentialType::new(
+      &db,
+      TypeParams::new(&db, vec![]),
+      Some(LazyType::eager(list_str.clone())),
+    )
+    .into();
+    // List[string] <= exists. List[string] via supertype witnessing
+    assert!(is_subtype_of(&db, &list_str, &ex));
   }
 }
