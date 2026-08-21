@@ -22,7 +22,7 @@ impl TdStaticType for TdExistentialType {
       .iter()
       .enumerate()
       .map(|(i, p)| {
-        if let Some(b) = p.bound(db).resolve(db) {
+        if let Some(b) = p.upper_bound(db).resolve(db) {
           format!("T{} <: {}", i, b.display_name(db))
         } else {
           format!("T{}", i)

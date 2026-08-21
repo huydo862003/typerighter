@@ -322,9 +322,8 @@ fn resolve_type_lazy(
 #[cfg(test)]
 mod tests {
   use crate::db::types::derived::object_system::TdStaticType;
-  use crate::db::types::{
-    TdListType, TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable,
-  };
+  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
+  use crate::db::utils::typecheck::validate_type_params;
   use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::HashMap;
@@ -554,20 +553,12 @@ mod tests {
     let num_type = TdTypeEnum::from(get_num_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
 
-    let bounded_list = TdListType::new(
+    let params = TypeParams::new(
       &db,
-      TypeParams::new(
-        &db,
-        vec![TypeVariable::get(
-          &db,
-          Some(LazyType::eager(num_type)),
-          None,
-        )],
-      ),
+      vec![TypeVariable::get(&db, Some(LazyType::eager(num_type)))],
+      vec![],
     );
-
-    let result = TdTypeEnum::from(bounded_list).instantiate(&db, vec![LazyType::eager(str_type)]);
-    let diagnostics = result.diagnostics(&db);
+    let diagnostics = validate_type_params(&db, Some(&params), &[LazyType::eager(str_type)]);
     assert_eq!(diagnostics.len(), 1);
     assert!(
       matches!(

@@ -6,29 +6,26 @@ use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::derived::get_builtin_types::{get_dict_type, get_str_type};
-use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, RuntimeScope, TypeParams};
+use crate::db::derived::get_builtin_types::{get_dict_type, get_object_type, get_str_type};
+use crate::db::types::{
+  FuncSignature, HirValue, InstResult, LazyType, RuntimeScope, TypeParams, TypeVariable,
+};
 use crate::db::utils::typecheck::validate_type_params;
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
 pub struct TdDictType {
-  pub type_params: TypeParams,
+  pub key_type: Option<LazyType>,
+  pub value_type: Option<LazyType>,
 }
 
 impl TdDictType {
   pub fn key(&self, db: &TypedownDatabase) -> Option<LazyType> {
-    self
-      .type_params(db)
-      .get_by_index(db, 0)
-      .and_then(|p| p.value(db))
+    self.key_type(db)
   }
 
   pub fn value(&self, db: &TypedownDatabase) -> Option<LazyType> {
-    self
-      .type_params(db)
-      .get_by_index(db, 1)
-      .and_then(|p| p.value(db))
+    self.value_type(db)
   }
 }
 
@@ -89,10 +86,10 @@ impl TdStaticType for TdDictType {
   }
 
   fn arity(&self, db: &TypedownDatabase) -> usize {
-    if self.type_params(db).is_instantiated(db) {
+    if self.key(db).is_some() && self.value(db).is_some() {
       0
     } else {
-      self.type_params(db).len(db)
+      2
     }
   }
 
@@ -113,21 +110,41 @@ impl TdStaticType for TdDictType {
   fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
     let self_type: TdTypeEnum = (*self).into();
     let params = self.type_params(db);
-    let diagnostics = validate_type_params(db, Some(&params), &args);
+    let diagnostics = validate_type_params(db, params.as_ref(), &args);
     if diagnostics
       .iter()
       .any(|d| matches!(d, Diagnostic::WrongTypeArgCount { .. }))
     {
       return InstResult::new(db, self_type, diagnostics);
     }
-    match params.instantiate(db, args) {
-      Some(new_params) => InstResult::new(db, TdDictType::new(db, new_params).into(), diagnostics),
-      None => InstResult::new(db, self_type, diagnostics),
+    if args.len() == 2 {
+      InstResult::new(
+        db,
+        TdDictType::new(db, Some(args[0].clone()), Some(args[1].clone())).into(),
+        diagnostics,
+      )
+    } else {
+      InstResult::new(db, self_type, diagnostics)
     }
   }
 
   fn type_params(&self, db: &TypedownDatabase) -> Option<TypeParams> {
-    Some((*self).type_params(db))
+    let obj_type = LazyType::eager(get_object_type(db).into());
+    let mut bindings = Vec::new();
+    if let Some(k) = self.key(db) {
+      bindings.push(k);
+    }
+    if let Some(v) = self.value(db) {
+      bindings.push(v);
+    }
+    Some(TypeParams::new(
+      db,
+      vec![
+        TypeVariable::get(db, Some(obj_type.clone())),
+        TypeVariable::get(db, Some(obj_type)),
+      ],
+      bindings,
+    ))
   }
 
   fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {
