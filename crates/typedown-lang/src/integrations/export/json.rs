@@ -6,8 +6,6 @@ use typedown_incremental::Id;
 
 use super::{evaluate_lazy_field, resolve_ref};
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::get_sum_type;
-use crate::db::typecheck::utils::is_nullable;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum};
 
@@ -138,7 +136,7 @@ fn serialize(
       }
       let mut map = serde_json::Map::new();
       for (name, lazy) in product.fields(db) {
-        map.insert(name, serialize_lazy(db, project, &lazy, visiting)?);
+        map.insert(name, serialize_lazy_type(db, project, &lazy, visiting)?);
       }
       visiting.remove(&id);
       Ok(serde_json::Value::Object(map))
@@ -147,43 +145,6 @@ fn serialize(
     // Other type objects and functions are not meaningful as document values
     _ => Ok(serde_json::Value::Null),
   }
-}
-
-/// Serialize a LazyType to JSON
-/// Wraps optional fields as `{ "type": ..., "optional": true }`.
-fn serialize_lazy(
-  db: &TypedownDatabase,
-  project: Project,
-  lazy: &LazyType,
-  visiting: &mut HashSet<(usize, usize)>,
-) -> Result<serde_json::Value, CircularRef> {
-  if lazy.resolve(db).is_some_and(|t| is_nullable(db, &t)) {
-    // Strip null from sum and serialize the non-null portion
-    let stripped = strip_null(db, lazy);
-    let typ = serialize_lazy_type(db, project, &stripped, visiting)?;
-    Ok(serde_json::json!({ "type": typ, "optional": true }))
-  } else {
-    serialize_lazy_type(db, project, lazy, visiting)
-  }
-}
-
-fn strip_null(db: &TypedownDatabase, lazy: &LazyType) -> LazyType {
-  let Some(typ) = lazy.resolve(db) else {
-    return lazy.clone();
-  };
-  if let Some(sum) = typ.as_td_sum_type() {
-    let non_null: Vec<_> = sum
-      .members(db)
-      .into_iter()
-      .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
-      .collect();
-    if non_null.len() == 1 {
-      return non_null.into_iter().next().unwrap();
-    }
-    // Multiple non-null members: keep as sum without null
-    return LazyType::eager(get_sum_type(db, non_null).into());
-  }
-  lazy.clone()
 }
 
 /// Serialize a LazyType to JSON
@@ -458,26 +419,6 @@ mod tests {
       value["location"]["city"],
       serde_json::Value::String("string".to_string())
     );
-  }
-
-  #[test]
-  fn optional_field_serializes_with_optional_flag() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Article.td");
-    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    let typ = evaluate_type(&db, symbol)
-      .typ(&db)
-      .expect("should have type");
-    let obj = TdObjectEnum::from(typ);
-    let value = to_json(&db, project, &obj).expect("should serialize");
-    assert_eq!(
-      value["title"],
-      serde_json::Value::String("string".to_string())
-    );
-    assert_eq!(
-      value["subtitle"]["type"],
-      serde_json::Value::String("string".to_string())
-    );
-    assert_eq!(value["subtitle"]["optional"], serde_json::Value::Bool(true));
   }
 
   #[test]

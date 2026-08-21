@@ -265,9 +265,6 @@ nick|name: Bob
       text.contains("nickname"),
       "expected field name, got: {text}"
     );
-    assert!(
-      text.contains("string?"),
-      "expected optional marker, got: {text}"
-    );
+    assert!(text.contains("string"), "expected field type, got: {text}");
   }
 }

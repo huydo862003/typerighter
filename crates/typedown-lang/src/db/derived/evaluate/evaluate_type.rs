@@ -13,7 +13,6 @@ use crate::db::derived::get_builtin_types::{
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
-use crate::db::typecheck::utils::is_nullable;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdStaticType, TdStructuralType, TdTypeEnum, TypeResult,
@@ -136,7 +135,7 @@ fn evaluate_user_defined_schema(
   )
 }
 
-// Process a property descriptor like `{ type: string, optional: true }`
+// Process a property descriptor like `{ type: string }`
 // Returns a LazyType representing the field type
 pub(crate) fn resolve_property_descriptor(
   db: &TypedownDatabase,
@@ -149,30 +148,14 @@ pub(crate) fn resolve_property_descriptor(
   };
 
   let mut field_type: Option<LazyType> = None;
-  let mut is_optional = false;
 
   for (key, value) in &entries {
-    match key.as_str() {
-      "type" => {
-        field_type = resolve_type_lazy(db, *value, diagnostics);
-      }
-      "optional" => {
-        if let HirValueKind::Bool(true) = value.kind(db) {
-          is_optional = true;
-        }
-      }
-      _ => {}
+    if key.as_str() == "type" {
+      field_type = resolve_type_lazy(db, *value, diagnostics);
     }
   }
 
-  field_type.map(|lazy| {
-    if is_optional && !lazy.as_eager().is_some_and(|t| is_nullable(db, t)) {
-      let null_lazy = LazyType::eager(get_null_type(db).into());
-      LazyType::eager(get_sum_type(db, vec![lazy, null_lazy]).into())
-    } else {
-      lazy
-    }
-  })
+  field_type
 }
 
 fn resolve_type_lazy(

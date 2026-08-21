@@ -416,8 +416,7 @@ properties:
   verified:
     type: boolean
   nickname:
-    type: string
-    optional: true
+    type: string?
 ---
 "#;
   const SCHEMA_EVENT: &str = r#"---
@@ -438,8 +437,7 @@ properties:
   status:
     type: ['todo', 'in_progress', 'done']
   assignee:
-    type: Person
-    optional: true
+    type: Person?
 ---
 "#;
 
@@ -931,7 +929,7 @@ name: tru|
 
   #[test]
   fn null_completion_for_optional_field() {
-    // Cursor in the value of an optional field: suggest null.
+    // Cursor in the value of a nullable field: suggest null.
     let (content, offset) = cursor(
       r#"---
 _type: Person

@@ -4,6 +4,5 @@ properties:
   title:
     type: string
   subtitle:
-    type: string
-    optional: true
+    type: string | null
 ---

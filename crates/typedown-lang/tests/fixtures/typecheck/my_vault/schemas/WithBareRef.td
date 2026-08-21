@@ -4,6 +4,5 @@ properties:
   name:
     type: string
   owner:
-    type: Person
-    optional: true
+    type: Person | null
 ---

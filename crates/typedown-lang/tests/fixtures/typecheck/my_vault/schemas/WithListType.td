@@ -6,12 +6,9 @@ properties:
   role:
     type: ['developer', 'designer', 'manager']
   active:
-    type: boolean
-    optional: true
+    type: boolean | null
   tags:
-    type: list[string]
-    optional: true
+    type: list[string] | null
   email:
-    type: string
-    optional: true
+    type: string | null
 ---

@@ -340,11 +340,7 @@ properties:
       "enum should default to first option: {text}"
     );
     assert!(
-      text.contains("# assignee:"),
-      "optional field should be commented: {text}"
-    );
-    assert!(
-      text.contains("fref(\"Person\")"),
+      text.contains("assignee: fref(\"Person\")"),
       "relation should use fref: {text}"
     );
   }

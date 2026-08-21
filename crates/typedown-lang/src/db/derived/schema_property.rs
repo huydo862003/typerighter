@@ -1,6 +1,6 @@
 // Schema property type definition
 // A property descriptor inside a schema's `properties` field
-// Has a required `type` field and an optional `optional` field
+// Has a required `type` field
 
 use std::collections::HashMap;
 
@@ -9,8 +9,8 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_dict_type, get_list_type, get_null_type, get_num_type, get_str_type,
-  get_sum_type, get_type_type,
+  get_bool_type, get_dict_type, get_list_type, get_num_type, get_str_type, get_sum_type,
+  get_type_type,
 };
 use crate::db::types::{
   BuiltinSchemaKind, LazyType, Symbol, SymbolKind, TdProductType, TdStaticType,
@@ -89,22 +89,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
     .into(),
   );
 
-  // optional field: boolean | null
-  let optional_field = LazyType::eager(
-    get_sum_type(
-      db,
-      vec![
-        LazyType::eager(get_bool_type(db).into()),
-        LazyType::eager(get_null_type(db).into()),
-      ],
-    )
-    .into(),
-  );
-
-  let fields = HashMap::from([
-    ("type".to_string(), type_field),
-    ("optional".to_string(), optional_field),
-  ]);
+  let fields = HashMap::from([("type".to_string(), type_field)]);
 
   TdProductType::new(
     db,

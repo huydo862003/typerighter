@@ -12,6 +12,5 @@ properties:
       required_field:
         type: string
       optional_field:
-        type: number
-        optional: true
+        type: number?
 ---

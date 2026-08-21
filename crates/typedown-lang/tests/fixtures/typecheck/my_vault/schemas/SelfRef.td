@@ -4,9 +4,7 @@ properties:
   name:
     type: string
   parent:
-    type: SelfRef
-    optional: true
+    type: SelfRef | null
   children:
-    type: list[SelfRef]
-    optional: true
+    type: list[SelfRef] | null
 ---

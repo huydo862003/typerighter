@@ -4,6 +4,5 @@ properties:
   label:
     type: string
   refs:
-    type: list[CircularA]
-    optional: true
+    type: list[CircularA] | null
 ---

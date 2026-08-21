@@ -14,7 +14,6 @@ use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
-use crate::db::typecheck::utils::is_nullable;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
   File, FileHandle, HirValue, LazyType, LiteralValue, Project, RuntimeScope, Symbol, SymbolKind,
@@ -134,12 +133,7 @@ pub fn export_property_descriptors(
   let mut properties = serde_json::Map::new();
 
   for (name, lazy) in &fields {
-    let mut prop = lazy_to_descriptor(db, lazy);
-
-    if lazy.resolve(db).is_some_and(|t| is_nullable(db, &t)) {
-      prop["optional"] = serde_json::Value::Bool(true);
-    }
-
+    let prop = lazy_to_descriptor(db, lazy);
     properties.insert(name.clone(), prop);
   }
 

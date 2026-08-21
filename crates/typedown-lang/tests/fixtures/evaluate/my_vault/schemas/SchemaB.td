@@ -4,6 +4,5 @@ properties:
   name:
     type: string
   itemsA:
-    type: list[SchemaA]
-    optional: true
+    type: list[SchemaA] | null
 ---
