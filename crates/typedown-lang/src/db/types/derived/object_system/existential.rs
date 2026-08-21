@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use typedown_macros::query_derived;
 
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
@@ -44,6 +45,22 @@ impl TdStaticType for TdExistentialType {
     }
   }
 
+  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+    self
+      .body(db)
+      .and_then(|b| b.resolve(db))
+      .map(|b| b.static_vtable(db))
+      .unwrap_or_default()
+  }
+
+  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+    self
+      .body(db)
+      .and_then(|b| b.resolve(db))
+      .map(|b| b.get_fields(db))
+      .unwrap_or_default()
+  }
+
   fn lookup_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
     self
       .body(db)
@@ -75,5 +92,77 @@ impl TdRuntimeObject for TdExistentialType {
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
     self.display_name(db)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::derived::get_builtin_types::{
+    get_func_type, get_list_type, get_num_type, get_str_type,
+  };
+  use crate::db::types::derived::object_system::TdStructuralType;
+  use crate::db::{QueryStorage, TypedownDatabase};
+
+  fn make_db() -> TypedownDatabase {
+    TypedownDatabase {
+      storage: QueryStorage::default(),
+    }
+  }
+
+  #[test]
+  fn existential_type_delegates_static_operations_to_body() {
+    let db = make_db();
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+
+    let mut fields = HashMap::new();
+    fields.insert("title".to_string(), LazyType::eager(str_type.clone()));
+    let body_struct: TdTypeEnum = TdStructuralType::new(&db, fields).into();
+
+    let ex_params = TypeParams::new(&db, vec![], vec![]);
+    let ex_type = TdExistentialType::new(&db, ex_params, Some(LazyType::eager(body_struct)));
+
+    // static operations delegate to body
+    assert_eq!(
+      ex_type.lookup_field_type(&db, "title"),
+      Some(str_type.clone())
+    );
+    assert_eq!(ex_type.lookup_field_type(&db, "nonexistent"), None);
+
+    let fields_map = ex_type.get_fields(&db);
+    assert!(fields_map.contains_key("title"));
+  }
+
+  #[test]
+  fn existential_type_delegates_index_type_to_body() {
+    let db = make_db();
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+    let num_type: TdTypeEnum = get_num_type(&db).into();
+
+    let list_str = get_list_type(&db)
+      .instantiate(&db, vec![LazyType::eager(str_type.clone())])
+      .typ(&db);
+
+    let ex_params = TypeParams::new(&db, vec![], vec![]);
+    let ex_type = TdExistentialType::new(&db, ex_params, Some(LazyType::eager(list_str)));
+
+    let idx_sig = ex_type.index_type(&db, &num_type).unwrap();
+    assert_eq!(idx_sig.ret(&db), str_type);
+  }
+
+  #[test]
+  fn existential_type_delegates_call_type_to_body() {
+    let db = make_db();
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+    let num_type: TdTypeEnum = get_num_type(&db).into();
+
+    let sig = FuncSignature::new(&db, vec![str_type.clone()], num_type.clone());
+    let func_type: TdTypeEnum = get_func_type(&db, sig).into();
+
+    let ex_params = TypeParams::new(&db, vec![], vec![]);
+    let ex_type = TdExistentialType::new(&db, ex_params, Some(LazyType::eager(func_type)));
+
+    let call_sig = ex_type.call_type(&db, vec![str_type]).unwrap();
+    assert_eq!(call_sig.ret(&db), num_type);
   }
 }
