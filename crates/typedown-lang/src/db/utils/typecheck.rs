@@ -224,14 +224,23 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
       }
     }
     (TdTypeEnum::TdExistentialType(_ex_sub), TdTypeEnum::TdExistentialType(_ex_super)) => {
+      // If candidate is exists T1 <: S1. P1[T1] and the supertype is exists T2 <: S2. P2[T2]
+      // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
+      // iff
       todo!("Existential vs Existential subtyping")
     }
     (TdTypeEnum::TdExistentialType(_ex_sub), _supertype) => {
+      // If candidate is exists T1 <: S1. P1[T1] and the supertype is P2[T2]
+      // (exists T1 <: S1. P1[T1]) <: P2[T2]
+      // iff
       todo!("Existential vs Non-existential subtyping")
     }
     (subtype, TdTypeEnum::TdExistentialType(ex_super)) => {
-      // For example:
-      // - exists T <: S. P[T] is a supertype of P[string] as long as S is a supertype of string
+      // If candidate is P1[T1] and the supertype is exists T2 <: S2. P2[T2]
+      // P1[T1] <: (exists T2 <: S2. P2[T2])
+      // iff
+      // P1[T1] is a subtype of some P2[T2] where T2 <: S2
+      // Question: How to prove such T2 exists or not??
       todo!("Non-existential vs Existential subtyping")
     }
     _ => {
