@@ -240,6 +240,22 @@ mod tests {
     assert_eq!(str_obj.value(&db), "true");
   }
 
+  #[test]
+  fn evaluate_resource_with_computed_field() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/computed_resource.td");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("file_symbol should return a resource symbol");
+    let result = evaluate_resource(&db, symbol);
+    let obj = result.value(&db).expect("should produce an object");
+    let full_name = obj
+      .get_owned_field(&db, "fullName")
+      .expect("should evaluate computed fullName field");
+    let str_obj = full_name.as_td_str_obj().expect("expected TdStrObj");
+    assert_eq!(str_obj.value(&db), "Alice Smith");
+  }
+
   // fref("file.td").prop evaluates the referenced resource and accesses a field on it
   #[test]
   fn fref_prop_accesses_field_on_referenced_resource() {
