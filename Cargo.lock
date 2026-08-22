@@ -2353,7 +2353,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-incremental"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "dashmap",
  "fs2",
@@ -2368,7 +2368,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-lang"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "ambassador",
  "bitflags 2.13.1",
@@ -2391,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-macros"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2400,7 +2400,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-server"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-types"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "html-escape",
  "num_enum",
@@ -2439,7 +2439,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-zed"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "zed_extension_api",
 ]

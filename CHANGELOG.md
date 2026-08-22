@@ -1,3 +1,8 @@
+## [0.11.2] - 2026-08-22
+
+* packages/typerighter
+  - Fix broken static asset serving in vite dev server
+
 ## [0.11.1] - 2026-08-22
 
 * packages/typerighter
