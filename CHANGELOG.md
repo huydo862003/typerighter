@@ -1,3 +1,8 @@
+## [0.11.4] - 2026-08-22
+
+* packages/tree-sitter
+  - Add syntax highlighting for ? postfix operator
+
 ## [0.11.3] - 2026-08-22
 
 * packages/typerighter
