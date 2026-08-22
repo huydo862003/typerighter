@@ -73,7 +73,14 @@ function visible<T> (list: T[]): T[] {
         v-for="(item, idx) in visible(items)"
         :key="idx"
       >
-        {{ item }}
+        <a
+          v-if="extractRef(item)"
+          :href="extractRef(item)!.url"
+          class="td-widget-ref"
+        >{{ extractRef(item)!.name }}</a>
+        <template v-else>
+          {{ item }}
+        </template>
       </li>
     </ul>
     <button

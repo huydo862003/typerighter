@@ -152,10 +152,26 @@ pub fn export_property_descriptors(
       return serde_json::json!({ "type": "string" });
     };
 
-    // Sum of string literals is a select
+    // Sum of string literals is a select (filter out TdNullType for nullable `T?` types)
     if let Some(sum) = typ.as_td_sum_type() {
       let members = sum.members(db);
-      let mut literals: Vec<String> = members
+      let non_null_members: Vec<LazyType> = members
+        .iter()
+        .filter(|m| {
+          if let Some(m_typ) = m.resolve(db) {
+            !m_typ.is_td_null_type()
+          } else {
+            true
+          }
+        })
+        .cloned()
+        .collect();
+
+      if non_null_members.len() == 1 {
+        return lazy_to_descriptor(db, &non_null_members[0]);
+      }
+
+      let mut literals: Vec<String> = non_null_members
         .iter()
         .filter_map(|m| {
           if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
@@ -169,7 +185,7 @@ pub fn export_property_descriptors(
         .collect();
       literals.sort();
 
-      if literals.len() == members.len() {
+      if !literals.is_empty() && literals.len() == non_null_members.len() {
         return serde_json::json!({ "widget": Widget::Select, "options": literals });
       }
       return serde_json::json!({ "widget": Widget::Text });
