@@ -463,10 +463,11 @@ mod tests {
     get_bool_type, get_dict_type, get_list_type, get_literal_type, get_never_type, get_null_type,
     get_num_type, get_str_type, get_sum_type, get_type_type,
   };
+  use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
   use crate::db::types::derived::object_system::TdFuncObj;
   use crate::db::types::{
     File, FileHandle, FileMetadata, FnKind, FuncSignature, LazyType, LiteralValue, NativeFnKind,
-    PROTOCOL_CALL, PROTOCOL_INDEX, Project, RuntimeScope, TdStructuralType, TdTypeEnum,
+    PROTOCOL_CALL, PROTOCOL_INDEX, Project, TdStructuralType, TdTypeEnum,
   };
   use crate::db::utils::lower_file;
   use crate::db::{QueryStorage, TypedownDatabase};
@@ -574,7 +575,7 @@ mod tests {
     let str_hir = hir.expect("file should parse");
 
     let mut diagnostics = vec![];
-    let scope = RuntimeScope::empty(&db);
+    let scope = get_file_runtime_scope(&db, project, file);
     let obj = construct_from_hir(&db, str_hir, scope, &mut diagnostics);
     assert!(obj.is_some());
     assert!(diagnostics.is_empty());

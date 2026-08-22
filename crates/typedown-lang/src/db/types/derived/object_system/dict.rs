@@ -7,10 +7,9 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_dict_type, get_object_type, get_str_type};
+use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::typecheck::utils::validate_type_params;
-use crate::db::types::{
-  FuncSignature, HirValue, InstResult, LazyType, RuntimeScope, TypeParams, TypeVariable,
-};
+use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
@@ -174,7 +173,10 @@ impl TdRuntimeObject for TdDictObj {
   }
   fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
     match self.entries(db).get(key).cloned()? {
-      Either::Left(hir) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
+      Either::Left(hir) => {
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        evaluate_node(db, hir, file_scope).value(db)
+      }
       Either::Right(obj) => Some(obj),
     }
   }

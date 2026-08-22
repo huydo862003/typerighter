@@ -3,6 +3,10 @@ use std::collections::HashMap;
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived, query_interned};
 
+use crate::db::TypedownDatabase;
+use crate::db::derived::name_resolver::scope::{
+  get_builtin_runtime_scope, get_file_runtime_scope, get_project_runtime_scope, parent_scope,
+};
 use crate::db::types::{File, HirValue, Project, TdObjectEnum};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
@@ -439,6 +443,26 @@ impl Scope {
   ) -> Self {
     Self::new(db, ScopeKind::Fn(project, file, value))
   }
+
+  pub fn runtime_scope(&self, db: &TypedownDatabase) -> RuntimeScope {
+    match self.kind(db) {
+      ScopeKind::Builtin => get_builtin_runtime_scope(db),
+      ScopeKind::Project(project) => get_project_runtime_scope(db, project),
+      ScopeKind::File(project, file) => get_file_runtime_scope(db, project, file),
+      ScopeKind::Fn(project, file, _) => {
+        let parent_static = parent_scope(db, *self).value(db);
+        if let Some(parent) = parent_static
+          && matches!(parent.kind(db), ScopeKind::Fn(..))
+        {
+          panic!(
+            "Cannot construct static RuntimeScope for a nested closure scope. Nested closures require the dynamic defining RuntimeScope captured when the closure instance was created"
+          );
+        }
+        let parent = get_file_runtime_scope(db, project, file);
+        RuntimeScope::new(db, *self, vec![], Some(Box::new(parent)))
+      }
+    }
+  }
 }
 
 // Runtime scope for closure evaluation
@@ -451,10 +475,6 @@ pub struct RuntimeScope {
 }
 
 impl RuntimeScope {
-  pub fn empty(db: &(impl QueryDatabase + ?Sized)) -> Self {
-    Self::new(db, Scope::builtin_scope(db), vec![], None)
-  }
-
   pub fn lookup(&self, db: &(impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum> {
     for (key, val) in &self.bindings(db) {
       if key == name {
