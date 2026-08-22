@@ -14,6 +14,7 @@ use crate::db::derived::get_builtin_types::{
 };
 use crate::db::types::{
   BuiltinSchemaKind, LazyType, Symbol, SymbolKind, TdProductType, TdStaticType,
+  make_property_descriptors,
 };
 
 fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
@@ -111,7 +112,7 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("SchemaProperty".to_string()),
     get_type_type(db).into(),
-    fields,
+    make_property_descriptors(db, fields),
     HashMap::new(),
   )
 }

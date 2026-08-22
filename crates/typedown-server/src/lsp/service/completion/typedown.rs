@@ -15,6 +15,7 @@ use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
   File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
+  make_property_descriptors,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
 use typedown_lang::syntax::ast::{AstNode, Expr};
@@ -175,7 +176,7 @@ fn enclosing_mapping_product(
       db,
       None,
       typedown_lang::db::derived::get_builtin_types::get_type_type(db).into(),
-      structural.fields(db),
+      make_property_descriptors(db, structural.fields(db)),
       std::collections::HashMap::new(),
     );
     return Some((product, mapping));
@@ -268,8 +269,8 @@ fn build_schema_snippet(
 
   let fields = product.fields(db);
   let mut snippet = name.to_string();
-  for (tab_stop, (field_name, lazy)) in fields.iter().enumerate() {
-    let placeholder = lazy_placeholder(db, lazy, 0);
+  for (tab_stop, (field_name, prop_desc)) in fields.iter().enumerate() {
+    let placeholder = lazy_placeholder(db, &prop_desc.field_type, 0);
     let idx = tab_stop + 1;
 
     snippet.push_str(&format!("\n{field_name}: ${{{idx}:{placeholder}}}"));
@@ -338,8 +339,8 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
         let pad = "  ".repeat(indent + 1);
         let mut nested = String::new();
 
-        for (field_name, lazy) in &fields {
-          let placeholder = lazy_placeholder(db, lazy, indent + 1);
+        for (field_name, prop_desc) in &fields {
+          let placeholder = lazy_placeholder(db, &prop_desc.field_type, indent + 1);
 
           nested.push_str(&format!("\\n{pad}{field_name}: {placeholder}"));
         }

@@ -13,9 +13,9 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, FnKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
-  RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType, TdListObj, TdMathObj,
-  TdNullObj, TdNumObj, TdObjectEnum, TdProductObj, TdProductType, TdRuntimeObject, TdStaticType,
-  TdStrObj, TdTypeEnum, TdVaultObj,
+  PropertyDescriptor, RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType,
+  TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum, TdProductObj, TdProductType,
+  TdRuntimeObject, TdStaticType, TdStrObj, TdTypeEnum, TdVaultObj,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -397,11 +397,17 @@ fn evaluate_mapping(
         && prop_name != "_label"
         && prop_name != "_content"
       {
-        fields.insert(prop_name, LazyType::eager(get_never_type(db).into()));
+        fields.insert(
+          prop_name,
+          PropertyDescriptor {
+            field_type: LazyType::eager(get_never_type(db).into()),
+            default_value: None,
+          },
+        );
         continue;
       }
-      if let Some(lazy) = resolve_property_descriptor(db, prop_hir, &mut vec![]) {
-        fields.insert(prop_name, lazy);
+      if let Some(desc) = resolve_property_descriptor(db, prop_hir, &mut vec![]) {
+        fields.insert(prop_name, desc);
       }
     }
     return Some(

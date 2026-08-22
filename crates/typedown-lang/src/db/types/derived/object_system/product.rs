@@ -1,5 +1,8 @@
 use std::collections::HashMap;
-use typedown_macros::query_derived;
+use typedown_incremental::{
+  Decodable, Decoder, Encodable, Encoder, Id, QueryDatabase, StableHash, StableHasher,
+};
+use typedown_macros::{StableCompare, query_derived};
 
 use super::base::{TdRuntimeObject, TdStaticType};
 use super::func::TdFuncObj;
@@ -7,10 +10,6 @@ use super::null::TdNullObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::utils::static_type::format_field_map;
-use typedown_incremental::Id;
-use typedown_types::either::Either;
-
 use crate::db::derived::get_builtin_types::{get_func_type, get_str_type, get_type_type};
 use crate::db::types::derived::object_system::base::{
   BUILTIN_TO_STRING, PROTOCOL_CALL, PROTOCOL_INDEX,
@@ -18,13 +17,46 @@ use crate::db::types::derived::object_system::base::{
 use crate::db::types::{
   FnKind, FuncSignature, HirValue, LazyType, NativeFnKind, RuntimeScope, Symbol,
 };
+use crate::db::utils::static_type::format_field_map;
 use crate::syntax::diagnostic::Diagnostic;
+use typedown_types::either::Either;
+
+#[derive(Debug, Clone, PartialEq, Eq, StableCompare)]
+pub struct PropertyDescriptor {
+  pub field_type: LazyType,
+  pub default_value: Option<TdObjectEnum>,
+}
+
+impl StableHash for PropertyDescriptor {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.field_type.stable_hash(db, hasher);
+    self.default_value.stable_hash(db, hasher);
+  }
+}
+
+impl Encodable for PropertyDescriptor {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.field_type.encode(buf, encoder);
+    self.default_value.encode(buf, encoder);
+  }
+}
+
+impl Decodable for PropertyDescriptor {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let field_type = LazyType::decode(data, decoder);
+    let default_value = Option::<TdObjectEnum>::decode(data, decoder);
+    PropertyDescriptor {
+      field_type,
+      default_value,
+    }
+  }
+}
 
 #[query_derived]
 pub struct TdProductType {
   pub name: Option<String>,
   pub metatype: TdTypeEnum,
-  pub fields: HashMap<String, LazyType>,
+  pub fields: HashMap<String, PropertyDescriptor>,
   pub vtable: HashMap<String, TdFuncObj>,
 }
 
@@ -46,7 +78,7 @@ impl TdStaticType for TdProductType {
     if let Some(name) = self.name(db) {
       return name;
     }
-    format_field_map(db, &self.fields(db))
+    format_field_map(db, &self.get_fields(db))
   }
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
@@ -86,7 +118,11 @@ impl TdStaticType for TdProductType {
     result
   }
   fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
-    self.fields(db)
+    self
+      .fields(db)
+      .into_iter()
+      .map(|(name, desc)| (name, desc.field_type))
+      .collect()
   }
   fn is_type(&self, db: &TypedownDatabase) -> bool {
     let type_type = get_type_type(db);
@@ -109,8 +145,17 @@ impl TdRuntimeObject for TdProductObj {
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
       Some(Either::Right(obj)) => Some(obj),
-      // Missing fields evaluate to null
-      None => Some(TdNullObj::get(db).into()),
+      // Missing fields evaluate to default from PropertyDescriptor if present, or null
+      None => {
+        if let Some(product_type) = self.schema(db).as_td_product_type()
+          && let Some(prop_desc) = product_type.fields(db).get(key)
+          && let Some(ref def_obj) = prop_desc.default_value
+        {
+          Some(def_obj.clone())
+        } else {
+          Some(TdNullObj::get(db).into())
+        }
+      }
     }
   }
   fn source_path(&self, db: &TypedownDatabase) -> String {
@@ -134,4 +179,22 @@ impl TdRuntimeObject for TdProductObj {
     };
     func.call(db, this, args)
   }
+}
+
+pub fn make_property_descriptors(
+  _db: &TypedownDatabase,
+  fields: HashMap<String, LazyType>,
+) -> HashMap<String, PropertyDescriptor> {
+  fields
+    .into_iter()
+    .map(|(k, v)| {
+      (
+        k,
+        PropertyDescriptor {
+          field_type: v,
+          default_value: None,
+        },
+      )
+    })
+    .collect()
 }

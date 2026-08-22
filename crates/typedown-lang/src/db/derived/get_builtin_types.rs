@@ -11,6 +11,7 @@ use crate::db::types::{
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdListType,
   TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
   TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
+  make_property_descriptors,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -99,7 +100,7 @@ pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
     db,
     Some("schema".to_string()),
     get_type_type(db).into(),
-    fields,
+    make_property_descriptors(db, fields),
     HashMap::new(),
   )
 }

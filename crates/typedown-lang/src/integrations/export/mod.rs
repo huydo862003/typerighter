@@ -132,9 +132,15 @@ pub fn export_property_descriptors(
 
   let mut properties = serde_json::Map::new();
 
-  for (name, lazy) in &fields {
-    let prop = lazy_to_descriptor(db, lazy);
-    properties.insert(name.clone(), prop);
+  for (name, prop_desc) in fields {
+    let mut prop_json = lazy_to_descriptor(db, &prop_desc.field_type);
+    if let Some(ref def_obj) = prop_desc.default_value
+      && let Ok(def_json) = json::to_json(db, project, def_obj)
+      && let serde_json::Value::Object(ref mut map) = prop_json
+    {
+      map.insert("default".to_string(), def_json);
+    }
+    properties.insert(name, prop_json);
   }
 
   return Some(serde_json::Value::Object(properties));

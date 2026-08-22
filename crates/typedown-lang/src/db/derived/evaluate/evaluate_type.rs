@@ -6,6 +6,7 @@ use crate::syntax::diagnostic::Diagnostic;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_literal_type,
   get_math_type, get_null_type, get_num_type, get_object_type, get_schema_type, get_str_type,
@@ -16,8 +17,9 @@ use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::{
-  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
-  SymbolKind, TdBlobType, TdProductType, TdStaticType, TdStructuralType, TdTypeEnum, TypeResult,
+  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project,
+  PropertyDescriptor, RuntimeScope, Symbol, SymbolKind, TdBlobType, TdProductType, TdStaticType,
+  TdStructuralType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
 use typedown_incremental::QueryDatabase;
@@ -116,8 +118,8 @@ fn evaluate_user_defined_schema(
 
   // Loop through the declared props
   for (prop_name, prop_hir) in properties_entries {
-    if let Some(lazy) = resolve_property_descriptor(db, prop_hir, &mut diagnostics) {
-      fields.insert(prop_name.clone(), lazy);
+    if let Some(desc) = resolve_property_descriptor(db, prop_hir, &mut diagnostics) {
+      fields.insert(prop_name.clone(), desc);
     }
   }
 
@@ -138,12 +140,12 @@ fn evaluate_user_defined_schema(
 }
 
 // Process a property descriptor like `{ type: string, default: "hello" }`
-// Returns a LazyType representing the field type
+// Returns Option<PropertyDescriptor>
 pub(crate) fn resolve_property_descriptor(
   db: &TypedownDatabase,
   hir: HirValue,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<LazyType> {
+) -> Option<PropertyDescriptor> {
   let entries = match hir.kind(db) {
     HirValueKind::Mapping(entries) => entries,
     _ => return None,
@@ -184,7 +186,13 @@ pub(crate) fn resolve_property_descriptor(
     }
   }
 
-  field_type
+  let default_obj =
+    default_val.and_then(|def_hir| evaluate_node(db, def_hir, RuntimeScope::empty(db)).value(db));
+
+  field_type.map(|lazy| PropertyDescriptor {
+    field_type: lazy,
+    default_value: default_obj,
+  })
 }
 
 fn resolve_type_lazy(
@@ -262,8 +270,8 @@ fn resolve_type_lazy(
     HirValueKind::Mapping(entries) => {
       let mut fields = HashMap::new();
       for (key, value_hir) in entries {
-        if let Some(lazy) = resolve_property_descriptor(db, value_hir, diagnostics) {
-          fields.insert(key.clone(), lazy);
+        if let Some(desc) = resolve_property_descriptor(db, value_hir, diagnostics) {
+          fields.insert(key.clone(), desc.field_type);
         }
       }
       Some(LazyType::eager(TdStructuralType::new(db, fields).into()))
@@ -336,7 +344,9 @@ mod tests {
   use super::*;
   use crate::db::typecheck::utils::validate_type_params;
   use crate::db::types::derived::object_system::TdStaticType;
-  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
+  use crate::db::types::{
+    TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable, make_property_descriptors,
+  };
   use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::HashMap;
@@ -626,10 +636,13 @@ mod tests {
       &db,
       None,
       get_type_type(&db).into(),
-      HashMap::from([(
-        "name".to_string(),
-        LazyType::eager(get_str_type(&db).into()),
-      )]),
+      make_property_descriptors(
+        &db,
+        HashMap::from([(
+          "name".to_string(),
+          LazyType::eager(get_str_type(&db).into()),
+        )]),
+      ),
       HashMap::new(),
     );
     let product_type: TdTypeEnum = product.into();
@@ -799,7 +812,7 @@ mod tests {
     let typ = result.typ(&db).unwrap();
     let product = typ.as_td_product_type().unwrap();
     let status_field = product.fields(&db).get("status").unwrap().clone();
-    let typ = status_field.resolve(&db).unwrap();
+    let typ = status_field.field_type.resolve(&db).unwrap();
     let sum = typ.as_td_sum_type().expect("status should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "status should have 3 members");
   }
@@ -813,7 +826,7 @@ mod tests {
     let typ = result.typ(&db).unwrap();
     let product = typ.as_td_product_type().unwrap();
     let value_field = product.fields(&db).get("value").unwrap().clone();
-    let typ = value_field.resolve(&db).unwrap();
+    let typ = value_field.field_type.resolve(&db).unwrap();
     let sum = typ.as_td_sum_type().expect("value should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "should have 3 members");
     let has_draft = sum.members(&db).iter().any(|m| {

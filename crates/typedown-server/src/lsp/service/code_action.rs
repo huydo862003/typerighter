@@ -81,9 +81,12 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 
       let mut template = String::new();
 
-      for (field_name, lazy) in &fields {
-        let default = default_value(db, lazy);
-        let optional = lazy.resolve(db).is_some_and(|t| is_nullable(db, &t));
+      for (field_name, prop_desc) in &fields {
+        let default = default_value(db, &prop_desc.field_type);
+        let optional = prop_desc
+          .field_type
+          .resolve(db)
+          .is_some_and(|t| is_nullable(db, &t));
 
         if optional {
           template.push_str(&format!("# {field_name}: {default}\n"));
