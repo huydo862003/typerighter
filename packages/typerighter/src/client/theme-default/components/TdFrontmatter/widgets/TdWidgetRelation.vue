@@ -85,7 +85,7 @@ const resolved = extractRef(value);
 .td-widget-image-preview {
   display: inline-block;
   width: 180px;
-  height: 180px;
+  height: 260px;
   border-radius: var(--border-radius-td-lg, 8px);
   overflow: hidden;
   border: 1px solid var(--color-td-border, rgba(55, 53, 47, 0.16));

@@ -1,4 +1,9 @@
 import {
+  createReadStream,
+  existsSync,
+  statSync,
+} from 'node:fs';
+import {
   resolve,
 } from 'node:path';
 import pc from 'picocolors';
@@ -39,6 +44,24 @@ import {
 import type {
   ContentTree,
 } from '@/shared';
+
+const COMMON_MIME_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  avif: 'image/avif',
+  ico: 'image/x-icon',
+  pdf: 'application/pdf',
+  zip: 'application/zip',
+  mp3: 'audio/mpeg',
+  mp4: 'video/mp4',
+  woff: 'font/woff',
+  woff2: 'font/woff2',
+  ttf: 'font/ttf',
+};
 
 export interface ClientAppEntryOptions {
   /** Content directory relative to project root */
@@ -333,6 +356,47 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       tdContext.rpc.onSchemaChanged(() => server && hmrInvalidateAll(server));
       tdContext.rpc.onSchemaCreated(() => server && hmrInvalidateAll(server));
       tdContext.rpc.onSchemaDeleted(() => server && hmrInvalidateAll(server));
+
+      let cachedContentDirectory = 'vault/content';
+
+      tdContext.getConfig()
+        .then((config) => {
+          cachedContentDirectory = config.contentDir;
+        })
+        .catch(() => {});
+
+      // Middleware to serve content assets (images, PDFs, etc.) from contentDir
+      devServer.middlewares.use((request, result, next) => {
+        if (!request.url || request.method !== 'GET' || result.writableEnded || !server) return next();
+
+        const urlPath = request.url.split('?')[0].split('#')[0];
+
+        if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules')) return next();
+
+        const relativePath = urlPath.replace(/^\//, '');
+        const contentFilePath = resolve(server.config.root, cachedContentDirectory, relativePath);
+
+        if (existsSync(contentFilePath)) {
+          try {
+            const stat = statSync(contentFilePath);
+
+            if (stat.isFile()) {
+              const extension = path.extname(contentFilePath)
+                .slice(1)
+                .toLowerCase();
+              const mimeType = COMMON_MIME_TYPES[extension] ?? 'application/octet-stream';
+
+              result.setHeader('Content-Type', mimeType);
+              result.setHeader('Content-Length', stat.size);
+              createReadStream(contentFilePath).pipe(result);
+
+              return;
+            }
+          } catch {}
+        }
+
+        next();
+      });
 
       // Serve a default index.html for SPA routing
       return () => {
