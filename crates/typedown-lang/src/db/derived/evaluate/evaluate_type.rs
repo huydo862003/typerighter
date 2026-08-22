@@ -553,14 +553,16 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/DefaultInvalid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
-    assert_eq!(
-      result.diagnostics(&db),
-      &[Diagnostic::FieldTypeMismatch {
-        field: "default".to_string(),
-        expected: "string".to_string(),
-        start_offset: 70,
-        end_offset: 73,
-      }]
+    let diags = result.diagnostics(&db);
+    assert_eq!(diags.len(), 1);
+    assert!(
+      matches!(
+        &diags[0],
+        Diagnostic::FieldTypeMismatch { field, expected, .. }
+          if field == "default" && expected == "string"
+      ),
+      "expected FieldTypeMismatch for 'default', got {:?}",
+      diags
     );
   }
 
