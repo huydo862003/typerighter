@@ -24,12 +24,14 @@ use typedown_types::either::Either;
 pub struct PropertyDescriptor {
   pub field_type: LazyType,
   pub default_value: Option<TdObjectEnum>,
+  pub computed_fn: Option<TdObjectEnum>,
 }
 
 impl StableHash for PropertyDescriptor {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.field_type.stable_hash(db, hasher);
     self.default_value.stable_hash(db, hasher);
+    self.computed_fn.stable_hash(db, hasher);
   }
 }
 
@@ -37,6 +39,7 @@ impl Encodable for PropertyDescriptor {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.field_type.encode(buf, encoder);
     self.default_value.encode(buf, encoder);
+    self.computed_fn.encode(buf, encoder);
   }
 }
 
@@ -44,9 +47,11 @@ impl Decodable for PropertyDescriptor {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let field_type = LazyType::decode(data, decoder);
     let default_value = Option::<TdObjectEnum>::decode(data, decoder);
+    let computed_fn = Option::<TdObjectEnum>::decode(data, decoder);
     PropertyDescriptor {
       field_type,
       default_value,
+      computed_fn,
     }
   }
 }
@@ -195,6 +200,7 @@ pub fn make_property_descriptors(
         PropertyDescriptor {
           field_type: v,
           default_value: None,
+          computed_fn: None,
         },
       )
     })
