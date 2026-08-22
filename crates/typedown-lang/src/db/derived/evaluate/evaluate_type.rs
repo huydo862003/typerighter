@@ -154,6 +154,7 @@ pub(crate) fn resolve_property_descriptor(
 
   let mut field_type: Option<LazyType> = None;
   let mut default_val: Option<HirValue> = None;
+  let mut computed_fn_val: Option<HirValue> = None;
 
   for (key, value) in &entries {
     match key.as_str() {
@@ -163,8 +164,25 @@ pub(crate) fn resolve_property_descriptor(
       "default" => {
         default_val = Some(*value);
       }
+      "computed" => {
+        computed_fn_val = Some(*value);
+      }
       _ => {}
     }
+  }
+
+  if default_val.is_some()
+    && let Some(computed_hir) = computed_fn_val
+  {
+    let node = computed_hir.node(db);
+    let (tr_offset, tr_len) = node.trimmed_range();
+    diagnostics.push(Diagnostic::FieldTypeMismatch {
+      field: "computed".to_string(),
+      expected: "property cannot specify both default and computed".to_string(),
+      start_offset: tr_offset,
+      end_offset: tr_offset + tr_len,
+    });
+    return None;
   }
 
   if let (Some(lazy), Some(def_hir)) = (&field_type, default_val)
@@ -192,9 +210,72 @@ pub(crate) fn resolve_property_descriptor(
     evaluate_node(db, def_hir, file_scope).value(db)
   });
 
+  let computed_fn = computed_fn_val.and_then(|computed_hir| {
+    let scope = get_file_runtime_scope(db, computed_hir.project(db), computed_hir.file(db));
+    let res = evaluate_node(db, computed_hir, scope);
+    diagnostics.extend(res.diagnostics(db).iter().cloned());
+    let val = res.value(db)?;
+    let Some(func_obj) = val.as_td_func_obj() else {
+      let node = computed_hir.node(db);
+      let (tr_offset, tr_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::FieldTypeMismatch {
+        field: "computed".to_string(),
+        expected: "function".to_string(),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      });
+      return None;
+    };
+
+    let sig = func_obj.signature(db);
+    let param_count = match computed_hir.kind(db) {
+      HirValueKind::Closure { ref params, .. } => params.len(),
+      _ => sig.params(db).len(),
+    };
+    if param_count != 1 {
+      let node = computed_hir.node(db);
+      let (tr_offset, tr_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::FieldTypeMismatch {
+        field: "computed".to_string(),
+        expected: "function expecting 1 parameter".to_string(),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      });
+      return None;
+    }
+
+    let ret_type = match computed_hir.kind(db) {
+      HirValueKind::Closure { body, .. } => actual_node_type(db, *body).typ(db),
+      _ => Some(sig.ret(db)),
+    };
+    if let Some(ref lazy) = field_type
+      && let Some(declared_type) = lazy.resolve(db)
+      && let Some(ret_type) = ret_type
+      && !is_subtype_of(db, &ret_type, &declared_type)
+    {
+      let node = computed_hir.node(db);
+      let (tr_offset, tr_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::FieldTypeMismatch {
+        field: "computed".to_string(),
+        expected: declared_type.display_name(db),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      });
+    }
+    Some(val)
+  });
+
+  if field_type.is_none()
+    && let Some(ref computed_enum) = computed_fn
+    && let Some(func_obj) = computed_enum.as_td_func_obj()
+  {
+    field_type = Some(LazyType::eager(func_obj.signature(db).ret(db)));
+  }
+
   field_type.map(|lazy| PropertyDescriptor {
     field_type: lazy,
     default_value: default_obj,
+    computed_fn,
   })
 }
 
@@ -1070,6 +1151,136 @@ properties:
         expected: "number".to_string(),
         start_offset: 67,
         end_offset: 81,
+      }]
+    );
+  }
+
+  #[test]
+  fn evaluate_schema_with_computed_field() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/ComputedValid.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(result.diagnostics(&db).is_empty());
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    let desc = product.fields(&db).get("fullName").cloned().unwrap();
+    assert!(
+      desc.computed_fn.is_some(),
+      "computed_fn should be populated"
+    );
+  }
+
+  #[test]
+  fn evaluate_schema_with_invalid_computed_return_type_emits_diagnostic() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+_type: schema
+properties:
+  fullName:
+    type: number
+    computed: (r) -> "hello"
+---"#,
+    );
+    let mut diagnostics = vec![];
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = match props_hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+
+    let desc = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    assert!(desc.is_some());
+    assert_eq!(
+      diagnostics,
+      vec![Diagnostic::FieldTypeMismatch {
+        field: "computed".to_string(),
+        expected: "number".to_string(),
+        start_offset: 72,
+        end_offset: 87,
+      }]
+    );
+  }
+
+  #[test]
+  fn evaluate_schema_with_invalid_computed_param_count_emits_diagnostic() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+_type: schema
+properties:
+  fullName:
+    type: string
+    computed: (a, b) -> a + b
+---"#,
+    );
+    let mut diagnostics = vec![];
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = match props_hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+
+    let desc = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    assert!(desc.is_some());
+    assert_eq!(
+      diagnostics,
+      vec![Diagnostic::FieldTypeMismatch {
+        field: "computed".to_string(),
+        expected: "function expecting 1 parameter".to_string(),
+        start_offset: 72,
+        end_offset: 88,
+      }]
+    );
+  }
+
+  #[test]
+  fn evaluate_schema_with_default_and_computed_emits_diagnostic() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+_type: schema
+properties:
+  fullName:
+    type: string
+    default: "Alice"
+    computed: (r) -> "hello"
+---"#,
+    );
+    let mut diagnostics = vec![];
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = match props_hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+
+    let desc = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    assert!(desc.is_none());
+    assert_eq!(
+      diagnostics,
+      vec![Diagnostic::FieldTypeMismatch {
+        field: "computed".to_string(),
+        expected: "property cannot specify both default and computed".to_string(),
+        start_offset: 93,
+        end_offset: 108,
       }]
     );
   }

@@ -402,6 +402,7 @@ fn evaluate_mapping(
           PropertyDescriptor {
             field_type: LazyType::eager(get_never_type(db).into()),
             default_value: None,
+            computed_fn: None,
           },
         );
         continue;

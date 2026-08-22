@@ -24,12 +24,14 @@ use typedown_types::either::Either;
 pub struct PropertyDescriptor {
   pub field_type: LazyType,
   pub default_value: Option<TdObjectEnum>,
+  pub computed_fn: Option<TdObjectEnum>,
 }
 
 impl StableHash for PropertyDescriptor {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.field_type.stable_hash(db, hasher);
     self.default_value.stable_hash(db, hasher);
+    self.computed_fn.stable_hash(db, hasher);
   }
 }
 
@@ -37,6 +39,7 @@ impl Encodable for PropertyDescriptor {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.field_type.encode(buf, encoder);
     self.default_value.encode(buf, encoder);
+    self.computed_fn.encode(buf, encoder);
   }
 }
 
@@ -44,9 +47,11 @@ impl Decodable for PropertyDescriptor {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let field_type = LazyType::decode(data, decoder);
     let default_value = Option::<TdObjectEnum>::decode(data, decoder);
+    let computed_fn = Option::<TdObjectEnum>::decode(data, decoder);
     PropertyDescriptor {
       field_type,
       default_value,
+      computed_fn,
     }
   }
 }
@@ -147,16 +152,22 @@ impl TdRuntimeObject for TdProductObj {
         evaluate_node(db, hir, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),
-      // Missing fields evaluate to default from PropertyDescriptor if present, or null
+      // Missing fields evaluate to computed, default from PropertyDescriptor if present, or null
       None => {
         if let Some(product_type) = self.schema(db).as_td_product_type()
           && let Some(prop_desc) = product_type.fields(db).get(key)
-          && let Some(ref def_obj) = prop_desc.default_value
         {
-          Some(def_obj.clone())
-        } else {
-          Some(TdNullObj::get(db).into())
+          if let Some(ref computed_enum) = prop_desc.computed_fn
+            && let Some(func_obj) = computed_enum.as_td_func_obj()
+            && let Ok(res_val) = func_obj.call(db, None, vec![(*self).into()])
+          {
+            return Some(res_val);
+          }
+          if let Some(ref def_obj) = prop_desc.default_value {
+            return Some(def_obj.clone());
+          }
         }
+        Some(TdNullObj::get(db).into())
       }
     }
   }
@@ -195,8 +206,78 @@ pub fn make_property_descriptors(
         PropertyDescriptor {
           field_type: v,
           default_value: None,
+          computed_fn: None,
         },
       )
     })
     .collect()
+}
+
+#[cfg(test)]
+mod tests {
+  use std::collections::HashMap;
+
+  use super::*;
+  use crate::db::derived::get_builtin_types::{get_str_type, get_type_type};
+  use crate::db::fixtures::load_vault_fixture;
+
+  #[test]
+  fn test_product_type_get_fields_and_get_owned_field_type_include_default_and_computed() {
+    let (db, _, _) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let str_type: TdTypeEnum = get_str_type(&db).into();
+    let schema_metatype: TdTypeEnum = get_type_type(&db).into();
+
+    let mut fields = HashMap::new();
+    fields.insert(
+      "plain".to_string(),
+      PropertyDescriptor {
+        field_type: LazyType::eager(str_type.clone()),
+        default_value: None,
+        computed_fn: None,
+      },
+    );
+    fields.insert(
+      "with_default".to_string(),
+      PropertyDescriptor {
+        field_type: LazyType::eager(str_type.clone()),
+        default_value: Some(crate::db::types::TdStrObj::new(&db, "default_val".to_string()).into()),
+        computed_fn: None,
+      },
+    );
+    fields.insert(
+      "with_computed".to_string(),
+      PropertyDescriptor {
+        field_type: LazyType::eager(str_type.clone()),
+        default_value: None,
+        computed_fn: Some(crate::db::types::TdStrObj::new(&db, "dummy_fn".to_string()).into()),
+      },
+    );
+
+    let product_type = TdProductType::new(
+      &db,
+      Some("TestProduct".to_string()),
+      schema_metatype,
+      fields,
+      HashMap::new(),
+    );
+
+    let all_fields = product_type.get_fields(&db);
+    assert_eq!(all_fields.len(), 3);
+    assert!(all_fields.contains_key("plain"));
+    assert!(all_fields.contains_key("with_default"));
+    assert!(all_fields.contains_key("with_computed"));
+
+    assert_eq!(
+      product_type.get_owned_field_type(&db, "plain"),
+      Some(str_type.clone())
+    );
+    assert_eq!(
+      product_type.get_owned_field_type(&db, "with_default"),
+      Some(str_type.clone())
+    );
+    assert_eq!(
+      product_type.get_owned_field_type(&db, "with_computed"),
+      Some(str_type.clone())
+    );
+  }
 }
