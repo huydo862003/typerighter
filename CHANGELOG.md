@@ -1,3 +1,8 @@
+## [0.11.3] - 2026-08-22
+
+* packages/typerighter
+  - Style frontmatter widget list as list of bullet point instead of inline list
+
 ## [0.11.2] - 2026-08-22
 
 * packages/typerighter
