@@ -13,6 +13,8 @@ use crate::db::derived::get_builtin_types::{
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::schema_property::get_schema_property_type;
+use crate::db::derived::typechecker::actual_node_type::actual_node_type;
+use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project, Symbol,
   SymbolKind, TdBlobType, TdProductType, TdStaticType, TdStructuralType, TdTypeEnum, TypeResult,
@@ -135,7 +137,7 @@ fn evaluate_user_defined_schema(
   )
 }
 
-// Process a property descriptor like `{ type: string }`
+// Process a property descriptor like `{ type: string, default: "hello" }`
 // Returns a LazyType representing the field type
 pub(crate) fn resolve_property_descriptor(
   db: &TypedownDatabase,
@@ -148,10 +150,37 @@ pub(crate) fn resolve_property_descriptor(
   };
 
   let mut field_type: Option<LazyType> = None;
+  let mut default_val: Option<HirValue> = None;
 
   for (key, value) in &entries {
-    if key.as_str() == "type" {
-      field_type = resolve_type_lazy(db, *value, diagnostics);
+    match key.as_str() {
+      "type" => {
+        field_type = resolve_type_lazy(db, *value, diagnostics);
+      }
+      "default" => {
+        default_val = Some(*value);
+      }
+      _ => {}
+    }
+  }
+
+  if let (Some(lazy), Some(def_hir)) = (&field_type, default_val)
+    && let Some(declared_type) = lazy.resolve(db)
+  {
+    let actual_res = actual_node_type(db, def_hir);
+    diagnostics.extend(actual_res.diagnostics(db).iter().cloned());
+    if actual_res
+      .typ(db)
+      .is_some_and(|actual_type| !is_subtype_of(db, &actual_type, &declared_type))
+    {
+      let node = def_hir.node(db);
+      let (tr_offset, tr_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::FieldTypeMismatch {
+        field: "default".to_string(),
+        expected: declared_type.display_name(db),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      });
     }
   }
 
@@ -304,6 +333,7 @@ fn resolve_type_lazy(
 
 #[cfg(test)]
 mod tests {
+  use super::*;
   use crate::db::typecheck::utils::validate_type_params;
   use crate::db::types::derived::object_system::TdStaticType;
   use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
@@ -409,6 +439,35 @@ mod tests {
       load_vault_fixture("evaluate/my_vault", "schemas/WrongPropertyDescriptor.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     assert!(!evaluate_type(&db, symbol).diagnostics(&db).is_empty());
+  }
+
+  #[test]
+  fn evaluate_type_schema_with_valid_default_fixture() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/DefaultValid.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "valid default fixture should have no diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
+    assert!(result.typ(&db).is_some());
+  }
+
+  #[test]
+  fn evaluate_type_schema_with_mismatched_default_fixture() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/DefaultInvalid.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert_eq!(
+      result.diagnostics(&db),
+      &[Diagnostic::FieldTypeMismatch {
+        field: "default".to_string(),
+        expected: "string".to_string(),
+        start_offset: 70,
+        end_offset: 73,
+      }]
+    );
   }
 
   #[test]
@@ -921,6 +980,78 @@ f: (x) -> self.a + x
     assert!(
       result.is_none(),
       "self should bind to the defining file, not the call site"
+    );
+  }
+
+  #[test]
+  fn evaluate_schema_with_valid_default_no_diagnostics() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+_type: schema
+properties:
+  age:
+    type: number
+    default: 42
+---"#,
+    );
+    let mut diagnostics = vec![];
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = match props_hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+
+    let lazy = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    assert!(lazy.is_some());
+    assert!(
+      diagnostics.is_empty(),
+      "valid default should produce no diagnostics: {:?}",
+      diagnostics
+    );
+  }
+
+  #[test]
+  fn evaluate_schema_with_invalid_default_emits_diagnostic() {
+    let db = make_db();
+    let hir = make_hir(
+      &db,
+      r#"---
+_type: schema
+properties:
+  age:
+    type: number
+    default: "not a number"
+---"#,
+    );
+    let mut diagnostics = vec![];
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = match props_hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries,
+      _ => panic!("expected mapping"),
+    };
+    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+
+    let lazy = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    assert!(lazy.is_some());
+    assert_eq!(
+      diagnostics,
+      vec![Diagnostic::FieldTypeMismatch {
+        field: "default".to_string(),
+        expected: "number".to_string(),
+        start_offset: 67,
+        end_offset: 81,
+      }]
     );
   }
 }
