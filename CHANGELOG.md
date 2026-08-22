@@ -1,3 +1,10 @@
+## [0.11.0] - 2026-08-22
+
+* crates/typedown-lang
+  - Support existential type
+  - Support default and computed in schema definition
+  - Support ? operator for optional, remove optional property in schema definition
+
 ## [0.10.2] - 2026-08-14
 
 * crates/typedown-lang
