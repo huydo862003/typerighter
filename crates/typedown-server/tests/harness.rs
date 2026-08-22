@@ -120,7 +120,7 @@ pub struct Server {
 }
 
 impl Server {
-  pub fn new() -> ServerBuilder {
+  pub fn builder() -> ServerBuilder {
     ServerBuilder::new()
   }
 

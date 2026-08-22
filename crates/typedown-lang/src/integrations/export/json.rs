@@ -135,8 +135,11 @@ fn serialize(
         return Err(CircularRef);
       }
       let mut map = serde_json::Map::new();
-      for (name, lazy) in product.fields(db) {
-        map.insert(name, serialize_lazy_type(db, project, &lazy, visiting)?);
+      for (name, prop_desc) in product.fields(db) {
+        map.insert(
+          name,
+          serialize_lazy_type(db, project, &prop_desc.field_type, visiting)?,
+        );
       }
       visiting.remove(&id);
       Ok(serde_json::Value::Object(map))

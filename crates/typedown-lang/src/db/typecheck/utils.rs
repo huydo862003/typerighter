@@ -174,7 +174,7 @@ fn is_subtype_of_env(
             Some(vt) => vt,
             None => return true,
           };
-          product.fields(db).values().all(|field_lazy| {
+          product.get_fields(db).values().all(|field_lazy| {
             field_lazy
               .resolve(db)
               .is_some_and(|ft| is_subtype_of_env(db, &ft, &value_type, env))
@@ -195,17 +195,19 @@ fn is_subtype_of_env(
       },
       TdTypeEnum::TdFuncType(_) => matches!(subtype, TdTypeEnum::TdFuncType(_)),
       TdTypeEnum::TdProductType(expected_product) => match subtype {
-        TdTypeEnum::TdProductType(product) => {
-          fields_compatible(db, &expected_product.fields(db), &product.fields(db))
-        }
+        TdTypeEnum::TdProductType(product) => fields_compatible(
+          db,
+          &expected_product.get_fields(db),
+          &product.get_fields(db),
+        ),
         TdTypeEnum::TdStructuralType(structural) => {
-          fields_compatible(db, &expected_product.fields(db), &structural.fields(db))
+          fields_compatible(db, &expected_product.get_fields(db), &structural.fields(db))
         }
         _ => false,
       },
       TdTypeEnum::TdStructuralType(expected_structural) => match subtype {
         TdTypeEnum::TdProductType(product) => {
-          fields_compatible(db, &expected_structural.fields(db), &product.fields(db))
+          fields_compatible(db, &expected_structural.fields(db), &product.get_fields(db))
         }
         TdTypeEnum::TdStructuralType(structural) => {
           fields_compatible(db, &expected_structural.fields(db), &structural.fields(db))
@@ -402,7 +404,7 @@ mod tests {
   };
   use crate::db::types::{
     LazyType, LiteralValue, TdExistentialType, TdFuncType, TdProductType, TdStructuralType,
-    TdVariableType, TypeVariable,
+    TdVariableType, TypeVariable, make_property_descriptors,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -1056,10 +1058,13 @@ mod tests {
       &db,
       Some("Test".to_string()),
       get_type_type(&db).into(),
-      HashMap::from([(
-        "name".to_string(),
-        LazyType::eager(get_str_type(&db).into()),
-      )]),
+      make_property_descriptors(
+        &db,
+        HashMap::from([(
+          "name".to_string(),
+          LazyType::eager(get_str_type(&db).into()),
+        )]),
+      ),
       HashMap::new(),
     )
     .into();
@@ -1081,10 +1086,13 @@ mod tests {
       &db,
       Some("Test".to_string()),
       get_type_type(&db).into(),
-      HashMap::from([(
-        "name".to_string(),
-        LazyType::eager(get_str_type(&db).into()),
-      )]),
+      make_property_descriptors(
+        &db,
+        HashMap::from([(
+          "name".to_string(),
+          LazyType::eager(get_str_type(&db).into()),
+        )]),
+      ),
       HashMap::new(),
     )
     .into();
@@ -1106,13 +1114,16 @@ mod tests {
       &db,
       Some("Test".to_string()),
       get_type_type(&db).into(),
-      HashMap::from([
-        (
-          "name".to_string(),
-          LazyType::eager(get_str_type(&db).into()),
-        ),
-        ("age".to_string(), LazyType::eager(get_num_type(&db).into())),
-      ]),
+      make_property_descriptors(
+        &db,
+        HashMap::from([
+          (
+            "name".to_string(),
+            LazyType::eager(get_str_type(&db).into()),
+          ),
+          ("age".to_string(), LazyType::eager(get_num_type(&db).into())),
+        ]),
+      ),
       HashMap::new(),
     )
     .into();

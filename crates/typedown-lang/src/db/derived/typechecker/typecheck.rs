@@ -166,8 +166,25 @@ fn check_mapping_fields(
   let (tr_offset, tr_len) = mapping_node.trimmed_range();
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
 
+  let default_fields: HashSet<String> = expected_type
+    .as_td_product_type()
+    .map(|p| {
+      p.fields(db)
+        .iter()
+        .filter_map(|(k, desc)| {
+          if desc.default_value.is_some() {
+            Some(k.clone())
+          } else {
+            None
+          }
+        })
+        .collect()
+    })
+    .unwrap_or_default();
+
   for (field_name, field_lazy) in declared_fields {
-    let is_optional = field_lazy.resolve(db).is_some_and(|t| is_nullable(db, &t));
+    let is_optional = field_lazy.resolve(db).is_some_and(|t| is_nullable(db, &t))
+      || default_fields.contains(&field_name);
     if !is_optional && !present_keys.contains(field_name.as_str()) {
       diagnostics.push(Diagnostic::MissingRequiredField {
         field: field_name,

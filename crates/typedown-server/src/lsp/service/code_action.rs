@@ -44,14 +44,14 @@ pub fn code_action(analysis: &Analysis, params: CodeActionParams) -> Option<Code
       new_text: format!("---\n_type: {name}\n{template}---\n"),
     };
 
-    #[allow(clippy::mutable_key_type)]
-    let changes = HashMap::from([(params.text_document.uri.clone(), vec![edit])]);
-
     actions.push(CodeAction {
       title: format!("Initialize as {name}"),
       kind: Some(CodeActionKind::QUICKFIX),
       edit: Some(WorkspaceEdit {
-        changes: Some(changes),
+        changes: Some(HashMap::from([(
+          params.text_document.uri.clone(),
+          vec![edit],
+        )])),
         ..Default::default()
       }),
       ..Default::default()
@@ -81,9 +81,12 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 
       let mut template = String::new();
 
-      for (field_name, lazy) in &fields {
-        let default = default_value(db, lazy);
-        let optional = lazy.resolve(db).is_some_and(|t| is_nullable(db, &t));
+      for (field_name, prop_desc) in &fields {
+        let default = default_value(db, &prop_desc.field_type);
+        let optional = prop_desc
+          .field_type
+          .resolve(db)
+          .is_some_and(|t| is_nullable(db, &t));
 
         if optional {
           template.push_str(&format!("# {field_name}: {default}\n"));
@@ -327,10 +330,13 @@ properties:
       .find(|ca| ca.title.contains("Task"))
       .expect("should have Task action");
 
-    let edit = task_action.edit.as_ref().expect("should have edit");
-    let changes = edit.changes.as_ref().expect("should have changes");
-    let edits = changes.values().next().expect("should have file edits");
-    let text = &edits[0].new_text;
+    let text = &task_action
+      .edit
+      .as_ref()
+      .and_then(|e| e.changes.as_ref())
+      .and_then(|c| c.values().next())
+      .expect("should have file edits")[0]
+      .new_text;
 
     assert!(text.contains("_type: Task"), "should contain _type: {text}");
     assert!(text.contains("title:"), "should contain title: {text}");
