@@ -5,11 +5,11 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_schemaless_type;
-use crate::db::types::{
-  ResourceResult, RuntimeScope, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj,
-};
+use crate::db::types::{ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj};
 use crate::db::utils::{is_schemaless_file, lower_file};
 use typedown_incremental::QueryDatabase;
+
+use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 
 #[query_derived]
 pub fn evaluate_resource(db: &TypedownDatabase, symbol: Symbol) -> ResourceResult {
@@ -29,7 +29,8 @@ pub fn evaluate_resource(db: &TypedownDatabase, symbol: Symbol) -> ResourceResul
     None => return ResourceResult::new(db, None, diagnostics),
   };
 
-  let node_result = evaluate_node(db, hir, RuntimeScope::empty(db));
+  let file_scope = get_file_runtime_scope(db, project, file);
+  let node_result = evaluate_node(db, hir, file_scope);
   diagnostics.extend(node_result.diagnostics(db).iter().cloned());
 
   let is_schemaless = is_schemaless_file(db, project, file);
@@ -63,8 +64,10 @@ mod tests {
   use crate::db::{
     QueryStorage, TypedownDatabase, derived::evaluate::evaluate_node::evaluate_node,
     derived::evaluate::evaluate_resource::evaluate_resource,
-    derived::name_resolver::file_symbol::file_symbol, derived::typechecker::typecheck::typecheck,
-    fixtures::load_vault_fixture, types::HirValueKind, types::RuntimeScope, utils::lower_file,
+    derived::name_resolver::file_symbol::file_symbol,
+    derived::name_resolver::scope::get_file_runtime_scope,
+    derived::typechecker::typecheck::typecheck, fixtures::load_vault_fixture, types::HirValueKind,
+    utils::lower_file,
   };
 
   // A valid resource with _type produces an object with the declared fields
@@ -397,7 +400,8 @@ mod tests {
     };
     let field_hirs: std::collections::HashMap<_, _> = entries.into_iter().collect();
 
-    let list_result = evaluate_node(&db, field_hirs["list_oob"], RuntimeScope::empty(&db));
+    let file_scope = get_file_runtime_scope(&db, project, file);
+    let list_result = evaluate_node(&db, field_hirs["list_oob"], file_scope);
     assert!(
       list_result.value(&db).is_none(),
       "list OOB should be undefined"
@@ -415,7 +419,7 @@ mod tests {
       list_result.diagnostics(&db)
     );
 
-    let str_result = evaluate_node(&db, field_hirs["str_oob"], RuntimeScope::empty(&db));
+    let str_result = evaluate_node(&db, field_hirs["str_oob"], file_scope);
     assert!(
       str_result.value(&db).is_none(),
       "string OOB should be undefined"

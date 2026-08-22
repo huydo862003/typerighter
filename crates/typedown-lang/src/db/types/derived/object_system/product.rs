@@ -11,12 +11,11 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_func_type, get_str_type, get_type_type};
+use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::derived::object_system::base::{
   BUILTIN_TO_STRING, PROTOCOL_CALL, PROTOCOL_INDEX,
 };
-use crate::db::types::{
-  FnKind, FuncSignature, HirValue, LazyType, NativeFnKind, RuntimeScope, Symbol,
-};
+use crate::db::types::{FnKind, FuncSignature, HirValue, LazyType, NativeFnKind, Symbol};
 use crate::db::utils::static_type::format_field_map;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -143,7 +142,10 @@ impl TdRuntimeObject for TdProductObj {
   }
   fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
     match self.fields(db).get(key).cloned() {
-      Some(Either::Left(hir)) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
+      Some(Either::Left(hir)) => {
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        evaluate_node(db, hir, file_scope).value(db)
+      }
       Some(Either::Right(obj)) => Some(obj),
       // Missing fields evaluate to default from PropertyDescriptor if present, or null
       None => {

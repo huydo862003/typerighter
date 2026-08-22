@@ -2,7 +2,7 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::hir::lower_node;
-use crate::db::types::{HirValue, Scope, ScopeKind};
+use crate::db::types::{File, HirValue, Project, RuntimeScope, Scope, ScopeKind};
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 
@@ -38,6 +38,33 @@ pub fn parent_scope(db: &TypedownDatabase, scope: Scope) -> MaybeScope {
     ScopeKind::File(project, _) => MaybeScope::new(db, Some(Scope::project_scope(db, project))),
     ScopeKind::Fn(_project, _file, value) => MaybeScope::new(db, Some(self::scope(db, value))),
   }
+}
+
+#[query_derived]
+pub fn get_builtin_runtime_scope(db: &TypedownDatabase) -> RuntimeScope {
+  RuntimeScope::new(db, Scope::builtin_scope(db), vec![], None)
+}
+
+#[query_derived]
+pub fn get_project_runtime_scope(db: &TypedownDatabase, project: Project) -> RuntimeScope {
+  let parent = get_builtin_runtime_scope(db);
+  RuntimeScope::new(
+    db,
+    Scope::project_scope(db, project),
+    vec![],
+    Some(Box::new(parent)),
+  )
+}
+
+#[query_derived]
+pub fn get_file_runtime_scope(db: &TypedownDatabase, project: Project, file: File) -> RuntimeScope {
+  let parent = get_project_runtime_scope(db, project);
+  RuntimeScope::new(
+    db,
+    Scope::file_scope(db, project, file),
+    vec![],
+    Some(Box::new(parent)),
+  )
 }
 
 #[cfg(test)]
@@ -89,6 +116,36 @@ fn: (a, b) -> a + b
 
     let parent = parent_scope(&db, inner_scope).value(&db).unwrap();
     assert!(matches!(parent.kind(&db), ScopeKind::File(..)));
+  }
+
+  #[test]
+  #[should_panic(expected = "Cannot construct static RuntimeScope for a nested closure scope")]
+  fn nested_closure_runtime_scope_panics() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (root, _) = parse(
+      r#"---
+fn: (x) -> (y) -> x + y
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let entries = match hir.kind(&db) {
+      HirValueKind::Mapping(e) => e,
+      _ => panic!("expected mapping"),
+    };
+    let fn_hir = entries.iter().find(|(k, _)| k == "fn").unwrap().1;
+    let outer_closure_body = match fn_hir.kind(&db) {
+      HirValueKind::Closure { body, .. } => body,
+      _ => panic!("expected closure"),
+    };
+    let inner_closure_body = match outer_closure_body.kind(&db) {
+      HirValueKind::Closure { body, .. } => body,
+      _ => panic!("expected inner closure"),
+    };
+
+    let inner_scope = scope(&db, *inner_closure_body);
+    let _ = inner_scope.runtime_scope(&db);
   }
 
   #[test]

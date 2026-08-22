@@ -13,11 +13,12 @@ use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
+use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
-  File, FileHandle, HirValue, LazyType, LiteralValue, Project, RuntimeScope, Symbol, SymbolKind,
-  TdBlobType, TdObjectEnum, TdRuntimeObject, TdTypeEnum,
+  File, FileHandle, HirValue, LazyType, LiteralValue, Project, Symbol, SymbolKind, TdBlobType,
+  TdObjectEnum, TdRuntimeObject, TdTypeEnum,
 };
 use crate::db::utils::strip_content_extension;
 
@@ -593,7 +594,8 @@ impl<'a> MarkdownExporter<'a> {
         return;
       }
       let hir = lower_node(self.db, self.project, self.file, expr_node);
-      if let Some(obj) = evaluate_node(self.db, hir, RuntimeScope::empty(self.db)).value(self.db)
+      let scope = get_file_runtime_scope(self.db, self.project, self.file);
+      if let Some(obj) = evaluate_node(self.db, hir, scope).value(self.db)
         && let Some(func) = obj.lookup_method(self.db, "to_string")
         && let Ok(result) = func.call(self.db, Some(obj), vec![])
         && let Some(str_obj) = result.as_td_str_obj()
@@ -728,7 +730,10 @@ pub(super) fn evaluate_lazy_field(
 ) -> Option<TdObjectEnum> {
   match field {
     Either::Right(obj) => Some(obj),
-    Either::Left(hir) => evaluate_node(db, hir, RuntimeScope::empty(db)).value(db),
+    Either::Left(hir) => {
+      let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+      evaluate_node(db, hir, file_scope).value(db)
+    }
   }
 }
 
