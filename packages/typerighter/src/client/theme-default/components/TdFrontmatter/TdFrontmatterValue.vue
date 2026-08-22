@@ -5,6 +5,9 @@ import TdWidgetMultiSelect from './widgets/TdWidgetMultiSelect.vue';
 import TdWidgetRelation from './widgets/TdWidgetRelation.vue';
 import TdWidgetSelect from './widgets/TdWidgetSelect.vue';
 import TdWidgetText from './widgets/TdWidgetText.vue';
+import {
+  extractRef,
+} from './widgets/ref';
 import type {
   PropertyDescriptor,
 } from '@/shared';
@@ -37,11 +40,11 @@ const {
     :value="value"
   />
   <TdWidgetRelation
-    v-else-if="definition.widget === 'relation'"
+    v-else-if="extractRef(value) || definition.widget === 'relation'"
     :value="value"
   />
   <TdWidgetList
-    v-else-if="definition.widget === 'list'"
+    v-else-if="Array.isArray(value) || definition.widget === 'list'"
     :definition="definition"
     :value="value"
   />

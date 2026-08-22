@@ -8,7 +8,7 @@ import {
 } from '@/client/app';
 import {
   isBuiltinField, unslugify,
-  type SchemaDefinition,
+  type PropertyDescriptor, type SchemaDefinition,
 } from '@/shared';
 
 const {
@@ -31,20 +31,34 @@ const schemaDefinition = computed((): SchemaDefinition | undefined => {
 
 const entries = computed(() => {
   const schemaDef = schemaDefinition.value;
+  const result: Array<[string, PropertyDescriptor]> = [];
 
-  if (!schemaDef) return [];
+  const keys = new Set<string>();
 
-  return Object.entries(schemaDef)
-    .filter(([key]) => {
-      if (isBuiltinField(key)) return false;
+  if (schemaDef) {
+    Object.keys(schemaDef).forEach((keyName) => keys.add(keyName));
+  }
+  Object.keys(frontmatter).forEach((keyName) => keys.add(keyName));
 
-      const value = frontmatter[key];
+  for (const key of keys) {
+    if (isBuiltinField(key)) continue;
 
-      if (value === undefined) return false;
-      if (Array.isArray(value) && value.length === 0) return false;
+    const value = frontmatter[key];
 
-      return true;
-    });
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+
+    const descriptor: PropertyDescriptor = schemaDef?.[key] ?? {
+      widget: 'text',
+    };
+
+    result.push([
+      key,
+      descriptor,
+    ]);
+  }
+
+  return result;
 });
 </script>
 

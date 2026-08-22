@@ -2,6 +2,7 @@
 import {
   ref,
 } from 'vue';
+import TdWidgetRelation from './TdWidgetRelation.vue';
 import {
   extractRef, type ResolvedRef,
 } from './ref';
@@ -43,17 +44,18 @@ function visible<T> (list: T[]): T[] {
 </script>
 
 <template>
-  <!-- List of relations: links -->
+  <!-- List of relations / files / images -->
   <template v-if="isRelationList">
     <ul class="td-widget-list">
       <li
         v-for="(resolvedItem, idx) in visible(resolvedRefs)"
         :key="idx"
       >
-        <a
-          :href="resolvedItem.url"
-          class="td-widget-ref"
-        >{{ resolvedItem.name }}</a>
+        <TdWidgetRelation
+          :value="{
+            $ref: resolvedItem,
+          }"
+        />
       </li>
     </ul>
     <button
@@ -66,18 +68,17 @@ function visible<T> (list: T[]): T[] {
     </button>
   </template>
 
-  <!-- Other lists: bullet list -->
+  <!-- Other lists -->
   <template v-else>
     <ul class="td-widget-list">
       <li
         v-for="(item, idx) in visible(items)"
         :key="idx"
       >
-        <a
+        <TdWidgetRelation
           v-if="extractRef(item)"
-          :href="extractRef(item)!.url"
-          class="td-widget-ref"
-        >{{ extractRef(item)!.name }}</a>
+          :value="item"
+        />
         <template v-else>
           {{ item }}
         </template>
@@ -95,39 +96,33 @@ function visible<T> (list: T[]): T[] {
 </template>
 
 <style scoped>
-.td-widget-ref {
-  color: var(--color-td-link);
-  text-decoration: none;
-}
-
-.td-widget-ref:hover {
-  color: var(--color-td-link-hover);
-  text-decoration: underline;
-}
-
 .td-widget-list {
+  list-style: none;
+  padding: 0;
   margin: 0;
-  padding: 0 0 0 20px;
-  list-style: disc;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .td-widget-list li {
-  margin: 0;
-  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .td-widget-more {
-  width: 100%;
-  text-align: left;
-  background: none;
   border: none;
-  cursor: pointer;
-  font-size: var(--font-size-td-caption);
+  background: none;
   color: var(--color-td-neutral-fg-muted);
-  padding: 2px 0;
+  font-size: var(--font-size-td-caption);
+  cursor: pointer;
+  padding: 2px 4px;
+  margin-top: 4px;
+  border-radius: var(--border-radius-td-sm);
 }
 
 .td-widget-more:hover {
-  color: var(--color-td-primary-solid);
+  background-color: var(--color-td-neutral-muted);
+  color: var(--color-td-neutral-fg);
 }
 </style>

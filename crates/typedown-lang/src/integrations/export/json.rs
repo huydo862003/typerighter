@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use typedown_incremental::Id;
 
-use super::{evaluate_lazy_field, resolve_ref};
+use super::{evaluate_lazy_field, file_symbol, resolve_ref};
 use crate::db::TypedownDatabase;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum};
@@ -124,7 +124,16 @@ fn serialize(
 
     TdObjectEnum::TdBlobObj(blob) => {
       let format = blob.asset_kind(db).as_format_str();
-      let handle = handle_to_json(&blob.file(db).handle(db));
+      let file = blob.file(db);
+      if should_serialize_as_fref
+        && let Some(symbol) = file_symbol(db, project, file).value(db)
+        && let Some(resolved) = resolve_ref(db, project, &symbol)
+      {
+        return Ok(serde_json::json!({
+          "$ref": { "url": resolved.url, "name": resolved.name, "format": format }
+        }));
+      }
+      let handle = handle_to_json(&file.handle(db));
       Ok(serde_json::json!({ "format": format, "handle": handle }))
     }
 

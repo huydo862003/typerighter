@@ -153,7 +153,10 @@ fn is_subtype_of_env(
             if matches!(lit.underlying_type(db), TdTypeEnum::TdStrType(_))
         ) || matches!(
           subtype,
-          TdTypeEnum::TdDateTimeType(_) | TdTypeEnum::TdDateType(_) | TdTypeEnum::TdTimeType(_)
+          TdTypeEnum::TdDateTimeType(_)
+            | TdTypeEnum::TdDateType(_)
+            | TdTypeEnum::TdTimeType(_)
+            | TdTypeEnum::TdBlobType(_)
         )
       }
       TdTypeEnum::TdNumType(_) => matches!(
@@ -214,11 +217,14 @@ fn is_subtype_of_env(
         }
         _ => false,
       },
+      TdTypeEnum::TdBlobType(_) => matches!(
+        subtype,
+        TdTypeEnum::TdBlobType(_) | TdTypeEnum::TdStrType(_)
+      ),
       TdTypeEnum::TdMathType(_)
       | TdTypeEnum::TdDateTimeType(_)
       | TdTypeEnum::TdDateType(_)
       | TdTypeEnum::TdTimeType(_)
-      | TdTypeEnum::TdBlobType(_)
       | TdTypeEnum::TdNullType(_) => false,
       TdTypeEnum::TdVariableType(_) | TdTypeEnum::TdExistentialType(_) => false,
     }
