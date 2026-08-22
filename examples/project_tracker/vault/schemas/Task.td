@@ -6,14 +6,11 @@ properties:
   priority:
     type: ['low', 'medium', 'high']
   blocked:
-    type: boolean
-    optional: true
+    type: boolean?
   due:
-    type: date
-    optional: true
+    type: date?
   project:
     type: Project
   assignee:
-    type: Person
-    optional: true
+    type: Person?
 ---

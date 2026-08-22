@@ -6,15 +6,11 @@ properties:
   role:
     type: ['developer', 'designer', 'manager']
   active:
-    type: boolean
-    optional: true
+    type: boolean?
   tags:
-    type: list[string]
-    optional: true
+    type: list[string]?
   email:
-    type: string
-    optional: true
+    type: string?
   tasks:
-    type: list[Task]
-    optional: true
+    type: list[Task]?
 ---
