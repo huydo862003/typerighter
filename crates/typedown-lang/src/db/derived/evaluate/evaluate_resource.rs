@@ -747,4 +747,43 @@ mod tests {
       "missing field should evaluate to TdNullObj"
     );
   }
+
+  // Missing a field with a default value does NOT produce a MissingRequiredField diagnostic
+  #[test]
+  fn missing_field_with_default_no_diagnostics() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/default_resource.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags.is_empty(),
+      "missing field with default should not produce diagnostics: {:?}",
+      diags
+    );
+  }
+
+  // Missing field with a default value evaluates to default_value at runtime
+  #[test]
+  fn missing_field_evaluates_to_default_value() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "content/default_resource.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
+    let status_obj = obj
+      .get_owned_field(&db, "status")
+      .expect("field with default should return evaluated default object");
+    let status_str = status_obj
+      .as_td_str_obj()
+      .expect("expected TdStrObj for status default");
+    assert_eq!(status_str.value(&db), "draft");
+
+    let count_obj = obj
+      .get_owned_field(&db, "count")
+      .expect("field with default should return evaluated default object");
+    let count_num = count_obj
+      .as_td_num_obj()
+      .expect("expected TdNumObj for count default");
+    assert_eq!(count_num.value(&db), 0.0);
+  }
 }
