@@ -97,17 +97,17 @@ function visible<T> (list: T[]): T[] {
 
 <style scoped>
 .td-widget-list {
-  list-style: none;
-  padding: 0;
+  list-style-type: disc;
+  padding-left: 1.25rem;
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 .td-widget-list li {
-  display: inline-flex;
-  align-items: center;
+  margin-bottom: 4px;
+}
+
+.td-widget-list li:last-child {
+  margin-bottom: 0;
 }
 
 .td-widget-more {
