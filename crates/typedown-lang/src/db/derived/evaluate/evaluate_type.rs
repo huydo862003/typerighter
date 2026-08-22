@@ -558,8 +558,8 @@ mod tests {
       &[Diagnostic::FieldTypeMismatch {
         field: "default".to_string(),
         expected: "string".to_string(),
-        start_offset: 75,
-        end_offset: 78,
+        start_offset: 70,
+        end_offset: 73,
       }]
     );
   }
