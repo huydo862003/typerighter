@@ -24,6 +24,7 @@ function toggle () {
 }
 
 watch(open, (isOpen) => {
+  if (typeof document === 'undefined') return;
   if (isOpen) {
     document.addEventListener('click', handleClickOutside);
   } else {
@@ -32,6 +33,7 @@ watch(open, (isOpen) => {
 });
 
 onUnmounted(() => {
+  if (typeof document === 'undefined') return;
   document.removeEventListener('click', handleClickOutside);
 });
 </script>

@@ -12,6 +12,7 @@ export function useActiveTocHeading (headings: WatchSource<MarkdownHeading[]>) {
   let observer: IntersectionObserver | undefined;
 
   function observe () {
+    if (typeof document === 'undefined') return;
     observer?.disconnect();
     activeId.value = '';
 
@@ -55,9 +56,16 @@ export function useActiveTocHeading (headings: WatchSource<MarkdownHeading[]>) {
   }
 
   // Re-observe when the headings prop changes (page navigation)
-  watch(headings, () => nextTick(observe), {
-    immediate: true,
-  });
+  watch(
+    headings,
+    () => {
+      if (typeof window === 'undefined') return;
+      nextTick(observe);
+    },
+    {
+      immediate: true,
+    },
+  );
 
   onUnmounted(() => {
     observer?.disconnect();

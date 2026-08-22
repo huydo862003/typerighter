@@ -66,6 +66,7 @@ useCopyCode();
 
 // Update document title and meta description per page
 watchEffect(() => {
+  if (typeof document === 'undefined') return;
   const pageTitle = title.value;
   const siteName = siteConfig.title;
 
