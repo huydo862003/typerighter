@@ -1,3 +1,8 @@
+## [0.11.1] - 2026-08-22
+
+* packages/typerighter
+  - Fix broken ssg
+
 ## [0.11.0] - 2026-08-22
 
 * crates/typedown-lang

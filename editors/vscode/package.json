@@ -7,7 +7,7 @@
   "description": "vscode extension providing lsp services for the typedown language",
   "private": true,
   "author": "Huy-DNA <huydo862003@gmail.com>",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "engines": {
     "vscode": "^1.125.0"
   },
