@@ -498,14 +498,15 @@
       ]
     },
     "operator": {
-      "match": "(\\+|-|\\*\\*|\\*|/|%|==|!=|<=|>=|<|>|&&|\\|\\||~|\\.)",
+      "match": "(\\+|-|\\*\\*|\\*|/|%|==|!=|<=|>=|<|>|&&|\\|\\||~|\\.|\\?)",
       "name": "keyword.operator.typedown"
     },
     "generic-type": {
-      "match": "\\b(list|dict)\\[([a-zA-Z_]\\w*(?:\\s*,\\s*[a-zA-Z_]\\w*)*)\\]",
+      "match": "\\b(list|dict)\\[([a-zA-Z_]\\w*(?:\\s*,\\s*[a-zA-Z_]\\w*)*)\\](\\?)?",
       "captures": {
         "1": { "name": "support.type.typedown" },
-        "2": { "name": "support.type.typedown" }
+        "2": { "name": "support.type.typedown" },
+        "3": { "name": "keyword.operator.typedown" }
       }
     },
     "identifier": {

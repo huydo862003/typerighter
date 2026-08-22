@@ -74,6 +74,9 @@
 ; Unary operators
 (unary_expression "~" @operator)
 
+; Postfix operators
+(postfix_expression "?" @operator)
+
 ; Function calls
 (call_expression (expression (identifier) @function.call))
 (call_expression (expression (access_expression (identifier) @function.call)))

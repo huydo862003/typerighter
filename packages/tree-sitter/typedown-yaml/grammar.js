@@ -132,11 +132,27 @@ export default grammar({
     // Type expressions
     type_expression: ($) =>
       choice(
+        $.optional_type,
         $.primitive_type,
         $.list_type,
         $.dict_type,
         $.fixed_key_dict_type,
         $.union_type,
+      ),
+
+    optional_type: ($) =>
+      prec(
+        1,
+        seq(
+          choice(
+            $.primitive_type,
+            $.list_type,
+            $.dict_type,
+            $.fixed_key_dict_type,
+            $.union_type,
+          ),
+          '?',
+        ),
       ),
 
     primitive_type: () =>

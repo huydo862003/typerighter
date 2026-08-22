@@ -16,7 +16,8 @@ const PREC = {
   MULTIPLY: 6,
   EXPONENT: 7,
   UNARY: 8,
-  ACCESS: 9,
+  POSTFIX: 9,
+  ACCESS: 10,
 };
 
 /** @type {Record<string, ($: GrammarSymbols<string>) => RuleOrLiteral>} */
@@ -25,6 +26,7 @@ export const expr_rules = {
     choice(
       $.binary_expression,
       $.unary_expression,
+      $.postfix_expression,
       $.access_expression,
       $.index_expression,
       $.call_expression,
@@ -110,6 +112,17 @@ export const expr_rules = {
       seq(
         '~',
         $.expression,
+      ),
+    ),
+
+  // Postfix operators: ?
+
+  postfix_expression: ($) =>
+    prec(
+      PREC.POSTFIX,
+      seq(
+        $.expression,
+        '?',
       ),
     ),
 

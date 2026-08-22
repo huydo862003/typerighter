@@ -151,3 +151,38 @@ val: !type dict[string, list[number]]
               (list_type
                 (type_expression
                   (primitive_type))))))))))
+
+================
+Optional primitive type
+================
+val: !type string?
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (type_value
+        (type_expression
+          (optional_type
+            (primitive_type)))))))
+
+================
+Optional list type
+================
+val: !type list[string]?
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (type_value
+        (type_expression
+          (optional_type
+            (list_type
+              (type_expression
+                (primitive_type)))))))))
+

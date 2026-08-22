@@ -384,3 +384,39 @@ label: "${self.first_name} ${self.last_name}"
                 (expression
                   (self_expression))
                 (identifier)))))))))
+
+================
+Postfix question operator
+================
+val: self.name?
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (postfix_expression
+          (expression
+            (access_expression
+              (expression
+                (self_expression))
+              (identifier))))))))
+
+================
+Postfix question on identifier
+================
+type: string?
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (postfix_expression
+          (expression
+            (identifier)))))))
+
