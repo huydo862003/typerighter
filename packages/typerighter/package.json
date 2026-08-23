@@ -49,6 +49,7 @@
   "author": "Huy-DNA <huydo862003@gmail.com>",
   "license": "AGPL-3.0-only",
   "scripts": {
+    "dev": "vite",
     "build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "lint": "eslint .",
     "lint:fix": "eslint ./src --fix",
