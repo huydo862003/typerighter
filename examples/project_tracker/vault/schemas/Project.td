@@ -11,4 +11,6 @@ properties:
     type: date
   archived:
     type: boolean?
+  tags:
+    type: list[string]?
 ---

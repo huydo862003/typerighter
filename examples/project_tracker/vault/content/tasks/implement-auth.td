@@ -7,6 +7,15 @@ blocked: true
 due: "2026-07-10"
 project: fref("projects/website-redesign.td")
 assignee: fref("people/alice.td")
+tags:
+  - "security"
+  - "authentication"
+  - "jwt"
+  - "redis"
+  - "session-management"
+  - "rate-limiting"
+  - "backend"
+  - "api"
 ---
 
 Covers login, logout, session management, and password reset.

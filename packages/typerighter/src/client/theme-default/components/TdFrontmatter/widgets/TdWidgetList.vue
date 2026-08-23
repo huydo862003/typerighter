@@ -46,52 +46,56 @@ function visible<T> (list: T[]): T[] {
 <template>
   <!-- List of relations / files / images -->
   <template v-if="isRelationList">
-    <ul class="td-widget-list">
-      <li
-        v-for="(resolvedItem, idx) in visible(resolvedRefs)"
-        :key="idx"
+    <div>
+      <ul class="td-widget-list">
+        <li
+          v-for="(resolvedItem, idx) in visible(resolvedRefs)"
+          :key="idx"
+        >
+          <TdWidgetRelation
+            :value="{
+              $ref: resolvedItem,
+            }"
+          />
+        </li>
+      </ul>
+      <button
+        v-if="hiddenCount > 0"
+        class="td-widget-more"
+        type="button"
+        @click="toggle"
       >
-        <TdWidgetRelation
-          :value="{
-            $ref: resolvedItem,
-          }"
-        />
-      </li>
-    </ul>
-    <button
-      v-if="hiddenCount > 0"
-      class="td-widget-more"
-      type="button"
-      @click="toggle"
-    >
-      {{ expanded ? 'show less' : `+${hiddenCount} more` }}
-    </button>
+        {{ expanded ? 'show less' : `+${hiddenCount} more` }}
+      </button>
+    </div>
   </template>
 
   <!-- Other lists -->
   <template v-else>
-    <ul class="td-widget-list">
-      <li
-        v-for="(item, idx) in visible(items)"
-        :key="idx"
+    <div>
+      <ul class="td-widget-list">
+        <li
+          v-for="(item, idx) in visible(items)"
+          :key="idx"
+        >
+          <TdWidgetRelation
+            v-if="extractRef(item)"
+            :value="item"
+          />
+          <template v-else>
+            {{ item }}
+          </template>
+        </li>
+      </ul>
+      <button
+        v-if="hiddenCount > 0"
+        class="td-widget-more"
+        type="button"
+        @click="toggle"
       >
-        <TdWidgetRelation
-          v-if="extractRef(item)"
-          :value="item"
-        />
-        <template v-else>
-          {{ item }}
-        </template>
-      </li>
-    </ul>
-    <button
-      v-if="hiddenCount > 0"
-      class="td-widget-more"
-      type="button"
-      @click="toggle"
-    >
-      {{ expanded ? 'show less' : `+${hiddenCount} more` }}
-    </button>
+        {{ expanded ? 'show less' : `+${hiddenCount} more` }}
+      </button>
+    </div>
   </template>
 </template>
 

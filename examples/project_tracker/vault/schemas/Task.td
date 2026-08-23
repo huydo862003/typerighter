@@ -13,4 +13,6 @@ properties:
     type: Project
   assignee:
     type: Person?
+  tags:
+    type: list[string]?
 ---

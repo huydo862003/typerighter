@@ -4,6 +4,19 @@ _label: "Set up CI pipeline"
 status: "todo"
 priority: "low"
 project: fref("projects/mobile-app.td")
+tags:
+  - "ci"
+  - "devops"
+  - "github-actions"
+  - "automated-testing"
+  - "security-scanning"
+  - "caching"
+  - "matrix-build"
+  - "docker"
+  - "linting"
+  - "artifact-publishing"
+  - "notifications"
+  - "infrastructure"
 ---
 
 Configure a CI pipeline for the mobile app repo.
