@@ -44,10 +44,10 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
     ));
   }
 
-  // Check for nested schema files
+  // Check for duplicate schema files
   let schema_check = check_schema_dir(db, project);
   for diag in schema_check.diagnostics(db) {
-    if let TdDiagnostic::NestedSchemaFile { ref path } = diag {
+    if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
       let schema_dir = get_vault_config(db, project).schema_dir(db);
       let full_path = schema_dir.join(path);
       let scheme = analysis

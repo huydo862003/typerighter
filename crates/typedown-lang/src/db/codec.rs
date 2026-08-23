@@ -666,8 +666,14 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::NestedSchemaFile { path } => {
+      Diagnostic::DuplicateSchemaName {
+        name,
+        path,
+        duplicate_of,
+      } => {
+        name.encode(buf, encoder);
         path.encode(buf, encoder);
+        duplicate_of.encode(buf, encoder);
       }
       Diagnostic::VaultConfigInvalidValue {
         path,
@@ -1278,9 +1284,15 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::NestedSchemaFile => {
+      DiagnosticCode::DuplicateSchemaName => {
+        let name = String::decode(data, decoder);
         let path = String::decode(data, decoder);
-        Diagnostic::NestedSchemaFile { path }
+        let duplicate_of = String::decode(data, decoder);
+        Diagnostic::DuplicateSchemaName {
+          name,
+          path,
+          duplicate_of,
+        }
       }
       DiagnosticCode::VaultConfigInvalidValue => {
         let path = String::decode(data, decoder);
@@ -1774,8 +1786,14 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::NestedSchemaFile { path } => {
+      Diagnostic::DuplicateSchemaName {
+        name,
+        path,
+        duplicate_of,
+      } => {
+        name.stable_hash(db, hasher);
         path.stable_hash(db, hasher);
+        duplicate_of.stable_hash(db, hasher);
       }
       Diagnostic::VaultConfigInvalidValue {
         path,

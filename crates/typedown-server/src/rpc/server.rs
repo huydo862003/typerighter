@@ -19,6 +19,7 @@ use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
+use typedown_lang::db::derived::name_resolver::members::schema_members;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
@@ -415,15 +416,23 @@ impl RpcServer {
     let db = &analysis.db;
     let project = analysis.project;
 
-    let config = get_vault_config(db, project);
-    let schema_path = config.schema_dir(db).join(format!("{schema}.td"));
+    let schema_members = schema_members(db, project);
+    let sym = schema_members
+      .members(db)
+      .get(schema)
+      .copied()
+      .ok_or_else(|| {
+        ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Schema not found", None::<()>)
+      })?;
+    let SymbolKind::UserDefinedSchema(_, file) = sym.kind(db) else {
+      return Err(ErrorObjectOwned::owned(
+        INVALID_PARAMS_CODE,
+        "Schema not found",
+        None::<()>,
+      ));
+    };
 
-    let files = project.files(db);
-    let file = files.get(&schema_path).ok_or_else(|| {
-      ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Schema not found", None::<()>)
-    })?;
-
-    let properties = export_property_descriptors(db, project, *file)
+    let properties = export_property_descriptors(db, project, file)
       .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
 
     Ok(TdSchemaInfo {
@@ -461,11 +470,16 @@ impl RpcServer {
         all_diagnostics.extend(items);
       }
 
-      // Check for nested schema files
+      // Check for duplicate schema files
       let schema_check = check_schema_dir(db, project);
       for diag in schema_check.diagnostics(db) {
+        let filepath = if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
+          path.clone()
+        } else {
+          String::new()
+        };
         all_diagnostics.push(TdDiagnosticItem {
-          filepath: String::new(),
+          filepath,
           line: 0,
           column: 0,
           severity: "error".to_string(),
