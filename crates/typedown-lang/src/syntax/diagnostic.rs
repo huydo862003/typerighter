@@ -60,7 +60,7 @@ pub enum DiagnosticCode {
   UnresolvedFileRef = 51,
   UnknownField = 52,
   IndexOutOfBounds = 53,
-  NestedSchemaFile = 54,
+  DuplicateSchemaName = 54,
   VaultConfigInvalidValue = 55,
   InvalidCodeRangeIndicator = 56, // {abc} or unclosed { in code block
   UnexpectedContainerPropItem = 57,
@@ -150,7 +150,7 @@ impl DiagnosticCode {
       DiagnosticCode::TypeArgBoundViolation => "type-arg-bound-violation",
       DiagnosticCode::UnknownField => "unknown-field",
       DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
-      DiagnosticCode::NestedSchemaFile => "nested-schema-file",
+      DiagnosticCode::DuplicateSchemaName => "duplicate-schema-name",
       DiagnosticCode::VaultConfigInvalidValue => "vault-config-invalid-value",
       DiagnosticCode::InvalidCodeRangeIndicator => "invalid-code-range-indicator",
     }
@@ -546,8 +546,12 @@ pub enum Diagnostic {
     start_offset: usize,
     end_offset: usize,
   },
-  /// Schema file is nested in a subdirectory of schema_dir
-  NestedSchemaFile { path: String },
+  /// Multiple schema files have the same name
+  DuplicateSchemaName {
+    name: String,
+    path: String,
+    duplicate_of: String,
+  },
   /// A vault config field has an invalid value
   VaultConfigInvalidValue {
     path: String,
@@ -872,7 +876,7 @@ impl Diagnostic {
       | Diagnostic::VaultConfigEmpty { .. }
       | Diagnostic::WrongTypeArgCount { .. }
       | Diagnostic::TypeArgBoundViolation { .. }
-      | Diagnostic::NestedSchemaFile { .. } => None,
+      | Diagnostic::DuplicateSchemaName { .. } => None,
     }
   }
 
@@ -1034,8 +1038,12 @@ impl Diagnostic {
       Diagnostic::UnknownField { field, on_type, .. } => {
         format!("unknown field '{field}' on type '{on_type}'")
       }
-      Diagnostic::NestedSchemaFile { path } => {
-        format!("unsupported nested schema file: {}", path)
+      Diagnostic::DuplicateSchemaName {
+        name,
+        path,
+        duplicate_of,
+      } => {
+        format!("duplicate schema name '{name}' in '{path}', already defined in '{duplicate_of}'")
       }
       Diagnostic::VaultConfigInvalidValue {
         path,
@@ -1142,8 +1150,8 @@ impl Diagnostic {
       Diagnostic::UnresolvedFileRef { .. } => DiagnosticCode::UnresolvedFileRef,
       Diagnostic::UnresolvedIdentifier { .. } => DiagnosticCode::UnresolvedIdentifier,
       Diagnostic::UnknownField { .. } => DiagnosticCode::UnknownField,
+      Diagnostic::DuplicateSchemaName { .. } => DiagnosticCode::DuplicateSchemaName,
       Diagnostic::IndexOutOfBounds { .. } => DiagnosticCode::IndexOutOfBounds,
-      Diagnostic::NestedSchemaFile { .. } => DiagnosticCode::NestedSchemaFile,
       Diagnostic::VaultConfigInvalidValue { .. } => DiagnosticCode::VaultConfigInvalidValue,
       Diagnostic::InvalidCodeRangeIndicator { .. } => DiagnosticCode::InvalidCodeRangeIndicator,
       Diagnostic::DanglingParamList { .. } => DiagnosticCode::DanglingParamList,

@@ -1,0 +1,3 @@
+vault:
+  content_dir: content
+  schema_dir: schemas

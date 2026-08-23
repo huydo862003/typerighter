@@ -29,10 +29,10 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
     let file = *project.files(db).get(&old_path)?;
     let symbol = file_symbol(db, project, file).value(db)?;
 
-    // Schema rename to nested dir: skip (schemas must be flat)
+    // Schema rename: ensure new path stays inside schema_dir
     if matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _)) {
       let schema_dir = get_vault_config(db, project).schema_dir(db);
-      if new_path.parent() != Some(&schema_dir) {
+      if !new_path.starts_with(&schema_dir) {
         continue;
       }
     }
@@ -244,16 +244,31 @@ avatar: fref("assets/icon.svg")
     assert!(snap.contains("bob"), "should update fref to bob:\n{}", snap);
   }
 
-  // Renaming schema to nested dir produces no edits
+  // Renaming schema to outside schema_dir produces no edits
   #[test]
-  fn will_rename_schema_to_nested_skips_edits() {
+  fn will_rename_schema_outside_schema_dir_skips_edits() {
     let analysis = setup(CONTENT_ALICE);
-    let params = make_params("schemas/Person.td", "schemas/nested/Person.td");
+    let params = make_params("schemas/Person.td", "content/Person.td");
     let result = will_rename_files(&analysis, params);
 
     assert!(
       result.is_none(),
-      "should produce no edits for nested schema rename"
+      "should produce no edits for schema renamed outside schema_dir"
+    );
+  }
+
+  // Renaming schema to nested dir updates type refs if name changes
+  #[test]
+  fn will_rename_schema_to_nested_dir_updates_type_refs() {
+    let analysis = setup(CONTENT_ALICE);
+    let params = make_params("schemas/Person.td", "schemas/nested/Human.td");
+    let edit = will_rename_files(&analysis, params).expect("should produce edits");
+    let snap = snapshot(&edit);
+
+    assert!(
+      snap.contains("\"Human\""),
+      "should rename idents to Human in nested dir:\n{}",
+      snap
     );
   }
 
