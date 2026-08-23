@@ -1,3 +1,8 @@
+## [0.11.5] - 2026-08-23
+
+* packages/typerighter
+  - Properly layout the show more button in a frontmatter list
+
 ## [0.11.4] - 2026-08-22
 
 * packages/tree-sitter
