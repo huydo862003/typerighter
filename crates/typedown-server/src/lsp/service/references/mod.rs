@@ -145,8 +145,7 @@ mod tests {
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -221,33 +220,33 @@ age: 25
         ),
       ),
       (
-        root.join("schemas/Person.td"),
+        root.join("_types/Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            root.join("schemas/Person.td"),
+            root.join("_types/Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        root.join("content/alice.td"),
+        root.join("alice.td"),
         File::new(
           &db,
           FileHandle::Content(
-            root.join("content/alice.td"),
+            root.join("alice.td"),
             CONTENT_ALICE.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        root.join("content/bob.td"),
+        root.join("bob.td"),
         File::new(
           &db,
           FileHandle::Content(
-            root.join("content/bob.td"),
+            root.join("bob.td"),
             CONTENT_BOB.to_string(),
             FileMetadata::default(),
           ),
@@ -361,7 +360,7 @@ name: Alice
   #[test]
   fn references_on_builtin_ident_returns_none() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let schema_path = root.join("schemas/Person.td");
+    let schema_path = root.join("_types/Person.td");
     let schema_raw = r#"---
 _type: sc|hema
 properties:

@@ -68,8 +68,7 @@ impl Decodable for AssetsDir {
 #[query_derived]
 pub struct VaultConfigResult {
   version: String,
-  content_dir: PathBuf,
-  schema_dir: PathBuf,
+  root_dir: PathBuf,
   base_path: String,
   assets_dir: AssetsDir,
   site_title: String,

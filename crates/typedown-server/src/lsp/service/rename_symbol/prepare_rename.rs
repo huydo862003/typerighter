@@ -45,8 +45,7 @@ mod tests {
   const VAULT_CONFIG: &str = r#"
 version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -87,9 +86,8 @@ name: Alice
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = test_vault_root();
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
-    let test_path = content_root.join("file.td");
+    let type_root = root.join("_types");
+    let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -107,7 +105,7 @@ name: Alice
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -115,7 +113,7 @@ name: Alice
     let alice_file = File::new(
       &db,
       FileHandle::Content(
-        content_root.join("alice.td"),
+        root.join("alice.td"),
         CONTENT_ALICE.to_string(),
         FileMetadata::default(),
       ),
@@ -131,8 +129,8 @@ name: Alice
 
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
-      (root.join("content/alice.td"), alice_file),
+      (root.join("_types/Person.td"), person_file),
+      (root.join("alice.td"), alice_file),
       (test_path, editing_file),
     ]);
 

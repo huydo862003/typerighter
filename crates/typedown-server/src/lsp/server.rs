@@ -5,6 +5,7 @@ use anyhow::Error;
 use ropey::Rope;
 use threadpool::ThreadPool;
 use typedown_incremental::Cancelled;
+use typedown_lang::db::utils::is_type_file;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
@@ -231,7 +232,7 @@ impl Server {
       self.send_diagnostics_with_snapshot(analysis, None);
     } else if method == DidChangeTextDocument::METHOD {
       // didChange: Full diagnostics for schema files (affects all referencing content files), single-file diagnostics for content files for responsiveness
-      let is_schema = analysis.is_schema_file(&path);
+      let is_schema = is_type_file(&path);
       self.send_diagnostics_with_snapshot(analysis, if is_schema { None } else { Some(path) });
     }
     // didClose: No diagnostics needed

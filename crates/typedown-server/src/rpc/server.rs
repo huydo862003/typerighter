@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 use tokio::time::{Duration, sleep};
 use typedown_incremental::QueryStorage;
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::check_schema_dir::check_schema_dir;
+use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
@@ -24,7 +24,7 @@ use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{AssetsDirMode, File, Project, SymbolKind};
-use typedown_lang::db::utils::is_content_file;
+use typedown_lang::db::utils::{is_content_file, is_type_file};
 use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -57,15 +57,16 @@ struct FsEvent {
 fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   let config = get_vault_config(db, project);
   let root = project.root_dir(db);
-  let content_dir = config.content_dir(db);
+  let root_dir = config.root_dir(db);
   let base_path = config.base_path(db);
   let assets_dir = config.assets_dir(db);
 
-  let content_dir_rel = normalize_path(content_dir.strip_prefix(&root).unwrap_or(&content_dir));
+  let root_dir_rel = normalize_path(root_dir.strip_prefix(&root).unwrap_or(&root_dir));
 
   TdSiteConfig {
+    version: config.version(db).to_string(),
     base_path: base_path.to_string(),
-    content_dir: content_dir_rel,
+    root_dir: root_dir_rel,
     assets_dir: TdAssetsDir {
       mode: match assets_dir.mode {
         AssetsDirMode::Local => "local".to_string(),
@@ -224,8 +225,7 @@ impl RpcServer {
         let db = &analysis.db;
         let project = analysis.project;
         let config = get_vault_config(db, project);
-        let content_dir = config.content_dir(db);
-        let schema_dir = config.schema_dir(db);
+        let root_dir = config.root_dir(db);
 
         // Notify subscribers if any pending event is a config file change
         if pending.values().any(|event| is_vault_config(&event.path)) {
@@ -235,7 +235,7 @@ impl RpcServer {
         }
 
         for event in pending.into_values() {
-          if event.path.starts_with(&content_dir) {
+          if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
             let notification = TdContentNotification {
               content: event.path.to_string_lossy().into_owned(),
             };
@@ -245,7 +245,7 @@ impl RpcServer {
               FsEventKind::Removed => &events.content_deleted_tx,
             };
             let _ = sender.send(notification);
-          } else if event.path.starts_with(&schema_dir) {
+          } else if is_type_file(&event.path) {
             let Some(name) = event
               .path
               .file_stem()
@@ -280,12 +280,12 @@ impl RpcServer {
     let project = analysis.project;
 
     let config = get_vault_config(db, project);
-    let content_dir = config.content_dir(db);
+    let root_dir = config.root_dir(db);
     let files = project.files(db);
 
     let mut results = Vec::with_capacity(file_paths.len());
     for file_path in file_paths {
-      let path = content_dir.join(&file_path.0);
+      let path = root_dir.join(&file_path.0);
       let file = files.get(&path).ok_or_else(|| {
         ErrorObjectOwned::owned(
           INVALID_PARAMS_CODE,
@@ -322,18 +322,18 @@ impl RpcServer {
     let project = analysis.project;
 
     let config = get_vault_config(db, project);
-    let content_dir = config.content_dir(db);
+    let root_dir = config.root_dir(db);
     let files = project.files(db);
 
     let mut result = Vec::new();
     for path in files.keys() {
-      if !path.starts_with(&content_dir) {
+      if !path.starts_with(&root_dir) {
         continue;
       }
-      if !is_content_file(path) {
+      if !is_content_file(path) || is_type_file(path) {
         continue;
       }
-      let rel = path.strip_prefix(&content_dir).unwrap_or(path);
+      let rel = path.strip_prefix(&root_dir).unwrap_or(path);
       result.push(normalize_path(rel));
     }
 
@@ -348,18 +348,18 @@ impl RpcServer {
     let project = analysis.project;
 
     let config = get_vault_config(db, project);
-    let content_dir = config.content_dir(db);
+    let root_dir = config.root_dir(db);
     let files = project.files(db);
 
     let mut groups: HashMap<String, Vec<TdContentSummary>> = HashMap::new();
     for (path, file) in files.iter() {
-      if !path.starts_with(&content_dir) {
+      if !path.starts_with(&root_dir) {
         continue;
       }
-      if !is_content_file(path) {
+      if !is_content_file(path) || is_type_file(path) {
         continue;
       }
-      let rel = normalize_path(path.strip_prefix(&content_dir).unwrap_or(path));
+      let rel = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
       if let Some(exported) = export_resource(db, project, *file) {
         let group_key = exported.schema.clone().unwrap_or_default();
         groups.entry(group_key).or_default().push(TdContentSummary {
@@ -391,12 +391,12 @@ impl RpcServer {
     let project = analysis.project;
 
     let config = get_vault_config(db, project);
-    let schema_dir = config.schema_dir(db);
+    let root_dir = config.root_dir(db);
     let files = project.files(db);
 
     let mut schemas = Vec::new();
     for (path, file) in &files {
-      if !path.starts_with(&schema_dir) {
+      if !path.starts_with(&root_dir) || !is_type_file(path) {
         continue;
       }
       let Some(symbol) = file_symbol(db, project, *file).value(db) else {
@@ -448,19 +448,19 @@ impl RpcServer {
       let project = analysis.project;
 
       let config = get_vault_config(db, project);
-      let content_dir = config.content_dir(db);
+      let root_dir = config.root_dir(db);
       let files = project.files(db);
 
       let mut all_diagnostics = Vec::new();
       let mut file_count: u32 = 0;
 
       for (path, &file) in &files {
-        if !path.starts_with(&content_dir) || !is_content_file(path) {
+        if !path.starts_with(&root_dir) || !is_content_file(path) || is_type_file(path) {
           continue;
         }
         file_count += 1;
 
-        let rel_path = normalize_path(path.strip_prefix(&content_dir).unwrap_or(path));
+        let rel_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
         let rope = match analysis.file_rope(path) {
           Some(r) => r,
           None => continue,
@@ -471,7 +471,7 @@ impl RpcServer {
       }
 
       // Check for duplicate schema files
-      let schema_check = check_schema_dir(db, project);
+      let schema_check = check_schemas(db, project);
       for diag in schema_check.diagnostics(db) {
         let filepath = if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
           path.clone()
@@ -514,8 +514,8 @@ impl RpcServer {
       let project = analysis.project;
 
       let config = get_vault_config(db, project);
-      let content_dir = config.content_dir(db);
-      let path = content_dir.join(&fp);
+      let root_dir = config.root_dir(db);
+      let path = root_dir.join(&fp);
 
       let file = *project.files(db).get(&path).ok_or_else(|| {
         ErrorObjectOwned::owned(

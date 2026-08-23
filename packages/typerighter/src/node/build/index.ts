@@ -80,7 +80,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
   await Promise.all([
     fs.writeFile(clientEntryPath, generateClientAppEntry({
-      contentDir: config.contentDir,
+      rootDir: config.rootDir,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
       repo: config.repo,
@@ -88,7 +88,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       schemas,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
-      contentDir: config.contentDir,
+      rootDir: config.rootDir,
       layoutImport: DEFAULT_LAYOUT_IMPORT,
       siteConfig,
       siteData,
@@ -187,7 +187,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       // No assets to copy
     });
 
-    await copyContentAssets(path.join(root, config.contentDir), outDir);
+    await copyContentAssets(path.join(root, config.rootDir), outDir);
   } finally {
     // 8. Clean up intermediate directories
     await Promise.all([
@@ -201,7 +201,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 }
 
 interface SsrEntryOptions {
-  contentDir: string;
+  rootDir: string;
   layoutImport: string;
   siteConfig: string;
   siteData: string;
@@ -209,7 +209,7 @@ interface SsrEntryOptions {
 
 // Generate the SSR entry module used for pre-rendering
 function generateSsrEntry (options: SsrEntryOptions): string {
-  const glob = `/${options.contentDir}/${CONTENT_GLOB}`;
+  const glob = `/${options.rootDir}/${CONTENT_GLOB}`;
   const parsedConfig = JSON.parse(options.siteConfig);
   const parsedData = JSON.parse(options.siteData);
   const contentTree = parsedData.contentTree ?? { rootItems: [], children: [] };
@@ -236,7 +236,7 @@ function findPage(base) {
 }
 
 function loadPageModule(pagePath) {
-  const base = ('/${options.contentDir}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
+  const base = ('/${options.rootDir}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
   const page = findPage(base);
   if (page) return Promise.resolve(page);
 
@@ -262,8 +262,8 @@ export async function render(url) {
 }
 
 // Copy non-.td files from content directory to output, preserving structure
-async function copyContentAssets (contentDir: string, outDir: string): Promise<void> {
-  const entries = await fs.readdir(contentDir, {
+async function copyContentAssets (rootDir: string, outDir: string): Promise<void> {
+  const entries = await fs.readdir(rootDir, {
     recursive: true,
     withFileTypes: true,
   });
@@ -272,7 +272,7 @@ async function copyContentAssets (contentDir: string, outDir: string): Promise<v
     .filter((entry) => entry.isFile() && !tdpath.isContentFile(entry.name))
     .map(async (entry) => {
       const src = path.join(entry.parentPath, entry.name);
-      const relative = path.relative(contentDir, src);
+      const relative = path.relative(rootDir, src);
       const dest = path.join(outDir, relative);
 
       return fs.mkdir(path.dirname(dest), { recursive: true })

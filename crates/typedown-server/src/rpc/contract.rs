@@ -96,10 +96,11 @@ pub trait TdBuildRpc<Hash, StorageKey> {
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdSiteConfig {
+  pub version: String,
   /// URL base path (e.g. "/" or "/docs")
   pub base_path: String,
-  /// Content directory path relative to the project root
-  pub content_dir: String,
+  /// Vault root directory path relative to the project root
+  pub root_dir: String,
   /// Asset directory configuration
   pub assets_dir: TdAssetsDir,
   /// Site title from typedown.yaml

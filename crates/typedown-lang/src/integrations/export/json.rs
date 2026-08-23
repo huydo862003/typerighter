@@ -387,7 +387,7 @@ mod tests {
 
   #[test]
   fn serializes_product_type_as_field_type_map() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol)
       .typ(&db)
@@ -407,7 +407,7 @@ mod tests {
 
   #[test]
   fn serializes_nested_product_type_recursively() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Event.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Event.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol)
       .typ(&db)

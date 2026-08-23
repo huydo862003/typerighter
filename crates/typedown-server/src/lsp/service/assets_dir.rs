@@ -102,8 +102,7 @@ mod tests {
   fn default_assets_dir() {
     let config = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
     let (analysis, file_path) = make_analysis(config);
     let params = make_params(&file_path);
@@ -117,8 +116,7 @@ vault:
   fn custom_assets_dir() {
     let config = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
   assets_dir:
     mode: local
     path: media

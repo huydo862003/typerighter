@@ -215,8 +215,7 @@ properties:
 function generateTypedownYaml (options: InitializeOptions): string {
   return `version: "1.0.0"
 vault:
-  content_dir: vault/content
-  schema_dir: vault/schemas
+  root_dir: "vault"
 site:
   title: "${options.siteTitle}"
   description: "${options.siteDescription}"
@@ -253,16 +252,16 @@ async function prompt (message: string, defaultValue: string): Promise<string> {
 }
 
 async function scaffold (root: string, options: InitializeOptions): Promise<void> {
-  const contentDirectory = path.join(root, 'vault', 'content');
-  const schemaDirectory = path.join(root, 'vault', 'schemas');
+  const vaultDirectory = path.join(root, 'vault');
+  const typeDirectory = path.join(root, 'vault', '_types');
   const publicDirectory = path.join(root, 'public');
   const localDirectory = path.join(root, '.typedown', '.local');
 
   await Promise.all([
-    fs.mkdir(contentDirectory, {
+    fs.mkdir(vaultDirectory, {
       recursive: true,
     }),
-    fs.mkdir(schemaDirectory, {
+    fs.mkdir(typeDirectory, {
       recursive: true,
     }),
     fs.mkdir(publicDirectory, {
@@ -293,10 +292,10 @@ async function scaffold (root: string, options: InitializeOptions): Promise<void
   ]);
 
   const samples = await Promise.all([
-    writeIfMissing(schemaDirectory, 'Article.td', generateSampleTdSchema(), {
+    writeIfMissing(typeDirectory, 'Article.td', generateSampleTdSchema(), {
       silent: true,
     }),
-    writeIfMissing(contentDirectory, 'hello.td', generateSampleTdContent(), {
+    writeIfMissing(vaultDirectory, 'hello.td', generateSampleTdContent(), {
       silent: true,
     }),
   ]);

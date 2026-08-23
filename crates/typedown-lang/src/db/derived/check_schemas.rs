@@ -1,4 +1,4 @@
-//! Check that schema files have unique names across the schema directory
+//! Check that schema files have unique names across the _types directory
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ use typedown_types::path::normalize_path;
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::types::Project;
-use crate::db::utils::is_content_file;
+use crate::db::utils::is_type_file;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
@@ -18,18 +18,18 @@ pub struct SchemaCheckResult {
   diagnostics: Vec<Diagnostic>,
 }
 
-/// Check all files in schema_dir for duplicate schema names
+/// Check all files in _types for duplicate schema names
 #[query_derived]
-pub fn check_schema_dir(db: &TypedownDatabase, project: Project) -> SchemaCheckResult {
+pub fn check_schemas(db: &TypedownDatabase, project: Project) -> SchemaCheckResult {
   let config = get_vault_config(db, project);
-  let schema_dir = config.schema_dir(db);
+  let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
   let mut diagnostics = vec![];
   let mut seen_schemas: HashMap<String, PathBuf> = HashMap::new();
 
   let mut schema_paths: Vec<_> = proj_files
     .keys()
-    .filter(|path| path.starts_with(&schema_dir) && is_content_file(path))
+    .filter(|path| path.starts_with(&root_dir) && is_type_file(path))
     .collect();
   schema_paths.sort();
 
@@ -40,12 +40,12 @@ pub fn check_schema_dir(db: &TypedownDatabase, project: Project) -> SchemaCheckR
       .unwrap_or_default()
       .to_string();
 
-    let relative = path.strip_prefix(&schema_dir).unwrap_or(path);
+    let relative = path.strip_prefix(&root_dir).unwrap_or(path);
     let norm_path = normalize_path(relative);
 
     if let Some(existing_path) = seen_schemas.get(&name) {
       let existing_relative = existing_path
-        .strip_prefix(&schema_dir)
+        .strip_prefix(&root_dir)
         .unwrap_or(existing_path);
       diagnostics.push(Diagnostic::DuplicateSchemaName {
         name: name.clone(),
@@ -69,9 +69,9 @@ mod tests {
   use crate::db::types::TdStaticType;
 
   #[test]
-  fn check_schema_dir_allows_nested_schemas_with_unique_names() {
-    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
-    let result = check_schema_dir(&db, project);
+  fn check_schemas_allows_nested_schemas_with_unique_names() {
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
+    let result = check_schemas(&db, project);
     assert!(result.diagnostics(&db).is_empty());
   }
 
@@ -89,15 +89,15 @@ mod tests {
   }
 
   #[test]
-  fn check_schema_dir_detects_duplicate_schema_names() {
-    let (db, project, _) = load_vault_fixture("evaluate/duplicate_schema_vault", "schemas/Item.td");
-    let result = check_schema_dir(&db, project);
+  fn check_schemas_detects_duplicate_schema_names() {
+    let (db, project, _) = load_vault_fixture("evaluate/duplicate_schema_vault", "_types/Item.td");
+    let result = check_schemas(&db, project);
     let diags = result.diagnostics(&db);
     assert_eq!(diags.len(), 1);
     assert!(matches!(
       &diags[0],
       Diagnostic::DuplicateSchemaName { name, path, duplicate_of }
-        if name == "Item" && path == "nested/Item.td" && duplicate_of == "Item.td"
+        if name == "Item" && path == "_types/nested/Item.td" && duplicate_of == "_types/Item.td"
     ));
   }
 }

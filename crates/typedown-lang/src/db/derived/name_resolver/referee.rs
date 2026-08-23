@@ -56,8 +56,8 @@ fn resolve_call(
     && let HirValueKind::Str(path) = first_arg.kind(db)
   {
     let project = hir.project(db);
-    let content_dir = get_vault_config(db, project).content_dir(db);
-    let target_path = content_dir.join(&path);
+    let root_dir = get_vault_config(db, project).root_dir(db);
+    let target_path = root_dir.join(&path);
     if let Some(&target_file) = project.files(db).get(&target_path) {
       return file_symbol(db, project, target_file);
     }

@@ -64,8 +64,8 @@ const COMMON_MIME_TYPES: Record<string, string> = {
 };
 
 export interface ClientAppEntryOptions {
-  /** Content directory relative to project root */
-  contentDir: string;
+  /** Vault root directory relative to project root */
+  rootDir?: string;
   /** URL base path */
   basePath?: string;
   /** Site title */
@@ -88,9 +88,9 @@ export interface TypedownPluginOptions {
 
 export function generateClientAppEntry (options: ClientAppEntryOptions): string {
   const {
-    contentDir,
+    rootDir: rootDirectory = '.',
   } = options;
-  const glob = `/${contentDir}/**/*.{td,md}`;
+  const glob = rootDirectory === '.' ? '/**/*.{td,md}' : `/${rootDirectory}/**/*.{td,md}`;
 
   const siteConfig = JSON.stringify({
     title: options.siteTitle,
@@ -128,7 +128,7 @@ function findPage(base) {
 }
 
 async function loadPageModule(pagePath) {
-  const base = ('/${contentDir}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
+  const base = ('/${rootDirectory}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
   const loader = findPage(base);
   if (loader) return loader();
 
@@ -282,6 +282,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       return generateClientAppEntry({
         ...config,
+        rootDir: config.rootDir,
         contentTree,
         schemas,
       });
@@ -316,7 +317,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
             if (!server) return;
 
             const absolute = normalizePath(
-              resolve(server.config.root, config.contentDir, content),
+              resolve(server.config.root, config.rootDir, content),
             );
 
             // A single file can back several modules (`?vue&type=template`, `&type=style`)
@@ -357,11 +358,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       tdContext.rpc.onSchemaCreated(() => server && hmrInvalidateAll(server));
       tdContext.rpc.onSchemaDeleted(() => server && hmrInvalidateAll(server));
 
-      let cachedContentDirectory = 'vault/content';
+      let cachedContentDirectory = 'vault';
 
       tdContext.getConfig()
         .then((config) => {
-          cachedContentDirectory = config.contentDir;
+          cachedContentDirectory = config.rootDir;
         })
         .catch(() => {});
 
@@ -448,7 +449,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       const tdContext = await resolveTdContext();
       const config = await tdContext.getConfig();
-      const contentDirectory = config.contentDir;
+      const contentDirectory = config.rootDir;
       const relativePath = cleanId.includes(contentDirectory)
         ? cleanId.slice(cleanId.indexOf(contentDirectory) + contentDirectory.length + 1)
         : cleanId;

@@ -608,7 +608,7 @@ mod tests {
   // Nested field inside a schema property descriptor
   #[test]
   fn expected_node_type_nested_schema_property_field() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithUnion.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithUnion.td");
     let type_hir = get_nested_field_hir(&db, project, file, &["properties", "status", "type"]);
     let type_hir = type_hir.expect("should find nested type field");
     let result = expected_node_type(&db, type_hir);

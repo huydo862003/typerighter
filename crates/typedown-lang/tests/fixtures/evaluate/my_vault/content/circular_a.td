@@ -2,5 +2,5 @@
 _type: Person
 name: "Alice"
 age: 30
-friend: fref("circular_b.td")
+friend: fref("content/circular_b.td")
 ---

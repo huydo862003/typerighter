@@ -3,6 +3,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::resolution_index::references;
 use typedown_lang::db::types::SymbolKind;
+use typedown_lang::db::utils::is_type_file;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::uri::uri_to_path;
@@ -17,7 +18,7 @@ use lsp_types::TextEdit;
 pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Option<WorkspaceEdit> {
   let db = &analysis.db;
   let project = analysis.project;
-  let content_dir = get_vault_config(db, project).content_dir(db);
+  let root_dir = get_vault_config(db, project).root_dir(db);
   let mut all_edits: HashMap<PathBuf, Vec<TextEdit>> = HashMap::new();
 
   for file_rename in &params.files {
@@ -29,12 +30,9 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
     let file = *project.files(db).get(&old_path)?;
     let symbol = file_symbol(db, project, file).value(db)?;
 
-    // Schema rename: ensure new path stays inside schema_dir
-    if matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _)) {
-      let schema_dir = get_vault_config(db, project).schema_dir(db);
-      if !new_path.starts_with(&schema_dir) {
-        continue;
-      }
+    // Schema rename: ensure new path stays inside a _types directory
+    if matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _)) && !is_type_file(&new_path) {
+      continue;
     }
 
     let new_stem = new_path
@@ -43,7 +41,7 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
       .unwrap_or_default();
 
     let refs = references(db, project, symbol);
-    let edits = collect_reference_edits(analysis, &refs, new_stem, &new_path, &content_dir)?;
+    let edits = collect_reference_edits(analysis, &refs, new_stem, &new_path, &root_dir)?;
     for (path, file_edits) in edits {
       all_edits.entry(path).or_default().extend(file_edits);
     }
@@ -69,8 +67,7 @@ mod tests {
   const VAULT_CONFIG: &str = r#"
 version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -105,8 +102,7 @@ avatar: fref("assets/icon.svg")
 
   fn setup_with_extra_files(editing_content: &str, extra_files: Vec<(PathBuf, &str)>) -> Analysis {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
+    let type_root = root.join("_types");
 
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
@@ -123,7 +119,7 @@ avatar: fref("assets/icon.svg")
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -131,7 +127,7 @@ avatar: fref("assets/icon.svg")
     let alice_file = File::new(
       &db,
       FileHandle::Content(
-        content_root.join("alice.td"),
+        root.join("alice.td"),
         CONTENT_ALICE.to_string(),
         FileMetadata::default(),
       ),
@@ -139,7 +135,7 @@ avatar: fref("assets/icon.svg")
     let editing_file = File::new(
       &db,
       FileHandle::Content(
-        content_root.join("file.td"),
+        root.join("file.td"),
         editing_content.to_string(),
         FileMetadata::default(),
       ),
@@ -147,9 +143,9 @@ avatar: fref("assets/icon.svg")
 
     let mut files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
-      (root.join("content/alice.td"), alice_file),
-      (content_root.join("file.td"), editing_file),
+      (root.join("_types/Person.td"), person_file),
+      (root.join("alice.td"), alice_file),
+      (root.join("file.td"), editing_file),
     ]);
 
     for (path, content) in extra_files {
@@ -216,7 +212,7 @@ avatar: fref("assets/icon.svg")
   #[test]
   fn will_rename_schema_updates_type_refs() {
     let analysis = setup(CONTENT_ALICE);
-    let params = make_params("schemas/Person.td", "schemas/Human.td");
+    let params = make_params("_types/Person.td", "_types/Human.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
     let snap = snapshot(&edit);
 
@@ -237,7 +233,7 @@ avatar: fref("assets/icon.svg")
   #[test]
   fn will_rename_content_updates_fref() {
     let analysis = setup(CONTENT_WITH_FREF);
-    let params = make_params("content/alice.td", "content/bob.td");
+    let params = make_params("alice.td", "bob.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
     let snap = snapshot(&edit);
 
@@ -248,7 +244,7 @@ avatar: fref("assets/icon.svg")
   #[test]
   fn will_rename_schema_outside_schema_dir_skips_edits() {
     let analysis = setup(CONTENT_ALICE);
-    let params = make_params("schemas/Person.td", "content/Person.td");
+    let params = make_params("_types/Person.td", "Person.td");
     let result = will_rename_files(&analysis, params);
 
     assert!(
@@ -261,7 +257,7 @@ avatar: fref("assets/icon.svg")
   #[test]
   fn will_rename_schema_to_nested_dir_updates_type_refs() {
     let analysis = setup(CONTENT_ALICE);
-    let params = make_params("schemas/Person.td", "schemas/nested/Human.td");
+    let params = make_params("_types/Person.td", "_types/nested/Human.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
     let snap = snapshot(&edit);
 
@@ -276,10 +272,10 @@ avatar: fref("assets/icon.svg")
   #[test]
   fn will_rename_asset_updates_fref() {
     let root = root();
-    let asset_path = root.join("content/assets/icon.svg");
+    let asset_path = root.join("assets/icon.svg");
     let analysis =
       setup_with_extra_files(CONTENT_WITH_ASSET_FREF, vec![(asset_path, "<svg></svg>")]);
-    let params = make_params("content/assets/icon.svg", "content/assets/logo.svg");
+    let params = make_params("assets/icon.svg", "assets/logo.svg");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
     let snap = snapshot(&edit);
 
@@ -294,7 +290,7 @@ avatar: fref("assets/icon.svg")
   #[test]
   fn will_rename_unknown_file_returns_none() {
     let analysis = setup(CONTENT_ALICE);
-    let params = make_params("content/unknown.td", "content/other.td");
+    let params = make_params("unknown.td", "other.td");
     let result = will_rename_files(&analysis, params);
 
     assert!(result.is_none(), "unknown file should return None");

@@ -819,7 +819,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_list_type_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithListType.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithListType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -831,7 +831,7 @@ mod tests {
 
   #[test]
   fn typecheck_circular_schema_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/CircularA.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/CircularA.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -843,7 +843,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_bare_user_type_ref() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithBareRef.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithBareRef.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -855,7 +855,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_self_ref() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/SelfRef.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/SelfRef.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -867,7 +867,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_list_of_user_type_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithRefList.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithRefList.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -891,7 +891,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_simple_props_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/SimpleProps.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/SimpleProps.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -903,7 +903,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_optional_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithOptional.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithOptional.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -916,7 +916,7 @@ mod tests {
   #[test]
   fn typecheck_schema_with_explicit_type_tag_no_errors() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "schemas/WithExplicitTypeTag.td");
+      load_vault_fixture("typecheck/my_vault", "_types/WithExplicitTypeTag.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -928,7 +928,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_union_type_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithUnion.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithUnion.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -940,7 +940,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_nested_type_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "schemas/WithNestedType.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithNestedType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -952,8 +952,7 @@ mod tests {
 
   #[test]
   fn typecheck_schema_with_literal_type_no_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "schemas/WithLiteralType.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithLiteralType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -966,7 +965,7 @@ mod tests {
   #[test]
   fn typecheck_schema_properties_not_mapping_has_errors() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "schemas/PropertiesNotMapping.td");
+      load_vault_fixture("typecheck/my_vault", "_types/PropertiesNotMapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -978,7 +977,7 @@ mod tests {
   #[test]
   fn typecheck_schema_missing_properties_field() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "schemas/MissingProperties.td");
+      load_vault_fixture("typecheck/my_vault", "_types/MissingProperties.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -992,7 +991,7 @@ mod tests {
   #[test]
   fn typecheck_schema_prop_descriptor_extra_field_no_typecheck_errors() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "schemas/PropDescriptorExtraField.td");
+      load_vault_fixture("typecheck/my_vault", "_types/PropDescriptorExtraField.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1005,7 +1004,7 @@ mod tests {
   #[test]
   fn typecheck_schema_prop_descriptor_missing_type_has_errors() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "schemas/PropDescriptorMissingType.td");
+      load_vault_fixture("typecheck/my_vault", "_types/PropDescriptorMissingType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(

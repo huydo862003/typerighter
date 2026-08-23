@@ -475,7 +475,7 @@ mod tests {
 
   #[test]
   fn evaluate_user_defined_schema_returns_product_type() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     assert!(result.typ(&db).unwrap().is_td_product_type());
@@ -483,7 +483,7 @@ mod tests {
 
   #[test]
   fn evaluate_user_defined_schema_has_declared_fields() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
@@ -496,7 +496,7 @@ mod tests {
   #[test]
   fn evaluate_schema_with_explicit_type_tag() {
     let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "schemas/PersonExplicitType.td");
+      load_vault_fixture("evaluate/my_vault", "_types/PersonExplicitType.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     assert!(
@@ -512,7 +512,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_no_properties_returns_empty_product() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/NoProperties.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/NoProperties.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
@@ -522,7 +522,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_wrong_properties_type_has_diagnostics() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/WrongProperties.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/WrongProperties.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     assert!(!evaluate_type(&db, symbol).diagnostics(&db).is_empty());
   }
@@ -530,14 +530,14 @@ mod tests {
   #[test]
   fn evaluate_type_wrong_property_descriptor_has_diagnostics() {
     let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "schemas/WrongPropertyDescriptor.td");
+      load_vault_fixture("evaluate/my_vault", "_types/WrongPropertyDescriptor.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     assert!(!evaluate_type(&db, symbol).diagnostics(&db).is_empty());
   }
 
   #[test]
   fn evaluate_type_schema_with_valid_default_fixture() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/DefaultValid.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/DefaultValid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     assert!(
@@ -550,7 +550,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_schema_with_mismatched_default_fixture() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/DefaultInvalid.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/DefaultInvalid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let diags = result.diagnostics(&db);
@@ -568,7 +568,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_list_field_in_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/WithListField.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/WithListField.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     assert!(
@@ -584,7 +584,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_circular_schema_refs() {
-    let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "schemas/SchemaA.td");
+    let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "_types/SchemaA.td");
     let symbol_a = file_symbol(&db, project, file_a).value(&db).unwrap();
     assert!(evaluate_type(&db, symbol_a).diagnostics(&db).is_empty());
     let file_b = project
@@ -709,7 +709,7 @@ mod tests {
 
   #[test]
   fn display_name_user_defined_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol).typ(&db).unwrap();
     assert_eq!(typ.display_name(&db), "Person");
@@ -823,7 +823,7 @@ mod tests {
   // Schema construct via evaluate_type
   #[test]
   fn construct_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol).typ(&db).unwrap();
     let product = typ.as_td_product_type().unwrap();
@@ -842,7 +842,7 @@ mod tests {
 
   #[test]
   fn construct_type_type() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let (hir, _) = lower_file(&db, project, file);
     let scope = get_file_runtime_scope(&db, project, file);
     let obj = construct_from_hir(&db, hir.unwrap(), scope, &mut vec![]).unwrap();
@@ -896,7 +896,7 @@ mod tests {
   // Enum schema where type is a union of string literals
   #[test]
   fn evaluate_enum_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Status.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Status.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
@@ -910,7 +910,7 @@ mod tests {
   // Mixed union where type is a union of literal and simple types
   #[test]
   fn evaluate_mixed_union_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Mixed.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Mixed.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
@@ -1159,7 +1159,7 @@ properties:
 
   #[test]
   fn evaluate_schema_with_computed_field() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/ComputedValid.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/ComputedValid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     assert!(result.diagnostics(&db).is_empty());

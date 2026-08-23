@@ -1,3 +1,3 @@
 ---
-result: fref("valid_person.td").name
+result: fref("content/valid_person.td").name
 ---

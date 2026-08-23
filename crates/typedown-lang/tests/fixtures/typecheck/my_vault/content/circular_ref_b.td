@@ -2,5 +2,5 @@
 _type: CircularB
 label: "test b"
 refs:
-  - fref("circular_ref.td")
+  - fref("content/circular_ref.td")
 ---

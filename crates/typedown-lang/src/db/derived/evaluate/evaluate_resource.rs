@@ -106,10 +106,9 @@ mod tests {
     );
   }
 
-  // A schema file placed in content dir is treated as a resource, not a schema
-  // but evaluate_resource still produces a value (a TdProductType)
+  // A schema file placed in content dir is treated as a resource, not a schema but evaluate_resource still produces a value (a TdProductType)
   #[test]
-  fn schema_in_content_dir_is_resource() {
+  fn schema_in_root_dir_is_resource() {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "content/schema_in_content.td");
     let symbol = file_symbol(&db, project, file)

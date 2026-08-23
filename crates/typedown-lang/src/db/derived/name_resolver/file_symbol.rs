@@ -2,8 +2,8 @@ use typedown_macros::query_derived;
 use typedown_types::path::normalize_path;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::types::{AssetKind, File, Project, Symbol, SymbolKind};
+use crate::db::utils::is_type_file;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -13,10 +13,8 @@ pub struct MaybeSymbol {
 
 #[query_derived]
 pub fn file_symbol(db: &TypedownDatabase, project: Project, file: File) -> MaybeSymbol {
-  let config = get_vault_config(db, project);
-  let schema_dir = config.schema_dir(db);
   let path = file.handle(db).path().cloned().unwrap_or_default();
-  let is_schema_file = path.starts_with(&schema_dir);
+  let is_schema_file = is_type_file(&path);
 
   let name = path
     .file_stem()

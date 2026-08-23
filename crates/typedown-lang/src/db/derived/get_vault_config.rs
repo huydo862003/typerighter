@@ -22,7 +22,6 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
       db,
       String::new(),
       PathBuf::new(),
-      PathBuf::new(),
       "/".to_string(),
       AssetsDir::default(),
       String::new(),
@@ -37,7 +36,6 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
     return VaultConfigResult::new(
       db,
       String::new(),
-      PathBuf::new(),
       PathBuf::new(),
       "/".to_string(),
       AssetsDir::default(),
@@ -54,8 +52,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
   check_unknown_fields(&doc, &contents, &path_str, &mut diagnostics);
 
   let version = extract_version(&doc, &contents, &path_str, &mut diagnostics);
-  let content_dir = extract_content_dir(&doc, &contents, &path_str, &root, &mut diagnostics);
-  let schema_dir = extract_schema_dir(&doc, &contents, &path_str, &root, &mut diagnostics);
+  let root_dir = extract_root_dir(&doc, &contents, &path_str, &root, &mut diagnostics);
   let base_path = extract_base_path(&doc, &contents, &path_str, &mut diagnostics);
   let assets_dir = extract_assets_dir(&doc, &contents, &path_str, &mut diagnostics);
   let site_title = doc["site"]["title"].as_str().unwrap_or("").to_string();
@@ -72,8 +69,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
   VaultConfigResult::new(
     db,
     version,
-    content_dir,
-    schema_dir,
+    root_dir,
     base_path,
     assets_dir,
     site_title,
@@ -199,7 +195,7 @@ fn check_unknown_fields(
   if let Some(vault_hash) = doc["vault"].as_hash() {
     for key in vault_hash.keys() {
       if let Some(key_str) = key.as_str()
-        && !matches!(key_str, "content_dir" | "schema_dir" | "assets_dir")
+        && !matches!(key_str, "root_dir" | "assets_dir")
       {
         let offset = key_char_offset(contents, key_str).unwrap_or(0);
         diagnostics.push(Diagnostic::VaultConfigUnknownField {
@@ -235,55 +231,23 @@ fn extract_version(
   )
 }
 
-/// Extract `vault.content_dir` as an absolute path, pushing a missing-field diagnostic if absent.
-fn extract_content_dir(
+/// Extract `vault.root_dir` as an absolute path, defaulting to `root` if absent.
+fn extract_root_dir(
   doc: &yaml_rust2::Yaml,
-  contents: &str,
-  path_str: &str,
+  _contents: &str,
+  _path_str: &str,
   root: &Path,
-  diagnostics: &mut Vec<Diagnostic>,
+  _diagnostics: &mut Vec<Diagnostic>,
 ) -> PathBuf {
-  doc["vault"]["content_dir"].as_str().map_or_else(
-    || {
-      // Point at `content_dir:` if present, otherwise fall back to `vault:`.
-      let offset = key_char_offset(contents, "content_dir")
-        .or_else(|| key_char_offset(contents, "vault"))
-        .unwrap_or(0);
-      diagnostics.push(Diagnostic::VaultConfigMissingField {
-        path: path_str.to_string(),
-        field: "vault.content_dir".to_string(),
-        start_offset: offset,
-        end_offset: offset,
-      });
-      PathBuf::new()
+  doc["vault"]["root_dir"].as_str().map_or_else(
+    || root.to_path_buf(),
+    |s| {
+      if s == "." || s.is_empty() {
+        root.to_path_buf()
+      } else {
+        root.join(s)
+      }
     },
-    |s| root.join(s),
-  )
-}
-
-/// Extract `vault.schema_dir` as an absolute path, pushing a missing-field diagnostic if absent.
-fn extract_schema_dir(
-  doc: &yaml_rust2::Yaml,
-  contents: &str,
-  path_str: &str,
-  root: &Path,
-  diagnostics: &mut Vec<Diagnostic>,
-) -> PathBuf {
-  doc["vault"]["schema_dir"].as_str().map_or_else(
-    || {
-      // Point at `schema_dir:` if present, otherwise fall back to `vault:`.
-      let offset = key_char_offset(contents, "schema_dir")
-        .or_else(|| key_char_offset(contents, "vault"))
-        .unwrap_or(0);
-      diagnostics.push(Diagnostic::VaultConfigMissingField {
-        path: path_str.to_string(),
-        field: "vault.schema_dir".to_string(),
-        start_offset: offset,
-        end_offset: offset,
-      });
-      PathBuf::new()
-    },
-    |s| root.join(s),
   )
 }
 

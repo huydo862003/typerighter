@@ -17,12 +17,9 @@ pub fn disk_handle(path: &Path) -> Option<FileHandle> {
 
 pub fn scan_project_files(root: &Path) -> io::Result<HashSet<PathBuf>> {
   let mut files = HashSet::new();
-  let (content_dir, schema_dir) = vault_dirs(root);
+  let root_dir = vault_root_dir(root);
 
-  scan_dir(&content_dir, &mut files)?;
-  if schema_dir != content_dir {
-    scan_dir(&schema_dir, &mut files)?;
-  }
+  scan_dir(&root_dir, &mut files)?;
 
   // Include typedown.yaml/yml at root
   for name in ["typedown.yaml", "typedown.yml"] {
@@ -35,8 +32,8 @@ pub fn scan_project_files(root: &Path) -> io::Result<HashSet<PathBuf>> {
   Ok(files)
 }
 
-// Read content_dir and schema_dir from typedown.yaml without the full DB
-fn vault_dirs(root: &Path) -> (PathBuf, PathBuf) {
+// Read root_dir from typedown.yaml without the full DB
+fn vault_root_dir(root: &Path) -> PathBuf {
   let config = root
     .join("typedown.yaml")
     .exists()
@@ -52,19 +49,20 @@ fn vault_dirs(root: &Path) -> (PathBuf, PathBuf) {
     .and_then(|p| fs::read_to_string(p).ok())
     .unwrap_or_default();
 
-  let content_dir = text
+  let root_dir_str = text
     .lines()
-    .find(|l| l.trim().starts_with("content_dir:"))
-    .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
-    .unwrap_or_else(|| "content".to_string());
+    .find(|l| l.trim().starts_with("root_dir:"))
+    .and_then(|l| {
+      l.split_once(':')
+        .map(|(_, v)| v.trim().trim_matches('"').trim_matches('\'').to_string())
+    })
+    .unwrap_or_else(|| ".".to_string());
 
-  let schema_dir = text
-    .lines()
-    .find(|l| l.trim().starts_with("schema_dir:"))
-    .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
-    .unwrap_or_else(|| "schemas".to_string());
-
-  (root.join(content_dir), root.join(schema_dir))
+  if root_dir_str == "." || root_dir_str.is_empty() {
+    root.to_path_buf()
+  } else {
+    root.join(root_dir_str)
+  }
 }
 
 fn scan_dir(dir: &Path, files: &mut HashSet<PathBuf>) -> io::Result<()> {

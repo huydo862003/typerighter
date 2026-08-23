@@ -300,8 +300,8 @@ fn get_fref_type(db: &TypedownDatabase, args: Vec<HirValue>) -> TypeResult {
 
   let project = arg.project(db);
   let files = project.files(db);
-  let content_dir = get_vault_config(db, project).content_dir(db);
-  let target_path = content_dir.join(&path_str);
+  let root_dir = get_vault_config(db, project).root_dir(db);
+  let target_path = root_dir.join(&path_str);
 
   let target_file = match files.get(&target_path) {
     Some(file) => *file,
@@ -547,7 +547,7 @@ mod tests {
   #[test]
   fn actual_node_type_of_schema_file_top_level_mapping_is_schema_type() {
     let vault = vault_root();
-    let schema_file_path = vault.join("schemas/Person.td");
+    let schema_file_path = vault.join("_types/Person.td");
 
     let db = TypedownDatabase {
       storage: QueryStorage::default(),

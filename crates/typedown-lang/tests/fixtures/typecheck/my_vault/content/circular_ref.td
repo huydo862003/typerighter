@@ -2,5 +2,5 @@
 _type: CircularA
 name: "test"
 items:
-  - fref("circular_ref_b.td")
+  - fref("content/circular_ref_b.td")
 ---

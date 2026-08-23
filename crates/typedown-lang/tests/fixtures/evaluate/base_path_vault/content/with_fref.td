@@ -3,4 +3,4 @@ _type: Person
 name: "Bob"
 ---
 
-Link to Alice: ${fref("alice.td")}
+Link to Alice: ${fref("content/alice.td")}

@@ -167,8 +167,7 @@ mod tests {
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
 
   const SCHEMA_TASK: &str = r#"---
@@ -196,9 +195,8 @@ properties:
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
-    let test_path = content_root.join("file.td");
+    let type_root = root.join("_types");
+    let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -218,22 +216,22 @@ properties:
         ),
       ),
       (
-        schema_root.join("Task.td"),
+        type_root.join("Task.td"),
         File::new(
           &db,
           FileHandle::Content(
-            schema_root.join("Task.td"),
+            type_root.join("Task.td"),
             SCHEMA_TASK.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            schema_root.join("Person.td"),
+            type_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),

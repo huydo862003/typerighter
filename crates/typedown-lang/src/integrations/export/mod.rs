@@ -647,9 +647,9 @@ pub fn resolve_ref(
       let handle = target_file.handle(db);
       let path = handle.path()?;
       let config = get_vault_config(db, project);
-      let content_dir = config.content_dir(db);
+      let root_dir = config.root_dir(db);
       let base_path = config.base_path(db);
-      let relative = path.strip_prefix(&content_dir).unwrap_or(path);
+      let relative = path.strip_prefix(&root_dir).unwrap_or(path);
       let path_str = relative.to_string_lossy();
       let without_ext = strip_content_extension(&path_str);
       let url = if base_path == "/" {
@@ -663,9 +663,9 @@ pub fn resolve_ref(
       let handle = target_file.handle(db);
       let path = handle.path()?;
       let config = get_vault_config(db, project);
-      let content_dir = config.content_dir(db);
+      let root_dir = config.root_dir(db);
       let base_path = config.base_path(db);
-      let relative = path.strip_prefix(&content_dir).unwrap_or(path);
+      let relative = path.strip_prefix(&root_dir).unwrap_or(path);
       let path_str = relative.to_string_lossy();
       let url = if base_path == "/" {
         format!("/{path_str}")
@@ -906,14 +906,14 @@ mod tests {
 
   #[test]
   fn returns_none_for_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let result = export_resource(&db, project, file);
     assert!(result.is_none(), "schema should return None");
   }
 
   #[test]
   fn exports_list_field_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/WithListField.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/WithListField.td");
     let props =
       export_property_descriptors(&db, project, file).expect("WithListField schema should export");
     assert_eq!(props["tags"]["widget"], "list");
@@ -924,7 +924,7 @@ mod tests {
 
   #[test]
   fn exports_schema_properties() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let props =
       export_property_descriptors(&db, project, file).expect("Person schema should export");
     assert_eq!(props["name"]["widget"], "text");
@@ -933,7 +933,7 @@ mod tests {
 
   #[test]
   fn exports_schema_select_property() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Status.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Status.td");
     let props =
       export_property_descriptors(&db, project, file).expect("Status schema should export");
     assert_eq!(props["status"]["widget"], "select");
@@ -945,7 +945,7 @@ mod tests {
 
   #[test]
   fn exports_schema_relation_property() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Event.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Event.td");
     let props =
       export_property_descriptors(&db, project, file).expect("Event schema should export");
     assert_eq!(props["title"]["widget"], "text");
@@ -987,7 +987,7 @@ mod tests {
       load_vault_fixture("evaluate/base_path_vault", "content/with_fref.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
-      exported.content.contains("[Alice](/blog/alice)"),
+      exported.content.contains("[Alice](/blog/content/alice)"),
       "fref should use base_path /blog: {}",
       exported.content
     );
@@ -998,7 +998,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_asset_fref.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
-      exported.content.contains("![icon](/icon.svg)"),
+      exported.content.contains("![icon](/content/icon.svg)"),
       "image asset fref should produce markdown image: {}",
       exported.content
     );

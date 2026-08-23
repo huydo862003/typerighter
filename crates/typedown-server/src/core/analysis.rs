@@ -31,14 +31,6 @@ impl Analysis {
     }
   }
 
-  /// Check if a path is inside the schema directory
-  pub(crate) fn is_schema_file(&self, path: &Path) -> bool {
-    let schema_dir =
-      typedown_lang::db::derived::get_vault_config::get_vault_config(&self.db, self.project)
-        .schema_dir(&self.db);
-    path.starts_with(&schema_dir)
-  }
-
   /// Get the rope for a file: from the editor buffer if open, otherwise read from disk.
   pub(crate) fn file_rope(&self, path: &Path) -> Option<Rope> {
     if let Some(rope) = self.open_files.get(path) {

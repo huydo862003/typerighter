@@ -138,7 +138,7 @@ export function cli () {
             const result = await tdContext.formatFile(filepath);
 
             if (result.changed) {
-              const fullPath = path.resolve(config.contentDir, filepath);
+              const fullPath = path.resolve(config.rootDir, filepath);
 
               fs.writeFileSync(fullPath, result.content);
               fixedCount++;
