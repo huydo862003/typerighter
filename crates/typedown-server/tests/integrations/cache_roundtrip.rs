@@ -213,7 +213,7 @@ fn cache_miss_on_schema_change() {
 
   let (_tmp, project_dir, cache_dir, _) = session1_dump();
 
-  let schema_path = project_dir.join("vault/schemas/Person.td");
+  let schema_path = project_dir.join("vault/schemas/person/Person.td");
   let original = std::fs::read_to_string(&schema_path).unwrap();
   std::fs::write(
     &schema_path,
