@@ -44,7 +44,9 @@ pub fn check_schema_dir(db: &TypedownDatabase, project: Project) -> SchemaCheckR
     let norm_path = normalize_path(relative);
 
     if let Some(existing_path) = seen_schemas.get(&name) {
-      let existing_relative = existing_path.strip_prefix(&schema_dir).unwrap_or(existing_path);
+      let existing_relative = existing_path
+        .strip_prefix(&schema_dir)
+        .unwrap_or(existing_path);
       diagnostics.push(Diagnostic::DuplicateSchemaName {
         name: name.clone(),
         path: norm_path,
@@ -88,8 +90,7 @@ mod tests {
 
   #[test]
   fn check_schema_dir_detects_duplicate_schema_names() {
-    let (db, project, _) =
-      load_vault_fixture("evaluate/duplicate_schema_vault", "schemas/Item.td");
+    let (db, project, _) = load_vault_fixture("evaluate/duplicate_schema_vault", "schemas/Item.td");
     let result = check_schema_dir(&db, project);
     let diags = result.diagnostics(&db);
     assert_eq!(diags.len(), 1);
