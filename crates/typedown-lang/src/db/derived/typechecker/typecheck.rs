@@ -558,7 +558,7 @@ mod tests {
   // Mapping without _type: infers product type, no validation errors
   #[test]
   fn typecheck_mapping_without_type_infers_product_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/literal_value.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -571,8 +571,7 @@ mod tests {
   // _type references a non-existent schema
   #[test]
   fn typecheck_unresolved_type_has_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/unresolved_type.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unresolved_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -583,7 +582,7 @@ mod tests {
 
   #[test]
   fn typecheck_mapping_with_ident_value() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/ident_value.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "ident_value.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -596,7 +595,7 @@ mod tests {
   #[test]
   fn typecheck_schema_missing_properties_has_diagnostics() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/schema_missing_properties.td");
+      load_vault_fixture("typecheck/my_vault", "schema_missing_properties.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -611,7 +610,7 @@ mod tests {
 
   #[test]
   fn typecheck_valid_person_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -623,8 +622,7 @@ mod tests {
 
   #[test]
   fn typecheck_wrong_field_type_has_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/wrong_field_type.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "wrong_field_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -637,7 +635,7 @@ mod tests {
 
   #[test]
   fn typecheck_nested_valid_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/nested_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -649,8 +647,7 @@ mod tests {
 
   #[test]
   fn typecheck_nested_wrong_type_has_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/nested_wrong_type.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -665,7 +662,7 @@ mod tests {
 
   #[test]
   fn typecheck_prefix_valid() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/unary_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -677,8 +674,7 @@ mod tests {
 
   #[test]
   fn typecheck_prefix_wrong_type() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/unary_wrong_type.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -692,7 +688,7 @@ mod tests {
 
   #[test]
   fn typecheck_binary_valid() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/binary_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -704,8 +700,7 @@ mod tests {
 
   #[test]
   fn typecheck_binary_wrong_type() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/binary_wrong_type.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -719,7 +714,7 @@ mod tests {
 
   #[test]
   fn typecheck_math_field_valid() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_math.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_math.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -731,7 +726,7 @@ mod tests {
 
   #[test]
   fn typecheck_markdown_body_with_interpolation() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_markdown.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_markdown.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -743,7 +738,7 @@ mod tests {
 
   #[test]
   fn typecheck_literal_type_valid() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_status.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_status.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -755,7 +750,7 @@ mod tests {
 
   #[test]
   fn typecheck_literal_type_mismatch() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/invalid_status.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "invalid_status.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -769,7 +764,7 @@ mod tests {
 
   #[test]
   fn typecheck_date_time_fields_accept_quoted_strings() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_event.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -781,7 +776,7 @@ mod tests {
 
   #[test]
   fn typecheck_string_with_inline_math_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/math_in_string.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "math_in_string.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -793,8 +788,7 @@ mod tests {
 
   #[test]
   fn typecheck_string_with_multiple_inline_math_no_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/math_mixed_string.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "math_mixed_string.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -806,8 +800,7 @@ mod tests {
 
   #[test]
   fn typecheck_math_only_string_as_math_field() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/math_only_string.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "math_only_string.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -879,7 +872,7 @@ mod tests {
 
   #[test]
   fn typecheck_circular_content_no_errors() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/circular_ref.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "circular_ref.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1015,8 +1008,7 @@ mod tests {
 
   #[test]
   fn typecheck_valid_list_sum_no_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/valid_list_sum.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "valid_list_sum.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1028,8 +1020,7 @@ mod tests {
 
   #[test]
   fn typecheck_invalid_list_sum_has_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/invalid_list_sum.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "invalid_list_sum.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(!result.diagnostics(&db).is_empty(), "should reject true");
@@ -1037,8 +1028,7 @@ mod tests {
 
   #[test]
   fn typecheck_valid_dict_sum_no_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/valid_dict_sum.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "valid_dict_sum.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1050,8 +1040,7 @@ mod tests {
 
   #[test]
   fn typecheck_invalid_dict_sum_has_errors() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/invalid_dict_sum.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "invalid_dict_sum.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(!result.diagnostics(&db).is_empty(), "should reject boolean");
@@ -1059,8 +1048,7 @@ mod tests {
 
   #[test]
   fn typecheck_mixed_union_accepts_string() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/mixed_union_string.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "mixed_union_string.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1073,7 +1061,7 @@ mod tests {
   #[test]
   fn typecheck_mixed_union_accepts_literal() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/mixed_union_literal.td");
+      load_vault_fixture("typecheck/narrow_vault", "mixed_union_literal.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1085,8 +1073,7 @@ mod tests {
 
   #[test]
   fn typecheck_mixed_union_accepts_number() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/mixed_union_number.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "mixed_union_number.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1099,7 +1086,7 @@ mod tests {
   #[test]
   fn typecheck_mixed_union_rejects_bool() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/mixed_union_invalid.td");
+      load_vault_fixture("typecheck/narrow_vault", "mixed_union_invalid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(!result.diagnostics(&db).is_empty(), "should reject true");
@@ -1107,8 +1094,7 @@ mod tests {
 
   #[test]
   fn typecheck_nested_product_valid() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/nested_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "nested_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1120,8 +1106,7 @@ mod tests {
 
   #[test]
   fn typecheck_nested_product_wrong_field_type() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/nested_wrong_type.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "nested_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(!result.diagnostics(&db).is_empty(), "should fail");
@@ -1129,8 +1114,7 @@ mod tests {
 
   #[test]
   fn typecheck_contrived_valid() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/contrived_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "contrived_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1142,10 +1126,8 @@ mod tests {
 
   #[test]
   fn typecheck_contrived_wrong_literal_num() {
-    let (db, project, file) = load_vault_fixture(
-      "typecheck/narrow_vault",
-      "content/contrived_wrong_literal.td",
-    );
+    let (db, project, file) =
+      load_vault_fixture("typecheck/narrow_vault", "contrived_wrong_literal.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1156,10 +1138,8 @@ mod tests {
 
   #[test]
   fn typecheck_contrived_missing_required_nested() {
-    let (db, project, file) = load_vault_fixture(
-      "typecheck/narrow_vault",
-      "content/contrived_missing_required.td",
-    );
+    let (db, project, file) =
+      load_vault_fixture("typecheck/narrow_vault", "contrived_missing_required.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1171,7 +1151,7 @@ mod tests {
   #[test]
   fn typecheck_contrived_mixed_accepts_literal_num() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/contrived_mixed_num.td");
+      load_vault_fixture("typecheck/narrow_vault", "contrived_mixed_num.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1184,7 +1164,7 @@ mod tests {
   #[test]
   fn typecheck_contrived_mixed_accepts_literal_bool() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/contrived_mixed_bool.td");
+      load_vault_fixture("typecheck/narrow_vault", "contrived_mixed_bool.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1197,7 +1177,7 @@ mod tests {
   #[test]
   fn typecheck_fref_narrower_union_field() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/article_fref_status.td");
+      load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1210,8 +1190,7 @@ mod tests {
   // Binary expression in a schema number field should pass
   #[test]
   fn typecheck_binary_expr_in_schema_number_field() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/binary_schema_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_schema_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1224,10 +1203,8 @@ mod tests {
   // Binary expression with wrong operand type should fail
   #[test]
   fn typecheck_binary_expr_wrong_operand_type() {
-    let (db, project, file) = load_vault_fixture(
-      "typecheck/my_vault",
-      "content/binary_schema_wrong_operand.td",
-    );
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "binary_schema_wrong_operand.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1242,10 +1219,8 @@ mod tests {
   // Binary expression result assigned to wrong field type should fail
   #[test]
   fn typecheck_binary_expr_wrong_field_type() {
-    let (db, project, file) = load_vault_fixture(
-      "typecheck/my_vault",
-      "content/binary_schema_wrong_field_type.td",
-    );
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "binary_schema_wrong_field_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1260,8 +1235,7 @@ mod tests {
   // Parenthesized expression in schema field should pass
   #[test]
   fn typecheck_paren_expr_in_schema_field() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/paren_schema_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "paren_schema_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1274,8 +1248,7 @@ mod tests {
   // Unary expression in schema number field should pass
   #[test]
   fn typecheck_unary_expr_in_schema_field() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/unary_schema_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_schema_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1288,8 +1261,7 @@ mod tests {
   // Nested parenthesized binary: (1 + 2) * (3 + 4) in number field
   #[test]
   fn typecheck_nested_paren_binary_valid() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/nested_binary_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_binary_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1302,8 +1274,7 @@ mod tests {
   // Nested binary with wrong operand deep inside parens
   #[test]
   fn typecheck_nested_paren_binary_wrong() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/nested_binary_wrong.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_binary_wrong.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1318,8 +1289,7 @@ mod tests {
   // Comparison expression is valid schemaless
   #[test]
   fn typecheck_comparison_valid() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/comparison_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "comparison_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1332,7 +1302,7 @@ mod tests {
   // Logical operators with comparison operands
   #[test]
   fn typecheck_logical_with_comparisons_valid() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/logical_valid.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "logical_valid.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1345,8 +1315,7 @@ mod tests {
   // Comparison with null should be valid
   #[test]
   fn typecheck_comparison_null_valid() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/comparison_null.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "comparison_null.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1359,8 +1328,7 @@ mod tests {
   // null == null should be valid
   #[test]
   fn typecheck_comparison_null_null_valid() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/comparison_null_null.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "comparison_null_null.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1373,8 +1341,7 @@ mod tests {
   // Logical operators with non-boolean operands
   #[test]
   fn typecheck_logical_wrong_operand() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/logical_wrong_operand.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "logical_wrong_operand.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -1389,8 +1356,7 @@ mod tests {
   // Closure referencing self should typecheck
   #[test]
   fn typecheck_closure_self_ref() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "closure_self_ref.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(

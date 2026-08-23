@@ -77,8 +77,7 @@ mod tests {
 
   #[test]
   fn evaluate_resource_with_nested_schema_resolves_correctly() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/valid_nested_schema.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_nested_schema.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let res = evaluate_resource(&db, symbol);
     assert!(res.diagnostics(&db).is_empty());

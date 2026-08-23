@@ -79,7 +79,7 @@ mod tests {
 
   #[test]
   fn scope_for_file_hir_returns_file_scope() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
 
@@ -92,7 +92,7 @@ mod tests {
 
   #[test]
   fn scope_inside_closure_returns_fn_scope() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (a, b) -> a + b
@@ -121,7 +121,7 @@ fn: (a, b) -> a + b
   #[test]
   #[should_panic(expected = "Cannot construct static RuntimeScope for a nested closure scope")]
   fn nested_closure_runtime_scope_panics() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (x) -> (y) -> x + y
@@ -150,7 +150,7 @@ fn: (x) -> (y) -> x + y
 
   #[test]
   fn scope_for_yaml_frontmatter_node() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 title: "Hello"
@@ -175,7 +175,7 @@ age: 30
 
   #[test]
   fn scope_for_markdown_body_and_interpolation() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 title: "Hello"
@@ -223,7 +223,7 @@ Hello world ${(a, b) -> a + b}
 
   #[test]
   fn scope_nested_closure_in_yaml_frontmatter() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 outer: (a) -> (b) -> a + b
@@ -272,7 +272,7 @@ outer: (a) -> (b) -> a + b
 
   #[test]
   fn scope_nested_closure_in_markdown_body() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 title: "Nested"

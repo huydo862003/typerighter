@@ -23,7 +23,7 @@ use typedown_lang::db::derived::name_resolver::members::schema_members;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{AssetsDirMode, File, Project, SymbolKind};
+use typedown_lang::db::types::{File, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_type_file};
 use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
 use typedown_lang::integrations::format::format_markdown;
@@ -37,9 +37,9 @@ use crate::core::analysis_host::AnalysisHost;
 use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
-  TdAssetsDir, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult,
-  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
+  TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary, TdDiagnosticItem,
+  TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdRpcSubscriptionCloseResponse,
+  TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -59,7 +59,6 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   let root = project.root_dir(db);
   let root_dir = config.root_dir(db);
   let base_path = config.base_path(db);
-  let assets_dir = config.assets_dir(db);
 
   let root_dir_rel = normalize_path(root_dir.strip_prefix(&root).unwrap_or(&root_dir));
 
@@ -67,12 +66,6 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
     version: config.version(db).to_string(),
     base_path: base_path.to_string(),
     root_dir: root_dir_rel,
-    assets_dir: TdAssetsDir {
-      mode: match assets_dir.mode {
-        AssetsDirMode::Local => "local".to_string(),
-      },
-      path: assets_dir.path.clone(),
-    },
     site_title: config.site_title(db).to_string(),
     site_description: config.site_description(db).to_string(),
     repo: config.repo(db).clone(),

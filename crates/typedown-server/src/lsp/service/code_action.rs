@@ -303,7 +303,13 @@ properties:
 
   #[test]
   fn no_actions_for_file_with_content() {
-    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\n");
+    let (analysis, uri) = setup(
+      r#"---
+_type: Task
+title: "hello"
+---
+"#,
+    );
     let params = make_params(uri);
     let response = code_action(&analysis, params);
 

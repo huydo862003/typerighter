@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type {
   RpcClient,
   TdBuiltResource, TdDiagnosticReport, TdFormatResult, TdSiteConfig, TdSchemaInfo,
@@ -146,13 +145,6 @@ export class TypedownContext {
     this.cachedConfig = await this.rpc.getConfig();
 
     return this.cachedConfig;
-  }
-
-  // Get the asset directory for a given file
-  async getAssetDir (filepath: string): Promise<string> {
-    const config = await this.getConfig();
-
-    return path.join(path.dirname(filepath), config.assetsDir.path);
   }
 
   async getSchema (schema: string): Promise<TdSchemaInfo> {

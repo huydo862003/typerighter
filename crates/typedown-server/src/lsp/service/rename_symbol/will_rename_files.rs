@@ -92,7 +92,13 @@ friend: fref("alice.td")
   const CONTENT_WITH_ASSET_FREF: &str = r#"---
 _type: Person
 name: Alice
-avatar: fref("assets/icon.svg")
+avatar: fref("_assets/icon.svg")
+---
+"#;
+  const CONTENT_WITH_INLINE_ASSET_FREF: &str = r#"---
+_type: Person
+name: Alice
+avatar: fref("icon.svg")
 ---
 "#;
 
@@ -240,16 +246,16 @@ avatar: fref("assets/icon.svg")
     assert!(snap.contains("bob"), "should update fref to bob:\n{}", snap);
   }
 
-  // Renaming schema to outside schema_dir produces no edits
+  // Renaming schema to outside _types directory produces no edits
   #[test]
-  fn will_rename_schema_outside_schema_dir_skips_edits() {
+  fn will_rename_schema_outside_types_dir_skips_edits() {
     let analysis = setup(CONTENT_ALICE);
     let params = make_params("_types/Person.td", "Person.td");
     let result = will_rename_files(&analysis, params);
 
     assert!(
       result.is_none(),
-      "should produce no edits for schema renamed outside schema_dir"
+      "should produce no edits for schema renamed outside _types directory"
     );
   }
 
@@ -268,14 +274,34 @@ avatar: fref("assets/icon.svg")
     );
   }
 
-  // Renaming an asset file updates fref references pointing to it
+  // Renaming an asset in _assets/ updates fref references pointing to it
   #[test]
-  fn will_rename_asset_updates_fref() {
+  fn will_rename_asset_in_assets_dir_updates_fref() {
     let root = root();
-    let asset_path = root.join("assets/icon.svg");
+    let asset_path = root.join("_assets/icon.svg");
     let analysis =
       setup_with_extra_files(CONTENT_WITH_ASSET_FREF, vec![(asset_path, "<svg></svg>")]);
-    let params = make_params("assets/icon.svg", "assets/logo.svg");
+    let params = make_params("_assets/icon.svg", "_assets/logo.svg");
+    let edit = will_rename_files(&analysis, params).expect("should produce edits");
+    let snap = snapshot(&edit);
+
+    assert!(
+      snap.contains("logo"),
+      "should update fref to logo:\n{}",
+      snap
+    );
+  }
+
+  // Renaming an asset outside _assets/ also updates fref references
+  #[test]
+  fn will_rename_asset_outside_assets_dir_updates_fref() {
+    let root = root();
+    let asset_path = root.join("icon.svg");
+    let analysis = setup_with_extra_files(
+      CONTENT_WITH_INLINE_ASSET_FREF,
+      vec![(asset_path, "<svg></svg>")],
+    );
+    let params = make_params("icon.svg", "logo.svg");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
     let snap = snapshot(&edit);
 

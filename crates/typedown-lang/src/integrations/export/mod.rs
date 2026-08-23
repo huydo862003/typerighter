@@ -760,7 +760,7 @@ mod tests {
 
   #[test]
   fn exports_header_fields() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let result = export_resource(&db, project, file);
     let exported = result.expect("should export");
     assert!(
@@ -785,7 +785,7 @@ mod tests {
 
   #[test]
   fn exports_content_body() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_with_content.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
     let result = export_resource(&db, project, file);
     let exported = result.expect("should export");
     assert!(
@@ -797,14 +797,14 @@ mod tests {
 
   #[test]
   fn exports_markdown_body() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_with_content.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert_eq!(exported.content, "Hello world\n");
   }
 
   #[test]
   fn exports_all_markdown_elements() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/all_md_elements.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource(&db, project, file).expect("should export");
     let content = &exported.content;
     // Verify key elements are present in the exported content
@@ -821,8 +821,7 @@ mod tests {
 
   #[test]
   fn exports_container_shorthand() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/md_container_shorthand.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_shorthand.td");
     let exported = export_resource(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
@@ -842,8 +841,7 @@ mod tests {
   // Unresolved interpolation in markdown silently produces empty output
   #[test]
   fn exports_unresolved_interpolation_as_empty() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/md_unresolved_interp.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_unresolved_interp.td");
     let exported = export_resource(&db, project, file).expect("should export");
     let content = &exported.content;
     // ${question} resolves to nothing because `question` is not a field on Person
@@ -859,8 +857,7 @@ mod tests {
 
   #[test]
   fn exports_nested_blocks_without_extra_indentation() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/md_nested_blocks.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_nested_blocks.td");
     let exported = export_resource(&db, project, file).expect("should export");
     let content = &exported.content;
 
@@ -895,7 +892,7 @@ mod tests {
 
   #[test]
   fn exports_container_with_title() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/all_md_elements.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("::: details Click to expand"),
@@ -955,7 +952,7 @@ mod tests {
 
   #[test]
   fn returns_none_for_non_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let result = export_property_descriptors(&db, project, file);
     assert!(
       result.is_none(),
@@ -965,7 +962,7 @@ mod tests {
 
   #[test]
   fn exports_asset_as_blob_descriptor() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/icon.svg");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
     let exported = export_resource(&db, project, file).expect("asset should export");
     assert_eq!(exported.schema, Some("blob".to_string()));
     assert_eq!(
@@ -983,11 +980,10 @@ mod tests {
   // fref links use build.base_path from typedown.yaml
   #[test]
   fn fref_uses_base_path() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/base_path_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
-      exported.content.contains("[Alice](/blog/content/alice)"),
+      exported.content.contains("[Alice](/blog/alice)"),
       "fref should use base_path /blog: {}",
       exported.content
     );
@@ -995,10 +991,10 @@ mod tests {
 
   #[test]
   fn fref_resolves_image_asset_to_markdown_image() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_asset_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_asset_fref.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
-      exported.content.contains("![icon](/content/icon.svg)"),
+      exported.content.contains("![icon](/icon.svg)"),
       "image asset fref should produce markdown image: {}",
       exported.content
     );
@@ -1007,7 +1003,7 @@ mod tests {
   // Default base_path is /
   #[test]
   fn fref_default_base_path() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let exported = export_resource(&db, project, file).expect("should export");
     assert!(
       !exported.content.contains("/blog"),
@@ -1018,7 +1014,7 @@ mod tests {
 
   #[test]
   fn export_separates_blocks_with_blank_lines() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_with_content.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
     let exported = export_resource(&db, project, file).expect("should export");
     // Block elements should be separated by blank lines
     let lines: Vec<&str> = exported.content.lines().collect();
@@ -1042,7 +1038,7 @@ mod tests {
 
   #[test]
   fn exports_schemaless_file() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/schemaless.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless.td");
     let result = export_resource(&db, project, file);
     let exported = result.expect("schemaless file should export");
     assert_eq!(

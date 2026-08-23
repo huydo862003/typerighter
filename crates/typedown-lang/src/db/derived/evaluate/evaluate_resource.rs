@@ -73,7 +73,7 @@ mod tests {
   // A valid resource with _type produces an object with the declared fields
   #[test]
   fn evaluate_resource_valid_person() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -93,8 +93,7 @@ mod tests {
   // A field value that doesn't match the declared schema type produces diagnostics
   #[test]
   fn evaluate_resource_wrong_type_has_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/wrong_field_type.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "wrong_field_type.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -106,11 +105,10 @@ mod tests {
     );
   }
 
-  // A schema file placed in content dir is treated as a resource, not a schema but evaluate_resource still produces a value (a TdProductType)
+  // A schema file placed outside _types is treated as a resource, not a schema, but evaluate_resource still produces a value (a TdProductType)
   #[test]
   fn schema_in_root_dir_is_resource() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/schema_in_content.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schema_in_content.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a symbol");
@@ -140,7 +138,7 @@ mod tests {
   // Circular fref does not cause infinite recursion due to lazy evaluation
   #[test]
   fn circular_fref_does_not_panic() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/circular_a.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "circular_a.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("should return a resource symbol");
@@ -161,7 +159,7 @@ mod tests {
   // Lazy field access: accessing the fref field evaluates the target on both sides
   #[test]
   fn lazy_fref_field_access() {
-    let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "content/circular_a.td");
+    let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "circular_a.td");
     let symbol_a = file_symbol(&db, project, file_a)
       .value(&db)
       .expect("should return a resource symbol");
@@ -193,7 +191,7 @@ mod tests {
   // str.to_string() returns the same string value
   #[test]
   fn str_to_string_produces_same_value() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/str_method_call.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_method_call.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -209,7 +207,7 @@ mod tests {
   // num.to_string() returns the decimal representation, without trailing .0 for integers
   #[test]
   fn num_to_string_produces_string_repr() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/num_method_call.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "num_method_call.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -225,8 +223,7 @@ mod tests {
   // bool.to_string() returns "true" or "false"
   #[test]
   fn bool_to_string_produces_string_repr() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/bool_method_call.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "bool_method_call.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -241,8 +238,7 @@ mod tests {
 
   #[test]
   fn evaluate_resource_with_computed_field() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/computed_resource.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "computed_resource.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -258,7 +254,7 @@ mod tests {
   // fref("file.td").prop evaluates the referenced resource and accesses a field on it
   #[test]
   fn fref_prop_accesses_field_on_referenced_resource() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/fref_prop.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "fref_prop.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -274,7 +270,7 @@ mod tests {
   // self.field accesses a field on the current resource object
   #[test]
   fn self_ref_accesses_own_field() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/self_ref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "self_ref.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -290,7 +286,7 @@ mod tests {
   // String interpolation evaluates embedded expressions and concatenates the parts
   #[test]
   fn str_interp_evaluates_expr_parts() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/str_interp.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_interp.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a resource symbol");
@@ -318,7 +314,7 @@ mod tests {
   // 1 + 2 evaluates to 3
   #[test]
   fn binary_add_evaluates_to_sum() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/binary_valid.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "binary_valid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert_eq!(get_num_field(&db, &obj, "result"), 3.0);
@@ -327,7 +323,7 @@ mod tests {
   // -, *, /, %, ** all produce the expected numeric result
   #[test]
   fn arithmetic_ops_evaluate_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/arithmetic_ops.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "arithmetic_ops.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert_eq!(get_num_field(&db, &obj, "sub"), 7.0);
@@ -340,7 +336,7 @@ mod tests {
   // Unary - negates the number
   #[test]
   fn unary_negation_evaluates_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/unary_valid.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "unary_valid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert_eq!(get_num_field(&db, &obj, "result"), -42.0);
@@ -349,7 +345,7 @@ mod tests {
   // <, >, ==, !=, <=, >= all produce bool results for numeric operands
   #[test]
   fn comparison_ops_evaluate_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/comparison_ops.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "comparison_ops.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert!(get_bool_field(&db, &obj, "lt"));
@@ -363,7 +359,7 @@ mod tests {
   // && and || produce the expected bool result
   #[test]
   fn logical_ops_evaluate_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/logical_ops.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "logical_ops.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert!(!get_bool_field(&db, &obj, "and_false"));
@@ -373,7 +369,7 @@ mod tests {
   // Unary + is identity; ~ is logical not (falsy: null/false; truthy: everything else)
   #[test]
   fn unary_extras_evaluate_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/unary_extras.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "unary_extras.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert_eq!(get_num_field(&db, &obj, "pos"), 5.0);
@@ -385,7 +381,7 @@ mod tests {
   // String comparison operators work lexicographically
   #[test]
   fn str_comparison_evaluates_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/str_comparison.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_comparison.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert!(get_bool_field(&db, &obj, "eq"));
@@ -396,7 +392,7 @@ mod tests {
   // list[n] evaluates the list and returns the nth element
   #[test]
   fn list_index_evaluates_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/list_index.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "list_index.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     assert_eq!(get_num_field(&db, &obj, "result"), 20.0);
@@ -405,7 +401,7 @@ mod tests {
   // out-of-bounds index on list and string evaluates to undefined and emits a diagnostic
   #[test]
   fn index_out_of_bounds_emits_diagnostic() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/index_oob.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "index_oob.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();
 
@@ -456,7 +452,7 @@ mod tests {
   // string[n] returns the nth character as a string
   #[test]
   fn str_index_evaluates_correctly() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/str_index.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_index.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let result = obj.get_owned_field(&db, "result").unwrap();
@@ -467,7 +463,7 @@ mod tests {
   // Tag expressions like !str "Alice" strip the tag and evaluate the inner value
   #[test]
   fn tag_expr_strips_tag_and_evaluates_inner() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/tag_expr.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "tag_expr.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let name = obj.get_owned_field(&db, "name").unwrap();
@@ -479,7 +475,7 @@ mod tests {
   // A math field evaluates to TdMathObj with the correct value
   #[test]
   fn evaluate_math_field() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_math_eval.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_math_eval.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let formula = obj
@@ -492,7 +488,7 @@ mod tests {
   // _content is injected from the markdown body and evaluates to a string
   #[test]
   fn evaluate_content_field() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_with_content.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let content = obj
@@ -505,8 +501,7 @@ mod tests {
   // String field with inline math evaluates to a concatenated string
   #[test]
   fn evaluate_string_with_inline_math() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/str_with_inline_math.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_with_inline_math.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let name = obj
@@ -519,8 +514,7 @@ mod tests {
   // String field with multiple inline math expressions evaluates to a concatenated string
   #[test]
   fn evaluate_string_with_multiple_inline_math() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/str_with_multiple_math.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_with_multiple_math.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let name = obj
@@ -541,7 +535,7 @@ mod tests {
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-    let path = PathBuf::from("/vault/assets/photo.png");
+    let path = PathBuf::from("/vault/_assets/photo.png");
     let file = File::new(&db, FileHandle::Path(path.clone(), FileMetadata::default()));
     let project = Project::new(
       &db,
@@ -552,7 +546,7 @@ mod tests {
       &db,
       SymbolKind::Asset(AssetKind::Png, project, file),
       "photo".to_string(),
-      "@vault::assets/photo.png".to_string(),
+      "@vault::_assets/photo.png".to_string(),
     );
 
     let result = evaluate_resource(&db, symbol);
@@ -573,7 +567,7 @@ mod tests {
   // An SVG file in the fixture vault is loaded as an asset and evaluates to a blob
   #[test]
   fn asset_file_loaded_and_evaluated() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/icon.svg");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("file_symbol should return a symbol");
@@ -633,7 +627,7 @@ mod tests {
   // null evaluates to TdNullObj
   #[test]
   fn null_evaluates_to_null_obj() {
-    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/null_value.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "null_value.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let result = obj
@@ -648,7 +642,7 @@ mod tests {
   // string? field accepts null
   #[test]
   fn optional_field_accepts_null() {
-    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/with_null.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "with_null.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let name = obj.get_owned_field(&db, "name").expect("should have name");
@@ -665,7 +659,7 @@ mod tests {
   // string? field accepts a string value
   #[test]
   fn optional_field_accepts_value() {
-    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/with_value.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "with_value.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let nickname = obj
@@ -678,8 +672,7 @@ mod tests {
   // string? field can be omitted
   #[test]
   fn optional_field_can_be_omitted() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/null_type", "content/without_optional.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "without_optional.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_resource(&db, symbol);
     assert!(
@@ -691,7 +684,7 @@ mod tests {
   // string? field with wrong type produces typecheck error
   #[test]
   fn optional_field_wrong_type_has_diagnostics() {
-    let (db, project, file) = load_vault_fixture("evaluate/null_type", "content/wrong_type.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     assert!(
@@ -703,8 +696,7 @@ mod tests {
   // _type: Schema? should produce a diagnostic
   #[test]
   fn nullable_type_ref_has_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/null_type", "content/nullable_type_ref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "nullable_type_ref.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -720,8 +712,7 @@ mod tests {
   // Missing a required field (name: string) produces MissingRequiredField diagnostic
   #[test]
   fn missing_required_field_has_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/null_type", "content/missing_required.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "missing_required.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -737,8 +728,7 @@ mod tests {
   // Missing a nullable field (nickname: string?) does NOT produce a diagnostic
   #[test]
   fn missing_nullable_field_no_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/null_type", "content/without_optional.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "without_optional.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -754,8 +744,7 @@ mod tests {
   // Missing field on a product object evaluates to null at runtime
   #[test]
   fn missing_field_evaluates_to_null() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/null_type", "content/without_optional.td");
+    let (db, project, file) = load_vault_fixture("evaluate/null_type", "without_optional.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let nickname = obj
@@ -770,8 +759,7 @@ mod tests {
   // Missing a field with a default value does NOT produce a MissingRequiredField diagnostic
   #[test]
   fn missing_field_with_default_no_diagnostics() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/default_resource.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "default_resource.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
@@ -785,8 +773,7 @@ mod tests {
   // Missing field with a default value evaluates to default_value at runtime
   #[test]
   fn missing_field_evaluates_to_default_value() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "content/default_resource.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "default_resource.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let status_obj = obj

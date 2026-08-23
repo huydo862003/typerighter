@@ -282,7 +282,7 @@ age: 25
   #[test]
   fn references_on_type_ident_finds_all_usages() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let content_raw = r#"---
 _type: Per|son
 name: Alice
@@ -339,7 +339,7 @@ name: Alice
   #[test]
   fn references_with_include_declaration_adds_definition() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let content_raw = r#"---
 _type: Per|son
 name: Alice
@@ -381,7 +381,7 @@ properties:
   #[test]
   fn references_on_fref_range_covers_path_string() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let content_with_fref = r#"---
 _type: Person
 name: fref("ali|ce.td")
@@ -411,7 +411,7 @@ name: fref("ali|ce.td")
   #[test]
   fn references_on_plain_value_returns_none() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -431,7 +431,7 @@ name: Ali|ce
   #[test]
   fn references_ident_range_covers_identifier() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let (content, offset) = cursor(
       r#"---
 _type: Per|son

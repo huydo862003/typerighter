@@ -103,7 +103,7 @@ mod tests {
 
   #[test]
   fn resolve_closure_params_are_not_unresolved() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (a, b) -> a + b
@@ -123,7 +123,7 @@ fn: (a, b) -> a + b
 
   #[test]
   fn resolve_closure_unresolved_ident_emits_diagnostic() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (a) -> a + missing_variable

@@ -530,7 +530,7 @@ mod tests {
 
   #[test]
   fn expected_node_type_known_field_returns_member() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let name_hir = get_field_hir(&db, project, file, "name")
       .expect("valid_person.td should have a 'name' field");
 
@@ -554,7 +554,7 @@ mod tests {
 
   #[test]
   fn expected_node_type_untyped_mapping_returns_none() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/literal_value.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("literal_value.td should have parseable frontmatter");
 
@@ -568,7 +568,7 @@ mod tests {
 
   #[test]
   fn expected_node_type_no_frontmatter_returns_schemaless() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/no_frontmatter.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "no_frontmatter.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("no_frontmatter.td should produce HIR");
 
@@ -622,7 +622,7 @@ mod tests {
   // Schema with union: the 'status' field value should have expected type
   #[test]
   fn expected_node_type_union_field_value() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_status.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_status.td");
     let state_hir = get_field_hir(&db, project, file, "state").expect("should have 'state' field");
     let result = expected_node_type(&db, state_hir);
 
@@ -636,7 +636,7 @@ mod tests {
   // Sequence item inside a list field should have expected type
   #[test]
   fn expected_node_type_sequence_item() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_event.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
 

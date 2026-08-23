@@ -486,8 +486,7 @@ mod tests {
 
   #[test]
   fn infer_anonymous_mapping_narrows_literal_fields() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/anonymous_mapping.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     let result = actual_node_type(&db, hir);
@@ -579,7 +578,7 @@ mod tests {
 
   #[test]
   fn actual_node_type_string_literal_returns_literal() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     // Get the "name" field value ("Alice")
@@ -597,8 +596,7 @@ mod tests {
 
   #[test]
   fn actual_node_type_bool_returns_literal() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/anonymous_mapping.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
@@ -615,8 +613,7 @@ mod tests {
 
   #[test]
   fn actual_node_type_sequence_returns_list_type() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/anonymous_mapping.td");
+    let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
@@ -631,7 +628,7 @@ mod tests {
   // Date strings narrow to date type, not Literal
   #[test]
   fn actual_node_type_date_string_returns_simple_date() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_event.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
@@ -651,7 +648,7 @@ mod tests {
   #[test]
   fn actual_node_type_fref_returns_resource_type() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/article_fref_status.td");
+      load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
@@ -673,7 +670,7 @@ mod tests {
   // Num literal returns Literal(Num)
   #[test]
   fn actual_node_type_num_returns_literal() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {
@@ -690,7 +687,7 @@ mod tests {
 
   #[test]
   fn actual_node_type_to_string_field_access_returns_func_type() {
-    let (db, _, _) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, _, _) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let num_lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
 
     let field_type = num_lit
@@ -704,7 +701,7 @@ mod tests {
 
   #[test]
   fn actual_node_type_method_call_to_string_returns_string_type() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/method_call.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "method_call.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
     if let HirValueKind::Mapping(entries) = hir.kind(&db) {

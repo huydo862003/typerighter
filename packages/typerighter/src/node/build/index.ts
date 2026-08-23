@@ -187,7 +187,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       // No assets to copy
     });
 
-    await copyContentAssets(path.join(root, config.rootDir), outDir);
+    await copyVaultAssets(path.join(root, config.rootDir), outDir);
   } finally {
     // 8. Clean up intermediate directories
     await Promise.all([
@@ -261,8 +261,8 @@ export async function render(url) {
 `;
 }
 
-// Copy non-.td files from content directory to output, preserving structure
-async function copyContentAssets (rootDir: string, outDir: string): Promise<void> {
+// Copy non-.td files from vault root to output, preserving structure
+async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> {
   const entries = await fs.readdir(rootDir, {
     recursive: true,
     withFileTypes: true,

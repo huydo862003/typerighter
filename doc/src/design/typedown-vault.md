@@ -11,13 +11,14 @@ A typical vault looks like:
 ```
 my-vault/
 ├── typedown.yaml
-├── content/
-│   ├── bob.td
-│   └── mona-lisa.td
-└── schema/
-    ├── person.td
-    └── artwork.td
+├── _types/
+│   ├── person.td
+│   └── artwork.td
+├── bob.td
+└── mona-lisa.td
 ```
+
+Content files live directly under the vault root. Type schema files live under `_types/`, which may be nested arbitrarily. Assets (images, PDFs, etc.) conventionally live under `_assets/`, though they may appear anywhere in the vault.
 
 See [Typedown](./typedown.md) for how individual files are structured.
 
@@ -34,14 +35,10 @@ Typedown uses **snake_case** throughout:
 
 - `version`: the Typedown format version.
 - `vault`: configuration for the vault.
-  - `content_dir`: the directory where content `.td` files (resources) are located.
-  - `schema_dir`: the directory where schema `.td` files (type definitions) are located.
+  - `root_dir`: path to the vault root directory, relative to `typedown.yaml`.
 
 ```yaml
 version: 1.0.0
 vault:
-  content_dir: ./content/
-  schema_dir: ./schema/
+  root_dir: vault
 ```
-
-Paths are relative to the vault root.

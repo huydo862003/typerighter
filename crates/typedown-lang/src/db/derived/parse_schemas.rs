@@ -1,4 +1,4 @@
-//! Tracked query to parse all schema files in the vault's schema directory
+//! Tracked query to parse all schema files in the vault's _types directory
 
 use std::collections::HashMap;
 

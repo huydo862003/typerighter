@@ -1,5 +1,5 @@
 ---
 _type: Article
 title: "My Article"
-status: fref("content/summary.td").status
+status: fref("summary.td").status
 ---

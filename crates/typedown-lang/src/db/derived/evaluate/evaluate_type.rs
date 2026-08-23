@@ -798,7 +798,7 @@ mod tests {
   // Product type construct from a mapping
   #[test]
   fn construct_product() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let scope = get_file_runtime_scope(&db, project, file);
     let obj = construct_from_hir(&db, hir.unwrap(), scope, &mut vec![]).unwrap();
@@ -858,7 +858,7 @@ mod tests {
 
   #[test]
   fn construct_type_type_rejects_non_schema() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let scope = get_file_runtime_scope(&db, project, file);
     assert!(TdTypeType::get(&db).construct(&db, vec![]).is_none());
@@ -867,7 +867,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_fref_resolves_referenced_type() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();
     let friend_hir = match hir.kind(&db) {
@@ -881,7 +881,7 @@ mod tests {
 
   #[test]
   fn evaluate_type_asset_returns_blob_type() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/icon.svg");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     assert!(symbol.kind(&db).is_asset());
     let result = evaluate_type(&db, symbol);
@@ -1055,8 +1055,7 @@ result: ((x) -> x > 5)(10)
   // Closure referencing self evaluates correctly
   #[test]
   fn evaluate_closure_self_ref() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "closure_self_ref.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let resource = evaluate_resource(&db, symbol).value(&db).unwrap();
     let b_val = resource
@@ -1072,8 +1071,7 @@ result: ((x) -> x > 5)(10)
   // Construct closure from TwoNums file (a: 30), extract it, call it manually
   #[test]
   fn evaluate_closure_captures_defining_file_self() {
-    let (db, project, file) =
-      load_vault_fixture("typecheck/my_vault", "content/closure_self_ref.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "closure_self_ref.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let resource = evaluate_resource(&db, symbol).value(&db).unwrap();
     let b_val = resource

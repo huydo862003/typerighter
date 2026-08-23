@@ -183,7 +183,7 @@ name: Alice
     let (raw, offset) = cursor(
       r#"---
 _type: Person
-name: fref("|content/alice.td")
+name: fref("|alice.td")
 ---
 "#,
     );
@@ -192,13 +192,13 @@ name: fref("|content/alice.td")
     let Some(PrepareRenameResponse::Range(range)) = result else {
       panic!("expected a range response");
     };
-    // Should cover "content/alice.td" (inside quotes), not the whole fref(...) call
+    // Should cover "alice.td" (inside quotes), not the whole fref(...) call
     let rope = Rope::from(raw.as_str());
     let start_offset =
       rope.line_to_char(range.start.line as usize) + range.start.character as usize;
     let end_offset = rope.line_to_char(range.end.line as usize) + range.end.character as usize;
     let selected: String = rope.slice(start_offset..end_offset).into();
-    assert_eq!(selected, "content/alice.td");
+    assert_eq!(selected, "alice.td");
   }
 
   // Interpolated fref argument is not renameable
@@ -207,7 +207,7 @@ name: fref("|content/alice.td")
     let (raw, offset) = cursor(
       r#"---
 _type: Person
-name: fref("|content/${name}.td")
+name: fref("|${name}.td")
 ---
 "#,
     );

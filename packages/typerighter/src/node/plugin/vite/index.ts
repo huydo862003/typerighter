@@ -358,15 +358,15 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       tdContext.rpc.onSchemaCreated(() => server && hmrInvalidateAll(server));
       tdContext.rpc.onSchemaDeleted(() => server && hmrInvalidateAll(server));
 
-      let cachedContentDirectory = 'vault';
+      let cachedRootDirectory = 'vault';
 
       tdContext.getConfig()
         .then((config) => {
-          cachedContentDirectory = config.rootDir;
+          cachedRootDirectory = config.rootDir;
         })
         .catch(() => {});
 
-      // Middleware to serve content assets (images, PDFs, etc.) from contentDir
+      // Middleware to serve assets (images, PDFs, etc.) from rootDir
       devServer.middlewares.use((request, result, next) => {
         if (!request.url || request.method !== 'GET' || result.writableEnded || !server) return next();
 
@@ -375,7 +375,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules')) return next();
 
         const relativePath = urlPath.replace(/^\//, '');
-        const contentFilePath = resolve(server.config.root, cachedContentDirectory, relativePath);
+        const contentFilePath = resolve(server.config.root, cachedRootDirectory, relativePath);
 
         if (existsSync(contentFilePath)) {
           try {
@@ -449,9 +449,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       const tdContext = await resolveTdContext();
       const config = await tdContext.getConfig();
-      const contentDirectory = config.rootDir;
-      const relativePath = cleanId.includes(contentDirectory)
-        ? cleanId.slice(cleanId.indexOf(contentDirectory) + contentDirectory.length + 1)
+      const rootDirectory = config.rootDir;
+      const relativePath = cleanId.includes(rootDirectory)
+        ? cleanId.slice(cleanId.indexOf(rootDirectory) + rootDirectory.length + 1)
         : cleanId;
 
       const resource = await tdContext.getFile(relativePath);

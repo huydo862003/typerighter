@@ -487,7 +487,7 @@ mod tests {
 
   #[test]
   fn markdown_body_plain_text() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_plain.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_plain.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
     let entries = match hir.kind(&db) {
@@ -512,7 +512,7 @@ mod tests {
 
   #[test]
   fn markdown_body_inline_math() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_inline_math.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_inline_math.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
     let entries = match hir.kind(&db) {
@@ -535,7 +535,7 @@ mod tests {
 
   #[test]
   fn markdown_body_inline_code() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_inline_code.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_inline_code.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
     let entries = match hir.kind(&db) {
@@ -561,7 +561,7 @@ mod tests {
 
   #[test]
   fn markdown_body_interpolation() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_interp.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_interp.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
     let entries = match hir.kind(&db) {
@@ -582,7 +582,7 @@ mod tests {
 
   #[test]
   fn markdown_body_math_block() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_math_block.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_math_block.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
     let entries = match hir.kind(&db) {
@@ -605,7 +605,7 @@ mod tests {
 
   #[test]
   fn markdown_body_code_block() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/md_code_block.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_code_block.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
     let entries = match hir.kind(&db) {
@@ -631,7 +631,7 @@ mod tests {
 
   #[test]
   fn lower_closure_expression() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/simple.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "simple.td");
     let (root, _) = parse(
       r#"---
 fn: (a, b) -> a + b
@@ -659,7 +659,7 @@ fn: (a, b) -> a + b
 
   #[test]
   fn lower_bare_ident_closure_expression() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/simple.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "simple.td");
     let (root, _) = parse(
       r#"---
 fn: x -> x + 1
@@ -687,7 +687,7 @@ fn: x -> x + 1
 
   #[test]
   fn lower_closure_forbids_self_param() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/simple.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "simple.td");
     let (root, _) = parse(
       r#"---
 fn: (self, x) -> self + x
