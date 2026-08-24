@@ -5,7 +5,7 @@ use lsp_types::notification::{Notification as _, PublishDiagnostics};
 use lsp_types::{Diagnostic, NumberOrString, PublishDiagnosticsParams};
 use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::check_schema_dir::check_schema_dir;
+use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
@@ -45,11 +45,11 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
   }
 
   // Check for duplicate schema files
-  let schema_check = check_schema_dir(db, project);
+  let schema_check = check_schemas(db, project);
   for diag in schema_check.diagnostics(db) {
     if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
-      let schema_dir = get_vault_config(db, project).schema_dir(db);
-      let full_path = schema_dir.join(path);
+      let root_dir = get_vault_config(db, project).root_dir(db);
+      let full_path = root_dir.join(path);
       let scheme = analysis
         .scheme_map
         .get(&full_path)
@@ -182,8 +182,7 @@ mod tests {
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -197,7 +196,7 @@ properties:
 
   fn setup(content: &str) -> Analysis {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
 
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
@@ -214,7 +213,7 @@ properties:
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        root.join("schemas/Person.td"),
+        root.join("_types/Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -230,7 +229,7 @@ properties:
 
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
+      (root.join("_types/Person.td"), person_file),
       (test_path, test_file),
     ]);
 
@@ -258,7 +257,7 @@ age: 30
     // Only the content file should have a notification; it must be empty.
     let content_notif = notifications
       .iter()
-      .find(|notif| notif.params.to_string().contains("content/file.td"));
+      .find(|notif| notif.params.to_string().contains("file.td"));
     if let Some(notif) = content_notif {
       let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
       let diags = params["diagnostics"].as_array().unwrap();
@@ -282,7 +281,7 @@ name: "Alice"
     let notifications = publish_diagnostics_for_project(&analysis);
     let content_notif = notifications
       .iter()
-      .find(|notif| notif.params.to_string().contains("content/file.td"));
+      .find(|notif| notif.params.to_string().contains("file.td"));
     let notif = content_notif.expect("expected a notification for the content file");
     let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
     let diags = params["diagnostics"].as_array().unwrap();
@@ -313,7 +312,7 @@ name: "Alice"
     let notifications = publish_diagnostics_for_project(&analysis);
     let content_notif = notifications
       .iter()
-      .find(|notif| notif.params.to_string().contains("content/file.td"));
+      .find(|notif| notif.params.to_string().contains("file.td"));
     let notif = content_notif.expect("expected a notification for the content file");
     let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
     let diags = params["diagnostics"].as_array().unwrap();

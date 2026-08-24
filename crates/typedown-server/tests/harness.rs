@@ -3,10 +3,10 @@
 //! Usage:
 //!   let server = Server::new()
 //!     .file("typedown.yaml", r#"version: "1"\nvault:\n  ..."#)
-//!     .file("schemas/Person.td", "---\n...")
+//!     .file("_types/Person.td", "---\n...")
 //!     .start();
 //!
-//!   server.open("content/file.td", "---\n_type: Person\n---\n");
+//!   server.open("file.td", "---\n_type: Person\n---\n");
 //!   let resp = server.request::<Completion>(params);
 
 use std::cell::Cell;

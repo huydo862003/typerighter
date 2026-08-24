@@ -13,21 +13,33 @@ fn setup_two_projects() -> TempDir {
 
   // Project B: a minimal vault
   let project_b = tmp.path().join("project_b");
-  std::fs::create_dir_all(project_b.join("content")).unwrap();
-  std::fs::create_dir_all(project_b.join("schemas")).unwrap();
+  std::fs::create_dir_all(project_b.join("_types")).unwrap();
   std::fs::write(
     project_b.join("typedown.yaml"),
-    "version: \"1.0.0\"\nvault:\n  content_dir: content\n  schema_dir: schemas\n",
+    r#"version: "1.0.0"
+vault:
+  root_dir: "."
+"#,
   )
   .unwrap();
   std::fs::write(
-    project_b.join("schemas/Note.td"),
-    "---\n_type: schema\nproperties:\n  title:\n    type: string\n---\n",
+    project_b.join("_types/Note.td"),
+    r#"---
+_type: schema
+properties:
+  title:
+    type: string
+---
+"#,
   )
   .unwrap();
   std::fs::write(
-    project_b.join("content/hello.td"),
-    "---\n_type: Note\ntitle: \"Hello\"\n---\n",
+    project_b.join("hello.td"),
+    r#"---
+_type: Note
+title: "Hello"
+---
+"#,
   )
   .unwrap();
 
@@ -41,7 +53,7 @@ fn load_nearest_project_from_nested_dir() {
   copy_dir_recursive(&example_vault(), &tmp.path().join("vault"));
 
   let multiproject = Multiproject::default();
-  let nested = tmp.path().join("vault/content/tasks");
+  let nested = tmp.path().join("vault/tasks");
 
   let entry = multiproject
     .load_nearest_project(&nested)
@@ -94,10 +106,10 @@ fn nested_paths_route_to_correct_project() {
   let multiproject = Multiproject::default();
 
   let entry_from_a = multiproject
-    .load_nearest_project(&tmp.path().join("project_a/content/tasks"))
+    .load_nearest_project(&tmp.path().join("project_a/vault/tasks"))
     .expect("should find project A");
   let entry_from_b = multiproject
-    .load_nearest_project(&tmp.path().join("project_b/content"))
+    .load_nearest_project(&tmp.path().join("project_b/_types"))
     .expect("should find project B");
 
   assert_eq!(entry_from_a.root_dir, tmp.path().join("project_a"));

@@ -448,8 +448,8 @@ fn construct_fref(db: &TypedownDatabase, args: Vec<HirValue>) -> Option<TdObject
 
   let project = arg.project(db);
   let files = project.files(db);
-  let content_dir = get_vault_config(db, project).content_dir(db);
-  let target_path = content_dir.join(&path_str);
+  let root_dir = get_vault_config(db, project).root_dir(db);
+  let target_path = root_dir.join(&path_str);
 
   let target_file = *files.get(&target_path)?;
   let target_symbol = file_symbol(db, project, target_file).value(db)?;

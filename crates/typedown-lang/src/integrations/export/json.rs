@@ -321,7 +321,7 @@ mod tests {
 
   #[test]
   fn serializes_product_fields() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
     let value = to_json(&db, project, &obj).expect("should serialize without cycle");
@@ -335,7 +335,7 @@ mod tests {
 
   #[test]
   fn fref_field_serializes_as_resolved_ref() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
     let value = to_json(&db, project, &obj).expect("should serialize");
@@ -355,7 +355,7 @@ mod tests {
 
   #[test]
   fn transitive_fref_serializes_as_resolved_ref() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/transitive_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "transitive_fref.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
     let value = to_json(&db, project, &obj).expect("should serialize");
@@ -387,7 +387,7 @@ mod tests {
 
   #[test]
   fn serializes_product_type_as_field_type_map() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol)
       .typ(&db)
@@ -407,7 +407,7 @@ mod tests {
 
   #[test]
   fn serializes_nested_product_type_recursively() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemas/Event.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Event.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol)
       .typ(&db)
@@ -444,13 +444,13 @@ mod tests {
   #[test]
   fn blob_includes_format_and_path() {
     let (db, project) = empty_db();
-    let path = PathBuf::from("/vault/assets/photo.png");
+    let path = PathBuf::from("/vault/_assets/photo.png");
     let file = File::new(&db, FileHandle::Path(path.clone(), FileMetadata::default()));
     let blob = TdBlobObj::new(&db, AssetKind::Png, file);
     let obj = TdObjectEnum::from(blob);
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value["format"], "png");
     assert_eq!(value["handle"]["type"], "path");
-    assert_eq!(value["handle"]["path"], "/vault/assets/photo.png");
+    assert_eq!(value["handle"]["path"], "/vault/_assets/photo.png");
   }
 }

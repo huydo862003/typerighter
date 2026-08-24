@@ -109,8 +109,7 @@ mod tests {
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -155,10 +154,9 @@ properties:
   // Accept a `content` as the current editing content
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
+    let type_root = root.join("_types");
 
-    let test_path = content_root.join("file.td");
+    let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -176,7 +174,7 @@ properties:
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -192,7 +190,7 @@ properties:
 
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
+      (root.join("_types/Person.td"), person_file),
       (test_path, test_file),
     ]);
 

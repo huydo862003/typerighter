@@ -145,8 +145,7 @@ mod tests {
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -221,33 +220,33 @@ age: 25
         ),
       ),
       (
-        root.join("schemas/Person.td"),
+        root.join("_types/Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            root.join("schemas/Person.td"),
+            root.join("_types/Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        root.join("content/alice.td"),
+        root.join("alice.td"),
         File::new(
           &db,
           FileHandle::Content(
-            root.join("content/alice.td"),
+            root.join("alice.td"),
             CONTENT_ALICE.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        root.join("content/bob.td"),
+        root.join("bob.td"),
         File::new(
           &db,
           FileHandle::Content(
-            root.join("content/bob.td"),
+            root.join("bob.td"),
             CONTENT_BOB.to_string(),
             FileMetadata::default(),
           ),
@@ -283,7 +282,7 @@ age: 25
   #[test]
   fn references_on_type_ident_finds_all_usages() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let content_raw = r#"---
 _type: Per|son
 name: Alice
@@ -340,7 +339,7 @@ name: Alice
   #[test]
   fn references_with_include_declaration_adds_definition() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let content_raw = r#"---
 _type: Per|son
 name: Alice
@@ -361,7 +360,7 @@ name: Alice
   #[test]
   fn references_on_builtin_ident_returns_none() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let schema_path = root.join("schemas/Person.td");
+    let schema_path = root.join("_types/Person.td");
     let schema_raw = r#"---
 _type: sc|hema
 properties:
@@ -382,7 +381,7 @@ properties:
   #[test]
   fn references_on_fref_range_covers_path_string() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let content_with_fref = r#"---
 _type: Person
 name: fref("ali|ce.td")
@@ -412,7 +411,7 @@ name: fref("ali|ce.td")
   #[test]
   fn references_on_plain_value_returns_none() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -432,7 +431,7 @@ name: Ali|ce
   #[test]
   fn references_ident_range_covers_identifier() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let test_path = root.join("content/file.td");
+    let test_path = root.join("file.td");
     let (content, offset) = cursor(
       r#"---
 _type: Per|son

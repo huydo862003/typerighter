@@ -1,5 +1,5 @@
 -- Paste interception for Typedown files
--- Detects binary/image data on the clipboard and saves it to the assets directory
+-- Detects binary/image data on the clipboard and saves it to the _assets directory
 if vim.g.typedown_paste_loaded then return end
 vim.g.typedown_paste_loaded = true
 
@@ -114,67 +114,43 @@ end
 -- Main paste handler for binary clipboard content.
 local function handle_binary_paste(mime_type)
   local bufnr = vim.api.nvim_get_current_buf()
-  local params = {
-    textDocument = {
-      uri = vim.uri_from_bufnr(bufnr),
-    },
-  }
 
-  vim.lsp.buf_request(
-    bufnr,
-    "typedown/getAssetsDir",
-    params,
-    function(err, result)
-      -- After requesting assets directory from typedown-lsp...
-      if err then
-        vim.notify("[typedown] Failed to get assets dir: " .. tostring(err), vim.log.levels.ERROR)
-        return
-      end
+  local file_path = vim.api.nvim_buf_get_name(bufnr)
+  local file_dir = vim.fn.fnamemodify(file_path, ":h") -- parent directory
+  local assets_dir = file_dir .. "/_assets"
 
-      if not result then
-        vim.notify("[typedown] No response from typedown-lsp for assets dir", vim.log.levels.ERROR)
-        return
-      end
+  vim.fn.mkdir(assets_dir, "p") -- "p" = create parents
 
-      -- Build the assets path from LSP response (relative subdir name)  & current file location
-      local file_path = vim.api.nvim_buf_get_name(bufnr)
-      local file_dir = vim.fn.fnamemodify(file_path, ":h") -- parent directory
-      local assets_subdir = result.path or "assets"
-      local assets_dir = file_dir .. "/" .. assets_subdir
+  -- Save clipboard binary to a <stem>-<timestamp>.<ext> file
+  local extension = mime_to_ext[mime_type] or "bin"
+  local stem = vim.fn.fnamemodify(file_path, ":t:r") -- filename without extension
+  if stem == "" then stem = "untitled" end
+  local filename = stem .. "-" .. os.time() .. "." .. extension
+  local dest_path = assets_dir .. "/" .. filename
 
-      vim.fn.mkdir(assets_dir, "p") -- "p" = create parents
+  local success = save_clipboard_binary(mime_type, dest_path)
+  if not success then
+    vim.notify("[typedown] Failed to save clipboard content to " .. dest_path, vim.log.levels.ERROR)
+    return
+  end
 
-      -- Save clipboard binary to a <stem>-<timestamp>.<ext> file
-      local extension = mime_to_ext[mime_type] or "bin"
-      local stem = vim.fn.fnamemodify(file_path, ":t:r") -- filename without extension
-      if stem == "" then stem = "untitled" end
-      local filename = stem .. "-" .. os.time() .. "." .. extension
-      local dest_path = assets_dir .. "/" .. filename
+  -- Insert fref() at cursor position
+  local relative_path = "_assets/" .. filename
+  local fref_text = string.format('${fref("%s")}', relative_path)
 
-      local success = save_clipboard_binary(mime_type, dest_path)
-      if not success then
-        vim.notify("[typedown] Failed to save clipboard content to " .. dest_path, vim.log.levels.ERROR)
-        return
-      end
-
-      -- Insert fref() at cursor position
-      local relative_path = assets_subdir .. "/" .. filename
-      local fref_text = string.format('${fref("%s")}', relative_path)
-
-      -- Defers to the main loop since we're inside an async LSP callback
-      vim.schedule(function()
-        local cursor = vim.api.nvim_win_get_cursor(0)
-        local row = cursor[1] - 1 -- nvim_win_get_cursor is 1-indexed, but buf_set_lines is 0-indexed @@
-        local col = cursor[2]
-        local current_line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
-        local before = current_line:sub(1, col)
-        local after = current_line:sub(col + 1)
-        vim.api.nvim_buf_set_lines(bufnr, row, row + 1, false, { before .. fref_text .. after })
-        vim.api.nvim_win_set_cursor(0, { row + 1, col + #fref_text })
-      end)
-
-      vim.notify("[typedown] Saved " .. filename .. " to assets", vim.log.levels.INFO)
+  -- Defers to the main loop since we're inside an async LSP callback
+  vim.schedule(function()
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local row = cursor[1] - 1 -- nvim_win_get_cursor is 1-indexed, but buf_set_lines is 0-indexed @@
+    local col = cursor[2]
+    local current_line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
+    local before = current_line:sub(1, col)
+    local after = current_line:sub(col + 1)
+    vim.api.nvim_buf_set_lines(bufnr, row, row + 1, false, { before .. fref_text .. after })
+    vim.api.nvim_win_set_cursor(0, { row + 1, col + #fref_text })
   end)
+
+  vim.notify("[typedown] Saved " .. filename .. " to assets", vim.log.levels.INFO)
 end
 
 -- Entry point for this plugin

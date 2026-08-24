@@ -1,4 +1,3 @@
-pub mod assets_dir;
 pub mod code_action;
 pub mod completion;
 pub mod definition;
@@ -37,7 +36,6 @@ pub fn dispatch(analysis: &Analysis, req: Request) -> Response {
     Rename::METHOD => try_handle(&req, |p| rename_symbol::rename(analysis, p)),
     Formatting::METHOD => try_handle(&req, |p| formatting::formatting(analysis, p)),
     WillRenameFiles::METHOD => try_handle(&req, |p| rename_symbol::will_rename_files(analysis, p)),
-    "typedown/getAssetsDir" => try_handle(&req, |p| assets_dir::get_assets_dir(analysis, p)),
     _ => Response::new_err(
       req.id,
       ErrorCode::MethodNotFound as i32,

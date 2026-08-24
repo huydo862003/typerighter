@@ -70,27 +70,6 @@ export class LspManager implements Disposable {
     return LspManager.instance;
   }
 
-  static async getAssetsDir (documentUri: string): Promise<{
-    mode: 'local';
-    path: string;
-  }> {
-    if (!LspManager.instance) {
-      return {
-        mode: 'local',
-        path: 'assets',
-      };
-    }
-
-    return LspManager.instance.client.sendRequest(
-      'typedown/getAssetsDir',
-      {
-        textDocument: {
-          uri: documentUri,
-        },
-      },
-    );
-  }
-
   dispose (): Thenable<void> {
     return this.client.stop();
   }

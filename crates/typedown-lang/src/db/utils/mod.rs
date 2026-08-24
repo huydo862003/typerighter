@@ -22,6 +22,11 @@ pub fn is_content_file(path: &Path) -> bool {
     .is_some_and(|ext| ext == "td" || ext == "md")
 }
 
+/// Whether a path is located inside a `_types` directory anywhere in the vault
+pub fn is_type_file(path: &Path) -> bool {
+  is_content_file(path) && path.components().any(|c| c.as_os_str() == "_types")
+}
+
 /// Strip a content file extension (.td or .md) from a string
 pub fn strip_content_extension(s: &str) -> &str {
   s.strip_suffix(".td")

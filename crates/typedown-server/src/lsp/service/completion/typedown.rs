@@ -1,5 +1,5 @@
 use typedown_incremental::StableCompare;
-use typedown_lang::db::utils::is_content_file;
+use typedown_lang::db::utils::{is_content_file, is_type_file};
 
 use lsp_types::{
   CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
@@ -116,7 +116,7 @@ fn fref_completions(
   project
     .files(db)
     .iter()
-    .filter(|(path, _)| is_content_file(path))
+    .filter(|(path, _)| is_content_file(path) && !is_type_file(path))
     .filter(|(_, target_file)| {
       // If we have an expected type, only include files whose type is compatible.
       let Some(ref expected_typ) = expected_type else {
@@ -404,8 +404,7 @@ mod tests {
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -488,10 +487,9 @@ properties:
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
+    let type_root = root.join("_types");
 
-    let test_path = content_root.join("file.td");
+    let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -509,7 +507,7 @@ properties:
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -517,7 +515,7 @@ properties:
     let event_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Event.td"),
+        type_root.join("Event.td"),
         SCHEMA_EVENT.to_string(),
         FileMetadata::default(),
       ),
@@ -525,7 +523,7 @@ properties:
     let task_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Task.td"),
+        type_root.join("Task.td"),
         SCHEMA_TASK.to_string(),
         FileMetadata::default(),
       ),
@@ -533,7 +531,7 @@ properties:
     let person_with_address_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("PersonWithAddress.td"),
+        type_root.join("PersonWithAddress.td"),
         SCHEMA_PERSON_WITH_ADDRESS.to_string(),
         FileMetadata::default(),
       ),
@@ -549,11 +547,11 @@ properties:
 
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
-      (root.join("schemas/Event.td"), event_file),
-      (root.join("schemas/Task.td"), task_file),
+      (root.join("_types/Person.td"), person_file),
+      (root.join("_types/Event.td"), event_file),
+      (root.join("_types/Task.td"), task_file),
       (
-        root.join("schemas/PersonWithAddress.td"),
+        root.join("_types/PersonWithAddress.td"),
         person_with_address_file,
       ),
       (test_path, test_file),
@@ -979,10 +977,9 @@ date: 2024-01-01
   fn setup_with_content(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
+    let type_root = root.join("_types");
 
-    let test_path = content_root.join("file.td");
+    let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -1000,7 +997,7 @@ date: 2024-01-01
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -1008,7 +1005,7 @@ date: 2024-01-01
     let event_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Event.td"),
+        type_root.join("Event.td"),
         SCHEMA_EVENT.to_string(),
         FileMetadata::default(),
       ),
@@ -1016,7 +1013,7 @@ date: 2024-01-01
     let directory_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Directory.td"),
+        type_root.join("Directory.td"),
         SCHEMA_DIRECTORY.to_string(),
         FileMetadata::default(),
       ),
@@ -1024,7 +1021,7 @@ date: 2024-01-01
     let alice_file = File::new(
       &db,
       FileHandle::Content(
-        content_root.join("alice.td"),
+        root.join("alice.td"),
         CONTENT_ALICE.to_string(),
         FileMetadata::default(),
       ),
@@ -1032,7 +1029,7 @@ date: 2024-01-01
     let birthday_file = File::new(
       &db,
       FileHandle::Content(
-        content_root.join("birthday.td"),
+        root.join("birthday.td"),
         CONTENT_BIRTHDAY.to_string(),
         FileMetadata::default(),
       ),
@@ -1048,11 +1045,11 @@ date: 2024-01-01
 
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
-      (root.join("schemas/Event.td"), event_file),
-      (root.join("schemas/Directory.td"), directory_file),
-      (root.join("content/alice.td"), alice_file),
-      (root.join("content/birthday.td"), birthday_file),
+      (root.join("_types/Person.td"), person_file),
+      (root.join("_types/Event.td"), event_file),
+      (root.join("_types/Directory.td"), directory_file),
+      (root.join("alice.td"), alice_file),
+      (root.join("birthday.td"), birthday_file),
       (test_path, editing_file),
     ]);
 

@@ -56,8 +56,8 @@ fn resolve_call(
     && let HirValueKind::Str(path) = first_arg.kind(db)
   {
     let project = hir.project(db);
-    let content_dir = get_vault_config(db, project).content_dir(db);
-    let target_path = content_dir.join(&path);
+    let root_dir = get_vault_config(db, project).root_dir(db);
+    let target_path = root_dir.join(&path);
     if let Some(&target_file) = project.files(db).get(&target_path) {
       return file_symbol(db, project, target_file);
     }
@@ -99,7 +99,7 @@ mod tests {
   // fref("path.td") resolves to the target file's resource symbol
   #[test]
   fn fref_resolves_to_target_resource_symbol() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should lower file");
 
@@ -122,7 +122,7 @@ mod tests {
   // fref("nonexistent.td") resolves to None when the target file does not exist
   #[test]
   fn fref_with_nonexistent_path_resolves_to_none() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/with_fref.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
 
     // Construct a fref("nonexistent.td") HIR node manually
     let node = parse_file(&db, project, file).ast(&db);
@@ -203,7 +203,7 @@ mod tests {
 
   #[test]
   fn referee_resolves_closure_param() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (a, b) -> a + b
@@ -225,7 +225,7 @@ fn: (a, b) -> a + b
 
   #[test]
   fn referee_resolves_nested_closure_outer_param() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (a) -> (b) -> a + b
@@ -247,7 +247,7 @@ fn: (a) -> (b) -> a + b
 
   #[test]
   fn referee_unresolved_ident_in_closure_returns_none() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (root, _) = parse(
       r#"---
 fn: (a) -> a + unknown_var

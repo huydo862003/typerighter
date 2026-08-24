@@ -223,7 +223,7 @@ mod tests {
 
   #[test]
   fn test_product_type_get_fields_and_get_owned_field_type_include_default_and_computed() {
-    let (db, _, _) = load_vault_fixture("evaluate/my_vault", "content/valid_person.td");
+    let (db, _, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let str_type: TdTypeEnum = get_str_type(&db).into();
     let schema_metatype: TdTypeEnum = get_type_type(&db).into();
 

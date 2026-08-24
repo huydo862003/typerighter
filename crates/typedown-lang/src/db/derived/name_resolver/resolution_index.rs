@@ -202,7 +202,7 @@ mod tests {
   // resolution_index finds schema references in a typed content file
   #[test]
   fn resolution_index_finds_type_reference() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let idx = resolution_index(&db, project, file);
     // valid_person.td has _type: Person, so "Person" should be in the index
     let syms = idx.symbols(&db);
@@ -215,7 +215,7 @@ mod tests {
   // resolution_index returns empty for a file with no references
   #[test]
   fn resolution_index_empty_for_untyped() {
-    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "content/literal_value.td");
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let idx = resolution_index(&db, project, file);
     assert!(
       idx.symbols(&db).is_empty(),
@@ -226,7 +226,7 @@ mod tests {
   // references finds all files that reference a given schema symbol
   #[test]
   fn references_finds_usages_across_files() {
-    let (db, project, _) = load_vault_fixture("typecheck/my_vault", "content/valid_person.td");
+    let (db, project, _) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     // Get the Person schema symbol
     let schema_files = project.files(&db);
     let person_path = schema_files
@@ -250,7 +250,7 @@ mod tests {
   #[test]
   fn resolution_index_finds_fref() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/article_fref_status.td");
+      load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     // article_fref_status.td has fref("summary.td") which resolves to a symbol
     let idx = resolution_index(&db, project, file);
     let all_refs: Vec<_> = idx
@@ -273,7 +273,7 @@ mod tests {
   #[test]
   fn get_references_filters_correctly() {
     let (db, project, file) =
-      load_vault_fixture("typecheck/narrow_vault", "content/article_fref_status.td");
+      load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     let idx = resolution_index(&db, project, file);
 
     // Get the Article schema symbol
@@ -291,11 +291,11 @@ mod tests {
     assert!(!article_refs.is_empty(), "should find Article reference");
     assert_eq!(article_refs[0].kind, ReferenceKind::Ident);
 
-    // Fref references content/summary.td
+    // Fref references summary.td
     let summary_path = schema_files
       .keys()
-      .find(|path| path.ends_with("content/summary.td"))
-      .expect("should have content/summary.td");
+      .find(|path| path.ends_with("summary.td"))
+      .expect("should have summary.td");
     let summary_file = schema_files[summary_path];
     let summary_symbol = file_symbol(&db, project, summary_file)
       .value(&db)

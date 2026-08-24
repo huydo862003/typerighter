@@ -45,22 +45,22 @@ pub fn rename(analysis: &Analysis, params: RenameParams) -> Option<WorkspaceEdit
   }
 
   let old_path = symbol_file_path(db, symbol)?;
-  let content_dir = get_vault_config(db, project).content_dir(db);
+  let root_dir = get_vault_config(db, project).root_dir(db);
 
   // Compute new file path and identifier stem based on rename kind
   let (new_path, new_stem) = match &rename_symbol {
-    CursorSymbol::Fref { .. } => compute_fref_target(new_name, &content_dir),
+    CursorSymbol::Fref { .. } => compute_fref_target(new_name, &root_dir),
     CursorSymbol::Identifier { .. } => compute_ident_target(db, new_name, symbol, &old_path)?,
   };
 
   // Collect text edits for all references + file rename
   let refs = references(db, project, symbol);
-  let edits = collect_reference_edits(analysis, &refs, &new_stem, &new_path, &content_dir)?;
+  let edits = collect_reference_edits(analysis, &refs, &new_stem, &new_path, &root_dir)?;
 
   build_workspace_edit(analysis, edits, vec![(old_path, new_path)])
 }
 
-fn compute_fref_target(new_name: &str, content_dir: &Path) -> (PathBuf, String) {
+fn compute_fref_target(new_name: &str, root_dir: &Path) -> (PathBuf, String) {
   let new_path = Path::new(new_name);
   // Check extension on filename only, not the full path (e.g. "v2.0/file" has no extension)
   let has_extension = new_path
@@ -68,9 +68,9 @@ fn compute_fref_target(new_name: &str, content_dir: &Path) -> (PathBuf, String) 
     .and_then(|f| Path::new(f).extension())
     .is_some();
   let absolute = if has_extension {
-    content_dir.join(new_name)
+    root_dir.join(new_name)
   } else {
-    content_dir.join(format!("{}.td", new_name))
+    root_dir.join(format!("{}.td", new_name))
   };
   let stem = new_path
     .file_stem()
@@ -137,8 +137,7 @@ mod tests {
   const VAULT_CONFIG: &str = r#"
 version: "1"
 vault:
-  content_dir: content
-  schema_dir: schemas
+  root_dir: "."
 "#;
   const SCHEMA_PERSON: &str = r#"---
 _type: schema
@@ -187,9 +186,8 @@ age: 30
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let content_root = root.join("content");
-    let schema_root = root.join("schemas");
-    let test_path = content_root.join("file.td");
+    let type_root = root.join("_types");
+    let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -207,7 +205,7 @@ age: 30
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        schema_root.join("Person.td"),
+        type_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -215,7 +213,7 @@ age: 30
     let alice_file = File::new(
       &db,
       FileHandle::Content(
-        content_root.join("alice.td"),
+        root.join("alice.td"),
         CONTENT_ALICE.to_string(),
         FileMetadata::default(),
       ),
@@ -231,8 +229,8 @@ age: 30
 
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Person.td"), person_file),
-      (root.join("content/alice.td"), alice_file),
+      (root.join("_types/Person.td"), person_file),
+      (root.join("alice.td"), alice_file),
       (test_path, editing_file),
     ]);
 
@@ -417,7 +415,7 @@ name: Alice
     let schema_file = File::new(
       &db,
       FileHandle::Content(
-        root.join("schemas/Human.td"),
+        root.join("_types/Human.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -425,7 +423,7 @@ name: Alice
     let alice_file = File::new(
       &db,
       FileHandle::Content(
-        root.join("content/alice.td"),
+        root.join("alice.td"),
         CONTENT_ALICE.replace("Person", "Human"),
         FileMetadata::default(),
       ),
@@ -433,16 +431,16 @@ name: Alice
     let test_file = File::new(
       &db,
       FileHandle::Content(
-        root.join("content/file.td"),
+        root.join("file.td"),
         human_content.clone(),
         FileMetadata::default(),
       ),
     );
     let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
-      (root.join("schemas/Human.td"), schema_file),
-      (root.join("content/alice.td"), alice_file),
-      (root.join("content/file.td"), test_file),
+      (root.join("_types/Human.td"), schema_file),
+      (root.join("alice.td"), alice_file),
+      (root.join("file.td"), test_file),
     ]);
     let project = Project::new(&db, root.clone(), files);
     let analysis2 = Analysis::new(
@@ -452,7 +450,7 @@ name: Alice
       Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
-    let uri2 = path_to_uri(&root.join("content/file.td"), "file");
+    let uri2 = path_to_uri(&root.join("file.td"), "file");
 
     // Second rename: Human -> Person (cursor on the first "Human" which is the _type value)
     let (raw2, offset2) = cursor(&human_content.replacen("Human", "|Human", 1));

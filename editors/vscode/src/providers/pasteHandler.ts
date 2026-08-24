@@ -22,10 +22,6 @@ import {
   DocumentPasteEdit,
   SnippetString,
 } from 'vscode';
-import {
-  LspManager,
-} from '../managers/lsp';
-
 // Keep in sync with AssetKind::from_extension in typedown-lang
 export const MIME_TO_EXTENSION: ReadonlyMap<string, string> = new Map([
   [
@@ -66,24 +62,14 @@ export class PasteEditProvider implements DocumentPasteEditProvider {
 
     const extension = MIME_TO_EXTENSION.get(match.mimeType)!;
 
-    const [
-      binaryData,
-      assetsResponse,
-    ] = await Promise.all([
-      match.item.asFile()?.data(),
-      LspManager.getAssetsDir(document.uri.toString())
-        .catch((): AssetsDirectoryResponse => ({
-          mode: 'local',
-          path: 'assets',
-        })),
-    ]);
+    const binaryData = await match.item.asFile()?.data();
 
     if (!binaryData) {
       return undefined;
     }
 
     const documentDirectory = dirname(document.uri.fsPath);
-    const assetsDirectory = join(documentDirectory, assetsResponse.path);
+    const assetsDirectory = join(documentDirectory, '_assets');
 
     await mkdir(assetsDirectory, {
       recursive: true,
@@ -100,11 +86,6 @@ export class PasteEditProvider implements DocumentPasteEditProvider {
 
     return [new DocumentPasteEdit(snippet, 'Paste as Typedown asset', DocumentDropOrPasteEditKind.Empty)];
   }
-}
-
-interface AssetsDirectoryResponse {
-  mode: 'local';
-  path: string;
 }
 
 function findSupportedMime (dataTransfer: DataTransfer): {

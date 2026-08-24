@@ -1,7 +1,6 @@
 version: "1.0.0"
 vault:
-  content_dir: vault/content
-  schema_dir: vault/schemas
+  root_dir: "vault"
 site:
   title: "Project Tracker"
   description: "A typedown site"

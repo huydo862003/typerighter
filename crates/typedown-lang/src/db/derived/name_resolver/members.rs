@@ -7,7 +7,7 @@ use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::types::{MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
-use crate::db::utils::is_content_file;
+use crate::db::utils::{is_content_file, is_type_file};
 use crate::syntax::ast::{AstNode, ClosureExpr};
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
@@ -16,12 +16,12 @@ use typedown_types::either::Either;
 #[query_derived]
 pub fn schema_members(db: &TypedownDatabase, project: Project) -> MembersResult {
   let config = get_vault_config(db, project);
-  let schema_dir = config.schema_dir(db);
+  let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
 
   let mut members = HashMap::new();
   for (path, file) in &proj_files {
-    if !path.starts_with(&schema_dir) || !is_content_file(path) {
+    if !path.starts_with(&root_dir) || !is_type_file(path) {
       continue;
     }
     if let Some(sym) = file_symbol(db, project, *file).value(db) {

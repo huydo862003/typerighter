@@ -96,12 +96,11 @@ pub trait TdBuildRpc<Hash, StorageKey> {
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdSiteConfig {
+  pub version: String,
   /// URL base path (e.g. "/" or "/docs")
   pub base_path: String,
-  /// Content directory path relative to the project root
-  pub content_dir: String,
-  /// Asset directory configuration
-  pub assets_dir: TdAssetsDir,
+  /// Vault root directory path relative to the project root
+  pub root_dir: String,
   /// Site title from typedown.yaml
   pub site_title: String,
   /// Site description from typedown.yaml
@@ -111,19 +110,7 @@ pub struct TdSiteConfig {
   pub public_dir: String,
 }
 
-/// Asset directory configuration
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
-pub struct TdAssetsDir {
-  /// "local" assets live in a subdirectory relative to each file
-  pub mode: String,
-  /// Subdirectory name (default: "assets")
-  pub path: String,
-}
-
-/// Path relative to the content directory
+/// Path relative to the vault root
 #[derive(Serialize, Deserialize)]
 pub struct TdFilePath(pub String);
 
@@ -133,7 +120,7 @@ pub struct TdFilePath(pub String);
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdContentSummary {
-  /// File path relative to the content directory
+  /// File path relative to the vault root
   pub filepath: String,
   /// Schema type name
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -203,7 +190,7 @@ pub struct TdFormatResult {
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdDiagnosticItem {
-  /// File path relative to the content directory
+  /// File path relative to the vault root
   pub filepath: String,
   /// 1-based line number
   pub line: u32,

@@ -115,9 +115,9 @@ fn cache_miss_on_file_change() {
 
   let (_tmp, project_dir, cache_dir, _) = session1_dump();
 
-  let target = project_dir.join("vault/content/people/alice.td");
+  let target = project_dir.join("vault/people/alice.td");
   let original = std::fs::read_to_string(&target).unwrap();
-  std::fs::write(&target, original.replace("Alice", "Alicia")).unwrap();
+  std::fs::write(&target, format!("{original}\n<!-- appended -->\n")).unwrap();
 
   run_child_test(
     "cache_roundtrip::cache_miss_on_file_change",
@@ -129,7 +129,7 @@ fn cache_miss_on_file_change() {
   );
 }
 
-// Adding a new file between sessions triggers computation
+// Adding a new content file triggers recomputation
 #[test]
 fn cache_miss_on_new_file() {
   if std::env::var("CACHE_MISS_NEW_SESSION").as_deref() == Ok("2") {
@@ -143,18 +143,22 @@ fn cache_miss_on_new_file() {
 
     assert!(
       after > before,
-      "expected recomputations after adding a new file, but count stayed at {before}"
+      "expected recomputations after new file added, but count stayed at {before}"
     );
     return;
   }
 
   let (_tmp, project_dir, cache_dir, _) = session1_dump();
 
-  std::fs::write(
-    project_dir.join("vault/content/people/dave.td"),
-    "---\n_type: Person\nname: \"Dave\"\nrole: \"developer\"\n---\n",
-  )
-  .unwrap();
+  // Create a new content file
+  let new_content = r#"---
+_type: Person
+name: "Dave"
+email: "dave@example.com"
+role: "developer"
+---
+"#;
+  std::fs::write(project_dir.join("vault/people/dave.td"), new_content).unwrap();
 
   run_child_test(
     "cache_roundtrip::cache_miss_on_new_file",
@@ -166,7 +170,7 @@ fn cache_miss_on_new_file() {
   );
 }
 
-// Deleting a file between sessions does not crash
+// Deleting a content file triggers recomputation
 #[test]
 fn cache_miss_on_file_deleted() {
   if std::env::var("CACHE_MISS_DEL_SESSION").as_deref() == Ok("2") {
@@ -174,13 +178,21 @@ fn cache_miss_on_file_deleted() {
     let cache_dir = PathBuf::from(std::env::var("CACHE_MISS_DEL_CACHE").unwrap());
 
     let db = setup_db_cached(&cache_dir, &project_dir);
+    let before = db.storage.total_recompute_count();
     run_diagnostics(&db);
+    let after = db.storage.total_recompute_count();
+
+    assert!(
+      after > before,
+      "expected recomputations after file deletion, but count stayed at {before}"
+    );
     return;
   }
 
   let (_tmp, project_dir, cache_dir, _) = session1_dump();
 
-  std::fs::remove_file(project_dir.join("vault/content/people/carol.td")).unwrap();
+  // Delete an existing content file
+  std::fs::remove_file(project_dir.join("vault/people/carol.td")).unwrap();
 
   run_child_test(
     "cache_roundtrip::cache_miss_on_file_deleted",
@@ -213,7 +225,7 @@ fn cache_miss_on_schema_change() {
 
   let (_tmp, project_dir, cache_dir, _) = session1_dump();
 
-  let schema_path = project_dir.join("vault/schemas/person/Person.td");
+  let schema_path = project_dir.join("vault/_types/people/Person.td");
   let original = std::fs::read_to_string(&schema_path).unwrap();
   std::fs::write(
     &schema_path,

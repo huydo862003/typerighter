@@ -52,7 +52,7 @@ fn top_level_completions() -> Vec<CompletionItem> {
 }
 
 fn vault_field_completions() -> Vec<CompletionItem> {
-  vec![field_item("content_dir"), field_item("schema_dir")]
+  vec![field_item("root_dir")]
 }
 
 fn field_item(label: &str) -> CompletionItem {
