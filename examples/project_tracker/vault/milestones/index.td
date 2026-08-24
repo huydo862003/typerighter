@@ -1,3 +1,1 @@
-# Milestones
-
 [[directory-index]]

@@ -1,6 +1,7 @@
 version: "1.0.0"
 vault:
   root_dir: "vault"
+repo: "https://github.com/huydo862003/typerighter"
 site:
   title: "Project Tracker"
   description: "A typedown site"

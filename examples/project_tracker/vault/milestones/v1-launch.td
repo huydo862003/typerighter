@@ -8,6 +8,4 @@ lead: fref("people/carol.td")
 tags: ["release", "q4", "milestone"]
 ---
 
-# v1.0 Public Launch
-
 Targeting initial beta rollout by Q4.
