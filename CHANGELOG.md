@@ -1,3 +1,8 @@
+## [0.13.0] - 2026-08-24
+
+* packages/typerighter
+  - Add github corner icon if there's a repo config
+
 ## [0.12.2] - 2026-08-24
 
 * packages/typerighter
