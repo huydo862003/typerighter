@@ -1,7 +1,7 @@
 /* Inline code */
 
 .td-content :not(pre, h1, h2, h3, h4, h5, h6) > code {
-  font-size: var(--font-size-td-code);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-fg);
 }
 
@@ -65,8 +65,8 @@
   width: fit-content;
   min-width: 100%;
   background: transparent;
-  font-size: var(--font-size-td-code);
-  line-height: var(--leading-td-code);
+  font-size: var(--font-size-td-xs);
+  line-height: var(--leading-td-loose);
   color: var(--color-td-code-fg);
 }
 
@@ -87,7 +87,7 @@
   top: 2px;
   right: 8px;
   z-index: 2;
-  font-size: var(--font-size-td-label);
+  font-size: var(--font-size-td-2xs);
   font-weight: 500;
   color: var(--color-td-code-chrome-40);
   font-family: var(--font-mono);
@@ -160,8 +160,8 @@
   padding: 20px 0;
   width: 36px;
   text-align: center;
-  font-size: var(--font-size-td-code);
-  line-height: var(--leading-td-code);
+  font-size: var(--font-size-td-xs);
+  line-height: var(--leading-td-loose);
   color: var(--color-td-code-chrome-20);
   font-family: var(--font-mono);
   border-right: 1px solid var(--color-td-code-chrome-08);

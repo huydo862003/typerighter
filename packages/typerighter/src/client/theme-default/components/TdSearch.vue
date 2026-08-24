@@ -400,7 +400,7 @@ async function runSearch (trimmed: string) {
   border: none;
   outline: none;
   background: none;
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-fg);
   font-family: inherit;
 }
@@ -411,7 +411,7 @@ async function runSearch (trimmed: string) {
 
 .td-search-count {
   flex-shrink: 0;
-  font-size: var(--font-size-td-label);
+  font-size: var(--font-size-td-2xs);
   color: var(--color-td-neutral-fg-muted);
 }
 
@@ -449,8 +449,8 @@ async function runSearch (trimmed: string) {
 
 .td-search-group-label {
   padding: 6px 20px;
-  font-size: var(--font-size-td-label);
-  letter-spacing: var(--tracking-td-label);
+  font-size: var(--font-size-td-2xs);
+  letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
   overflow: hidden;
@@ -475,7 +475,7 @@ async function runSearch (trimmed: string) {
 }
 
 .td-search-result-title {
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-fg);
 }
 
@@ -485,7 +485,7 @@ async function runSearch (trimmed: string) {
 }
 
 .td-search-result-excerpt {
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-neutral-fg);
   line-height: 1.4;
   overflow: hidden;
@@ -499,13 +499,13 @@ async function runSearch (trimmed: string) {
 .td-search-result-excerpt :deep(mark) {
   background: none;
   color: var(--color-td-primary-solid);
-  font-weight: var(--font-weight-td-semibold);
+  font-weight: 600;
 }
 
 .td-search-empty {
   margin-top: 8px;
   padding: 8px 10px;
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-neutral-fg-muted);
 }
 </style>

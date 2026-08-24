@@ -291,7 +291,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       devServer.httpServer?.once('listening', async () => {
         const report = await tdContext.checkVault();
 
-        printDiagnostics(report.diagnostics);
+        if (0 < report.diagnostics.length) {
+          console.error('');
+          printDiagnostics(report.diagnostics);
+        }
       });
 
       // Config changes affect the rendering pipeline itself, requires full reload

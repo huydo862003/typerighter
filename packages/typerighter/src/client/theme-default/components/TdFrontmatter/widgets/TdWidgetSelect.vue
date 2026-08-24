@@ -23,6 +23,6 @@ const {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
 }
 </style>

@@ -7,14 +7,14 @@
 .td-content h5,
 .td-content h6 {
   font-family: var(--font-sans);
-  font-weight: var(--font-weight-td-heading);
-  line-height: var(--leading-td-heading);
-  letter-spacing: var(--tracking-td-heading);
+  font-weight: 800;
+  line-height: var(--leading-td-tight);
+  letter-spacing: var(--tracking-td-tight);
   overflow-wrap: break-word;
 }
 
 .td-content h1 {
-  font-size: var(--font-size-td-h1);
+  font-size: var(--font-size-td-3xl);
   margin-top: 2.25rem;
   margin-bottom: 0.5rem;
 }
@@ -24,7 +24,7 @@
 }
 
 .td-content h2 {
-  font-size: var(--font-size-td-h2);
+  font-size: var(--font-size-td-xl);
   margin-top: 2.5rem;
   margin-bottom: 0.875rem;
   padding-bottom: 8px;
@@ -32,26 +32,26 @@
 }
 
 .td-content h3 {
-  font-size: var(--font-size-td-h3);
+  font-size: var(--font-size-td-lg);
   margin-top: 2rem;
   margin-bottom: 0.75rem;
 }
 
 .td-content h4 {
-  font-size: var(--font-size-td-h4);
+  font-size: var(--font-size-td-md);
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
 }
 
 .td-content h5 {
-  font-size: var(--font-size-td-h5);
+  font-size: var(--font-size-td-base);
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
 }
 
 .td-content h6 {
-  font-size: var(--font-size-td-h6);
-  letter-spacing: var(--tracking-td-h6);
+  font-size: var(--font-size-td-xs);
+  letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
@@ -62,8 +62,8 @@
 
 .td-content p {
   margin: 1rem 0;
-  font-size: var(--font-size-td-body);
-  line-height: var(--leading-td-body);
+  font-size: var(--font-size-td-base);
+  line-height: var(--leading-td-relaxed);
   text-wrap: pretty;
   overflow-wrap: break-word;
 }
@@ -122,7 +122,7 @@
 
 .td-content li {
   margin: 0.5rem 0;
-  line-height: var(--leading-td-body);
+  line-height: var(--leading-td-relaxed);
 }
 
 .td-content li > ul,
@@ -189,7 +189,7 @@
   width: 100%;
   border-collapse: collapse;
   margin: 1.5rem 0;
-  font-size: var(--font-size-td-ui);
+  font-size: var(--font-size-td-sm);
   display: block;
   overflow-x: auto;
 }
@@ -197,8 +197,8 @@
 .td-content th {
   position: relative;
   text-align: left;
-  font-size: var(--font-size-td-table-header);
-  letter-spacing: var(--tracking-td-h6);
+  font-size: var(--font-size-td-2xs);
+  letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-fg-muted);
   padding: 0.5rem;
@@ -252,7 +252,7 @@
 /* Strong / emphasis */
 
 .td-content strong {
-  font-weight: var(--font-weight-td-semibold);
+  font-weight: 600;
 }
 
 .td-content em {

@@ -86,18 +86,18 @@ const resolved = extractRef(value);
   display: inline-block;
   width: 180px;
   height: 260px;
-  border-radius: var(--border-radius-td-lg, 8px);
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--color-td-border, rgba(55, 53, 47, 0.16));
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid var(--color-td-neutral-border-subtle);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-td-fg) 8%, transparent);
+  transition: transform 0.15s, box-shadow 0.15s;
   vertical-align: middle;
-  background-color: var(--color-td-bg-secondary, #f6f8fa);
+  background-color: var(--color-td-neutral-bg-subtle);
 }
 
 .td-widget-image-preview:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-td-fg) 12%, transparent);
 }
 
 .td-widget-image-img {
@@ -111,19 +111,19 @@ const resolved = extractRef(value);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-td-neutral-fg, #37352f);
+  color: var(--color-td-neutral-fg);
   text-decoration: none;
-  font-size: var(--font-size-td-body, 14px);
+  font-size: var(--font-size-td-base);
   line-height: 1.4;
   padding: 4px 8px;
   border-radius: 4px;
-  background-color: var(--color-td-bg-secondary, rgba(55, 53, 47, 0.08));
-  border: 1px solid var(--color-td-border, rgba(55, 53, 47, 0.12));
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  background-color: var(--color-td-neutral-bg-subtle);
+  border: 1px solid var(--color-td-neutral-border-subtle);
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .td-widget-file-link:hover {
-  background-color: var(--color-td-bg-hover, rgba(55, 53, 47, 0.12));
+  background-color: var(--color-td-neutral-bg-hover);
   text-decoration: none;
 }
 
@@ -131,7 +131,7 @@ const resolved = extractRef(value);
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: var(--color-td-neutral-fg-muted, #787774);
+  color: var(--color-td-neutral-fg-muted);
 }
 
 .td-widget-file-name {

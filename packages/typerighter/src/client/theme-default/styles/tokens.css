@@ -59,36 +59,27 @@
   --color-td-code-chrome-08: rgba(255, 255, 255, 0.08);
   --color-td-code-chrome-06: rgba(255, 255, 255, 0.06);
 
-  /* Type scale */
-  --font-size-td-display: 120px;
-  --font-size-td-h1: 44px;
-  --font-size-td-h2: 26px;
-  --font-size-td-h3: 25px;
-  --font-size-td-h4: 20px;
-  --font-size-td-h5: 16px;
-  --font-size-td-h6: 13px;
-  --font-size-td-body: 17px;
-  --font-size-td-body-sm: 15.5px;
-  --font-size-td-ui: 14.5px;
-  --font-size-td-nav: 14px;
-  --font-size-td-caption: 13.5px;
-  --font-size-td-code: 0.85rem;
-  --font-size-td-table-header: 11.5px;
-  --font-size-td-label: 11px;
-  --font-size-td-site-title: 17.5px;
+  /* Type scale (base 17px, ratio ~1.25) */
+  --font-size-td-2xs: 11px;
+  --font-size-td-xs: 14px;
+  --font-size-td-sm: 15px;
+  --font-size-td-base: 17px;
+  --font-size-td-md: 21px;
+  --font-size-td-lg: 26px;
+  --font-size-td-xl: 33px;
+  --font-size-td-2xl: 41px;
+  --font-size-td-3xl: 51px;
+  --font-size-td-4xl: 80px;
 
-  --font-weight-td-heading: 800;
-  --font-weight-td-body: 400;
-  --font-weight-td-semibold: 600;
+  /* Line heights */
+  --leading-td-tight: 1.12;
+  --leading-td-normal: 1.5;
+  --leading-td-relaxed: 1.65;
+  --leading-td-loose: 1.7;
 
-  --leading-td-heading: 1.12;
-  --leading-td-body: 1.65;
-  --leading-td-code: 1.7;
-
-  --tracking-td-heading: -0.015em;
-  --tracking-td-title: -0.02em;
-  --tracking-td-label: 0.1em;
-  --tracking-td-h6: 0.08em;
+  /* Letter spacing */
+  --tracking-td-tight: -0.02em;
+  --tracking-td-wide: 0.1em;
 }
 
 :root {
@@ -128,8 +119,8 @@
 
 body {
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: var(--font-size-td-base);
+  line-height: var(--leading-td-relaxed);
   font-weight: 400;
   color: var(--color-td-fg);
   background-color: var(--color-td-neutral-bg);

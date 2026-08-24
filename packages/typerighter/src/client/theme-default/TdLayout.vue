@@ -20,6 +20,7 @@ import {
 } from './components/TdFrontmatter';
 import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
+import TdRail from './components/TdRail.vue';
 import TdSearch from './components/TdSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
@@ -31,7 +32,6 @@ import {
 import {
   useMenu,
 } from './composables/useMenu';
-import TdToc from './components/TdToc.vue';
 import {
   renderInlineMath,
 } from './composables/renderMath';
@@ -134,6 +134,7 @@ function onResizeStart (event: PointerEvent) {
           <TdBrandIcon />
           <span class="td-brand-name">{{ siteConfig.title || 'Typedown' }}</span>
         </a>
+        <TdBreadcrumb class="td-header-breadcrumb" />
       </div>
       <div class="td-header-right">
         <TdThemeToggle />
@@ -145,7 +146,6 @@ function onResizeStart (event: PointerEvent) {
           class="td-header-icon-link"
           aria-label="GitHub repository"
         >
-          <!-- GitHub mark SVG -->
           <svg
             width="20"
             height="20"
@@ -230,10 +230,15 @@ function onResizeStart (event: PointerEvent) {
         />
       </nav>
 
-      <div class="td-main-and-toc">
+      <div class="td-main-and-rail">
         <main class="td-main">
           <article class="td-content">
-            <TdBreadcrumb />
+            <div
+              v-if="page.schema"
+              class="td-page-eyebrow"
+            >
+              {{ page.schema }}
+            </div>
             <h1
               v-if="title"
               class="td-page-title"
@@ -247,20 +252,18 @@ function onResizeStart (event: PointerEvent) {
               <span v-if="page.metadata.ctime !== page.metadata.mtime"> · {{ formatEditTime(page.metadata.ctime, 'Created') }}</span>
             </div>
             <TdFrontmatter
+              class="td-frontmatter-inline"
               :schema="page.schema"
               :frontmatter="page.frontmatter"
             />
-            <Content />
+            <div class="td-content-body">
+              <Content />
+            </div>
             <TdPreviousNext />
           </article>
         </main>
 
-        <nav
-          class="td-sidebar-right"
-          aria-label="Table of contents"
-        >
-          <TdToc :headings="page.headings" />
-        </nav>
+        <TdRail class="td-rail" />
       </div>
     </div>
   </div>
@@ -291,7 +294,7 @@ function onResizeStart (event: PointerEvent) {
 .td-header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
 
 .td-header-icon-link {
@@ -307,6 +310,10 @@ function onResizeStart (event: PointerEvent) {
 
 .td-header-icon-link:hover {
   color: var(--color-td-primary-solid);
+}
+
+.td-header-breadcrumb {
+  font-size: var(--font-size-td-xs);
 }
 
 /* Brand */
@@ -326,9 +333,9 @@ function onResizeStart (event: PointerEvent) {
 
 .td-brand-name {
   font-family: var(--font-sans);
-  font-weight: var(--font-weight-td-heading);
-  font-size: var(--font-size-td-site-title);
-  letter-spacing: var(--tracking-td-title);
+  font-weight: 800;
+  font-size: var(--font-size-td-base);
+  letter-spacing: var(--tracking-td-tight);
 }
 
 /* Page grid */
@@ -338,7 +345,7 @@ function onResizeStart (event: PointerEvent) {
   min-height: calc(100vh - var(--td-header-height));
 }
 
-.td-main-and-toc {
+.td-main-and-rail {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--td-toc-width);
   flex: 1;
@@ -358,28 +365,38 @@ function onResizeStart (event: PointerEvent) {
   padding: 44px 56px 120px;
 }
 
+.td-page-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-td-wide);
+  text-transform: uppercase;
+  color: var(--color-td-primary-solid);
+  margin-bottom: 6px;
+}
+
 .td-page-title {
   font-family: var(--font-sans);
-  font-weight: var(--font-weight-td-heading);
-  font-size: var(--font-size-td-h1);
-  line-height: var(--leading-td-heading);
-  letter-spacing: var(--tracking-td-heading);
+  font-weight: 800;
+  font-size: var(--font-size-td-3xl);
+  line-height: var(--leading-td-tight);
+  letter-spacing: var(--tracking-td-tight);
   margin: 0 0 8px 0;
 }
 
 .td-page-meta {
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-neutral-border-strong);
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
-/* Menu button: hidden above lg */
+/* Menu button: hidden above 900px */
 
 .td-menu-button {
   display: none;
 }
 
-/* Sidebar: static column above lg */
+/* Sidebar: static column above 900px */
 
 .td-sidebar-left {
   position: sticky;
@@ -432,32 +449,30 @@ function onResizeStart (event: PointerEvent) {
   flex-shrink: 0;
 }
 
-/* Right sidebar (TOC) */
-
-.td-sidebar-right {
-  position: sticky;
-  top: var(--td-header-height);
-  height: calc(100vh - var(--td-header-height));
-  overflow-y: auto;
-  padding: 44px 22px 60px;
-  min-width: 0;
+/* Inline frontmatter hidden at desktop */
+.td-frontmatter-inline {
+  display: none;
 }
 
-/* Below xl: hide TOC */
+/* Below 1200px: hide rail, show inline frontmatter */
 
-@media (width < 80rem) {
-  .td-sidebar-right {
+@media (width < 75rem) {
+  .td-rail {
     display: none;
   }
 
-  .td-main-and-toc {
+  .td-main-and-rail {
     grid-template-columns: 1fr;
+  }
+
+  .td-frontmatter-inline {
+    display: block;
   }
 }
 
-/* Below lg: hide sidebar, show hamburger menu */
+/* Below 900px: hide sidebar, show menu overlay */
 
-@media (width < 64rem) {
+@media (width < 56.25rem) {
   .td-header {
     padding: 0 16px;
   }
@@ -467,6 +482,10 @@ function onResizeStart (event: PointerEvent) {
   }
 
   .td-sidebar-left {
+    display: none;
+  }
+
+  .td-header-breadcrumb {
     display: none;
   }
 

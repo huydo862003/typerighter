@@ -5,8 +5,8 @@
 }
 
 .td-content .custom-block-title {
-  font-weight: var(--font-weight-td-semibold);
-  font-size: var(--font-size-td-ui);
+  font-weight: 600;
+  font-size: var(--font-size-td-sm);
   margin-bottom: 8px;
 }
 
@@ -69,8 +69,8 @@
 
 .td-content details.custom-block summary {
   padding: 12px 16px;
-  font-weight: var(--font-weight-td-semibold);
-  font-size: var(--font-size-td-ui);
+  font-weight: 600;
+  font-size: var(--font-size-td-sm);
   cursor: pointer;
   user-select: none;
 }

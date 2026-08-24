@@ -48,11 +48,13 @@ const activeTocId = useActiveTocHeading(() => headings);
 
 <style scoped>
 .td-toc-label {
-  font-size: var(--font-size-td-label);
-  letter-spacing: var(--tracking-td-label);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
-  margin-bottom: 12px;
+  margin-bottom: 9px;
 }
 
 .td-toc-list {
@@ -70,7 +72,7 @@ const activeTocId = useActiveTocHeading(() => headings);
   display: block;
   padding: 5px 0 5px 12px;
   margin-left: -2px;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-neutral-fg);
   text-decoration: none;
   border-left: 2px solid transparent;
@@ -84,7 +86,7 @@ const activeTocId = useActiveTocHeading(() => headings);
 .td-toc-link.is-active {
   color: var(--color-td-primary-solid);
   border-left-color: var(--color-td-primary-solid);
-  font-weight: var(--font-weight-td-semibold);
+  font-weight: 600;
 }
 
 .td-toc-indent-1 {

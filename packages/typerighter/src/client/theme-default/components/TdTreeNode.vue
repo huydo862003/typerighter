@@ -47,7 +47,7 @@ function countItems (n: ContentTreeNode): number {
 
 const collapsed = ref(!isUrlAncestorOf(directoryUrl, route.path));
 const showAll = ref(false);
-const MAX_VISIBLE = 20;
+const MAX_VISIBLE = 5;
 const visibleItems = computed(() => showAll.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
 const hiddenCount = computed(() => Math.max(0, regularItems.length - MAX_VISIBLE));
 
@@ -142,7 +142,7 @@ function toggle () {
         type="button"
         @click="expandAll"
       >
-        {{ hiddenCount }} more
+        {{ hiddenCount }} more...
       </button>
     </div>
   </div>
@@ -154,8 +154,8 @@ function toggle () {
   align-items: center;
   gap: 4px;
   padding: 6px 20px;
-  font-size: var(--font-size-td-label);
-  letter-spacing: var(--tracking-td-label);
+  font-size: var(--font-size-td-2xs);
+  letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
 }
@@ -209,8 +209,9 @@ function toggle () {
 
 .td-tree-count {
   margin-left: auto;
-  font-size: var(--font-size-td-caption);
-  color: var(--color-td-neutral-border);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-xs);
+  color: var(--color-td-neutral-border-strong);
   letter-spacing: normal;
   text-transform: none;
 }
@@ -239,7 +240,7 @@ function toggle () {
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-neutral-fg);
   text-decoration: none;
   transition: background-color 0.1s, border-left-color 0.1s, color 0.1s;
@@ -257,7 +258,7 @@ function toggle () {
 .td-tree-time {
   flex-shrink: 0;
   margin-left: auto;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-neutral-border);
 }
 
@@ -265,7 +266,7 @@ function toggle () {
   background-color: var(--color-td-primary-bg-hover);
   border-left-color: var(--color-td-primary-solid);
   color: var(--color-td-primary-solid);
-  font-weight: var(--font-weight-td-semibold);
+  font-weight: 600;
 }
 
 .td-tree-more {
@@ -273,13 +274,13 @@ function toggle () {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: var(--font-size-td-caption);
-  color: var(--color-td-neutral-fg-muted);
-  padding: 4px 12px;
+  font-size: var(--font-size-td-xs);
+  color: var(--color-td-primary-solid);
+  padding: 5px 12px;
   transition: color 0.15s;
 }
 
 .td-tree-more:hover {
-  color: var(--color-td-fg);
+  color: var(--color-td-primary-solid-hover);
 }
 </style>

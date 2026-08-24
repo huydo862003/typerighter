@@ -102,19 +102,19 @@ const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value
 }
 
 .td-dir-parent {
-  font-weight: var(--font-weight-td-semibold);
-  font-size: var(--font-size-td-body-sm);
+  font-weight: 600;
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-neutral-fg-muted);
 }
 
 .td-dir-name {
-  font-weight: var(--font-weight-td-semibold);
-  font-size: var(--font-size-td-body-sm);
+  font-weight: 600;
+  font-size: var(--font-size-td-sm);
 }
 
 .td-dir-count {
   margin-left: auto;
-  font-size: var(--font-size-td-label);
+  font-size: var(--font-size-td-2xs);
   color: var(--color-td-neutral-fg-muted);
 }
 </style>

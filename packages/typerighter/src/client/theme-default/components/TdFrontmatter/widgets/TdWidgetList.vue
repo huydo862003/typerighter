@@ -108,14 +108,14 @@ function visible<T> (list: T[]): T[] {
 
 .td-widget-list li {
   margin: 0;
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
 }
 
 .td-widget-more {
   border: none;
   background: none;
   color: var(--color-td-neutral-fg-muted);
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   cursor: pointer;
   padding: 2px 4px;
   margin-top: 4px;
