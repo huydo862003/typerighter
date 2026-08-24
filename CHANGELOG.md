@@ -1,3 +1,11 @@
+## [0.12.1] - 2026-08-24
+
+* packages/typerighter
+  - Fix build failure: type schema files in `_types/` now correctly serve the not-found page instead of crashing the bundler
+  - Vault diagnostics in dev mode now print after the server URL instead of before
+  - Vault check runs async after server starts, no longer blocking startup
+  - Improve transform error logging: errors now include file path and message
+
 ## [0.12.0] - 2026-08-24
 
 BREAKING CHANGE: Retouch vault configuration and organization
