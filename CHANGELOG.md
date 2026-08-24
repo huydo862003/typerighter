@@ -1,3 +1,10 @@
+## [0.12.0] - 2026-08-24
+
+BREAKING CHANGE: Retouch vault configuration and organization
+- Remove `assets_dir` config
+- Remove `content_dir` and `schema_dir` config
+- Unify to 1 `root_dir` config
+
 ## [0.11.5] - 2026-08-23
 
 * packages/typerighter
