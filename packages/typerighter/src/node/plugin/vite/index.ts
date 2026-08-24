@@ -203,20 +203,15 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     },
 
     async buildStart () {
+      // In production builds, run vault check upfront and fail on errors
+      if (server) return;
+
       const tdContext = await resolveTdContext();
       const report = await tdContext.checkVault();
 
-      if (0 < report.errorCount || 0 < report.warningCount) {
-        for (const diagnostic of report.diagnostics) {
-          const location = `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column}`;
-          const prefix = diagnostic.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+      printDiagnostics(report.diagnostics);
 
-          console.error(`  ${prefix} ${location} ${diagnostic.message} ${pc.dim(`(${diagnostic.code})`)}`);
-        }
-      }
-
-      // In production build (no dev server), fail on errors
-      if (!server && 0 < report.errorCount) {
+      if (0 < report.errorCount) {
         const lines = report.diagnostics
           .filter((diagnostic) => diagnostic.severity === 'error')
           .map((diagnostic) => `  ${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} - ${diagnostic.message} (${diagnostic.code})`);
@@ -291,6 +286,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     async configureServer (devServer) {
       server = devServer;
       const tdContext = await resolveTdContext();
+
+      // Print vault diagnostics after the server URL is shown
+      devServer.httpServer?.once('listening', async () => {
+        const report = await tdContext.checkVault();
+
+        printDiagnostics(report.diagnostics);
+      });
 
       // Config changes affect the rendering pipeline itself, requires full reload
       tdContext.rpc.onConfigChanged(() => server && hmrFullReload(server));
@@ -447,6 +449,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       if (!path.isContentFile(cleanId)) return;
 
+      if (path.isTypeFile(cleanId)) {
+        return {
+          code: '<script>import { TdNotFound } from \'typerighter/client/theme-default\'; export default TdNotFound; export const __pageData = { frontmatter: {}, headings: [], title: \'\' };</script>',
+          map: null,
+        };
+      }
+
       const tdContext = await resolveTdContext();
       const config = await tdContext.getConfig();
       const rootDirectory = config.rootDir;
@@ -454,15 +463,21 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         ? cleanId.slice(cleanId.indexOf(rootDirectory) + rootDirectory.length + 1)
         : cleanId;
 
-      const resource = await tdContext.getFile(relativePath);
-      const {
-        vueSrc,
-      } = await renderToVueSfc(tdContext, resource, relativePath);
+      try {
+        const resource = await tdContext.getFile(relativePath);
+        const {
+          vueSrc,
+        } = await renderToVueSfc(tdContext, resource, relativePath);
 
-      return {
-        code: vueSrc,
-        map: null,
-      };
+        return {
+          code: vueSrc,
+          map: null,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        this.error(`[typedown] Failed to transform ${relativePath}: ${message}`);
+      }
     },
 
     handleHotUpdate ({
@@ -567,4 +582,21 @@ function makeHmrUpdate (module_: {
     acceptedPath: module_.url,
     timestamp: Date.now(),
   };
+}
+
+// Print vault diagnostics to stderr with severity prefix and location
+function printDiagnostics (diagnostics: Array<{
+  severity: string;
+  filepath: string;
+  line: number;
+  column: number;
+  message: string;
+  code: string;
+}>) {
+  for (const diagnostic of diagnostics) {
+    const location = `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column}`;
+    const prefix = diagnostic.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+
+    console.error(`  ${prefix} ${location} ${diagnostic.message} ${pc.dim(`(${diagnostic.code})`)}`);
+  }
 }
