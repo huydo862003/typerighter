@@ -1,3 +1,8 @@
+## [0.12.2] - 2026-08-24
+
+* packages/typerighter
+  - Properly track active toc item highlighting
+
 ## [0.12.1] - 2026-08-24
 
 * packages/typerighter
