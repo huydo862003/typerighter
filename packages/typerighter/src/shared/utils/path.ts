@@ -42,6 +42,11 @@ export function isContentFile (filepath: string): boolean {
   return CONTENT_EXTENSIONS.includes(extname(filepath));
 }
 
+// Type schema files live under the _types/ directory convention
+export function isTypeFile (filepath: string): boolean {
+  return isContentFile(filepath) && filepath.split('/').includes('_types');
+}
+
 export function join (...segments: string[]): string {
   return segments
     .filter(Boolean)
