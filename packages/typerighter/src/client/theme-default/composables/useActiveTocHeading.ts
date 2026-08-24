@@ -1,75 +1,100 @@
 import {
-  nextTick, onUnmounted, ref, watch,
+  nextTick, onMounted, onUnmounted, ref, watch,
   type WatchSource,
 } from 'vue';
 import type {
   MarkdownHeading,
 } from '@/shared';
 
-// Track which heading is currently visible and expose its id
+// Pixels from the top of the viewport within which a heading is considered active
+const ACTIVATION_OFFSET = 100;
+
+// Track which TOC heading is active based on scroll position
 export function useActiveTocHeading (headings: WatchSource<MarkdownHeading[]>) {
-  const activeId = ref('');
-  let observer: IntersectionObserver | undefined;
+  const activeId = ref<string | undefined>(undefined);
+  let elements: HTMLElement[] = [];
+  let rafId: number | undefined;
 
-  function observe () {
-    if (typeof document === 'undefined') return;
-    observer?.disconnect();
-    activeId.value = '';
-
-    const elements = Array.from(
-      document.querySelectorAll<HTMLElement>('.td-content h2[id], .td-content h3[id], .td-content h4[id], .td-content h5[id]'),
-    );
-
+  function setActiveLink () {
     if (elements.length === 0) return;
 
-    // Pick the topmost visible heading, or the last heading scrolled past
-    observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            activeId.value = entry.target.id;
+    const scrollY = window.scrollY;
+    const isBottom = document.body.offsetHeight <= scrollY + window.innerHeight;
 
-            return;
-          }
-        }
+    // At page bottom, highlight the last heading
+    if (isBottom) {
+      activeId.value = elements.at(-1)!.id;
 
-        // No heading visible - find the last one above the viewport
-        const scrollY = window.scrollY;
+      return;
+    }
 
-        for (let index = elements.length - 1; 0 <= index; index--) {
-          if (elements[index].offsetTop <= scrollY + 100) {
-            activeId.value = elements[index].id;
-
-            return;
-          }
-        }
-      },
-      {
-        rootMargin: '-64px 0px -70% 0px',
-        threshold: 0,
-      },
-    );
+    // Find the last heading scrolled to or past the activation threshold
+    let found: string | undefined;
 
     for (const element of elements) {
-      observer.observe(element);
+      if (getAbsoluteTop(element) <= scrollY + ACTIVATION_OFFSET) {
+        found = element.id;
+      } else {
+        break;
+      }
     }
+
+    activeId.value = found;
   }
 
-  // Re-observe when the headings prop changes (page navigation)
+  function onScroll () {
+    if (rafId !== undefined) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(setActiveLink);
+  }
+
+  // Re-query headings from the DOM and recompute the active link
+  function updateElements (tocHeadings: MarkdownHeading[]) {
+    if (typeof document === 'undefined') return;
+    activeId.value = undefined;
+
+    // Only track headings that appear in the TOC, not all headings in the content
+    const tocSlugs = new Set(tocHeadings.map((heading) => heading.slug));
+
+    elements = Array.from(
+      document.querySelectorAll<HTMLElement>('.td-content h2[id], .td-content h3[id], .td-content h4[id], .td-content h5[id]'),
+    ).filter((element) => tocSlugs.has(element.id));
+
+    setActiveLink();
+  }
+
+  onMounted(() => {
+    window.addEventListener('scroll', onScroll);
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener('scroll', onScroll);
+    if (rafId !== undefined) cancelAnimationFrame(rafId);
+  });
+
+  // Re-query when the headings change (page navigation)
   watch(
     headings,
-    () => {
+    (tocHeadings) => {
       if (typeof window === 'undefined') return;
-      nextTick(observe);
+      nextTick(() => updateElements(tocHeadings));
     },
     {
       immediate: true,
     },
   );
 
-  onUnmounted(() => {
-    observer?.disconnect();
-  });
-
   return activeId;
+}
+
+// Walk the offsetParent chain to get an element's absolute top position in the document
+function getAbsoluteTop (element: HTMLElement): number {
+  let top = 0;
+  let current: HTMLElement | undefined = element;
+
+  while (current) {
+    top += current.offsetTop;
+    current = current.offsetParent as HTMLElement | undefined;
+  }
+
+  return top;
 }
