@@ -3,7 +3,7 @@
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::{get_schema_type, get_type_type};
+use crate::db::derived::get_builtin_types::{get_schema_meta_type, get_type_type};
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::derived::vault::get_vault_type;
@@ -18,7 +18,7 @@ pub fn get_symbol_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(_) => TypeResult::new(db, Some(get_type_type(db).into()), vec![]),
     SymbolKind::UserDefinedSchema(_, _) => {
-      TypeResult::new(db, Some(get_schema_type(db).into()), vec![])
+      TypeResult::new(db, Some(get_schema_meta_type(db).into()), vec![])
     }
     SymbolKind::UserDefinedResource(project, file) => {
       let (hir, _) = lower_file(db, project, file);

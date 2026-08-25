@@ -76,8 +76,8 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
     .filter(|(_, sym)| matches!(sym.kind(db), SymbolKind::UserDefinedSchema(..)))
     .filter_map(|(name, sym)| {
       let typ = evaluate_type(db, *sym).typ(db)?;
-      let product = typ.as_td_product_type()?;
-      let fields = product.fields(db);
+      let schema = typ.as_td_schema_type()?;
+      let fields = schema.fields(db);
 
       let mut template = String::new();
 
@@ -116,10 +116,9 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
     TdTypeEnum::TdDateType(_) => "\"\"".to_string(),
     TdTypeEnum::TdDateTimeType(_) => "\"\"".to_string(),
     TdTypeEnum::TdTimeType(_) => "\"\"".to_string(),
-    TdTypeEnum::TdProductType(product) => match product.name(db) {
-      Some(schema) => format!("fref(\"{schema}\")"),
-      None => "\"\"".to_string(),
-    },
+    TdTypeEnum::TdSchemaType(schema) => {
+      format!("fref(\"{}\")", schema.name(db))
+    }
     TdTypeEnum::TdListType(_) => "[]".to_string(),
 
     TdTypeEnum::TdSumType(sum) => {

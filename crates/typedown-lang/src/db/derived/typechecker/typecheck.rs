@@ -167,7 +167,7 @@ fn check_mapping_fields(
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
 
   let default_fields: HashSet<String> = expected_type
-    .as_td_product_type()
+    .as_td_schema_type()
     .map(|p| {
       p.fields(db)
         .iter()

@@ -83,7 +83,7 @@ impl TdRuntimeObject for TdSumType {
 mod tests {
   use super::*;
   use crate::db::derived::get_builtin_types::{get_num_type, get_str_type};
-  use crate::db::types::derived::object_system::TdStructuralType;
+  use crate::db::types::derived::object_system::TdProductType;
   use crate::db::{QueryStorage, TypedownDatabase};
   use std::collections::HashMap;
 
@@ -101,11 +101,11 @@ mod tests {
 
     let mut fields1 = HashMap::new();
     fields1.insert("val".to_string(), LazyType::eager(str_type.clone()));
-    let struct1: TdTypeEnum = TdStructuralType::new(&db, fields1).into();
+    let struct1: TdTypeEnum = TdProductType::new(&db, None, fields1).into();
 
     let mut fields2 = HashMap::new();
     fields2.insert("val".to_string(), LazyType::eager(num_type.clone()));
-    let struct2: TdTypeEnum = TdStructuralType::new(&db, fields2).into();
+    let struct2: TdTypeEnum = TdProductType::new(&db, None, fields2).into();
 
     let sum = get_sum_type(
       &db,
@@ -131,11 +131,11 @@ mod tests {
 
     let mut fields1 = HashMap::new();
     fields1.insert("val".to_string(), LazyType::eager(str_type));
-    let struct1: TdTypeEnum = TdStructuralType::new(&db, fields1).into();
+    let struct1: TdTypeEnum = TdProductType::new(&db, None, fields1).into();
 
     let mut fields2 = HashMap::new();
     fields2.insert("other".to_string(), LazyType::eager(num_type));
-    let struct2: TdTypeEnum = TdStructuralType::new(&db, fields2).into();
+    let struct2: TdTypeEnum = TdProductType::new(&db, None, fields2).into();
 
     let sum = get_sum_type(
       &db,

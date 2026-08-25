@@ -3,15 +3,13 @@
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::schema_property::get_schema_property_type;
 use std::collections::{HashMap, HashSet};
 
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, LazyType, LiteralValue, Symbol, SymbolKind, TdBlobType,
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdListType,
   TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
-  TdProductType, TdStaticType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
-  make_property_descriptors,
+  TdSchemaMetaType, TdSchemaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -80,39 +78,18 @@ pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
   TdBoolObj::new(db, false)
 }
 
-// Schema is a metatype: its instances are user-defined types (product types)
-// Has a single field `properties` of type dict[string, SchemaProperty]
+// Schema metatype: the type of all schema types
 #[query_derived]
-pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
-  let properties_type = get_dict_type(db)
-    .instantiate(
-      db,
-      vec![
-        LazyType::eager(get_str_type(db).into()),
-        LazyType::eager(get_schema_property_type(db).into()),
-      ],
-    )
-    .typ(db);
-
-  let fields = HashMap::from([("properties".to_string(), LazyType::eager(properties_type))]);
-
-  TdProductType::new(
-    db,
-    Some("schema".to_string()),
-    get_type_type(db).into(),
-    make_property_descriptors(db, fields),
-    HashMap::new(),
-    None,
-  )
+pub fn get_schema_meta_type(db: &TypedownDatabase) -> TdSchemaMetaType {
+  TdSchemaMetaType::new(db)
 }
 
 // A schema with no declared fields, used for typeless resources
 #[query_derived]
-pub fn get_schemaless_type(db: &TypedownDatabase) -> TdProductType {
-  TdProductType::new(
+pub fn get_schemaless_type(db: &TypedownDatabase) -> TdSchemaType {
+  TdSchemaType::new(
     db,
-    None,
-    get_schema_type(db).into(),
+    "schemaless".to_string(),
     HashMap::new(),
     HashMap::new(),
     None,

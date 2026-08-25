@@ -69,8 +69,10 @@ pub fn export_resource(
     });
   }
 
-  let (schema_type, header_obj) = if let Some(product) = obj.as_td_product_obj() {
-    (product.schema(db), obj.clone())
+  let (schema_type, header_obj) = if let Some(schema_obj) = obj.as_td_schema_obj() {
+    (schema_obj.schema(db), obj.clone())
+  } else if let Some(product) = obj.as_td_product_obj() {
+    (product.product_type(db), obj.clone())
   } else if obj.as_td_dict_obj().is_some() {
     // Schemaless files may evaluate to a DictObj
     (get_schemaless_type(db).into(), obj.clone())
@@ -128,8 +130,8 @@ pub fn export_property_descriptors(
   let symbol = file_symbol(db, project, file).value(db)?;
   let typ = evaluate_type(db, symbol).typ(db)?;
 
-  let product = typ.as_td_product_type()?;
-  let fields = product.fields(db);
+  let schema = typ.as_td_schema_type()?;
+  let fields = schema.fields(db);
 
   let mut properties = serde_json::Map::new();
 
@@ -246,12 +248,8 @@ pub fn export_property_descriptors(
         }
         None => serde_json::json!({ "widget": Widget::List }),
       },
-      TdTypeEnum::TdProductType(product) => {
-        if let Some(name) = product.name(db) {
-          serde_json::json!({ "widget": Widget::Relation, "schema": name })
-        } else {
-          serde_json::json!({ "widget": Widget::Text })
-        }
+      TdTypeEnum::TdSchemaType(schema) => {
+        serde_json::json!({ "widget": Widget::Relation, "schema": schema.name(db) })
       }
       _ => serde_json::json!({ "widget": Widget::Text }),
     }

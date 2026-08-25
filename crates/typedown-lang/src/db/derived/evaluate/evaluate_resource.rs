@@ -5,7 +5,9 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_schemaless_type;
-use crate::db::types::{ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj};
+use crate::db::types::{
+  ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj, TdSchemaObj,
+};
 use crate::db::utils::{is_schemaless_file, lower_file};
 use typedown_incremental::QueryDatabase;
 
@@ -35,15 +37,25 @@ pub fn evaluate_resource(db: &TypedownDatabase, symbol: Symbol) -> ResourceResul
 
   let is_schemaless = is_schemaless_file(db, project, file);
 
-  // Stamp the file symbol on the product so serialization can detect fref origins
+  // Stamp the file symbol so serialization can detect fref origins
   let value = match node_result.value(db) {
-    Some(TdObjectEnum::TdProductObj(product)) => {
-      let schema = if is_schemaless {
-        get_schemaless_type(db).into()
+    Some(TdObjectEnum::TdSchemaObj(obj)) => {
+      Some(TdSchemaObj::new(db, obj.schema(db), Some(symbol), obj.fields(db)).into())
+    }
+    Some(TdObjectEnum::TdProductObj(obj)) => {
+      if is_schemaless {
+        Some(
+          TdSchemaObj::new(
+            db,
+            get_schemaless_type(db).into(),
+            Some(symbol),
+            obj.fields(db),
+          )
+          .into(),
+        )
       } else {
-        product.schema(db)
-      };
-      Some(TdProductObj::new(db, schema, Some(symbol), product.fields(db)).into())
+        Some(TdProductObj::new(db, obj.product_type(db), obj.fields(db)).into())
+      }
     }
     other => other,
   };
@@ -125,12 +137,12 @@ mod tests {
       result.diagnostics(&db)
     );
     let obj = result.value(&db).unwrap();
-    let product_type = obj
+    let schema_type = obj
       .as_td_type_obj()
-      .and_then(|t| t.as_td_product_type())
-      .expect("expected TdProductType");
+      .and_then(|t| t.as_td_schema_type())
+      .expect("expected TdSchemaType");
     assert!(
-      product_type.fields(&db).contains_key("title"),
+      schema_type.fields(&db).contains_key("title"),
       "should have title field"
     );
   }

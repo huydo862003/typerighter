@@ -96,10 +96,10 @@ fn serialize(
       Ok(serde_json::Value::Object(map))
     }
 
-    TdObjectEnum::TdProductObj(product) => {
+    TdObjectEnum::TdSchemaObj(schema_obj) => {
       // Resolve references to other files as project relative paths
       if should_serialize_as_fref
-        && let Some(symbol) = product.file_symbol(db)
+        && let Some(symbol) = schema_obj.file_symbol(db)
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
         return Ok(serde_json::json!({
@@ -107,7 +107,21 @@ fn serialize(
         }));
       }
 
-      // If this object is already on the call stack we have a cycle
+      let id = schema_obj.as_id();
+      if !visiting.insert(id) {
+        return Err(CircularRef);
+      }
+      let mut map = serde_json::Map::new();
+      for (key, entry) in schema_obj.fields(db) {
+        if let Some(item) = evaluate_lazy_field(db, entry) {
+          map.insert(key, serialize(db, project, &item, visiting, true)?);
+        }
+      }
+      visiting.remove(&id);
+      Ok(serde_json::Value::Object(map))
+    }
+
+    TdObjectEnum::TdProductObj(product) => {
       let id = product.as_id();
       if !visiting.insert(id) {
         return Err(CircularRef);
@@ -137,14 +151,14 @@ fn serialize(
       Ok(serde_json::json!({ "format": format, "handle": handle }))
     }
 
-    // Product types (schema files) serialize as a map of field name to field type descriptor
-    TdObjectEnum::TdTypeObj(TdTypeEnum::TdProductType(product)) => {
-      let id = product.as_id();
+    // Schema types serialize as a map of field name to field type descriptor
+    TdObjectEnum::TdTypeObj(TdTypeEnum::TdSchemaType(schema)) => {
+      let id = schema.as_id();
       if !visiting.insert(id) {
         return Err(CircularRef);
       }
       let mut map = serde_json::Map::new();
-      for (name, prop_desc) in product.fields(db) {
+      for (name, prop_desc) in schema.fields(db) {
         map.insert(
           name,
           serialize_lazy_type(db, project, &prop_desc.field_type, visiting)?,
@@ -159,19 +173,18 @@ fn serialize(
   }
 }
 
-/// Serialize a LazyType to JSON
-/// Recurses into nested product types, everything else becomes a string.
+// Recurses into nested schema types, everything else becomes a string
 fn serialize_lazy_type(
   db: &TypedownDatabase,
   project: Project,
   lazy: &LazyType,
   visiting: &mut HashSet<(usize, usize)>,
 ) -> Result<serde_json::Value, CircularRef> {
-  if let Some(TdTypeEnum::TdProductType(product)) = lazy.resolve(db) {
+  if let Some(TdTypeEnum::TdSchemaType(schema)) = lazy.resolve(db) {
     serialize(
       db,
       project,
-      &TdObjectEnum::TdTypeObj(TdTypeEnum::TdProductType(product)),
+      &TdObjectEnum::TdTypeObj(TdTypeEnum::TdSchemaType(schema)),
       visiting,
       true,
     )
@@ -199,8 +212,8 @@ mod tests {
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{
     AssetKind, File, FileHandle, FileMetadata, Project, TdBlobObj, TdBoolObj, TdDateObj,
-    TdDateTimeObj, TdDictObj, TdListObj, TdMathObj, TdNumObj, TdProductObj, TdStrObj, TdStrType,
-    TdTimeObj,
+    TdDateTimeObj, TdDictObj, TdListObj, TdMathObj, TdNumObj, TdNumType, TdProductObj,
+    TdProductType, TdStrObj, TdStrType, TdTimeObj,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
 
@@ -372,14 +385,16 @@ mod tests {
   #[test]
   fn nested_product_serializes_without_cycle() {
     let (db, project) = empty_db();
-    let schema: TdTypeEnum = TdStrType::get(&db).into();
-    let inner = TdProductObj::new(&db, schema.clone(), None, HashMap::new());
+    let _product_type: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
+    let str_type: TdTypeEnum = TdStrType::get(&db).into();
+    let num_type: TdTypeEnum = TdNumType::get(&db).into();
+    let inner = TdProductObj::new(&db, str_type, HashMap::new());
     let mut fields = HashMap::new();
     fields.insert(
       "inner".to_string(),
       Either::Right(TdObjectEnum::from(inner)),
     );
-    let outer = TdProductObj::new(&db, schema, None, fields);
+    let outer = TdProductObj::new(&db, num_type, fields);
 
     let result = to_json(&db, project, &TdObjectEnum::from(outer));
     assert!(result.is_ok(), "non-cyclic nested product should serialize");

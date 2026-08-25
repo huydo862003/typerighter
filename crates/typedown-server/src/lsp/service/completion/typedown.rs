@@ -4,10 +4,8 @@ use typedown_lang::db::utils::{is_content_file, is_type_file};
 use lsp_types::{
   CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
 };
-use std::collections::HashMap;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
-use typedown_lang::db::derived::get_builtin_types::get_type_type;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
@@ -16,8 +14,7 @@ use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_t
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
-  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdProductType, TdTypeEnum,
-  make_property_descriptors,
+  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdStaticType, TdTypeEnum,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
 use typedown_lang::syntax::ast::{AstNode, Expr};
@@ -60,11 +57,11 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     return Some(CompletionResponse::Array(items));
   }
 
-  // Cursor in a mapping key or blank line: suggest field names from the declared schema
-  if let Some((product, mapping)) = enclosing_mapping_product(db, project, file, &node) {
+  // Cursor in a mapping key or blank line: suggest field names from the declared type
+  if let Some((typ, mapping)) = enclosing_mapping_type(db, project, file, &node) {
     let existing = existing_keys(&mapping);
     return Some(CompletionResponse::Array(field_completions_from_type(
-      db, &product, &existing,
+      db, &typ, &existing,
     )));
   }
 
@@ -143,46 +140,32 @@ fn fref_completions(
     .collect()
 }
 
-// Resolve the product type and mapping node the cursor belongs to
-// Works on keys, blank lines, and trailing whitespace inside a mapping
-fn enclosing_mapping_product(
+// Resolve the type and mapping node the cursor belongs to
+fn enclosing_mapping_type(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<(TdProductType, RedNode)> {
+) -> Option<(TdTypeEnum, RedNode)> {
   if is_in_mapping_value_position(node) {
     return None;
   }
   let mapping = find_ancestor(node, SyntaxKind::YamlMapping)?;
 
-  // Explicit _type in this mapping.
+  // Explicit _type in this mapping
   if let Some(schema_name) = schema_name_in_mapping(&mapping) {
     let scope = Scope::project_scope(db, project);
     let symbol = *members(db, scope).members(db).get(&schema_name)?;
     let typ = evaluate_type(db, symbol).typ(db)?;
-    return Some((typ.as_td_product_type().cloned()?, mapping));
+    return Some((typ, mapping));
   }
 
-  // No explicit _type. Try resolving via the parent field's declared type.
+  // No explicit _type, resolve via the parent field's declared type
   let mapping_expr = Expr::cast(mapping.clone())?;
   let hir = lower_node(db, project, file, mapping_expr.syntax().clone());
   let typ = expected_node_type(db, hir).typ(db)?;
-  // Both product types and structural types have fields we can complete
-  if let Some(product) = typ.as_td_product_type() {
-    return Some((*product, mapping));
-  }
-  if let Some(structural) = typ.as_td_structural_type() {
-    // Create a temporary product type from the structural fields for completion
-    let product = TdProductType::new(
-      db,
-      None,
-      get_type_type(db).into(),
-      make_property_descriptors(db, structural.fields(db)),
-      HashMap::new(),
-      None,
-    );
-    return Some((product, mapping));
+  if typ.is_td_product_type() || typ.is_td_schema_type() {
+    return Some((typ, mapping));
   }
   None
 }
@@ -264,13 +247,13 @@ fn build_schema_snippet(
   sym: &typedown_lang::db::types::Symbol,
 ) -> String {
   let typ = evaluate_type(db, *sym).typ(db);
-  let product = typ.as_ref().and_then(|t| t.as_td_product_type());
+  let schema = typ.as_ref().and_then(|t| t.as_td_schema_type());
 
-  let Some(product) = product else {
+  let Some(schema) = schema else {
     return name.to_string();
   };
 
-  let fields = product.fields(db);
+  let fields = schema.fields(db);
   let mut snippet = name.to_string();
   for (tab_stop, (field_name, prop_desc)) in fields.iter().enumerate() {
     let placeholder = lazy_placeholder(db, &prop_desc.field_type, 0);
@@ -332,23 +315,18 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
 
       format!("\\n{pad}- {inner}")
     }
+    TdTypeEnum::TdSchemaType(schema) => {
+      format!("fref(\\\"{}\\\")", schema.name(db))
+    }
     TdTypeEnum::TdProductType(product) => {
-      if let Some(schema) = product.name(db) {
-        // Named schema: relation ref
-        format!("fref(\\\"{schema}\\\")")
-      } else {
-        // Inline product: nested YAML mapping
-        let fields = product.fields(db);
-        let pad = "  ".repeat(indent + 1);
-        let mut nested = String::new();
-
-        for (field_name, prop_desc) in &fields {
-          let placeholder = lazy_placeholder(db, &prop_desc.field_type, indent + 1);
-
-          nested.push_str(&format!("\\n{pad}{field_name}: {placeholder}"));
-        }
-        nested
+      let fields = product.get_fields(db);
+      let pad = "  ".repeat(indent + 1);
+      let mut nested = String::new();
+      for (field_name, field_lazy) in &fields {
+        let placeholder = lazy_placeholder(db, field_lazy, indent + 1);
+        nested.push_str(&format!("\\n{pad}{field_name}: {placeholder}"));
       }
+      nested
     }
     _ => "value".to_string(),
   }
@@ -368,14 +346,14 @@ fn existing_keys(mapping: &RedNode) -> Vec<String> {
     .collect()
 }
 
-// Suggest field names from a resolved product type, excluding already-present keys
+// Suggest field names from a resolved type, excluding already-present keys
 fn field_completions_from_type(
   db: &TypedownDatabase,
-  product: &TdProductType,
+  typ: &TdTypeEnum,
   existing: &[String],
 ) -> Vec<CompletionItem> {
-  product
-    .fields(db)
+  typ
+    .get_fields(db)
     .keys()
     .filter(|field| !existing.iter().any(|k| k == *field))
     .map(|field| CompletionItem {

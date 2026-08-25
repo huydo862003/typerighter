@@ -3,7 +3,7 @@
 use crate::db::TypedownDatabase;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::fields_compatible;
-use crate::db::types::{LazyType, TdProductType, TdTypeEnum, TypeParams, TypeVariable};
+use crate::db::types::{LazyType, TdSchemaType, TdTypeEnum, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;
 use std::collections::{HashMap, HashSet};
 use typedown_incremental::Id;
@@ -123,16 +123,17 @@ impl SubtypeEnv {
 // Walk the nominal parent chain of `sub` to see if it reaches `sup` by identity
 fn nominal_subtype_of(
   db: &TypedownDatabase,
-  subtype: &TdProductType,
-  supertype: &TdProductType,
+  subtype: &TdSchemaType,
+  supertype: &TdSchemaType,
 ) -> bool {
-  let mut current = subtype.parent_type(db);
+  let target_id = supertype.as_id();
+  let mut current = subtype.parent(db);
   while let Some(typ) = current {
-    if let TdTypeEnum::TdProductType(parent) = &typ {
-      if parent.as_id() == supertype.as_id() {
+    if let TdTypeEnum::TdSchemaType(parent) = &typ {
+      if parent.as_id() == target_id {
         return true;
       }
-      current = parent.parent_type(db);
+      current = parent.parent(db);
     } else {
       break;
     }
@@ -203,12 +204,12 @@ fn is_subtype_of_env(
               .is_some_and(|ft| is_subtype_of_env(db, &ft, &value_type, env))
           })
         }
-        TdTypeEnum::TdStructuralType(structural) => {
+        TdTypeEnum::TdSchemaType(schema) => {
           let value_type = match expected_dict.value(db).and_then(|l| l.resolve(db)) {
             Some(vt) => vt,
             None => return true,
           };
-          structural.fields(db).values().all(|field_lazy| {
+          schema.get_fields(db).values().all(|field_lazy| {
             field_lazy
               .resolve(db)
               .is_some_and(|ft| is_subtype_of_env(db, &ft, &value_type, env))
@@ -218,30 +219,22 @@ fn is_subtype_of_env(
       },
       TdTypeEnum::TdFuncType(_) => matches!(subtype, TdTypeEnum::TdFuncType(_)),
       TdTypeEnum::TdProductType(expected_product) => match subtype {
-        TdTypeEnum::TdProductType(product) => {
-          // Nominal check: walk the extends chain to see if subtype descends from supertype
-          if nominal_subtype_of(db, product, expected_product) {
-            return true;
-          }
-          // Structural fallback: all supertype fields must be present and compatible in subtype
-          fields_compatible(
-            db,
-            &expected_product.get_fields(db),
-            &product.get_fields(db),
-          )
-        }
-        TdTypeEnum::TdStructuralType(structural) => {
-          fields_compatible(db, &expected_product.get_fields(db), &structural.fields(db))
+        // Product to product: structural subtyping
+        TdTypeEnum::TdProductType(product) => fields_compatible(
+          db,
+          &expected_product.get_fields(db),
+          &product.get_fields(db),
+        ),
+        // Schema to product: allowed
+        TdTypeEnum::TdSchemaType(schema) => {
+          fields_compatible(db, &expected_product.get_fields(db), &schema.get_fields(db))
         }
         _ => false,
       },
-      TdTypeEnum::TdStructuralType(expected_structural) => match subtype {
-        TdTypeEnum::TdProductType(product) => {
-          fields_compatible(db, &expected_structural.fields(db), &product.get_fields(db))
-        }
-        TdTypeEnum::TdStructuralType(structural) => {
-          fields_compatible(db, &expected_structural.fields(db), &structural.fields(db))
-        }
+      TdTypeEnum::TdSchemaType(expected_schema) => match subtype {
+        // Schema to schema: nominal via extends chain
+        TdTypeEnum::TdSchemaType(schema) => nominal_subtype_of(db, schema, expected_schema),
+        // Product to schema: never
         _ => false,
       },
       TdTypeEnum::TdBlobType(_) => matches!(
@@ -253,7 +246,9 @@ fn is_subtype_of_env(
       | TdTypeEnum::TdDateType(_)
       | TdTypeEnum::TdTimeType(_)
       | TdTypeEnum::TdNullType(_) => false,
-      TdTypeEnum::TdVariableType(_) | TdTypeEnum::TdExistentialType(_) => false,
+      TdTypeEnum::TdSchemaMetaType(_)
+      | TdTypeEnum::TdVariableType(_)
+      | TdTypeEnum::TdExistentialType(_) => false,
     }
   }
 
@@ -374,7 +369,7 @@ fn is_subtype_of_env(
       // P1[T1] <: (exists T2 <: S2. P2[T2])
       // iff
       // P1[T1] is a subtype of some P2[T2] where T2 <: S2
-      // We just proceed structural decomposition, then accumulate bounds
+      // We just proceed product decomposition, then accumulate bounds
       let params = existential_supertype.type_params(db).params(db);
       for param in &params {
         env.track_existential_variable(db, *param);
@@ -433,10 +428,10 @@ mod tests {
   use crate::db::derived::get_builtin_types::{
     get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type,
     get_literal_type, get_never_type, get_null_type, get_num_type, get_object_type,
-    get_schema_type, get_str_type, get_sum_type, get_time_type, get_type_type,
+    get_schema_meta_type, get_str_type, get_sum_type, get_time_type, get_type_type,
   };
   use crate::db::types::{
-    LazyType, LiteralValue, TdExistentialType, TdFuncType, TdProductType, TdStructuralType,
+    LazyType, LiteralValue, TdExistentialType, TdFuncType, TdProductType, TdSchemaType,
     TdVariableType, TypeVariable, make_property_descriptors,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
@@ -979,21 +974,23 @@ mod tests {
     assert!(!is_subtype_of(&db, &string, &date));
   }
 
-  // Structural type tests
+  // Product type structural subtyping tests
 
   #[test]
-  fn structural_accepts_matching_structural() {
+  fn product_accepts_matching_product() {
     let db = db();
-    let expected: TdTypeEnum = TdStructuralType::new(
+    let expected: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    let actual: TdTypeEnum = TdStructuralType::new(
+    let actual: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
@@ -1004,49 +1001,53 @@ mod tests {
   }
 
   #[test]
-  fn structural_rejects_missing_required_field() {
+  fn product_rejects_missing_required_field() {
     let db = db();
-    let expected: TdTypeEnum = TdStructuralType::new(
+    let expected: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    let actual: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
+    let actual: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
     assert!(!is_subtype_of(&db, &actual, &expected));
   }
 
   #[test]
-  fn structural_accepts_missing_nullable_field() {
+  fn product_accepts_missing_nullable_field() {
     let db = db();
     let nullable_string = sum(
       &db,
       vec![get_str_type(&db).into(), get_null_type(&db).into()],
     );
-    let expected: TdTypeEnum = TdStructuralType::new(
+    let expected: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([("name".to_string(), LazyType::eager(nullable_string))]),
     )
     .into();
-    let actual: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
+    let actual: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
     assert!(is_subtype_of(&db, &actual, &expected));
   }
 
   #[test]
-  fn structural_rejects_wrong_field_type() {
+  fn product_rejects_wrong_field_type() {
     let db = db();
-    let expected: TdTypeEnum = TdStructuralType::new(
+    let expected: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    let actual: TdTypeEnum = TdStructuralType::new(
+    let actual: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_num_type(&db).into()),
@@ -1056,20 +1057,22 @@ mod tests {
     assert!(!is_subtype_of(&db, &actual, &expected));
   }
 
-  // Structural accepts superset of fields
+  // Product accepts superset of fields
   #[test]
-  fn structural_accepts_superset_fields() {
+  fn product_accepts_superset_fields() {
     let db = db();
-    let expected: TdTypeEnum = TdStructuralType::new(
+    let expected: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    let actual: TdTypeEnum = TdStructuralType::new(
+    let actual: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([
         (
           "name".to_string(),
@@ -1082,15 +1085,14 @@ mod tests {
     assert!(is_subtype_of(&db, &actual, &expected));
   }
 
-  // Product accepts structural
+  // Schema is assignable to matching product (one-way opaque)
 
   #[test]
-  fn product_accepts_matching_structural() {
+  fn schema_accepts_matching_product() {
     let db = db();
-    let product: TdTypeEnum = TdProductType::new(
+    let schema: TdTypeEnum = TdSchemaType::new(
       &db,
-      Some("Test".to_string()),
-      get_type_type(&db).into(),
+      "Test".to_string(),
       make_property_descriptors(
         &db,
         HashMap::from([(
@@ -1102,24 +1104,27 @@ mod tests {
       None,
     )
     .into();
-    let structural: TdTypeEnum = TdStructuralType::new(
+    let product: TdTypeEnum = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    assert!(is_subtype_of(&db, &structural, &product));
+    // Schema is assignable to a matching product
+    assert!(is_subtype_of(&db, &schema, &product));
+    // Product is NOT assignable to schema
+    assert!(!is_subtype_of(&db, &product, &schema));
   }
 
   #[test]
-  fn product_rejects_structural_with_wrong_field() {
+  fn schema_rejects_product_with_wrong_field() {
     let db = db();
-    let product: TdTypeEnum = TdProductType::new(
+    let schema: TdTypeEnum = TdSchemaType::new(
       &db,
-      Some("Test".to_string()),
-      get_type_type(&db).into(),
+      "Test".to_string(),
       make_property_descriptors(
         &db,
         HashMap::from([(
@@ -1131,47 +1136,17 @@ mod tests {
       None,
     )
     .into();
-    let structural: TdTypeEnum = TdStructuralType::new(
-      &db,
-      HashMap::from([(
-        "name".to_string(),
-        LazyType::eager(get_num_type(&db).into()),
-      )]),
-    )
-    .into();
-    assert!(!is_subtype_of(&db, &structural, &product));
-  }
-
-  #[test]
-  fn product_rejects_structural_with_missing_required_field() {
-    let db = db();
     let product: TdTypeEnum = TdProductType::new(
       &db,
-      Some("Test".to_string()),
-      get_type_type(&db).into(),
-      make_property_descriptors(
-        &db,
-        HashMap::from([
-          (
-            "name".to_string(),
-            LazyType::eager(get_str_type(&db).into()),
-          ),
-          ("age".to_string(), LazyType::eager(get_num_type(&db).into())),
-        ]),
-      ),
-      HashMap::new(),
       None,
-    )
-    .into();
-    let structural: TdTypeEnum = TdStructuralType::new(
-      &db,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    assert!(!is_subtype_of(&db, &structural, &product));
+    // Schema -> product with matching fields is fine
+    assert!(is_subtype_of(&db, &schema, &product));
   }
 
   #[test]
@@ -1227,7 +1202,7 @@ mod tests {
   #[test]
   fn schema_is_type() {
     let db = db();
-    let schema: TdTypeEnum = get_schema_type(&db).into();
+    let schema: TdTypeEnum = get_schema_meta_type(&db).into();
     assert!(
       schema.is_type(&db),
       "schema is a metatype (subtype of type)"
