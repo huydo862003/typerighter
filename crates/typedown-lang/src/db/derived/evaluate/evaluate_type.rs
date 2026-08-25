@@ -946,8 +946,7 @@ mod tests {
   fn extends_field_narrowed_to_subschema_no_diagnostic() {
     // EntityChild narrows its inherited `entity: Base` field to `entity: Extended`
     // Extended _extends Base so this is a valid refinement
-    let (db, project, file) =
-      load_vault_fixture("evaluate/extends_vault", "_types/EntityChild.td");
+    let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/EntityChild.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     assert!(
