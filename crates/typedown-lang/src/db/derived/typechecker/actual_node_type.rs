@@ -15,7 +15,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use crate::db::types::derived::object_system::{
-  TdStaticType, TdStructuralType, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
+  TdProductType, TdStaticType, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
   BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyType, LiteralValue, SymbolKind,
@@ -116,7 +116,7 @@ fn get_mapping_type(
   }
   TypeResult::new(
     db,
-    Some(TdStructuralType::new(db, fields).into()),
+    Some(TdProductType::new(db, None, fields).into()),
     diagnostics,
   )
 }
@@ -446,7 +446,7 @@ fn get_closure_type(
 #[cfg(test)]
 mod tests {
   use crate::db::derived::get_builtin_types::{
-    get_func_type, get_literal_type, get_schema_type, get_str_type,
+    get_func_type, get_literal_type, get_schema_meta_type, get_str_type,
   };
   use crate::db::types::TdTypeEnum;
   use crate::db::types::derived::object_system::TdStaticType;
@@ -491,10 +491,10 @@ mod tests {
     let hir = hir.expect("should parse");
     let result = actual_node_type(&db, hir);
     let typ = result.typ(&db).expect("should infer a type");
-    let structural = typ
-      .as_td_structural_type()
-      .expect("anonymous mapping should be Structural");
-    let fields = structural.fields(&db);
+    let product = typ
+      .as_td_product_type()
+      .expect("anonymous mapping should be Product");
+    let fields = product.get_fields(&db);
 
     // String literal narrows to TdLiteralType(Str)
     let name_lazy = fields.get("name").expect("should have name field");
@@ -564,7 +564,7 @@ mod tests {
     let result = actual_node_type(&db, hir);
 
     let typ = result.typ(&db);
-    let expected = Some(TdTypeEnum::from(get_schema_type(&db)));
+    let expected = Some(TdTypeEnum::from(get_schema_meta_type(&db)));
     assert!(
       typ == expected,
       "top-level mapping of a schema file should have schema type"

@@ -88,7 +88,7 @@ impl TdRuntimeObject for TdVariableType {
 mod tests {
   use super::*;
   use crate::db::derived::get_builtin_types::get_str_type;
-  use crate::db::types::derived::object_system::TdStructuralType;
+  use crate::db::types::derived::object_system::TdProductType;
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn make_db() -> TypedownDatabase {
@@ -104,7 +104,7 @@ mod tests {
 
     let mut fields = HashMap::new();
     fields.insert("name".to_string(), LazyType::eager(str_type.clone()));
-    let struct_type: TdTypeEnum = TdStructuralType::new(&db, fields).into();
+    let struct_type: TdTypeEnum = TdProductType::new(&db, None, fields).into();
 
     let var = TypeVariable::get(&db, Some(LazyType::eager(struct_type)));
     let var_type = TdVariableType::new(&db, 0, var);

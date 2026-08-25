@@ -83,8 +83,8 @@ mod tests {
     assert!(res.diagnostics(&db).is_empty());
 
     let val = res.value(&db).expect("should evaluate to a value");
-    let prod = val.as_td_product_obj().expect("should be a product object");
-    assert_eq!(prod.schema(&db).display_name(&db), "SpecialPerson");
+    let schema_obj = val.as_td_schema_obj().expect("should be a schema object");
+    assert_eq!(schema_obj.schema(&db).display_name(&db), "SpecialPerson");
   }
 
   #[test]

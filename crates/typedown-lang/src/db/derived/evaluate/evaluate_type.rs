@@ -9,7 +9,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type, get_literal_type,
-  get_math_type, get_null_type, get_num_type, get_object_type, get_schema_type, get_str_type,
+  get_math_type, get_null_type, get_num_type, get_object_type, get_schema_meta_type, get_str_type,
   get_sum_type, get_time_type, get_type_type,
 };
 use crate::db::derived::name_resolver::referee::referee;
@@ -19,8 +19,8 @@ use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project,
-  PropertyDescriptor, Symbol, SymbolKind, TdBlobType, TdProductType, TdStaticType,
-  TdStructuralType, TdTypeEnum, TypeResult,
+  PropertyDescriptor, Symbol, SymbolKind, TdBlobType, TdProductType, TdSchemaType, TdStaticType,
+  TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
 use std::collections::HashSet;
@@ -40,7 +40,7 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
         BuiltinSchemaKind::List => get_list_type(db).into(),
         BuiltinSchemaKind::Dict => get_dict_type(db).into(),
         BuiltinSchemaKind::Math => get_math_type(db).into(),
-        BuiltinSchemaKind::Schema => get_schema_type(db).into(),
+        BuiltinSchemaKind::Schema => get_schema_meta_type(db).into(),
         BuiltinSchemaKind::TypeType => get_type_type(db).into(),
         BuiltinSchemaKind::SchemaProperty => get_schema_property_type(db).into(),
         BuiltinSchemaKind::Object => get_object_type(db).into(),
@@ -80,10 +80,8 @@ fn evaluate_user_defined_schema(
   };
 
   // Resolve _extends if present
-  let mut visited: HashSet<String> = HashSet::new();
-  visited.insert(schema_name.clone());
   let (inherited_fields, parent_type) =
-    collect_inherited_fields(db, &entries, &mut visited, &mut diagnostics);
+    resolve_parent_schema(db, &schema_name, &entries, &mut diagnostics);
 
   // Find the "properties" entry
   let properties_hir = entries.iter().find(|(key, _)| key == "properties");
@@ -107,10 +105,9 @@ fn evaluate_user_defined_schema(
       return TypeResult::new(
         db,
         Some(
-          TdProductType::new(
+          TdSchemaType::new(
             db,
-            Some(schema_name),
-            get_schema_type(db).into(),
+            schema_name,
             inherited_fields,
             HashMap::new(),
             parent_type,
@@ -139,8 +136,8 @@ fn evaluate_user_defined_schema(
       {
         let parent_name = parent_type
           .as_ref()
-          .and_then(|p| p.as_td_product_type())
-          .and_then(|p| p.name(db))
+          .and_then(|p| p.as_td_schema_type())
+          .map(|p| p.name(db))
           .unwrap_or_default();
         diagnostics.push(Diagnostic::FieldRefinementViolation {
           field: prop_name.clone(),
@@ -157,35 +154,22 @@ fn evaluate_user_defined_schema(
 
   TypeResult::new(
     db,
-    Some(
-      TdProductType::new(
-        db,
-        Some(schema_name),
-        get_schema_type(db).into(),
-        fields,
-        HashMap::new(),
-        parent_type,
-      )
-      .into(),
-    ),
+    Some(TdSchemaType::new(db, schema_name, fields, HashMap::new(), parent_type).into()),
     diagnostics,
   )
 }
 
-// Walk the _extends chain from frontmatter entries and collect inherited fields
-// INVARIANT: must not call evaluate_type to avoid query cycles
-fn collect_inherited_fields(
+// Resolve _extends parent, pre-walking to detect cycles
+fn resolve_parent_schema(
   db: &TypedownDatabase,
+  current_name: &str,
   entries: &[(String, HirValue)],
-  visited: &mut HashSet<String>,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> (HashMap<String, PropertyDescriptor>, Option<TdTypeEnum>) {
-  let extends_hir = entries.iter().find(|(key, _)| key == "_extends");
-  let Some((_, extends_hir)) = extends_hir else {
+  let Some((_, extends_hir)) = entries.iter().find(|(key, _)| key == "_extends") else {
     return (HashMap::new(), None);
   };
 
-  // Resolve the referenced schema symbol
   let resolved = referee(db, *extends_hir);
   let Some(parent_symbol) = resolved.value(db) else {
     let node = extends_hir.node(db);
@@ -198,7 +182,7 @@ fn collect_inherited_fields(
     return (HashMap::new(), None);
   };
 
-  let SymbolKind::UserDefinedSchema(parent_project, parent_file) = parent_symbol.kind(db) else {
+  if !matches!(parent_symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
     let node = extends_hir.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
     diagnostics.push(Diagnostic::UnresolvedExtends {
@@ -207,57 +191,68 @@ fn collect_inherited_fields(
       end_offset: tr_offset + tr_len,
     });
     return (HashMap::new(), None);
-  };
+  }
 
-  let parent_name = parent_symbol.name(db);
-
-  // Detect cycle
-  if visited.contains(&parent_name) {
-    let mut cycle: Vec<String> = visited.iter().cloned().collect();
-    cycle.sort();
-    cycle.push(parent_name.clone());
+  // Pre-walk the _extends chain to detect cycles before calling evaluate_type
+  if let Some(cycle) = detect_extends_cycle(db, current_name, parent_symbol) {
     diagnostics.push(Diagnostic::CircularExtension {
-      name: parent_name,
+      name: current_name.to_string(),
       cycle,
     });
     return (HashMap::new(), None);
   }
-  visited.insert(parent_name.clone());
 
-  // Lower the parent file's frontmatter without going through evaluate_type
-  let (parent_hir, _) = lower_file(db, parent_project, parent_file);
-  let Some(parent_hir) = parent_hir else {
-    return (HashMap::new(), None);
-  };
-  let HirValueKind::Mapping(parent_entries) = parent_hir.kind(db) else {
+  let parent_result = evaluate_type(db, parent_symbol);
+  diagnostics.extend(parent_result.diagnostics(db).iter().cloned());
+
+  let Some(parent_type) = parent_result.typ(db) else {
     return (HashMap::new(), None);
   };
 
-  // Recurse for grandparent extends
-  let (mut fields, _) = collect_inherited_fields(db, &parent_entries, visited, diagnostics);
+  let Some(parent_schema) = parent_type.as_td_schema_type() else {
+    return (HashMap::new(), None);
+  };
 
-  // Overlay parent's own properties
-  if let Some((_, props_hir)) = parent_entries.iter().find(|(k, _)| k == "properties")
-    && let HirValueKind::Mapping(prop_entries) = props_hir.kind(db)
-  {
-    for (prop_name, prop_hir) in &prop_entries {
-      if let Some(desc) = resolve_property_descriptor(db, *prop_hir, &mut vec![]) {
-        fields.entry(prop_name.clone()).or_insert(desc);
-      }
+  (parent_schema.fields(db), Some(parent_type))
+}
+
+// Walk _extends by reading raw HIR to detect cycles without triggering evaluate_type
+fn detect_extends_cycle(
+  db: &TypedownDatabase,
+  start_name: &str,
+  mut current_symbol: Symbol,
+) -> Option<Vec<String>> {
+  let mut visited = HashSet::new();
+  visited.insert(start_name.to_string());
+
+  loop {
+    let name = current_symbol.name(db);
+    if visited.contains(&name) {
+      let mut cycle: Vec<String> = visited.into_iter().collect();
+      cycle.sort();
+      cycle.push(name);
+      return Some(cycle);
     }
+    visited.insert(name);
+
+    let SymbolKind::UserDefinedSchema(project, file) = current_symbol.kind(db) else {
+      return None;
+    };
+
+    let (hir, _) = lower_file(db, project, file);
+    let hir = hir?;
+    let HirValueKind::Mapping(entries) = hir.kind(db) else {
+      return None;
+    };
+    let (_, extends_hir) = entries.iter().find(|(k, _)| k == "_extends")?;
+
+    let resolved = referee(db, *extends_hir);
+    let next_symbol = resolved.value(db)?;
+    if !matches!(next_symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
+      return None;
+    }
+    current_symbol = next_symbol;
   }
-
-  // Build the parent TdProductType for nominal typing
-  let parent_type = TdProductType::new(
-    db,
-    Some(parent_name),
-    get_schema_type(db).into(),
-    fields.clone(),
-    HashMap::new(),
-    None,
-  );
-
-  (fields, Some(parent_type.into()))
 }
 
 // Process a property descriptor like `{ type: string, default: "hello" }`
@@ -478,7 +473,7 @@ fn resolve_type_lazy(
           fields.insert(key.clone(), desc.field_type);
         }
       }
-      Some(LazyType::eager(TdStructuralType::new(db, fields).into()))
+      Some(LazyType::eager(TdProductType::new(db, None, fields).into()))
     }
     // Generic type instantiation like `type: list[string]`
     HirValueKind::Index { expr, indices } => {
@@ -547,9 +542,7 @@ fn resolve_type_lazy(
 mod tests {
   use super::*;
   use crate::db::typecheck::utils::{is_subtype_of, validate_type_params};
-  use crate::db::types::{
-    TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable, make_property_descriptors,
-  };
+  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
   use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::HashMap;
@@ -567,7 +560,7 @@ mod tests {
     types::{
       BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyType,
       LiteralValue, Project, Symbol, SymbolKind, TdBoolObj, TdNumObj, TdProductType, TdStrObj,
-      TdStructuralType, TdTypeType,
+      TdTypeType,
     },
     utils::lower_file,
   };
@@ -588,16 +581,16 @@ mod tests {
       "@builtin::schema".to_string(),
     );
     let result = evaluate_type(&db, symbol);
-    assert!(result.typ(&db) == Some(TdTypeEnum::from(get_schema_type(&db))));
+    assert!(result.typ(&db) == Some(TdTypeEnum::from(get_schema_meta_type(&db))));
     assert!(result.diagnostics(&db).is_empty());
   }
 
   #[test]
-  fn evaluate_user_defined_schema_returns_product_type() {
+  fn evaluate_user_defined_schema_returns_schema_type() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
-    assert!(result.typ(&db).unwrap().is_td_product_type());
+    assert!(result.typ(&db).unwrap().is_td_schema_type());
   }
 
   #[test]
@@ -606,9 +599,9 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    assert!(product.fields(&db).contains_key("name"));
-    assert!(product.fields(&db).contains_key("age"));
+    let schema = typ.as_td_schema_type().unwrap();
+    assert!(schema.fields(&db).contains_key("name"));
+    assert!(schema.fields(&db).contains_key("age"));
   }
 
   // Schema where property types use the explicit `!type` tag: `type: !type string`
@@ -624,19 +617,19 @@ mod tests {
       result.diagnostics(&db)
     );
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    assert!(product.fields(&db).contains_key("name"));
-    assert!(product.fields(&db).contains_key("age"));
+    let schema = typ.as_td_schema_type().unwrap();
+    assert!(schema.fields(&db).contains_key("name"));
+    assert!(schema.fields(&db).contains_key("age"));
   }
 
   #[test]
-  fn evaluate_type_no_properties_returns_empty_product() {
+  fn evaluate_type_no_properties_returns_empty_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/NoProperties.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    assert!(product.fields(&db).is_empty());
+    let schema = typ.as_td_schema_type().unwrap();
+    assert!(schema.fields(&db).is_empty());
   }
 
   #[test]
@@ -696,9 +689,9 @@ mod tests {
       result.diagnostics(&db)
     );
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    assert!(product.fields(&db).contains_key("tags"));
-    assert!(product.fields(&db).contains_key("scores"));
+    let schema = typ.as_td_schema_type().unwrap();
+    assert!(schema.fields(&db).contains_key("tags"));
+    assert!(schema.fields(&db).contains_key("scores"));
   }
 
   #[test]
@@ -727,8 +720,8 @@ mod tests {
       result.diagnostics(&db)
     );
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    let fields = product.get_fields(&db);
+    let schema = typ.as_td_schema_type().unwrap();
+    let fields = schema.get_fields(&db);
     // Inherited from Person
     assert!(
       fields.contains_key("name"),
@@ -748,13 +741,10 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    let parent = product.parent_type(&db);
+    let schema = typ.as_td_schema_type().unwrap();
+    let parent = schema.parent_type(&db);
     assert!(parent.is_some(), "Student should have a parent type");
-    let parent_name = parent
-      .unwrap()
-      .as_td_product_type()
-      .and_then(|p| p.name(&db));
+    let parent_name = parent.unwrap().as_td_schema_type().map(|p| p.name(&db));
     assert_eq!(parent_name.as_deref(), Some("Person"));
   }
 
@@ -848,7 +838,7 @@ mod tests {
     let fields = result
       .typ(&db)
       .unwrap()
-      .as_td_product_type()
+      .as_td_schema_type()
       .unwrap()
       .get_fields(&db);
     // Inherited transitively from Person via Student
@@ -921,7 +911,7 @@ mod tests {
     let fields = result
       .typ(&db)
       .unwrap()
-      .as_td_product_type()
+      .as_td_schema_type()
       .unwrap()
       .get_fields(&db);
     assert!(fields.contains_key("name"));
@@ -969,7 +959,7 @@ mod tests {
     assert_eq!(dn(get_list_type(&db).into()), "list");
     assert_eq!(dn(get_dict_type(&db).into()), "dict");
     assert_eq!(dn(get_type_type(&db).into()), "type");
-    assert_eq!(dn(get_schema_type(&db).into()), "schema");
+    assert_eq!(dn(get_schema_meta_type(&db).into()), "schema");
     assert_eq!(dn(get_never_type(&db).into()), "never");
     assert_eq!(dn(get_null_type(&db).into()), "null");
   }
@@ -1007,17 +997,18 @@ mod tests {
   }
 
   #[test]
-  fn display_name_structural_type() {
+  fn display_name_product_type() {
     let db = make_db();
-    let structural = TdStructuralType::new(
+    let product = TdProductType::new(
       &db,
+      None,
       HashMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     );
-    let structural_type: TdTypeEnum = structural.into();
-    assert_eq!(structural_type.display_name(&db), "{ name: string }");
+    let product_type: TdTypeEnum = product.into();
+    assert_eq!(product_type.display_name(&db), "{ name: string }");
   }
 
   #[test]
@@ -1080,16 +1071,10 @@ mod tests {
     let product = TdProductType::new(
       &db,
       None,
-      get_type_type(&db).into(),
-      make_property_descriptors(
-        &db,
-        HashMap::from([(
-          "name".to_string(),
-          LazyType::eager(get_str_type(&db).into()),
-        )]),
-      ),
-      HashMap::new(),
-      None,
+      HashMap::from([(
+        "name".to_string(),
+        LazyType::eager(get_str_type(&db).into()),
+      )]),
     );
     let product_type: TdTypeEnum = product.into();
     assert_eq!(product_type.display_name(&db), "{ name: string }");
@@ -1186,8 +1171,8 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let typ = evaluate_type(&db, symbol).typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    assert!(product.fields(&db).contains_key("name"));
+    let schema = typ.as_td_schema_type().unwrap();
+    assert!(schema.fields(&db).contains_key("name"));
   }
 
   #[test]
@@ -1209,7 +1194,7 @@ mod tests {
     assert!(
       obj
         .as_td_type_obj()
-        .and_then(|t| t.as_td_product_type())
+        .and_then(|t| t.as_td_schema_type())
         .unwrap()
         .fields(&db)
         .contains_key("name")
@@ -1260,8 +1245,8 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    let status_field = product.fields(&db).get("status").unwrap().clone();
+    let schema = typ.as_td_schema_type().unwrap();
+    let status_field = schema.fields(&db).get("status").unwrap().clone();
     let typ = status_field.field_type.resolve(&db).unwrap();
     let sum = typ.as_td_sum_type().expect("status should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "status should have 3 members");
@@ -1274,8 +1259,8 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    let value_field = product.fields(&db).get("value").unwrap().clone();
+    let schema = typ.as_td_schema_type().unwrap();
+    let value_field = schema.fields(&db).get("value").unwrap().clone();
     let typ = value_field.field_type.resolve(&db).unwrap();
     let sum = typ.as_td_sum_type().expect("value should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "should have 3 members");
@@ -1522,8 +1507,8 @@ properties:
     let result = evaluate_type(&db, symbol);
     assert!(result.diagnostics(&db).is_empty());
     let typ = result.typ(&db).unwrap();
-    let product = typ.as_td_product_type().unwrap();
-    let desc = product.fields(&db).get("fullName").cloned().unwrap();
+    let schema = typ.as_td_schema_type().unwrap();
+    let desc = schema.fields(&db).get("fullName").cloned().unwrap();
     assert!(
       desc.computed_fn.is_some(),
       "computed_fn should be populated"

@@ -578,8 +578,8 @@ mod tests {
       .expect("schemaless file should return a type");
     assert_eq!(
       typ.display_name(&db),
-      "{}",
-      "schemaless type should have no fields"
+      "schemaless",
+      "schemaless type should be the schemaless schema"
     );
   }
 

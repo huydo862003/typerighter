@@ -101,7 +101,7 @@ mod tests {
   use crate::db::derived::get_builtin_types::{
     get_func_type, get_list_type, get_num_type, get_str_type,
   };
-  use crate::db::types::derived::object_system::TdStructuralType;
+  use crate::db::types::derived::object_system::TdProductType;
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn make_db() -> TypedownDatabase {
@@ -117,7 +117,7 @@ mod tests {
 
     let mut fields = HashMap::new();
     fields.insert("title".to_string(), LazyType::eager(str_type.clone()));
-    let body_struct: TdTypeEnum = TdStructuralType::new(&db, fields).into();
+    let body_struct: TdTypeEnum = TdProductType::new(&db, None, fields).into();
 
     let ex_params = TypeParams::new(&db, vec![], vec![]);
     let ex_type = TdExistentialType::new(&db, ex_params, Some(LazyType::eager(body_struct)));

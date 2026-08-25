@@ -4,9 +4,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_type::{evaluate_type, resolve_property_descriptor};
-use crate::db::derived::get_builtin_types::{
-  get_never_type, get_null_type, get_schema_type, get_sum_type,
-};
+use crate::db::derived::get_builtin_types::{get_never_type, get_null_type, get_sum_type};
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
@@ -14,8 +12,8 @@ use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, FnKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
   PropertyDescriptor, RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType,
-  TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum, TdProductObj, TdProductType,
-  TdRuntimeObject, TdStaticType, TdStrObj, TdTypeEnum, TdVaultObj,
+  TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum, TdProductObj, TdRuntimeObject,
+  TdSchemaObj, TdSchemaType, TdStaticType, TdStrObj, TdTypeEnum, TdVaultObj,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -136,18 +134,17 @@ pub(crate) fn construct_from_hir(
     _ => {}
   }
 
-  // Anonymous mappings have no schema, evaluate as a dict
+  // Anonymous mappings become product objects
   let type_result = actual_node_type(db, hir);
   if let HirValueKind::Mapping(entries) = hir.kind(db)
-    && type_result
-      .typ(db)
-      .is_some_and(|t| t.is_td_structural_type())
+    && type_result.typ(db).is_some_and(|t| t.is_td_product_type())
   {
-    let dict_entries: HashMap<_, _> = entries
+    let fields: HashMap<_, _> = entries
       .into_iter()
       .map(|(k, v)| (k, Either::Left(v)))
       .collect();
-    return Some(TdDictObj::new(db, dict_entries).into());
+    let product_type = type_result.typ(db).unwrap();
+    return Some(TdProductObj::new(db, product_type, fields).into());
   }
 
   // Normal construction: convert HIR to args, then call construct
@@ -382,7 +379,7 @@ fn evaluate_mapping(
   entries: Vec<(String, HirValue)>,
 ) -> Option<TdObjectEnum> {
   // Schema type
-  if *typ == TdTypeEnum::from(get_schema_type(db)) {
+  if typ.is_td_schema_meta_type() {
     let properties_entries = match entries.iter().find(|(key, _)| key == "properties") {
       Some((_, props_hir)) => match props_hir.kind(db) {
         HirValueKind::Mapping(entries) => entries,
@@ -412,16 +409,20 @@ fn evaluate_mapping(
       }
     }
     return Some(
-      TdProductType::new(
-        db,
-        None,
-        get_schema_type(db).into(),
-        fields,
-        HashMap::new(),
-        None,
-      )
-      .into(),
+      TdSchemaType::new(db, "anonymous".to_string(), fields, HashMap::new(), None).into(),
     );
+  }
+
+  // Schema type: build product obj from fields, then construct schema instance
+  if let TdTypeEnum::TdSchemaType(schema_typ) = &typ {
+    let mut fields = HashMap::new();
+    for (key, val_hir) in entries {
+      if key == "_type" {
+        continue;
+      }
+      fields.insert(key, Either::Left(val_hir));
+    }
+    return Some(TdSchemaObj::new(db, (*schema_typ).into(), None, fields).into());
   }
 
   // Product type
@@ -433,7 +434,7 @@ fn evaluate_mapping(
       }
       fields.insert(key, Either::Left(val_hir));
     }
-    return Some(TdProductObj::new(db, (*product_typ).into(), None, fields).into());
+    return Some(TdProductObj::new(db, (*product_typ).into(), fields).into());
   }
 
   let dict_entries: HashMap<_, _> = entries
@@ -476,7 +477,7 @@ mod tests {
   use crate::db::types::derived::object_system::TdFuncObj;
   use crate::db::types::{
     File, FileHandle, FileMetadata, FnKind, FuncSignature, LazyType, LiteralValue, NativeFnKind,
-    PROTOCOL_CALL, PROTOCOL_INDEX, Project, TdStructuralType, TdTypeEnum,
+    PROTOCOL_CALL, PROTOCOL_INDEX, Project, TdProductType, TdSchemaType, TdTypeEnum,
   };
   use crate::db::utils::lower_file;
   use crate::db::{QueryStorage, TypedownDatabase};
@@ -542,13 +543,13 @@ mod tests {
     )
     .into();
     let never_type: TdTypeEnum = get_never_type(&db).into();
-    let structural_type: TdTypeEnum = TdStructuralType::new(&db, HashMap::new()).into();
+    let product_type: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
 
     let type_type_val: TdTypeEnum = get_type_type(&db).into();
     assert_eq!(type_type_val.runtime_type(&db), Some(type_type_val.clone()));
     assert_eq!(sum_type.runtime_type(&db), None);
     assert_eq!(never_type.runtime_type(&db), None);
-    assert_eq!(structural_type.runtime_type(&db), None);
+    assert_eq!(product_type.runtime_type(&db), None);
   }
 
   #[test]
@@ -612,23 +613,17 @@ mod tests {
     vtable.insert(PROTOCOL_INDEX.to_string(), index_fn);
     vtable.insert(PROTOCOL_CALL.to_string(), call_fn);
 
-    let product_type = TdProductType::new(
-      &db,
-      Some("CustomContainer".into()),
-      get_type_type(&db).into(),
-      HashMap::new(),
-      vtable,
-      None,
-    );
-    let product_enum: TdTypeEnum = product_type.into();
+    let schema_type =
+      TdSchemaType::new(&db, "CustomContainer".into(), HashMap::new(), vtable, None);
+    let schema_enum: TdTypeEnum = schema_type.into();
 
     // Verify static typechecking detects [[index]] and [[call]] return types
     assert_eq!(
-      product_enum.index_type(&db, &get_num_type(&db).into()),
+      schema_enum.index_type(&db, &get_num_type(&db).into()),
       Some(sig)
     );
     assert_eq!(
-      product_enum.call_type(&db, vec![get_str_type(&db).into()]),
+      schema_enum.call_type(&db, vec![get_str_type(&db).into()]),
       Some(sig)
     );
   }
