@@ -59,7 +59,7 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
   const map: Record<string, DirectoryListing> = {};
 
   function countDescendants (node: ContentTreeNode): number {
-    let count = node.items.length;
+    let count = node.items.filter((item) => filestem(item.filepath) !== INDEX_FILENAME).length;
 
     for (const child of node.children) {
       count += countDescendants(child);
@@ -90,6 +90,7 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
             count: countDescendants(child),
           })),
         items: node.items
+          .filter((item) => filestem(item.filepath) !== INDEX_FILENAME)
           .map((item) => toDirectoryEntry(item)),
       };
 

@@ -2,4 +2,4 @@
 
 ## Glossary view
 
-[[glossary-index {mode=dense}]]
+[[glossary-index {mode="dense"}]]
