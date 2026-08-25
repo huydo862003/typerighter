@@ -23,6 +23,7 @@ use crate::db::types::{
   TdStructuralType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
+use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -78,6 +79,12 @@ fn evaluate_user_defined_schema(
     _ => return TypeResult::new(db, None, diagnostics),
   };
 
+  // Resolve _extends if present
+  let mut visited: HashSet<String> = HashSet::new();
+  visited.insert(schema_name.clone());
+  let (inherited_fields, parent_type) =
+    collect_inherited_fields(db, &entries, &mut visited, &mut diagnostics);
+
   // Find the "properties" entry
   let properties_hir = entries.iter().find(|(key, _)| key == "properties");
   let properties_entries = match properties_hir {
@@ -95,17 +102,18 @@ fn evaluate_user_defined_schema(
         return TypeResult::new(db, None, diagnostics);
       }
     },
-    // Schema with no properties: empty product type
     None => {
+      // No own properties: return with only inherited fields
       return TypeResult::new(
         db,
         Some(
           TdProductType::new(
             db,
-            Some(schema_name.clone()),
+            Some(schema_name),
             get_schema_type(db).into(),
+            inherited_fields,
             HashMap::new(),
-            HashMap::new(),
+            parent_type,
           )
           .into(),
         ),
@@ -114,12 +122,35 @@ fn evaluate_user_defined_schema(
     }
   };
 
-  // The resulting fields of the product/schema type
-  let mut fields = HashMap::new();
+  // Start with inherited fields, then overlay own fields
+  let mut fields = inherited_fields.clone();
 
-  // Loop through the declared props
-  for (prop_name, prop_hir) in properties_entries {
-    if let Some(desc) = resolve_property_descriptor(db, prop_hir, &mut diagnostics) {
+  for (prop_name, prop_hir) in &properties_entries {
+    let node = prop_hir.node(db);
+    let (tr_offset, tr_len) = node.trimmed_range();
+    if let Some(desc) = resolve_property_descriptor(db, *prop_hir, &mut diagnostics) {
+      // Validate that a redefined inherited field type is a subtype of the parent field type
+      if let Some(parent_desc) = inherited_fields.get(prop_name)
+        && let (Some(child_type), Some(parent_field_type)) = (
+          desc.field_type.resolve(db),
+          parent_desc.field_type.resolve(db),
+        )
+        && !is_subtype_of(db, &child_type, &parent_field_type)
+      {
+        let parent_name = parent_type
+          .as_ref()
+          .and_then(|p| p.as_td_product_type())
+          .and_then(|p| p.name(db))
+          .unwrap_or_default();
+        diagnostics.push(Diagnostic::FieldRefinementViolation {
+          field: prop_name.clone(),
+          parent_schema: parent_name,
+          expected: parent_field_type.display_name(db),
+          got: child_type.display_name(db),
+          start_offset: tr_offset,
+          end_offset: tr_offset + tr_len,
+        });
+      }
       fields.insert(prop_name.clone(), desc);
     }
   }
@@ -133,11 +164,100 @@ fn evaluate_user_defined_schema(
         get_schema_type(db).into(),
         fields,
         HashMap::new(),
+        parent_type,
       )
       .into(),
     ),
     diagnostics,
   )
+}
+
+// Walk the _extends chain from frontmatter entries and collect inherited fields
+// INVARIANT: must not call evaluate_type to avoid query cycles
+fn collect_inherited_fields(
+  db: &TypedownDatabase,
+  entries: &[(String, HirValue)],
+  visited: &mut HashSet<String>,
+  diagnostics: &mut Vec<Diagnostic>,
+) -> (HashMap<String, PropertyDescriptor>, Option<TdTypeEnum>) {
+  let extends_hir = entries.iter().find(|(key, _)| key == "_extends");
+  let Some((_, extends_hir)) = extends_hir else {
+    return (HashMap::new(), None);
+  };
+
+  // Resolve the referenced schema symbol
+  let resolved = referee(db, *extends_hir);
+  let Some(parent_symbol) = resolved.value(db) else {
+    let node = extends_hir.node(db);
+    let (tr_offset, tr_len) = node.trimmed_range();
+    diagnostics.push(Diagnostic::UnresolvedExtends {
+      name: node.text(),
+      start_offset: tr_offset,
+      end_offset: tr_offset + tr_len,
+    });
+    return (HashMap::new(), None);
+  };
+
+  let SymbolKind::UserDefinedSchema(parent_project, parent_file) = parent_symbol.kind(db) else {
+    let node = extends_hir.node(db);
+    let (tr_offset, tr_len) = node.trimmed_range();
+    diagnostics.push(Diagnostic::UnresolvedExtends {
+      name: node.text(),
+      start_offset: tr_offset,
+      end_offset: tr_offset + tr_len,
+    });
+    return (HashMap::new(), None);
+  };
+
+  let parent_name = parent_symbol.name(db);
+
+  // Detect cycle
+  if visited.contains(&parent_name) {
+    let mut cycle: Vec<String> = visited.iter().cloned().collect();
+    cycle.sort();
+    cycle.push(parent_name.clone());
+    diagnostics.push(Diagnostic::CircularExtension {
+      name: parent_name,
+      cycle,
+    });
+    return (HashMap::new(), None);
+  }
+  visited.insert(parent_name.clone());
+
+  // Lower the parent file's frontmatter without going through evaluate_type
+  let (parent_hir, _) = lower_file(db, parent_project, parent_file);
+  let Some(parent_hir) = parent_hir else {
+    return (HashMap::new(), None);
+  };
+  let HirValueKind::Mapping(parent_entries) = parent_hir.kind(db) else {
+    return (HashMap::new(), None);
+  };
+
+  // Recurse for grandparent extends
+  let (mut fields, _) = collect_inherited_fields(db, &parent_entries, visited, diagnostics);
+
+  // Overlay parent's own properties
+  if let Some((_, props_hir)) = parent_entries.iter().find(|(k, _)| k == "properties")
+    && let HirValueKind::Mapping(prop_entries) = props_hir.kind(db)
+  {
+    for (prop_name, prop_hir) in &prop_entries {
+      if let Some(desc) = resolve_property_descriptor(db, *prop_hir, &mut vec![]) {
+        fields.entry(prop_name.clone()).or_insert(desc);
+      }
+    }
+  }
+
+  // Build the parent TdProductType for nominal typing
+  let parent_type = TdProductType::new(
+    db,
+    Some(parent_name),
+    get_schema_type(db).into(),
+    fields.clone(),
+    HashMap::new(),
+    None,
+  );
+
+  (fields, Some(parent_type.into()))
 }
 
 // Process a property descriptor like `{ type: string, default: "hello" }`
@@ -426,8 +546,7 @@ fn resolve_type_lazy(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::typecheck::utils::validate_type_params;
-  use crate::db::types::derived::object_system::TdStaticType;
+  use crate::db::typecheck::utils::{is_subtype_of, validate_type_params};
   use crate::db::types::{
     TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable, make_property_descriptors,
   };
@@ -598,6 +717,246 @@ mod tests {
   }
 
   #[test]
+  fn extends_inherits_parent_fields() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Student.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "{:?}",
+      result.diagnostics(&db)
+    );
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    let fields = product.get_fields(&db);
+    // Inherited from Person
+    assert!(
+      fields.contains_key("name"),
+      "should inherit name from Person"
+    );
+    assert!(fields.contains_key("age"), "should inherit age from Person");
+    // Own field
+    assert!(
+      fields.contains_key("student_id"),
+      "should have own student_id field"
+    );
+  }
+
+  #[test]
+  fn extends_sets_parent_type() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Student.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    let typ = result.typ(&db).unwrap();
+    let product = typ.as_td_product_type().unwrap();
+    let parent = product.parent_type(&db);
+    assert!(parent.is_some(), "Student should have a parent type");
+    let parent_name = parent
+      .unwrap()
+      .as_td_product_type()
+      .and_then(|p| p.name(&db));
+    assert_eq!(parent_name.as_deref(), Some("Person"));
+  }
+
+  #[test]
+  fn extends_student_is_subtype_of_person() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Student.td");
+    let person_file = project
+      .files(&db)
+      .iter()
+      .find(|(p, _)| p.ends_with("Person.td"))
+      .map(|(_, f)| *f)
+      .unwrap();
+    let student_symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
+    let student_type = evaluate_type(&db, student_symbol).typ(&db).unwrap();
+    let person_type = evaluate_type(&db, person_symbol).typ(&db).unwrap();
+    assert!(
+      is_subtype_of(&db, &student_type, &person_type),
+      "Student should be a subtype of Person"
+    );
+    assert!(
+      !is_subtype_of(&db, &person_type, &student_type),
+      "Person should not be a subtype of Student"
+    );
+  }
+
+  #[test]
+  fn extends_unresolved_emits_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/Child.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnresolvedExtends { .. })),
+      "expected UnresolvedExtends diagnostic, got {diags:?}"
+    );
+  }
+
+  #[test]
+  fn extends_circular_emits_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/CycleA.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::CircularExtension { .. })),
+      "expected CircularExtension diagnostic, got {diags:?}"
+    );
+  }
+
+  #[test]
+  fn extends_field_widening_emits_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/WidenChild.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags.iter().any(
+        |d| matches!(d, Diagnostic::FieldRefinementViolation { field, .. } if field == "status")
+      ),
+      "expected FieldRefinementViolation for status, got {diags:?}"
+    );
+  }
+
+  #[test]
+  fn extends_override_default_no_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/NarrowChild.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "overriding default should not produce diagnostics, got {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn extends_transitive_chain_inherits_all_fields() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/GradStudent.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "{:?}",
+      result.diagnostics(&db)
+    );
+    let fields = result
+      .typ(&db)
+      .unwrap()
+      .as_td_product_type()
+      .unwrap()
+      .get_fields(&db);
+    // Inherited transitively from Person via Student
+    assert!(fields.contains_key("name"));
+    assert!(fields.contains_key("age"));
+    // Inherited from Student
+    assert!(fields.contains_key("student_id"));
+    // Own field
+    assert!(fields.contains_key("thesis_topic"));
+  }
+
+  #[test]
+  fn extends_transitive_nominal_subtyping() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/GradStudent.td");
+    let person_file = project
+      .files(&db)
+      .iter()
+      .find(|(p, _)| p.ends_with("Person.td"))
+      .map(|(_, f)| *f)
+      .unwrap();
+    let grad_symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
+    let grad_type = evaluate_type(&db, grad_symbol).typ(&db).unwrap();
+    let person_type = evaluate_type(&db, person_symbol).typ(&db).unwrap();
+    assert!(is_subtype_of(&db, &grad_type, &person_type));
+  }
+
+  #[test]
+  fn extends_builtin_type_emits_unresolved_diagnostic() {
+    // _extends: string is not a user-defined schema so it should fail
+    let (db, project, file) =
+      load_vault_fixture("evaluate/extends_vault", "_types/ExtendsBuiltin.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnresolvedExtends { .. })),
+      "expected UnresolvedExtends for builtin _extends, got {diags:?}"
+    );
+  }
+
+  #[test]
+  fn extends_identical_field_type_no_diagnostic() {
+    // Redefining an inherited field with the same type is silently allowed
+    let (db, project, file) =
+      load_vault_fixture("evaluate/extends_vault", "_types/RedundantChild.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "redundant field redefinition should not produce diagnostics, got {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn extends_no_own_properties_inherits_all() {
+    // A schema with _extends but no properties block still inherits all parent fields
+    let (db, project, file) =
+      load_vault_fixture("evaluate/extends_vault", "_types/NoPropsChild.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "{:?}",
+      result.diagnostics(&db)
+    );
+    let fields = result
+      .typ(&db)
+      .unwrap()
+      .as_td_product_type()
+      .unwrap()
+      .get_fields(&db);
+    assert!(fields.contains_key("name"));
+    assert!(fields.contains_key("status"));
+  }
+
+  #[test]
+  fn extends_literal_narrowing_no_diagnostic() {
+    // Narrowing a string field to a string literal is a valid refinement
+    let (db, project, file) =
+      load_vault_fixture("evaluate/extends_vault", "_types/LiteralNarrowChild.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "literal narrowing should not produce diagnostics, got {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn extends_field_narrowed_to_subschema_no_diagnostic() {
+    // EntityChild narrows its inherited `entity: Base` field to `entity: Extended`
+    // Extended _extends Base so this is a valid refinement
+    let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/EntityChild.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "narrowing a field to a subschema should not produce diagnostics, got {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
   fn display_name_builtin_types() {
     let db = make_db();
     let dn = |t: TdTypeEnum| t.display_name(&db);
@@ -730,6 +1089,7 @@ mod tests {
         )]),
       ),
       HashMap::new(),
+      None,
     );
     let product_type: TdTypeEnum = product.into();
     assert_eq!(product_type.display_name(&db), "{ name: string }");

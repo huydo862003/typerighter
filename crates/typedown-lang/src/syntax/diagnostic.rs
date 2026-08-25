@@ -75,6 +75,9 @@ pub enum DiagnosticCode {
   InvalidSelfClosureParams = 66,
   NotConstructible = 67,
   TypeArgBoundViolation = 68,
+  UnresolvedExtends = 69,
+  CircularExtension = 70,
+  FieldRefinementViolation = 71,
 }
 
 impl DiagnosticCode {
@@ -148,6 +151,9 @@ impl DiagnosticCode {
       DiagnosticCode::InvalidSelfClosureParams => "invalid-self-closure-params",
       DiagnosticCode::NotConstructible => "not-constructible",
       DiagnosticCode::TypeArgBoundViolation => "type-arg-bound-violation",
+      DiagnosticCode::UnresolvedExtends => "unresolved-extends",
+      DiagnosticCode::CircularExtension => "circular-extension",
+      DiagnosticCode::FieldRefinementViolation => "field-refinement-violation",
       DiagnosticCode::UnknownField => "unknown-field",
       DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
       DiagnosticCode::DuplicateSchemaName => "duplicate-schema-name",
@@ -437,6 +443,26 @@ pub enum Diagnostic {
     index: usize,
     expected_bound: String,
     got: String,
+  },
+
+  /// `_extends` references a schema that cannot be resolved
+  UnresolvedExtends {
+    name: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+
+  /// `_extends` chain forms a cycle
+  CircularExtension { name: String, cycle: Vec<String> },
+
+  /// A child schema redefines a field with a type that is not a subtype of the parent field type
+  FieldRefinementViolation {
+    field: String,
+    parent_schema: String,
+    expected: String,
+    got: String,
+    start_offset: usize,
+    end_offset: usize,
   },
 
   /// Callee expression is not callable.
@@ -870,13 +896,24 @@ impl Diagnostic {
         start_offset,
         end_offset,
         ..
+      }
+      | Diagnostic::UnresolvedExtends {
+        start_offset,
+        end_offset,
+        ..
+      }
+      | Diagnostic::FieldRefinementViolation {
+        start_offset,
+        end_offset,
+        ..
       } => Some((*start_offset, *end_offset)),
       Diagnostic::MissingVaultConfig { .. }
       | Diagnostic::VaultConfigReadError { .. }
       | Diagnostic::VaultConfigEmpty { .. }
       | Diagnostic::WrongTypeArgCount { .. }
       | Diagnostic::TypeArgBoundViolation { .. }
-      | Diagnostic::DuplicateSchemaName { .. } => None,
+      | Diagnostic::DuplicateSchemaName { .. }
+      | Diagnostic::CircularExtension { .. } => None,
     }
   }
 
@@ -1075,6 +1112,26 @@ impl Diagnostic {
       } => {
         format!("type argument at index {index} violates bound '{expected_bound}': got '{got}'")
       }
+      Diagnostic::UnresolvedExtends { name, .. } => {
+        format!("cannot resolve extended schema '{name}'")
+      }
+      Diagnostic::CircularExtension { name, cycle } => {
+        format!(
+          "circular extension chain involving '{name}': {}",
+          cycle.join(" -> ")
+        )
+      }
+      Diagnostic::FieldRefinementViolation {
+        field,
+        parent_schema,
+        expected,
+        got,
+        ..
+      } => {
+        format!(
+          "field '{field}' redefined with type '{got}' which is not a subtype of '{expected}' from parent schema '{parent_schema}'"
+        )
+      }
     }
   }
 
@@ -1160,6 +1217,9 @@ impl Diagnostic {
       Diagnostic::UnclosedParamList { .. } => DiagnosticCode::UnclosedParamList,
       Diagnostic::NotConstructible { .. } => DiagnosticCode::NotConstructible,
       Diagnostic::TypeArgBoundViolation { .. } => DiagnosticCode::TypeArgBoundViolation,
+      Diagnostic::UnresolvedExtends { .. } => DiagnosticCode::UnresolvedExtends,
+      Diagnostic::CircularExtension { .. } => DiagnosticCode::CircularExtension,
+      Diagnostic::FieldRefinementViolation { .. } => DiagnosticCode::FieldRefinementViolation,
     }
   }
 }

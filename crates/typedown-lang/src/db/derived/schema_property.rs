@@ -114,5 +114,6 @@ pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
     get_type_type(db).into(),
     make_property_descriptors(db, fields),
     HashMap::new(),
+    None,
   )
 }
