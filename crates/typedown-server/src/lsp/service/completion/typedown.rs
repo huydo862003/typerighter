@@ -4,8 +4,10 @@ use typedown_lang::db::utils::{is_content_file, is_type_file};
 use lsp_types::{
   CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
 };
+use std::collections::HashMap;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::get_builtin_types::get_type_type;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
@@ -175,9 +177,10 @@ fn enclosing_mapping_product(
     let product = TdProductType::new(
       db,
       None,
-      typedown_lang::db::derived::get_builtin_types::get_type_type(db).into(),
+      get_type_type(db).into(),
       make_property_descriptors(db, structural.fields(db)),
-      std::collections::HashMap::new(),
+      HashMap::new(),
+      None,
     );
     return Some((product, mapping));
   }

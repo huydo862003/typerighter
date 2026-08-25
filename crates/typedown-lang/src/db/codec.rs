@@ -741,6 +741,34 @@ impl Encodable for Diagnostic {
         expected_bound.encode(buf, encoder);
         got.encode(buf, encoder);
       }
+      Diagnostic::UnresolvedExtends {
+        name,
+        start_offset,
+        end_offset,
+      } => {
+        name.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::CircularExtension { name, cycle } => {
+        name.encode(buf, encoder);
+        cycle.encode(buf, encoder);
+      }
+      Diagnostic::FieldRefinementViolation {
+        field,
+        parent_schema,
+        expected,
+        got,
+        start_offset,
+        end_offset,
+      } => {
+        field.encode(buf, encoder);
+        parent_schema.encode(buf, encoder);
+        expected.encode(buf, encoder);
+        got.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
     }
   }
 }
@@ -1368,6 +1396,37 @@ impl Decodable for Diagnostic {
           got,
         }
       }
+      DiagnosticCode::UnresolvedExtends => {
+        let name = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnresolvedExtends {
+          name,
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::CircularExtension => {
+        let name = String::decode(data, decoder);
+        let cycle = Vec::<String>::decode(data, decoder);
+        Diagnostic::CircularExtension { name, cycle }
+      }
+      DiagnosticCode::FieldRefinementViolation => {
+        let field = String::decode(data, decoder);
+        let parent_schema = String::decode(data, decoder);
+        let expected = String::decode(data, decoder);
+        let got = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::FieldRefinementViolation {
+          field,
+          parent_schema,
+          expected,
+          got,
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1828,6 +1887,34 @@ impl StableHash for Diagnostic {
         index.stable_hash(db, hasher);
         expected_bound.stable_hash(db, hasher);
         got.stable_hash(db, hasher);
+      }
+      Diagnostic::UnresolvedExtends {
+        name,
+        start_offset,
+        end_offset,
+      } => {
+        name.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::CircularExtension { name, cycle } => {
+        name.stable_hash(db, hasher);
+        cycle.stable_hash(db, hasher);
+      }
+      Diagnostic::FieldRefinementViolation {
+        field,
+        parent_schema,
+        expected,
+        got,
+        start_offset,
+        end_offset,
+      } => {
+        field.stable_hash(db, hasher);
+        parent_schema.stable_hash(db, hasher);
+        expected.stable_hash(db, hasher);
+        got.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
       }
     }
   }

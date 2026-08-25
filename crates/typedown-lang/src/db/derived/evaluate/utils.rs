@@ -412,7 +412,15 @@ fn evaluate_mapping(
       }
     }
     return Some(
-      TdProductType::new(db, None, get_schema_type(db).into(), fields, HashMap::new()).into(),
+      TdProductType::new(
+        db,
+        None,
+        get_schema_type(db).into(),
+        fields,
+        HashMap::new(),
+        None,
+      )
+      .into(),
     );
   }
 
@@ -610,6 +618,7 @@ mod tests {
       get_type_type(&db).into(),
       HashMap::new(),
       vtable,
+      None,
     );
     let product_enum: TdTypeEnum = product_type.into();
 

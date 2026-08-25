@@ -3,7 +3,7 @@
 use crate::db::TypedownDatabase;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::fields_compatible;
-use crate::db::types::{LazyType, TdTypeEnum, TypeParams, TypeVariable};
+use crate::db::types::{LazyType, TdProductType, TdTypeEnum, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;
 use std::collections::{HashMap, HashSet};
 use typedown_incremental::Id;
@@ -120,6 +120,26 @@ impl SubtypeEnv {
   }
 }
 
+// Walk the nominal parent chain of `sub` to see if it reaches `sup` by identity
+fn nominal_subtype_of(
+  db: &TypedownDatabase,
+  subtype: &TdProductType,
+  supertype: &TdProductType,
+) -> bool {
+  let mut current = subtype.parent_type(db);
+  while let Some(typ) = current {
+    if let TdTypeEnum::TdProductType(parent) = &typ {
+      if parent.as_id() == supertype.as_id() {
+        return true;
+      }
+      current = parent.parent_type(db);
+    } else {
+      break;
+    }
+  }
+  false
+}
+
 fn is_subtype_of_env(
   db: &TypedownDatabase,
   subtype: &TdTypeEnum,
@@ -198,11 +218,18 @@ fn is_subtype_of_env(
       },
       TdTypeEnum::TdFuncType(_) => matches!(subtype, TdTypeEnum::TdFuncType(_)),
       TdTypeEnum::TdProductType(expected_product) => match subtype {
-        TdTypeEnum::TdProductType(product) => fields_compatible(
-          db,
-          &expected_product.get_fields(db),
-          &product.get_fields(db),
-        ),
+        TdTypeEnum::TdProductType(product) => {
+          // Nominal check: walk the extends chain to see if subtype descends from supertype
+          if nominal_subtype_of(db, product, expected_product) {
+            return true;
+          }
+          // Structural fallback: all supertype fields must be present and compatible in subtype
+          fields_compatible(
+            db,
+            &expected_product.get_fields(db),
+            &product.get_fields(db),
+          )
+        }
         TdTypeEnum::TdStructuralType(structural) => {
           fields_compatible(db, &expected_product.get_fields(db), &structural.fields(db))
         }
@@ -1072,6 +1099,7 @@ mod tests {
         )]),
       ),
       HashMap::new(),
+      None,
     )
     .into();
     let structural: TdTypeEnum = TdStructuralType::new(
@@ -1100,6 +1128,7 @@ mod tests {
         )]),
       ),
       HashMap::new(),
+      None,
     )
     .into();
     let structural: TdTypeEnum = TdStructuralType::new(
@@ -1131,6 +1160,7 @@ mod tests {
         ]),
       ),
       HashMap::new(),
+      None,
     )
     .into();
     let structural: TdTypeEnum = TdStructuralType::new(

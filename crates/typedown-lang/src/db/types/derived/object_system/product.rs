@@ -10,7 +10,9 @@ use super::null::TdNullObj;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::derived::get_builtin_types::{get_func_type, get_str_type, get_type_type};
+use crate::db::derived::get_builtin_types::{
+  get_func_type, get_object_type, get_str_type, get_type_type,
+};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::derived::object_system::base::{
   BUILTIN_TO_STRING, PROTOCOL_CALL, PROTOCOL_INDEX,
@@ -62,6 +64,8 @@ pub struct TdProductType {
   pub metatype: TdTypeEnum,
   pub fields: HashMap<String, PropertyDescriptor>,
   pub vtable: HashMap<String, TdFuncObj>,
+  // Nominal parent schema type for the extends hierarchy
+  pub parent: Option<TdTypeEnum>,
 }
 
 impl TdRuntimeObject for TdProductType {
@@ -86,6 +90,9 @@ impl TdStaticType for TdProductType {
   }
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
+  }
+  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+    self.parent(db).or_else(|| Some(get_object_type(db).into()))
   }
   fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
@@ -259,6 +266,7 @@ mod tests {
       schema_metatype,
       fields,
       HashMap::new(),
+      None,
     );
 
     let all_fields = product_type.get_fields(&db);

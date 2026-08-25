@@ -102,6 +102,7 @@ pub fn get_schema_type(db: &TypedownDatabase) -> TdProductType {
     get_type_type(db).into(),
     make_property_descriptors(db, fields),
     HashMap::new(),
+    None,
   )
 }
 
@@ -114,6 +115,7 @@ pub fn get_schemaless_type(db: &TypedownDatabase) -> TdProductType {
     get_schema_type(db).into(),
     HashMap::new(),
     HashMap::new(),
+    None,
   )
 }
 
