@@ -78,6 +78,8 @@ Session token format pending sign-off from security team.
 
 The estimated effort uses a weighted formula:
 
-$$E = \sum_{i=1}^{n} w_i \cdot c_i$$
+$$
+  E = \sum_{i=1}^{n} w_i \cdot c_i
+$$
 
 where $w_i$ is the weight factor and $c_i$ is the complexity score for each sub-task.

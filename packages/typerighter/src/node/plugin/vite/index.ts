@@ -110,7 +110,7 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
   return `
 import 'typerighter/style.css';
 import { createTypedownApp } from 'typerighter/client';
-import { TdDirectoryIndex } from 'typerighter/client/theme-default';
+import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { h } from 'vue';
 import theme from 'typerighter/client/theme-default';

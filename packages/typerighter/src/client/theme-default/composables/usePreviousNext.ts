@@ -14,11 +14,6 @@ export interface PreviousNextLink {
   title: string;
 }
 
-interface SiblingGroup {
-  pages: PreviousNextLink[];
-  groupName: string;
-}
-
 export function usePreviousNext (): {
   previous: ComputedRef<PreviousNextLink | undefined>;
   next: ComputedRef<PreviousNextLink | undefined>;
@@ -35,16 +30,28 @@ export function usePreviousNext (): {
 
     if (siblings === undefined) return {};
 
-    const idx = siblings.pages.findIndex((page) => page.url === route.path);
+    const index = siblings.pages.findIndex((page) => page.url === route.path);
 
-    if (idx === -1) return { groupName: siblings.groupName };
+    if (index === -1) return {
+      groupName: siblings.groupName,
+    };
 
-    const prev = 0 < idx ? siblings.pages[idx - 1] : undefined;
-    const next = idx < siblings.pages.length - 1 ? siblings.pages[idx + 1] : undefined;
+    const previous = 0 < index ? siblings.pages[index - 1] : undefined;
+    const next = index < siblings.pages.length - 1 ? siblings.pages[index + 1] : undefined;
 
     return {
-      previous: prev ? { ...prev, url: withBase(prev.url) } : undefined,
-      next: next ? { ...next, url: withBase(next.url) } : undefined,
+      previous: previous
+        ? {
+          ...previous,
+          url: withBase(previous.url),
+        }
+        : undefined,
+      next: next
+        ? {
+          ...next,
+          url: withBase(next.url),
+        }
+        : undefined,
       groupName: siblings.groupName,
     };
   });
@@ -54,6 +61,11 @@ export function usePreviousNext (): {
     next: computed(() => result.value.next),
     groupName: computed(() => result.value.groupName),
   };
+}
+
+interface SiblingGroup {
+  pages: PreviousNextLink[];
+  groupName: string;
 }
 
 // Find all sibling pages in the same directory as the current route
@@ -68,7 +80,10 @@ function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | un
       pages.push(getNodeIndexLink(child, ''));
     }
 
-    return { pages, groupName: '' };
+    return {
+      pages,
+      groupName: '',
+    };
   }
 
   for (const child of tree.children) {
@@ -102,7 +117,10 @@ function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefi
       pages.push(getNodeIndexLink(child, directoryUrl));
     }
 
-    return { pages, groupName: unslugify(node.name) };
+    return {
+      pages,
+      groupName: unslugify(node.name),
+    };
   }
 
   for (const child of node.children) {

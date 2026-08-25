@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import {
-  useTdContent,
-} from '@/client/app';
-import {
   TdFrontmatter,
 } from './TdFrontmatter';
 import TdToc from './TdToc.vue';
+import {
+  useTdContent,
+} from '@/client/app';
 
 const {
   page,

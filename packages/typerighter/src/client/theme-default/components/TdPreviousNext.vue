@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import {
+  ChevronLeft, ChevronRight,
+} from '@lucide/vue';
+import {
   usePreviousNext,
 } from '../composables/usePreviousNext';
 
@@ -20,7 +23,13 @@ const {
         :href="previous.url"
         class="td-prevnext-link is-previous"
       >
-        <span class="td-prevnext-label">‹ Previous{{ groupName ? ` in ${groupName}` : '' }}</span>
+        <span class="td-prevnext-label">
+          <ChevronLeft
+            :size="16"
+            class="td-prevnext-chevron"
+          />
+          {{ groupName ? `Previous in ${groupName}` : 'Previous' }}
+        </span>
         <span class="td-prevnext-title">{{ previous.title }}</span>
       </a>
       <span
@@ -32,7 +41,13 @@ const {
         :href="next.url"
         class="td-prevnext-link is-next"
       >
-        <span class="td-prevnext-label">Next{{ groupName ? ` in ${groupName}` : '' }} ›</span>
+        <span class="td-prevnext-label">
+          {{ groupName ? `Next in ${groupName}` : 'Next' }}
+          <ChevronRight
+            :size="16"
+            class="td-prevnext-chevron"
+          />
+        </span>
         <span class="td-prevnext-title">{{ next.title }}</span>
       </a>
       <span
@@ -68,6 +83,10 @@ const {
   max-width: 46%;
 }
 
+.td-prevnext-link:hover {
+  text-decoration: none;
+}
+
 .td-prevnext-link.is-next {
   text-align: right;
   margin-left: auto;
@@ -78,12 +97,23 @@ const {
 }
 
 .td-prevnext-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
+}
+
+.td-prevnext-link.is-next .td-prevnext-label {
+  justify-content: flex-end;
+}
+
+.td-prevnext-chevron {
+  flex-shrink: 0;
 }
 
 .td-prevnext-title {
@@ -94,6 +124,7 @@ const {
 
 .td-prevnext-link:hover .td-prevnext-title {
   color: var(--color-td-primary-solid-hover);
+  text-decoration: underline;
 }
 
 /* Mobile: stacked full-width cards */
@@ -114,6 +145,10 @@ const {
 
   .td-prevnext-link.is-next {
     text-align: left;
+  }
+
+  .td-prevnext-link.is-next .td-prevnext-label {
+    justify-content: flex-start;
   }
 }
 </style>

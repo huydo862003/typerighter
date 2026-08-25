@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import {
+  computed,
+} from 'vue';
+import {
   useActiveTocHeading,
 } from '../composables/useActiveTocHeading';
 import type {
@@ -8,12 +11,17 @@ import type {
 
 const {
   headings,
+  static: isStatic = false,
 } = defineProps<{
   /** Heading entries for the current page */
   headings: MarkdownHeading[];
+  /** Disable active heading tracking on scroll */
+  static?: boolean;
 }>();
 
-const activeTocId = useActiveTocHeading(() => headings);
+const activeTocId = isStatic
+  ? computed(() => undefined)
+  : useActiveTocHeading(() => headings);
 </script>
 
 <template>

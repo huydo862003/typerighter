@@ -25,6 +25,14 @@ export interface ContentTreeNode {
 export interface DirectoryEntry {
   name: string;
   url: string;
+  /** First sentence of body or description field */
+  description?: string;
+  /** Tags from frontmatter */
+  tags?: string[];
+  /** Last modification time as seconds since UNIX epoch */
+  mtime?: number;
+  /** Schema type name */
+  schema?: string;
 }
 
 export interface DirectoryListing {

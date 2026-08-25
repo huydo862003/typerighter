@@ -21,6 +21,7 @@ import {
 import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
+import TdToc from './components/TdToc.vue';
 import TdSearch from './components/TdSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
@@ -256,6 +257,12 @@ function onResizeStart (event: PointerEvent) {
               :schema="page.schema"
               :frontmatter="page.frontmatter"
             />
+            <TdToc
+              v-if="page.headings.length > 0"
+              class="td-toc-inline"
+              :headings="page.headings"
+              static
+            />
             <div class="td-content-body">
               <Content />
             </div>
@@ -449,9 +456,14 @@ function onResizeStart (event: PointerEvent) {
   flex-shrink: 0;
 }
 
-/* Inline frontmatter hidden at desktop */
-.td-frontmatter-inline {
+/* Inline frontmatter and TOC hidden at desktop */
+.td-frontmatter-inline,
+.td-toc-inline {
   display: none;
+}
+
+.td-toc-inline {
+  margin: 16px 0 0;
 }
 
 /* Below 1200px: hide rail, show inline frontmatter */
@@ -466,6 +478,10 @@ function onResizeStart (event: PointerEvent) {
   }
 
   .td-frontmatter-inline {
+    display: block;
+  }
+
+  .td-toc-inline {
     display: block;
   }
 }

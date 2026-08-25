@@ -3,7 +3,7 @@ import {
   computed,
 } from 'vue';
 import {
-  File, Folder, CornerLeftUp,
+  Folder, CornerLeftUp,
 } from '@lucide/vue';
 import {
   useSiteData, useRoute, useSiteConfig,
@@ -70,10 +70,6 @@ const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value
         :href="withBase(item.url)"
         class="td-dir-row"
       >
-        <File
-          :size="16"
-          class="td-dir-icon"
-        />
         <span class="td-dir-name">{{ item.name }}</span>
       </a>
     </div>
