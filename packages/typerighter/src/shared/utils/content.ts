@@ -138,6 +138,17 @@ export function getTdResourceTitle (header: Record<string, unknown>, filepath: s
   return unslugify(stem);
 }
 
+// Return the first non-empty string value found among the given header keys
+function getFirstString (header: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = header[key];
+
+    if (typeof value === 'string' && 0 < value.length) return value;
+  }
+
+  return undefined;
+}
+
 // Sort by numeric prefix first, then alphabetically as fallback
 function sortTree (node: ContentTreeNode) {
   node.children.sort((left, right) => {
@@ -165,7 +176,6 @@ function sortTree (node: ContentTreeNode) {
 
 // Project a ContentSummary into a DirectoryEntry for the listing map
 function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
-  const desc = item.header.description;
   const rawTags = item.header.tags;
   const tags = Array.isArray(rawTags)
     ? rawTags.filter((tag): tag is string => typeof tag === 'string')
@@ -174,7 +184,7 @@ function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
   return {
     name: getTdResourceTitle(item.header, item.filepath),
     url: getTdContentUrl(item.filepath),
-    description: typeof desc === 'string' && 0 < desc.length ? desc : undefined,
+    description: getFirstString(item.header, 'description', 'summary', 'excerpt'),
     tags: 0 < tags.length ? tags : undefined,
     mtime: item.metadata.mtime,
     schema: item.schema,
