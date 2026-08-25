@@ -115,6 +115,7 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
   return map;
 }
 
+// Derive the page title for an index file from its parent directory name
 export function getTdIndexTitle (filepath: string, siteTitle: string): string {
   const parent = basename(dirname(filepath));
 
@@ -135,22 +136,6 @@ export function getTdResourceTitle (header: Record<string, unknown>, filepath: s
   }
 
   return unslugify(stem);
-}
-
-function extractDescription (header: Record<string, unknown>): string | undefined {
-  const desc = header.description;
-
-  if (typeof desc === 'string' && 0 < desc.length) return desc;
-
-  return undefined;
-}
-
-function extractTags (header: Record<string, unknown>): string[] {
-  const tags = header.tags;
-
-  if (Array.isArray(tags)) return tags.filter((tag): tag is string => typeof tag === 'string');
-
-  return [];
 }
 
 // Sort by numeric prefix first, then alphabetically as fallback
@@ -178,13 +163,18 @@ function sortTree (node: ContentTreeNode) {
   }
 }
 
+// Project a ContentSummary into a DirectoryEntry for the listing map
 function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
-  const tags = extractTags(item.header);
+  const desc = item.header.description;
+  const rawTags = item.header.tags;
+  const tags = Array.isArray(rawTags)
+    ? rawTags.filter((tag): tag is string => typeof tag === 'string')
+    : [];
 
   return {
     name: getTdResourceTitle(item.header, item.filepath),
     url: getTdContentUrl(item.filepath),
-    description: extractDescription(item.header),
+    description: typeof desc === 'string' && 0 < desc.length ? desc : undefined,
     tags: 0 < tags.length ? tags : undefined,
     mtime: item.metadata.mtime,
     schema: item.schema,
