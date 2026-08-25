@@ -47,14 +47,14 @@ function toggle () {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
 }
 
 .td-widget-more {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-neutral-fg-muted);
   padding: 2px 0;
 }

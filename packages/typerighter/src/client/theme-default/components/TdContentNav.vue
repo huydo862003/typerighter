@@ -79,7 +79,7 @@ function isCurrent (href: string): boolean {
   align-items: center;
   gap: 6px;
   padding: 5px 20px;
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-neutral-fg);
   text-decoration: none;
   border-left: 3px solid transparent;
@@ -94,7 +94,7 @@ function isCurrent (href: string): boolean {
   background-color: var(--color-td-primary-bg-hover);
   border-left-color: var(--color-td-primary-solid);
   color: var(--color-td-primary-solid);
-  font-weight: var(--font-weight-td-semibold);
+  font-weight: 600;
 }
 
 .td-root-link-text {
@@ -107,7 +107,7 @@ function isCurrent (href: string): boolean {
 .td-root-link-time {
   flex-shrink: 0;
   margin-left: auto;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   color: var(--color-td-neutral-border);
 }
 

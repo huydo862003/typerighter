@@ -133,8 +133,8 @@ defineExpose({
   border: 1px solid var(--color-td-neutral-border-strong);
   background: var(--color-td-neutral-bg-subtle);
   color: var(--color-td-fg);
-  font-size: var(--font-size-td-body);
-  line-height: var(--leading-td-body);
+  font-size: var(--font-size-td-base);
+  line-height: var(--leading-td-relaxed);
   transition-property: transform;
   transition-duration: var(--duration-slow, 300ms);
   transition-timing-function: var(--ease-default, ease);
@@ -167,9 +167,9 @@ defineExpose({
 
 .td-flashcard-label {
   margin: 0;
-  font-size: var(--font-size-td-label);
-  font-weight: var(--font-weight-td-semibold);
-  letter-spacing: var(--tracking-td-label);
+  font-size: var(--font-size-td-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-td-wide);
   line-height: 1;
   text-transform: uppercase;
   /* `neutral-fg` not `-fg-muted`: at 11px the muted token measures 3.6:1 in

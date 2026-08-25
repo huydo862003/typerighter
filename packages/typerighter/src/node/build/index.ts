@@ -218,7 +218,7 @@ function generateSsrEntry (options: SsrEntryOptions): string {
 
   return `
 import { createTypedownApp } from 'typerighter/client';
-import { TdDirectoryIndex } from 'typerighter/client/theme-default';
+import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
 import { h } from 'vue';

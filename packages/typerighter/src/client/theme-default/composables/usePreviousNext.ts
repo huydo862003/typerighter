@@ -1,5 +1,5 @@
 import {
-  computed,
+  computed, type ComputedRef,
 } from 'vue';
 import {
   useSiteData, useRoute, useSiteConfig,
@@ -14,81 +14,141 @@ export interface PreviousNextLink {
   title: string;
 }
 
-export function usePreviousNext () {
+export function usePreviousNext (): {
+  previous: ComputedRef<PreviousNextLink | undefined>;
+  next: ComputedRef<PreviousNextLink | undefined>;
+  groupName: ComputedRef<string | undefined>;
+} {
   const siteData = useSiteData();
   const route = useRoute();
   const {
     withBase,
   } = useSiteConfig();
 
-  const flatPages = computed(() => flattenTree(siteData.contentTree));
-  const currentIndex = computed(() => flatPages.value.findIndex((page) => page.url === route.path));
-  const previous = computed(() => {
-    if (currentIndex.value < 1) return undefined;
-    const page = flatPages.value[currentIndex.value - 1];
+  const result = computed(() => {
+    const siblings = findSiblings(siteData.contentTree, route.path);
 
-    return {
-      ...page,
-      url: withBase(page.url),
+    if (siblings === undefined) return {};
+
+    const index = siblings.pages.findIndex((page) => page.url === route.path);
+
+    if (index === -1) return {
+      groupName: siblings.groupName,
     };
-  });
-  const next = computed(() => {
-    if (currentIndex.value === -1 || flatPages.value.length - 1 <= currentIndex.value) return undefined;
-    const page = flatPages.value[currentIndex.value + 1];
+
+    const previous = 0 < index ? siblings.pages[index - 1] : undefined;
+    const next = index < siblings.pages.length - 1 ? siblings.pages[index + 1] : undefined;
 
     return {
-      ...page,
-      url: withBase(page.url),
+      previous: previous
+        ? {
+          ...previous,
+          url: withBase(previous.url),
+        }
+        : undefined,
+      next: next
+        ? {
+          ...next,
+          url: withBase(next.url),
+        }
+        : undefined,
+      groupName: siblings.groupName,
     };
   });
 
   return {
-    previous,
-    next,
+    previous: computed(() => result.value.previous),
+    next: computed(() => result.value.next),
+    groupName: computed(() => result.value.groupName),
   };
 }
 
-function flattenNode (node: ContentTreeNode, pages: PreviousNextLink[], urlPrefix: string) {
-  const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
-  const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
+interface SiblingGroup {
+  pages: PreviousNextLink[];
+  groupName: string;
+}
 
-  if (indexItem) {
-    pages.push(itemToLink(indexItem));
-  } else {
-    // Virtual index page for directories without index.td
-    pages.push({
-      url: getIndexUrl(directoryUrl),
-      title: unslugify(node.name),
-    });
+// Find all sibling pages in the same directory as the current route
+function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | undefined {
+  if (tree.rootItems.some((item) => getTdContentUrl(item.filepath) === currentUrl)) {
+    const pages: PreviousNextLink[] = [];
+
+    for (const item of tree.rootItems) {
+      pages.push(getItemLink(item));
+    }
+    for (const child of tree.children) {
+      pages.push(getNodeIndexLink(child, ''));
+    }
+
+    return {
+      pages,
+      groupName: '',
+    };
   }
 
-  for (const item of node.items) {
-    if (path.filestem(item.filepath) !== INDEX_FILENAME) {
-      pages.push(itemToLink(item));
+  for (const child of tree.children) {
+    const found = findSiblingsInNode(child, currentUrl, '');
+
+    if (found !== undefined) return found;
+  }
+
+  return undefined;
+}
+
+function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefix: string): SiblingGroup | undefined {
+  const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
+  const isDirectChild = node.items.some((item) => getTdContentUrl(item.filepath) === currentUrl);
+
+  if (isDirectChild) {
+    const pages: PreviousNextLink[] = [];
+    const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+
+    if (indexItem) {
+      pages.push(getItemLink(indexItem));
     }
+
+    for (const item of node.items) {
+      if (path.filestem(item.filepath) !== INDEX_FILENAME) {
+        pages.push(getItemLink(item));
+      }
+    }
+
+    for (const child of node.children) {
+      pages.push(getNodeIndexLink(child, directoryUrl));
+    }
+
+    return {
+      pages,
+      groupName: unslugify(node.name),
+    };
   }
 
   for (const child of node.children) {
-    flattenNode(child, pages, directoryUrl);
+    const found = findSiblingsInNode(child, currentUrl, directoryUrl);
+
+    if (found !== undefined) return found;
   }
+
+  return undefined;
 }
 
-function flattenTree (tree: ContentTree): PreviousNextLink[] {
-  const pages: PreviousNextLink[] = [];
-
-  for (const item of tree.rootItems) {
-    pages.push(itemToLink(item));
-  }
-  for (const child of tree.children) {
-    flattenNode(child, pages, '');
-  }
-
-  return pages;
-}
-
-function itemToLink (item: ContentSummary): PreviousNextLink {
+function getItemLink (item: ContentSummary): PreviousNextLink {
   return {
     url: getTdContentUrl(item.filepath),
     title: getTdResourceTitle(item.header, item.filepath),
+  };
+}
+
+function getNodeIndexLink (node: ContentTreeNode, urlPrefix: string): PreviousNextLink {
+  const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
+  const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+
+  if (indexItem) {
+    return getItemLink(indexItem);
+  }
+
+  return {
+    url: getIndexUrl(directoryUrl),
+    title: unslugify(node.name),
   };
 }

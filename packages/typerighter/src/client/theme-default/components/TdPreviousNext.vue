@@ -7,123 +7,148 @@ import {
 } from '../composables/usePreviousNext';
 
 const {
-  previous, next,
+  previous, next, groupName,
 } = usePreviousNext();
 </script>
 
 <template>
   <nav
     v-if="previous || next"
-    class="td-previous-next"
+    class="td-prevnext"
     aria-label="Page navigation"
   >
-    <a
-      v-if="previous"
-      :href="previous.url"
-      class="td-previous-next-link is-previous"
-    >
-      <ChevronLeft
-        :size="16"
-        class="td-previous-next-icon"
+    <div class="td-prevnext-row">
+      <a
+        v-if="previous"
+        :href="previous.url"
+        class="td-prevnext-link is-previous"
+      >
+        <span class="td-prevnext-label">
+          <ChevronLeft
+            :size="16"
+            class="td-prevnext-chevron"
+          />
+          {{ groupName ? `Previous in ${groupName}` : 'Previous' }}
+        </span>
+        <span class="td-prevnext-title">{{ previous.title }}</span>
+      </a>
+      <span
+        v-else
+        class="td-prevnext-spacer"
       />
-      <span class="td-previous-next-content">
-        <span class="td-previous-next-label">Previous</span>
-        <span class="td-previous-next-title">{{ previous.title }}</span>
-      </span>
-    </a>
-    <span
-      v-else
-      class="td-previous-next-spacer"
-    />
-    <a
-      v-if="next"
-      :href="next.url"
-      class="td-previous-next-link is-next"
-    >
-      <span class="td-previous-next-content">
-        <span class="td-previous-next-label">Next</span>
-        <span class="td-previous-next-title">{{ next.title }}</span>
-      </span>
-      <ChevronRight
-        :size="16"
-        class="td-previous-next-icon"
+      <a
+        v-if="next"
+        :href="next.url"
+        class="td-prevnext-link is-next"
+      >
+        <span class="td-prevnext-label">
+          {{ groupName ? `Next in ${groupName}` : 'Next' }}
+          <ChevronRight
+            :size="16"
+            class="td-prevnext-chevron"
+          />
+        </span>
+        <span class="td-prevnext-title">{{ next.title }}</span>
+      </a>
+      <span
+        v-else
+        class="td-prevnext-spacer"
       />
-    </a>
-    <span
-      v-else
-      class="td-previous-next-spacer"
-    />
+    </div>
   </nav>
 </template>
 
 <style scoped>
-.td-previous-next {
-  display: flex;
-  gap: 16px;
-  margin-top: 48px;
-  padding-top: 24px;
+.td-prevnext {
+  margin-top: 38px;
   border-top: 1px solid var(--color-td-neutral-border-subtle);
-}
-
-.td-previous-next-link {
-  display: flex;
-  align-items: start;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  padding: 12px 16px;
-  border: 1px solid var(--color-td-neutral-border-subtle);
-  border-radius: 8px;
-  text-decoration: none;
-  color: var(--color-td-fg);
-  transition: border-color 0.15s;
-}
-
-.td-previous-next-link:hover {
-  border-color: var(--color-td-primary-solid);
-}
-
-.td-previous-next-link.is-next {
-  justify-content: flex-end;
-  text-align: right;
-}
-
-.td-previous-next-spacer {
-  flex: 1;
-}
-
-.td-previous-next-icon {
-  flex-shrink: 0;
-  color: var(--color-td-neutral-fg-muted);
-}
-
-.td-previous-next-link:hover .td-previous-next-icon {
-  color: var(--color-td-primary-solid);
-}
-
-.td-previous-next-content {
+  padding-top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  gap: 16px;
 }
 
-.td-previous-next-label {
-  font-size: var(--font-size-td-label);
-  letter-spacing: var(--tracking-td-label);
+.td-prevnext-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.td-prevnext-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  max-width: 46%;
+}
+
+.td-prevnext-link:hover {
+  text-decoration: none;
+}
+
+.td-prevnext-link.is-next {
+  text-align: right;
+  margin-left: auto;
+}
+
+.td-prevnext-spacer {
+  flex: 1;
+}
+
+.td-prevnext-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
 }
 
-.td-previous-next-title {
-  font-size: var(--font-size-td-nav);
-  font-weight: var(--font-weight-td-semibold);
+.td-prevnext-link.is-next .td-prevnext-label {
+  justify-content: flex-end;
+}
+
+.td-prevnext-chevron {
+  flex-shrink: 0;
+}
+
+.td-prevnext-title {
+  font-size: var(--font-size-td-base);
+  font-weight: 800;
   color: var(--color-td-primary-solid);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+}
+
+.td-prevnext-link:hover .td-prevnext-title {
+  color: var(--color-td-primary-solid-hover);
+  text-decoration: underline;
+}
+
+/* Mobile: stacked full-width cards */
+@media (width < 56.25rem) {
+  .td-prevnext-row {
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .td-prevnext-link {
+    max-width: 100%;
+    width: 100%;
+    padding: 13px 14px;
+    border: 1px solid var(--color-td-neutral-border-subtle);
+    border-radius: 6px;
+    background: var(--color-td-neutral-bg);
+  }
+
+  .td-prevnext-link.is-next {
+    text-align: left;
+  }
+
+  .td-prevnext-link.is-next .td-prevnext-label {
+    justify-content: flex-start;
+  }
 }
 </style>

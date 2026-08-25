@@ -147,9 +147,8 @@ watch(() => route.path, () => {
   display: flex;
   align-items: center;
   gap: 2px;
-  font-size: var(--font-size-td-body-sm);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-neutral-border-strong);
-  margin-bottom: 8px;
   min-width: 0;
 }
 
@@ -205,7 +204,7 @@ watch(() => route.path, () => {
 .td-breadcrumb-dropdown-item {
   display: block;
   padding: 6px 10px;
-  font-size: var(--font-size-td-nav);
+  font-size: var(--font-size-td-sm);
   color: var(--color-td-neutral-fg);
   text-decoration: none;
   border-radius: 4px;

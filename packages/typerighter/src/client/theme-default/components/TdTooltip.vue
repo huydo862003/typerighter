@@ -95,7 +95,7 @@ onBeforeUnmount(() => {
   z-index: 1000;
   max-width: 300px;
   padding: 7px 12px 6px;
-  font-size: var(--font-size-td-caption);
+  font-size: var(--font-size-td-xs);
   line-height: 1.4;
   color: var(--color-td-tooltip-fg);
   background: var(--color-td-tooltip-bg);

@@ -2,7 +2,7 @@ import {
   INDEX_FILENAME,
 } from '../constants';
 import type {
-  ContentSummary, ContentTree, ContentTreeNode, DirectoryListing,
+  ContentSummary, ContentTree, ContentTreeNode, DirectoryEntry, DirectoryListing,
 } from '../types/content';
 import {
   parseNumericPrefix, unslugify,
@@ -90,10 +90,7 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
             count: countDescendants(child),
           })),
         items: node.items
-          .map((item) => ({
-            name: getTdResourceTitle(item.header, item.filepath),
-            url: getTdContentUrl(item.filepath),
-          })),
+          .map((item) => toDirectoryEntry(item)),
       };
 
       walk(node.children, directoryUrl);
@@ -140,6 +137,22 @@ export function getTdResourceTitle (header: Record<string, unknown>, filepath: s
   return unslugify(stem);
 }
 
+function extractDescription (header: Record<string, unknown>): string | undefined {
+  const desc = header.description;
+
+  if (typeof desc === 'string' && 0 < desc.length) return desc;
+
+  return undefined;
+}
+
+function extractTags (header: Record<string, unknown>): string[] {
+  const tags = header.tags;
+
+  if (Array.isArray(tags)) return tags.filter((tag): tag is string => typeof tag === 'string');
+
+  return [];
+}
+
 // Sort by numeric prefix first, then alphabetically as fallback
 function sortTree (node: ContentTreeNode) {
   node.children.sort((left, right) => {
@@ -163,4 +176,17 @@ function sortTree (node: ContentTreeNode) {
   for (const child of node.children) {
     sortTree(child);
   }
+}
+
+function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
+  const tags = extractTags(item.header);
+
+  return {
+    name: getTdResourceTitle(item.header, item.filepath),
+    url: getTdContentUrl(item.filepath),
+    description: extractDescription(item.header),
+    tags: 0 < tags.length ? tags : undefined,
+    mtime: item.metadata.mtime,
+    schema: item.schema,
+  };
 }
