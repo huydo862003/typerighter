@@ -1,3 +1,8 @@
+## [0.14.1] - 2026-08-25
+
+* packages/typerighter
+  - Generate description for glossary
+
 ## [0.14.0] - 2026-08-25
 
 * packages/typerighter
