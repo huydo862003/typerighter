@@ -132,6 +132,15 @@ export class TypedownContext {
       ? Object.fromEntries(raw)
       : raw ?? {};
 
+    // serde_json::Value::Object fields (like header) also arrive as JS Maps
+    for (const items of Object.values(result)) {
+      for (const item of items) {
+        if (item.header instanceof Map) {
+          item.header = Object.fromEntries(item.header);
+        }
+      }
+    }
+
     this.cachedFilesGroupedBySchema = result;
 
     return result;

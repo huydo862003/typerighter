@@ -1,6 +1,6 @@
 ---
 _type: Person
-_label: "Alice Chen"
+_label: "Alice Chen (Developer)"
 name: "Alice Chen"
 role: "developer"
 active: true

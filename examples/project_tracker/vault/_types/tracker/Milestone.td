@@ -6,7 +6,7 @@ properties:
   target_date:
     type: date
   status:
-    type: ['planned', 'in_progress', 'completed']
+    type: ['planned', 'in progress', 'completed']
   project:
     type: Project
   lead:

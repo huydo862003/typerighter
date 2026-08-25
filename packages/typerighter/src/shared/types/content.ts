@@ -5,6 +5,8 @@ export interface ContentSummary {
   schema?: string;
   /** Frontmatter header */
   header: Record<string, unknown>;
+  /** First paragraph of the body content */
+  excerpt?: string;
   /** File metadata */
   metadata: FileMetadata;
 }

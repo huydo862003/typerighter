@@ -1,7 +1,7 @@
 ---
 _type: Task
 _label: "Navigation bar component"
-status: "in_progress"
+status: "in progress"
 priority: "medium"
 project: fref("projects/website-redesign.td")
 ---

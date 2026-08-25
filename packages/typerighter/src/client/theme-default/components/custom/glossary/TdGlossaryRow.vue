@@ -23,13 +23,11 @@ const {
     :href="href"
     class="td-glossary-row"
   >
-    <span class="td-glossary-row-header">
-      <span class="td-glossary-row-title">{{ item.name }}</span>
-      <span
-        v-if="item.mtime"
-        class="td-glossary-row-time"
-      >{{ formatRelativeTime(item.mtime) }}</span>
-    </span>
+    <span class="td-glossary-row-title">{{ item.name }}</span>
+    <span
+      v-if="item.mtime"
+      class="td-glossary-row-time"
+    >{{ formatRelativeTime(item.mtime) }}</span>
     <span
       v-if="item.description"
       class="td-glossary-row-desc"
@@ -56,8 +54,8 @@ const {
 .td-glossary-row:hover {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 13px 4px;
+  gap: 2px;
+  padding: 10px 4px;
   border-bottom: 1px solid var(--color-td-neutral-border-subtle);
   text-decoration: none;
   color: inherit;
@@ -76,12 +74,6 @@ const {
   text-decoration: underline;
 }
 
-.td-glossary-row-header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
 .td-glossary-row-title {
   font-size: var(--font-size-td-base);
   font-weight: 800;
@@ -89,11 +81,9 @@ const {
 }
 
 .td-glossary-row-time {
-  margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
   color: var(--color-td-neutral-border-strong);
-  flex-shrink: 0;
 }
 
 .td-glossary-row-desc {
@@ -114,6 +104,7 @@ const {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
+  margin-top: 4px;
 }
 
 .td-glossary-row-tag {

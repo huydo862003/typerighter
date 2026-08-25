@@ -1,6 +1,6 @@
 ---
 _type: Person
-_label: "Bob Kim"
+_label: "Bob Kim (Designer)"
 name: "Bob Kim"
 role: "designer"
 tags: ["ui", "figma", "design-systems"]

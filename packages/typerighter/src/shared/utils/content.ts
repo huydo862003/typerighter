@@ -185,7 +185,7 @@ function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
   return {
     name: getTdResourceTitle(item.header, item.filepath),
     url: getTdContentUrl(item.filepath),
-    description: getFirstString(item.header, 'description', 'summary', 'excerpt'),
+    description: getFirstString(item.header, 'description', 'summary') ?? item.excerpt,
     tags: 0 < tags.length ? tags : undefined,
     mtime: item.metadata.mtime,
     schema: item.schema,

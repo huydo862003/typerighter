@@ -2,7 +2,7 @@
 _type: schema
 properties:
   status:
-    type: ['todo', 'in_progress', 'done']
+    type: ['todo', 'in progress', 'done']
   priority:
     type: ['low', 'medium', 'high']
   blocked:

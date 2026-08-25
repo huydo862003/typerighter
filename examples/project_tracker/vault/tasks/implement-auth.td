@@ -1,7 +1,7 @@
 ---
 _type: Task
 _label: "Implement authentication flow"
-status: "in_progress"
+status: "in progress"
 priority: "high"
 blocked: true
 due: "2026-07-10"

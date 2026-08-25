@@ -1,6 +1,6 @@
 ---
 _type: Person
-_label: "Carol Santos"
+_label: "Carol Santos (Manager)"
 name: "Carol Santos"
 role: "manager"
 tags: ["leadership", "planning"]

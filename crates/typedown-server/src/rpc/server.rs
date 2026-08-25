@@ -355,10 +355,12 @@ impl RpcServer {
       let rel = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
       if let Some(exported) = export_resource(db, project, *file) {
         let group_key = exported.schema.clone().unwrap_or_default();
+        let excerpt = extract_excerpt(&exported.content);
         groups.entry(group_key).or_default().push(TdContentSummary {
           filepath: rel,
           schema: exported.schema,
           header: exported.header,
+          excerpt,
           metadata: TdFileMetadata {
             mtime: exported.metadata.mtime,
             ctime: exported.metadata.ctime,
@@ -735,4 +737,74 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
   ) -> TdRpcSubscriptionCloseResponse {
     run_subscription(pending, self.events.config_changed_tx.subscribe()).await
   }
+}
+
+// Extract the first non-empty paragraph from markdown content as a plain text excerpt
+fn extract_excerpt(content: &str) -> Option<String> {
+  for line in content.lines() {
+    let trimmed = line.trim();
+    // Skip blank lines, headings, lists, code fences, HTML, containers
+    if trimmed.is_empty()
+      || trimmed.starts_with('#')
+      || trimmed.starts_with('-')
+      || trimmed.starts_with('*')
+      || trimmed.starts_with('>')
+      || trimmed.starts_with("```")
+      || trimmed.starts_with(":::")
+      || trimmed.starts_with('<')
+      || trimmed.starts_with('|')
+      || trimmed.starts_with("[[")
+    {
+      continue;
+    }
+    // Strip inline markdown: bold, italic, links, code
+    let plain = trimmed
+      .replace("**", "")
+      .replace("__", "")
+      .replace('*', "")
+      .replace('_', " ");
+    // Strip markdown links [text](url) -> text
+    let plain = regex_replace_links(&plain);
+    let plain = plain.trim().to_string();
+    if plain.is_empty() {
+      continue;
+    }
+    return Some(plain);
+  }
+  None
+}
+
+// Replace [text](url) with text
+fn regex_replace_links(s: &str) -> String {
+  let mut result = String::with_capacity(s.len());
+  let mut chars = s.chars().peekable();
+  while let Some(c) = chars.next() {
+    if c == '[' {
+      let mut text = String::new();
+      let mut found_close = false;
+      for inner in chars.by_ref() {
+        if inner == ']' {
+          found_close = true;
+          break;
+        }
+        text.push(inner);
+      }
+      if found_close && chars.peek() == Some(&'(') {
+        chars.next(); // skip (
+        let mut depth = 1;
+        for inner in chars.by_ref() {
+          if inner == '(' { depth += 1; }
+          if inner == ')' { depth -= 1; if depth == 0 { break; } }
+        }
+        result.push_str(&text);
+      } else {
+        result.push('[');
+        result.push_str(&text);
+        if found_close { result.push(']'); }
+      }
+    } else {
+      result.push(c);
+    }
+  }
+  result
 }

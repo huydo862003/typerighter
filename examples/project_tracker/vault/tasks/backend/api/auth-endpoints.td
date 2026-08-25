@@ -1,7 +1,7 @@
 ---
 _type: Task
 _label: "Implement auth endpoints"
-status: "in_progress"
+status: "in progress"
 priority: "high"
 project: fref("projects/mobile-app.td")
 ---
