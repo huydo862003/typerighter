@@ -479,6 +479,7 @@ function onResizeStart (event: PointerEvent) {
 
   .td-frontmatter-inline {
     display: block;
+    margin-bottom: 16px;
   }
 
   .td-toc-inline {

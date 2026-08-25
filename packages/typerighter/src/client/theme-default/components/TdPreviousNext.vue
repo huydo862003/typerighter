@@ -120,6 +120,9 @@ const {
   font-size: var(--font-size-td-base);
   font-weight: 800;
   color: var(--color-td-primary-solid);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-prevnext-link:hover .td-prevnext-title {
