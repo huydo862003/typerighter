@@ -1,3 +1,10 @@
+## [0.14.0] - 2026-08-25
+
+* packages/typerighter
+  - Improve type system
+  - Improve layout, frontmatter
+  - Add glossary view
+
 ## [0.13.0] - 2026-08-24
 
 * packages/typerighter
