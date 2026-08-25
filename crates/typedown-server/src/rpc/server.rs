@@ -793,14 +793,23 @@ fn regex_replace_links(s: &str) -> String {
         chars.next(); // skip (
         let mut depth = 1;
         for inner in chars.by_ref() {
-          if inner == '(' { depth += 1; }
-          if inner == ')' { depth -= 1; if depth == 0 { break; } }
+          if inner == '(' {
+            depth += 1;
+          }
+          if inner == ')' {
+            depth -= 1;
+            if depth == 0 {
+              break;
+            }
+          }
         }
         result.push_str(&text);
       } else {
         result.push('[');
         result.push_str(&text);
-        if found_close { result.push(']'); }
+        if found_close {
+          result.push(']');
+        }
       }
     } else {
       result.push(c);
