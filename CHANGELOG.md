@@ -1,3 +1,19 @@
+## [0.15.1] - 2026-08-26
+
+### Fixes
+
+* crates/typedown-rpc
+  - FS watcher scoped to vault root, no longer triggers on build output in `dist/`
+  - Custom error code (`-32002`) for query cancellation, exported from WASM as `RPC_CANCELLED_CODE`
+  - `rpc_err` returns structured JS `Error` with `.code` property
+  - Custom panic hook suppresses "Box<dyn Any>" stderr noise for expected cancellation panics
+
+* packages/typerighter
+  - `TypedownContext` retries RPC calls transparently on cancellation (up to 3 attempts)
+
+* editors/vscode
+  - Fixed paste handler: `SnippetString` escaping so `${fref("...")}` is inserted as literal text
+
 ## [0.15.0] - 2026-08-26
 
 ### Breaking changes
