@@ -1,3 +1,4 @@
+
 A sample vault that tracks **people**, **projects**, and **tasks** across a development team.
 
 [[directory-index]]
@@ -32,10 +33,8 @@ A sample vault that tracks **people**, **projects**, and **tasks** across a deve
 ## Table in List
 
 - Team overview
-
   | Name | Role |
   | ---- | ---- |
   | Alice | Backend |
   | Bob | Frontend |
-
 - Another item
