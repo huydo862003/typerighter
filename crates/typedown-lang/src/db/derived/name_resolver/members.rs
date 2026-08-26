@@ -6,8 +6,10 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
-use crate::db::types::{MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
-use crate::db::utils::{is_content_file, is_type_file};
+use crate::db::types::{
+  File, HirValueKind, MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind,
+};
+use crate::db::utils::{is_content_file, is_type_file, lower_file};
 use crate::syntax::ast::{AstNode, ClosureExpr};
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
@@ -61,6 +63,9 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
         members.insert("self".to_string(), sym);
       }
 
+      // Resolve _imports aliases into the file scope
+      resolve_import_members(db, project, file, &mut members);
+
       MembersResult::new(db, members)
     }
     ScopeKind::Project(project) => {
@@ -111,6 +116,42 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
       }
 
       MembersResult::new(db, members)
+    }
+  }
+}
+
+// Extract _imports from a file's frontmatter and register each alias as a member
+fn resolve_import_members(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  members: &mut HashMap<String, Symbol>,
+) {
+  let (hir, _) = lower_file(db, project, file);
+  let Some(hir) = hir else { return };
+  let HirValueKind::Mapping(entries) = hir.kind(db) else {
+    return;
+  };
+  let Some((_, imports_hir)) = entries.iter().find(|(k, _)| k == "_imports") else {
+    return;
+  };
+  let HirValueKind::Mapping(import_entries) = imports_hir.kind(db) else {
+    return;
+  };
+
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+
+  for (alias, path_hir) in import_entries {
+    let HirValueKind::Str(path) = path_hir.kind(db) else {
+      continue;
+    };
+    let target_path = root_dir.join(&path);
+    let Some(&target_file) = project.files(db).get(&target_path) else {
+      continue;
+    };
+    if let Some(sym) = file_symbol(db, project, target_file).value(db) {
+      members.insert(alias, sym);
     }
   }
 }

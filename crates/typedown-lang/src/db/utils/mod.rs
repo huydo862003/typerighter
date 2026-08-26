@@ -22,6 +22,16 @@ pub fn is_content_file(path: &Path) -> bool {
     .is_some_and(|ext| ext == "td" || ext == "md")
 }
 
+/// Whether a path is inside an underscore-prefixed directory (e.g. `_types`, `_partials`)
+// These are excluded from content discovery
+pub fn is_internal_file(path: &Path) -> bool {
+  is_content_file(path)
+    && path.parent().is_some_and(|p| {
+      p.components()
+        .any(|c| c.as_os_str().to_str().is_some_and(|s| s.starts_with('_')))
+    })
+}
+
 /// Whether a path is located inside a `_types` directory anywhere in the vault
 pub fn is_type_file(path: &Path) -> bool {
   is_content_file(path) && path.components().any(|c| c.as_os_str() == "_types")

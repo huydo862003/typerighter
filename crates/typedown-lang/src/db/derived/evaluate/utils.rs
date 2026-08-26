@@ -417,7 +417,7 @@ fn evaluate_mapping(
   if let TdTypeEnum::TdSchemaType(schema_typ) = &typ {
     let mut fields = HashMap::new();
     for (key, val_hir) in entries {
-      if key == "_type" {
+      if key == "_type" || key == "_imports" {
         continue;
       }
       fields.insert(key, Either::Left(val_hir));
@@ -429,7 +429,7 @@ fn evaluate_mapping(
   if let TdTypeEnum::TdProductType(product_typ) = &typ {
     let mut fields = HashMap::new();
     for (key, val_hir) in entries {
-      if key == "_type" {
+      if key == "_type" || key == "_imports" {
         continue;
       }
       fields.insert(key, Either::Left(val_hir));

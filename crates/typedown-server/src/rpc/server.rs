@@ -24,7 +24,7 @@ use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, Project, SymbolKind};
-use typedown_lang::db::utils::{is_content_file, is_type_file};
+use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
 use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -323,7 +323,7 @@ impl RpcServer {
       if !path.starts_with(&root_dir) {
         continue;
       }
-      if !is_content_file(path) || is_type_file(path) {
+      if !is_content_file(path) || is_internal_file(path) {
         continue;
       }
       let rel = path.strip_prefix(&root_dir).unwrap_or(path);
@@ -349,7 +349,7 @@ impl RpcServer {
       if !path.starts_with(&root_dir) {
         continue;
       }
-      if !is_content_file(path) || is_type_file(path) {
+      if !is_content_file(path) || is_internal_file(path) {
         continue;
       }
       let rel = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));

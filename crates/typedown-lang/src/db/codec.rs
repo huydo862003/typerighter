@@ -644,6 +644,15 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
+      Diagnostic::UnresolvedImport {
+        path,
+        start_offset,
+        end_offset,
+      } => {
+        path.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
       Diagnostic::UnknownField {
         field,
         on_type,
@@ -1427,6 +1436,16 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::UnresolvedImport => {
+        let path = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnresolvedImport {
+          path,
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1685,6 +1704,15 @@ impl StableHash for Diagnostic {
         end_offset,
       } => {
         name.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::UnresolvedImport {
+        path,
+        start_offset,
+        end_offset,
+      } => {
+        path.stable_hash(db, hasher);
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }

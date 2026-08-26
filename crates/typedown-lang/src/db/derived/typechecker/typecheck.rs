@@ -1365,4 +1365,47 @@ mod tests {
       result.diagnostics(&db)
     );
   }
+
+  // Internal file (_partials/colors.td) infers as product type with no errors
+  #[test]
+  fn typecheck_internal_file_infers_product() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_partials/colors.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "internal file should typecheck cleanly: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // File with _imports typechecks with no errors when types are compatible
+  #[test]
+  fn typecheck_with_imports_no_errors() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "with_imports.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "file with valid imports should typecheck cleanly: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // File with _imports has type error when imported field type mismatches schema
+  #[test]
+  fn typecheck_with_imports_wrong_type_has_diagnostics() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "with_imports_wrong_type.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { .. })),
+      "should have FieldTypeMismatch for string assigned to number field: {:?}",
+      result.diagnostics(&db)
+    );
+  }
 }
