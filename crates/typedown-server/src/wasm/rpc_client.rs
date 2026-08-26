@@ -9,9 +9,14 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::rpc::contract::{
-  TdBuildRpcClient, TdBuiltResource, TdDiagnosticReport, TdFilePath, TdFormatResult, TdSchemaInfo,
-  TdSiteConfig,
+  CANCELLED_ERROR_CODE, TdBuildRpcClient, TdBuiltResource, TdDiagnosticReport, TdFilePath,
+  TdFormatResult, TdSchemaInfo, TdSiteConfig,
 };
+
+#[wasm_bindgen(js_name = "RPC_CANCELLED_CODE")]
+pub fn rpc_cancelled_code() -> i32 {
+  CANCELLED_ERROR_CODE
+}
 
 #[wasm_bindgen]
 pub struct RpcClient {
@@ -326,6 +331,16 @@ impl ListenerSlot {
   }
 }
 
-fn rpc_err(err: impl std::fmt::Display) -> JsValue {
-  JsValue::from_str(&err.to_string())
+fn rpc_err(err: jsonrpsee::core::ClientError) -> JsValue {
+  let message = err.to_string();
+  let code = match &err {
+    jsonrpsee::core::ClientError::Call(obj) => Some(obj.code()),
+    _ => None,
+  };
+
+  let js_err = js_sys::Error::new(&message);
+  if let Some(code) = code {
+    let _ = js_sys::Reflect::set(&js_err, &"code".into(), &JsValue::from(code));
+  }
+  js_err.into()
 }

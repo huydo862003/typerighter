@@ -1,6 +1,8 @@
-import type {
-  RpcClient,
-  TdBuiltResource, TdDiagnosticReport, TdFormatResult, TdSiteConfig, TdSchemaInfo,
+import {
+  RPC_CANCELLED_CODE,
+  type RpcClient,
+  type TdBuiltResource, type TdDiagnosticReport, type TdFormatResult, type TdSiteConfig,
+  type TdSchemaInfo,
 } from '@typerighter/rpc-client';
 import {
   createMarkdownRenderer, type MarkdownRenderer,
@@ -100,11 +102,11 @@ export class TypedownContext {
   /* File operations */
 
   async getFile (filepath: string): Promise<TdBuiltResource> {
-    return this.rpc.requestFile(filepath);
+    return withRetry(() => this.rpc.requestFile(filepath));
   }
 
   async getFiles (paths: string[]): Promise<TdBuiltResource[]> {
-    const results = await this.rpc.requestFiles(paths);
+    const results = await withRetry(() => this.rpc.requestFiles(paths));
 
     for (const [
       index,
@@ -119,7 +121,7 @@ export class TypedownContext {
   async listFiles (): Promise<string[]> {
     if (this.cachedFiles) return this.cachedFiles;
 
-    this.cachedFiles = await this.rpc.listVault();
+    this.cachedFiles = await withRetry(() => this.rpc.listVault());
 
     return this.cachedFiles;
   }
@@ -127,7 +129,7 @@ export class TypedownContext {
   async listFilesGroupedBySchema (): Promise<SchemaGroups> {
     if (this.cachedFilesGroupedBySchema) return this.cachedFilesGroupedBySchema;
 
-    const raw = await this.rpc.listFilesGroupedBySchema();
+    const raw = await withRetry(() => this.rpc.listFilesGroupedBySchema());
     // serde_wasm_bindgen converts HashMap to a JS Map, convert to plain object
     const result: SchemaGroups = raw instanceof Map
       ? Object.fromEntries(raw)
@@ -152,7 +154,7 @@ export class TypedownContext {
   async getConfig (): Promise<TdSiteConfig> {
     if (this.cachedConfig) return this.cachedConfig;
 
-    this.cachedConfig = await this.rpc.getConfig();
+    this.cachedConfig = await withRetry(() => this.rpc.getConfig());
 
     return this.cachedConfig;
   }
@@ -162,7 +164,7 @@ export class TypedownContext {
 
     if (cached) return cached;
 
-    const result = await this.rpc.getSchema(schema);
+    const result = await withRetry(() => this.rpc.getSchema(schema));
 
     this.cachedSchemaMap.set(schema, result);
 
@@ -172,20 +174,42 @@ export class TypedownContext {
   async listSchemas (): Promise<string[]> {
     if (this.cachedSchemas) return this.cachedSchemas;
 
-    this.cachedSchemas = await this.rpc.listSchemas();
+    this.cachedSchemas = await withRetry(() => this.rpc.listSchemas());
 
     return this.cachedSchemas;
   }
 
   async checkVault (): Promise<TdDiagnosticReport> {
-    return this.rpc.checkVault();
+    return withRetry(() => this.rpc.checkVault());
   }
 
   async formatFile (filepath: string): Promise<TdFormatResult> {
-    return this.rpc.formatFile(filepath);
+    return withRetry(() => this.rpc.formatFile(filepath));
   }
 
   get md (): MarkdownRenderer {
     return this._md;
   }
+}
+
+function isRpcCancelled (error: unknown): boolean {
+  if (error instanceof Error && 'code' in error) {
+    return (error as Error & {
+      code: number;
+    }).code === RPC_CANCELLED_CODE();
+  }
+
+  return false;
+}
+
+async function withRetry<T> (fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: unknown) {
+      if (!isRpcCancelled(error) || attempt === retries - 1) throw error;
+    }
+  }
+
+  throw new Error('unreachable');
 }

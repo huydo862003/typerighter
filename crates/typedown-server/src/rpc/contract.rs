@@ -14,6 +14,10 @@ use jsonrpsee::{
   IntoSubscriptionCloseResponse, SubscriptionCloseResponse, core::to_json_raw_value,
 };
 
+/// Server-defined JSON-RPC error code for query cancellation
+/// NOTE: -32000 to -32099 are server-reserved in JSON-RPC
+pub const CANCELLED_ERROR_CODE: i32 = -32002;
+
 /// On native: generates both TdBuildRpcServer and TdBuildRpcClient traits
 #[cfg_attr(
   not(target_arch = "wasm32"),

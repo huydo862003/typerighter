@@ -1,11 +1,22 @@
 use std::path::{Path, PathBuf};
 
 use jsonrpsee::server::Server;
+use typedown_incremental::Cancelled;
 use typedown_server::rpc::contract::TdBuildRpcServer;
 use typedown_server::rpc::server::RpcServer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+  // Cancelled panics are expected control flow in the incremental query engine
+  // Suppress them so they don't print "Box<dyn Any>" to stderr
+  let default_hook = std::panic::take_hook();
+  std::panic::set_hook(Box::new(move |info| {
+    if info.payload().downcast_ref::<Cancelled>().is_some() {
+      return;
+    }
+    default_hook(info);
+  }));
+
   let start = std::env::var("TYPEDOWN_RPC_ROOT")
     .map(PathBuf::from)
     .unwrap_or_else(|_| std::env::current_dir().expect("failed to get current directory"));

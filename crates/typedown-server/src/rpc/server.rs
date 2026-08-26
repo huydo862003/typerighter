@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
+use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ropey::Rope;
@@ -37,9 +37,9 @@ use crate::core::analysis_host::AnalysisHost;
 use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
-  TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary, TdDiagnosticItem,
-  TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdRpcSubscriptionCloseResponse,
-  TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
+  CANCELLED_ERROR_CODE, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult,
+  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -121,6 +121,13 @@ impl RpcServer {
     let db = TypedownDatabase { storage };
     let host = AnalysisHost::new(db, root_dir.clone())?;
 
+    // Resolve the vault root so the watcher only monitors vault files
+    let vault_root = {
+      let snapshot = host.snapshot();
+      let config = get_vault_config(&snapshot.db, snapshot.project);
+      config.root_dir(&snapshot.db)
+    };
+
     let (content_changed_tx, _) = broadcast::channel(64);
     let (content_created_tx, _) = broadcast::channel(64);
     let (content_deleted_tx, _) = broadcast::channel(64);
@@ -130,7 +137,7 @@ impl RpcServer {
     let (config_changed_tx, _) = broadcast::channel(64);
 
     let (fs_tx, fs_rx) = tokio::sync::mpsc::unbounded_channel();
-    let _watcher = Self::setup_watcher(&root_dir, fs_tx)?;
+    let _watcher = Self::setup_watcher(&root_dir, &vault_root, fs_tx)?;
 
     let host = Arc::new(tokio::sync::RwLock::new(host));
     let events = Arc::new(FsEventBus {
@@ -152,12 +159,19 @@ impl RpcServer {
   /// Set up the file watcher
   fn setup_watcher(
     root_dir: &Path,
+    vault_root: &Path,
     fs_tx: tokio::sync::mpsc::UnboundedSender<FsEvent>,
   ) -> anyhow::Result<RecommendedWatcher> {
+    let vault_root = vault_root.to_path_buf();
     let mut watcher = notify::recommended_watcher(move |result: Result<Event, notify::Error>| {
       let Ok(event) = result else { return };
       for path in &event.paths {
-        if !is_content_file(path) && !is_asset_file(path) && !is_vault_config(path) {
+        // Only watch vault config at project root and content/assets inside the vault
+        if is_vault_config(path) {
+          // Accept config file changes regardless of location
+        } else if path.starts_with(&vault_root) && (is_content_file(path) || is_asset_file(path)) {
+          // Accept vault content and asset changes
+        } else {
           continue;
         }
         let kind = match event.kind {
@@ -652,7 +666,7 @@ fn catch_cancelled<T>(f: impl FnOnce() -> RpcResult<T>) -> RpcResult<T> {
   match Cancelled::catch(f) {
     Ok(result) => result,
     Err(_) => Err(ErrorObjectOwned::owned(
-      INTERNAL_ERROR_CODE,
+      CANCELLED_ERROR_CODE,
       "Request cancelled: content modified",
       None::<()>,
     )),
