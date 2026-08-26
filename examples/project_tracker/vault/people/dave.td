@@ -1,9 +1,9 @@
 ---
 _type: Contractor
-name: Dave Chen
+name: "Dave Chen"
 role: "developer"
 rate: 120
-agency: Freelance
+agency: "Freelance"
 tags: ["rust", "systems"]
 ---
 
