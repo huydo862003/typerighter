@@ -16,6 +16,11 @@
 (primitive_type) @type.builtin
 (list_type "list" @type.builtin)
 (dict_type "dict" @type.builtin)
+
+; Primitive type names in expression context (e.g. string? parsed as postfix_expression)
+((identifier) @type.builtin
+  (#any-of? @type.builtin "string" "number" "boolean" "date" "time" "datetime")
+  (#set! priority 101))
 (fixed_key_dict_type) @type
 (union_type) @type
 ((fixed_key_entry key: (identifier) @keyword)

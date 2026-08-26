@@ -16,6 +16,11 @@
 (primitive_type) @type
 (list_type "list" @type)
 (dict_type "dict" @type)
+
+; Primitive type names in expression context (e.g. string? parsed as postfix_expression)
+((identifier) @type
+  (#any-of? @type "string" "number" "boolean" "date" "time" "datetime")
+  (#set! priority 101))
 (fixed_key_dict_type) @type
 (union_type) @type
 ((fixed_key_entry key: (identifier) @keyword)

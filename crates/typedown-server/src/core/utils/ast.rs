@@ -50,14 +50,21 @@ pub fn ident_is_type_ref(node: &RedNode) -> bool {
   if parent.kind() != SyntaxKind::IdentLit {
     return false;
   }
-  // Check if the IdentLit sits inside a YamlMappingEntryValue whose key is `_type`.
-  let Some(entry_value) = parent.parent() else {
-    return false;
-  };
-  if entry_value.kind() != SyntaxKind::YamlMappingEntryValue {
-    // Could be a CallExpr argument or similar, treat as variable.
+  // Walk up through wrapping expression nodes (e.g. PostfixExpr for string?)
+  let mut ancestor = parent.parent();
+  while let Some(ref n) = ancestor {
+    if n.kind() == SyntaxKind::YamlMappingEntryValue {
+      break;
+    }
+    if n.kind() == SyntaxKind::PostfixExpr {
+      ancestor = n.parent();
+      continue;
+    }
     return false;
   }
+  let Some(entry_value) = ancestor else {
+    return false;
+  };
   let Some(entry) = entry_value.parent() else {
     return false;
   };

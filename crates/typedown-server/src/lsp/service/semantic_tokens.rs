@@ -198,6 +198,30 @@ properties:
     );
   }
 
+  // string? should highlight "string" as a TYPE token via the postfix expression
+  #[test]
+  fn schema_property_postfix_optional_type_highlighted() {
+    let types = parse_tokens(
+      r#"---
+_type: schema
+properties:
+  email:
+    type: string?
+  due:
+    type: date?
+---
+"#,
+    );
+    let type_count = types
+      .iter()
+      .filter(|t| **t == SemanticTokenType::TYPE)
+      .count();
+    assert_eq!(
+      type_count, 3,
+      "expected 3 TYPE tokens (schema, string, date), got: {type_count}"
+    );
+  }
+
   #[test]
   fn non_type_identifiers_not_emitted() {
     let types = parse_tokens(
