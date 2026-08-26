@@ -144,7 +144,7 @@ pub(crate) fn construct_from_hir(
       .map(|(k, v)| (k, Either::Left(v)))
       .collect();
     let product_type = type_result.typ(db).unwrap();
-    return Some(TdProductObj::new(db, product_type, fields).into());
+    return Some(TdProductObj::new(db, product_type, None, fields).into());
   }
 
   // Normal construction: convert HIR to args, then call construct
@@ -434,7 +434,7 @@ fn evaluate_mapping(
       }
       fields.insert(key, Either::Left(val_hir));
     }
-    return Some(TdProductObj::new(db, (*product_typ).into(), fields).into());
+    return Some(TdProductObj::new(db, (*product_typ).into(), None, fields).into());
   }
 
   let dict_entries: HashMap<_, _> = entries

@@ -4,7 +4,6 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::derived::get_builtin_types::get_schemaless_type;
 use crate::db::types::{
   ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj, TdSchemaObj,
 };
@@ -43,19 +42,8 @@ pub fn evaluate_resource(db: &TypedownDatabase, symbol: Symbol) -> ResourceResul
       Some(TdSchemaObj::new(db, obj.schema(db), Some(symbol), obj.fields(db)).into())
     }
     Some(TdObjectEnum::TdProductObj(obj)) => {
-      if is_schemaless {
-        Some(
-          TdSchemaObj::new(
-            db,
-            get_schemaless_type(db).into(),
-            Some(symbol),
-            obj.fields(db),
-          )
-          .into(),
-        )
-      } else {
-        Some(TdProductObj::new(db, obj.product_type(db), obj.fields(db)).into())
-      }
+      let file_sym = if is_schemaless { Some(symbol) } else { None };
+      Some(TdProductObj::new(db, obj.product_type(db), file_sym, obj.fields(db)).into())
     }
     other => other,
   };

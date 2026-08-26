@@ -122,6 +122,16 @@ fn serialize(
     }
 
     TdObjectEnum::TdProductObj(product) => {
+      // Resolve references to other files as project relative paths
+      if should_serialize_as_fref
+        && let Some(symbol) = product.file_symbol(db)
+        && let Some(resolved) = resolve_ref(db, project, &symbol)
+      {
+        return Ok(serde_json::json!({
+          "$ref": { "url": resolved.url, "name": resolved.name }
+        }));
+      }
+
       let id = product.as_id();
       if !visiting.insert(id) {
         return Err(CircularRef);
@@ -388,13 +398,13 @@ mod tests {
     let _product_type: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
     let str_type: TdTypeEnum = TdStrType::get(&db).into();
     let num_type: TdTypeEnum = TdNumType::get(&db).into();
-    let inner = TdProductObj::new(&db, str_type, HashMap::new());
+    let inner = TdProductObj::new(&db, str_type, None, HashMap::new());
     let mut fields = HashMap::new();
     fields.insert(
       "inner".to_string(),
       Either::Right(TdObjectEnum::from(inner)),
     );
-    let outer = TdProductObj::new(&db, num_type, fields);
+    let outer = TdProductObj::new(&db, num_type, None, fields);
 
     let result = to_json(&db, project, &TdObjectEnum::from(outer));
     assert!(result.is_ok(), "non-cyclic nested product should serialize");

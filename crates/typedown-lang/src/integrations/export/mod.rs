@@ -8,7 +8,6 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
-use crate::db::derived::get_builtin_types::get_schemaless_type;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -69,22 +68,12 @@ pub fn export_resource(
     });
   }
 
-  let (schema_type, header_obj) = if let Some(schema_obj) = obj.as_td_schema_obj() {
-    (schema_obj.schema(db), obj.clone())
-  } else if let Some(product) = obj.as_td_product_obj() {
-    (product.product_type(db), obj.clone())
-  } else if obj.as_td_dict_obj().is_some() {
-    // Schemaless files may evaluate to a DictObj
-    (get_schemaless_type(db).into(), obj.clone())
-  } else {
-    return None;
-  };
-  let _ = &header_obj; // suppress unused warning
-  let schemaless: TdTypeEnum = get_schemaless_type(db).into();
-  let schema = if schema_type == schemaless {
+  let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
+    Some(schema_obj.schema(db).display_name(db))
+  } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
     None
   } else {
-    Some(schema_type.display_name(db))
+    return None;
   };
   let mut header = json::to_json(db, project, &obj).unwrap_or_default();
   // _content is available in ExportedResource.content, not the header

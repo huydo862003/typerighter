@@ -3,13 +3,13 @@
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, LazyType, LiteralValue, Symbol, SymbolKind, TdBlobType,
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdListType,
   TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
-  TdSchemaMetaType, TdSchemaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
+  TdSchemaMetaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -82,18 +82,6 @@ pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
 #[query_derived]
 pub fn get_schema_meta_type(db: &TypedownDatabase) -> TdSchemaMetaType {
   TdSchemaMetaType::new(db)
-}
-
-// A schema with no declared fields, used for typeless resources
-#[query_derived]
-pub fn get_schemaless_type(db: &TypedownDatabase) -> TdSchemaType {
-  TdSchemaType::new(
-    db,
-    "schemaless".to_string(),
-    HashMap::new(),
-    HashMap::new(),
-    None,
-  )
 }
 
 pub fn get_type_type_symbol(db: &TypedownDatabase) -> Symbol {

@@ -2,11 +2,11 @@
 // I think this is the idea of bidirectional typechecking
 
 use crate::db::TypedownDatabase;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
-  get_bool_type, get_func_type, get_num_type, get_schemaless_type, get_sum_type,
+  get_bool_type, get_func_type, get_num_type, get_sum_type,
 };
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
@@ -14,8 +14,8 @@ use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
-  File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdTypeEnum,
-  TypeResult,
+  File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdProductType,
+  TdTypeEnum, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
 use crate::syntax::ast::{
@@ -495,7 +495,11 @@ fn traverse_index(db: &TypedownDatabase, lazy: &LazyType) -> Option<LazyType> {
 }
 
 fn simple_schemaless_result(db: &TypedownDatabase) -> TypeResult {
-  TypeResult::new(db, Some(get_schemaless_type(db).into()), vec![])
+  TypeResult::new(
+    db,
+    Some(TdProductType::new(db, None, HashMap::new()).into()),
+    vec![],
+  )
 }
 
 #[cfg(test)]
@@ -567,7 +571,7 @@ mod tests {
   }
 
   #[test]
-  fn expected_node_type_no_frontmatter_returns_schemaless() {
+  fn expected_node_type_no_frontmatter_returns_product() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "no_frontmatter.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("no_frontmatter.td should produce HIR");
@@ -576,10 +580,9 @@ mod tests {
     let typ = result
       .typ(&db)
       .expect("schemaless file should return a type");
-    assert_eq!(
-      typ.display_name(&db),
-      "schemaless",
-      "schemaless type should be the schemaless schema"
+    assert!(
+      typ.is_td_product_type(),
+      "schemaless file should return a product type"
     );
   }
 

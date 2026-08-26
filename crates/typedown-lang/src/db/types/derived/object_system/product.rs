@@ -12,7 +12,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_object_type;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
-use crate::db::types::{HirValue, LazyType};
+use crate::db::types::{HirValue, LazyType, Symbol};
 use crate::db::utils::static_type::format_field_map;
 use typedown_types::either::Either;
 
@@ -93,6 +93,7 @@ impl TdStaticType for TdProductType {
 #[query_derived]
 pub struct TdProductObj {
   pub product_type: TdTypeEnum,
+  pub file_symbol: Option<Symbol>,
   pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
 
