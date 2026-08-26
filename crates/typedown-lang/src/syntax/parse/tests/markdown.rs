@@ -1596,6 +1596,131 @@ fn parse_link_simple() {
   );
 }
 
+// Special characters in link URL are preserved as plain text
+#[test]
+fn parse_link_url_with_special_chars() {
+  let tree = parse_body(
+    r#"[text](https://example.com/path_with_underscore?q=a&b=c)
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdLink
+        "["
+        (MdText
+          "text")
+        "]"
+        "("
+        (MdText
+          "https"
+          ":"
+          "//"
+          "example"
+          "."
+          "com"
+          "/"
+          "path"
+          "_"
+          "with"
+          "_"
+          "underscore?q"
+          "="
+          "a"
+          "&"
+          "b"
+          "="
+          "c")
+        ")"))
+    "\n"))"####
+  );
+}
+
+// Backslash in link URL should not be treated as escape sequence
+#[test]
+fn parse_link_url_with_backslash() {
+  let tree = parse_body("[text](https://example.com/path\\file)\n");
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdLink
+        "["
+        (MdText
+          "text")
+        "]"
+        "("
+        (MdText
+          "https"
+          ":"
+          "//"
+          "example"
+          "."
+          "com"
+          "/"
+          "path"
+          "\\"
+          "file")
+        ")"))
+    "\n"))"####
+  );
+}
+
+// Asterisks in link URL should not trigger bold/italic
+#[test]
+fn parse_link_url_with_asterisks() {
+  let tree = parse_body("[text](https://example.com/*glob*)\n");
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdLink
+        "["
+        (MdText
+          "text")
+        "]"
+        "("
+        (MdText
+          "https"
+          ":"
+          "//"
+          "example"
+          "."
+          "com"
+          "/"
+          "*"
+          "glob"
+          "*")
+        ")"))
+    "\n"))"####
+  );
+}
+
 // Parses a media embed
 #[test]
 fn parse_media_simple() {
