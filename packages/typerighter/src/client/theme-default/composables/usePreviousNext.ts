@@ -26,7 +26,7 @@ export function usePreviousNext (): {
   } = useSiteConfig();
 
   const result = computed(() => {
-    const siblings = findSiblings(siteData.contentTree, route.path);
+    const siblings = findSiblings(siteData.value.contentTree, route.path);
 
     if (siblings === undefined) return {};
 

@@ -64,7 +64,7 @@ export interface TypedownSiteData {
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
 
 const siteConfigSymbol: InjectionKey<TypedownSiteConfig> = Symbol('typedown-site-config');
-const siteDataSymbol: InjectionKey<TypedownSiteData> = Symbol('typedown-site-data');
+const siteDataSymbol: InjectionKey<ShallowRef<TypedownSiteData>> = Symbol('typedown-site-data');
 const pageLoaderSymbol: InjectionKey<PageLoader> = Symbol('typedown-page-loader');
 const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol('typedown-search-index');
 
@@ -77,6 +77,7 @@ export async function createTypedownApp (
   app: App;
   router: Router;
   searchIndex: ShallowRef<string | undefined>;
+  siteData: ShallowRef<TypedownSiteData>;
 }> {
   const siteConfig: TypedownSiteConfig = {
     title: config.title ?? '',
@@ -85,14 +86,14 @@ export async function createTypedownApp (
     repo: config.repo,
   };
 
-  const siteData: TypedownSiteData = {
+  const siteData = shallowRef<TypedownSiteData>({
     contentTree: data.contentTree ?? {
       rootItems: [],
       children: [],
     },
     schemas: data.schemas ?? {},
     directoryListings: data.directoryListings ?? {},
-  };
+  });
 
   const router = createRouter(loadPageModule, {
     basePath: siteConfig.basePath,
@@ -136,6 +137,7 @@ export async function createTypedownApp (
     app,
     router,
     searchIndex,
+    siteData,
   };
 }
 
@@ -166,13 +168,15 @@ export function useSiteConfig () {
   };
 }
 
-export function useSiteData (): TypedownSiteData {
-  return inject(siteDataSymbol, {
-    contentTree: {
-      rootItems: [],
-      children: [],
-    },
-    schemas: {},
-    directoryListings: {},
-  });
+const defaultSiteData = shallowRef<TypedownSiteData>({
+  contentTree: {
+    rootItems: [],
+    children: [],
+  },
+  schemas: {},
+  directoryListings: {},
+});
+
+export function useSiteData (): ShallowRef<TypedownSiteData> {
+  return inject(siteDataSymbol, defaultSiteData);
 }

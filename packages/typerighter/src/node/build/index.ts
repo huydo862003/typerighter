@@ -84,8 +84,6 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
       repo: config.repo,
-      contentTree,
-      schemas,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
       rootDir: config.rootDir,

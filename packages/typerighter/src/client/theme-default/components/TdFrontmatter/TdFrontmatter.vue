@@ -35,7 +35,7 @@ const siteData = useSiteData();
 const schemaDefinition = computed((): SchemaDefinition | undefined => {
   if (!schema) return undefined;
 
-  return siteData.schemas[schema];
+  return siteData.value.schemas[schema];
 });
 
 const entries = computed(() => {

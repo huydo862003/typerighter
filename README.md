@@ -155,6 +155,35 @@ Two problems:
 - **Race condition**: Vite's watcher fires before Rust finishes re-indexing, so we suppress `handleHotUpdate` for `.td` files and let the Rust RPC events (`onContentChanged`, etc.) drive invalidation instead.
 - **Client-side hot reload**: `.td` files become Vue SFCs, so Vue's HMR runtime handles `import.meta.hot.accept()` automatically. No full page reload needed.
 
+#### Making data hot-reloadable
+
+The general idea: every piece of dynamic data lives in its own virtual module. The app entry imports each one and accepts HMR updates. When data changes on the server side, we invalidate the virtual module and push an HMR update. The client swaps in the new data without a full page reload.
+
+On the client side, the app entry wires them up:
+
+```js
+import { pages as initialPages } from '@typedown/pages';
+import initialSiteData from '@typedown/site-data';
+import searchIndex from '@typedown/search-index';
+
+let pages = initialPages;
+// siteData and searchIndex are shallowRefs, set up in createTypedownApp
+
+if (import.meta.hot) {
+  import.meta.hot.accept('@typedown/pages', (m) => { pages = m.pages; });
+  import.meta.hot.accept('@typedown/site-data', (m) => { siteData.value = m.default; });
+  import.meta.hot.accept('@typedown/search-index', (m) => { searchIndexRef.value = m.default; });
+}
+```
+
+Things to avoid:
+
+1. **Don't inline data as JSON in the app entry**: It becomes part of the module. The only way to update it is to invalidate the entire app module, which forces a full page reload.
+2. **Don't use `const` for data that needs HMR**: Closures capture the variable binding, not the value. With `let`, reassigning in the HMR handler means all closures that reference the variable see the new value on next call.
+3. **Don't put `import.meta.glob` in the app entry**: The glob is evaluated when Vite transforms the module. Invalidating the app module to re-scan the glob forces a full reload. Put it in a separate virtual module instead.
+4. **Don't `provide()` a plain object**: Vue cannot track mutations on a plain object passed through `provide`/`inject`. Use a `shallowRef` so that assigning `.value` triggers reactivity in all consumers.
+5. **Don't use full reloads for data changes**: Reserve full reloads for structural changes that affect the app bootstrap itself (e.g. config changes that alter `basePath`).
+
 ### Parameterized Types vs Universal Types
 
 These are different things despite both involving type parameters:

@@ -20,7 +20,7 @@ const {
 
 const listing = computed(() => {
   const path = getParentUrl(route.path);
-  const directory = siteData.directoryListings[path];
+  const directory = siteData.value.directoryListings[path];
 
   return {
     url: path,

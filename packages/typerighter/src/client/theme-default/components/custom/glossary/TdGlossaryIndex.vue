@@ -37,7 +37,7 @@ const filterQuery = ref('');
 
 const allItems = computed((): DirectoryEntry[] => {
   const path = getParentUrl(route.path);
-  const directory = siteData.directoryListings[path];
+  const directory = siteData.value.directoryListings[path];
 
   return directory?.items ?? [];
 });

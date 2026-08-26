@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::types::error::INVALID_PARAMS_CODE;
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ropey::Rope;
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::{Duration, sleep};
-use typedown_incremental::QueryStorage;
+use typedown_incremental::{Cancelled, QueryStorage};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
@@ -215,47 +215,52 @@ impl RpcServer {
         let analysis = host_guard.snapshot();
         drop(host_guard);
 
-        let db = &analysis.db;
-        let project = analysis.project;
-        let config = get_vault_config(db, project);
-        let root_dir = config.root_dir(db);
+        // If a concurrent write cancels these queries, skip and let the next batch retry
+        let Ok(()) = Cancelled::catch(|| {
+          let db = &analysis.db;
+          let project = analysis.project;
+          let config = get_vault_config(db, project);
+          let root_dir = config.root_dir(db);
 
-        // Notify subscribers if any pending event is a config file change
-        if pending.values().any(|event| is_vault_config(&event.path)) {
-          let _ = events
-            .config_changed_tx
-            .send(build_site_config(db, project));
-        }
-
-        for event in pending.into_values() {
-          if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
-            let notification = TdContentNotification {
-              content: event.path.to_string_lossy().into_owned(),
-            };
-            let sender = match event.kind {
-              FsEventKind::Created => &events.content_created_tx,
-              FsEventKind::Modified => &events.content_changed_tx,
-              FsEventKind::Removed => &events.content_deleted_tx,
-            };
-            let _ = sender.send(notification);
-          } else if is_type_file(&event.path) {
-            let Some(name) = event
-              .path
-              .file_stem()
-              .and_then(|s| s.to_str())
-              .map(str::to_string)
-            else {
-              continue;
-            };
-            let notification = TdSchemaNotification { schema: name };
-            let sender = match event.kind {
-              FsEventKind::Created => &events.schema_created_tx,
-              FsEventKind::Modified => &events.schema_changed_tx,
-              FsEventKind::Removed => &events.schema_deleted_tx,
-            };
-            let _ = sender.send(notification);
+          // Notify subscribers if any pending event is a config file change
+          if pending.values().any(|event| is_vault_config(&event.path)) {
+            let _ = events
+              .config_changed_tx
+              .send(build_site_config(db, project));
           }
-        }
+
+          for event in pending.into_values() {
+            if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
+              let relative =
+                normalize_path(event.path.strip_prefix(&root_dir).unwrap_or(&event.path));
+              let notification = TdContentNotification { content: relative };
+              let sender = match event.kind {
+                FsEventKind::Created => &events.content_created_tx,
+                FsEventKind::Modified => &events.content_changed_tx,
+                FsEventKind::Removed => &events.content_deleted_tx,
+              };
+              let _ = sender.send(notification);
+            } else if is_type_file(&event.path) {
+              let Some(name) = event
+                .path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .map(str::to_string)
+              else {
+                continue;
+              };
+              let notification = TdSchemaNotification { schema: name };
+              let sender = match event.kind {
+                FsEventKind::Created => &events.schema_created_tx,
+                FsEventKind::Modified => &events.schema_changed_tx,
+                FsEventKind::Removed => &events.schema_deleted_tx,
+              };
+              let _ = sender.send(notification);
+            }
+          }
+        }) else {
+          continue;
+        };
       }
     });
   }
@@ -269,176 +274,8 @@ impl RpcServer {
 
   async fn build_files_impl(&self, file_paths: &[TdFilePath]) -> RpcResult<Vec<TdBuiltResource>> {
     let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
-
-    let config = get_vault_config(db, project);
-    let root_dir = config.root_dir(db);
-    let files = project.files(db);
-
-    let mut results = Vec::with_capacity(file_paths.len());
-    for file_path in file_paths {
-      let path = root_dir.join(&file_path.0);
-      let file = files.get(&path).ok_or_else(|| {
-        ErrorObjectOwned::owned(
-          INVALID_PARAMS_CODE,
-          format!("File not found: {}", file_path.0),
-          None::<()>,
-        )
-      })?;
-
-      let exported = export_resource(db, project, *file).ok_or_else(|| {
-        ErrorObjectOwned::owned(
-          INVALID_PARAMS_CODE,
-          format!("File is not a resource: {}", file_path.0),
-          None::<()>,
-        )
-      })?;
-
-      results.push(TdBuiltResource {
-        schema: exported.schema,
-        header: exported.header,
-        content: exported.content,
-        metadata: TdFileMetadata {
-          mtime: exported.metadata.mtime,
-          ctime: exported.metadata.ctime,
-        },
-      });
-    }
-
-    Ok(results)
-  }
-
-  async fn list_vault_impl(&self) -> RpcResult<Vec<String>> {
-    let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
-
-    let config = get_vault_config(db, project);
-    let root_dir = config.root_dir(db);
-    let files = project.files(db);
-
-    let mut result = Vec::new();
-    for path in files.keys() {
-      if !path.starts_with(&root_dir) {
-        continue;
-      }
-      if !is_content_file(path) || is_internal_file(path) {
-        continue;
-      }
-      let rel = path.strip_prefix(&root_dir).unwrap_or(path);
-      result.push(normalize_path(rel));
-    }
-
-    Ok(result)
-  }
-
-  async fn list_files_grouped_by_schema_impl(
-    &self,
-  ) -> RpcResult<HashMap<String, Vec<TdContentSummary>>> {
-    let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
-
-    let config = get_vault_config(db, project);
-    let root_dir = config.root_dir(db);
-    let files = project.files(db);
-
-    let mut groups: HashMap<String, Vec<TdContentSummary>> = HashMap::new();
-    for (path, file) in files.iter() {
-      if !path.starts_with(&root_dir) {
-        continue;
-      }
-      if !is_content_file(path) || is_internal_file(path) {
-        continue;
-      }
-      let rel = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-      if let Some(exported) = export_resource(db, project, *file) {
-        let group_key = exported.schema.clone().unwrap_or_default();
-        let excerpt = extract_excerpt(&exported.content);
-        groups.entry(group_key).or_default().push(TdContentSummary {
-          filepath: rel,
-          schema: exported.schema,
-          header: exported.header,
-          excerpt,
-          metadata: TdFileMetadata {
-            mtime: exported.metadata.mtime,
-            ctime: exported.metadata.ctime,
-          },
-        });
-      }
-    }
-
-    Ok(groups)
-  }
-
-  async fn get_config_impl(&self) -> RpcResult<TdSiteConfig> {
-    let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
-
-    Ok(build_site_config(db, project))
-  }
-
-  async fn list_schemas_impl(&self) -> RpcResult<Vec<String>> {
-    let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
-
-    let config = get_vault_config(db, project);
-    let root_dir = config.root_dir(db);
-    let files = project.files(db);
-
-    let mut schemas = Vec::new();
-    for (path, file) in &files {
-      if !path.starts_with(&root_dir) || !is_type_file(path) {
-        continue;
-      }
-      let Some(symbol) = file_symbol(db, project, *file).value(db) else {
-        continue;
-      };
-      if !matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
-        continue;
-      }
-      schemas.push(symbol.name(db).to_string());
-    }
-
-    Ok(schemas)
-  }
-
-  async fn get_schema_impl(&self, schema: &str) -> RpcResult<TdSchemaInfo> {
-    let analysis = self.host.read().await.snapshot();
-    let db = &analysis.db;
-    let project = analysis.project;
-
-    let schema_members = schema_members(db, project);
-    let sym = schema_members
-      .members(db)
-      .get(schema)
-      .copied()
-      .ok_or_else(|| {
-        ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Schema not found", None::<()>)
-      })?;
-    let SymbolKind::UserDefinedSchema(_, file) = sym.kind(db) else {
-      return Err(ErrorObjectOwned::owned(
-        INVALID_PARAMS_CODE,
-        "Schema not found",
-        None::<()>,
-      ));
-    };
-
-    let properties = export_property_descriptors(db, project, file)
-      .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
-
-    Ok(TdSchemaInfo {
-      schema: schema.to_string(),
-      properties,
-    })
-  }
-
-  async fn check_vault_impl(&self) -> RpcResult<TdDiagnosticReport> {
-    let analysis = self.host.read().await.snapshot();
-    tokio::task::block_in_place(|| {
+    let file_paths: Vec<_> = file_paths.iter().map(|fp| fp.0.clone()).collect();
+    catch_cancelled(move || {
       let db = &analysis.db;
       let project = analysis.project;
 
@@ -446,57 +283,238 @@ impl RpcServer {
       let root_dir = config.root_dir(db);
       let files = project.files(db);
 
-      let mut all_diagnostics = Vec::new();
-      let mut file_count: u32 = 0;
+      let mut results = Vec::with_capacity(file_paths.len());
+      for file_path in &file_paths {
+        let path = root_dir.join(file_path);
+        let file = files.get(&path).ok_or_else(|| {
+          ErrorObjectOwned::owned(
+            INVALID_PARAMS_CODE,
+            format!("File not found: {file_path}"),
+            None::<()>,
+          )
+        })?;
 
-      for (path, &file) in &files {
-        if !path.starts_with(&root_dir) || !is_content_file(path) || is_type_file(path) {
-          continue;
-        }
-        file_count += 1;
+        let exported = export_resource(db, project, *file).ok_or_else(|| {
+          ErrorObjectOwned::owned(
+            INVALID_PARAMS_CODE,
+            format!("File is not a resource: {file_path}"),
+            None::<()>,
+          )
+        })?;
 
-        let rel_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-        let rope = match analysis.file_rope(path) {
-          Some(r) => r,
-          None => continue,
-        };
-
-        let items = collect_file_diagnostics(db, project, file, &rel_path, &rope);
-        all_diagnostics.extend(items);
-      }
-
-      // Check for duplicate schema files
-      let schema_check = check_schemas(db, project);
-      for diag in schema_check.diagnostics(db) {
-        let filepath = if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
-          path.clone()
-        } else {
-          String::new()
-        };
-        all_diagnostics.push(TdDiagnosticItem {
-          filepath,
-          line: 0,
-          column: 0,
-          severity: "error".to_string(),
-          code: diag.code().as_str().to_string(),
-          message: diag.message(),
+        results.push(TdBuiltResource {
+          schema: exported.schema,
+          header: exported.header,
+          content: exported.content,
+          metadata: TdFileMetadata {
+            mtime: exported.metadata.mtime,
+            ctime: exported.metadata.ctime,
+          },
         });
       }
 
-      let error_count = all_diagnostics
-        .iter()
-        .filter(|d| d.severity == "error")
-        .count() as u32;
-      let warning_count = all_diagnostics
-        .iter()
-        .filter(|d| d.severity == "warning")
-        .count() as u32;
+      Ok(results)
+    })
+  }
 
-      Ok(TdDiagnosticReport {
-        diagnostics: all_diagnostics,
-        file_count,
-        error_count,
-        warning_count,
+  async fn list_vault_impl(&self) -> RpcResult<Vec<String>> {
+    let analysis = self.host.read().await.snapshot();
+    catch_cancelled(move || {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let config = get_vault_config(db, project);
+      let root_dir = config.root_dir(db);
+      let files = project.files(db);
+
+      let mut result = Vec::new();
+      for path in files.keys() {
+        if !path.starts_with(&root_dir) {
+          continue;
+        }
+        if !is_content_file(path) || is_internal_file(path) {
+          continue;
+        }
+        let relative = path.strip_prefix(&root_dir).unwrap_or(path);
+        result.push(normalize_path(relative));
+      }
+
+      Ok(result)
+    })
+  }
+
+  async fn list_files_grouped_by_schema_impl(
+    &self,
+  ) -> RpcResult<HashMap<String, Vec<TdContentSummary>>> {
+    let analysis = self.host.read().await.snapshot();
+    catch_cancelled(move || {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let config = get_vault_config(db, project);
+      let root_dir = config.root_dir(db);
+      let files = project.files(db);
+
+      let mut groups: HashMap<String, Vec<TdContentSummary>> = HashMap::new();
+      for (path, file) in files.iter() {
+        if !path.starts_with(&root_dir) {
+          continue;
+        }
+        if !is_content_file(path) || is_internal_file(path) {
+          continue;
+        }
+        let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+        if let Some(exported) = export_resource(db, project, *file) {
+          let group_key = exported.schema.clone().unwrap_or_default();
+          let excerpt = extract_excerpt(&exported.content);
+          groups.entry(group_key).or_default().push(TdContentSummary {
+            filepath: relative,
+            schema: exported.schema,
+            header: exported.header,
+            excerpt,
+            metadata: TdFileMetadata {
+              mtime: exported.metadata.mtime,
+              ctime: exported.metadata.ctime,
+            },
+          });
+        }
+      }
+
+      Ok(groups)
+    })
+  }
+
+  async fn get_config_impl(&self) -> RpcResult<TdSiteConfig> {
+    let analysis = self.host.read().await.snapshot();
+    catch_cancelled(move || {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      Ok(build_site_config(db, project))
+    })
+  }
+
+  async fn list_schemas_impl(&self) -> RpcResult<Vec<String>> {
+    let analysis = self.host.read().await.snapshot();
+    catch_cancelled(move || {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let config = get_vault_config(db, project);
+      let root_dir = config.root_dir(db);
+      let files = project.files(db);
+
+      let mut schemas = Vec::new();
+      for (path, file) in &files {
+        if !path.starts_with(&root_dir) || !is_type_file(path) {
+          continue;
+        }
+        let Some(symbol) = file_symbol(db, project, *file).value(db) else {
+          continue;
+        };
+        if !matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
+          continue;
+        }
+        schemas.push(symbol.name(db).to_string());
+      }
+
+      Ok(schemas)
+    })
+  }
+
+  async fn get_schema_impl(&self, schema: &str) -> RpcResult<TdSchemaInfo> {
+    let analysis = self.host.read().await.snapshot();
+    let schema = schema.to_string();
+    catch_cancelled(move || {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let schema_members = schema_members(db, project);
+      let sym = schema_members
+        .members(db)
+        .get(&schema)
+        .copied()
+        .ok_or_else(|| {
+          ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Schema not found", None::<()>)
+        })?;
+      let SymbolKind::UserDefinedSchema(_, file) = sym.kind(db) else {
+        return Err(ErrorObjectOwned::owned(
+          INVALID_PARAMS_CODE,
+          "Schema not found",
+          None::<()>,
+        ));
+      };
+
+      let properties = export_property_descriptors(db, project, file)
+        .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
+
+      Ok(TdSchemaInfo { schema, properties })
+    })
+  }
+
+  async fn check_vault_impl(&self) -> RpcResult<TdDiagnosticReport> {
+    let analysis = self.host.read().await.snapshot();
+    tokio::task::block_in_place(|| {
+      catch_cancelled(move || {
+        let db = &analysis.db;
+        let project = analysis.project;
+
+        let config = get_vault_config(db, project);
+        let root_dir = config.root_dir(db);
+        let files = project.files(db);
+
+        let mut all_diagnostics = Vec::new();
+        let mut file_count: u32 = 0;
+
+        for (path, &file) in &files {
+          if !path.starts_with(&root_dir) || !is_content_file(path) || is_type_file(path) {
+            continue;
+          }
+          file_count += 1;
+
+          let relative_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+          let rope = match analysis.file_rope(path) {
+            Some(r) => r,
+            None => continue,
+          };
+
+          let items = collect_file_diagnostics(db, project, file, &relative_path, &rope);
+          all_diagnostics.extend(items);
+        }
+
+        // Check for duplicate schema files
+        let schema_check = check_schemas(db, project);
+        for diag in schema_check.diagnostics(db) {
+          let filepath = if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
+            path.clone()
+          } else {
+            String::new()
+          };
+          all_diagnostics.push(TdDiagnosticItem {
+            filepath,
+            line: 0,
+            column: 0,
+            severity: "error".to_string(),
+            code: diag.code().as_str().to_string(),
+            message: diag.message(),
+          });
+        }
+
+        let error_count = all_diagnostics
+          .iter()
+          .filter(|d| d.severity == "error")
+          .count() as u32;
+        let warning_count = all_diagnostics
+          .iter()
+          .filter(|d| d.severity == "warning")
+          .count() as u32;
+
+        Ok(TdDiagnosticReport {
+          diagnostics: all_diagnostics,
+          file_count,
+          error_count,
+          warning_count,
+        })
       })
     }) // block_in_place
   }
@@ -505,40 +523,42 @@ impl RpcServer {
     let analysis = self.host.read().await.snapshot();
     let fp = file_path.0.clone();
     tokio::task::block_in_place(|| {
-      let db = &analysis.db;
-      let project = analysis.project;
+      catch_cancelled(move || {
+        let db = &analysis.db;
+        let project = analysis.project;
 
-      let config = get_vault_config(db, project);
-      let root_dir = config.root_dir(db);
-      let path = root_dir.join(&fp);
+        let config = get_vault_config(db, project);
+        let root_dir = config.root_dir(db);
+        let path = root_dir.join(&fp);
 
-      let file = *project.files(db).get(&path).ok_or_else(|| {
-        ErrorObjectOwned::owned(
-          INVALID_PARAMS_CODE,
-          format!("File not found: {}", fp),
-          None::<()>,
-        )
-      })?;
+        let file = *project.files(db).get(&path).ok_or_else(|| {
+          ErrorObjectOwned::owned(
+            INVALID_PARAMS_CODE,
+            format!("File not found: {}", fp),
+            None::<()>,
+          )
+        })?;
 
-      let root = parse_file(db, project, file).ast(db);
-      let source_file = SourceFile::cast(root.clone()).ok_or_else(|| {
-        ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Failed to parse file", None::<()>)
-      })?;
+        let root = parse_file(db, project, file).ast(db);
+        let source_file = SourceFile::cast(root.clone()).ok_or_else(|| {
+          ErrorObjectOwned::owned(INVALID_PARAMS_CODE, "Failed to parse file", None::<()>)
+        })?;
 
-      let original = root.text();
-      let formatted = match source_file.body() {
-        Some(body) => {
-          let frontmatter = original[..body.syntax().offset()].to_string();
-          let body_formatted = format_markdown(&body);
-          frontmatter + &body_formatted
-        }
-        None => original.to_string(),
-      };
+        let original = root.text();
+        let formatted = match source_file.body() {
+          Some(body) => {
+            let frontmatter = original[..body.syntax().offset()].to_string();
+            let body_formatted = format_markdown(&body);
+            frontmatter + &body_formatted
+          }
+          None => original.to_string(),
+        };
 
-      let changed = formatted != original;
-      Ok(TdFormatResult {
-        content: formatted,
-        changed,
+        let changed = formatted != original;
+        Ok(TdFormatResult {
+          content: formatted,
+          changed,
+        })
       })
     }) // block_in_place
   }
@@ -624,6 +644,19 @@ fn collect_file_diagnostics(
   }
 
   items
+}
+
+/// Wrap a closure that runs derived queries, catching Cancelled panics and
+/// converting them to an RPC error so the client can retry
+fn catch_cancelled<T>(f: impl FnOnce() -> RpcResult<T>) -> RpcResult<T> {
+  match Cancelled::catch(f) {
+    Ok(result) => result,
+    Err(_) => Err(ErrorObjectOwned::owned(
+      INTERNAL_ERROR_CODE,
+      "Request cancelled: content modified",
+      None::<()>,
+    )),
+  }
 }
 
 /// Accept a subscription and forward broadcast messages to the client

@@ -76,6 +76,7 @@ export class TypedownContext {
       schema: string;
     }) => {
       this.cachedSchemaMap.delete(schema);
+      this.cachedFilesGroupedBySchema = undefined;
     });
 
     client.onSchemaCreated(() => {
