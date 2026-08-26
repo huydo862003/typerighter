@@ -60,6 +60,21 @@ Container shorthand with multiple props
       (container_block_delimiter))))
 
 ================
+Kebab-case container shorthand
+================
+
+[[directory-index]]
+
+---
+
+(document
+  (section
+    (container_block_shorthand
+      (container_block_delimiter)
+      type: (container_type)
+      (container_block_delimiter))))
+
+================
 Container shorthand followed by paragraph
 ================
 

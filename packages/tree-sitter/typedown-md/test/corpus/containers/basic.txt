@@ -111,6 +111,25 @@ more
       (container_block_delimiter))))
 
 ================
+Kebab-case container type
+================
+
+::: directory-index
+Hello
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
 Container block opening on a slot separator
 ================
 

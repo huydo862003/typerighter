@@ -152,7 +152,7 @@
       "contentName": "meta.embedded.math.typedown"
     },
     "md-container": {
-      "begin": "^(:::)\\s+(\\w+)\\s*(\\{[^}]*\\})?\\s*(.*)?",
+      "begin": "^(:::)\\s+([\\w-]+)\\s*(\\{[^}]*\\})?\\s*(.*)?",
       "end": "^(:::)\\s*$",
       "beginCaptures": {
         "1": { "name": "keyword.control.container.begin.typedown" },
@@ -205,7 +205,7 @@
     },
     "md-container-shorthand": {
       // Self-closing container shorthand: `[[identifier {props}]]`
-      "match": "(\\[\\[)([-a-zA-Z_]\\w*)(\\s*(\\{[^}]*\\}))?(\\]\\])",
+      "match": "(\\[\\[)([a-zA-Z_][\\w-]*)(\\s*(\\{[^}]*\\}))?(\\]\\])",
       "captures": {
         "1": { "name": "keyword.control.container.begin.typedown" },
         "2": { "name": "entity.name.tag.typedown" },

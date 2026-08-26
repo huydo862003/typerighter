@@ -342,7 +342,7 @@ export default grammar({
       ),
 
     container_type: () =>
-      token(prec(1, /[a-zA-Z_]\w*/)),
+      token(prec(1, /[a-zA-Z_][\w-]*/)),
 
     // Container props: `{key=value flag}`
     container_prop_block: ($) =>
