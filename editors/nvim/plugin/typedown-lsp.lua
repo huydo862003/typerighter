@@ -89,7 +89,17 @@ end
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "typedown",
-  callback = start_lsp,
+  callback = function(event)
+    start_lsp()
+
+    vim.api.nvim_buf_create_user_command(event.buf, "TypedownFormat", function()
+      vim.lsp.buf.format({ name = "typedown-lsp" })
+    end, { desc = "Format current typedown file" })
+
+    vim.api.nvim_buf_create_user_command(event.buf, "TypedownLint", function()
+      vim.diagnostic.setloclist({ open = true })
+    end, { desc = "Show typedown diagnostics in location list" })
+  end,
 })
 
 vim.api.nvim_create_autocmd("BufEnter", {
