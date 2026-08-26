@@ -792,4 +792,48 @@ mod tests {
       .expect("expected TdNumObj for count default");
     assert_eq!(count_num.value(&db), 0.0);
   }
+
+  #[test]
+  fn imports_resolve_module_fields() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("file_symbol should return a resource symbol");
+
+    let result = evaluate_resource(&db, symbol);
+    assert!(
+      result.value(&db).is_some(),
+      "should produce an object, diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
+    let obj = result.value(&db).unwrap();
+    let brand = obj
+      .get_owned_field(&db, "brand")
+      .expect("should have brand field");
+    let brand_str = brand.as_td_str_obj().expect("expected TdStrObj");
+    assert_eq!(brand_str.value(&db), "#4F6BCA");
+  }
+
+  #[test]
+  #[cfg(feature = "export")]
+  fn imports_stripped_from_export() {
+    use crate::integrations::export::export_resource;
+
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
+    let result = export_resource(&db, project, file);
+    let exported = result.expect("file with imports should export");
+    let header = exported
+      .header
+      .as_object()
+      .expect("header should be object");
+    assert!(
+      !header.contains_key("_imports"),
+      "_imports should be stripped from export"
+    );
+    assert_eq!(
+      header.get("brand").and_then(|v| v.as_str()),
+      Some("#4F6BCA"),
+      "brand should resolve to imported color value"
+    );
+  }
 }

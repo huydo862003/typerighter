@@ -26,9 +26,10 @@ pub fn is_content_file(path: &Path) -> bool {
 // These are excluded from content discovery
 pub fn is_internal_file(path: &Path) -> bool {
   is_content_file(path)
-    && path
-      .components()
-      .any(|c| c.as_os_str().to_str().is_some_and(|s| s.starts_with('_')))
+    && path.parent().is_some_and(|p| {
+      p.components()
+        .any(|c| c.as_os_str().to_str().is_some_and(|s| s.starts_with('_')))
+    })
 }
 
 /// Whether a path is located inside a `_types` directory anywhere in the vault

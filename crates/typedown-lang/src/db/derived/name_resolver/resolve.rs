@@ -3,6 +3,7 @@ use typedown_macros::query_derived;
 use crate::syntax::diagnostic::Diagnostic;
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, ResolveResult};
 use typedown_incremental::QueryDatabase;
@@ -33,7 +34,11 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
       }
     }
     HirValueKind::Mapping(entries) => {
-      for (_, value) in entries {
+      for (key, value) in entries {
+        if key == "_imports" {
+          check_imports(db, hir, value, diagnostics);
+          continue;
+        }
         collect_unresolved(db, value, diagnostics);
       }
     }
@@ -93,6 +98,36 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
   }
 }
 
+// Check that each _imports path resolves to an existing file
+fn check_imports(
+  db: &TypedownDatabase,
+  hir: HirValue,
+  imports_hir: HirValue,
+  diagnostics: &mut Vec<Diagnostic>,
+) {
+  let HirValueKind::Mapping(entries) = imports_hir.kind(db) else {
+    return;
+  };
+  let project = hir.project(db);
+  let root_dir = get_vault_config(db, project).root_dir(db);
+
+  for (_, path_hir) in entries {
+    let HirValueKind::Str(path) = path_hir.kind(db) else {
+      continue;
+    };
+    let target_path = root_dir.join(&path);
+    if !project.files(db).contains_key(&target_path) {
+      let node = path_hir.node(db);
+      let (start, len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::UnresolvedImport {
+        path,
+        start_offset: start,
+        end_offset: start + len,
+      });
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -141,5 +176,29 @@ fn: (a) -> a + missing_variable
       }
       d => panic!("expected UnresolvedIdentifier diagnostic, got: {:?}", d),
     }
+  }
+
+  #[test]
+  fn resolve_unresolved_import_emits_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let (root, _) = parse(
+      r#"---
+_imports:
+  missing: "_partials/nonexistent.td"
+name: missing.foo
+---"#,
+    );
+    let red_root = RedNode::new_root(root.as_node().unwrap().clone());
+    let hir = lower_node(&db, project, file, red_root);
+
+    let res = resolve(&db, hir);
+    let diags = res.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnresolvedImport { .. })),
+      "should have UnresolvedImport diagnostic, got: {:?}",
+      diags
+    );
   }
 }

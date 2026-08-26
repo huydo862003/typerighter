@@ -78,6 +78,7 @@ pub enum DiagnosticCode {
   UnresolvedExtends = 69,
   CircularExtension = 70,
   FieldRefinementViolation = 71,
+  UnresolvedImport = 72,
 }
 
 impl DiagnosticCode {
@@ -159,6 +160,7 @@ impl DiagnosticCode {
       DiagnosticCode::DuplicateSchemaName => "duplicate-schema-name",
       DiagnosticCode::VaultConfigInvalidValue => "vault-config-invalid-value",
       DiagnosticCode::InvalidCodeRangeIndicator => "invalid-code-range-indicator",
+      DiagnosticCode::UnresolvedImport => "unresolved-import",
     }
   }
 }
@@ -557,6 +559,13 @@ pub enum Diagnostic {
     end_offset: usize,
   },
 
+  /// An import path could not be resolved to any file
+  UnresolvedImport {
+    path: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+
   /// A field does not exist on the given type.
   UnknownField {
     field: String,
@@ -840,6 +849,11 @@ impl Diagnostic {
         end_offset,
         ..
       }
+      | Diagnostic::UnresolvedImport {
+        start_offset,
+        end_offset,
+        ..
+      }
       | Diagnostic::UnknownField {
         start_offset,
         end_offset,
@@ -1072,6 +1086,9 @@ impl Diagnostic {
       Diagnostic::UnresolvedIdentifier { name, .. } => {
         format!("cannot resolve identifier '{name}'")
       }
+      Diagnostic::UnresolvedImport { path, .. } => {
+        format!("cannot resolve import '{path}'")
+      }
       Diagnostic::UnknownField { field, on_type, .. } => {
         format!("unknown field '{field}' on type '{on_type}'")
       }
@@ -1220,6 +1237,7 @@ impl Diagnostic {
       Diagnostic::UnresolvedExtends { .. } => DiagnosticCode::UnresolvedExtends,
       Diagnostic::CircularExtension { .. } => DiagnosticCode::CircularExtension,
       Diagnostic::FieldRefinementViolation { .. } => DiagnosticCode::FieldRefinementViolation,
+      Diagnostic::UnresolvedImport { .. } => DiagnosticCode::UnresolvedImport,
     }
   }
 }
