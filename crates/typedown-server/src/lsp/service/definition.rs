@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Range};
 
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::parse_file::parse_file;
@@ -90,8 +91,9 @@ fn fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Optio
     && let Some(arg) = args.first()
     && let HirValueKind::Str(path_str) = arg.kind(db)
   {
-    let root = project.root_dir(db);
-    return Some(root.join(path_str));
+    let config = get_vault_config(db, project);
+    let root_dir = config.root_dir(db);
+    return Some(root_dir.join(path_str));
   }
   None
 }
@@ -270,6 +272,106 @@ name: fref("ali|ce.td")
       location.uri.as_str().contains("alice"),
       "should point to alice.td, got: {:?}",
       location.uri
+    );
+  }
+
+  // fref resolves from vault root, not project root.
+  // When root_dir is "vault", fref("alice.td") should resolve to /project/vault/alice.td.
+  #[test]
+  fn definition_on_fref_uses_vault_root() {
+    let project_root = PathBuf::from(if cfg!(windows) {
+      "C:\\project"
+    } else {
+      "/project"
+    });
+    let vault_root = project_root.join("vault");
+    let type_root = vault_root.join("_types");
+
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: fref("ali|ce.td")
+---
+"#,
+    );
+
+    let test_path = vault_root.join("file.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let nested_config = r#"version: "1"
+vault:
+  root_dir: "vault"
+"#;
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let files = HashMap::from([
+      (
+        project_root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            project_root.join("typedown.yaml"),
+            nested_config.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        type_root.join("Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            type_root.join("Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        vault_root.join("alice.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            vault_root.join("alice.td"),
+            CONTENT_ALICE.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        test_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(test_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, project_root, files);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let params = make_params(uri, &content, offset);
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition location");
+    };
+    let uri_str = location.uri.as_str();
+    assert!(
+      uri_str.contains("alice"),
+      "should point to alice.td, got: {uri_str}",
+    );
+    assert!(
+      uri_str.contains("vault"),
+      "should resolve under vault root, got: {uri_str}",
     );
   }
 

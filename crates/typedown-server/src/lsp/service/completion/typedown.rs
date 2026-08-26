@@ -6,6 +6,7 @@ use lsp_types::{
 };
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
@@ -111,11 +112,12 @@ fn fref_completions(
   // Resolve the expected type for the field containing this fref() call.
   let expected_type = declared_field(db, project, file, node);
 
-  let root = project.root_dir(db);
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
   project
     .files(db)
     .iter()
-    .filter(|(path, _)| is_content_file(path) && !is_type_file(path))
+    .filter(|(path, _)| path.starts_with(&root_dir) && is_content_file(path) && !is_type_file(path))
     .filter(|(_, target_file)| {
       // If we have an expected type, only include files whose type is compatible.
       let Some(ref expected_typ) = expected_type else {
@@ -131,7 +133,12 @@ fn fref_completions(
       };
       is_subtype_of(db, &file_type, expected_typ)
     })
-    .filter_map(|(path, _)| path.strip_prefix(&root).ok().map(|rel| rel.to_path_buf()))
+    .filter_map(|(path, _)| {
+      path
+        .strip_prefix(&root_dir)
+        .ok()
+        .map(|rel| rel.to_path_buf())
+    })
     .map(|rel| CompletionItem {
       label: rel.to_string_lossy().into_owned(),
       kind: Some(CompletionItemKind::FILE),
@@ -1073,6 +1080,121 @@ featured: fref("|")
     assert!(
       !labels.iter().any(|label| label.contains("birthday")),
       "should not suggest birthday.td (Event type), got: {:?}",
+      labels
+    );
+  }
+
+  // fref completions should use vault-relative paths, not project-relative paths.
+  // When root_dir is "vault", fref("alice.td") not fref("vault/alice.td").
+  #[test]
+  fn fref_completion_uses_vault_relative_paths() {
+    let project_root = PathBuf::from(if cfg!(windows) {
+      "C:\\project"
+    } else {
+      "/project"
+    });
+    let vault_root = project_root.join("vault");
+    let type_root = vault_root.join("_types");
+
+    let (content, offset) = cursor(
+      r#"---
+_type: Directory
+featured: fref("|")
+---
+"#,
+    );
+
+    let test_path = vault_root.join("file.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let nested_config = r#"version: "1"
+vault:
+  root_dir: "vault"
+"#;
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let files = HashMap::from([
+      (
+        project_root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            project_root.join("typedown.yaml"),
+            nested_config.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        type_root.join("Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            type_root.join("Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        type_root.join("Directory.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            type_root.join("Directory.td"),
+            SCHEMA_DIRECTORY.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        vault_root.join("alice.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            vault_root.join("alice.td"),
+            CONTENT_ALICE.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        test_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(test_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, project_root, files);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let params = make_params(uri, &content, offset);
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected fref completions");
+    };
+    let labels: Vec<String> = items.iter().map(|item| item.label.clone()).collect();
+
+    // Should suggest "alice.td", not "vault/alice.td"
+    assert!(
+      labels.iter().any(|l| l == "alice.td"),
+      "should suggest vault-relative path 'alice.td', got: {:?}",
+      labels
+    );
+    assert!(
+      !labels.iter().any(|l| l.contains("vault/")),
+      "should not include vault dir prefix in path, got: {:?}",
       labels
     );
   }
