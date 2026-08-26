@@ -906,6 +906,33 @@ mod tests {
     );
   }
 
+  // Schema using ? postfix (e.g. string?, date?) should parse as T | null
+  #[test]
+  fn typecheck_schema_with_postfix_optional_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/WithPostfixOptional.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "postfix optional schema: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Content file using a schema with ? postfix fields should typecheck without errors
+  #[test]
+  fn typecheck_content_with_postfix_optional_no_errors() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "with_postfix_optional.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "content with postfix optional fields should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
   #[test]
   fn typecheck_schema_with_explicit_type_tag_no_errors() {
     let (db, project, file) =
