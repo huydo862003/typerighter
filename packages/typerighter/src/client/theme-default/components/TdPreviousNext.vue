@@ -106,6 +106,9 @@ const {
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-neutral-fg-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .td-prevnext-link.is-next .td-prevnext-label {
