@@ -1,3 +1,40 @@
+## [0.15.0] - 2026-08-26
+
+### Breaking changes
+
+* crates/typedown-lang
+  - **Schema inheritance** (`_extends`): schemas can extend other schemas (#105)
+  - **Schema/product type split**: separate schema types from structural product types, remove structural type (#106)
+  - **Modules** (`_imports`): `_<name>/` directories are internal (excluded from content discovery), `_imports` meta-field for scoped file imports (#110)
+
+### Fixes
+
+* crates/typedown-lang
+  - Schemaless files now return product type instead of schema type
+
+* crates/typedown-lsp
+  - `fref()` completions and go-to-definition now resolve paths relative to vault root, not project root
+
+* crates/typedown-rpc
+  - RPC server no longer crashes when editing files (catch `Cancelled` panics from incremental query cancellation)
+  - Content notifications now send vault-relative paths (fixes cache invalidation in TypedownContext)
+  - FS watcher task wrapped in cancellation guard (prevents silent watcher death)
+
+* packages/typerighter
+  - Schema change now clears `cachedFilesGroupedBySchema` (prevents stale sidebar data)
+  - Exclude index files from directory listings
+  - Layout and glossary row improvements
+  - Clamp the the prev/next line in button
+
+### HMR improvements
+
+* packages/typerighter
+  - Site data (content tree, schemas, directory listings) extracted into `@typedown/site-data` virtual module with HMR support
+  - Page glob (`import.meta.glob`) extracted into `@typedown/pages` virtual module with HMR support
+  - Sidebar, search index, and page list all update without full page reload on file create/delete/schema change
+  - `siteData` provided as `shallowRef` for Vue reactivity
+  - Added HMR architecture documentation and pitfalls to README
+
 ## [0.14.1] - 2026-08-25
 
 * packages/typerighter
