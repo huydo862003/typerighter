@@ -26,7 +26,7 @@
   - Layout and glossary row improvements
   - Clamp the the prev/next line in button
 
-### HMR improvements
+### Feat
 
 * packages/typerighter
   - Site data (content tree, schemas, directory listings) extracted into `@typedown/site-data` virtual module with HMR support
