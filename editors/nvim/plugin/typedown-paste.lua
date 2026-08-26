@@ -1,5 +1,6 @@
 -- Paste interception for Typedown files
--- Detects binary/image data on the clipboard and saves it to the _assets directory
+-- Hooks into vim.paste to detect binary/image data on the clipboard
+-- and save it to the _assets directory instead of pasting raw text
 if vim.g.typedown_paste_loaded then return end
 vim.g.typedown_paste_loaded = true
 
@@ -112,18 +113,30 @@ local function save_clipboard_binary(mime_type, dest_path)
 end
 
 -- Main paste handler for binary clipboard content.
-local function handle_binary_paste(mime_type)
+-- Returns true if the paste was handled, false to fall through to default.
+local function handle_binary_paste()
   local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].filetype ~= "typedown" then
+    return false
+  end
+
+  local mime_type = detect_clipboard_mime()
+  if not mime_type then
+    return false
+  end
 
   local file_path = vim.api.nvim_buf_get_name(bufnr)
-  local file_dir = vim.fn.fnamemodify(file_path, ":h") -- parent directory
+  if file_path == "" then
+    return false
+  end
+
+  local file_dir = vim.fn.fnamemodify(file_path, ":h")
   local assets_dir = file_dir .. "/_assets"
 
-  vim.fn.mkdir(assets_dir, "p") -- "p" = create parents
+  vim.fn.mkdir(assets_dir, "p")
 
-  -- Save clipboard binary to a <stem>-<timestamp>.<ext> file
   local extension = mime_to_ext[mime_type] or "bin"
-  local stem = vim.fn.fnamemodify(file_path, ":t:r") -- filename without extension
+  local stem = vim.fn.fnamemodify(file_path, ":t:r")
   if stem == "" then stem = "untitled" end
   local filename = stem .. "-" .. os.time() .. "." .. extension
   local dest_path = assets_dir .. "/" .. filename
@@ -131,17 +144,15 @@ local function handle_binary_paste(mime_type)
   local success = save_clipboard_binary(mime_type, dest_path)
   if not success then
     vim.notify("[typedown] Failed to save clipboard content to " .. dest_path, vim.log.levels.ERROR)
-    return
+    return false
   end
 
-  -- Insert fref() at cursor position
   local relative_path = "_assets/" .. filename
   local fref_text = string.format('${fref("%s")}', relative_path)
 
-  -- Defers to the main loop since we're inside an async LSP callback
   vim.schedule(function()
     local cursor = vim.api.nvim_win_get_cursor(0)
-    local row = cursor[1] - 1 -- nvim_win_get_cursor is 1-indexed, but buf_set_lines is 0-indexed @@
+    local row = cursor[1] - 1
     local col = cursor[2]
     local current_line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
     local before = current_line:sub(1, col)
@@ -151,27 +162,14 @@ local function handle_binary_paste(mime_type)
   end)
 
   vim.notify("[typedown] Saved " .. filename .. " to assets", vim.log.levels.INFO)
-end
-
--- Entry point for this plugin
-local function paste_intercept(fallback_key)
-  local mime_type = detect_clipboard_mime()
-  if mime_type then
-    handle_binary_paste(mime_type)
-  else
-    -- Feed the original key to Neovim's input queue with "n" to avoid recursion
-    local keys = vim.api.nvim_replace_termcodes(fallback_key, true, false, true)
-    vim.api.nvim_feedkeys(keys, "n", false)
-  end
+  return true
 end
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "typedown",
   callback = function(event)
-    local opts = { buffer = event.buf, silent = true }
-
-    vim.keymap.set({ "n", "i" }, "<C-S-v>", function()
-      paste_intercept("<C-r>+")
-    end, vim.tbl_extend("force", opts, { desc = "Typedown paste asset" }))
+    vim.api.nvim_buf_create_user_command(event.buf, "TypedownPaste", function()
+      handle_binary_paste()
+    end, { desc = "Paste clipboard image as typedown asset" })
   end,
 })
