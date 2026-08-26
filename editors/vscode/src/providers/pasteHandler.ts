@@ -82,7 +82,9 @@ export class PasteEditProvider implements DocumentPasteEditProvider {
     await writeFile(filePath, binaryData);
 
     const relativePath = relative(documentDirectory, filePath);
-    const snippet = new SnippetString(`\${fref("${relativePath}")}`);
+    const snippet = new SnippetString();
+
+    snippet.appendText(`\${fref("${relativePath}")}`);
 
     return [new DocumentPasteEdit(snippet, 'Paste as Typedown asset', DocumentDropOrPasteEditKind.Empty)];
   }
