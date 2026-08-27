@@ -5,7 +5,7 @@ use super::TdObjectEnum;
 use super::base::TdRuntimeObject;
 use super::str::TdStrObj;
 use crate::db::TypedownDatabase;
-use crate::db::types::{HirValue, RuntimeScope};
+use crate::db::types::{HirValue, Project, RuntimeScope};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
   StableHash, StableHasher,
@@ -13,8 +13,9 @@ use typedown_incremental::{
 
 use crate::syntax::diagnostic::Diagnostic;
 
-type NativeFn = fn(
+pub type NativeFn = fn(
   &TypedownDatabase,
+  Project,
   Option<TdObjectEnum>,
   Vec<TdObjectEnum>,
 ) -> Result<TdObjectEnum, Vec<Diagnostic>>;
@@ -54,6 +55,7 @@ impl NativeFnKind {
 
 fn to_string_method(
   db: &TypedownDatabase,
+  _project: Project,
   this: Option<TdObjectEnum>,
   _args: Vec<TdObjectEnum>,
 ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
@@ -120,32 +122,35 @@ impl Decodable for FnKind {
 
 #[cfg(test)]
 mod tests {
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+
   use super::*;
   use crate::db::QueryStorage;
   use crate::db::types::TdNumObj;
 
-  fn make_db() -> TypedownDatabase {
-    TypedownDatabase {
+  fn make_db() -> (TypedownDatabase, Project) {
+    let db = TypedownDatabase {
       storage: QueryStorage::default(),
-    }
+    };
+    let project = Project::new(&db, PathBuf::from("/test"), HashMap::new());
+    (db, project)
   }
 
   #[test]
   fn test_native_fn_optional_this() {
-    let db = make_db();
+    let (db, project) = make_db();
     let native_fn = NativeFnKind::ToStringMethod.resolve();
     let num_obj: TdObjectEnum = TdNumObj::new(&db, 42.0).into();
 
-    // With `this` passed (method call)
-    let result_with_this = native_fn(&db, Some(num_obj), vec![]);
+    let result_with_this = native_fn(&db, project, Some(num_obj), vec![]);
     assert!(result_with_this.is_ok());
     assert_eq!(
       result_with_this.unwrap().to_display_string(&db),
       "42".to_string()
     );
 
-    // Without `this` passed (free function call)
-    let result_no_this = native_fn(&db, None, vec![]);
+    let result_no_this = native_fn(&db, project, None, vec![]);
     assert!(result_no_this.is_err());
   }
 }

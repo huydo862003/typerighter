@@ -4,6 +4,7 @@ use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::get_math_type;
+use crate::db::types::Project;
 
 #[query_derived]
 pub struct TdMathType {}
@@ -27,7 +28,12 @@ impl TdStaticType for TdMathType {
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
   }
-  fn construct(&self, _db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    _db: &TypedownDatabase,
+    _project: Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
     arg.as_td_math_obj()?;
     Some(arg)

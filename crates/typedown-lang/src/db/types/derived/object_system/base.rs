@@ -46,7 +46,12 @@ pub trait TdStaticType {
   }
 
   // Construct a runtime instance of this type from args
-  fn construct(&self, _db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    _db: &TypedownDatabase,
+    _project: ::typedown_lang::db::types::Project,
+    _args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     None
   }
 
@@ -213,6 +218,7 @@ pub trait TdRuntimeObject: Id {
   fn call(
     &self,
     _db: &::typedown_lang::db::TypedownDatabase,
+    _project: ::typedown_lang::db::types::Project,
     _this: Option<TdObjectEnum>,
     _args: Vec<TdObjectEnum>,
   ) -> Result<TdObjectEnum, Vec<Diagnostic>> {

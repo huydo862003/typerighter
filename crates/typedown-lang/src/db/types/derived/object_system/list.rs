@@ -8,6 +8,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_list_type, get_num_type, get_object_type};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::typecheck::utils::validate_type_params;
+use crate::db::types::Project;
 use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;
 
@@ -57,7 +58,12 @@ impl TdStaticType for TdListType {
     self.elem(db)?;
     Some((*self).into())
   }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    _project: Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let items = args.into_iter().map(Either::Right).collect();
     Some(TdListObj::new(db, items).into())
   }

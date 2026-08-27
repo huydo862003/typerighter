@@ -338,7 +338,7 @@ impl Decodable for BuiltinSchemaKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub enum ScopeKind {
-  Builtin,
+  Builtin(Project),
   Project(Project),
   File(Project, File),
   Fn(Project, File, HirValue),
@@ -357,7 +357,7 @@ impl StableHash for ScopeKind {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
-      ScopeKind::Builtin => {}
+      ScopeKind::Builtin(project) => project.stable_hash(db, hasher),
       ScopeKind::Project(project) => project.stable_hash(db, hasher),
       ScopeKind::File(project, file) => {
         project.stable_hash(db, hasher);
@@ -375,8 +375,9 @@ impl StableHash for ScopeKind {
 impl Encodable for ScopeKind {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      ScopeKind::Builtin => {
+      ScopeKind::Builtin(project) => {
         encoder.emit_u8(buf, ScopeKindTag::Builtin as u8);
+        project.encode_field(buf, encoder);
       }
       ScopeKind::Project(project) => {
         encoder.emit_u8(buf, ScopeKindTag::Project as u8);
@@ -401,7 +402,7 @@ impl Decodable for ScopeKind {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match ScopeKindTag::from_repr(tag).expect("unknown ScopeKind tag") {
-      ScopeKindTag::Builtin => ScopeKind::Builtin,
+      ScopeKindTag::Builtin => ScopeKind::Builtin(Project::decode_field(data, decoder)),
       ScopeKindTag::Project => ScopeKind::Project(Project::decode_field(data, decoder)),
       ScopeKindTag::File => ScopeKind::File(
         Project::decode_field(data, decoder),
@@ -423,8 +424,8 @@ pub struct Scope {
 }
 
 impl Scope {
-  pub fn builtin_scope(db: &(impl QueryDatabase + ?Sized)) -> Self {
-    Self::new(db, ScopeKind::Builtin)
+  pub fn builtin_scope(db: &(impl QueryDatabase + ?Sized), project: Project) -> Self {
+    Self::new(db, ScopeKind::Builtin(project))
   }
 
   pub fn project_scope(db: &(impl QueryDatabase + ?Sized), project: Project) -> Self {
@@ -444,9 +445,18 @@ impl Scope {
     Self::new(db, ScopeKind::Fn(project, file, value))
   }
 
+  pub fn project(&self, db: &(impl QueryDatabase + ?Sized)) -> Project {
+    match self.kind(db) {
+      ScopeKind::Builtin(project)
+      | ScopeKind::Project(project)
+      | ScopeKind::File(project, _)
+      | ScopeKind::Fn(project, _, _) => project,
+    }
+  }
+
   pub fn runtime_scope(&self, db: &TypedownDatabase) -> RuntimeScope {
     match self.kind(db) {
-      ScopeKind::Builtin => get_builtin_runtime_scope(db),
+      ScopeKind::Builtin(project) => get_builtin_runtime_scope(db, project),
       ScopeKind::Project(project) => get_project_runtime_scope(db, project),
       ScopeKind::File(project, file) => get_file_runtime_scope(db, project, file),
       ScopeKind::Fn(project, file, _) => {

@@ -9,6 +9,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_dict_type, get_object_type, get_str_type};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::typecheck::utils::validate_type_params;
+use crate::db::types::Project;
 use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;
 
@@ -69,7 +70,12 @@ impl TdStaticType for TdDictType {
     }
     Some((*self).into())
   }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    _project: Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let mut entries = HashMap::new();
     for arg in args {
       let pair = arg.as_td_list_obj()?;

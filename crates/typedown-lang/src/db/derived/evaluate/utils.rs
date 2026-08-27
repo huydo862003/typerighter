@@ -91,7 +91,8 @@ pub(crate) fn construct_from_hir(
               .into_iter()
               .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
               .collect();
-            return func_obj.call(db, Some(this), arg_objs).ok();
+            let project = runtime_scope.scope(db).project(db);
+            return func_obj.call(db, project, Some(this), arg_objs).ok();
           }
         }
         // Macro calls: pass raw HIR args (macros need project context from HIR)
@@ -108,7 +109,8 @@ pub(crate) fn construct_from_hir(
             .into_iter()
             .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
             .collect();
-          return callee_obj.call(db, None, arg_objs).ok();
+          let project = runtime_scope.scope(db).project(db);
+          return callee_obj.call(db, project, None, arg_objs).ok();
         }
       }
     }
@@ -162,16 +164,22 @@ pub(crate) fn construct_from_hir(
     }
   };
   match hir.kind(db) {
-    HirValueKind::Str(val) => typ.construct(db, vec![TdStrObj::new(db, val).into()]),
+    HirValueKind::Str(val) => {
+      typ.construct(db, hir.project(db), vec![TdStrObj::new(db, val).into()])
+    }
     HirValueKind::Num(val) => {
       let num: f64 = val.parse().unwrap_or(0.0);
-      typ.construct(db, vec![TdNumObj::new(db, num).into()])
+      typ.construct(db, hir.project(db), vec![TdNumObj::new(db, num).into()])
     }
-    HirValueKind::Bool(val) => typ.construct(db, vec![TdBoolObj::new(db, val).into()]),
-    HirValueKind::Math(val) => typ.construct(db, vec![TdMathObj::new(db, val).into()]),
+    HirValueKind::Bool(val) => {
+      typ.construct(db, hir.project(db), vec![TdBoolObj::new(db, val).into()])
+    }
+    HirValueKind::Math(val) => {
+      typ.construct(db, hir.project(db), vec![TdMathObj::new(db, val).into()])
+    }
     HirValueKind::Interpolated(parts) => {
       let obj = evaluate_interpolated(db, runtime_scope, parts)?;
-      typ.construct(db, vec![obj])
+      typ.construct(db, hir.project(db), vec![obj])
     }
     HirValueKind::Sequence(items) => {
       if typ.is_td_list_type() {
@@ -182,12 +190,12 @@ pub(crate) fn construct_from_hir(
         .into_iter()
         .filter_map(|item| evaluate_node(db, item, runtime_scope).value(db))
         .collect();
-      typ.construct(db, args)
+      typ.construct(db, hir.project(db), args)
     }
     HirValueKind::Mapping(entries) => evaluate_mapping(db, &typ, entries),
     HirValueKind::Markdown(parts) => {
       let obj = evaluate_interpolated(db, runtime_scope, parts)?;
-      typ.construct(db, vec![obj])
+      typ.construct(db, hir.project(db), vec![obj])
     }
     _ => None,
   }
@@ -363,7 +371,8 @@ fn evaluate_interpolated(
       InterpolatedPart::Expr(expr) => {
         let obj = evaluate_node(db, expr, runtime_scope).value(db)?;
         let to_string_fn = obj.lookup_method(db, "to_string")?;
-        let str_obj = to_string_fn.call(db, Some(obj), vec![]).ok()?;
+        let project = runtime_scope.scope(db).project(db);
+        let str_obj = to_string_fn.call(db, project, Some(obj), vec![]).ok()?;
         let str_val = str_obj.as_td_str_obj()?;
         val.push_str(&str_val.value(db));
       }
@@ -422,7 +431,12 @@ fn evaluate_mapping(
       }
       fields.insert(key, Either::Left(val_hir));
     }
-    return Some(TdSchemaObj::new(db, (*schema_typ).into(), None, fields).into());
+    // entries are non-empty since we matched a schema type from _type
+    let project = fields.values().next().and_then(|v| match v {
+      Either::Left(hir) => Some(hir.project(db)),
+      _ => None,
+    })?;
+    return Some(TdSchemaObj::new(db, (*schema_typ).into(), project, None, fields).into());
   }
 
   // Product type

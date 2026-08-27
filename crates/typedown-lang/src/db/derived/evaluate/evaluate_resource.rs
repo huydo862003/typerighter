@@ -39,7 +39,7 @@ pub fn evaluate_resource(db: &TypedownDatabase, symbol: Symbol) -> ResourceResul
   // Stamp the file symbol so serialization can detect fref origins
   let value = match node_result.value(db) {
     Some(TdObjectEnum::TdSchemaObj(obj)) => {
-      Some(TdSchemaObj::new(db, obj.schema(db), Some(symbol), obj.fields(db)).into())
+      Some(TdSchemaObj::new(db, obj.schema(db), project, Some(symbol), obj.fields(db)).into())
     }
     Some(TdObjectEnum::TdProductObj(obj)) => {
       let file_sym = if is_schemaless { Some(symbol) } else { None };

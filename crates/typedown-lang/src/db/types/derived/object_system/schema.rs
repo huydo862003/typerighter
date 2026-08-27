@@ -15,7 +15,7 @@ use crate::db::derived::get_builtin_types::{
 };
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_property::get_schema_property_type;
-use crate::db::types::{FnKind, FuncSignature, HirValue, LazyType, NativeFnKind, Symbol};
+use crate::db::types::{FnKind, FuncSignature, HirValue, LazyType, NativeFnKind, Project, Symbol};
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
 
@@ -96,11 +96,16 @@ impl TdStaticType for TdSchemaType {
     self.parent(db).or_else(|| Some(get_object_type(db).into()))
   }
   // Construct a schema instance from a product object
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    project: crate::db::types::Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
     let product = arg.as_td_product_obj()?;
     let fields = product.fields(db);
-    Some(TdSchemaObj::new(db, (*self).into(), None, fields).into())
+    Some(TdSchemaObj::new(db, (*self).into(), project, None, fields).into())
   }
   fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
     let mut result = self
@@ -167,6 +172,7 @@ impl TdSchemaType {
 #[query_derived]
 pub struct TdSchemaObj {
   pub schema: TdTypeEnum,
+  pub project: Project,
   pub file_symbol: Option<Symbol>,
   pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
@@ -189,7 +195,7 @@ impl TdRuntimeObject for TdSchemaObj {
         {
           if let Some(ref computed_enum) = prop_desc.computed_fn
             && let Some(func_obj) = computed_enum.as_td_func_obj()
-            && let Ok(res_val) = func_obj.call(db, None, vec![(*self).into()])
+            && let Ok(res_val) = func_obj.call(db, self.project(db), None, vec![(*self).into()])
           {
             return Some(res_val);
           }
@@ -208,18 +214,19 @@ impl TdRuntimeObject for TdSchemaObj {
     let this: TdObjectEnum = (*self).into();
     self
       .lookup_method(db, PROTOCOL_INDEX)?
-      .call(db, Some(this), vec![key.clone()])
+      .call(db, self.project(db), Some(this), vec![key.clone()])
       .ok()
   }
   fn call(
     &self,
     db: &TypedownDatabase,
+    project: Project,
     this: Option<TdObjectEnum>,
     args: Vec<TdObjectEnum>,
   ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
     let Some(func) = self.lookup_method(db, PROTOCOL_CALL) else {
       return Err(vec![]);
     };
-    func.call(db, this, args)
+    func.call(db, project, this, args)
   }
 }

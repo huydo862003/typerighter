@@ -571,6 +571,10 @@ mod tests {
     }
   }
 
+  fn make_project(db: &TypedownDatabase) -> Project {
+    Project::new(db, PathBuf::from("/test"), HashMap::new())
+  }
+
   #[test]
   fn evaluate_type_builtin_schema_returns_schema_type() {
     let db = make_db();
@@ -1107,7 +1111,11 @@ mod tests {
   fn construct_str() {
     let db = make_db();
     let obj = get_str_type(&db)
-      .construct(&db, vec![TdStrObj::new(&db, "hello".to_string()).into()])
+      .construct(
+        &db,
+        make_project(&db),
+        vec![TdStrObj::new(&db, "hello".to_string()).into()],
+      )
       .unwrap();
     assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "hello");
   }
@@ -1116,7 +1124,11 @@ mod tests {
   fn construct_num() {
     let db = make_db();
     let obj = get_num_type(&db)
-      .construct(&db, vec![TdNumObj::new(&db, 42.0).into()])
+      .construct(
+        &db,
+        make_project(&db),
+        vec![TdNumObj::new(&db, 42.0).into()],
+      )
       .unwrap();
     assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 42.0);
   }
@@ -1125,7 +1137,11 @@ mod tests {
   fn construct_bool() {
     let db = make_db();
     let obj = get_bool_type(&db)
-      .construct(&db, vec![TdBoolObj::new(&db, true).into()])
+      .construct(
+        &db,
+        make_project(&db),
+        vec![TdBoolObj::new(&db, true).into()],
+      )
       .unwrap();
     assert!(obj.as_td_bool_obj().unwrap().value(&db));
   }
@@ -1135,7 +1151,11 @@ mod tests {
     let db = make_db();
     assert!(
       get_str_type(&db)
-        .construct(&db, vec![TdNumObj::new(&db, 42.0).into()])
+        .construct(
+          &db,
+          make_project(&db),
+          vec![TdNumObj::new(&db, 42.0).into()]
+        )
         .is_none()
     );
   }
@@ -1162,7 +1182,12 @@ mod tests {
       TdNumObj::new(&db, 1.0).into(),
       TdNumObj::new(&db, 2.0).into(),
     ];
-    assert!(list_num.typ(&db).construct(&db, items).is_some());
+    assert!(
+      list_num
+        .typ(&db)
+        .construct(&db, make_project(&db), items)
+        .is_some()
+    );
   }
 
   // Schema construct via evaluate_type
@@ -1206,7 +1231,11 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let scope = get_file_runtime_scope(&db, project, file);
-    assert!(TdTypeType::get(&db).construct(&db, vec![]).is_none());
+    assert!(
+      TdTypeType::get(&db)
+        .construct(&db, make_project(&db), vec![])
+        .is_none()
+    );
     let _ = construct_from_hir(&db, hir.unwrap(), scope, &mut vec![]);
   }
 

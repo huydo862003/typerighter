@@ -6,7 +6,7 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_func_type;
-use crate::db::types::{FuncSignature, HirValueKind, RuntimeScope};
+use crate::db::types::{FuncSignature, HirValueKind, Project, RuntimeScope};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
@@ -81,11 +81,12 @@ impl TdRuntimeObject for TdFuncObj {
   fn call(
     &self,
     db: &TypedownDatabase,
+    project: Project,
     this: Option<TdObjectEnum>,
     args: Vec<TdObjectEnum>,
   ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
     match self.func(db) {
-      FnKind::Native(kind) => (kind.resolve())(db, this, args),
+      FnKind::Native(kind) => (kind.resolve())(db, project, this, args),
       FnKind::UserDefined(closure_hir, defining_scope) => {
         let HirValueKind::Closure { params, body } = closure_hir.kind(db) else {
           return Err(vec![]);

@@ -599,7 +599,7 @@ impl<'a> MarkdownExporter<'a> {
       let scope = get_file_runtime_scope(self.db, self.project, self.file);
       if let Some(obj) = evaluate_node(self.db, hir, scope).value(self.db)
         && let Some(func) = obj.lookup_method(self.db, "to_string")
-        && let Ok(result) = func.call(self.db, Some(obj), vec![])
+        && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
         && let Some(str_obj) = result.as_td_str_obj()
       {
         self.write(&str_obj.value(self.db));

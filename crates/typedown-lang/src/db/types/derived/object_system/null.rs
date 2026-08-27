@@ -4,6 +4,7 @@ use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_null_obj, get_null_type};
+use crate::db::types::Project;
 
 #[query_derived]
 pub struct TdNullType {}
@@ -27,7 +28,12 @@ impl TdStaticType for TdNullType {
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
   }
-  fn construct(&self, db: &TypedownDatabase, _args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    _project: Project,
+    _args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     Some(TdNullObj::get(db).into())
   }
 }

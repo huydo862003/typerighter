@@ -42,7 +42,7 @@ pub fn schema_members(db: &TypedownDatabase, project: Project) -> MembersResult 
 #[query_derived]
 pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
   match scope.kind(db) {
-    ScopeKind::Builtin => MembersResult::new(db, builtin_scope(db).members(db)),
+    ScopeKind::Builtin(_) => MembersResult::new(db, builtin_scope(db).members(db)),
     ScopeKind::File(project, file) => {
       let mut members = HashMap::new();
 

@@ -6,6 +6,7 @@ use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_date_type, get_datetime_type, get_time_type};
+use crate::db::types::Project;
 use typedown_incremental::Id;
 pub(crate) use utils::{is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time};
 
@@ -33,7 +34,12 @@ impl TdStaticType for TdDateTimeType {
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
   }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    _project: Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
     let str_obj = arg.as_td_str_obj()?;
     let val = str_obj.value(db);
@@ -129,7 +135,12 @@ impl TdStaticType for TdDateType {
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
   }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    _project: Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
     let str_obj = arg.as_td_str_obj()?;
     let val = str_obj.value(db);
@@ -225,7 +236,12 @@ impl TdStaticType for TdTimeType {
   fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
     Some((*self).into())
   }
-  fn construct(&self, db: &TypedownDatabase, args: Vec<TdObjectEnum>) -> Option<TdObjectEnum> {
+  fn construct(
+    &self,
+    db: &TypedownDatabase,
+    _project: Project,
+    args: Vec<TdObjectEnum>,
+  ) -> Option<TdObjectEnum> {
     let arg = args.into_iter().next()?;
     let str_obj = arg.as_td_str_obj()?;
     let val = str_obj.value(db);

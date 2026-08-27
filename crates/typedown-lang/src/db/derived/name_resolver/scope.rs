@@ -33,21 +33,21 @@ pub fn scope(db: &TypedownDatabase, hir: HirValue) -> Scope {
 #[query_derived]
 pub fn parent_scope(db: &TypedownDatabase, scope: Scope) -> MaybeScope {
   match scope.kind(db) {
-    ScopeKind::Builtin => MaybeScope::new(db, None),
-    ScopeKind::Project(_) => MaybeScope::new(db, Some(Scope::builtin_scope(db))),
+    ScopeKind::Builtin(_) => MaybeScope::new(db, None),
+    ScopeKind::Project(project) => MaybeScope::new(db, Some(Scope::builtin_scope(db, project))),
     ScopeKind::File(project, _) => MaybeScope::new(db, Some(Scope::project_scope(db, project))),
     ScopeKind::Fn(_project, _file, value) => MaybeScope::new(db, Some(self::scope(db, value))),
   }
 }
 
 #[query_derived]
-pub fn get_builtin_runtime_scope(db: &TypedownDatabase) -> RuntimeScope {
-  RuntimeScope::new(db, Scope::builtin_scope(db), vec![], None)
+pub fn get_builtin_runtime_scope(db: &TypedownDatabase, project: Project) -> RuntimeScope {
+  RuntimeScope::new(db, Scope::builtin_scope(db, project), vec![], None)
 }
 
 #[query_derived]
 pub fn get_project_runtime_scope(db: &TypedownDatabase, project: Project) -> RuntimeScope {
-  let parent = get_builtin_runtime_scope(db);
+  let parent = get_builtin_runtime_scope(db, project);
   RuntimeScope::new(
     db,
     Scope::project_scope(db, project),
