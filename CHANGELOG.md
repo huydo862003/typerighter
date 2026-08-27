@@ -1,3 +1,31 @@
+## [0.16.0] - 2026-08-27
+
+### Feat
+
+* crates/typedown-server
+  - **Inlay hints**: display inferred types and resolved references inline in the editor
+  - **Create linked resource** command: create a new file from an `fref()` that doesn't resolve yet
+  - Enhanced completions, hover, go-to-definition, and code actions for typedown frontmatter
+
+* crates/typedown-lang
+  - Functions now receive project context for project-aware evaluation
+
+* packages/tree-sitter
+  - Properly highlight kebab-case identifiers in containers
+
+* editors/nvim
+  - Lint and format commands
+  - Image paste command
+
+* editors/vscode
+  - `createLinkedResource` command support
+
+* Syntax highlighting (all editors)
+  - Type keyword highlighting in postfix expressions
+
+* homepage
+  - New documentation site with guides and references
+
 ## [0.15.1] - 2026-08-26
 
 ### Fixes
