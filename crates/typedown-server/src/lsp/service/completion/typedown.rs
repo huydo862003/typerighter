@@ -1,11 +1,11 @@
 use typedown_incremental::StableCompare;
 use typedown_lang::db::utils::{is_content_file, is_type_file};
 
+use crate::lsp::service::utils::symbol::get_resource_label;
 use lsp_types::{
   CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
 };
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
@@ -16,8 +16,7 @@ use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_t
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
-  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdRuntimeObject, TdStaticType,
-  TdTypeEnum,
+  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdStaticType, TdTypeEnum,
 };
 use typedown_lang::db::utils::schema_name_in_mapping;
 use typedown_lang::syntax::ast::{AstNode, Expr};
@@ -148,15 +147,9 @@ fn fref_completions(
       let rel = path.strip_prefix(&root_dir).ok()?;
       let rel_str = rel.to_string_lossy().into_owned();
 
-      // Try to get the display label from the resource
       let label_text = file_symbol(db, project, *target_file)
         .value(db)
-        .and_then(|sym| evaluate_resource(db, sym).value(db))
-        .and_then(|obj| {
-          let field = obj.get_owned_field(db, "_label")?;
-          let str_obj = field.as_td_str_obj()?;
-          Some(str_obj.value(db))
-        });
+        .and_then(|sym| get_resource_label(db, sym));
 
       let schema_name = file_symbol(db, project, *target_file)
         .value(db)

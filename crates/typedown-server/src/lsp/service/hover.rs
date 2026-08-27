@@ -1,7 +1,7 @@
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
+use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
@@ -9,7 +9,7 @@ use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::types::derived::object_system::TdStaticType;
-use typedown_lang::db::types::{File, HirValueKind, Project, TdRuntimeObject, TdTypeEnum};
+use typedown_lang::db::types::{File, HirValueKind, Project, TdTypeEnum};
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -21,16 +21,17 @@ use crate::core::utils::ast::{
 };
 use crate::core::utils::position::lsp_position_to_text_offset;
 use crate::core::utils::uri::uri_to_path;
+use crate::lsp::service::utils::symbol::get_resource_label;
 
 pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
   let db = &analysis.db;
 
   // Get the current file that requests hover information
+  let project = analysis.project;
   let uri = &params.text_document_position_params.text_document.uri;
   let path = uri_to_path(uri)?;
 
   // Parse the current file
-  let project = analysis.project;
   let file = *project.files(db).get(&path)?;
   let root_node = parse_file(db, project, file).ast(db);
   let rope = analysis.file_rope(&path)?;
@@ -93,8 +94,7 @@ fn fref_hover_text(
   node: &RedNode,
 ) -> Option<String> {
   let call = containing_fref_expr(node)?;
-  let dummy_file = file;
-  let hir = lower_node(db, project, dummy_file, call.syntax().clone());
+  let hir = lower_node(db, project, file, call.syntax().clone());
   let HirValueKind::Call { args, .. } = hir.kind(db) else {
     return None;
   };
@@ -103,20 +103,14 @@ fn fref_hover_text(
     return None;
   };
 
-  let config = typedown_lang::db::derived::get_vault_config::get_vault_config(db, project);
+  let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
   let target_path = root_dir.join(&path_str);
   let target_file = *project.files(db).get(&target_path)?;
-
   let sym = file_symbol(db, project, target_file).value(db)?;
 
   let schema_name = get_symbol_type(db, sym).typ(db).map(|t| t.display_name(db));
-
-  let label = evaluate_resource(db, sym).value(db).and_then(|obj| {
-    let field = obj.get_owned_field(db, "_label")?;
-    let str_obj = field.as_td_str_obj()?;
-    Some(str_obj.value(db))
-  });
+  let label = get_resource_label(db, sym);
 
   let mut parts = vec![];
   if let Some(label) = label {
