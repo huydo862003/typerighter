@@ -6,6 +6,13 @@ description: "Overhaul the public-facing site with a new design system."
 status: "active"
 started: "2026-03-01"
 archived: false
+members:
+  - fref("people/alice.td")
+  - fref("people/bob.td")
+tasks:
+  - fref("tasks/design-mockups.td")
+  - fref("tasks/implement-auth.td")
+  - fref("tasks/write-tests.td")
 ---
 
 ## Goals
