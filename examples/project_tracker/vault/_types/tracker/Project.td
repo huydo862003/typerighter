@@ -11,6 +11,10 @@ properties:
     type: date
   archived:
     type: boolean?
+  members:
+    type: list[Person]?
+  tasks:
+    type: list[Task]?
   tags:
     type: list[string]?
 ---

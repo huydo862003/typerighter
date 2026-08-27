@@ -50,6 +50,42 @@ end
 
 local binary = resolve_lsp_binary()
 
+-- Generic prompt resolver for typerighter commands
+local function resolve_prompts_and_execute(cmd, ctx)
+  local args = cmd.arguments and cmd.arguments[1]
+  if not args then return end
+
+  local prompts = args.prompts or {}
+  if #prompts == 0 then
+    -- No prompts remaining, send directly
+    local client = vim.lsp.get_client_by_id(ctx.client_id)
+    if client then
+      client.request("workspace/executeCommand", {
+        command = cmd.command,
+        arguments = cmd.arguments,
+      })
+    end
+    return
+  end
+
+  -- Process the first prompt, then recurse for the rest
+  local prompt = table.remove(prompts, 1)
+
+  if prompt.kind == "input" then
+    vim.ui.input({ prompt = prompt.prompt .. " ", default = prompt.default or "" }, function(value)
+      if not value or value == "" then return end
+      args[prompt.field] = value
+      resolve_prompts_and_execute(cmd, ctx)
+    end)
+  elseif prompt.kind == "select" then
+    vim.ui.select(prompt.choices, { prompt = prompt.prompt }, function(choice)
+      if not choice then return end
+      args[prompt.field] = choice
+      resolve_prompts_and_execute(cmd, ctx)
+    end)
+  end
+end
+
 local function start_lsp()
   if not binary then return end
   local root = vim.fs.root(0, { "typedown.yaml", "typedown.yml" })
@@ -84,6 +120,14 @@ local function start_lsp()
         end
       end,
     },
+    -- Route all _typerighter.* commands through the generic prompt resolver
+    commands = setmetatable({}, {
+      __index = function(_, key)
+        if key:find("^_typerighter%.") then
+          return resolve_prompts_and_execute
+        end
+      end,
+    }),
   })
 end
 

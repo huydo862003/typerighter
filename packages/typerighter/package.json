@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
+    "@floating-ui/vue": "^2.0.1",
     "@fontsource-variable/archivo": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@lucide/vue": "^1.30.0",

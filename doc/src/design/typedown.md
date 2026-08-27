@@ -8,6 +8,8 @@
   - [Comments](#comments)
   - [Top-level Frontmatter Value](#top-level-frontmatter-value)
   - [Type Declaration](#type-declaration)
+  - [Schema Inheritance](#schema-inheritance)
+  - [Imports](#imports)
   - [Label](#label)
   - [Properties](#properties)
   - [Links](#links)
@@ -16,6 +18,7 @@
   - [Operators](#operators)
   - [Lists](#lists)
   - [Dicts](#dicts)
+  - [Closures](#closures)
   - [Type Expressions](#type-expressions)
 - [Typedown Explicit Type Tags](#typedown-explicit-type-tags)
 - [Typedown Schema](#typedown-schema)
@@ -29,15 +32,13 @@
   - [Callout Blocks](#callout-blocks)
   - [Multimedia](#multimedia)
   - [Links](#links-1)
-  - [Footnotes](#footnotes)
-  - [Bibliography](#bibliography)
 
 ## Basic Structure
 
 A `.td` file consists of two sections:
 
 1. A YAML-like frontmatter block containing the resource's structured data (the **Typedown frontmatter**, or **frontmatter**), followed by
-2. A [Typedown Markdown](#typedown-markdown) body for free-form content (the **Typedown body**, or **body**).
+2. A [Typedown Markdown](#typedown-body-markdown-mode) body for free-form content (the **Typedown body**, or **body**).
 
 ```
 ---
@@ -51,6 +52,8 @@ A `.td` file consists of two sections:
 - The closing `---` is the frontmatter end marker.
 - Everything after belongs to the body.
 
+The frontmatter is optional. A file with no `---` delimiters is treated as a body-only file.
+
 The syntaxes will be familiar to anyone who has worked with YAML and Markdown. Typedown is case-sensitive throughout: identifiers, property names, type names, and reserved keys like `_type` and `_label` must match exactly.
 
 ## Modes
@@ -59,11 +62,11 @@ Like Typst, Typedown has four distinct modes that determine how content is inter
 
 ### YAML Mode
 
-Active inside the frontmatter (between the opening and closing `---`). Content is interpreted as structured data: key-value mappings, sequences, expressions, and type tags. Indentation is significant. Comments start with `#`.
+Active inside the frontmatter (between the opening and closing `---`). Content is interpreted as structured data: key-value mappings, sequences, expressions, and type annotations. Indentation is significant. Comments start with `#`.
 
 ```yaml
 ---
-_type: person
+_type: Person
 first_name: "Bob"
 tags:
   - "research"
@@ -163,7 +166,7 @@ label: "Result: ${"value is ${self.compute()}"}"
 
 ## Typedown Frontmatter (YAML Mode)
 
-Every `.td` file is a **Typedown resource file**. It contains a frontmatter and a body. The body is free-form content written in [Typedown Markdown](#typedown-markdown). The frontmatter is where the resource's structured data lives.
+Every `.td` file is a **Typedown resource file**. It contains a frontmatter and a body. The body is free-form content written in [Typedown Markdown](#typedown-body-markdown-mode). The frontmatter is where the resource's structured data lives.
 
 ### Comments
 
@@ -185,7 +188,7 @@ birth_date: "1990-07-04" # valid
 my_key_2: 42 # valid
 ```
 
-Keys starting with `_` are reserved for built-in directives (`_type`, `_label`, etc.). User-defined properties should not start with `_` to avoid conflicts with current or future reserved keys.
+Keys starting with `_` are reserved for built-in directives (`_type`, `_label`, `_extends`, `_imports`). User-defined properties should not start with `_` to avoid conflicts with current or future reserved keys.
 
 Values are **expressions**, not raw strings. Unquoted values are parsed as expressions (identifiers, numbers, booleans, operators). To write a string value, use double quotes or single quotes:
 
@@ -194,43 +197,75 @@ first_name: "Bob" # string literal
 status: "draft" # string literal
 count: 42 # number expression
 active: true # boolean identifier
-author: fref("bob.td") # file reference (link)
+author: fref("people/bob.td") # file reference (link)
 full_name: self.first_name + " " + self.last_name # expression
 ```
 
 ### Type Declaration
 
-A resource file must declare its type using `_type`. The value is the name of a [Typedown Schema](#typedown-schema) that the resource conforms to. The schema enforces what properties the resource is expected to have.
+A resource file declares its type using `_type`. The value is the name of a [Typedown Schema](#typedown-schema) that the resource conforms to. Schema names use PascalCase. The schema enforces what properties the resource is expected to have.
 
-For example, given a `person` schema defined as:
+For example, given a `Person` schema defined as:
 
 ```yaml
 ---
 _type: schema
 properties:
   first_name:
-    type: !type string
+    type: string
   last_name:
-    type: !type string
+    type: string
   birth_date:
-    type: !type date
+    type: date
 ---
 ```
 
-A resource conforming to it declares `_type: person` and must provide the required fields:
+A resource conforming to it declares `_type: Person` and must provide the required fields:
 
 ```yaml
 ---
-_type: person
+_type: Person
 first_name: "Bob"
 last_name: "Smith"
 birth_date: "1990-07-04"
 ---
 ```
 
-Property values do not need explicit type tags when the type can be inferred from the schema. `"Bob"` above is inferred as a `string` because the schema declares `first_name` as `!type string`. Explicit tags like `!string "Bob"` are only needed when the type cannot be inferred.
+Property values do not need explicit type tags when the type can be inferred from the schema. `"Bob"` above is inferred as a `string` because the schema declares `first_name` as `string`.
 
 A resource can also declare additional fields not defined in its schema. These are stored as-is and are not validated by the schema.
+
+### Schema Inheritance
+
+A schema can extend another schema using `_extends`. The child schema inherits all properties from the parent and can add its own:
+
+```yaml
+---
+_type: schema
+_extends: Person
+properties:
+  agency:
+    type: string?
+  rate:
+    type: number
+---
+```
+
+Resources conforming to the child schema must provide fields from both the parent and the child.
+
+### Imports
+
+A file can import other files from the vault using `_imports`. Each import maps an alias to a vault-relative file path:
+
+```yaml
+---
+_imports:
+  colors: "_partials/colors.td"
+brand: colors.primary
+---
+```
+
+The alias (`colors`) becomes available as an identifier in the file's scope. Dot access on the alias resolves fields from the imported file. Imported files can live in `_`-prefixed directories (internal modules) that are excluded from content discovery.
 
 ### Label
 
@@ -238,8 +273,8 @@ A resource file can declare a human-readable label using `_label`. The label is 
 
 ```yaml
 ---
-_type: person
-_label: !string "${self.first_name} ${self.last_name}"
+_type: Person
+_label: "${self.first_name} ${self.last_name}"
 ---
 ```
 
@@ -249,11 +284,11 @@ All frontmatter keys other than reserved `_` keys are properties of the resource
 
 ```yaml
 ---
-_type: person
-_label: !string "${self.first_name} ${self.last_name}"
+_type: Person
+_label: "${self.first_name} ${self.last_name}"
 first_name: "Bob"
 birth_date: "1990-07-04"
-author: fref("mona_lisa.td")
+author: fref("people/mona_lisa.td")
 tags:
   - "research"
   - "rdf"
@@ -263,10 +298,10 @@ Free-form markdown body content.
 
 ### Links
 
-A link is a property pointing to another `.td` file by filename. You can refer to another file by using `fref`. Links form directed edges in the resource graph.
+A link is a property pointing to another `.td` file by filename. You can refer to another file by using `fref`. The path is relative to the vault root. Links form directed edges in the resource graph.
 
 ```yaml
-author: fref("bob.td")
+author: fref("people/bob.td")
 ```
 
 A link can also reference a property that resolves to the target:
@@ -279,8 +314,8 @@ Multi-valued links are expressed as a YAML sequence:
 
 ```yaml
 tags:
-  - fref("research.td")
-  - fref("rdf.td")
+  - fref("tags/research.td")
+  - fref("tags/rdf.td")
 ```
 
 ## Typedown Expression
@@ -298,7 +333,7 @@ first_name: "Bob" # string (quoted)
 birth_date: "1990-07-04" # date (quoted)
 count: 42 # number
 active: true # boolean (identifier)
-author: fref("bob.td") # link
+author: fref("people/bob.td") # link
 ```
 
 Unquoted values are identifiers or expressions, not strings. Strings must always be quoted with double quotes (`"..."`) or single quotes (`'...'`):
@@ -330,7 +365,7 @@ The following operators are available in Typedown expressions:
 
 | Operator | Description                                     |
 | -------- | ----------------------------------------------- |
-| `+`      | Addition (numbers)                              |
+| `+`      | Addition (numbers) or concatenation (strings)   |
 | `-`      | Subtraction                                     |
 | `*`      | Multiplication                                  |
 | `/`      | Division                                        |
@@ -348,6 +383,7 @@ The following operators are available in Typedown expressions:
 | `.`      | Property access on an object or linked resource |
 | `[n]`    | Index by zero-based integer (lists and strings) |
 | `[key]`  | Dict indexing by string key                     |
+| `?`      | Nullable postfix (in type expressions)          |
 
 ```yaml
 first_tag: self.tags[0] # list indexing
@@ -356,7 +392,7 @@ initial: self.first_name[0] # string indexing
 author_name: self.author.name # property access on linked resource
 ```
 
-Out-of-bounds index access and missing dict keys evaluate to `undefined`. Any expression that depends on an `undefined` value also evaluates to `undefined`.
+Out-of-bounds index access and missing dict keys evaluate to `null`.
 
 ### Lists
 
@@ -367,8 +403,8 @@ tags: # list[string]
   - "research"
   - "rdf"
 authors: # list of file references
-  - fref("bob.td")
-  - fref("alice.td")
+  - fref("people/bob.td")
+  - fref("people/alice.td")
 ```
 
 ### Dicts
@@ -392,9 +428,21 @@ address: # { street: string, city: string, zip: number }
   zip: 12345
 ```
 
+### Closures
+
+A closure is an anonymous function. The syntax is `(params) -> body`:
+
+```yaml
+double: (x) -> x * 2
+greet: (name) -> "Hello, ${name}!"
+add: (a, b) -> a + b
+```
+
+Closures capture their enclosing scope.
+
 ### Type Expressions
 
-A type expression resolves to a type value rather than a data value. Type expressions use the `!type` tag and are only valid in schema property definitions.
+A type expression appears in schema property definitions under the `type` key. The `!type` tag is optional; bare type names are preferred:
 
 The built-in types are:
 
@@ -410,30 +458,52 @@ The built-in types are:
 | `dict[K, V]` | A homogeneous mapping from keys of type `K` to `V`  |
 
 ```yaml
-type: !type string
-type: !type number
-type: !type date
-type: !type list[string]
-type: !type dict[string, number]
+type: string
+type: number
+type: date
+type: list[string]
+type: dict[string, number]
 ```
 
-A fixed-key dict type is expressed as a YAML mapping under the `!type` tag:
+A fixed-key dict type is expressed as a YAML mapping:
 
 ```yaml
-type: !type { street: string, city: string, zip: number }
+type:
+  street:
+    type: string
+  city:
+    type: string
+  zip:
+    type: number
 ```
 
-A union type is expressed as a YAML sequence under the `!type` tag. Each element is a type name or a literal value:
+A union type is expressed as a YAML sequence. Each element is a type name or a literal value:
 
 ```yaml
-type: !type [string, number]             # union of string and number
-type: !type ['draft', 'published']       # string enum (union of string literals)
-type: !type [1, 2, 3]                    # number enum (union of number literals)
+type: [string, number]             # union of string and number
+type: ['draft', 'published']       # string enum (union of string literals)
+type: [1, 2, 3]                    # number enum (union of number literals)
 ```
 
-String literals in a union must be quoted to distinguish them from type name identifiers. Number and boolean literals are unambiguous without quotes.
+String literals in a union must be quoted to distinguish them from type name identifiers.
 
-A literal type is a type whose only valid value is a specific literal. Literal types are expressed directly without the `!type` tag:
+The `?` postfix marks a type as nullable (accepts the declared type or `null`):
+
+```yaml
+type: string?           # string or null
+type: list[string]?     # list or null
+type: date?             # date or null
+```
+
+A schema name can be used as a type to declare a link field. The field expects a file reference (`fref`) to a resource conforming to that schema:
+
+```yaml
+type: Person            # link to a Person resource
+type: Person?           # optional link
+type: list[Task]        # list of links to Task resources
+```
+
+A literal type is a type whose only valid value is a specific literal:
 
 ```yaml
 # schema
@@ -442,55 +512,64 @@ properties:
     type: 1 # version must always be 1
   status:
     type: "draft" # status must always be "draft"
-
-# resource
-version: 1
-status: "draft"
 ```
 
 An enum type is therefore shorthand for a union of literal types.
 
 ## Typedown Explicit Type Tags
 
-A value can carry an explicit type tag to override inference or disambiguate. The available tags are: `!string`, `!number`, `!boolean`, `!date`, `!time`, `!datetime`, `!type`. Any tagged value is an expression and can use operators, property references, and built-in functions:
+A value can carry an explicit type tag to override inference or disambiguate. The available tags are: `!string`, `!number`, `!boolean`, `!date`, `!time`, `!datetime`, `!type`. These are optional and rarely needed since types are inferred from the schema:
 
 ```yaml
 first_name: !string "Bob"
 birth_date: !date "1990-07-04"
-start_time: !time "09:00"
-created_at: !datetime "2024-01-15T14:30:00"
 count: !number 42
 active: !boolean true
-author: fref("bob.td")
-full_name: !string "${self.first_name} ${self.last_name}"
-reviewer: self.default_reviewer
 ```
-
-Expressions can reference:
-
-- Other properties on the same resource: `self.first_name`.
-- Properties on linked resources: `self.author.first_name`.
-- Built-in functions.
 
 ## Typedown Schema
 
-A schema file self-identifies by setting `_type: schema`. It defines the shape of resources that reference it: what properties they have and their types.
+A schema file self-identifies by setting `_type: schema`. It defines the shape of resources that reference it: what properties they have and their types. Schema files live under `_types/` in the vault.
 
-Use the `?` postfix operator to mark a property as nullable. A nullable property accepts either its declared type or `null`. Omitted nullable fields default to `null`.
+Use the `?` postfix to mark a property as nullable. A nullable property accepts either its declared type or `null`. Omitted nullable fields default to `null`.
+
+A schema can extend another schema using `_extends`:
 
 ```yaml
 ---
 _type: schema
 properties:
   first_name:
-    type: !type string
+    type: string
   birth_date:
-    type: !type date?
+    type: date?
   tags:
-    type: !type list[string]?
+    type: list[string]?
   status:
-    type: !type ["draft", "published", "archived"]
+    type: ["draft", "published", "archived"]
 ---
+```
+
+```yaml
+---
+_type: schema
+_extends: Person
+properties:
+  agency:
+    type: string?
+---
+```
+
+A property can declare a default value using `default`:
+
+```yaml
+properties:
+  status:
+    type: ['todo', 'in_progress', 'done']
+    default: "todo"
+  count:
+    type: number
+    default: 0
 ```
 
 ## Typedown Body (Markdown Mode)
@@ -607,7 +686,7 @@ Toggle lists use `>-`. The item is collapsed by default and can be expanded:
 
 ### Callout Blocks
 
-Callout blocks use `:::` with an optional type label:
+Callout blocks use `:::` with an optional type label. The label supports kebab-case identifiers:
 
 ```markdown
 ::: note
@@ -617,6 +696,12 @@ This is a note.
 ::: warning
 This is a warning.
 :::
+```
+
+A self-closing shorthand uses `[[label]]`:
+
+```markdown
+[[directory-index]]
 ```
 
 ### Multimedia
@@ -636,5 +721,5 @@ Standard Markdown links are supported. Links can point to external URLs or to ot
 
 ```markdown
 [Anthropic](https://anthropic.com)
-[Bob](bob.td)
+[Bob](people/bob)
 ```

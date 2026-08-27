@@ -1,6 +1,7 @@
 use typedown_incremental::StableCompare;
 use typedown_lang::db::utils::{is_content_file, is_type_file};
 
+use crate::lsp::service::utils::symbol::get_resource_label;
 use lsp_types::{
   CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
 };
@@ -53,6 +54,16 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     )));
   }
 
+  // Cursor in a field value whose type is a schema: suggest fref completions with snippet
+  if let Some(typ) = declared_field_type_at_value(db, project, file, &node)
+    && (typ.is_td_schema_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_schema_type))
+  {
+    let items = fref_snippet_completions(db, project, file, &node);
+    if !items.is_empty() {
+      return Some(CompletionResponse::Array(items));
+    }
+  }
+
   // Cursor in a field value: suggest value completions (booleans, null for optional fields).
   if let Some(items) = value_completions(db, project, file, &node) {
     return Some(CompletionResponse::Array(items));
@@ -69,7 +80,7 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
   None
 }
 
-/// Returns true if `node` is inside the value position of a `_type` mapping entry.
+// Returns true if the cursor is inside the value of a _type mapping entry
 fn is_type_value_position(node: &RedNode) -> bool {
   let Some(entry) = find_ancestor(node, SyntaxKind::YamlMappingEntry) else {
     return false;
@@ -83,7 +94,7 @@ fn is_type_value_position(node: &RedNode) -> bool {
   key.text().trim() == "_type"
 }
 
-/// Returns true if `node` is inside the string argument of a `fref()` call.
+// Returns true if the cursor is inside the string argument of a fref() call
 fn is_fref_arg_position(node: &RedNode) -> bool {
   // Walk up to find an enclosing StrLit, then a CallExpr above it.
   let str_lit = find_ancestor(node, SyntaxKind::StrLit);
@@ -101,8 +112,7 @@ fn is_fref_arg_position(node: &RedNode) -> bool {
     .is_some_and(|callee| callee.text().trim() == "fref")
 }
 
-/// Suggest .td file paths whose type is compatible with the declared field type.
-/// Falls back to all .td files if no declared type can be resolved.
+// Suggest .td file paths compatible with the declared field type
 fn fref_completions(
   db: &TypedownDatabase,
   project: Project,
@@ -133,21 +143,118 @@ fn fref_completions(
       };
       is_subtype_of(db, &file_type, expected_typ)
     })
-    .filter_map(|(path, _)| {
-      path
-        .strip_prefix(&root_dir)
-        .ok()
-        .map(|rel| rel.to_path_buf())
-    })
-    .map(|rel| CompletionItem {
-      label: rel.to_string_lossy().into_owned(),
-      kind: Some(CompletionItemKind::FILE),
-      ..Default::default()
+    .filter_map(|(path, target_file)| {
+      let rel = path.strip_prefix(&root_dir).ok()?;
+      let rel_str = rel.to_string_lossy().into_owned();
+
+      let label_text = file_symbol(db, project, *target_file)
+        .value(db)
+        .and_then(|sym| get_resource_label(db, sym));
+
+      let schema_name = file_symbol(db, project, *target_file)
+        .value(db)
+        .and_then(|sym| get_symbol_type(db, sym).typ(db))
+        .map(|t| t.display_name(db));
+
+      let basename = rel
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+      // filterText includes path, basename, and label for fuzzy matching
+      let mut filter_parts = vec![rel_str.clone(), basename];
+      if let Some(ref label) = label_text {
+        filter_parts.push(label.clone());
+      }
+      let filter_text = filter_parts.join(" ");
+
+      Some(CompletionItem {
+        label: rel_str,
+        detail: label_text,
+        label_details: schema_name.map(|s| lsp_types::CompletionItemLabelDetails {
+          detail: Some(s),
+          description: None,
+        }),
+        filter_text: Some(filter_text),
+        kind: Some(CompletionItemKind::FILE),
+        ..Default::default()
+      })
     })
     .collect()
 }
 
-// Resolve the type and mapping node the cursor belongs to
+// Resolve the declared field type at a value position or empty value after a colon
+fn declared_field_type_at_value(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<TdTypeEnum> {
+  if is_in_mapping_value_position(node) {
+    return declared_field(db, project, file, node);
+  }
+
+  // Empty value: resolve from the entry key name
+  let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
+  let key_text = entry_key_text(&entry)?;
+  let mapping = entry
+    .parent()
+    .filter(|p| p.kind() == SyntaxKind::YamlMapping)?;
+  resolve_field_type_from_schema(db, project, &mapping, &key_text)
+}
+
+// Check if a nullable type (T?) has a member satisfying the predicate
+fn has_nullable_member(
+  db: &TypedownDatabase,
+  typ: &TdTypeEnum,
+  predicate: fn(&TdTypeEnum) -> bool,
+) -> bool {
+  typ.as_td_sum_type().is_some_and(|sum| {
+    sum
+      .members(db)
+      .iter()
+      .any(|m| m.resolve(db).is_some_and(|t| predicate(&t)))
+  })
+}
+
+// Suggest fref("path") completions as snippets for schema-typed value positions
+fn fref_snippet_completions(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Vec<CompletionItem> {
+  let mut items: Vec<CompletionItem> = fref_completions(db, project, file, node)
+    .into_iter()
+    .map(|item| {
+      let path = &item.label;
+      CompletionItem {
+        label: item.detail.clone().unwrap_or_else(|| item.label.clone()),
+        insert_text: Some(format!("fref(\"{path}\")")),
+        filter_text: item.filter_text.clone(),
+        detail: Some(path.clone()),
+        label_details: item.label_details.clone(),
+        kind: Some(CompletionItemKind::REFERENCE),
+        ..Default::default()
+      }
+    })
+    .collect();
+
+  // Add a generic fref snippet so the user can type a path manually
+  items.push(CompletionItem {
+    label: "fref(...)".to_string(),
+    insert_text: Some("fref(\"$1\")".to_string()),
+    insert_text_format: Some(InsertTextFormat::SNIPPET),
+    detail: Some("File reference".to_string()),
+    kind: Some(CompletionItemKind::SNIPPET),
+    sort_text: Some("zzz".to_string()),
+    ..Default::default()
+  });
+
+  items
+}
+
 fn enclosing_mapping_type(
   db: &TypedownDatabase,
   project: Project,
@@ -177,47 +284,134 @@ fn enclosing_mapping_type(
   None
 }
 
-/// If the cursor is in a field value, return value completions
-/// Also suggests `null` for optional fields
+// Suggest value completions based on the declared field type
 fn value_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
 ) -> Option<Vec<CompletionItem>> {
-  // Must be directly inside a value position (not a key that happens to be nested in a value)
   if !is_in_mapping_value_position(node) {
     return None;
   }
 
-  // Suggest true + false
   let mut items = vec![keyword_item("true"), keyword_item("false")];
 
-  // Suggest null only for optional fields
-  if let Some(typ) = declared_field(db, project, file, node)
-    && is_nullable(db, &typ)
-  {
+  let Some(typ) = declared_field(db, project, file, node) else {
+    return Some(items);
+  };
+
+  if is_nullable(db, &typ) {
     items.push(keyword_item("null"));
+  }
+
+  // Enum values from union of literals
+  collect_enum_items(db, &typ, &mut items);
+
+  // Date placeholder
+  if typ.is_td_date_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_date_type) {
+    items.push(CompletionItem {
+      label: "\"YYYY-MM-DD\"".to_string(),
+      insert_text: Some("\"$1\"".to_string()),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      detail: Some("ISO 8601 date".to_string()),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+  }
+
+  // List scaffold
+  if typ.is_td_list_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_list_type) {
+    items.push(CompletionItem {
+      label: "- ...".to_string(),
+      insert_text: Some("\n  - $1".to_string()),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      detail: Some("List".to_string()),
+      kind: Some(CompletionItemKind::SNIPPET),
+      ..Default::default()
+    });
   }
 
   Some(items)
 }
 
-/// Resolve the LazyType for the field whose value the cursor is currently in
+// Collect literal values from a union type as completion items
+fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<CompletionItem>) {
+  let sum = if let Some(s) = typ.as_td_sum_type() {
+    s
+  } else {
+    return;
+  };
+  for member in sum.members(db) {
+    let Some(resolved) = member.resolve(db) else {
+      continue;
+    };
+    let Some(lit) = resolved.as_td_literal_type() else {
+      continue;
+    };
+    let (label, detail) = match lit.value(db) {
+      LiteralValue::Str(s) => (format!("\"{s}\""), "string".to_string()),
+      LiteralValue::Num(n) => (n.clone(), "number".to_string()),
+      LiteralValue::Bool(b) => (b.to_string(), "boolean".to_string()),
+    };
+    items.push(CompletionItem {
+      label,
+      detail: Some(detail),
+      kind: Some(CompletionItemKind::ENUM_MEMBER),
+      ..Default::default()
+    });
+  }
+}
+
+// Resolve the declared type for the field whose value the cursor is in
 fn declared_field(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
 ) -> Option<TdTypeEnum> {
-  // Find the value expression node inside the enclosing YamlMappingEntryValue.
   let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
-  let value_expr = entry_value.children().find_map(Expr::cast)?;
-  let hir = lower_node(db, project, file, value_expr.syntax().clone());
-  expected_node_type(db, hir).typ(db)
+
+  // Try the value expression first
+  if let Some(value_expr) = entry_value.children().find_map(Expr::cast) {
+    let hir = lower_node(db, project, file, value_expr.syntax().clone());
+    if let Some(typ) = expected_node_type(db, hir).typ(db) {
+      return Some(typ);
+    }
+  }
+
+  // Fall back to looking up the field name in the enclosing schema
+  let entry = entry_value.parent()?;
+  let key_text = entry_key_text(&entry)?;
+  let mapping = find_ancestor(&entry, SyntaxKind::YamlMapping)?;
+  resolve_field_type_from_schema(db, project, &mapping, &key_text)
 }
 
-/// Build a keyword completion item (true, false, null).
+// Extract the key text from a YamlMappingEntry node
+fn entry_key_text(entry: &RedNode) -> Option<String> {
+  entry
+    .children()
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
+    .map(|key| key.text().trim().to_string())
+}
+
+// Look up a field's declared type from the enclosing schema
+fn resolve_field_type_from_schema(
+  db: &TypedownDatabase,
+  project: Project,
+  mapping: &RedNode,
+  key: &str,
+) -> Option<TdTypeEnum> {
+  let schema_name = schema_name_in_mapping(mapping)?;
+  let scope = Scope::project_scope(db, project);
+  let symbol = *members(db, scope).members(db).get(&schema_name)?;
+  let typ = evaluate_type(db, symbol).typ(db)?;
+  let schema = typ.as_td_schema_type()?;
+  let prop = schema.fields(db).get(key)?.clone();
+  prop.field_type.resolve(db)
+}
+
+// Build a keyword completion item (true, false, null)
 fn keyword_item(label: &str) -> CompletionItem {
   CompletionItem {
     label: label.to_string(),
@@ -226,7 +420,7 @@ fn keyword_item(label: &str) -> CompletionItem {
   }
 }
 
-/// Suggest all user-defined schema names visible in the project scope.
+// Suggest all user-defined schema names visible in the project scope
 fn schema_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
   let scope = Scope::project_scope(db, project);
   members(db, scope)
@@ -947,8 +1141,19 @@ properties:
 ---
 "#;
 
+  const SCHEMA_TASK_REF: &str = r#"---
+_type: schema
+properties:
+  title:
+    type: string
+  assignee:
+    type: Person?
+---
+"#;
+
   const CONTENT_ALICE: &str = r#"---
 _type: Person
+_label: "Alice Chen"
 name: Alice
 age: 30
 ---
@@ -1006,6 +1211,14 @@ date: 2024-01-01
         FileMetadata::default(),
       ),
     );
+    let task_ref_file = File::new(
+      &db,
+      FileHandle::Content(
+        type_root.join("TaskRef.td"),
+        SCHEMA_TASK_REF.to_string(),
+        FileMetadata::default(),
+      ),
+    );
     let alice_file = File::new(
       &db,
       FileHandle::Content(
@@ -1036,6 +1249,7 @@ date: 2024-01-01
       (root.join("_types/Person.td"), person_file),
       (root.join("_types/Event.td"), event_file),
       (root.join("_types/Directory.td"), directory_file),
+      (root.join("_types/TaskRef.td"), task_ref_file),
       (root.join("alice.td"), alice_file),
       (root.join("birthday.td"), birthday_file),
       (test_path, editing_file),
@@ -1196,6 +1410,247 @@ vault:
       !labels.iter().any(|l| l.contains("vault/")),
       "should not include vault dir prefix in path, got: {:?}",
       labels
+    );
+  }
+
+  // fref completions include _label as detail and basename in filterText
+  #[test]
+  fn fref_completion_includes_label_and_filter_text() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Directory
+featured: fref("|")
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected fref completions");
+    };
+
+    let alice_item = items
+      .iter()
+      .find(|item| item.label.contains("alice"))
+      .expect("should have alice completion");
+
+    // detail should contain the _label
+    assert_eq!(
+      alice_item.detail.as_deref(),
+      Some("Alice Chen"),
+      "detail should be the _label value"
+    );
+
+    // filterText should include basename and label for fuzzy matching
+    let filter = alice_item.filter_text.as_deref().unwrap_or("");
+    assert!(
+      filter.contains("alice") && filter.contains("Alice Chen"),
+      "filterText should contain basename and label: {filter}"
+    );
+  }
+
+  // Empty value on a schema-typed field suggests fref snippet
+  #[test]
+  fn schema_typed_empty_value_suggests_fref() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Directory
+featured: |
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions for empty schema-typed field");
+    };
+
+    // Should have the generic fref(...) snippet
+    let has_fref_snippet = items.iter().any(|item| item.label == "fref(...)");
+    assert!(
+      has_fref_snippet,
+      "empty schema field should suggest fref(...) snippet: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+
+    // Should also have specific file suggestions
+    let has_alice = items.iter().any(|item| {
+      item
+        .insert_text
+        .as_deref()
+        .is_some_and(|t| t.contains("alice"))
+    });
+    assert!(
+      has_alice,
+      "should suggest alice.td: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+  }
+
+  // Typing in a schema-typed field value auto-suggests fref completions
+  #[test]
+  fn schema_typed_field_suggests_fref() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Directory
+featured: a|
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions for schema-typed field");
+    };
+
+    // Should suggest alice with fref() wrapper
+    let alice_item = items
+      .iter()
+      .find(|item| {
+        item
+          .insert_text
+          .as_deref()
+          .is_some_and(|t| t.contains("alice"))
+      })
+      .expect("should suggest alice for Person-typed field");
+
+    assert!(
+      alice_item
+        .insert_text
+        .as_deref()
+        .is_some_and(|t| t.starts_with("fref(\"") && t.ends_with("\")")),
+      "insert_text should wrap path in fref(): {:?}",
+      alice_item.insert_text
+    );
+  }
+
+  // Nullable schema field (Person?) also auto-suggests fref on empty value
+  #[test]
+  fn nullable_schema_field_suggests_fref() {
+    let (content, offset) = cursor(
+      r#"---
+_type: TaskRef
+title: "Test"
+assignee: |
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions for nullable schema field");
+    };
+
+    let has_fref = items.iter().any(|item| {
+      item
+        .insert_text
+        .as_deref()
+        .is_some_and(|t| t.contains("fref("))
+    });
+    assert!(
+      has_fref,
+      "nullable Person? field should suggest fref completions: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+  }
+
+  // Non-schema field (string) should NOT auto-suggest fref
+  #[test]
+  fn string_field_does_not_suggest_fref() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: a|
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+
+    let has_fref = items.iter().any(|item| {
+      item
+        .insert_text
+        .as_deref()
+        .is_some_and(|t| t.contains("fref("))
+    });
+    assert!(
+      !has_fref,
+      "string field should not suggest fref: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+  }
+
+  // Enum field suggests literal values
+  #[test]
+  fn enum_field_suggests_literal_values() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Task
+status: t|
+priority: "high"
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions for enum field");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"\"todo\""),
+      "should suggest 'todo': {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"\"in_progress\""),
+      "should suggest 'in_progress': {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"\"done\""),
+      "should suggest 'done': {:?}",
+      labels
+    );
+  }
+
+  // Date field suggests ISO 8601 placeholder
+  #[test]
+  fn date_field_suggests_date_placeholder() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Event
+date: d|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions for date field");
+    };
+    let has_date = items.iter().any(|i| i.label.contains("YYYY-MM-DD"));
+    assert!(
+      has_date,
+      "date field should suggest ISO format: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
     );
   }
 

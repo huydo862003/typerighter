@@ -3,7 +3,7 @@
   "license": "AGPL-3.0-only",
   "publisher": "hdnax",
   "name": "typedown-vscode",
-  "displayName": "Typedown",
+  "displayName": "Typerighter",
   "description": "vscode extension providing lsp services for the typedown language",
   "private": true,
   "author": "Huy-DNA <huydo862003@gmail.com>",

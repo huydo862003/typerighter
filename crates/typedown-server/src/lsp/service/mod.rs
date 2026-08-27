@@ -1,8 +1,10 @@
 pub mod code_action;
+pub mod commands;
 pub mod completion;
 pub mod definition;
 pub mod formatting;
 pub mod hover;
+pub mod inlay_hint;
 pub mod references;
 pub mod rename_symbol;
 pub mod semantic_tokens;
@@ -10,8 +12,9 @@ pub mod utils;
 
 use lsp_server::{ErrorCode, Request, Response};
 use lsp_types::request::{
-  CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest, PrepareRenameRequest,
-  References, Rename, Request as _, SemanticTokensFullRequest, WillRenameFiles,
+  CodeActionRequest, Completion, Formatting, GotoDefinition, HoverRequest, InlayHintRequest,
+  PrepareRenameRequest, References, Rename, Request as _, SemanticTokensFullRequest,
+  WillRenameFiles,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -35,6 +38,7 @@ pub fn dispatch(analysis: &Analysis, req: Request) -> Response {
     }
     Rename::METHOD => try_handle(&req, |p| rename_symbol::rename(analysis, p)),
     Formatting::METHOD => try_handle(&req, |p| formatting::formatting(analysis, p)),
+    InlayHintRequest::METHOD => try_handle(&req, |p| inlay_hint::inlay_hints(analysis, p)),
     WillRenameFiles::METHOD => try_handle(&req, |p| rename_symbol::will_rename_files(analysis, p)),
     _ => Response::new_err(
       req.id,

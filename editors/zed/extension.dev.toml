@@ -1,5 +1,5 @@
 id = "typedown"
-name = "Typedown"
+name = "Typerighter"
 version = "${VERSION}"
 schema_version = 1
 authors = ["Lucas Nguyen"]

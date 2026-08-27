@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import {
-  ref, onBeforeUnmount,
-  useTemplateRef,
+  onBeforeUnmount, ref, useTemplateRef,
 } from 'vue';
+import {
+  useFloating, offset, flip, shift, arrow,
+} from '@floating-ui/vue';
 
 defineOptions({
   inheritAttrs: false,
@@ -15,51 +17,64 @@ const {
   text: string;
 }>();
 
-const wrapper = useTemplateRef<HTMLElement>('wrapper');
+const trigger = useTemplateRef<HTMLElement>('trigger');
+const tooltip = useTemplateRef<HTMLElement>('tooltip');
+const arrowRef = useTemplateRef<HTMLElement>('arrowEl');
 const visible = ref(false);
-const tipStyle = ref({
-  top: '0px',
-  left: '0px',
-});
+let showTimeout: ReturnType<typeof setTimeout> | undefined;
 let hideTimeout: ReturnType<typeof setTimeout> | undefined;
 
-function clearHideTimeout () {
+const {
+  floatingStyles, middlewareData, placement,
+} = useFloating(trigger, tooltip, {
+  placement: 'right',
+  middleware: [
+    offset(8),
+    flip(),
+    shift({
+      padding: 8,
+    }),
+    arrow({
+      element: arrowRef,
+    }),
+  ],
+});
+
+function clearTimeouts () {
+  if (showTimeout !== undefined) {
+    clearTimeout(showTimeout);
+    showTimeout = undefined;
+  }
   if (hideTimeout !== undefined) {
     clearTimeout(hideTimeout);
     hideTimeout = undefined;
   }
 }
 
+function show () {
+  const element = trigger.value;
+
+  if (!element || element.scrollWidth <= element.clientWidth) return;
+
+  clearTimeouts();
+  showTimeout = setTimeout(() => {
+    visible.value = true;
+  }, 400);
+}
+
+onBeforeUnmount(clearTimeouts);
+
 function hide () {
+  clearTimeouts();
   hideTimeout = setTimeout(() => {
     visible.value = false;
   }, 100);
 }
-
-function show () {
-  const element = wrapper.value;
-
-  if (!element || element.scrollWidth <= element.clientWidth) return;
-
-  clearHideTimeout();
-
-  const rect = element.getBoundingClientRect();
-
-  tipStyle.value = {
-    top: `${rect.bottom + 6}px`,
-    left: `${rect.left}px`,
-  };
-  visible.value = true;
-}
-
-onBeforeUnmount(() => {
-  clearHideTimeout();
-});
 </script>
 
 <template>
   <span
-    ref="wrapper"
+    ref="trigger"
     v-bind="$attrs"
     class="td-tooltip-trigger"
     @mouseenter="show"
@@ -68,14 +83,45 @@ onBeforeUnmount(() => {
     <slot />
   </span>
   <Teleport to="body">
-    <span
+    <div
       v-if="visible"
+      ref="tooltip"
       class="td-tooltip"
-      :style="tipStyle"
+      :style="floatingStyles"
       role="tooltip"
-      @mouseenter="clearHideTimeout"
+      @mouseenter="clearTimeouts"
       @mouseleave="hide"
-    >{{ text }}</span>
+    >
+      {{ text }}
+      <div
+        ref="arrowEl"
+        class="td-tooltip-arrow"
+        :style="{
+          left: middlewareData.arrow?.x === undefined ? '' : `${middlewareData.arrow.x}px`,
+          top: middlewareData.arrow?.y === undefined ? '' : `${middlewareData.arrow.y}px`,
+          ...(placement.startsWith('bottom')
+            ? {
+              top: '-4px',
+            }
+            : {}),
+          ...(placement.startsWith('top')
+            ? {
+              bottom: '-4px',
+            }
+            : {}),
+          ...(placement.startsWith('right')
+            ? {
+              left: '-4px',
+            }
+            : {}),
+          ...(placement.startsWith('left')
+            ? {
+              right: '-4px',
+            }
+            : {}),
+        }"
+      />
+    </div>
   </Teleport>
 </template>
 
@@ -91,7 +137,7 @@ onBeforeUnmount(() => {
 <!-- eslint-disable vue/enforce-style-attribute "We use teleport" -->
 <style>
 .td-tooltip {
-  position: fixed;
+  position: absolute;
   z-index: 1000;
   max-width: 300px;
   padding: 7px 12px 6px;
@@ -99,10 +145,20 @@ onBeforeUnmount(() => {
   line-height: 1.4;
   color: var(--color-td-tooltip-fg);
   background: var(--color-td-tooltip-bg);
+  border: 1px solid var(--color-td-border);
   border-radius: 6px;
   pointer-events: auto;
   word-break: break-word;
   white-space: normal;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.td-tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--color-td-tooltip-bg);
+  transform: rotate(45deg);
 }
 </style>
 <!-- eslint-enable vue/enforce-style-attribute -->
