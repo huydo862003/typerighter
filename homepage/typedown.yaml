@@ -1,0 +1,7 @@
+version: "1.0.0"
+vault:
+  root_dir: "vault"
+repo: "https://github.com/huydo862003/typerighter"
+site:
+  title: "Typedown"
+  description: "A typed markdown language for structured content"

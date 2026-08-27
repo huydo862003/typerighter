@@ -1,0 +1,14 @@
+{
+  "name": "@typedown/homepage",
+  "version": "0.15.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "typerighter dev",
+    "build": "typerighter build",
+    "preview": "typerighter preview"
+  },
+  "devDependencies": {
+    "typerighter": "workspace:*"
+  }
+}

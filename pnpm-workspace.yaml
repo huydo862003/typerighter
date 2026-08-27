@@ -4,6 +4,7 @@ packages:
   - "editors/vscode"
   - "editors/zed"
   - "examples/*"
+  - "homepage"
 allowBuilds:
   unrs-resolver: true
   esbuild: true
