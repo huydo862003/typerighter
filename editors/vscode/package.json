@@ -8,6 +8,7 @@
   "private": true,
   "author": "Huy-DNA <huydo862003@gmail.com>",
   "version": "0.16.0",
+  "icon": "icons/typedown.png",
   "engines": {
     "vscode": "^1.125.0"
   },
