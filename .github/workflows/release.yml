@@ -297,18 +297,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Publish to VS Code Marketplace
-      - name: Publish to VS Code Marketplace
-        if: needs.validate-tag.outputs.is_staging != 'true'
-        run: |
-          npx @vscode/vsce publish --packagePath \
-            artifacts/typedown-vscode-linux-x86_64/*.vsix \
-            artifacts/typedown-vscode-darwin-x86_64/*.vsix \
-            artifacts/typedown-vscode-darwin-aarch64/*.vsix \
-            artifacts/typedown-vscode-windows-x86_64/*.vsix
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
       # Publish to crates.io
       - name: Publish to crates.io
         run: |
