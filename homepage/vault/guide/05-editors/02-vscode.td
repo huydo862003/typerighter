@@ -7,7 +7,12 @@ The VS Code extension provides:
 
 ## Installation
 
-Install from the VS Code marketplace by searching for "Typerighter", or build from source.
+The extension is not yet published on the VS Code Marketplace.
+Download the `.vsix` file for your platform from the [GitHub Releases](https://github.com/huydo862003/typerighter/releases) page, then install it manually:
+
+1. Open VS Code
+2. `Ctrl+Shift+P` -> "Extensions: Install from VSIX..."
+3. Select the downloaded `.vsix` file
 
 ## Tips
 
