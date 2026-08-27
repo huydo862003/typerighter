@@ -287,29 +287,101 @@ fn enclosing_mapping_type(
   None
 }
 
-// Suggest value completions (booleans, null for optional fields)
+// Suggest value completions based on the declared field type
 fn value_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
 ) -> Option<Vec<CompletionItem>> {
-  // Must be directly inside a value position (not a key that happens to be nested in a value)
   if !is_in_mapping_value_position(node) {
     return None;
   }
 
-  // Suggest true + false
   let mut items = vec![keyword_item("true"), keyword_item("false")];
 
-  // Suggest null only for optional fields
-  if let Some(typ) = declared_field(db, project, file, node)
-    && is_nullable(db, &typ)
-  {
+  let Some(typ) = declared_field(db, project, file, node) else {
+    return Some(items);
+  };
+
+  if is_nullable(db, &typ) {
     items.push(keyword_item("null"));
   }
 
+  // Enum values from union of literals
+  collect_enum_items(db, &typ, &mut items);
+
+  // Date placeholder
+  if typ.is_td_date_type() || is_date_under_nullable(db, &typ) {
+    items.push(CompletionItem {
+      label: "\"YYYY-MM-DD\"".to_string(),
+      insert_text: Some("\"$1\"".to_string()),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      detail: Some("ISO 8601 date".to_string()),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+  }
+
+  // List scaffold
+  if typ.is_td_list_type() || is_list_under_nullable(db, &typ) {
+    items.push(CompletionItem {
+      label: "- ...".to_string(),
+      insert_text: Some("\n  - $1".to_string()),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      detail: Some("List".to_string()),
+      kind: Some(CompletionItemKind::SNIPPET),
+      ..Default::default()
+    });
+  }
+
   Some(items)
+}
+
+// Collect literal values from a union type as completion items
+fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<CompletionItem>) {
+  let sum = if let Some(s) = typ.as_td_sum_type() {
+    s
+  } else {
+    return;
+  };
+  for member in sum.members(db) {
+    let Some(resolved) = member.resolve(db) else {
+      continue;
+    };
+    let Some(lit) = resolved.as_td_literal_type() else {
+      continue;
+    };
+    let (label, detail) = match lit.value(db) {
+      LiteralValue::Str(s) => (format!("\"{s}\""), "string".to_string()),
+      LiteralValue::Num(n) => (n.clone(), "number".to_string()),
+      LiteralValue::Bool(b) => (b.to_string(), "boolean".to_string()),
+    };
+    items.push(CompletionItem {
+      label,
+      detail: Some(detail),
+      kind: Some(CompletionItemKind::ENUM_MEMBER),
+      ..Default::default()
+    });
+  }
+}
+
+fn is_date_under_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
+  typ.as_td_sum_type().is_some_and(|sum| {
+    sum
+      .members(db)
+      .iter()
+      .any(|m| m.resolve(db).is_some_and(|t| t.is_td_date_type()))
+  })
+}
+
+fn is_list_under_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
+  typ.as_td_sum_type().is_some_and(|sum| {
+    sum
+      .members(db)
+      .iter()
+      .any(|m| m.resolve(db).is_some_and(|t| t.is_td_list_type()))
+  })
 }
 
 // Resolve the declared type for the field whose value the cursor is in
@@ -1538,6 +1610,67 @@ name: a|
     assert!(
       !has_fref,
       "string field should not suggest fref: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+  }
+
+  // Enum field suggests literal values
+  #[test]
+  fn enum_field_suggests_literal_values() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Task
+status: t|
+priority: "high"
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions for enum field");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"\"todo\""),
+      "should suggest 'todo': {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"\"in_progress\""),
+      "should suggest 'in_progress': {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"\"done\""),
+      "should suggest 'done': {:?}",
+      labels
+    );
+  }
+
+  // Date field suggests ISO 8601 placeholder
+  #[test]
+  fn date_field_suggests_date_placeholder() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Event
+date: d|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions for date field");
+    };
+    let has_date = items.iter().any(|i| i.label.contains("YYYY-MM-DD"));
+    assert!(
+      has_date,
+      "date field should suggest ISO format: {:?}",
       items.iter().map(|i| &i.label).collect::<Vec<_>>()
     );
   }

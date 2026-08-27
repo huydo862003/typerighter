@@ -1,18 +1,23 @@
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::hir::lower_node;
+use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
-use typedown_lang::db::types::TdTypeEnum;
+use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::types::derived::object_system::TdStaticType;
+use typedown_lang::db::types::{File, HirValueKind, Project, TdRuntimeObject, TdTypeEnum};
 use typedown_lang::syntax::ast::{AstNode, Expr};
+use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{
-  find_ancestor, is_in_mapping_value_position, nearest_expr_ancestor, node_at_offset,
+  containing_fref_expr, find_ancestor, is_in_mapping_value_position, nearest_expr_ancestor,
+  node_at_offset,
 };
 use crate::core::utils::position::lsp_position_to_text_offset;
 use crate::core::utils::uri::uri_to_path;
@@ -35,6 +40,17 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
     lsp_position_to_text_offset(&rope, params.text_document_position_params.position)?
       .saturating_sub(1);
   let hovered_node = node_at_offset(root_node, hovered_offset)?;
+
+  // fref hover: show target label and schema
+  if let Some(fref_text) = fref_hover_text(db, project, file, &hovered_node) {
+    return Some(Hover {
+      contents: HoverContents::Markup(MarkupContent {
+        kind: MarkupKind::Markdown,
+        value: fref_text,
+      }),
+      range: None,
+    });
+  }
 
   let text = if is_in_mapping_value_position(&hovered_node) {
     // Value position: show the resolved type of the expression.
@@ -67,6 +83,51 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
     }),
     range: None,
   })
+}
+
+// Resolve hover text for a fref() argument: show target label and schema
+fn fref_hover_text(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<String> {
+  let call = containing_fref_expr(node)?;
+  let dummy_file = file;
+  let hir = lower_node(db, project, dummy_file, call.syntax().clone());
+  let HirValueKind::Call { args, .. } = hir.kind(db) else {
+    return None;
+  };
+  let arg = args.first()?;
+  let HirValueKind::Str(path_str) = arg.kind(db) else {
+    return None;
+  };
+
+  let config = typedown_lang::db::derived::get_vault_config::get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  let target_path = root_dir.join(&path_str);
+  let target_file = *project.files(db).get(&target_path)?;
+
+  let sym = file_symbol(db, project, target_file).value(db)?;
+
+  let schema_name = get_symbol_type(db, sym).typ(db).map(|t| t.display_name(db));
+
+  let label = evaluate_resource(db, sym).value(db).and_then(|obj| {
+    let field = obj.get_owned_field(db, "_label")?;
+    let str_obj = field.as_td_str_obj()?;
+    Some(str_obj.value(db))
+  });
+
+  let mut parts = vec![];
+  if let Some(label) = label {
+    parts.push(format!("**{label}**"));
+  }
+  if let Some(schema) = schema_name {
+    parts.push(schema);
+  }
+  parts.push(format!("`{path_str}`"));
+
+  Some(parts.join("\n\n"))
 }
 
 fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
@@ -264,5 +325,89 @@ nick|name: Bob
       "expected field name, got: {text}"
     );
     assert!(text.contains("string"), "expected field type, got: {text}");
+  }
+
+  #[test]
+  fn hover_on_fref_shows_label_and_schema() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let type_root = root.join("_types");
+
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: fref("ali|ce.td")
+---
+"#,
+    );
+    let test_path = root.join("file.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let alice_content = r#"---
+_type: Person
+_label: "Alice Chen"
+name: "Alice"
+age: 30
+---
+"#;
+
+    let files = HashMap::from([
+      (
+        root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("typedown.yaml"),
+            VAULT_CONFIG.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        type_root.join("Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            type_root.join("Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("alice.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("alice.td"),
+            alice_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        test_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(test_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, root, files);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let text = hover_text(&analysis, uri, &content, offset).expect("fref should show hover");
+    assert!(text.contains("Alice Chen"), "should show _label: {text}");
+    assert!(text.contains("Person"), "should show schema name: {text}");
   }
 }
