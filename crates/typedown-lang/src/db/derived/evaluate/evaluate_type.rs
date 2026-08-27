@@ -1350,17 +1350,27 @@ result: ((x) -> x)("hello")
   // Nested closure captures outer param via RuntimeScope parent chain
   #[test]
   fn evaluate_nested_closure() {
-    let db = make_db();
-    let hir = make_hir(
-      &db,
-      r#"---
+    // Peak stack usage is only 36KB on Linux (valgrind massif)
+    // Not sure why this overflows on Windows which defaults to 1MB stack
+    // Spawn with explicit 4MB stack to avoid overflow
+    let result = std::thread::Builder::new()
+      .stack_size(4 * 1024 * 1024)
+      .spawn(|| {
+        let db = make_db();
+        let hir = make_hir(
+          &db,
+          r#"---
 result: ((x) -> (y) -> x + y)(10)(20)
 ---"#,
-    );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
-    assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 30.0);
+        );
+        let field = get_field_hir(&db, hir, "result");
+        let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+        let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+        assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 30.0);
+      })
+      .unwrap()
+      .join();
+    result.unwrap();
   }
 
   #[test]
