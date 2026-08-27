@@ -682,7 +682,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     quote! {
       // Derived struct is bound to an immutable database
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-      #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db dyn ::typedown_incremental::QueryDatabase + Sync + Send>);
+      #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>);
 
       impl<'db> #struct_name<'db> {
         fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<usize> {
