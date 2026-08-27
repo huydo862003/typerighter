@@ -12,7 +12,7 @@
     "vscode": "^1.125.0"
   },
   "categories": [
-    "lsp"
+    "Programming Languages"
   ],
   "activationEvents": [
     "onLanguage:typedown"
