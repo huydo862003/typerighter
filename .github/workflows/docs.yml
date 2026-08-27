@@ -1,4 +1,4 @@
-name: Docs
+name: Homepage
 
 on:
   push:
@@ -14,24 +14,26 @@ concurrency:
 
 jobs:
   build:
-    name: Build Docs
+    name: Build Homepage
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
 
-      - run: nix shell nixpkgs#mdbook nixpkgs#mdbook-mermaid --command mdbook build doc
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - run: nix develop --command bash -c "pnpm install && pnpm run build"
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: doc/book
+          path: homepage/dist
           retention-days: 2
 
   deploy:
-    name: Deploy Docs
+    name: Deploy Homepage
     needs: build
     if: github.ref == 'refs/heads/main'
     environment:
