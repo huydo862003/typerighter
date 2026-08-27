@@ -56,7 +56,7 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
 
   // Cursor in a field value whose type is a schema: suggest fref completions with snippet
   if let Some(typ) = declared_field_type_at_value(db, project, file, &node)
-    && (typ.is_td_schema_type() || is_schema_under_nullable(db, &typ))
+    && (typ.is_td_schema_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_schema_type))
   {
     let items = fref_snippet_completions(db, project, file, &node);
     if !items.is_empty() {
@@ -204,14 +204,18 @@ fn declared_field_type_at_value(
   resolve_field_type_from_schema(db, project, &mapping, &key_text)
 }
 
-fn is_schema_under_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
-  if let Some(sum) = typ.as_td_sum_type() {
-    let members = sum.members(db);
-    return members
+// Check if a nullable type (T?) has a member satisfying the predicate
+fn has_nullable_member(
+  db: &TypedownDatabase,
+  typ: &TdTypeEnum,
+  predicate: fn(&TdTypeEnum) -> bool,
+) -> bool {
+  typ.as_td_sum_type().is_some_and(|sum| {
+    sum
+      .members(db)
       .iter()
-      .any(|m| m.resolve(db).is_some_and(|t| t.is_td_schema_type()));
-  }
-  false
+      .any(|m| m.resolve(db).is_some_and(|t| predicate(&t)))
+  })
 }
 
 // Suggest fref("path") completions as snippets for schema-typed value positions
@@ -305,7 +309,7 @@ fn value_completions(
   collect_enum_items(db, &typ, &mut items);
 
   // Date placeholder
-  if typ.is_td_date_type() || is_date_under_nullable(db, &typ) {
+  if typ.is_td_date_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_date_type) {
     items.push(CompletionItem {
       label: "\"YYYY-MM-DD\"".to_string(),
       insert_text: Some("\"$1\"".to_string()),
@@ -317,7 +321,7 @@ fn value_completions(
   }
 
   // List scaffold
-  if typ.is_td_list_type() || is_list_under_nullable(db, &typ) {
+  if typ.is_td_list_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_list_type) {
     items.push(CompletionItem {
       label: "- ...".to_string(),
       insert_text: Some("\n  - $1".to_string()),
@@ -357,24 +361,6 @@ fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<C
       ..Default::default()
     });
   }
-}
-
-fn is_date_under_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
-  typ.as_td_sum_type().is_some_and(|sum| {
-    sum
-      .members(db)
-      .iter()
-      .any(|m| m.resolve(db).is_some_and(|t| t.is_td_date_type()))
-  })
-}
-
-fn is_list_under_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
-  typ.as_td_sum_type().is_some_and(|sum| {
-    sum
-      .members(db)
-      .iter()
-      .any(|m| m.resolve(db).is_some_and(|t| t.is_td_list_type()))
-  })
 }
 
 // Resolve the declared type for the field whose value the cursor is in

@@ -10,7 +10,7 @@ use lsp_types::{
 use typedown_server::core::logger;
 use typedown_server::core::multiproject::Multiproject;
 use typedown_server::lsp::server::Server;
-use typedown_server::lsp::service::semantic_tokens;
+use typedown_server::lsp::service::{commands, semantic_tokens};
 
 // The entrypoint
 pub fn main() -> anyhow::Result<()> {
@@ -35,6 +35,10 @@ pub fn main() -> anyhow::Result<()> {
     references_provider: Some(OneOf::Left(true)),
     code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
     document_formatting_provider: Some(OneOf::Left(true)),
+    execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
+      commands: commands::command_ids(),
+      ..Default::default()
+    }),
     inlay_hint_provider: Some(lsp_types::OneOf::Left(true)),
     semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
       SemanticTokensOptions {

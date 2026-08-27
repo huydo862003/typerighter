@@ -12,7 +12,7 @@ use lsp_types::notification::{
   DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
   DidRenameFiles, Notification as NotificationTrait,
 };
-use lsp_types::request::{RegisterCapability, Request as RequestTrait};
+use lsp_types::request::{ExecuteCommand, RegisterCapability, Request as RequestTrait};
 use lsp_types::{
   ClientCapabilities, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
   DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
@@ -26,7 +26,10 @@ use crate::core::multiproject::{Multiproject, ProjectEntry};
 use crate::core::utils::lsp::{try_extract_path_from_notification, try_extract_path_from_request};
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::notification::diagnostics::{publish_diagnostics, publish_diagnostics_for_file};
-use crate::lsp::service;
+use crate::lsp::service::commands::create_linked_resource::{
+  self as create_linked, CreateLinkedResourceArgs,
+};
+use crate::lsp::service::{self, commands};
 
 pub struct Server {
   connection: Connection,
@@ -86,6 +89,11 @@ impl Server {
       return Ok(());
     }
 
+    // executeCommand needs the connection for sending applyEdit/showDocument back
+    if req.method == ExecuteCommand::METHOD {
+      return self.handle_execute_command(req);
+    }
+
     // Resolve to the owning project
     let uri = try_extract_path_from_request(&req)?;
     let path = uri_to_path(&uri).ok_or_else(|| Error::msg("Failed to convert URI to path"))?;
@@ -115,6 +123,58 @@ impl Server {
         log::error!("Failed to send response: {err}");
       }
     });
+
+    Ok(())
+  }
+
+  fn handle_execute_command(&self, req: Request) -> anyhow::Result<()> {
+    let params: lsp_types::ExecuteCommandParams = serde_json::from_value(req.params)?;
+
+    match params.command.as_str() {
+      commands::CREATE_LINKED_RESOURCE => {
+        let args: CreateLinkedResourceArgs = serde_json::from_value(
+          params
+            .arguments
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::msg("missing arguments"))?,
+        )?;
+
+        // Resolve the project from the source URI
+        let source_uri: lsp_types::Uri = args
+          .source_uri
+          .parse()
+          .map_err(|_| Error::msg("invalid source URI"))?;
+        let path =
+          uri_to_path(&source_uri).ok_or_else(|| Error::msg("Failed to convert URI to path"))?;
+        let project_entry = self.multiproject.load_nearest_project(&path)?;
+        let analysis = project_entry
+          .host
+          .read()
+          .map_err(|_| Error::msg("RwLock poisoned"))?
+          .snapshot();
+
+        if let Err(err) = create_linked::execute(&analysis, args, &self.connection) {
+          log::error!("createLinkedResource failed: {err}");
+        }
+
+        // Send success response
+        self
+          .connection
+          .sender
+          .send(Message::Response(Response::new_ok(req.id, ())))?;
+      }
+      _ => {
+        self
+          .connection
+          .sender
+          .send(Message::Response(Response::new_err(
+            req.id,
+            lsp_server::ErrorCode::InvalidParams as i32,
+            format!("unknown command: {}", params.command),
+          )))?;
+      }
+    }
 
     Ok(())
   }

@@ -1,4 +1,5 @@
 pub mod code_action;
+pub mod commands;
 pub mod completion;
 pub mod definition;
 pub mod formatting;

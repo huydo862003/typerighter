@@ -20,6 +20,9 @@ import {
   TransportKind,
 } from 'vscode-languageclient/node';
 import {
+  resolvePromptsAndExecute,
+} from './command';
+import {
   ExtensionContextManager,
 } from './extensionContext';
 import {
@@ -54,6 +57,17 @@ export class LspManager implements Disposable {
         workspaceFolder: workspace.workspaceFolders?.[0],
         outputChannel: LogManager.getInstance().mainChannel,
         revealOutputChannelOn: RevealOutputChannelOn.Error,
+        middleware: {
+          executeCommand: async (command, args, next) => {
+            if (command.startsWith('_typerighter.')) {
+              await resolvePromptsAndExecute(client, command, args);
+
+              return;
+            }
+
+            return next(command, args);
+          },
+        },
       };
 
       const client = new LanguageClient(
