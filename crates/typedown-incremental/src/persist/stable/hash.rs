@@ -45,7 +45,7 @@ use typedown_types::either::Either;
 ///   `StableHasher` takes care of endianness and `isize`/`usize` platform
 ///   differences.
 pub trait StableHash {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher);
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher);
 }
 
 /// Hasher state to thread through multiple fields
@@ -128,7 +128,7 @@ impl StableHash for () {
 }
 
 impl<T: StableHash> StableHash for [T] {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     for item in self {
       item.stable_hash(db, hasher);
@@ -136,12 +136,12 @@ impl<T: StableHash> StableHash for [T] {
   }
 }
 impl<T: StableHash> StableHash for &[T] {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     (*self).stable_hash(db, hasher);
   }
 }
 impl<T: StableHash> StableHash for Vec<T> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self[..].stable_hash(db, hasher);
   }
 }
@@ -204,23 +204,23 @@ impl<T> StableHash for PhantomData<T> {
 }
 
 impl<T: StableHash + ?Sized> StableHash for Box<T> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     (**self).stable_hash(db, hasher);
   }
 }
 impl<T: StableHash + ?Sized> StableHash for Rc<T> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     (**self).stable_hash(db, hasher);
   }
 }
 impl<T: StableHash + ?Sized> StableHash for Arc<T> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     (**self).stable_hash(db, hasher);
   }
 }
 
 impl<T1: StableHash, T2: StableHash> StableHash for Result<T1, T2> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     // TIL: You can access the discriminant of an enum this way
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -230,13 +230,13 @@ impl<T1: StableHash, T2: StableHash> StableHash for Result<T1, T2> {
   }
 }
 impl<T> StableHash for Discriminant<T> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, _db: &'db DB, hasher: &mut StableHasher) {
     Hash::hash(self, hasher);
   }
 }
 
 impl<K: StableHash + StableOrd, V: StableHash> StableHash for BTreeMap<K, V> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     for entry in self.iter() {
       entry.stable_hash(db, hasher);
@@ -244,7 +244,7 @@ impl<K: StableHash + StableOrd, V: StableHash> StableHash for BTreeMap<K, V> {
   }
 }
 impl<K: StableHash + StableOrd> StableHash for BTreeSet<K> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     for entry in self.iter() {
       entry.stable_hash(db, hasher);
@@ -253,7 +253,7 @@ impl<K: StableHash + StableOrd> StableHash for BTreeSet<K> {
 }
 
 impl<T: StableHash> StableHash for Option<T> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     match self {
       None => hasher.write_u8(0),
       Some(value) => {
@@ -264,24 +264,24 @@ impl<T: StableHash> StableHash for Option<T> {
   }
 }
 impl<T: StableHash> StableHash for &T {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     (*self).stable_hash(db, hasher);
   }
 }
 
 impl<T: StableHash> StableHash for (T,) {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
   }
 }
 impl<T1: StableHash, T2: StableHash> StableHash for (T1, T2) {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
     self.1.stable_hash(db, hasher);
   }
 }
 impl<T1: StableHash, T2: StableHash, T3: StableHash> StableHash for (T1, T2, T3) {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
     self.1.stable_hash(db, hasher);
     self.2.stable_hash(db, hasher);
@@ -290,7 +290,7 @@ impl<T1: StableHash, T2: StableHash, T3: StableHash> StableHash for (T1, T2, T3)
 impl<T1: StableHash, T2: StableHash, T3: StableHash, T4: StableHash> StableHash
   for (T1, T2, T3, T4)
 {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
     self.1.stable_hash(db, hasher);
     self.2.stable_hash(db, hasher);
@@ -299,7 +299,7 @@ impl<T1: StableHash, T2: StableHash, T3: StableHash, T4: StableHash> StableHash
 }
 
 impl<K: StableHash + StableCompare, V: StableHash> StableHash for HashMap<K, V> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     let mut entries: Vec<(&K, &V)> = self.iter().collect();
     entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(db, k2));
@@ -311,7 +311,7 @@ impl<K: StableHash + StableCompare, V: StableHash> StableHash for HashMap<K, V> 
 }
 
 impl<K: StableHash + StableCompare> StableHash for HashSet<K> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     self.len().stable_hash(db, hasher);
     let mut entries: Vec<&K> = self.iter().collect();
     entries.sort_by(|a, b| a.stable_cmp(db, b));
@@ -339,7 +339,7 @@ impl StableHash for SystemTime {
 }
 
 impl<L: StableHash, R: StableHash> StableHash for Either<L, R> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<'db, DB: QueryDatabase + ?Sized>(&'db self, db: &'db DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
       Either::Left(val) => val.stable_hash(db, hasher),
