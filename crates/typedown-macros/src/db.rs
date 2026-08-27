@@ -680,10 +680,11 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
   output.extend::<TokenStream>(
     quote! {
+      // Derived struct is bound to an immutable database
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-      #visibility struct #struct_name(usize);
+      #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db dyn ::typedown_incremental::QueryDatabase>);
 
-      impl #struct_name {
+      impl<'db> #struct_name<'db> {
         fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static START_INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
           &START_INDEX
@@ -712,7 +713,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         /// Create or update a derived struct by identity
         /// If a struct with the same identity already exists, reuses its ID and updates fields in place
         #[allow(clippy::too_many_arguments)]
-        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_types),*) -> Self {
+        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &'db DB, #(#field_names: #field_types),*) -> Self {
           let storage = unsafe { db.storage() };
           let start_index = Self::ingredient_start_index();
           let current_revision = storage.revision.load(::std::sync::atomic::Ordering::Acquire);
@@ -734,22 +735,22 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
           #new_body_tokens
 
-          Self(id)
+          Self(id, ::std::marker::PhantomData)
         }
 
         #getter_tokens
       }
 
-      impl ::typedown_incremental::StableHash for #struct_name {
-        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
+      impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
+        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'db DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
             self.#field_names(db).stable_hash(db, hasher);
           )*
         }
       }
 
-      impl ::typedown_incremental::StableCompare for #struct_name {
-        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
+      impl<'db> ::typedown_incremental::StableCompare for #struct_name<'db> {
+        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'db DB, other: &Self) -> ::std::cmp::Ordering {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
@@ -758,7 +759,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         }
       }
 
-      impl ::typedown_incremental::Encodable for #struct_name {
+      impl<'db> ::typedown_incremental::Encodable for #struct_name<'db> {
         fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
@@ -769,7 +770,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         }
       }
 
-      impl ::typedown_incremental::Decodable for #struct_name {
+      impl<'db> ::typedown_incremental::Decodable for #struct_name<'db> {
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
@@ -782,20 +783,20 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         }
       }
 
-      impl ::typedown_incremental::Id for #struct_name {
+      impl<'db> ::typedown_incremental::Id for #struct_name<'db> {
         fn as_id(&self) -> (usize, usize) { (Self::ingredient_start_index(), self.0) }
       }
-      impl From<usize> for #struct_name {
+      impl<'db> From<usize> for #struct_name<'db> {
         fn from(id: usize) -> Self { Self(id) }
       }
-      impl From<#struct_name> for usize {
+      impl<'db> From<#struct_name<'db>> for usize {
         fn from(val: #struct_name) -> usize { val.0 }
       }
 
-      impl ::typedown_incremental::DerivedId for #struct_name {}
+      impl<'db> ::typedown_incremental::DerivedId for #struct_name<'db> {}
 
       #[cfg(debug_assertions)]
-      const _: () = <#struct_name as ::typedown_incremental::DerivedId>::__TYPEDOWN_DERIVED_ID;
+      const _: () = <#struct_name<'static> as ::typedown_incremental::DerivedId>::__TYPEDOWN_DERIVED_ID;
     }
     .into(),
   );
