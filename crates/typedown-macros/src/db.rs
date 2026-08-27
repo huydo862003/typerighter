@@ -742,7 +742,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
       }
 
       impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
-        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'db DB, hasher: &mut ::typedown_incremental::StableHasher) {
+        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
             self.#field_names(db).stable_hash(db, hasher);
           )*
@@ -750,7 +750,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
       }
 
       impl<'db> ::typedown_incremental::StableCompare for #struct_name<'db> {
-        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'db DB, other: &Self) -> ::std::cmp::Ordering {
+        fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
@@ -787,10 +787,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         fn as_id(&self) -> (usize, usize) { (Self::ingredient_start_index(), self.0) }
       }
       impl<'db> From<usize> for #struct_name<'db> {
-        fn from(id: usize) -> Self { Self(id) }
+        fn from(id: usize) -> Self { Self(id, ::std::marker::PhantomData) }
       }
       impl<'db> From<#struct_name<'db>> for usize {
-        fn from(val: #struct_name) -> usize { val.0 }
+        fn from(val: #struct_name<'db>) -> usize { val.0 }
       }
 
       impl<'db> ::typedown_incremental::DerivedId for #struct_name<'db> {}
