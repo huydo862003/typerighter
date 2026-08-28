@@ -925,6 +925,10 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
   let visibility = &struct_ast.vis;
   let struct_name = &struct_ast.ident;
+  let has_db_lifetime = struct_ast
+    .generics
+    .lifetimes()
+    .any(|param| param.lifetime.ident == "db");
 
   let fields: Vec<_> = match &struct_ast.fields {
     syn::Fields::Named(fields) => &fields.named,
@@ -940,7 +944,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
   let mut output: TokenStream = quote! {}.into();
 
   for field in &fields {
-    let field_ty = &field.ty;
+    let field_ty_static = erase_db_lifetime_tokens(&field.ty);
     output.extend::<TokenStream>(
       quote! {
         const _: () = {
@@ -949,11 +953,11 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           const fn assert_clone<T: Clone>() {}
           const fn assert_hash<T: ::std::hash::Hash>() {}
           const fn assert_eq<T: Eq>() {}
-          assert_send::<#field_ty>();
-          assert_sync::<#field_ty>();
-          assert_clone::<#field_ty>();
-          assert_hash::<#field_ty>();
-          assert_eq::<#field_ty>();
+          assert_send::<#field_ty_static>();
+          assert_sync::<#field_ty_static>();
+          assert_clone::<#field_ty_static>();
+          assert_hash::<#field_ty_static>();
+          assert_eq::<#field_ty_static>();
 
           #[cfg(debug_assertions)]
           const _: () = ::typedown_incremental::QueryStorage::__TYPEDOWN_QUERY_STORAGE;
@@ -964,8 +968,12 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
   }
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+  let field_types_static: Vec<proc_macro2::TokenStream> = field_types
+    .iter()
+    .map(|ty| erase_db_lifetime_tokens(ty))
+    .collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let intern_key_ty = quote! { (#(#field_types,)*) };
+  let intern_key_ty = quote! { (#(#field_types_static,)*) };
 
   // Register a single InternedIngredient for the whole struct
   output.extend::<TokenStream>(
@@ -1000,23 +1008,48 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
+        let id = self.0;
         let storage = unsafe { db.storage() };
         let ingredient_index = Self::ingredient_index();
         let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&self.0).expect("invalid interned id");
+        let entry = ingredient.data.get(&id).expect("invalid interned id");
 
-        entry.#tuple_index.clone()
+        // Safety: transmute 'static stored value to 'db at the boundary
+        unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) }
       }
     });
   }
 
+  // Conditionally generate struct and impls with or without 'db
+  let (struct_def, self_constructor, iter_map, impl_trait_prefix, impl_trait_for, debug_check_ty) =
+    if has_db_lifetime {
+      (
+        quote! { #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>) },
+        quote! { Self(id, ::std::marker::PhantomData) },
+        quote! { ingredient.entry_ids().map(|id| Self(id, ::std::marker::PhantomData)).collect() },
+        quote! { impl<'db> },
+        quote! { #struct_name<'db> },
+        quote! { #struct_name<'static> },
+      )
+    } else {
+      (
+        quote! { #visibility struct #struct_name(usize) },
+        quote! { Self(id) },
+        quote! { ingredient.entry_ids().map(Self).collect() },
+        quote! { impl },
+        quote! { #struct_name },
+        quote! { #struct_name },
+      )
+    };
+  let impl_header = quote! { #impl_trait_prefix #impl_trait_for };
+
   output.extend::<TokenStream>(
     quote! {
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-      #visibility struct #struct_name(usize);
+      #struct_def;
 
-      impl #struct_name {
+      #impl_header {
         fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
           &INDEX
@@ -1048,7 +1081,10 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
         #[allow(clippy::too_many_arguments)]
         pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_types),*) -> Self {
-          let intern_key = (#(#field_names.clone(),)*);
+          // Safety: transmute field values from 'db to 'static for storage
+          let intern_key: #intern_key_ty = unsafe {
+            ::std::mem::transmute((#(#field_names.clone(),)*))
+          };
           let map = Self::intern_map();
 
           let id = if let Some(existing) = map.get(&intern_key) {
@@ -1064,13 +1100,13 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
             .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
           ingredient.data.entry(id).or_insert(intern_key);
 
-          Self(id)
+          #self_constructor
         }
 
         #getter_tokens
       }
 
-      impl ::typedown_incremental::StableHash for #struct_name {
+      #impl_trait_prefix ::typedown_incremental::StableHash for #impl_trait_for {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
             self.#field_names(db).stable_hash(db, hasher);
@@ -1078,7 +1114,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         }
       }
 
-      impl ::typedown_incremental::StableCompare for #struct_name {
+      #impl_trait_prefix ::typedown_incremental::StableCompare for #impl_trait_for {
         fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
           let _ = db;
           ::std::cmp::Ordering::Equal
@@ -1088,7 +1124,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         }
       }
 
-      impl ::typedown_incremental::Encodable for #struct_name {
+      #impl_trait_prefix ::typedown_incremental::Encodable for #impl_trait_for {
         fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
@@ -1098,11 +1134,11 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         }
       }
 
-      impl ::typedown_incremental::Decodable for #struct_name {
+      #impl_trait_prefix ::typedown_incremental::Decodable for #impl_trait_for {
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
+            let _ = <#field_types_static as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
@@ -1110,26 +1146,26 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         }
       }
 
-      impl ::typedown_incremental::Id for #struct_name {
+      #impl_trait_prefix ::typedown_incremental::Id for #impl_trait_for {
         fn as_id(&self) -> (usize, usize) { (Self::ingredient_index(), self.0) }
       }
-      impl From<usize> for #struct_name {
-        fn from(id: usize) -> Self { Self(id) }
+      #impl_trait_prefix From<usize> for #impl_trait_for {
+        fn from(id: usize) -> Self { #self_constructor }
       }
-      impl From<#struct_name> for usize {
-        fn from(val: #struct_name) -> usize { val.0 }
+      #impl_trait_prefix From<#impl_trait_for> for usize {
+        fn from(val: #impl_trait_for) -> usize { val.0 }
       }
 
-      impl ::typedown_incremental::InternedId for #struct_name {
+      #impl_trait_prefix ::typedown_incremental::InternedId for #impl_trait_for {
         fn iter<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB) -> Vec<Self> {
           let storage = unsafe { db.storage() };
           let ingredient = &storage.ingredients[Self::ingredient_index()].ingredient;
-          ingredient.entry_ids().map(Self).collect()
+          #iter_map
         }
       }
 
       #[cfg(debug_assertions)]
-      const _: () = <#struct_name as ::typedown_incremental::InternedId>::__TYPEDOWN_INTERNED_ID;
+      const _: () = <#debug_check_ty as ::typedown_incremental::InternedId>::__TYPEDOWN_INTERNED_ID;
     }
     .into(),
   );

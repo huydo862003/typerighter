@@ -486,7 +486,11 @@ pub struct RuntimeScope<'db> {
 }
 
 impl<'db> RuntimeScope<'db> {
-  pub fn lookup(&self, db: &'db (impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum<'db>> {
+  pub fn lookup(
+    &self,
+    db: &'db (impl QueryDatabase + ?Sized),
+    name: &str,
+  ) -> Option<TdObjectEnum<'db>> {
     for (key, val) in &self.bindings(db) {
       if key == name {
         return Some(val.clone());
