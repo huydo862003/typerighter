@@ -7,7 +7,7 @@ use crate::db::TypedownDatabase;
 use crate::db::types::TdSchemaType;
 
 #[query_derived]
-pub fn get_vault_type(db: &TypedownDatabase) -> TdSchemaType {
+pub fn get_vault_type<'db>(db: &'db TypedownDatabase) -> TdSchemaType<'db> {
   TdSchemaType::new(
     db,
     "vault".to_string(),

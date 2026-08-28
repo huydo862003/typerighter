@@ -10,12 +10,12 @@ use typedown_incremental::StableCompare;
 
 // A union type: accepts any of its member types
 #[query_derived]
-pub struct TdSumType {
-  pub members: HashSet<LazyType>,
+pub struct TdSumType<'db> {
+  pub members: HashSet<LazyType<'db>>,
 }
 
-impl TdStaticType for TdSumType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdSumType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     let mut members: Vec<_> = self.members(db).into_iter().collect();
     members.sort_by(|a, b| a.stable_cmp(db, b));
     let parts: Vec<String> = members
@@ -25,7 +25,7 @@ impl TdStaticType for TdSumType {
     parts.join(" | ")
   }
 
-  fn lookup_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'db TypedownDatabase, name: &str) -> Option<TdTypeEnum<'db>> {
     let mut field_types = vec![];
     for member in self.members(db) {
       let resolved = member.resolve(db)?;
@@ -38,7 +38,11 @@ impl TdStaticType for TdSumType {
     Some(get_sum_type(db, field_types).into())
   }
 
-  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     let mut ret_types = vec![];
     for member in self.members(db) {
       let resolved = member.resolve(db)?;
@@ -52,7 +56,11 @@ impl TdStaticType for TdSumType {
     Some(FuncSignature::new(db, vec![key_type.clone()], union_ret))
   }
 
-  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     let mut ret_types = vec![];
     for member in self.members(db) {
       let resolved = member.resolve(db)?;
@@ -67,14 +75,14 @@ impl TdStaticType for TdSumType {
   }
 }
 
-impl TdRuntimeObject for TdSumType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdSumType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }

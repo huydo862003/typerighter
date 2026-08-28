@@ -16,9 +16,9 @@ use crate::db::derived::get_builtin_types::get_object_type;
 use crate::db::types::Symbol;
 
 #[query_interned]
-pub struct FuncSignature {
-  pub params: Vec<TdTypeEnum>,
-  pub ret: TdTypeEnum,
+pub struct FuncSignature<'db> {
+  pub params: Vec<TdTypeEnum<'db>>,
+  pub ret: TdTypeEnum<'db>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
@@ -52,20 +52,20 @@ impl Decodable for Variance {
 }
 
 #[query_interned]
-pub struct TypeVariable {
-  pub upper_bound: LazyType,
+pub struct TypeVariable<'db> {
+  pub upper_bound: LazyType<'db>,
   pub variance: Variance, // Existential type variables always have INVARIANCE because variance is irrelevant
 }
 
-impl TypeVariable {
-  pub fn get(db: &TypedownDatabase, upper_bound: Option<LazyType>) -> Self {
+impl<'db> TypeVariable<'db> {
+  pub fn get(db: &'db TypedownDatabase, upper_bound: Option<LazyType<'db>>) -> Self {
     let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
     TypeVariable::new(db, upper_bound, Variance::Covariant)
   }
 
   pub fn get_with_variance(
-    db: &TypedownDatabase,
-    upper_bound: Option<LazyType>,
+    db: &'db TypedownDatabase,
+    upper_bound: Option<LazyType<'db>>,
     variance: Variance,
   ) -> Self {
     let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
@@ -74,13 +74,17 @@ impl TypeVariable {
 }
 
 #[query_interned]
-pub struct TypeParams {
-  pub params: Vec<TypeVariable>,
-  pub bindings: Vec<LazyType>,
+pub struct TypeParams<'db> {
+  pub params: Vec<TypeVariable<'db>>,
+  pub bindings: Vec<LazyType<'db>>,
 }
 
-impl TypeParams {
-  pub fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> Option<TypeParams> {
+impl<'db> TypeParams<'db> {
+  pub fn instantiate(
+    &self,
+    db: &'db TypedownDatabase,
+    args: Vec<LazyType<'db>>,
+  ) -> Option<TypeParams<'db>> {
     let params = self.params(db);
     if params.len() != args.len() {
       return None;
@@ -88,7 +92,12 @@ impl TypeParams {
     Some(TypeParams::new(db, params, args))
   }
 
-  pub fn bind(&self, db: &TypedownDatabase, index: usize, arg: LazyType) -> Option<TypeParams> {
+  pub fn bind(
+    &self,
+    db: &'db TypedownDatabase,
+    index: usize,
+    arg: LazyType<'db>,
+  ) -> Option<TypeParams<'db>> {
     let params = self.params(db);
     let mut bindings = self.bindings(db);
     if index >= params.len() {
@@ -101,15 +110,15 @@ impl TypeParams {
     Some(TypeParams::new(db, params, bindings))
   }
 
-  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
     self.params(db).get(index).copied()
   }
 
-  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType> {
+  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType<'_>> {
     self.bindings(db).get(index).cloned()
   }
 
-  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
+  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
     self.params(db).get(index).copied()
   }
 
@@ -136,45 +145,45 @@ impl TypeParams {
 
 // A type reference that may be eagerly resolved or lazily deferred to a symbol
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub struct LazyType(Either<TdTypeEnum, Symbol>);
+pub struct LazyType<'db>(Either<TdTypeEnum<'db>, Symbol<'db>>);
 
-impl LazyType {
-  pub fn eager(typ: TdTypeEnum) -> Self {
+impl<'db> LazyType<'db> {
+  pub fn eager(typ: TdTypeEnum<'db>) -> Self {
     LazyType(Either::Left(typ))
   }
 
-  pub fn lazy(symbol: Symbol) -> Self {
+  pub fn lazy(symbol: Symbol<'db>) -> Self {
     LazyType(Either::Right(symbol))
   }
 
-  pub fn resolve(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  pub fn resolve(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     match &self.0 {
       Either::Left(typ) => Some(typ.clone()),
       Either::Right(symbol) => evaluate_type(db, *symbol).typ(db),
     }
   }
 
-  pub fn as_eager(&self) -> Option<&TdTypeEnum> {
+  pub fn as_eager(&self) -> Option<TdTypeEnum<'db>> {
     match &self.0 {
-      Either::Left(typ) => Some(typ),
+      Either::Left(typ) => Some(typ.clone()),
       Either::Right(_) => None,
     }
   }
 }
 
-impl Encodable for LazyType {
+impl<'db> Encodable for LazyType<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.0.encode(buf, encoder);
   }
 }
 
-impl Decodable for LazyType {
+impl<'db> Decodable for LazyType<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     LazyType(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
   }
 }
 
-impl StableHash for LazyType {
+impl<'db> StableHash for LazyType<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
   }

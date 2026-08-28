@@ -8,28 +8,28 @@ use crate::db::types::{FuncSignature, LazyType, TypeVariable};
 
 /// A type variable reference within a type expression
 #[query_derived]
-pub struct TdVariableType {
+pub struct TdVariableType<'db> {
   #[id]
   pub index: usize,
   #[id]
-  pub variable: TypeVariable,
+  pub variable: TypeVariable<'db>,
 }
 
-impl TdStaticType for TdVariableType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
-    let var = self.variable(db);
+impl<'db> TdStaticType<'db> for TdVariableType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
+    let var = Self::variable(*self, db);
     if let Some(b) = var.upper_bound(db).resolve(db) {
       if b.as_td_object_type().is_some() {
-        format!("T{}", self.index(db))
+        format!("T{}", Self::index(*self, db))
       } else {
-        format!("T{} <: {}", self.index(db), b.display_name(db))
+        format!("T{} <: {}", Self::index(*self, db), b.display_name(db))
       }
     } else {
-      format!("T{}", self.index(db))
+      format!("T{}", Self::index(*self, db))
     }
   }
 
-  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
     self
       .variable(db)
       .upper_bound(db)
@@ -38,7 +38,7 @@ impl TdStaticType for TdVariableType {
       .unwrap_or_default()
   }
 
-  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
     self
       .variable(db)
       .upper_bound(db)
@@ -47,7 +47,7 @@ impl TdStaticType for TdVariableType {
       .unwrap_or_default()
   }
 
-  fn lookup_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'db TypedownDatabase, name: &str) -> Option<TdTypeEnum<'db>> {
     self
       .variable(db)
       .upper_bound(db)
@@ -55,7 +55,11 @@ impl TdStaticType for TdVariableType {
       .lookup_field_type(db, name)
   }
 
-  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     self
       .variable(db)
       .upper_bound(db)
@@ -63,7 +67,11 @@ impl TdStaticType for TdVariableType {
       .index_type(db, key_type)
   }
 
-  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     self
       .variable(db)
       .upper_bound(db)
@@ -72,14 +80,14 @@ impl TdStaticType for TdVariableType {
   }
 }
 
-impl TdRuntimeObject for TdVariableType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdVariableType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }

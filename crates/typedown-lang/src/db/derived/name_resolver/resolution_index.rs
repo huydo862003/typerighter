@@ -47,19 +47,19 @@ impl StableHash for ReferenceKind {
 
 /// A single reference to a symbol
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, StableCompare)]
-pub struct Reference {
-  pub hir: HirValue,
+pub struct Reference<'db> {
+  pub hir: HirValue<'db>,
   pub kind: ReferenceKind,
 }
 
-impl Encodable for Reference {
+impl<'db> Encodable for Reference<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.hir.encode(buf, encoder);
     self.kind.encode(buf, encoder);
   }
 }
 
-impl Decodable for Reference {
+impl<'db> Decodable for Reference<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     Reference {
       hir: HirValue::decode(data, decoder),
@@ -68,7 +68,7 @@ impl Decodable for Reference {
   }
 }
 
-impl StableHash for Reference {
+impl<'db> StableHash for Reference<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.hir.stable_hash(db, hasher);
     self.kind.stable_hash(db, hasher);
@@ -76,13 +76,17 @@ impl StableHash for Reference {
 }
 
 #[query_derived]
-pub struct ResolutionIndex {
-  references: HashMap<Symbol, Vec<Reference>>,
+pub struct ResolutionIndex<'db> {
+  references: HashMap<Symbol<'db>, Vec<Reference<'db>>>,
 }
 
-impl ResolutionIndex {
+impl<'db> ResolutionIndex<'db> {
   /// Look up all references to a given symbol
-  pub fn get_references(&self, db: &TypedownDatabase, symbol: Symbol) -> Vec<Reference> {
+  pub fn get_references(
+    &self,
+    db: &'db TypedownDatabase,
+    symbol: Symbol<'db>,
+  ) -> Vec<Reference<'db>> {
     self
       .references(db)
       .get(&symbol)
@@ -91,14 +95,18 @@ impl ResolutionIndex {
   }
 
   /// Get all symbols referenced in this file
-  pub fn symbols(&self, db: &TypedownDatabase) -> Vec<Symbol> {
+  pub fn symbols(&self, db: &'db TypedownDatabase) -> Vec<Symbol<'db>> {
     self.references(db).keys().copied().collect()
   }
 }
 
 /// Build an index of all symbol references in a file
 #[query_derived]
-pub fn resolution_index(db: &TypedownDatabase, project: Project, file: File) -> ResolutionIndex {
+pub fn resolution_index<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> ResolutionIndex<'db> {
   let mut map: HashMap<Symbol, Vec<Reference>> = HashMap::new();
   let (hir, _) = lower_file(db, project, file);
   if let Some(hir) = hir {
@@ -107,10 +115,10 @@ pub fn resolution_index(db: &TypedownDatabase, project: Project, file: File) -> 
   ResolutionIndex::new(db, map)
 }
 
-fn collect_references(
-  db: &TypedownDatabase,
-  hir: HirValue,
-  map: &mut HashMap<Symbol, Vec<Reference>>,
+fn collect_references<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  map: &mut HashMap<Symbol<'db>, Vec<Reference<'db>>>,
 ) {
   match hir.kind(db) {
     HirValueKind::Mapping(values) => {
@@ -143,9 +151,11 @@ fn collect_references(
     }
     // Only fref calls produce file references
     HirValueKind::Call { callee, args } => {
-      if let Some(callee_symbol) = referee(db, *callee).value(db)
+      let callee_ref = referee(db, *callee);
+      let hir_ref = referee(db, hir);
+      if let Some(callee_symbol) = callee_ref.value(db)
         && matches!(callee_symbol.kind(db), SymbolKind::BuiltinMacro(_))
-        && let Some(target_symbol) = referee(db, hir).value(db)
+        && let Some(target_symbol) = hir_ref.value(db)
       {
         map.entry(target_symbol).or_default().push(Reference {
           hir,
@@ -168,7 +178,8 @@ fn collect_references(
     }
     // Only Ident nodes resolve to symbols via referee
     HirValueKind::Ident(_) => {
-      if let Some(symbol) = referee(db, hir).value(db) {
+      let resolved = referee(db, hir);
+      if let Some(symbol) = resolved.value(db) {
         map.entry(symbol).or_default().push(Reference {
           hir,
           kind: ReferenceKind::Ident,
@@ -184,7 +195,11 @@ fn collect_references(
 }
 
 /// Find all references to a symbol across the project
-pub fn references(db: &TypedownDatabase, project: Project, symbol: Symbol) -> Vec<Reference> {
+pub fn references<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  symbol: Symbol<'db>,
+) -> Vec<Reference<'db>> {
   let mut refs = vec![];
   for file in project.files(db).values() {
     let idx = resolution_index(db, project, *file);

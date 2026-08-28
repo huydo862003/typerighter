@@ -145,13 +145,13 @@ fn create_linked_action(
 }
 
 // Resolve the declared type of a mapping entry's value
-fn resolve_entry_type(
-  db: &TypedownDatabase,
+fn resolve_entry_type<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
   entry: &RedNode,
-) -> Option<TdTypeEnum> {
+) -> Option<TdTypeEnum<'db>> {
   // Try via the value expression
   if is_in_mapping_value_position(node) {
     let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;

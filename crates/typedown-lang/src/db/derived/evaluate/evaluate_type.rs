@@ -27,7 +27,7 @@ use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
+pub fn evaluate_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypeResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(kind) => {
       let typ: TdTypeEnum = match kind {
@@ -58,12 +58,12 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
   }
 }
 
-fn evaluate_user_defined_schema(
-  db: &TypedownDatabase,
+fn evaluate_user_defined_schema<'db>(
+  db: &'db TypedownDatabase,
   schema_name: String,
   project: Project,
   file: File,
-) -> TypeResult {
+) -> TypeResult<'db> {
   let mut diagnostics = vec![];
 
   // Parse file and lower frontmatter to HIR
@@ -160,12 +160,15 @@ fn evaluate_user_defined_schema(
 }
 
 // Resolve _extends parent, pre-walking to detect cycles
-fn resolve_parent_schema(
-  db: &TypedownDatabase,
+fn resolve_parent_schema<'db>(
+  db: &'db TypedownDatabase,
   current_name: &str,
-  entries: &[(String, HirValue)],
+  entries: &[(String, HirValue<'db>)],
   diagnostics: &mut Vec<Diagnostic>,
-) -> (HashMap<String, PropertyDescriptor>, Option<TdTypeEnum>) {
+) -> (
+  HashMap<String, PropertyDescriptor<'db>>,
+  Option<TdTypeEnum<'db>>,
+) {
   let Some((_, extends_hir)) = entries.iter().find(|(key, _)| key == "_extends") else {
     return (HashMap::new(), None);
   };
@@ -217,10 +220,10 @@ fn resolve_parent_schema(
 }
 
 // Walk _extends by reading raw HIR to detect cycles without triggering evaluate_type
-fn detect_extends_cycle(
-  db: &TypedownDatabase,
+fn detect_extends_cycle<'db>(
+  db: &'db TypedownDatabase,
   start_name: &str,
-  mut current_symbol: Symbol,
+  mut current_symbol: Symbol<'db>,
 ) -> Option<Vec<String>> {
   let mut visited = HashSet::new();
   visited.insert(start_name.to_string());
@@ -257,12 +260,13 @@ fn detect_extends_cycle(
 
 // Process a property descriptor like `{ type: string, default: "hello" }`
 // Returns Option<PropertyDescriptor>
-pub(crate) fn resolve_property_descriptor(
-  db: &TypedownDatabase,
-  hir: HirValue,
+pub(crate) fn resolve_property_descriptor<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<PropertyDescriptor> {
-  let entries = match hir.kind(db) {
+) -> Option<PropertyDescriptor<'db>> {
+  let kind = hir.kind(db);
+  let entries = match kind {
     HirValueKind::Mapping(entries) => entries,
     _ => return None,
   };
@@ -394,11 +398,11 @@ pub(crate) fn resolve_property_descriptor(
   })
 }
 
-fn resolve_type_lazy(
-  db: &TypedownDatabase,
-  hir: HirValue,
+fn resolve_type_lazy<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<LazyType> {
+) -> Option<LazyType<'db>> {
   match hir.kind(db) {
     // `!type expr` is redundant but valid: strip the tag and recurse on the inner value
     HirValueKind::Tag { tag, inner } => {
@@ -953,7 +957,7 @@ mod tests {
   #[test]
   fn display_name_builtin_types() {
     let db = make_db();
-    let dn = |t: TdTypeEnum| t.display_name(&db);
+    let dn = |t: TdTypeEnum<'_>| t.display_name(&db);
     assert_eq!(dn(get_str_type(&db).into()), "string");
     assert_eq!(dn(get_num_type(&db).into()), "number");
     assert_eq!(dn(get_bool_type(&db).into()), "boolean");
@@ -971,7 +975,7 @@ mod tests {
   #[test]
   fn display_name_literal_types() {
     let db = make_db();
-    let dn = |t: TdTypeEnum| t.display_name(&db);
+    let dn = |t: TdTypeEnum<'_>| t.display_name(&db);
     assert_eq!(
       dn(get_literal_type(&db, LiteralValue::Str("draft".to_string())).into()),
       "\"draft\""
@@ -1085,7 +1089,7 @@ mod tests {
   }
 
   // Helper to create an HirValue from a frontmatter string
-  fn make_hir(db: &TypedownDatabase, content: &str) -> HirValue {
+  fn make_hir<'a>(db: &'a TypedownDatabase, content: &str) -> HirValue<'a> {
     let file = File::new(
       db,
       FileHandle::Content(
@@ -1100,7 +1104,7 @@ mod tests {
   }
 
   // Helper to get a specific field's HirValue from a frontmatter mapping
-  fn get_field_hir(db: &TypedownDatabase, hir: HirValue, field: &str) -> HirValue {
+  fn get_field_hir<'a>(db: &'a TypedownDatabase, hir: HirValue<'a>, field: &str) -> HirValue<'a> {
     match hir.kind(db) {
       HirValueKind::Mapping(entries) => entries.into_iter().find(|(k, _)| k == field).unwrap().1,
       _ => panic!("expected mapping"),
@@ -1178,7 +1182,7 @@ mod tests {
     let db = make_db();
     let list_num = TdTypeEnum::from(get_list_type(&db))
       .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())]);
-    let items: Vec<TdObjectEnum> = vec![
+    let items: Vec<TdObjectEnum<'_>> = vec![
       TdNumObj::new(&db, 1.0).into(),
       TdNumObj::new(&db, 2.0).into(),
     ];

@@ -22,28 +22,28 @@ use typedown_types::either::Either;
 // The metatype of all schema types
 // schema is to TdSchemaType as type is to TdTypeType
 #[query_derived]
-pub struct TdSchemaMetaType {}
+pub struct TdSchemaMetaType<'db> {}
 
-impl TdRuntimeObject for TdSchemaMetaType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdSchemaMetaType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, _db: &TypedownDatabase) -> String {
+  fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "schema".to_string()
   }
 }
 
-impl TdStaticType for TdSchemaMetaType {
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "schema".to_string()
   }
-  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some(TdTypeType::get(db).into())
   }
-  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
     let properties_type = get_dict_type(db)
       .instantiate(
         db,
@@ -55,10 +55,10 @@ impl TdStaticType for TdSchemaMetaType {
       .typ(db);
     HashMap::from([("properties".to_string(), LazyType::eager(properties_type))])
   }
-  fn is_type(&self, _db: &TypedownDatabase) -> bool {
+  fn is_type(&self, _db: &'db TypedownDatabase) -> bool {
     true
   }
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }
 }
@@ -66,48 +66,48 @@ impl TdStaticType for TdSchemaMetaType {
 // Named opaque type with methods, construction, and nominal subtyping
 // Analogous to a class in JS
 #[query_derived]
-pub struct TdSchemaType {
+pub struct TdSchemaType<'db> {
   pub name: String,
-  pub fields: HashMap<String, PropertyDescriptor>,
-  pub vtable: HashMap<String, TdFuncObj>,
-  pub parent: Option<TdTypeEnum>,
+  pub fields: HashMap<String, PropertyDescriptor<'db>>,
+  pub vtable: HashMap<String, TdFuncObj<'db>>,
+  pub parent: Option<TdTypeEnum<'db>>,
 }
 
-impl TdRuntimeObject for TdSchemaType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdSchemaType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     get_schema_meta_type(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }
 
-impl TdStaticType for TdSchemaType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     self.name(db)
   }
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }
-  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     self.parent(db).or_else(|| Some(get_object_type(db).into()))
   }
   // Construct a schema instance from a product object
   fn construct(
     &self,
-    db: &TypedownDatabase,
+    db: &'db TypedownDatabase,
     project: crate::db::types::Project,
-    args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+    args: Vec<TdObjectEnum<'db>>,
+  ) -> Option<TdObjectEnum<'db>> {
     let arg = args.into_iter().next()?;
     let product = arg.as_td_product_obj()?;
     let fields = product.fields(db);
     Some(TdSchemaObj::new(db, (*self).into(), project, None, fields).into())
   }
-  fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+  fn runtime_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdFuncObj<'db>> {
     let mut result = self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
@@ -125,7 +125,7 @@ impl TdStaticType for TdSchemaType {
     result.extend(self.vtable(db));
     result
   }
-  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
     let mut result = self
       .parent_type(db)
       .map(|p| p.static_vtable(db))
@@ -140,7 +140,7 @@ impl TdStaticType for TdSchemaType {
     }
     result
   }
-  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
     // Include inherited fields from parent schema
     let mut result = self
       .parent(db)
@@ -154,14 +154,14 @@ impl TdStaticType for TdSchemaType {
     );
     result
   }
-  fn is_type(&self, _db: &TypedownDatabase) -> bool {
+  fn is_type(&self, _db: &'db TypedownDatabase) -> bool {
     true
   }
 }
 
-impl TdSchemaType {
+impl<'db> TdSchemaType<'db> {
   // The argument type for construct: product | self
-  pub fn construct_arg_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+  pub fn construct_arg_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     let product: TdTypeEnum = TdProductType::new(db, None, self.get_fields(db)).into();
     let schema: TdTypeEnum = (*self).into();
     get_sum_type(db, vec![LazyType::eager(product), LazyType::eager(schema)]).into()
@@ -170,18 +170,18 @@ impl TdSchemaType {
 
 // Runtime instance of a schema type, with computed fields, defaults, and methods
 #[query_derived]
-pub struct TdSchemaObj {
-  pub schema: TdTypeEnum,
+pub struct TdSchemaObj<'db> {
+  pub schema: TdTypeEnum<'db>,
   pub project: Project,
-  pub file_symbol: Option<Symbol>,
-  pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
+  pub file_symbol: Option<Symbol<'db>>,
+  pub fields: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
-impl TdRuntimeObject for TdSchemaObj {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdSchemaObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     self.schema(db)
   }
-  fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
@@ -207,10 +207,10 @@ impl TdRuntimeObject for TdSchemaObj {
       }
     }
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
-  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+  fn index(&self, db: &'db TypedownDatabase, key: &TdObjectEnum<'db>) -> Option<TdObjectEnum<'db>> {
     let this: TdObjectEnum = (*self).into();
     self
       .lookup_method(db, PROTOCOL_INDEX)?
@@ -219,11 +219,11 @@ impl TdRuntimeObject for TdSchemaObj {
   }
   fn call(
     &self,
-    db: &TypedownDatabase,
+    db: &'db TypedownDatabase,
     project: Project,
-    this: Option<TdObjectEnum>,
-    args: Vec<TdObjectEnum>,
-  ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+    this: Option<TdObjectEnum<'db>>,
+    args: Vec<TdObjectEnum<'db>>,
+  ) -> Result<TdObjectEnum<'db>, Vec<Diagnostic>> {
     let Some(func) = self.lookup_method(db, PROTOCOL_CALL) else {
       return Err(vec![]);
     };

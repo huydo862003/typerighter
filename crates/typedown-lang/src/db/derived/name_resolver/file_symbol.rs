@@ -7,12 +7,16 @@ use crate::db::utils::is_type_file;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub struct MaybeSymbol {
-  pub value: Option<Symbol>,
+pub struct MaybeSymbol<'db> {
+  pub value: Option<Symbol<'db>>,
 }
 
 #[query_derived]
-pub fn file_symbol(db: &TypedownDatabase, project: Project, file: File) -> MaybeSymbol {
+pub fn file_symbol<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> MaybeSymbol<'db> {
   let path = file.handle(db).path().cloned().unwrap_or_default();
   let is_schema_file = is_type_file(&path);
 

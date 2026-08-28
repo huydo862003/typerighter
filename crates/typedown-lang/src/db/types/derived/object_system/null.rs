@@ -7,63 +7,63 @@ use crate::db::derived::get_builtin_types::{get_null_obj, get_null_type};
 use crate::db::types::Project;
 
 #[query_derived]
-pub struct TdNullType {}
+pub struct TdNullType<'db> {}
 
-impl TdRuntimeObject for TdNullType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdNullType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, _db: &TypedownDatabase) -> String {
+  fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::null".to_string()
   }
 }
 
-impl TdStaticType for TdNullType {
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdNullType<'db> {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "null".to_string()
   }
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }
   fn construct(
     &self,
-    db: &TypedownDatabase,
+    db: &'db TypedownDatabase,
     _project: Project,
-    _args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+    _args: Vec<TdObjectEnum<'db>>,
+  ) -> Option<TdObjectEnum<'db>> {
     Some(TdNullObj::get(db).into())
   }
 }
 
-impl TdNullType {
-  pub fn get(db: &TypedownDatabase) -> TdNullType {
+impl<'db> TdNullType<'db> {
+  pub fn get(db: &'db TypedownDatabase) -> TdNullType<'db> {
     get_null_type(db)
   }
 }
 
 #[query_derived]
-pub struct TdNullObj {}
+pub struct TdNullObj<'db> {}
 
-impl TdRuntimeObject for TdNullObj {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdNullObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdNullType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
-  fn eq(&self, _db: &TypedownDatabase, other: &TdObjectEnum) -> bool {
+  fn eq(&self, _db: &'db TypedownDatabase, other: &TdObjectEnum<'db>) -> bool {
     other.as_td_null_obj().is_some()
   }
 }
 
-impl TdNullObj {
-  pub fn get(db: &TypedownDatabase) -> TdNullObj {
+impl<'db> TdNullObj<'db> {
+  pub fn get(db: &'db TypedownDatabase) -> TdNullObj<'db> {
     get_null_obj(db)
   }
 }

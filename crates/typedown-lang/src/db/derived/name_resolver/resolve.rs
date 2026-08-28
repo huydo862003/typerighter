@@ -9,13 +9,17 @@ use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, ResolveResult};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn resolve(db: &TypedownDatabase, hir: HirValue) -> ResolveResult {
+pub fn resolve<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> ResolveResult<'db> {
   let mut diagnostics = vec![];
   collect_unresolved(db, hir, &mut diagnostics);
   ResolveResult::new(db, diagnostics)
 }
 
-fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Vec<Diagnostic>) {
+fn collect_unresolved<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  diagnostics: &mut Vec<Diagnostic>,
+) {
   match hir.kind(db) {
     HirValueKind::Ident(name) => {
       // self is a keyword, not a free variable
@@ -99,10 +103,10 @@ fn collect_unresolved(db: &TypedownDatabase, hir: HirValue, diagnostics: &mut Ve
 }
 
 // Check that each _imports path resolves to an existing file
-fn check_imports(
-  db: &TypedownDatabase,
-  hir: HirValue,
-  imports_hir: HirValue,
+fn check_imports<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  imports_hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
 ) {
   let HirValueKind::Mapping(entries) = imports_hir.kind(db) else {

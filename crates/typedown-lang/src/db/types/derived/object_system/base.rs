@@ -28,127 +28,99 @@ pub const BUILTIN_TO_STRING: &str = "to_string";
 // Static type properties for the typechecker
 // Each type defines its own display name, arity, and type arguments
 #[delegatable_trait]
-pub trait TdStaticType {
-  fn display_name(&self, db: &TypedownDatabase) -> String;
+pub trait TdStaticType<'x0> {
+  fn display_name(&self, db: &'x0 TypedownDatabase) -> String;
 
-  fn arity(&self, _db: &TypedownDatabase) -> usize {
+  fn arity(&self, _db: &'x0 TypedownDatabase) -> usize {
     0
   }
 
-  fn get_type_args(&self, _db: &TypedownDatabase) -> Vec<TdTypeEnum> {
+  fn get_type_args(&self, _db: &'x0 TypedownDatabase) -> Vec<TdTypeEnum<'x0>> {
     vec![]
   }
 
-  // The runtime-constructible type equivalent
-  // Most types are their own runtime equivalent
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'x0 TypedownDatabase) -> Option<TdTypeEnum<'x0>> {
     None
   }
 
-  // Construct a runtime instance of this type from args
   fn construct(
     &self,
-    _db: &TypedownDatabase,
+    _db: &'x0 TypedownDatabase,
     _project: ::typedown_lang::db::types::Project,
-    _args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+    _args: Vec<TdObjectEnum<'x0>>,
+  ) -> Option<TdObjectEnum<'x0>> {
     None
   }
 
-  fn to_type_enum(&self, db: &TypedownDatabase) -> TdTypeEnum {
+  fn to_type_enum(&self, db: &'x0 TypedownDatabase) -> TdTypeEnum<'x0> {
     self
       .runtime_type(db)
       .expect("to_type_enum must be implemented for types without runtime_type")
   }
 
-  // Instantiate a generic type with type arguments (list[string], dict[string, number])
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
+  fn instantiate(&self, db: &'x0 TypedownDatabase, args: Vec<LazyType<'x0>>) -> InstResult<'x0> {
     let self_type = self.to_type_enum(db);
     let diagnostics = validate_type_params(db, self.type_params(db).as_ref(), &args);
     InstResult::new(db, self_type, diagnostics)
   }
 
-  /// Type parameters declared on this generic type
-  fn type_params(&self, _db: &TypedownDatabase) -> Option<TypeParams> {
+  fn type_params(&self, _db: &'x0 TypedownDatabase) -> Option<TypeParams<'x0>> {
     None
   }
 
-  /// Parent type for prototype chain method lookup and type hierarchy
-  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, db: &'x0 TypedownDatabase) -> Option<TdTypeEnum<'x0>> {
     Some(get_object_type(db).into())
   }
 
-  /// Runtime vtable mapping method names to TdFuncObj instances
-  fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+  fn runtime_vtable(&self, db: &'x0 TypedownDatabase) -> HashMap<String, TdFuncObj<'x0>> {
     self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
       .unwrap_or_default()
   }
 
-  // Return types of methods available on instances of this static type
-  fn static_vtable(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-  ) -> HashMap<String, TdTypeEnum> {
+  fn static_vtable(&self, db: &'x0 TypedownDatabase) -> HashMap<String, TdTypeEnum<'x0>> {
     self
       .parent_type(db)
       .map(|p| p.static_vtable(db))
       .unwrap_or_default()
   }
 
-  // Get all declared fields from a static type
-  fn get_fields(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-  ) -> HashMap<String, ::typedown_lang::db::types::LazyType> {
+  fn get_fields(&self, _db: &'x0 TypedownDatabase) -> HashMap<String, LazyType<'x0>> {
     HashMap::new()
   }
 
-  // Get the type of a named field on this type
-  fn get_owned_field_type(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    name: &str,
-  ) -> Option<TdTypeEnum> {
+  fn get_owned_field_type(&self, db: &'x0 TypedownDatabase, name: &str) -> Option<TdTypeEnum<'x0>> {
     self.get_fields(db).get(name)?.resolve(db)
   }
 
-  // Look up the type of a field or method on this type
-  fn lookup_field_type(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    name: &str,
-  ) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'x0 TypedownDatabase, name: &str) -> Option<TdTypeEnum<'x0>> {
     if let Some(field) = self.get_owned_field_type(db, name) {
       return Some(field);
     }
     self.static_vtable(db).get(name).cloned()
   }
 
-  // Check if this is a metatype (a type whose instances are types)
-  fn is_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> bool {
+  fn is_type(&self, _db: &'x0 TypedownDatabase) -> bool {
     false
   }
 
-  // Signature when indexing an instance of this static type with a key type
   fn index_type(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    _key_type: &TdTypeEnum,
-  ) -> Option<FuncSignature> {
+    db: &'x0 TypedownDatabase,
+    _key_type: &TdTypeEnum<'x0>,
+  ) -> Option<FuncSignature<'x0>> {
     if let Some(TdTypeEnum::TdFuncType(func)) = self.lookup_field_type(db, PROTOCOL_INDEX) {
       return Some(func.signature(db));
     }
     None
   }
 
-  // Signature when calling an instance of this static type as a function
   fn call_type(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    _arg_types: Vec<TdTypeEnum>,
-  ) -> Option<FuncSignature> {
+    db: &'x0 TypedownDatabase,
+    _arg_types: Vec<TdTypeEnum<'x0>>,
+  ) -> Option<FuncSignature<'x0>> {
     if let Some(TdTypeEnum::TdFuncType(func)) = self.lookup_field_type(db, PROTOCOL_CALL) {
       return Some(func.signature(db));
     }
@@ -158,14 +130,10 @@ pub trait TdStaticType {
 
 // Runtime object protocol for the evaluator
 #[delegatable_trait]
-pub trait TdRuntimeObject: Id {
-  fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum;
+pub trait TdRuntimeObject<'x0>: Id {
+  fn get_type(&self, db: &'x0 TypedownDatabase) -> TdTypeEnum<'x0>;
 
-  fn lookup_method(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    key: &str,
-  ) -> Option<TdFuncObj> {
+  fn lookup_method(&self, db: &'x0 TypedownDatabase, key: &str) -> Option<TdFuncObj<'x0>> {
     let mut current = Some(self.get_type(db));
     while let Some(typ) = current {
       if let Some(func) = typ.runtime_vtable(db).get(key) {
@@ -176,68 +144,60 @@ pub trait TdRuntimeObject: Id {
     None
   }
 
-  fn lookup_field(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    key: &str,
-  ) -> Option<TdObjectEnum> {
+  fn lookup_field(&self, db: &'x0 TypedownDatabase, key: &str) -> Option<TdObjectEnum<'x0>> {
     if let Some(field) = self.get_owned_field(db, key) {
       return Some(field);
     }
     self.lookup_method(db, key).map(TdObjectEnum::from)
   }
 
-  fn get_owned_field(
-    &self,
-    db: &::typedown_lang::db::TypedownDatabase,
-    key: &str,
-  ) -> Option<TdObjectEnum>;
+  fn get_owned_field(&self, db: &'x0 TypedownDatabase, key: &str) -> Option<TdObjectEnum<'x0>>;
 
-  fn source_path(&self, db: &::typedown_lang::db::TypedownDatabase) -> String;
+  fn source_path(&self, db: &'x0 TypedownDatabase) -> String;
 
-  fn eq(&self, _db: &::typedown_lang::db::TypedownDatabase, other: &TdObjectEnum) -> bool {
+  fn eq(&self, _db: &'x0 TypedownDatabase, other: &TdObjectEnum<'x0>) -> bool {
     self.as_id() == other.as_id()
   }
 
-  fn lt(&self, _db: &::typedown_lang::db::TypedownDatabase, other: &TdObjectEnum) -> bool {
+  fn lt(&self, _db: &'x0 TypedownDatabase, other: &TdObjectEnum<'x0>) -> bool {
     self.as_id() < other.as_id()
   }
 
-  fn gt(&self, _db: &::typedown_lang::db::TypedownDatabase, other: &TdObjectEnum) -> bool {
+  fn gt(&self, _db: &'x0 TypedownDatabase, other: &TdObjectEnum<'x0>) -> bool {
     self.as_id() > other.as_id()
   }
 
-  fn le(&self, _db: &::typedown_lang::db::TypedownDatabase, other: &TdObjectEnum) -> bool {
+  fn le(&self, _db: &'x0 TypedownDatabase, other: &TdObjectEnum<'x0>) -> bool {
     self.as_id() <= other.as_id()
   }
 
-  fn ge(&self, _db: &::typedown_lang::db::TypedownDatabase, other: &TdObjectEnum) -> bool {
+  fn ge(&self, _db: &'x0 TypedownDatabase, other: &TdObjectEnum<'x0>) -> bool {
     self.as_id() >= other.as_id()
   }
 
   fn call(
     &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
+    _db: &'x0 TypedownDatabase,
     _project: ::typedown_lang::db::types::Project,
-    _this: Option<TdObjectEnum>,
-    _args: Vec<TdObjectEnum>,
-  ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+    _this: Option<TdObjectEnum<'x0>>,
+    _args: Vec<TdObjectEnum<'x0>>,
+  ) -> Result<TdObjectEnum<'x0>, Vec<Diagnostic>> {
     Err(vec![])
   }
 
   fn index(
     &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _key: &TdObjectEnum,
-  ) -> Option<TdObjectEnum> {
+    _db: &'x0 TypedownDatabase,
+    _key: &TdObjectEnum<'x0>,
+  ) -> Option<TdObjectEnum<'x0>> {
     None
   }
 
-  fn len(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<usize> {
+  fn len(&self, _db: &'x0 TypedownDatabase) -> Option<usize> {
     None
   }
 
-  fn to_display_string(&self, db: &::typedown_lang::db::TypedownDatabase) -> String {
+  fn to_display_string(&self, db: &'x0 TypedownDatabase) -> String {
     self.source_path(db)
   }
 }
@@ -245,38 +205,34 @@ pub trait TdRuntimeObject: Id {
 // The metatype is the type of all types
 // It is an instance of itself and the type of every type
 #[query_derived]
-pub struct TdTypeType {}
+pub struct TdTypeType<'db> {}
 
-impl TdRuntimeObject for TdTypeType {
-  fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdTypeType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(
-    &self,
-    _db: &::typedown_lang::db::TypedownDatabase,
-    _key: &str,
-  ) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, _db: &::typedown_lang::db::TypedownDatabase) -> String {
+  fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::type".to_string()
   }
 }
 
-impl TdStaticType for TdTypeType {
-  fn display_name(&self, _db: &::typedown_lang::db::TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdTypeType<'db> {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "type".to_string()
   }
-  fn is_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> bool {
+  fn is_type(&self, _db: &'db TypedownDatabase) -> bool {
     true
   }
-  fn runtime_type(&self, _db: &::typedown_lang::db::TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }
 }
 
-impl TdTypeType {
-  pub fn get(db: &::typedown_lang::db::TypedownDatabase) -> TdTypeType {
+impl<'db> TdTypeType<'db> {
+  pub fn get(db: &'db ::typedown_lang::db::TypedownDatabase) -> TdTypeType<'db> {
     get_type_type(db)
   }
 }

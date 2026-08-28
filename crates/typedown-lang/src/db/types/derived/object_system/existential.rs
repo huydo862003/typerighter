@@ -8,16 +8,16 @@ use crate::db::types::{FuncSignature, LazyType, TypeParams};
 
 /// Existential type: `exists <T0 <: Bound, ...>. Body`
 #[query_derived]
-pub struct TdExistentialType {
+pub struct TdExistentialType<'db> {
   #[id]
-  pub type_params: TypeParams,
+  pub type_params: TypeParams<'db>,
   #[id]
-  pub body: Option<LazyType>,
+  pub body: Option<LazyType<'db>>,
 }
 
-impl TdStaticType for TdExistentialType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
-    let params = self.type_params(db);
+impl<'db> TdStaticType<'db> for TdExistentialType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
+    let params = Self::type_params(*self, db);
     let params_str = params
       .params(db)
       .iter()
@@ -45,7 +45,7 @@ impl TdStaticType for TdExistentialType {
     }
   }
 
-  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))
@@ -53,7 +53,7 @@ impl TdStaticType for TdExistentialType {
       .unwrap_or_default()
   }
 
-  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))
@@ -61,21 +61,29 @@ impl TdStaticType for TdExistentialType {
       .unwrap_or_default()
   }
 
-  fn lookup_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'db TypedownDatabase, name: &str) -> Option<TdTypeEnum<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))?
       .lookup_field_type(db, name)
   }
 
-  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))?
       .index_type(db, key_type)
   }
 
-  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))?
@@ -83,14 +91,14 @@ impl TdStaticType for TdExistentialType {
   }
 }
 
-impl TdRuntimeObject for TdExistentialType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdExistentialType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }

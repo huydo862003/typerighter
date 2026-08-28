@@ -19,7 +19,12 @@ use typedown_incremental::QueryDatabase;
 
 // Normalize expressions to a hir form
 #[query_derived]
-pub fn lower_node(db: &TypedownDatabase, project: Project, file: File, node: RedNode) -> HirValue {
+pub fn lower_node<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+  node: RedNode,
+) -> HirValue<'db> {
   if SourceFile::cast(node.clone()).is_some() {
     return lower_source_file(db, project, file, node);
   }
@@ -36,13 +41,18 @@ pub fn lower_node(db: &TypedownDatabase, project: Project, file: File, node: Red
   HirValue::new(db, project, file, node, kind, diagnostics)
 }
 
-fn lower_markdown(db: &TypedownDatabase, project: Project, file: File, node: RedNode) -> HirValue {
-  fn collect_interpolated_parts(
-    db: &TypedownDatabase,
+fn lower_markdown<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+  node: RedNode,
+) -> HirValue<'db> {
+  fn collect_interpolated_parts<'db>(
+    db: &'db TypedownDatabase,
     project: Project,
     file: File,
     node: RedNode,
-    parts: &mut Vec<InterpolatedPart>,
+    parts: &mut Vec<InterpolatedPart<'db>>,
   ) {
     // If node is an interp fragment, lower the expression inside it
     if node.kind() == SyntaxKind::InterpFragment
@@ -92,13 +102,13 @@ fn lower_markdown(db: &TypedownDatabase, project: Project, file: File, node: Red
   )
 }
 
-fn lower_expr_kind(
-  db: &TypedownDatabase,
+fn lower_expr_kind<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   expr: &Expr,
   diagnostics: &mut Vec<Diagnostic>,
-) -> HirValueKind {
+) -> HirValueKind<'db> {
   let inner = unwrap_parens(expr.clone());
 
   // Handle block mapping
@@ -430,12 +440,12 @@ fn unwrap_parens(expr: Expr) -> Expr {
   expr
 }
 
-fn lower_frontmatter(
-  db: &TypedownDatabase,
+fn lower_frontmatter<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: RedNode,
-) -> HirValue {
+) -> HirValue<'db> {
   let fm = YamlFrontmatter::cast(node.clone()).expect("node must be a YamlFrontmatter");
   match fm.mapping() {
     Some(mapping) => lower_node(db, project, file, mapping.syntax().clone()),
@@ -443,12 +453,12 @@ fn lower_frontmatter(
   }
 }
 
-fn lower_source_file(
-  db: &TypedownDatabase,
+fn lower_source_file<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: RedNode,
-) -> HirValue {
+) -> HirValue<'db> {
   let source_file = SourceFile::cast(node.clone()).expect("node must be a SourceFile");
   let fm_node = match source_file.frontmatter() {
     Some(fm) => fm,
@@ -486,7 +496,7 @@ mod tests {
   use crate::syntax::red::RedNode;
 
   #[test]
-  fn markdown_body_plain_text() {
+  fn markdown_body_plain_text<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_plain.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -511,7 +521,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_inline_math() {
+  fn markdown_body_inline_math<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_inline_math.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -534,7 +544,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_inline_code() {
+  fn markdown_body_inline_code<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_inline_code.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -560,7 +570,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_interpolation() {
+  fn markdown_body_interpolation<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_interp.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -581,7 +591,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_math_block() {
+  fn markdown_body_math_block<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_math_block.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -604,7 +614,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_code_block() {
+  fn markdown_body_code_block<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_code_block.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");

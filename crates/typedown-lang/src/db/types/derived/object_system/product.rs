@@ -17,13 +17,13 @@ use crate::db::utils::static_type::format_field_map;
 use typedown_types::either::Either;
 
 #[derive(Debug, Clone, PartialEq, Eq, StableCompare)]
-pub struct PropertyDescriptor {
-  pub field_type: LazyType,
-  pub default_value: Option<TdObjectEnum>,
-  pub computed_fn: Option<TdObjectEnum>,
+pub struct PropertyDescriptor<'db> {
+  pub field_type: LazyType<'db>,
+  pub default_value: Option<TdObjectEnum<'db>>,
+  pub computed_fn: Option<TdObjectEnum<'db>>,
 }
 
-impl StableHash for PropertyDescriptor {
+impl<'db> StableHash for PropertyDescriptor<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.field_type.stable_hash(db, hasher);
     self.default_value.stable_hash(db, hasher);
@@ -31,7 +31,7 @@ impl StableHash for PropertyDescriptor {
   }
 }
 
-impl Encodable for PropertyDescriptor {
+impl<'db> Encodable for PropertyDescriptor<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.field_type.encode(buf, encoder);
     self.default_value.encode(buf, encoder);
@@ -39,11 +39,11 @@ impl Encodable for PropertyDescriptor {
   }
 }
 
-impl Decodable for PropertyDescriptor {
+impl<'db> Decodable for PropertyDescriptor<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let field_type = LazyType::decode(data, decoder);
     let default_value = Option::<TdObjectEnum>::decode(data, decoder);
-    let computed_fn = Option::<TdObjectEnum>::decode(data, decoder);
+    let computed_fn = Option::<TdObjectEnum<'db>>::decode(data, decoder);
     PropertyDescriptor {
       field_type,
       default_value,
@@ -54,54 +54,54 @@ impl Decodable for PropertyDescriptor {
 
 // Structural data bag with optional display name
 #[query_derived]
-pub struct TdProductType {
+pub struct TdProductType<'db> {
   pub name: Option<String>,
-  pub fields: HashMap<String, LazyType>,
+  pub fields: HashMap<String, LazyType<'db>>,
 }
 
-impl TdRuntimeObject for TdProductType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdProductType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }
 
-impl TdStaticType for TdProductType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdProductType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     if let Some(name) = self.name(db) {
       return name;
     }
     format_field_map(db, &self.fields(db))
   }
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     None
   }
-  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some(get_object_type(db).into())
   }
-  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
     self.fields(db)
   }
 }
 
 // Runtime instance of a product type, plain data bag
 #[query_derived]
-pub struct TdProductObj {
-  pub product_type: TdTypeEnum,
-  pub file_symbol: Option<Symbol>,
-  pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
+pub struct TdProductObj<'db> {
+  pub product_type: TdTypeEnum<'db>,
+  pub file_symbol: Option<Symbol<'db>>,
+  pub fields: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
-impl TdRuntimeObject for TdProductObj {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     self.product_type(db)
   }
-  fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
@@ -111,16 +111,16 @@ impl TdRuntimeObject for TdProductObj {
       None => Some(TdNullObj::get(db).into()),
     }
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
 }
 
 // Check if expected fields are compatible with actual fields
-pub fn fields_compatible(
-  db: &TypedownDatabase,
-  expected_fields: &HashMap<String, LazyType>,
-  actual_fields: &HashMap<String, LazyType>,
+pub fn fields_compatible<'db>(
+  db: &'db TypedownDatabase,
+  expected_fields: &HashMap<String, LazyType<'db>>,
+  actual_fields: &HashMap<String, LazyType<'db>>,
 ) -> bool {
   expected_fields.iter().all(|(name, expected_lazy)| {
     let optional = expected_lazy
@@ -141,10 +141,10 @@ pub fn fields_compatible(
   })
 }
 
-pub fn make_property_descriptors(
-  _db: &TypedownDatabase,
-  fields: HashMap<String, LazyType>,
-) -> HashMap<String, PropertyDescriptor> {
+pub fn make_property_descriptors<'db>(
+  _db: &'db TypedownDatabase,
+  fields: HashMap<String, LazyType<'db>>,
+) -> HashMap<String, PropertyDescriptor<'db>> {
   fields
     .into_iter()
     .map(|(k, v)| {

@@ -185,12 +185,12 @@ fn fref_completions(
 }
 
 // Resolve the declared field type at a value position or empty value after a colon
-fn declared_field_type_at_value(
-  db: &TypedownDatabase,
+fn declared_field_type_at_value<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<TdTypeEnum> {
+) -> Option<TdTypeEnum<'db>> {
   if is_in_mapping_value_position(node) {
     return declared_field(db, project, file, node);
   }
@@ -205,10 +205,10 @@ fn declared_field_type_at_value(
 }
 
 // Check if a nullable type (T?) has a member satisfying the predicate
-fn has_nullable_member(
-  db: &TypedownDatabase,
-  typ: &TdTypeEnum,
-  predicate: fn(&TdTypeEnum) -> bool,
+fn has_nullable_member<'db>(
+  db: &'db TypedownDatabase,
+  typ: &TdTypeEnum<'db>,
+  predicate: fn(&TdTypeEnum<'db>) -> bool,
 ) -> bool {
   typ.as_td_sum_type().is_some_and(|sum| {
     sum
@@ -255,12 +255,12 @@ fn fref_snippet_completions(
   items
 }
 
-fn enclosing_mapping_type(
-  db: &TypedownDatabase,
+fn enclosing_mapping_type<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<(TdTypeEnum, RedNode)> {
+) -> Option<(TdTypeEnum<'db>, RedNode)> {
   if is_in_mapping_value_position(node) {
     return None;
   }
@@ -364,12 +364,12 @@ fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<C
 }
 
 // Resolve the declared type for the field whose value the cursor is in
-fn declared_field(
-  db: &TypedownDatabase,
+fn declared_field<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<TdTypeEnum> {
+) -> Option<TdTypeEnum<'db>> {
   let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
 
   // Try the value expression first
@@ -396,12 +396,12 @@ fn entry_key_text(entry: &RedNode) -> Option<String> {
 }
 
 // Look up a field's declared type from the enclosing schema
-fn resolve_field_type_from_schema(
-  db: &TypedownDatabase,
+fn resolve_field_type_from_schema<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   mapping: &RedNode,
   key: &str,
-) -> Option<TdTypeEnum> {
+) -> Option<TdTypeEnum<'db>> {
   let schema_name = schema_name_in_mapping(mapping)?;
   let scope = Scope::project_scope(db, project);
   let symbol = *members(db, scope).members(db).get(&schema_name)?;

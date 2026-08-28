@@ -14,29 +14,29 @@ use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
-pub struct TdDictType {
-  pub key_type: Option<LazyType>,
-  pub value_type: Option<LazyType>,
+pub struct TdDictType<'db> {
+  pub key_type: Option<LazyType<'db>>,
+  pub value_type: Option<LazyType<'db>>,
 }
 
-impl TdDictType {
-  pub fn key(&self, db: &TypedownDatabase) -> Option<LazyType> {
+impl<'db> TdDictType<'db> {
+  pub fn key(self, db: &'db TypedownDatabase) -> Option<LazyType<'db>> {
     self.key_type(db)
   }
 
-  pub fn value(&self, db: &TypedownDatabase) -> Option<LazyType> {
+  pub fn value(self, db: &'db TypedownDatabase) -> Option<LazyType<'db>> {
     self.value_type(db)
   }
 }
 
-impl TdRuntimeObject for TdDictType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdDictType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     match (
       self.key(db).and_then(|l| l.resolve(db)),
       self.value(db).and_then(|l| l.resolve(db)),
@@ -51,8 +51,8 @@ impl TdRuntimeObject for TdDictType {
   }
 }
 
-impl TdStaticType for TdDictType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdDictType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match (
       self.key(db).and_then(|l| l.resolve(db)),
       self.value(db).and_then(|l| l.resolve(db)),
@@ -64,7 +64,7 @@ impl TdStaticType for TdDictType {
     }
   }
 
-  fn runtime_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     if self.key(db).is_none() || self.value(db).is_none() {
       return None;
     }
@@ -72,13 +72,13 @@ impl TdStaticType for TdDictType {
   }
   fn construct(
     &self,
-    db: &TypedownDatabase,
+    db: &'db TypedownDatabase,
     _project: Project,
-    args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+    args: Vec<TdObjectEnum<'db>>,
+  ) -> Option<TdObjectEnum<'db>> {
     let mut entries = HashMap::new();
     for arg in args {
-      let pair = arg.as_td_list_obj()?;
+      let pair = *arg.as_td_list_obj()?;
       if pair.len(db) != 2 {
         return None;
       }
@@ -90,7 +90,7 @@ impl TdStaticType for TdDictType {
     Some(TdDictObj::new(db, entries).into())
   }
 
-  fn arity(&self, db: &TypedownDatabase) -> usize {
+  fn arity(&self, db: &'db TypedownDatabase) -> usize {
     if self.key(db).is_some() && self.value(db).is_some() {
       0
     } else {
@@ -98,7 +98,7 @@ impl TdStaticType for TdDictType {
     }
   }
 
-  fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
+  fn get_type_args(&self, db: &'db TypedownDatabase) -> Vec<TdTypeEnum<'db>> {
     match (
       self.key(db).and_then(|l| l.resolve(db)),
       self.value(db).and_then(|l| l.resolve(db)),
@@ -108,11 +108,11 @@ impl TdStaticType for TdDictType {
     }
   }
 
-  fn to_type_enum(&self, _db: &TypedownDatabase) -> TdTypeEnum {
+  fn to_type_enum(&self, _db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     (*self).into()
   }
 
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
+  fn instantiate(&self, db: &'db TypedownDatabase, args: Vec<LazyType<'db>>) -> InstResult<'db> {
     let self_type: TdTypeEnum = (*self).into();
     let params = self.type_params(db);
     let diagnostics = validate_type_params(db, params.as_ref(), &args);
@@ -133,7 +133,7 @@ impl TdStaticType for TdDictType {
     }
   }
 
-  fn type_params(&self, db: &TypedownDatabase) -> Option<TypeParams> {
+  fn type_params(&self, db: &'db TypedownDatabase) -> Option<TypeParams<'db>> {
     let obj_type = LazyType::eager(get_object_type(db).into());
     let mut bindings = Vec::new();
     if let Some(k) = self.key(db) {
@@ -152,7 +152,11 @@ impl TdStaticType for TdDictType {
     ))
   }
 
-  fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    _key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     let value = self.value(db).and_then(|v| v.resolve(db))?;
     let key = self
       .key(db)
@@ -162,22 +166,22 @@ impl TdStaticType for TdDictType {
   }
 }
 
-impl TdDictType {
-  pub fn get(db: &TypedownDatabase) -> TdDictType {
+impl<'db> TdDictType<'db> {
+  pub fn get(db: &'db TypedownDatabase) -> TdDictType<'db> {
     get_dict_type(db)
   }
 }
 
 #[query_derived]
-pub struct TdDictObj {
-  pub entries: HashMap<String, Either<HirValue, TdObjectEnum>>,
+pub struct TdDictObj<'db> {
+  pub entries: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
-impl TdRuntimeObject for TdDictObj {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdDictObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdDictType::get(db).into()
   }
-  fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     match self.entries(db).get(key).cloned()? {
       Either::Left(hir) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
@@ -186,14 +190,14 @@ impl TdRuntimeObject for TdDictObj {
       Either::Right(obj) => Some(obj),
     }
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
-  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+  fn index(&self, db: &'db TypedownDatabase, key: &TdObjectEnum<'db>) -> Option<TdObjectEnum<'db>> {
     let str_key = key.as_td_str_obj()?;
     self.get_owned_field(db, &str_key.value(db))
   }
-  fn len(&self, db: &TypedownDatabase) -> Option<usize> {
+  fn len(&self, db: &'db TypedownDatabase) -> Option<usize> {
     Some(self.entries(db).len())
   }
 }

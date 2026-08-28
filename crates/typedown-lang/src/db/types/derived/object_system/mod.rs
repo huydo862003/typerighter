@@ -64,64 +64,64 @@ use typedown_incremental::Id;
 // Use this instead of dyn
 // The primitive types are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
-#[delegate(TdRuntimeObject)]
-#[delegate(TdStaticType)]
-pub enum TdTypeEnum {
-  TdTypeType(TdTypeType),
-  TdBoolType(TdBoolType),
-  TdStrType(TdStrType),
-  TdNumType(TdNumType),
-  TdMathType(TdMathType),
-  TdFuncType(TdFuncType),
-  TdListType(TdListType),
-  TdDictType(TdDictType),
-  TdDateTimeType(TdDateTimeType),
-  TdDateType(TdDateType),
-  TdTimeType(TdTimeType),
-  TdProductType(TdProductType),
-  TdSchemaMetaType(TdSchemaMetaType),
-  TdSchemaType(TdSchemaType),
-  TdBlobType(TdBlobType),
-  TdNullType(TdNullType),
-  TdNeverType(TdNeverType),
-  TdLiteralType(TdLiteralType),
-  TdSumType(TdSumType),
-  TdVariableType(TdVariableType),
-  TdExistentialType(TdExistentialType),
-  TdObjectType(TdObjectType),
+#[delegate(TdRuntimeObject<'x>, generics = "'x")]
+#[delegate(TdStaticType<'x>, generics = "'x")]
+pub enum TdTypeEnum<'db> {
+  TdTypeType(TdTypeType<'db>),
+  TdBoolType(TdBoolType<'db>),
+  TdStrType(TdStrType<'db>),
+  TdNumType(TdNumType<'db>),
+  TdMathType(TdMathType<'db>),
+  TdFuncType(TdFuncType<'db>),
+  TdListType(TdListType<'db>),
+  TdDictType(TdDictType<'db>),
+  TdDateTimeType(TdDateTimeType<'db>),
+  TdDateType(TdDateType<'db>),
+  TdTimeType(TdTimeType<'db>),
+  TdProductType(TdProductType<'db>),
+  TdSchemaMetaType(TdSchemaMetaType<'db>),
+  TdSchemaType(TdSchemaType<'db>),
+  TdBlobType(TdBlobType<'db>),
+  TdNullType(TdNullType<'db>),
+  TdNeverType(TdNeverType<'db>),
+  TdLiteralType(TdLiteralType<'db>),
+  TdSumType(TdSumType<'db>),
+  TdVariableType(TdVariableType<'db>),
+  TdExistentialType(TdExistentialType<'db>),
+  TdObjectType(TdObjectType<'db>),
 }
 
 // Use this instead of dyn
 // The primitive object kinds are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
-#[delegate(TdRuntimeObject)]
-pub enum TdObjectEnum {
+#[delegate(TdRuntimeObject<'x>, generics = "'x")]
+pub enum TdObjectEnum<'db> {
   // Types are objects
-  TdTypeObj(TdTypeEnum),
+  TdTypeObj(TdTypeEnum<'db>),
   // Objects
-  TdBoolObj(TdBoolObj),
-  TdStrObj(TdStrObj),
-  TdNumObj(TdNumObj),
-  TdMathObj(TdMathObj),
-  TdFuncObj(TdFuncObj),
-  TdListObj(TdListObj),
-  TdDictObj(TdDictObj),
-  TdDateTimeObj(TdDateTimeObj),
-  TdDateObj(TdDateObj),
-  TdTimeObj(TdTimeObj),
-  TdProductObj(TdProductObj),
-  TdSchemaObj(TdSchemaObj),
-  TdBlobObj(TdBlobObj),
-  TdNullObj(TdNullObj),
-  TdVaultObj(TdVaultObj),
+  TdBoolObj(TdBoolObj<'db>),
+  TdStrObj(TdStrObj<'db>),
+  TdNumObj(TdNumObj<'db>),
+  TdMathObj(TdMathObj<'db>),
+  TdFuncObj(TdFuncObj<'db>),
+  TdListObj(TdListObj<'db>),
+  TdDictObj(TdDictObj<'db>),
+  TdDateTimeObj(TdDateTimeObj<'db>),
+  TdDateObj(TdDateObj<'db>),
+  TdTimeObj(TdTimeObj<'db>),
+  TdProductObj(TdProductObj<'db>),
+  TdSchemaObj(TdSchemaObj<'db>),
+  TdBlobObj(TdBlobObj<'db>),
+  TdNullObj(TdNullObj<'db>),
+  TdVaultObj(TdVaultObj<'db>),
 }
 
 // Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
 macro_rules! impl_from_type_for_obj_enum {
   ($($ty:ident),+ $(,)?) => {
     $(
-      impl From<$ty> for TdObjectEnum {
-        fn from(v: $ty) -> Self {
+      impl<'db> From<$ty<'db>> for TdObjectEnum<'db> {
+        fn from(v: $ty<'db>) -> Self {
           TdObjectEnum::TdTypeObj(TdTypeEnum::from(v))
         }
       }
@@ -154,7 +154,7 @@ impl_from_type_for_obj_enum!(
   TdObjectType,
 );
 
-impl Id for TdTypeEnum {
+impl Id for TdTypeEnum<'_> {
   fn as_id(&self) -> (usize, usize) {
     match self {
       TdTypeEnum::TdTypeType(v) => v.as_id(),
@@ -183,7 +183,7 @@ impl Id for TdTypeEnum {
   }
 }
 
-impl Id for TdObjectEnum {
+impl Id for TdObjectEnum<'_> {
   fn as_id(&self) -> (usize, usize) {
     match self {
       TdObjectEnum::TdTypeObj(v) => v.as_id(),
@@ -206,33 +206,33 @@ impl Id for TdObjectEnum {
   }
 }
 
-impl PartialEq for TdTypeEnum {
+impl PartialEq for TdTypeEnum<'_> {
   fn eq(&self, other: &Self) -> bool {
     self.as_id() == other.as_id()
   }
 }
-impl Eq for TdTypeEnum {}
+impl Eq for TdTypeEnum<'_> {}
 
-impl Hash for TdTypeEnum {
+impl Hash for TdTypeEnum<'_> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.as_id().hash(state);
   }
 }
 
-impl PartialEq for TdObjectEnum {
+impl PartialEq for TdObjectEnum<'_> {
   fn eq(&self, other: &Self) -> bool {
     self.as_id() == other.as_id()
   }
 }
-impl Eq for TdObjectEnum {}
+impl Eq for TdObjectEnum<'_> {}
 
-impl Hash for TdObjectEnum {
+impl Hash for TdObjectEnum<'_> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.as_id().hash(state);
   }
 }
 
-impl typedown_incremental::StableHash for TdTypeEnum {
+impl typedown_incremental::StableHash for TdTypeEnum<'_> {
   fn stable_hash<DB: typedown_incremental::QueryDatabase + ?Sized>(
     &self,
     db: &DB,
@@ -265,7 +265,7 @@ impl typedown_incremental::StableHash for TdTypeEnum {
   }
 }
 
-impl typedown_incremental::StableHash for TdObjectEnum {
+impl typedown_incremental::StableHash for TdObjectEnum<'_> {
   fn stable_hash<DB: typedown_incremental::QueryDatabase + ?Sized>(
     &self,
     db: &DB,
@@ -343,7 +343,7 @@ pub enum TdObjectKind {
 }
 
 // TdTypeEnum
-impl Encodable for TdTypeEnum {
+impl Encodable for TdTypeEnum<'_> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       TdTypeEnum::TdTypeType(v) => {
@@ -438,7 +438,7 @@ impl Encodable for TdTypeEnum {
   }
 }
 
-impl Decodable for TdTypeEnum {
+impl Decodable for TdTypeEnum<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match TdTypeKind::from_repr(tag).expect("unknown TdTypeKind tag") {
@@ -469,7 +469,7 @@ impl Decodable for TdTypeEnum {
 }
 
 // TdObjectEnum
-impl Encodable for TdObjectEnum {
+impl Encodable for TdObjectEnum<'_> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       TdObjectEnum::TdTypeObj(v) => {
@@ -541,7 +541,7 @@ impl Encodable for TdObjectEnum {
   }
 }
 
-impl Decodable for TdObjectEnum {
+impl Decodable for TdObjectEnum<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match TdObjectKind::from_repr(tag) {

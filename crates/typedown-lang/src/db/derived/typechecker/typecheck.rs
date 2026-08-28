@@ -18,7 +18,7 @@ use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, Typ
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
+pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypecheckResult<'db> {
   let type_result = actual_node_type(db, hir);
   let mut diagnostics = type_result.diagnostics(db).clone();
 
@@ -85,11 +85,11 @@ pub fn typecheck(db: &TypedownDatabase, hir: HirValue) -> TypecheckResult {
   TypecheckResult::new(db, diagnostics)
 }
 
-fn check_mapping_fields(
-  db: &TypedownDatabase,
-  mapping_hir: HirValue,
-  entries: &[(String, HirValue)],
-  expected_type: &TdTypeEnum,
+fn check_mapping_fields<'db>(
+  db: &'db TypedownDatabase,
+  mapping_hir: HirValue<'db>,
+  entries: &[(String, HirValue<'db>)],
+  expected_type: &TdTypeEnum<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
   let declared_fields = expected_type.get_fields(db);
@@ -197,10 +197,10 @@ fn check_mapping_fields(
   diagnostics
 }
 
-fn check_tag(
-  db: &TypedownDatabase,
-  expected_type: &TdTypeEnum,
-  inner: HirValue,
+fn check_tag<'db>(
+  db: &'db TypedownDatabase,
+  expected_type: &TdTypeEnum<'db>,
+  inner: HirValue<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
   let inner_result = actual_node_type(db, inner);
@@ -219,7 +219,11 @@ fn check_tag(
   diagnostics
 }
 
-fn check_call(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> Vec<Diagnostic> {
+fn check_call<'db>(
+  db: &'db TypedownDatabase,
+  callee: HirValue<'db>,
+  args: Vec<HirValue<'db>>,
+) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   let callee_result = actual_node_type(db, callee);
@@ -278,7 +282,11 @@ fn check_call(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> V
   diagnostics
 }
 
-fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) -> Vec<Diagnostic> {
+fn check_index<'db>(
+  db: &'db TypedownDatabase,
+  expr: HirValue<'db>,
+  indices: Vec<HirValue<'db>>,
+) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   let expr_result = actual_node_type(db, expr);
@@ -369,7 +377,11 @@ fn check_index(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) ->
   diagnostics
 }
 
-fn check_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagnostic> {
+fn check_prefix<'db>(
+  db: &'db TypedownDatabase,
+  op: &str,
+  operand: HirValue<'db>,
+) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   let tc_result = typecheck(db, operand);
@@ -402,7 +414,11 @@ fn check_prefix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagn
   diagnostics
 }
 
-fn check_postfix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diagnostic> {
+fn check_postfix<'db>(
+  db: &'db TypedownDatabase,
+  op: &str,
+  operand: HirValue<'db>,
+) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
   let tc_result = typecheck(db, operand);
   diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
@@ -426,11 +442,11 @@ fn check_postfix(db: &TypedownDatabase, op: &str, operand: HirValue) -> Vec<Diag
   diagnostics
 }
 
-fn check_binary(
-  db: &TypedownDatabase,
+fn check_binary<'db>(
+  db: &'db TypedownDatabase,
   op: &str,
-  left: HirValue,
-  right: HirValue,
+  left: HirValue<'db>,
+  right: HirValue<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
@@ -507,10 +523,10 @@ fn check_binary(
   diagnostics
 }
 
-fn check_sequence(
-  db: &TypedownDatabase,
-  declared_type: &TdTypeEnum,
-  items: Vec<HirValue>,
+fn check_sequence<'db>(
+  db: &'db TypedownDatabase,
+  declared_type: &TdTypeEnum<'db>,
+  items: Vec<HirValue<'db>>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 

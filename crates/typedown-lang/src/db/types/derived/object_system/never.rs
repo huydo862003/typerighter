@@ -7,30 +7,34 @@ use crate::db::derived::get_builtin_types::get_never_type;
 use crate::db::types::FuncSignature;
 
 #[query_derived]
-pub struct TdNeverType {}
+pub struct TdNeverType<'db> {}
 
-impl TdRuntimeObject for TdNeverType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdNeverType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, _db: &TypedownDatabase) -> String {
+  fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::never".to_string()
   }
 }
 
-impl TdStaticType for TdNeverType {
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdNeverType<'db> {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "never".to_string()
   }
 
-  fn lookup_field_type(&self, db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'db TypedownDatabase, _name: &str) -> Option<TdTypeEnum<'db>> {
     Some(get_never_type(db).into())
   }
 
-  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     Some(FuncSignature::new(
       db,
       vec![key_type.clone()],
@@ -38,13 +42,17 @@ impl TdStaticType for TdNeverType {
     ))
   }
 
-  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     Some(FuncSignature::new(db, arg_types, get_never_type(db).into()))
   }
 }
 
-impl TdNeverType {
-  pub fn get(db: &TypedownDatabase) -> TdNeverType {
+impl<'db> TdNeverType<'db> {
+  pub fn get(db: &'db TypedownDatabase) -> TdNeverType<'db> {
     get_never_type(db)
   }
 }

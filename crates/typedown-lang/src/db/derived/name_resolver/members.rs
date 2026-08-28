@@ -16,7 +16,7 @@ use typedown_types::either::Either;
 
 /// Schema-only members (fast path for _type resolution)
 #[query_derived]
-pub fn schema_members(db: &TypedownDatabase, project: Project) -> MembersResult {
+pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> MembersResult<'db> {
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
@@ -40,7 +40,7 @@ pub fn schema_members(db: &TypedownDatabase, project: Project) -> MembersResult 
 }
 
 #[query_derived]
-pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
+pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResult<'db> {
   match scope.kind(db) {
     ScopeKind::Builtin(_) => MembersResult::new(db, builtin_scope(db).members(db)),
     ScopeKind::File(project, file) => {
@@ -121,11 +121,11 @@ pub fn members(db: &TypedownDatabase, scope: Scope) -> MembersResult {
 }
 
 // Extract _imports from a file's frontmatter and register each alias as a member
-fn resolve_import_members(
-  db: &TypedownDatabase,
+fn resolve_import_members<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
-  members: &mut HashMap<String, Symbol>,
+  members: &mut HashMap<String, Symbol<'db>>,
 ) {
   let (hir, _) = lower_file(db, project, file);
   let Some(hir) = hir else { return };
@@ -150,7 +150,8 @@ fn resolve_import_members(
     let Some(&target_file) = project.files(db).get(&target_path) else {
       continue;
     };
-    if let Some(sym) = file_symbol(db, project, target_file).value(db) {
+    let fs = file_symbol(db, project, target_file);
+    if let Some(sym) = fs.value(db) {
       members.insert(alias, sym);
     }
   }

@@ -3,7 +3,9 @@
 use crate::db::TypedownDatabase;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::fields_compatible;
-use crate::db::types::{LazyType, TdSchemaType, TdTypeEnum, TypeParams, TypeVariable};
+use crate::db::types::{
+  LazyType, TdExistentialType, TdSchemaType, TdTypeEnum, TypeParams, TypeVariable,
+};
 use crate::syntax::diagnostic::Diagnostic;
 use std::collections::{HashMap, HashSet};
 use typedown_incremental::Id;
@@ -50,13 +52,13 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
 
 /// Witness environment for existential subtyping constraints
 #[derive(Default)]
-struct SubtypeEnv {
-  lower_bounds: HashMap<TypeVariable, Vec<TdTypeEnum>>,
-  upper_bounds: HashMap<TypeVariable, Vec<TdTypeEnum>>,
-  existential_variables: HashSet<TypeVariable>,
+struct SubtypeEnv<'db> {
+  lower_bounds: HashMap<TypeVariable<'db>, Vec<TdTypeEnum<'db>>>,
+  upper_bounds: HashMap<TypeVariable<'db>, Vec<TdTypeEnum<'db>>>,
+  existential_variables: HashSet<TypeVariable<'db>>,
 }
 
-impl SubtypeEnv {
+impl<'db> SubtypeEnv<'db> {
   fn new() -> Self {
     Self {
       lower_bounds: HashMap::new(),
@@ -66,7 +68,7 @@ impl SubtypeEnv {
   }
 
   /// Register an existential variable in the environment and push its declared upper bound
-  fn track_existential_variable(&mut self, db: &TypedownDatabase, variable: TypeVariable) {
+  fn track_existential_variable(&mut self, db: &'db TypedownDatabase, variable: TypeVariable<'db>) {
     self.existential_variables.insert(variable);
     if let Some(upper_bound) = variable.upper_bound(db).resolve(db) {
       self.add_upper_bound(db, variable, &upper_bound);
@@ -77,9 +79,9 @@ impl SubtypeEnv {
   /// Returning `false` early if a conflict with any existing upper bound is detected (`lower <= upper` fails)
   fn add_lower_bound(
     &mut self,
-    db: &TypedownDatabase,
-    variable: TypeVariable,
-    lower_bound: &TdTypeEnum,
+    db: &'db TypedownDatabase,
+    variable: TypeVariable<'db>,
+    lower_bound: &TdTypeEnum<'db>,
   ) -> bool {
     if let Some(upper_bounds) = self.upper_bounds.get(&variable).cloned() {
       for upper_bound in &upper_bounds {
@@ -100,9 +102,9 @@ impl SubtypeEnv {
   /// Returning `false` early if a conflict with any existing lower bound is detected (`lower <= upper` fails)
   fn add_upper_bound(
     &mut self,
-    db: &TypedownDatabase,
-    variable: TypeVariable,
-    upper_bound: &TdTypeEnum,
+    db: &'db TypedownDatabase,
+    variable: TypeVariable<'db>,
+    upper_bound: &TdTypeEnum<'db>,
   ) -> bool {
     if let Some(lower_bounds) = self.lower_bounds.get(&variable).cloned() {
       for lower_bound in &lower_bounds {
@@ -141,18 +143,18 @@ fn nominal_subtype_of(
   false
 }
 
-fn is_subtype_of_env(
-  db: &TypedownDatabase,
-  subtype: &TdTypeEnum,
-  supertype: &TdTypeEnum,
-  env: &mut SubtypeEnv,
+fn is_subtype_of_env<'db>(
+  db: &'db TypedownDatabase,
+  subtype: &TdTypeEnum<'db>,
+  supertype: &TdTypeEnum<'db>,
+  env: &mut SubtypeEnv<'db>,
 ) -> bool {
   // Phase 1: Check type constructor compatibility ignoring type arguments and parameter variance
-  fn are_constructors_compatible(
-    db: &TypedownDatabase,
-    subtype: &TdTypeEnum, // INVARIANT: Due to sum type elimination, sub type cannot be a sum type here
-    supertype: &TdTypeEnum,
-    env: &mut SubtypeEnv,
+  fn are_constructors_compatible<'db>(
+    db: &'db TypedownDatabase,
+    subtype: &TdTypeEnum<'db>, // INVARIANT: Due to sum type elimination, sub type cannot be a sum type here
+    supertype: &TdTypeEnum<'db>,
+    env: &mut SubtypeEnv<'db>,
   ) -> bool {
     if subtype.as_id() == supertype.as_id() {
       return true;
@@ -253,11 +255,11 @@ fn is_subtype_of_env(
   }
 
   // Phase 2: Check type arguments and parameter variance between compatible constructors
-  fn are_type_args_compatible(
-    db: &TypedownDatabase,
-    subtype: &TdTypeEnum,
-    supertype: &TdTypeEnum,
-    env: &mut SubtypeEnv,
+  fn are_type_args_compatible<'db>(
+    db: &'db TypedownDatabase,
+    subtype: &TdTypeEnum<'db>,
+    supertype: &TdTypeEnum<'db>,
+    env: &mut SubtypeEnv<'db>,
   ) -> bool {
     match (subtype, supertype) {
       (TdTypeEnum::TdListType(subtype_list), TdTypeEnum::TdListType(supertype_list)) => {
@@ -370,7 +372,7 @@ fn is_subtype_of_env(
       // iff
       // P1[T1] is a subtype of some P2[T2] where T2 <: S2
       // We just proceed product decomposition, then accumulate bounds
-      let params = existential_supertype.type_params(db).params(db);
+      let params = TdExistentialType::type_params(*existential_supertype, db).params(db);
       for param in &params {
         env.track_existential_variable(db, *param);
       }
@@ -442,15 +444,15 @@ mod tests {
     }
   }
 
-  fn lit_str(db: &TypedownDatabase, val: &str) -> TdTypeEnum {
+  fn lit_str<'a>(db: &'a TypedownDatabase, val: &str) -> TdTypeEnum<'a> {
     get_literal_type(db, LiteralValue::Str(val.to_string())).into()
   }
 
-  fn lit_num(db: &TypedownDatabase, val: &str) -> TdTypeEnum {
+  fn lit_num<'a>(db: &'a TypedownDatabase, val: &str) -> TdTypeEnum<'a> {
     get_literal_type(db, LiteralValue::Num(val.to_string())).into()
   }
 
-  fn sum(db: &TypedownDatabase, members: Vec<TdTypeEnum>) -> TdTypeEnum {
+  fn sum<'a>(db: &'a TypedownDatabase, members: Vec<TdTypeEnum<'a>>) -> TdTypeEnum<'a> {
     get_sum_type(db, members.into_iter().map(LazyType::eager).collect()).into()
   }
 

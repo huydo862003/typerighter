@@ -12,12 +12,12 @@ use crate::db::types::{BuiltinGlobalKind, BuiltinMacroKind, Symbol, SymbolKind};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub struct BuiltinScopeMembers {
-  pub members: HashMap<String, Symbol>,
+pub struct BuiltinScopeMembers<'db> {
+  pub members: HashMap<String, Symbol<'db>>,
 }
 
 #[query_derived]
-pub fn builtin_scope(db: &TypedownDatabase) -> BuiltinScopeMembers {
+pub fn builtin_scope<'db>(db: &'db TypedownDatabase) -> BuiltinScopeMembers<'db> {
   let members = HashMap::from([
     ("schema".to_string(), get_schema_symbol(db)),
     ("string".to_string(), get_str_symbol(db)),

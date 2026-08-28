@@ -13,31 +13,31 @@ use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
-pub struct TdListType {
-  pub element_type: Option<LazyType>,
+pub struct TdListType<'db> {
+  pub element_type: Option<LazyType<'db>>,
 }
 
-impl TdListType {
-  pub fn elem(&self, db: &TypedownDatabase) -> Option<LazyType> {
+impl<'db> TdListType<'db> {
+  pub fn elem(self, db: &'db TypedownDatabase) -> Option<LazyType<'db>> {
     self.element_type(db)
   }
 }
 
-impl TdRuntimeObject for TdListType {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdListType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     match self.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => format!("@builtin::list[{}]", elem.source_path(db)),
       None => "@builtin::list".to_string(),
     }
   }
   // Type instantiation: list[string] at runtime
-  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+  fn index(&self, db: &'db TypedownDatabase, key: &TdObjectEnum<'db>) -> Option<TdObjectEnum<'db>> {
     let arg_type = key.as_td_type_obj()?.clone();
     let result = self
       .instantiate(db, vec![LazyType::eager(arg_type)])
@@ -46,44 +46,44 @@ impl TdRuntimeObject for TdListType {
   }
 }
 
-impl TdStaticType for TdListType {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+impl<'db> TdStaticType<'db> for TdListType<'db> {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match self.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => format!("list[{}]", elem.display_name(db)),
       None => "list".to_string(),
     }
   }
 
-  fn runtime_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     self.elem(db)?;
     Some((*self).into())
   }
   fn construct(
     &self,
-    db: &TypedownDatabase,
+    db: &'db TypedownDatabase,
     _project: Project,
-    args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+    args: Vec<TdObjectEnum<'db>>,
+  ) -> Option<TdObjectEnum<'db>> {
     let items = args.into_iter().map(Either::Right).collect();
     Some(TdListObj::new(db, items).into())
   }
 
-  fn arity(&self, db: &TypedownDatabase) -> usize {
+  fn arity(&self, db: &'db TypedownDatabase) -> usize {
     if self.elem(db).is_some() { 0 } else { 1 }
   }
 
-  fn get_type_args(&self, db: &TypedownDatabase) -> Vec<TdTypeEnum> {
+  fn get_type_args(&self, db: &'db TypedownDatabase) -> Vec<TdTypeEnum<'db>> {
     match self.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => vec![elem],
       None => vec![],
     }
   }
 
-  fn to_type_enum(&self, _db: &TypedownDatabase) -> TdTypeEnum {
+  fn to_type_enum(&self, _db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     (*self).into()
   }
 
-  fn instantiate(&self, db: &TypedownDatabase, args: Vec<LazyType>) -> InstResult {
+  fn instantiate(&self, db: &'db TypedownDatabase, args: Vec<LazyType<'db>>) -> InstResult<'db> {
     let self_type: TdTypeEnum = (*self).into();
     let params = self.type_params(db);
     let diagnostics = validate_type_params(db, params.as_ref(), &args);
@@ -104,57 +104,61 @@ impl TdStaticType for TdListType {
     }
   }
 
-  fn type_params(&self, db: &TypedownDatabase) -> Option<TypeParams> {
+  fn type_params(&self, db: &'db TypedownDatabase) -> Option<TypeParams<'db>> {
     let param = TypeVariable::get(db, Some(LazyType::eager(get_object_type(db).into())));
     let bindings = self.elem(db).into_iter().collect();
     Some(TypeParams::new(db, vec![param], bindings))
   }
 
-  fn index_type(&self, db: &TypedownDatabase, _key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    _key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     let elem = self.elem(db).and_then(|e| e.resolve(db))?;
     let key_type: TdTypeEnum = get_num_type(db).into();
     Some(FuncSignature::new(db, vec![key_type], elem))
   }
 }
 
-impl TdListType {
-  pub fn get(db: &TypedownDatabase) -> TdListType {
+impl<'db> TdListType<'db> {
+  pub fn get(db: &'db TypedownDatabase) -> TdListType<'db> {
     get_list_type(db)
   }
 }
 
 #[query_derived]
-pub struct TdListObj {
-  pub items: Vec<Either<HirValue, TdObjectEnum>>,
+pub struct TdListObj<'db> {
+  pub items: Vec<Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
-impl TdRuntimeObject for TdListObj {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdListObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdListType::get(db).into()
   }
-  fn get_owned_field(&self, db: &TypedownDatabase, key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     let idx: usize = key.parse().ok()?;
     self.get(db, idx)
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
-  fn index(&self, db: &TypedownDatabase, key: &TdObjectEnum) -> Option<TdObjectEnum> {
+  fn index(&self, db: &'db TypedownDatabase, key: &TdObjectEnum<'db>) -> Option<TdObjectEnum<'db>> {
     let num = key.as_td_num_obj()?;
     let idx = num.value(db) as usize;
     self.get(db, idx)
   }
-  fn len(&self, db: &TypedownDatabase) -> Option<usize> {
+  fn len(&self, db: &'db TypedownDatabase) -> Option<usize> {
     Some(self.items(db).len())
   }
 }
 
-impl TdListObj {
-  pub fn len(&self, db: &TypedownDatabase) -> usize {
+impl<'db> TdListObj<'db> {
+  pub fn len(self, db: &'db TypedownDatabase) -> usize {
     self.items(db).len()
   }
 
-  pub fn get(&self, db: &TypedownDatabase, idx: usize) -> Option<TdObjectEnum> {
+  pub fn get(self, db: &'db TypedownDatabase, idx: usize) -> Option<TdObjectEnum<'db>> {
     match self.items(db).into_iter().nth(idx)? {
       Either::Left(hir) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));

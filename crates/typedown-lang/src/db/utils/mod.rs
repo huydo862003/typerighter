@@ -48,7 +48,7 @@ pub fn lower_file(
   db: &TypedownDatabase,
   project: Project,
   file: File,
-) -> (Option<HirValue>, Vec<Diagnostic>) {
+) -> (Option<HirValue<'_>>, Vec<Diagnostic>) {
   let parse_result = parse_file(db, project, file);
   let diagnostics = parse_result.diagnostics(db).to_vec();
   let root = parse_result.ast(db);

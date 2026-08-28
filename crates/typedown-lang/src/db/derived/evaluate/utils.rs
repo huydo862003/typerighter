@@ -18,12 +18,12 @@ use crate::db::types::{
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
 
-pub(crate) fn construct_from_hir(
-  db: &TypedownDatabase,
-  hir: HirValue,
-  runtime_scope: RuntimeScope,
+pub(crate) fn construct_from_hir<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   match hir.kind(db) {
     HirValueKind::Null => {
       return Some(TdNullObj::get(db).into());
@@ -47,7 +47,8 @@ pub(crate) fn construct_from_hir(
           }
           // Resource identifiers (including self) evaluate to the resource object
           SymbolKind::UserDefinedResource(_, _) => {
-            return evaluate_resource(db, symbol).value(db);
+            let resource = evaluate_resource(db, symbol);
+            return resource.value(db);
           }
           _ => {}
         }
@@ -55,12 +56,14 @@ pub(crate) fn construct_from_hir(
     }
     // Tag expressions: the tag is a type hint for the typechecker
     HirValueKind::Tag { inner, .. } => {
-      return evaluate_node(db, *inner, runtime_scope).value(db);
+      let node = evaluate_node(db, *inner, runtime_scope);
+      return node.value(db);
     }
     // Field access: obj.field
     HirValueKind::Binary { op, left, right } if op == "." => {
       if let HirValueKind::Ident(field_name) = right.kind(db) {
-        let this = evaluate_node(db, *left, runtime_scope).value(db)?;
+        let left_node = evaluate_node(db, *left, runtime_scope);
+        let this = left_node.value(db)?;
         return this.lookup_field(db, &field_name);
       }
     }
@@ -85,13 +88,18 @@ pub(crate) fn construct_from_hir(
         // Method call: obj.method(args)
         HirValueKind::Binary { op, left, right } if op == "." => {
           if let HirValueKind::Ident(method_name) = right.kind(db) {
-            let this = evaluate_node(db, *left, runtime_scope).value(db)?;
+            let left_node = evaluate_node(db, *left, runtime_scope);
+            let this = left_node.value(db)?;
             let func_obj = this.lookup_method(db, &method_name)?;
             let arg_objs: Vec<_> = args
               .into_iter()
-              .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
+              .filter_map(|arg| {
+                let node = evaluate_node(db, arg, runtime_scope);
+                node.value(db)
+              })
               .collect();
-            let project = runtime_scope.scope(db).project(db);
+            let scope = runtime_scope.scope(db);
+            let project = scope.project(db);
             return func_obj.call(db, project, Some(this), arg_objs).ok();
           }
         }
@@ -104,12 +112,17 @@ pub(crate) fn construct_from_hir(
             return construct_macro(db, kind, args);
           }
           // Plain function call: evaluate callee, call it via protocol
-          let callee_obj = evaluate_node(db, *callee, runtime_scope).value(db)?;
+          let callee_node = evaluate_node(db, *callee, runtime_scope);
+          let callee_obj = callee_node.value(db)?;
           let arg_objs: Vec<_> = args
             .into_iter()
-            .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
+            .filter_map(|arg| {
+              let node = evaluate_node(db, arg, runtime_scope);
+              node.value(db)
+            })
             .collect();
-          let project = runtime_scope.scope(db).project(db);
+          let scope = runtime_scope.scope(db);
+          let project = scope.project(db);
           return callee_obj.call(db, project, None, arg_objs).ok();
         }
       }
@@ -201,12 +214,12 @@ pub(crate) fn construct_from_hir(
   }
 }
 
-fn evaluate_prefix(
-  db: &TypedownDatabase,
+fn evaluate_prefix<'db>(
+  db: &'db TypedownDatabase,
   op: &str,
-  operand: HirValue,
-  runtime_scope: RuntimeScope,
-) -> Option<TdObjectEnum> {
+  operand: HirValue<'db>,
+  runtime_scope: RuntimeScope<'db>,
+) -> Option<TdObjectEnum<'db>> {
   let operand_obj = evaluate_node(db, operand, runtime_scope).value(db)?;
   match op {
     "-" | "+" => {
@@ -228,12 +241,12 @@ fn evaluate_prefix(
   }
 }
 
-fn evaluate_postfix(
-  db: &TypedownDatabase,
+fn evaluate_postfix<'db>(
+  db: &'db TypedownDatabase,
   op: &str,
-  operand: HirValue,
-  runtime_scope: RuntimeScope,
-) -> Option<TdObjectEnum> {
+  operand: HirValue<'db>,
+  runtime_scope: RuntimeScope<'db>,
+) -> Option<TdObjectEnum<'db>> {
   match op {
     // T? evaluates to Sum([T, null]) as a type object
     "?" => {
@@ -254,13 +267,13 @@ fn evaluate_postfix(
   }
 }
 
-fn evaluate_binary(
-  db: &TypedownDatabase,
+fn evaluate_binary<'db>(
+  db: &'db TypedownDatabase,
   op: &str,
-  left: HirValue,
-  right: HirValue,
-  runtime_scope: RuntimeScope,
-) -> Option<TdObjectEnum> {
+  left: HirValue<'db>,
+  right: HirValue<'db>,
+  runtime_scope: RuntimeScope<'db>,
+) -> Option<TdObjectEnum<'db>> {
   let left_obj = evaluate_node(db, left, runtime_scope).value(db)?;
   let right_obj = evaluate_node(db, right, runtime_scope).value(db)?;
   match op {
@@ -298,11 +311,11 @@ fn evaluate_binary(
   }
 }
 
-fn compare_objects(
-  db: &TypedownDatabase,
+fn compare_objects<'db>(
+  db: &'db TypedownDatabase,
   op: &str,
-  left: &TdObjectEnum,
-  right: &TdObjectEnum,
+  left: &TdObjectEnum<'db>,
+  right: &TdObjectEnum<'db>,
 ) -> bool {
   match op {
     "==" => TdRuntimeObject::eq(left, db, right),
@@ -315,13 +328,13 @@ fn compare_objects(
   }
 }
 
-fn evaluate_index(
-  db: &TypedownDatabase,
-  expr: HirValue,
-  indices: Vec<HirValue>,
-  runtime_scope: RuntimeScope,
+fn evaluate_index<'db>(
+  db: &'db TypedownDatabase,
+  expr: HirValue<'db>,
+  indices: Vec<HirValue<'db>>,
+  runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   if indices.len() != 1 {
     return None;
   }
@@ -349,21 +362,21 @@ fn evaluate_index(
   container.index(db, &index_obj)
 }
 
-fn construct_macro(
-  db: &TypedownDatabase,
+fn construct_macro<'db>(
+  db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
-  args: Vec<HirValue>,
-) -> Option<TdObjectEnum> {
+  args: Vec<HirValue<'db>>,
+) -> Option<TdObjectEnum<'db>> {
   match kind {
     BuiltinMacroKind::Fref => construct_fref(db, args),
   }
 }
 
-fn evaluate_interpolated(
-  db: &TypedownDatabase,
-  runtime_scope: RuntimeScope,
-  parts: Vec<InterpolatedPart>,
-) -> Option<TdObjectEnum> {
+fn evaluate_interpolated<'db>(
+  db: &'db TypedownDatabase,
+  runtime_scope: RuntimeScope<'db>,
+  parts: Vec<InterpolatedPart<'db>>,
+) -> Option<TdObjectEnum<'db>> {
   let mut val = String::new();
   for part in parts {
     match part {
@@ -382,11 +395,11 @@ fn evaluate_interpolated(
 }
 
 // Evaluate mapping as an object of type `typ`
-fn evaluate_mapping(
-  db: &TypedownDatabase,
-  typ: &TdTypeEnum,
-  entries: Vec<(String, HirValue)>,
-) -> Option<TdObjectEnum> {
+fn evaluate_mapping<'db>(
+  db: &'db TypedownDatabase,
+  typ: &TdTypeEnum<'db>,
+  entries: Vec<(String, HirValue<'db>)>,
+) -> Option<TdObjectEnum<'db>> {
   // Schema type
   if typ.is_td_schema_meta_type() {
     let properties_entries = match entries.iter().find(|(key, _)| key == "properties") {
@@ -459,7 +472,10 @@ fn evaluate_mapping(
 }
 
 // fref("file.td") evaluates to the target resource's object
-fn construct_fref(db: &TypedownDatabase, args: Vec<HirValue>) -> Option<TdObjectEnum> {
+fn construct_fref<'db>(
+  db: &'db TypedownDatabase,
+  args: Vec<HirValue<'db>>,
+) -> Option<TdObjectEnum<'db>> {
   if args.len() != 1 {
     return None;
   }
@@ -510,9 +526,9 @@ mod tests {
     let db = make_db();
 
     // Literal types resolve to primitive underlying types
-    let lit_str: TdTypeEnum = get_literal_type(&db, LiteralValue::Str("hello".into())).into();
-    let lit_num: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".into())).into();
-    let lit_bool: TdTypeEnum = get_literal_type(&db, LiteralValue::Bool(true)).into();
+    let lit_str: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Str("hello".into())).into();
+    let lit_num: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Num("42".into())).into();
+    let lit_bool: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Bool(true)).into();
 
     assert_eq!(lit_str.runtime_type(&db), Some(get_str_type(&db).into()));
     assert_eq!(lit_num.runtime_type(&db), Some(get_num_type(&db).into()));
@@ -571,7 +587,7 @@ mod tests {
     let db = make_db();
 
     // Verify runtime_type returns None for non-constructible sum type
-    let sum_type: TdTypeEnum = get_sum_type(
+    let sum_type: TdTypeEnum<'_> = get_sum_type(
       &db,
       vec![
         LazyType::eager(get_str_type(&db).into()),
@@ -608,7 +624,7 @@ mod tests {
   #[test]
   fn test_dunder_methods_call_and_index() {
     let db = make_db();
-    let str_type: TdTypeEnum = get_str_type(&db).into();
+    let str_type: TdTypeEnum<'_> = get_str_type(&db).into();
     let sig = FuncSignature::new(&db, vec![str_type.clone()], str_type.clone());
     let index_fn = TdFuncObj::new(
       &db,

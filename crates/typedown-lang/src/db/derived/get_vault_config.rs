@@ -13,7 +13,10 @@ use crate::db::types::{Project, VaultConfigResult};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigResult {
+pub fn get_vault_config<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+) -> VaultConfigResult<'db> {
   let root = project.root_dir(db);
   let mut diagnostics = Vec::new();
 
@@ -76,9 +79,7 @@ pub fn get_vault_config(db: &TypedownDatabase, project: Project) -> VaultConfigR
   )
 }
 
-/// Locate `typedown.yaml` (preferred) or `typedown.yml` in the project files, open it, and
-/// return its resolved path and full text contents. Returns `None` and pushes a diagnostic if
-/// the file is absent or cannot be opened.
+// Read the config file (typedown.yaml or typedown.yml) from the project
 fn read_config_file(
   db: &TypedownDatabase,
   project: Project,
