@@ -108,7 +108,7 @@ fn lower_expr_kind<'db>(
   file: File,
   expr: &Expr,
   diagnostics: &mut Vec<Diagnostic>,
-) -> HirValueKind {
+) -> HirValueKind<'db> {
   let inner = unwrap_parens(expr.clone());
 
   // Handle block mapping

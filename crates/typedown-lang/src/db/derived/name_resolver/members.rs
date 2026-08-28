@@ -121,11 +121,11 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
 }
 
 // Extract _imports from a file's frontmatter and register each alias as a member
-fn resolve_import_members(
+fn resolve_import_members<'db>(
   db: &'db TypedownDatabase,
   project: Project,
   file: File,
-  members: &mut HashMap<String, Symbol>,
+  members: &mut HashMap<String, Symbol<'db>>,
 ) {
   let (hir, _) = lower_file(db, project, file);
   let Some(hir) = hir else { return };

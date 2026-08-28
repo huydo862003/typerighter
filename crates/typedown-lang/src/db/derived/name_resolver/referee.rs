@@ -53,7 +53,7 @@ fn resolve_call<'db>(
   hir: HirValue<'db>,
   callee: HirValue<'db>,
   args: Vec<HirValue<'db>>,
-) -> MaybeSymbol {
+) -> MaybeSymbol<'db> {
   if let HirValueKind::Ident(name) = callee.kind(db)
     && name == "fref"
     && let Some(first_arg) = args.first()

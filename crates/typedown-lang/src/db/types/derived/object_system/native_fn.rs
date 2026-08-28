@@ -13,12 +13,12 @@ use typedown_incremental::{
 
 use crate::syntax::diagnostic::Diagnostic;
 
-pub type NativeFn = fn(
-  &TypedownDatabase,
+pub type NativeFn<'db> = fn(
+  &'db TypedownDatabase,
   Project,
-  Option<TdObjectEnum>,
-  Vec<TdObjectEnum>,
-) -> Result<TdObjectEnum, Vec<Diagnostic>>;
+  Option<TdObjectEnum<'db>>,
+  Vec<TdObjectEnum<'db>>,
+) -> Result<TdObjectEnum<'db>, Vec<Diagnostic>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
@@ -46,19 +46,19 @@ impl Decodable for NativeFnKind {
 }
 
 impl NativeFnKind {
-  pub fn resolve(self) -> NativeFn {
+  pub fn resolve<'db>(self) -> NativeFn<'db> {
     match self {
       NativeFnKind::ToStringMethod => to_string_method,
     }
   }
 }
 
-fn to_string_method(
-  db: &TypedownDatabase,
+fn to_string_method<'db>(
+  db: &'db TypedownDatabase,
   _project: Project,
-  this: Option<TdObjectEnum>,
-  _args: Vec<TdObjectEnum>,
-) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+  this: Option<TdObjectEnum<'db>>,
+  _args: Vec<TdObjectEnum<'db>>,
+) -> Result<TdObjectEnum<'db>, Vec<Diagnostic>> {
   let Some(this) = this else {
     return Err(vec![]);
   };
@@ -66,9 +66,9 @@ fn to_string_method(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum FnKind {
+pub enum FnKind<'db> {
   Native(NativeFnKind),
-  UserDefined(HirValue, RuntimeScope),
+  UserDefined(HirValue<'db>, RuntimeScope<'db>),
 }
 
 #[derive(FromRepr)]
@@ -78,7 +78,7 @@ enum FnKindTag {
   UserDefined = 1,
 }
 
-impl StableHash for FnKind {
+impl<'db> StableHash for FnKind<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -91,7 +91,7 @@ impl StableHash for FnKind {
   }
 }
 
-impl Encodable for FnKind {
+impl<'db> Encodable for FnKind<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       FnKind::Native(kind) => {
@@ -107,7 +107,7 @@ impl Encodable for FnKind {
   }
 }
 
-impl Decodable for FnKind {
+impl<'db> Decodable for FnKind<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match FnKindTag::from_repr(tag).expect("unknown FnKind tag") {

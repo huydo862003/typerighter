@@ -29,9 +29,9 @@ use typedown_macros::query_derived;
 use crate::db::types::PathStep;
 
 /// Result of walking up from a node to the nearest _type anchor
-struct AnchorResult {
-  symbol: Symbol,
-  typ: TdTypeEnum,
+struct AnchorResult<'db> {
+  symbol: Symbol<'db>,
+  typ: TdTypeEnum<'db>,
   path: Vec<(PathStep, RedNode)>,
 }
 
@@ -150,7 +150,7 @@ fn get_expected_call_arg_type<'db>(
   file: File,
   call: &CallExpr,
   arg_index: usize,
-) -> TypeResult {
+) -> TypeResult<'db> {
   let callee_node = match call.callee() {
     Some(c) => c,
     None => return TypeResult::new(db, None, vec![]),
@@ -174,7 +174,7 @@ fn get_expected_call_callee_type<'db>(
   project: Project,
   file: File,
   call: &CallExpr,
-) -> TypeResult {
+) -> TypeResult<'db> {
   let call_hir = lower_node(db, project, file, call.syntax().clone());
   let ret = match expected_node_type(db, call_hir).typ(db) {
     Some(t) => t,
@@ -201,7 +201,7 @@ fn get_expected_closure_body_type<'db>(
   project: Project,
   file: File,
   closure: &ClosureExpr,
-) -> TypeResult {
+) -> TypeResult<'db> {
   let closure_hir = lower_node(db, project, file, closure.syntax().clone());
   let expected = expected_node_type(db, closure_hir).typ(db);
   match expected {
@@ -275,7 +275,7 @@ pub fn static_access_path<'db>(
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<StaticAccessPath> {
+) -> Option<StaticAccessPath<'db>> {
   let anchor = collect_path_to_anchor(db, project, file, node)?;
   let steps = anchor.path.into_iter().map(|(step, _)| step).collect();
   Some(StaticAccessPath {
@@ -290,7 +290,7 @@ fn collect_path_to_anchor<'db>(
   project: Project,
   file: File,
   target: &RedNode,
-) -> Option<AnchorResult> {
+) -> Option<AnchorResult<'db>> {
   let mut path = vec![];
   let mut current = target.clone();
 
@@ -405,7 +405,7 @@ fn resolve_type_anchor<'db>(
   project: Project,
   file: File,
   mapping: &RedNode,
-) -> Option<(Symbol, TdTypeEnum)> {
+) -> Option<(Symbol<'db>, TdTypeEnum<'db>)> {
   for entry in mapping.children() {
     let entry_kind = entry.kind();
     if entry_kind != SyntaxKind::YamlMappingEntry && entry_kind != SyntaxKind::DictEntry {
@@ -459,7 +459,7 @@ fn pick_most_specific_arm<'db>(
   db: &'db TypedownDatabase,
   arms: &HashSet<LazyType<'db>>,
   hir: HirValue<'db>,
-) -> Option<LazyType> {
+) -> Option<LazyType<'db>> {
   let actual_type = actual_node_type(db, hir).typ(db)?;
 
   let matching: Vec<_> = arms

@@ -15,7 +15,7 @@ pub fn resolve<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> ResolveRes
   ResolveResult::new(db, diagnostics)
 }
 
-fn collect_unresolved(db: &'db TypedownDatabase, hir: HirValue, diagnostics: &mut Vec<Diagnostic>) {
+fn collect_unresolved<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>, diagnostics: &mut Vec<Diagnostic>) {
   match hir.kind(db) {
     HirValueKind::Ident(name) => {
       // self is a keyword, not a free variable
@@ -99,10 +99,10 @@ fn collect_unresolved(db: &'db TypedownDatabase, hir: HirValue, diagnostics: &mu
 }
 
 // Check that each _imports path resolves to an existing file
-fn check_imports(
+fn check_imports<'db>(
   db: &'db TypedownDatabase,
-  hir: HirValue,
-  imports_hir: HirValue,
+  hir: HirValue<'db>,
+  imports_hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
 ) {
   let HirValueKind::Mapping(entries) = imports_hir.kind(db) else {

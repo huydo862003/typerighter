@@ -17,13 +17,13 @@ use crate::db::utils::static_type::format_field_map;
 use typedown_types::either::Either;
 
 #[derive(Debug, Clone, PartialEq, Eq, StableCompare)]
-pub struct PropertyDescriptor {
-  pub field_type: LazyType,
-  pub default_value: Option<TdObjectEnum>,
-  pub computed_fn: Option<TdObjectEnum>,
+pub struct PropertyDescriptor<'db> {
+  pub field_type: LazyType<'db>,
+  pub default_value: Option<TdObjectEnum<'db>>,
+  pub computed_fn: Option<TdObjectEnum<'db>>,
 }
 
-impl StableHash for PropertyDescriptor {
+impl<'db> StableHash for PropertyDescriptor<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.field_type.stable_hash(db, hasher);
     self.default_value.stable_hash(db, hasher);
@@ -31,7 +31,7 @@ impl StableHash for PropertyDescriptor {
   }
 }
 
-impl Encodable for PropertyDescriptor {
+impl<'db> Encodable for PropertyDescriptor<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.field_type.encode(buf, encoder);
     self.default_value.encode(buf, encoder);
@@ -39,7 +39,7 @@ impl Encodable for PropertyDescriptor {
   }
 }
 
-impl Decodable for PropertyDescriptor {
+impl<'db> Decodable for PropertyDescriptor<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let field_type = LazyType::decode(data, decoder);
     let default_value = Option::<TdObjectEnum>::decode(data, decoder);
@@ -141,10 +141,10 @@ pub fn fields_compatible(
   })
 }
 
-pub fn make_property_descriptors(
-  _db: &TypedownDatabase,
-  fields: HashMap<String, LazyType>,
-) -> HashMap<String, PropertyDescriptor> {
+pub fn make_property_descriptors<'db>(
+  _db: &'db TypedownDatabase,
+  fields: HashMap<String, LazyType<'db>>,
+) -> HashMap<String, PropertyDescriptor<'db>> {
   fields
     .into_iter()
     .map(|(k, v)| {

@@ -79,10 +79,8 @@ pub fn get_vault_config<'db>(
   )
 }
 
-/// Locate `typedown.yaml` (preferred) or `typedown.yml` in the project files, open it, and
-/// return its resolved path and full text contents. Returns `None` and pushes a diagnostic if
-/// the file is absent or cannot be opened.
-fn read_config_file(
+// Read the config file (typedown.yaml or typedown.yml) from the project
+fn read_config_file<'db>(
   db: &'db TypedownDatabase,
   project: Project,
   root: &Path,

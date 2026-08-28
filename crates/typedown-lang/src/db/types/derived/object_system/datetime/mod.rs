@@ -27,7 +27,7 @@ impl<'db> TdRuntimeObject for TdDateTimeType<'db> {
   }
 }
 
-impl<'db> TdStaticType<'db> for TdDateTimeType {
+impl<'db> TdStaticType<'db> for TdDateTimeType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "datetime".to_string()
   }
@@ -50,7 +50,7 @@ impl<'db> TdStaticType<'db> for TdDateTimeType {
   }
 }
 
-impl TdDateTimeType {
+impl<'db> TdDateTimeType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdDateTimeType {
     get_datetime_type(db)
   }
@@ -128,7 +128,7 @@ impl<'db> TdRuntimeObject for TdDateType<'db> {
   }
 }
 
-impl<'db> TdStaticType<'db> for TdDateType {
+impl<'db> TdStaticType<'db> for TdDateType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "date".to_string()
   }
@@ -151,7 +151,7 @@ impl<'db> TdStaticType<'db> for TdDateType {
   }
 }
 
-impl TdDateType {
+impl<'db> TdDateType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdDateType {
     get_date_type(db)
   }
@@ -229,7 +229,7 @@ impl<'db> TdRuntimeObject for TdTimeType<'db> {
   }
 }
 
-impl<'db> TdStaticType<'db> for TdTimeType {
+impl<'db> TdStaticType<'db> for TdTimeType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "time".to_string()
   }
@@ -252,7 +252,7 @@ impl<'db> TdStaticType<'db> for TdTimeType {
   }
 }
 
-impl TdTimeType {
+impl<'db> TdTimeType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdTimeType {
     get_time_type(db)
   }

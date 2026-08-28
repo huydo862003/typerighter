@@ -50,13 +50,13 @@ pub fn is_subtype_of(db: &TypedownDatabase, subtype: &TdTypeEnum, supertype: &Td
 
 /// Witness environment for existential subtyping constraints
 #[derive(Default)]
-struct SubtypeEnv {
-  lower_bounds: HashMap<TypeVariable, Vec<TdTypeEnum>>,
-  upper_bounds: HashMap<TypeVariable, Vec<TdTypeEnum>>,
-  existential_variables: HashSet<TypeVariable>,
+struct SubtypeEnv<'db> {
+  lower_bounds: HashMap<TypeVariable<'db>, Vec<TdTypeEnum<'db>>>,
+  upper_bounds: HashMap<TypeVariable<'db>, Vec<TdTypeEnum<'db>>>,
+  existential_variables: HashSet<TypeVariable<'db>>,
 }
 
-impl SubtypeEnv {
+impl<'db> SubtypeEnv<'db> {
   fn new() -> Self {
     Self {
       lower_bounds: HashMap::new(),
@@ -66,7 +66,7 @@ impl SubtypeEnv {
   }
 
   /// Register an existential variable in the environment and push its declared upper bound
-  fn track_existential_variable(&mut self, db: &TypedownDatabase, variable: TypeVariable) {
+  fn track_existential_variable(&mut self, db: &'db TypedownDatabase, variable: TypeVariable<'db>) {
     self.existential_variables.insert(variable);
     if let Some(upper_bound) = variable.upper_bound(db).resolve(db) {
       self.add_upper_bound(db, variable, &upper_bound);
@@ -77,9 +77,9 @@ impl SubtypeEnv {
   /// Returning `false` early if a conflict with any existing upper bound is detected (`lower <= upper` fails)
   fn add_lower_bound(
     &mut self,
-    db: &TypedownDatabase,
-    variable: TypeVariable,
-    lower_bound: &TdTypeEnum,
+    db: &'db TypedownDatabase,
+    variable: TypeVariable<'db>,
+    lower_bound: &TdTypeEnum<'db>,
   ) -> bool {
     if let Some(upper_bounds) = self.upper_bounds.get(&variable).cloned() {
       for upper_bound in &upper_bounds {
@@ -100,9 +100,9 @@ impl SubtypeEnv {
   /// Returning `false` early if a conflict with any existing lower bound is detected (`lower <= upper` fails)
   fn add_upper_bound(
     &mut self,
-    db: &TypedownDatabase,
-    variable: TypeVariable,
-    upper_bound: &TdTypeEnum,
+    db: &'db TypedownDatabase,
+    variable: TypeVariable<'db>,
+    upper_bound: &TdTypeEnum<'db>,
   ) -> bool {
     if let Some(lower_bounds) = self.lower_bounds.get(&variable).cloned() {
       for lower_bound in &lower_bounds {

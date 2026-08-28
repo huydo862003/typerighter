@@ -79,7 +79,7 @@ pub trait TdStaticType<'x0> {
   }
 
   /// Runtime vtable mapping method names to TdFuncObj instances
-  fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+  fn runtime_vtable(&self, db: &'x0 TypedownDatabase) -> HashMap<String, TdFuncObj> {
     self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
@@ -89,7 +89,7 @@ pub trait TdStaticType<'x0> {
   // Return types of methods available on instances of this static type
   fn static_vtable(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
+    db: &'x0 ::typedown_lang::db::TypedownDatabase,
   ) -> HashMap<String, TdTypeEnum> {
     self
       .parent_type(db)
@@ -117,7 +117,7 @@ pub trait TdStaticType<'x0> {
   // Look up the type of a field or method on this type
   fn lookup_field_type(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
+    db: &'x0 ::typedown_lang::db::TypedownDatabase,
     name: &str,
   ) -> Option<TdTypeEnum> {
     if let Some(field) = self.get_owned_field_type(db, name) {
@@ -134,7 +134,7 @@ pub trait TdStaticType<'x0> {
   // Signature when indexing an instance of this static type with a key type
   fn index_type(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
+    db: &'x0 ::typedown_lang::db::TypedownDatabase,
     _key_type: &TdTypeEnum,
   ) -> Option<FuncSignature> {
     if let Some(TdTypeEnum::TdFuncType(func)) = self.lookup_field_type(db, PROTOCOL_INDEX) {
@@ -146,7 +146,7 @@ pub trait TdStaticType<'x0> {
   // Signature when calling an instance of this static type as a function
   fn call_type(
     &self,
-    db: &::typedown_lang::db::TypedownDatabase,
+    db: &'x0 ::typedown_lang::db::TypedownDatabase,
     _arg_types: Vec<TdTypeEnum>,
   ) -> Option<FuncSignature> {
     if let Some(TdTypeEnum::TdFuncType(func)) = self.lookup_field_type(db, PROTOCOL_CALL) {

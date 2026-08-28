@@ -165,7 +165,7 @@ fn resolve_parent_schema<'db>(
   current_name: &str,
   entries: &[(String, HirValue<'db>)],
   diagnostics: &mut Vec<Diagnostic>,
-) -> (HashMap<String, PropertyDescriptor>, Option<TdTypeEnum>) {
+) -> (HashMap<String, PropertyDescriptor<'db>>, Option<TdTypeEnum<'db>>) {
   let Some((_, extends_hir)) = entries.iter().find(|(key, _)| key == "_extends") else {
     return (HashMap::new(), None);
   };
@@ -261,7 +261,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<PropertyDescriptor> {
+) -> Option<PropertyDescriptor<'db>> {
   let entries = match hir.kind(db) {
     HirValueKind::Mapping(entries) => entries,
     _ => return None,
@@ -398,7 +398,7 @@ fn resolve_type_lazy<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<LazyType> {
+) -> Option<LazyType<'db>> {
   match hir.kind(db) {
     // `!type expr` is redundant but valid: strip the tag and recurse on the inner value
     HirValueKind::Tag { tag, inner } => {

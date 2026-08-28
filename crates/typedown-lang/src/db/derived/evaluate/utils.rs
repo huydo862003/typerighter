@@ -23,7 +23,7 @@ pub(crate) fn construct_from_hir<'db>(
   hir: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   match hir.kind(db) {
     HirValueKind::Null => {
       return Some(TdNullObj::get(db).into());
@@ -206,7 +206,7 @@ fn evaluate_prefix<'db>(
   op: &str,
   operand: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   let operand_obj = evaluate_node(db, operand, runtime_scope).value(db)?;
   match op {
     "-" | "+" => {
@@ -233,7 +233,7 @@ fn evaluate_postfix<'db>(
   op: &str,
   operand: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   match op {
     // T? evaluates to Sum([T, null]) as a type object
     "?" => {
@@ -260,7 +260,7 @@ fn evaluate_binary<'db>(
   left: HirValue<'db>,
   right: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   let left_obj = evaluate_node(db, left, runtime_scope).value(db)?;
   let right_obj = evaluate_node(db, right, runtime_scope).value(db)?;
   match op {
@@ -321,7 +321,7 @@ fn evaluate_index<'db>(
   indices: Vec<HirValue<'db>>,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   if indices.len() != 1 {
     return None;
   }
@@ -353,7 +353,7 @@ fn construct_macro<'db>(
   db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
   args: Vec<HirValue<'db>>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   match kind {
     BuiltinMacroKind::Fref => construct_fref(db, args),
   }
@@ -363,7 +363,7 @@ fn evaluate_interpolated<'db>(
   db: &'db TypedownDatabase,
   runtime_scope: RuntimeScope<'db>,
   parts: Vec<InterpolatedPart<'db>>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   let mut val = String::new();
   for part in parts {
     match part {
@@ -386,7 +386,7 @@ fn evaluate_mapping<'db>(
   db: &'db TypedownDatabase,
   typ: &TdTypeEnum<'db>,
   entries: Vec<(String, HirValue<'db>)>,
-) -> Option<TdObjectEnum> {
+) -> Option<TdObjectEnum<'db>> {
   // Schema type
   if typ.is_td_schema_meta_type() {
     let properties_entries = match entries.iter().find(|(key, _)| key == "properties") {

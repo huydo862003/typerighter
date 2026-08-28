@@ -229,11 +229,11 @@ pub fn get_func_type<'db>(
 pub fn get_sum_type<'db>(db: &'db TypedownDatabase, members: Vec<LazyType<'db>>) -> TdSumType<'db> {
   fn flatten_sum_members<'db>(
     db: &'db TypedownDatabase,
-    members: &[LazyType<'db>],
+    members: &'db [LazyType<'db>],
   ) -> Vec<LazyType<'db>> {
     fn recurse<'db>(
       db: &'db TypedownDatabase,
-      members: &[LazyType<'db>],
+      members: &'db [LazyType<'db>],
       visited: &mut HashSet<TdSumType<'db>>,
       out: &mut Vec<LazyType<'db>>,
     ) {

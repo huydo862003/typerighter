@@ -47,19 +47,19 @@ impl StableHash for ReferenceKind {
 
 /// A single reference to a symbol
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, StableCompare)]
-pub struct Reference {
-  pub hir: HirValue,
+pub struct Reference<'db> {
+  pub hir: HirValue<'db>,
   pub kind: ReferenceKind,
 }
 
-impl Encodable for Reference {
+impl<'db> Encodable for Reference<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.hir.encode(buf, encoder);
     self.kind.encode(buf, encoder);
   }
 }
 
-impl Decodable for Reference {
+impl<'db> Decodable for Reference<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     Reference {
       hir: HirValue::decode(data, decoder),
@@ -68,7 +68,7 @@ impl Decodable for Reference {
   }
 }
 
-impl StableHash for Reference {
+impl<'db> StableHash for Reference<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.hir.stable_hash(db, hasher);
     self.kind.stable_hash(db, hasher);
@@ -80,9 +80,9 @@ pub struct ResolutionIndex<'db> {
   references: HashMap<Symbol, Vec<Reference>>,
 }
 
-impl ResolutionIndex {
+impl<'db> ResolutionIndex<'db> {
   /// Look up all references to a given symbol
-  pub fn get_references<'db>(&self, db: &'db TypedownDatabase, symbol: Symbol) -> Vec<Reference> {
+  pub fn get_references(&self, db: &'db TypedownDatabase, symbol: Symbol<'db>) -> Vec<Reference<'db>> {
     self
       .references(db)
       .get(&symbol)
@@ -91,7 +91,7 @@ impl ResolutionIndex {
   }
 
   /// Get all symbols referenced in this file
-  pub fn symbols<'db>(&self, db: &'db TypedownDatabase) -> Vec<Symbol> {
+  pub fn symbols(&self, db: &'db TypedownDatabase) -> Vec<Symbol<'db>> {
     self.references(db).keys().copied().collect()
   }
 }
@@ -111,10 +111,10 @@ pub fn resolution_index<'db>(
   ResolutionIndex::new(db, map)
 }
 
-fn collect_references(
+fn collect_references<'db>(
   db: &'db TypedownDatabase,
-  hir: HirValue,
-  map: &mut HashMap<Symbol, Vec<Reference>>,
+  hir: HirValue<'db>,
+  map: &mut HashMap<Symbol<'db>, Vec<Reference<'db>>>,
 ) {
   match hir.kind(db) {
     HirValueKind::Mapping(values) => {
@@ -191,8 +191,8 @@ fn collect_references(
 pub fn references<'db>(
   db: &'db TypedownDatabase,
   project: Project,
-  symbol: Symbol,
-) -> Vec<Reference> {
+  symbol: Symbol<'db>,
+) -> Vec<Reference<'db>> {
   let mut refs = vec![];
   for file in project.files(db).values() {
     let idx = resolution_index(db, project, *file);

@@ -82,7 +82,7 @@ fn get_mapping_type<'db>(
   db: &'db TypedownDatabase,
   _hir: HirValue<'db>,
   entries: Vec<(String, HirValue<'db>)>,
-) -> TypeResult {
+) -> TypeResult<'db> {
   // If _type is present, resolve the schema
   for (key, value_hir) in &entries {
     if key == "_type" {
@@ -271,7 +271,7 @@ fn get_macro_call_type<'db>(
   db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
   args: Vec<HirValue<'db>>,
-) -> TypeResult {
+) -> TypeResult<'db> {
   match kind {
     BuiltinMacroKind::Fref => get_fref_type(db, args),
   }
@@ -423,7 +423,7 @@ fn get_closure_type<'db>(
   hir: HirValue<'db>,
   params: Vec<String>,
   body: HirValue<'db>,
-) -> TypeResult {
+) -> TypeResult<'db> {
   let expected = expected_node_type(db, hir).typ(db);
   let param_types = match expected {
     Some(TdTypeEnum::TdFuncType(f)) => f.signature(db).params(db),

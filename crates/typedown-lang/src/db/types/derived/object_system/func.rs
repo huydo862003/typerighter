@@ -51,7 +51,7 @@ impl<'db> TdStaticType<'db> for TdFuncType<'db> {
 }
 
 impl<'db> TdFuncType<'db> {
-  pub fn get(db: &TypedownDatabase, params: Vec<TdTypeEnum>, ret: TdTypeEnum) -> TdFuncType {
+  pub fn get(db: &'db TypedownDatabase, params: Vec<TdTypeEnum<'db>>, ret: TdTypeEnum<'db>) -> TdFuncType<'db> {
     get_func_type(db, FuncSignature::new(db, params, ret))
   }
 }
