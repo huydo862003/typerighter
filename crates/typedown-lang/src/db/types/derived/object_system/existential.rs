@@ -15,7 +15,7 @@ pub struct TdExistentialType {
   pub body: Option<LazyType>,
 }
 
-impl TdStaticType for TdExistentialType {
+impl TdStaticType for TdExistentialType<'_> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     let params = self.type_params(db);
     let params_str = params
@@ -83,7 +83,7 @@ impl TdStaticType for TdExistentialType {
   }
 }
 
-impl TdRuntimeObject for TdExistentialType {
+impl TdRuntimeObject for TdExistentialType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }

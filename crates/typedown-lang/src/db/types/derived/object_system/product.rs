@@ -59,7 +59,7 @@ pub struct TdProductType {
   pub fields: HashMap<String, LazyType>,
 }
 
-impl TdRuntimeObject for TdProductType {
+impl TdRuntimeObject for TdProductType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -71,7 +71,7 @@ impl TdRuntimeObject for TdProductType {
   }
 }
 
-impl TdStaticType for TdProductType {
+impl TdStaticType for TdProductType<'_> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     if let Some(name) = self.name(db) {
       return name;
@@ -97,7 +97,7 @@ pub struct TdProductObj {
   pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
 
-impl TdRuntimeObject for TdProductObj {
+impl TdRuntimeObject for TdProductObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     self.product_type(db)
   }

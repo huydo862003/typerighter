@@ -10,7 +10,7 @@ use typedown_incremental::Id;
 #[query_derived]
 pub struct TdNumType {}
 
-impl TdRuntimeObject for TdNumType {
+impl TdRuntimeObject for TdNumType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -22,7 +22,7 @@ impl TdRuntimeObject for TdNumType {
   }
 }
 
-impl TdStaticType for TdNumType {
+impl TdStaticType for TdNumType<'_> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "number".to_string()
   }
@@ -41,7 +41,7 @@ impl TdStaticType for TdNumType {
   }
 }
 
-impl TdNumType {
+impl TdNumType<'_> {
   pub fn get(db: &TypedownDatabase) -> TdNumType {
     get_num_type(db)
   }
@@ -52,7 +52,7 @@ pub struct TdNumObj {
   pub value: f64,
 }
 
-impl TdRuntimeObject for TdNumObj {
+impl TdRuntimeObject for TdNumObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdNumType::get(db).into()
   }

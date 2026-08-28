@@ -10,7 +10,7 @@ use typedown_incremental::Id;
 #[query_derived]
 pub struct TdBoolType {}
 
-impl TdRuntimeObject for TdBoolType {
+impl TdRuntimeObject for TdBoolType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -22,7 +22,7 @@ impl TdRuntimeObject for TdBoolType {
   }
 }
 
-impl TdStaticType for TdBoolType {
+impl TdStaticType for TdBoolType<'_> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "boolean".to_string()
   }
@@ -41,7 +41,7 @@ impl TdStaticType for TdBoolType {
   }
 }
 
-impl TdBoolType {
+impl TdBoolType<'_> {
   pub fn get(db: &TypedownDatabase) -> TdBoolType {
     get_bool_type(db)
   }
@@ -52,7 +52,7 @@ pub struct TdBoolObj {
   pub value: bool,
 }
 
-impl TdRuntimeObject for TdBoolObj {
+impl TdRuntimeObject for TdBoolObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdBoolType::get(db).into()
   }
@@ -102,7 +102,7 @@ impl TdRuntimeObject for TdBoolObj {
   }
 }
 
-impl TdBoolObj {
+impl TdBoolObj<'_> {
   pub fn get_true(db: &TypedownDatabase) -> TdBoolObj {
     get_true(db)
   }

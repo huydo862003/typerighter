@@ -9,7 +9,7 @@ use crate::db::types::Project;
 #[query_derived]
 pub struct TdNullType {}
 
-impl TdRuntimeObject for TdNullType {
+impl TdRuntimeObject for TdNullType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -21,7 +21,7 @@ impl TdRuntimeObject for TdNullType {
   }
 }
 
-impl TdStaticType for TdNullType {
+impl TdStaticType for TdNullType<'_> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "null".to_string()
   }
@@ -38,7 +38,7 @@ impl TdStaticType for TdNullType {
   }
 }
 
-impl TdNullType {
+impl TdNullType<'_> {
   pub fn get(db: &TypedownDatabase) -> TdNullType {
     get_null_type(db)
   }
@@ -47,7 +47,7 @@ impl TdNullType {
 #[query_derived]
 pub struct TdNullObj {}
 
-impl TdRuntimeObject for TdNullObj {
+impl TdRuntimeObject for TdNullObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdNullType::get(db).into()
   }
@@ -62,7 +62,7 @@ impl TdRuntimeObject for TdNullObj {
   }
 }
 
-impl TdNullObj {
+impl TdNullObj<'_> {
   pub fn get(db: &TypedownDatabase) -> TdNullObj {
     get_null_obj(db)
   }

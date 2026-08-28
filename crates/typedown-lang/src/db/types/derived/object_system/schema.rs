@@ -24,7 +24,7 @@ use typedown_types::either::Either;
 #[query_derived]
 pub struct TdSchemaMetaType {}
 
-impl TdRuntimeObject for TdSchemaMetaType {
+impl TdRuntimeObject for TdSchemaMetaType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -36,7 +36,7 @@ impl TdRuntimeObject for TdSchemaMetaType {
   }
 }
 
-impl TdStaticType for TdSchemaMetaType {
+impl TdStaticType for TdSchemaMetaType<'_> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "schema".to_string()
   }
@@ -73,7 +73,7 @@ pub struct TdSchemaType {
   pub parent: Option<TdTypeEnum>,
 }
 
-impl TdRuntimeObject for TdSchemaType {
+impl TdRuntimeObject for TdSchemaType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     get_schema_meta_type(db).into()
   }
@@ -85,7 +85,7 @@ impl TdRuntimeObject for TdSchemaType {
   }
 }
 
-impl TdStaticType for TdSchemaType {
+impl TdStaticType for TdSchemaType<'_> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     self.name(db)
   }
@@ -159,7 +159,7 @@ impl TdStaticType for TdSchemaType {
   }
 }
 
-impl TdSchemaType {
+impl TdSchemaType<'_> {
   // The argument type for construct: product | self
   pub fn construct_arg_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     let product: TdTypeEnum = TdProductType::new(db, None, self.get_fields(db)).into();
@@ -177,7 +177,7 @@ pub struct TdSchemaObj {
   pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
 
-impl TdRuntimeObject for TdSchemaObj {
+impl TdRuntimeObject for TdSchemaObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     self.schema(db)
   }

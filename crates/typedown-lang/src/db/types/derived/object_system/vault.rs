@@ -7,11 +7,11 @@ use crate::db::derived::vault::get_vault_type;
 use crate::db::types::Project;
 
 #[query_derived]
-pub struct TdVaultObj {
+pub struct TdVaultObj<'db> {
   pub project: Project,
 }
 
-impl TdRuntimeObject for TdVaultObj {
+impl<'db> TdRuntimeObject for TdVaultObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     get_vault_type(db).into()
   }

@@ -14,14 +14,14 @@ use typedown_incremental::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum SymbolKind {
+pub enum SymbolKind<'db> {
   UserDefinedSchema(Project, File),
   UserDefinedResource(Project, File),
   Asset(AssetKind, Project, File),
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
-  FnParam(Project, File, HirValue),
+  FnParam(Project, File, HirValue<'db>),
 }
 
 #[derive(FromRepr)]
@@ -36,7 +36,7 @@ enum SymbolKindTag {
   FnParam = 6,
 }
 
-impl SymbolKind {
+impl<'db> SymbolKind<'db> {
   pub fn is_schema(&self) -> bool {
     matches!(
       self,
@@ -67,7 +67,7 @@ impl SymbolKind {
   }
 }
 
-impl StableHash for SymbolKind {
+impl<'db> StableHash for SymbolKind<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -93,7 +93,7 @@ impl StableHash for SymbolKind {
   }
 }
 
-impl Encodable for SymbolKind {
+impl<'db> Encodable for SymbolKind<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       SymbolKind::UserDefinedSchema(project, file) => {
@@ -134,7 +134,7 @@ impl Encodable for SymbolKind {
   }
 }
 
-impl Decodable for SymbolKind {
+impl<'db> Decodable for SymbolKind<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match SymbolKindTag::from_repr(tag).expect("unknown SymbolKind tag") {
@@ -337,11 +337,11 @@ impl Decodable for BuiltinSchemaKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum ScopeKind {
+pub enum ScopeKind<'db> {
   Builtin(Project),
   Project(Project),
   File(Project, File),
-  Fn(Project, File, HirValue),
+  Fn(Project, File, HirValue<'db>),
 }
 
 #[derive(FromRepr)]
@@ -353,7 +353,7 @@ enum ScopeKindTag {
   Fn = 3,
 }
 
-impl StableHash for ScopeKind {
+impl<'db> StableHash for ScopeKind<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -372,7 +372,7 @@ impl StableHash for ScopeKind {
   }
 }
 
-impl Encodable for ScopeKind {
+impl<'db> Encodable for ScopeKind<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       ScopeKind::Builtin(project) => {
@@ -398,7 +398,7 @@ impl Encodable for ScopeKind {
   }
 }
 
-impl Decodable for ScopeKind {
+impl<'db> Decodable for ScopeKind<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match ScopeKindTag::from_repr(tag).expect("unknown ScopeKind tag") {
@@ -418,26 +418,26 @@ impl Decodable for ScopeKind {
 }
 
 #[query_derived]
-pub struct Scope {
+pub struct Scope<'db> {
   #[id]
   kind: ScopeKind,
 }
 
-impl Scope {
-  pub fn builtin_scope(db: &(impl QueryDatabase + ?Sized), project: Project) -> Self {
+impl<'db> Scope<'db> {
+  pub fn builtin_scope(db: &'db (impl QueryDatabase + ?Sized), project: Project) -> Self {
     Self::new(db, ScopeKind::Builtin(project))
   }
 
-  pub fn project_scope(db: &(impl QueryDatabase + ?Sized), project: Project) -> Self {
+  pub fn project_scope(db: &'db (impl QueryDatabase + ?Sized), project: Project) -> Self {
     Self::new(db, ScopeKind::Project(project))
   }
 
-  pub fn file_scope(db: &(impl QueryDatabase + ?Sized), project: Project, file: File) -> Self {
+  pub fn file_scope(db: &'db (impl QueryDatabase + ?Sized), project: Project, file: File) -> Self {
     Self::new(db, ScopeKind::File(project, file))
   }
 
   pub fn fn_scope(
-    db: &(impl QueryDatabase + ?Sized),
+    db: &'db (impl QueryDatabase + ?Sized),
     project: Project,
     file: File,
     value: HirValue,
@@ -478,13 +478,13 @@ impl Scope {
 // Runtime scope for closure evaluation
 // Carries param bindings and a reference to the syntactic scope
 #[query_derived]
-pub struct RuntimeScope {
+pub struct RuntimeScope<'db> {
   scope: Scope,
-  bindings: Vec<(String, TdObjectEnum)>,
-  parent: Option<Box<RuntimeScope>>,
+  bindings: Vec<(String, TdObjectEnum<'db>)>,
+  parent: Option<Box<RuntimeScope<'db>>>,
 }
 
-impl RuntimeScope {
+impl<'db> RuntimeScope<'db> {
   pub fn lookup(&self, db: &(impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum> {
     for (key, val) in &self.bindings(db) {
       if key == name {
@@ -499,18 +499,18 @@ impl RuntimeScope {
 }
 
 #[query_interned]
-pub struct Symbol {
-  kind: SymbolKind,
+pub struct Symbol<'db> {
+  kind: SymbolKind<'db>,
   name: String,
   def_id: String,
 }
 
 #[query_derived]
-pub struct ProjectSchemaResult {
-  members: HashMap<String, Symbol>,
+pub struct ProjectSchemaResult<'db> {
+  members: HashMap<String, Symbol<'db>>,
 }
 
 #[query_derived]
-pub struct MembersResult {
-  members: HashMap<String, Symbol>,
+pub struct MembersResult<'db> {
+  members: HashMap<String, Symbol<'db>>,
 }

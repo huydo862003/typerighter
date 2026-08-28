@@ -9,7 +9,7 @@ use crate::db::types::FuncSignature;
 #[query_derived]
 pub struct TdNeverType {}
 
-impl TdRuntimeObject for TdNeverType {
+impl TdRuntimeObject for TdNeverType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -21,7 +21,7 @@ impl TdRuntimeObject for TdNeverType {
   }
 }
 
-impl TdStaticType for TdNeverType {
+impl TdStaticType for TdNeverType<'_> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "never".to_string()
   }
@@ -43,7 +43,7 @@ impl TdStaticType for TdNeverType {
   }
 }
 
-impl TdNeverType {
+impl TdNeverType<'_> {
   pub fn get(db: &TypedownDatabase) -> TdNeverType {
     get_never_type(db)
   }

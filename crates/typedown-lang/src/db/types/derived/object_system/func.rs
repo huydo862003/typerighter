@@ -15,7 +15,7 @@ pub struct TdFuncType {
   pub signature: FuncSignature,
 }
 
-impl TdRuntimeObject for TdFuncType {
+impl TdRuntimeObject for TdFuncType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -34,7 +34,7 @@ impl TdRuntimeObject for TdFuncType {
   }
 }
 
-impl TdStaticType for TdFuncType {
+impl TdStaticType for TdFuncType<'_> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     let sig = self.signature(db);
     let params: Vec<String> = sig.params(db).iter().map(|p| p.display_name(db)).collect();
@@ -50,7 +50,7 @@ impl TdStaticType for TdFuncType {
   }
 }
 
-impl TdFuncType {
+impl TdFuncType<'_> {
   pub fn get(db: &TypedownDatabase, params: Vec<TdTypeEnum>, ret: TdTypeEnum) -> TdFuncType {
     get_func_type(db, FuncSignature::new(db, params, ret))
   }
@@ -65,7 +65,7 @@ pub struct TdFuncObj {
   pub func: FnKind,
 }
 
-impl TdRuntimeObject for TdFuncObj {
+impl TdRuntimeObject for TdFuncObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     get_func_type(db, self.signature(db)).into()
   }

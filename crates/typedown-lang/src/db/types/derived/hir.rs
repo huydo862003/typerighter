@@ -11,7 +11,7 @@ use typedown_incremental::{
 
 /// A lowered YAML value, source-tracked via its originating project, file, and red node.
 #[query_derived]
-pub struct HirValue {
+pub struct HirValue<'db> {
   #[id]
   pub project: Project,
   #[id]
@@ -23,49 +23,49 @@ pub struct HirValue {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, StableCompare)]
-pub enum HirValueKind {
+pub enum HirValueKind<'db> {
   Str(String),
   Num(String),
   Math(String),
   Bool(bool),
   Null,
   Ident(String),
-  Mapping(Vec<(String, HirValue)>),
-  Sequence(Vec<HirValue>),
+  Mapping(Vec<(String, HirValue<'db>)>),
+  Sequence(Vec<HirValue<'db>>),
   Interpolated(Vec<InterpolatedPart>),
   Markdown(Vec<InterpolatedPart>),
   Tag {
-    tag: Box<HirValue>,
-    inner: Box<HirValue>,
+    tag: Box<HirValue<'db>>,
+    inner: Box<HirValue<'db>>,
   },
   Prefix {
     op: String,
-    operand: Box<HirValue>,
+    operand: Box<HirValue<'db>>,
   },
   Postfix {
     op: String,
-    operand: Box<HirValue>,
+    operand: Box<HirValue<'db>>,
   },
   Binary {
     op: String,
-    left: Box<HirValue>,
-    right: Box<HirValue>,
+    left: Box<HirValue<'db>>,
+    right: Box<HirValue<'db>>,
   },
   Call {
-    callee: Box<HirValue>,
-    args: Vec<HirValue>,
+    callee: Box<HirValue<'db>>,
+    args: Vec<HirValue<'db>>,
   },
   Index {
-    expr: Box<HirValue>,
-    indices: Vec<HirValue>,
+    expr: Box<HirValue<'db>>,
+    indices: Vec<HirValue<'db>>,
   },
   Closure {
     params: Vec<String>,
-    body: Box<HirValue>,
+    body: Box<HirValue<'db>>,
   },
 }
 
-impl StableHash for HirValueKind {
+impl<'db> StableHash for HirValueKind<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -109,7 +109,7 @@ impl StableHash for HirValueKind {
   }
 }
 
-impl StableHash for InterpolatedPart {
+impl StableHash for InterpolatedPart<'_> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -148,7 +148,7 @@ enum InterpolatedPartTag {
   Expr = 1,
 }
 
-impl Encodable for HirValueKind {
+impl<'db> Encodable for HirValueKind<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       HirValueKind::Str(val) => {
@@ -230,7 +230,7 @@ impl Encodable for HirValueKind {
   }
 }
 
-impl Decodable for HirValueKind {
+impl<'db> Decodable for HirValueKind<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match HirValueKindTag::from_repr(tag).expect("unknown HirValueKind tag") {
@@ -278,12 +278,12 @@ impl Decodable for HirValueKind {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, StableCompare)]
-pub enum InterpolatedPart {
+pub enum InterpolatedPart<'db> {
   Literal(String),
-  Expr(HirValue),
+  Expr(HirValue<'db>),
 }
 
-impl Encodable for InterpolatedPart {
+impl<'db> Encodable for InterpolatedPart<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       InterpolatedPart::Literal(s) => {
@@ -298,7 +298,7 @@ impl Encodable for InterpolatedPart {
   }
 }
 
-impl Decodable for InterpolatedPart {
+impl<'db> Decodable for InterpolatedPart<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match InterpolatedPartTag::from_repr(tag).expect("unknown InterpolatedPart tag") {

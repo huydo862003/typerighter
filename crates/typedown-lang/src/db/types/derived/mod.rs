@@ -19,7 +19,7 @@ use crate::syntax::red::RedNode;
 use super::inputs::{File, FileHandle, Project};
 
 #[query_derived]
-pub struct VaultConfigResult {
+pub struct VaultConfigResult<'db> {
   version: String,
   root_dir: PathBuf,
   base_path: String,
@@ -31,7 +31,7 @@ pub struct VaultConfigResult {
 }
 
 #[query_derived]
-pub struct FileAstResult {
+pub struct FileAstResult<'db> {
   #[id]
   handle: FileHandle,
   project: Project,
@@ -41,34 +41,34 @@ pub struct FileAstResult {
 }
 
 #[query_derived]
-pub struct SchemaAstResults {
-  files: HashMap<PathBuf, FileAstResult>,
+pub struct SchemaAstResults<'db> {
+  files: HashMap<PathBuf, FileAstResult<'db>>,
 }
 
 #[query_derived]
-pub struct TypecheckResult {
+pub struct TypecheckResult<'db> {
   diagnostics: Vec<Diagnostic>,
 }
 
 #[query_derived]
-pub struct ResolveResult {
+pub struct ResolveResult<'db> {
   diagnostics: Vec<Diagnostic>,
 }
 
 #[query_derived]
-pub struct TypeResult {
-  typ: Option<TdTypeEnum>,
+pub struct TypeResult<'db> {
+  typ: Option<TdTypeEnum<'db>>,
   diagnostics: Vec<Diagnostic>,
 }
 
 #[query_derived]
-pub struct InstResult {
-  pub typ: TdTypeEnum,
+pub struct InstResult<'db> {
+  pub typ: TdTypeEnum<'db>,
   pub diagnostics: Vec<Diagnostic>,
 }
 
 #[query_derived]
-pub struct ResourceResult {
-  pub value: Option<TdObjectEnum>,
+pub struct ResourceResult<'db> {
+  pub value: Option<TdObjectEnum<'db>>,
   pub diagnostics: Vec<Diagnostic>,
 }
