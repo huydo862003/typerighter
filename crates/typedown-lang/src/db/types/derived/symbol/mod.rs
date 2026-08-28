@@ -480,7 +480,7 @@ impl<'db> Scope<'db> {
 // Carries param bindings and a reference to the syntactic scope
 #[query_derived]
 pub struct RuntimeScope<'db> {
-  scope: Scope,
+  scope: Scope<'db>,
   bindings: Vec<(String, TdObjectEnum<'db>)>,
   parent: Option<Box<RuntimeScope<'db>>>,
 }

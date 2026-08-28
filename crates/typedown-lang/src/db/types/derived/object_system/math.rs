@@ -9,31 +9,31 @@ use crate::db::types::Project;
 #[query_derived]
 pub struct TdMathType<'db> {}
 
-impl<'db> TdRuntimeObject for TdMathType<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdMathType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, _db: &TypedownDatabase) -> String {
+  fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::math".to_string()
   }
 }
 
 impl<'db> TdStaticType<'db> for TdMathType<'db> {
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "math".to_string()
   }
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }
   fn construct(
     &self,
-    _db: &TypedownDatabase,
+    _db: &'db TypedownDatabase,
     _project: Project,
-    args: Vec<TdObjectEnum>,
-  ) -> Option<TdObjectEnum> {
+    args: Vec<TdObjectEnum<'db>>,
+  ) -> Option<TdObjectEnum<'db>> {
     let arg = args.into_iter().next()?;
     arg.as_td_math_obj()?;
     Some(arg)
@@ -41,7 +41,7 @@ impl<'db> TdStaticType<'db> for TdMathType<'db> {
 }
 
 impl<'db> TdMathType<'db> {
-  pub fn get(db: &TypedownDatabase) -> TdMathType {
+  pub fn get(db: &'db TypedownDatabase) -> TdMathType<'db> {
     get_math_type(db)
   }
 }
@@ -51,17 +51,17 @@ pub struct TdMathObj<'db> {
   pub value: String,
 }
 
-impl<'db> TdRuntimeObject for TdMathObj<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdMathObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdMathType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
-  fn to_display_string(&self, db: &TypedownDatabase) -> String {
+  fn to_display_string(&self, db: &'db TypedownDatabase) -> String {
     format!("${}$", self.value(db))
   }
 }

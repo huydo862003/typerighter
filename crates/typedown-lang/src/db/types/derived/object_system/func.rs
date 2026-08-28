@@ -15,14 +15,14 @@ pub struct TdFuncType<'db> {
   pub signature: FuncSignature<'db>,
 }
 
-impl<'db> TdRuntimeObject for TdFuncType<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdFuncType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     let sig = self.signature(db);
     let params: Vec<String> = sig
       .params(db)
@@ -35,23 +35,31 @@ impl<'db> TdRuntimeObject for TdFuncType<'db> {
 }
 
 impl<'db> TdStaticType<'db> for TdFuncType<'db> {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     let sig = self.signature(db);
     let params: Vec<String> = sig.params(db).iter().map(|p| p.display_name(db)).collect();
     let ret = sig.ret(db).display_name(db);
     format!("fn({}) -> {}", params.join(", "), ret)
   }
 
-  fn runtime_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }
-  fn call_type(&self, db: &TypedownDatabase, _arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    _arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     Some(self.signature(db))
   }
 }
 
 impl<'db> TdFuncType<'db> {
-  pub fn get(db: &'db TypedownDatabase, params: Vec<TdTypeEnum<'db>>, ret: TdTypeEnum<'db>) -> TdFuncType<'db> {
+  pub fn get(
+    db: &'db TypedownDatabase,
+    params: Vec<TdTypeEnum<'db>>,
+    ret: TdTypeEnum<'db>,
+  ) -> TdFuncType<'db> {
     get_func_type(db, FuncSignature::new(db, params, ret))
   }
 }
@@ -65,26 +73,26 @@ pub struct TdFuncObj<'db> {
   pub func: FnKind<'db>,
 }
 
-impl<'db> TdRuntimeObject for TdFuncObj<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdFuncObj<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     get_func_type(db, self.signature(db)).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)
   }
-  fn to_display_string(&self, db: &TypedownDatabase) -> String {
+  fn to_display_string(&self, db: &'db TypedownDatabase) -> String {
     self.name(db)
   }
   fn call(
     &self,
-    db: &TypedownDatabase,
+    db: &'db TypedownDatabase,
     project: Project,
-    this: Option<TdObjectEnum>,
-    args: Vec<TdObjectEnum>,
-  ) -> Result<TdObjectEnum, Vec<Diagnostic>> {
+    this: Option<TdObjectEnum<'db>>,
+    args: Vec<TdObjectEnum<'db>>,
+  ) -> Result<TdObjectEnum<'db>, Vec<Diagnostic>> {
     match self.func(db) {
       FnKind::Native(kind) => (kind.resolve())(db, project, this, args),
       FnKind::UserDefined(closure_hir, defining_scope) => {

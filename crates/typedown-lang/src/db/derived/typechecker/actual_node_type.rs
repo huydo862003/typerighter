@@ -476,25 +476,21 @@ mod tests {
 
   use super::actual_node_type;
 
-  fn is_literal_str<'db>(db: &'db TypedownDatabase, typ: &TdTypeEnum<'db>, expected: &str) -> bool {
+  fn is_literal_str(db: &TypedownDatabase, typ: &TdTypeEnum, expected: &str) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Str(expected.to_string());
     }
     false
   }
 
-  fn is_literal_num<'db>(db: &'db TypedownDatabase, typ: &TdTypeEnum<'db>, expected: &str) -> bool {
+  fn is_literal_num(db: &TypedownDatabase, typ: &TdTypeEnum, expected: &str) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Num(expected.to_string());
     }
     false
   }
 
-  fn is_literal_bool<'db>(
-    db: &'db TypedownDatabase,
-    typ: &TdTypeEnum<'db>,
-    expected: bool,
-  ) -> bool {
+  fn is_literal_bool(db: &TypedownDatabase, typ: &TdTypeEnum<'_>, expected: bool) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Bool(expected);
     }
@@ -565,7 +561,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_of_schema_file_top_level_mapping_is_schema_type<'db>() {
+  fn actual_node_type_of_schema_file_top_level_mapping_is_schema_type() {
     let vault = vault_root();
     let schema_file_path = vault.join("_types/Person.td");
 
@@ -598,7 +594,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_string_literal_returns_literal<'db>() {
+  fn actual_node_type_string_literal_returns_literal() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -616,7 +612,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_bool_returns_literal<'db>() {
+  fn actual_node_type_bool_returns_literal() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -633,7 +629,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_sequence_returns_list_type<'db>() {
+  fn actual_node_type_sequence_returns_list_type() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -648,7 +644,7 @@ mod tests {
 
   // Date strings narrow to date type, not Literal
   #[test]
-  fn actual_node_type_date_string_returns_simple_date<'db>() {
+  fn actual_node_type_date_string_returns_simple_date() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -667,7 +663,7 @@ mod tests {
 
   // Fref returns the resource's schema type, not type_type
   #[test]
-  fn actual_node_type_fref_returns_resource_type<'db>() {
+  fn actual_node_type_fref_returns_resource_type() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -690,7 +686,7 @@ mod tests {
 
   // Num literal returns Literal(Num)
   #[test]
-  fn actual_node_type_num_returns_literal<'db>() {
+  fn actual_node_type_num_returns_literal() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -707,10 +703,9 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_to_string_field_access_returns_func_type<'db>() {
+  fn actual_node_type_to_string_field_access_returns_func_type() {
     let (db, _, _) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let num_lit: TdTypeEnum<'db> =
-      get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
+    let num_lit: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
 
     let field_type = num_lit
       .lookup_field_type(&db, "to_string")
@@ -722,7 +717,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_method_call_to_string_returns_string_type<'db>() {
+  fn actual_node_type_method_call_to_string_returns_string_type() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "method_call.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");

@@ -8,7 +8,7 @@ use typedown_incremental::QueryDatabase;
 
 #[query_derived]
 pub struct MaybeSymbol<'db> {
-  pub value: Option<Symbol>,
+  pub value: Option<Symbol<'db>>,
 }
 
 #[query_derived]

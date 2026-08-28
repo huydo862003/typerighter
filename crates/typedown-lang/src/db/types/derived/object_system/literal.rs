@@ -13,20 +13,20 @@ pub struct TdLiteralType<'db> {
   pub value: LiteralValue,
 }
 
-impl<'db> TdRuntimeObject for TdLiteralType<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdLiteralType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }
 
 impl<'db> TdStaticType<'db> for TdLiteralType<'db> {
-  fn display_name(&self, db: &TypedownDatabase) -> String {
+  fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match self.value(db) {
       LiteralValue::Str(s) => format!("\"{}\"", s),
       LiteralValue::Num(n) => n,
@@ -34,33 +34,41 @@ impl<'db> TdStaticType<'db> for TdLiteralType<'db> {
     }
   }
 
-  fn runtime_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn runtime_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some(self.underlying_type(db))
   }
 
-  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
     self.underlying_type(db).static_vtable(db)
   }
 
-  fn get_fields(&self, db: &TypedownDatabase) -> HashMap<String, LazyType> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
     self.underlying_type(db).get_fields(db)
   }
 
-  fn lookup_field_type(&self, db: &TypedownDatabase, name: &str) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'db TypedownDatabase, name: &str) -> Option<TdTypeEnum<'db>> {
     self.underlying_type(db).lookup_field_type(db, name)
   }
 
-  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     self.underlying_type(db).index_type(db, key_type)
   }
 
-  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     self.underlying_type(db).call_type(db, arg_types)
   }
 }
 
 impl<'db> TdLiteralType<'db> {
-  pub fn underlying_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+  pub fn underlying_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     match self.value(db) {
       LiteralValue::Str(_) => get_str_type(db).into(),
       LiteralValue::Num(_) => get_num_type(db).into(),

@@ -84,7 +84,7 @@ pub fn get_schema_meta_type<'db>(db: &'db TypedownDatabase) -> TdSchemaMetaType<
   TdSchemaMetaType::new(db)
 }
 
-pub fn get_type_type_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_type_type_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypeType),
@@ -93,7 +93,7 @@ pub fn get_type_type_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_object_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_object_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypeType),
@@ -102,7 +102,7 @@ pub fn get_object_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_schema_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_schema_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
@@ -111,7 +111,7 @@ pub fn get_schema_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_str_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_str_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Str),
@@ -120,7 +120,7 @@ pub fn get_str_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_num_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_num_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Num),
@@ -129,7 +129,7 @@ pub fn get_num_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_bool_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_bool_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Bool),
@@ -138,7 +138,7 @@ pub fn get_bool_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_date_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_date_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Date),
@@ -147,7 +147,7 @@ pub fn get_date_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_datetime_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_datetime_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::DateTime),
@@ -156,7 +156,7 @@ pub fn get_datetime_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_time_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_time_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Time),
@@ -165,7 +165,7 @@ pub fn get_time_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_math_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_math_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Math),
@@ -174,7 +174,7 @@ pub fn get_math_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_list_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_list_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::List),
@@ -183,7 +183,7 @@ pub fn get_list_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_dict_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
+pub fn get_dict_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Dict),
@@ -229,17 +229,17 @@ pub fn get_func_type<'db>(
 pub fn get_sum_type<'db>(db: &'db TypedownDatabase, members: Vec<LazyType<'db>>) -> TdSumType<'db> {
   fn flatten_sum_members<'db>(
     db: &'db TypedownDatabase,
-    members: &'db [LazyType<'db>],
+    members: &[LazyType<'db>],
   ) -> Vec<LazyType<'db>> {
     fn recurse<'db>(
       db: &'db TypedownDatabase,
-      members: &'db [LazyType<'db>],
+      members: &[LazyType<'db>],
       visited: &mut HashSet<TdSumType<'db>>,
       out: &mut Vec<LazyType<'db>>,
     ) {
       for member in members {
         if let Some(TdTypeEnum::TdSumType(sum)) = member.as_eager() {
-          if visited.insert(*sum) {
+          if visited.insert(sum) {
             let sum_members: Vec<_> = sum.members(db).into_iter().collect();
             recurse(db, &sum_members, visited, out);
           }

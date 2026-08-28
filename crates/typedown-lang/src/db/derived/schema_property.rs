@@ -52,7 +52,8 @@ pub fn get_schema_property_type<'db>(db: &'db TypedownDatabase) -> TdProductType
       .into_iter()
       .collect(),
   );
-  let list_type = get_list_type(db)
+  let list = get_list_type(db);
+  let list_type = list
     .instantiate(db, vec![LazyType::eager(list_elem_sum.into())])
     .typ(db);
 

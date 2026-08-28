@@ -77,12 +77,16 @@ impl<'db> StableHash for Reference<'db> {
 
 #[query_derived]
 pub struct ResolutionIndex<'db> {
-  references: HashMap<Symbol, Vec<Reference>>,
+  references: HashMap<Symbol<'db>, Vec<Reference<'db>>>,
 }
 
 impl<'db> ResolutionIndex<'db> {
   /// Look up all references to a given symbol
-  pub fn get_references(&self, db: &'db TypedownDatabase, symbol: Symbol<'db>) -> Vec<Reference<'db>> {
+  pub fn get_references(
+    &self,
+    db: &'db TypedownDatabase,
+    symbol: Symbol<'db>,
+  ) -> Vec<Reference<'db>> {
     self
       .references(db)
       .get(&symbol)
@@ -147,9 +151,11 @@ fn collect_references<'db>(
     }
     // Only fref calls produce file references
     HirValueKind::Call { callee, args } => {
-      if let Some(callee_symbol) = referee(db, *callee).value(db)
+      let callee_ref = referee(db, *callee);
+      let hir_ref = referee(db, hir);
+      if let Some(callee_symbol) = callee_ref.value(db)
         && matches!(callee_symbol.kind(db), SymbolKind::BuiltinMacro(_))
-        && let Some(target_symbol) = referee(db, hir).value(db)
+        && let Some(target_symbol) = hir_ref.value(db)
       {
         map.entry(target_symbol).or_default().push(Reference {
           hir,
@@ -172,7 +178,8 @@ fn collect_references<'db>(
     }
     // Only Ident nodes resolve to symbols via referee
     HirValueKind::Ident(_) => {
-      if let Some(symbol) = referee(db, hir).value(db) {
+      let resolved = referee(db, hir);
+      if let Some(symbol) = resolved.value(db) {
         map.entry(symbol).or_default().push(Reference {
           hir,
           kind: ReferenceKind::Ident,

@@ -13,7 +13,7 @@ use typedown_incremental::QueryDatabase;
 
 #[query_derived]
 pub struct BuiltinScopeMembers<'db> {
-  pub members: HashMap<String, Symbol>,
+  pub members: HashMap<String, Symbol<'db>>,
 }
 
 #[query_derived]

@@ -110,15 +110,15 @@ impl<'db> TypeParams<'db> {
     Some(TypeParams::new(db, params, bindings))
   }
 
-  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
     self.params(db).get(index).copied()
   }
 
-  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType> {
+  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType<'_>> {
     self.bindings(db).get(index).cloned()
   }
 
-  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable> {
+  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
     self.params(db).get(index).copied()
   }
 
@@ -163,9 +163,9 @@ impl<'db> LazyType<'db> {
     }
   }
 
-  pub fn as_eager(&self) -> Option<&TdTypeEnum> {
+  pub fn as_eager(&self) -> Option<TdTypeEnum<'db>> {
     match &self.0 {
-      Either::Left(typ) => Some(typ),
+      Either::Left(typ) => Some(typ.clone()),
       Either::Right(_) => None,
     }
   }

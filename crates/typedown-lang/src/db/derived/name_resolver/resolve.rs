@@ -15,7 +15,11 @@ pub fn resolve<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> ResolveRes
   ResolveResult::new(db, diagnostics)
 }
 
-fn collect_unresolved<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>, diagnostics: &mut Vec<Diagnostic>) {
+fn collect_unresolved<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  diagnostics: &mut Vec<Diagnostic>,
+) {
   match hir.kind(db) {
     HirValueKind::Ident(name) => {
       // self is a keyword, not a free variable

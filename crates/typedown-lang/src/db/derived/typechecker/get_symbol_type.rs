@@ -41,7 +41,11 @@ pub fn get_symbol_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> T
 }
 
 // Get param type from expected(closure) by position
-fn get_fn_param_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>, closure: HirValue<'db>) -> TypeResult<'db> {
+fn get_fn_param_type<'db>(
+  db: &'db TypedownDatabase,
+  symbol: Symbol<'db>,
+  closure: HirValue<'db>,
+) -> TypeResult<'db> {
   let expected = expected_node_type(db, closure).typ(db);
   let func_type = match expected {
     Some(TdTypeEnum::TdFuncType(f)) => f,

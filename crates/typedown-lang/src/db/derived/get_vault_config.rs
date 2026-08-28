@@ -80,8 +80,8 @@ pub fn get_vault_config<'db>(
 }
 
 // Read the config file (typedown.yaml or typedown.yml) from the project
-fn read_config_file<'db>(
-  db: &'db TypedownDatabase,
+fn read_config_file(
+  db: &TypedownDatabase,
   project: Project,
   root: &Path,
   diagnostics: &mut Vec<Diagnostic>,

@@ -8,7 +8,7 @@ use typedown_incremental::QueryDatabase;
 
 #[query_derived]
 pub struct MaybeScope<'db> {
-  pub value: Option<Scope>,
+  pub value: Option<Scope<'db>>,
 }
 
 #[query_derived]

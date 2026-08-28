@@ -63,7 +63,7 @@ fn evaluate_user_defined_schema<'db>(
   schema_name: String,
   project: Project,
   file: File,
-) -> TypeResult {
+) -> TypeResult<'db> {
   let mut diagnostics = vec![];
 
   // Parse file and lower frontmatter to HIR
@@ -165,7 +165,10 @@ fn resolve_parent_schema<'db>(
   current_name: &str,
   entries: &[(String, HirValue<'db>)],
   diagnostics: &mut Vec<Diagnostic>,
-) -> (HashMap<String, PropertyDescriptor<'db>>, Option<TdTypeEnum<'db>>) {
+) -> (
+  HashMap<String, PropertyDescriptor<'db>>,
+  Option<TdTypeEnum<'db>>,
+) {
   let Some((_, extends_hir)) = entries.iter().find(|(key, _)| key == "_extends") else {
     return (HashMap::new(), None);
   };
@@ -262,7 +265,8 @@ pub(crate) fn resolve_property_descriptor<'db>(
   hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<PropertyDescriptor<'db>> {
-  let entries = match hir.kind(db) {
+  let kind = hir.kind(db);
+  let entries = match kind {
     HirValueKind::Mapping(entries) => entries,
     _ => return None,
   };
@@ -565,18 +569,18 @@ mod tests {
     utils::lower_file,
   };
 
-  fn make_db<'db>() -> TypedownDatabase {
+  fn make_db() -> TypedownDatabase {
     TypedownDatabase {
       storage: QueryStorage::default(),
     }
   }
 
-  fn make_project<'db>(db: &'db TypedownDatabase) -> Project {
+  fn make_project(db: &TypedownDatabase) -> Project {
     Project::new(db, PathBuf::from("/test"), HashMap::new())
   }
 
   #[test]
-  fn evaluate_type_builtin_schema_returns_schema_type<'db>() {
+  fn evaluate_type_builtin_schema_returns_schema_type() {
     let db = make_db();
     let symbol = Symbol::new(
       &db,
@@ -644,7 +648,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_type_wrong_property_descriptor_has_diagnostics<'db>() {
+  fn evaluate_type_wrong_property_descriptor_has_diagnostics() {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "_types/WrongPropertyDescriptor.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
@@ -951,9 +955,9 @@ mod tests {
   }
 
   #[test]
-  fn display_name_builtin_types<'db>() {
+  fn display_name_builtin_types() {
     let db = make_db();
-    let dn = |t: TdTypeEnum<'db>| t.display_name(&db);
+    let dn = |t: TdTypeEnum<'_>| t.display_name(&db);
     assert_eq!(dn(get_str_type(&db).into()), "string");
     assert_eq!(dn(get_num_type(&db).into()), "number");
     assert_eq!(dn(get_bool_type(&db).into()), "boolean");
@@ -969,9 +973,9 @@ mod tests {
   }
 
   #[test]
-  fn display_name_literal_types<'db>() {
+  fn display_name_literal_types() {
     let db = make_db();
-    let dn = |t: TdTypeEnum<'db>| t.display_name(&db);
+    let dn = |t: TdTypeEnum<'_>| t.display_name(&db);
     assert_eq!(
       dn(get_literal_type(&db, LiteralValue::Str("draft".to_string())).into()),
       "\"draft\""
@@ -987,7 +991,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_sum_type<'db>() {
+  fn display_name_sum_type() {
     let db = make_db();
     let sum = get_sum_type(
       &db,
@@ -1001,7 +1005,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_product_type<'db>() {
+  fn display_name_product_type() {
     let db = make_db();
     let product = TdProductType::new(
       &db,
@@ -1016,7 +1020,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_instantiated_list<'db>() {
+  fn display_name_instantiated_list() {
     let db = make_db();
     let list_str = TdTypeEnum::from(get_list_type(&db))
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())]);
@@ -1024,7 +1028,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_instantiated_dict<'db>() {
+  fn display_name_instantiated_dict() {
     let db = make_db();
     let dict_str_num = TdTypeEnum::from(get_dict_type(&db)).instantiate(
       &db,
@@ -1040,7 +1044,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_type_instantiate_bounded_type_violating_bound_produces_diagnostic<'db>() {
+  fn evaluate_type_instantiate_bounded_type_violating_bound_produces_diagnostic() {
     let db = make_db();
     let num_type = TdTypeEnum::from(get_num_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -1070,7 +1074,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_anonymous_product<'db>() {
+  fn display_name_anonymous_product() {
     let db = make_db();
     let product = TdProductType::new(
       &db,
@@ -1085,7 +1089,7 @@ mod tests {
   }
 
   // Helper to create an HirValue from a frontmatter string
-  fn make_hir<'db>(db: &'db TypedownDatabase, content: &str) -> HirValue<'db> {
+  fn make_hir<'a>(db: &'a TypedownDatabase, content: &str) -> HirValue<'a> {
     let file = File::new(
       db,
       FileHandle::Content(
@@ -1100,11 +1104,7 @@ mod tests {
   }
 
   // Helper to get a specific field's HirValue from a frontmatter mapping
-  fn get_field_hir<'db>(
-    db: &'db TypedownDatabase,
-    hir: HirValue<'db>,
-    field: &str,
-  ) -> HirValue<'db> {
+  fn get_field_hir<'a>(db: &'a TypedownDatabase, hir: HirValue<'a>, field: &str) -> HirValue<'a> {
     match hir.kind(db) {
       HirValueKind::Mapping(entries) => entries.into_iter().find(|(k, _)| k == field).unwrap().1,
       _ => panic!("expected mapping"),
@@ -1178,11 +1178,11 @@ mod tests {
 
   // List construct from a sequence
   #[test]
-  fn construct_list<'db>() {
+  fn construct_list() {
     let db = make_db();
     let list_num = TdTypeEnum::from(get_list_type(&db))
       .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())]);
-    let items: Vec<TdObjectEnum<'db>> = vec![
+    let items: Vec<TdObjectEnum<'_>> = vec![
       TdNumObj::new(&db, 1.0).into(),
       TdNumObj::new(&db, 2.0).into(),
     ];
@@ -1231,7 +1231,7 @@ mod tests {
   }
 
   #[test]
-  fn construct_type_type_rejects_non_schema<'db>() {
+  fn construct_type_type_rejects_non_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let scope = get_file_runtime_scope(&db, project, file);
@@ -1244,7 +1244,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_type_fref_resolves_referenced_type<'db>() {
+  fn evaluate_type_fref_resolves_referenced_type() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();

@@ -85,7 +85,7 @@ fn resolve_symbol(
   project: Project,
   file: File,
   offset: usize,
-) -> Option<Symbol> {
+) -> Option<Symbol<'_>> {
   let rename_symbol = find_symbol_at_cursor(db, project, file, offset)?;
   let syntax = match &rename_symbol {
     CursorSymbol::Fref { call_node } => call_node.syntax().clone(),

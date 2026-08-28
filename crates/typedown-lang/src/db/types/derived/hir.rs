@@ -18,7 +18,7 @@ pub struct HirValue<'db> {
   pub file: File,
   #[id]
   pub node: RedNode,
-  pub kind: HirValueKind,
+  pub kind: HirValueKind<'db>,
   pub diagnostics: Vec<Diagnostic>,
 }
 

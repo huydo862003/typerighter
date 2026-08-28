@@ -64,7 +64,7 @@ use typedown_incremental::Id;
 // Use this instead of dyn
 // The primitive types are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
-#[delegate(TdRuntimeObject)]
+#[delegate(TdRuntimeObject<'x>, generics = "'x")]
 #[delegate(TdStaticType<'x>, generics = "'x")]
 pub enum TdTypeEnum<'db> {
   TdTypeType(TdTypeType<'db>),
@@ -94,7 +94,7 @@ pub enum TdTypeEnum<'db> {
 // Use this instead of dyn
 // The primitive object kinds are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
-#[delegate(TdRuntimeObject)]
+#[delegate(TdRuntimeObject<'x>, generics = "'x")]
 pub enum TdObjectEnum<'db> {
   // Types are objects
   TdTypeObj(TdTypeEnum<'db>),

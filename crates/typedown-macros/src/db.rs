@@ -606,10 +606,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
   // Field types with 'db erased to 'static for ingredient storage
-  let field_types_static: Vec<proc_macro2::TokenStream> = field_types
-    .iter()
-    .map(erase_db_lifetime_tokens)
-    .collect();
+  let field_types_static: Vec<proc_macro2::TokenStream> =
+    field_types.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
   let first_field_ty = internal_field_types_static.first().cloned();
 
@@ -623,10 +621,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     .map(|(_, field)| field.ty.clone())
     .collect();
   // Erase 'db to 'static for the identity map key (DashMap requires 'static)
-  let id_field_tys_static: Vec<proc_macro2::TokenStream> = id_field_tys
-    .iter()
-    .map(erase_db_lifetime_tokens)
-    .collect();
+  let id_field_tys_static: Vec<proc_macro2::TokenStream> =
+    id_field_tys.iter().map(erase_db_lifetime_tokens).collect();
   let id_field_names: Vec<_> = id_fields
     .iter()
     .map(|(_, field)| field.ident.as_ref().unwrap())
@@ -684,7 +680,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     let field_ty_static = &field_types_static[idx];
 
     getter_tokens.extend(quote! {
-      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
+      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
         let storage = unsafe { db.storage() };
         let ingredient_index = Self::ingredient_start_index() + #idx;
@@ -857,7 +853,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
       impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
-            self.#field_names(db).stable_hash(db, hasher);
+            Self::#field_names(*self, db).stable_hash(db, hasher);
           )*
         }
       }
@@ -867,7 +863,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
-            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
+            .then_with(|| Self::#field_names(*self, db).stable_cmp(db, &Self::#field_names(*other, db)))
           )*
         }
       }
@@ -877,7 +873,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
           #(
-            ::typedown_incremental::FieldEncodable::encode_field(&self.#field_names(encoder.db()), buf, encoder);
+            ::typedown_incremental::FieldEncodable::encode_field(&Self::#field_names(*self, encoder.db()), buf, encoder);
           )*
           #phantom_encode_tokens
         }
@@ -968,10 +964,8 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
   }
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
-  let field_types_static: Vec<proc_macro2::TokenStream> = field_types
-    .iter()
-    .map(erase_db_lifetime_tokens)
-    .collect();
+  let field_types_static: Vec<proc_macro2::TokenStream> =
+    field_types.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
   let intern_key_ty = quote! { (#(#field_types_static,)*) };
 
@@ -1007,7 +1001,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let tuple_index = syn::Index::from(idx);
 
     getter_tokens.extend(quote! {
-      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
+      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
         let storage = unsafe { db.storage() };
         let ingredient_index = Self::ingredient_index();
@@ -1109,7 +1103,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       #impl_trait_prefix ::typedown_incremental::StableHash for #impl_trait_for {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
-            self.#field_names(db).stable_hash(db, hasher);
+            Self::#field_names(*self, db).stable_hash(db, hasher);
           )*
         }
       }
@@ -1119,7 +1113,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
-            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
+            .then_with(|| Self::#field_names(*self, db).stable_cmp(db, &Self::#field_names(*other, db)))
           )*
         }
       }
@@ -1129,7 +1123,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
           #(
-            ::typedown_incremental::FieldEncodable::encode_field(&self.#field_names(encoder.db()), buf, encoder);
+            ::typedown_incremental::FieldEncodable::encode_field(&Self::#field_names(*self, encoder.db()), buf, encoder);
           )*
         }
       }

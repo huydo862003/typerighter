@@ -493,18 +493,17 @@ fn traverse_field<'db>(
     return Some(LazyType::eager(field_type));
   }
   // Dict: any key maps to the value type
-  if let Some(dict) = typ.as_td_dict_type()
-    && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db))
-  {
-    return Some(LazyType::eager(value_type));
-  }
+  if let Some(dict) = typ.as_td_dict_type().copied()
+    && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db)) {
+      return Some(LazyType::eager(value_type));
+    }
   None
 }
 
 /// Get the element type from a list
 fn traverse_index<'db>(db: &'db TypedownDatabase, lazy: &LazyType<'db>) -> Option<LazyType<'db>> {
   let typ = lazy.resolve(db)?;
-  let list = typ.as_td_list_type()?;
+  let list = *typ.as_td_list_type()?;
   list.elem(db)
 }
 
@@ -528,12 +527,12 @@ mod tests {
     utils::lower_file,
   };
 
-  fn get_field_hir<'db>(
-    db: &'db TypedownDatabase,
+  fn get_field_hir<'a>(
+    db: &'a TypedownDatabase,
     project: Project,
     file: File,
     field: &str,
-  ) -> Option<HirValue> {
+  ) -> Option<HirValue<'a>> {
     let (hir, _) = lower_file(db, project, file);
     let hir = hir?;
     if let HirValueKind::Mapping(entries) = hir.kind(db) {
@@ -601,12 +600,12 @@ mod tests {
   }
 
   /// Get the HIR for a nested field value: top[field1][field2]
-  fn get_nested_field_hir<'db>(
-    db: &'db TypedownDatabase,
+  fn get_nested_field_hir<'a>(
+    db: &'a TypedownDatabase,
     project: Project,
     file: File,
     fields: &[&str],
-  ) -> Option<HirValue> {
+  ) -> Option<HirValue<'a>> {
     let (hir, _) = lower_file(db, project, file);
     let mut current = hir?;
     for field in fields {
@@ -652,7 +651,7 @@ mod tests {
 
   // Sequence item inside a list field should have expected type
   #[test]
-  fn expected_node_type_sequence_item<'db>() {
+  fn expected_node_type_sequence_item() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");

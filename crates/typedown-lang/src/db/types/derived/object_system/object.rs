@@ -15,15 +15,15 @@ use crate::db::types::FuncSignature;
 pub struct TdObjectType<'db> {}
 
 impl<'db> TdStaticType<'db> for TdObjectType<'db> {
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "Object".to_string()
   }
 
-  fn parent_type(&self, _db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     None
   }
 
-  fn runtime_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdFuncObj> {
+  fn runtime_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdFuncObj<'db>> {
     let mut result = HashMap::new();
     let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
     let to_string_fn = TdFuncObj::new(
@@ -36,7 +36,7 @@ impl<'db> TdStaticType<'db> for TdObjectType<'db> {
     result
   }
 
-  fn static_vtable(&self, db: &TypedownDatabase) -> HashMap<String, TdTypeEnum> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
     let mut result = HashMap::new();
     let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
     let func_type = get_func_type(db, sig).into();
@@ -45,14 +45,14 @@ impl<'db> TdStaticType<'db> for TdObjectType<'db> {
   }
 }
 
-impl<'db> TdRuntimeObject for TdObjectType<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdObjectType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, db: &TypedownDatabase) -> String {
+  fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
 }

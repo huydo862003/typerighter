@@ -9,28 +9,32 @@ use crate::db::types::FuncSignature;
 #[query_derived]
 pub struct TdNeverType<'db> {}
 
-impl<'db> TdRuntimeObject for TdNeverType<'db> {
-  fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
+impl<'db> TdRuntimeObject<'db> for TdNeverType<'db> {
+  fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     TdTypeType::get(db).into()
   }
-  fn get_owned_field(&self, _db: &TypedownDatabase, _key: &str) -> Option<TdObjectEnum> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
-  fn source_path(&self, _db: &TypedownDatabase) -> String {
+  fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::never".to_string()
   }
 }
 
 impl<'db> TdStaticType<'db> for TdNeverType<'db> {
-  fn display_name(&self, _db: &TypedownDatabase) -> String {
+  fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "never".to_string()
   }
 
-  fn lookup_field_type(&self, db: &TypedownDatabase, _name: &str) -> Option<TdTypeEnum> {
+  fn lookup_field_type(&self, db: &'db TypedownDatabase, _name: &str) -> Option<TdTypeEnum<'db>> {
     Some(get_never_type(db).into())
   }
 
-  fn index_type(&self, db: &TypedownDatabase, key_type: &TdTypeEnum) -> Option<FuncSignature> {
+  fn index_type(
+    &self,
+    db: &'db TypedownDatabase,
+    key_type: &TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
     Some(FuncSignature::new(
       db,
       vec![key_type.clone()],
@@ -38,13 +42,17 @@ impl<'db> TdStaticType<'db> for TdNeverType<'db> {
     ))
   }
 
-  fn call_type(&self, db: &TypedownDatabase, arg_types: Vec<TdTypeEnum>) -> Option<FuncSignature> {
+  fn call_type(
+    &self,
+    db: &'db TypedownDatabase,
+    arg_types: Vec<TdTypeEnum<'db>>,
+  ) -> Option<FuncSignature<'db>> {
     Some(FuncSignature::new(db, arg_types, get_never_type(db).into()))
   }
 }
 
 impl<'db> TdNeverType<'db> {
-  pub fn get(db: &TypedownDatabase) -> TdNeverType {
+  pub fn get(db: &'db TypedownDatabase) -> TdNeverType<'db> {
     get_never_type(db)
   }
 }

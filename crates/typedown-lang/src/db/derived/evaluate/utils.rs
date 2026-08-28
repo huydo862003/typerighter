@@ -47,7 +47,8 @@ pub(crate) fn construct_from_hir<'db>(
           }
           // Resource identifiers (including self) evaluate to the resource object
           SymbolKind::UserDefinedResource(_, _) => {
-            return evaluate_resource(db, symbol).value(db);
+            let resource = evaluate_resource(db, symbol);
+            return resource.value(db);
           }
           _ => {}
         }
@@ -55,12 +56,14 @@ pub(crate) fn construct_from_hir<'db>(
     }
     // Tag expressions: the tag is a type hint for the typechecker
     HirValueKind::Tag { inner, .. } => {
-      return evaluate_node(db, *inner, runtime_scope).value(db);
+      let node = evaluate_node(db, *inner, runtime_scope);
+      return node.value(db);
     }
     // Field access: obj.field
     HirValueKind::Binary { op, left, right } if op == "." => {
       if let HirValueKind::Ident(field_name) = right.kind(db) {
-        let this = evaluate_node(db, *left, runtime_scope).value(db)?;
+        let left_node = evaluate_node(db, *left, runtime_scope);
+        let this = left_node.value(db)?;
         return this.lookup_field(db, &field_name);
       }
     }
@@ -85,13 +88,18 @@ pub(crate) fn construct_from_hir<'db>(
         // Method call: obj.method(args)
         HirValueKind::Binary { op, left, right } if op == "." => {
           if let HirValueKind::Ident(method_name) = right.kind(db) {
-            let this = evaluate_node(db, *left, runtime_scope).value(db)?;
+            let left_node = evaluate_node(db, *left, runtime_scope);
+            let this = left_node.value(db)?;
             let func_obj = this.lookup_method(db, &method_name)?;
             let arg_objs: Vec<_> = args
               .into_iter()
-              .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
+              .filter_map(|arg| {
+                let node = evaluate_node(db, arg, runtime_scope);
+                node.value(db)
+              })
               .collect();
-            let project = runtime_scope.scope(db).project(db);
+            let scope = runtime_scope.scope(db);
+            let project = scope.project(db);
             return func_obj.call(db, project, Some(this), arg_objs).ok();
           }
         }
@@ -104,12 +112,17 @@ pub(crate) fn construct_from_hir<'db>(
             return construct_macro(db, kind, args);
           }
           // Plain function call: evaluate callee, call it via protocol
-          let callee_obj = evaluate_node(db, *callee, runtime_scope).value(db)?;
+          let callee_node = evaluate_node(db, *callee, runtime_scope);
+          let callee_obj = callee_node.value(db)?;
           let arg_objs: Vec<_> = args
             .into_iter()
-            .filter_map(|arg| evaluate_node(db, arg, runtime_scope).value(db))
+            .filter_map(|arg| {
+              let node = evaluate_node(db, arg, runtime_scope);
+              node.value(db)
+            })
             .collect();
-          let project = runtime_scope.scope(db).project(db);
+          let scope = runtime_scope.scope(db);
+          let project = scope.project(db);
           return callee_obj.call(db, project, None, arg_objs).ok();
         }
       }
@@ -502,20 +515,20 @@ mod tests {
   use std::collections::HashMap;
   use std::path::PathBuf;
 
-  fn make_db<'db>() -> TypedownDatabase {
+  fn make_db() -> TypedownDatabase {
     TypedownDatabase {
       storage: QueryStorage::default(),
     }
   }
 
   #[test]
-  fn test_runtime_type_mapping<'db>() {
+  fn test_runtime_type_mapping() {
     let db = make_db();
 
     // Literal types resolve to primitive underlying types
-    let lit_str: TdTypeEnum<'db> = get_literal_type(&db, LiteralValue::Str("hello".into())).into();
-    let lit_num: TdTypeEnum<'db> = get_literal_type(&db, LiteralValue::Num("42".into())).into();
-    let lit_bool: TdTypeEnum<'db> = get_literal_type(&db, LiteralValue::Bool(true)).into();
+    let lit_str: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Str("hello".into())).into();
+    let lit_num: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Num("42".into())).into();
+    let lit_bool: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Bool(true)).into();
 
     assert_eq!(lit_str.runtime_type(&db), Some(get_str_type(&db).into()));
     assert_eq!(lit_num.runtime_type(&db), Some(get_num_type(&db).into()));
@@ -570,11 +583,11 @@ mod tests {
   }
 
   #[test]
-  fn test_not_constructible_diagnostic_emitted<'db>() {
+  fn test_not_constructible_diagnostic_emitted() {
     let db = make_db();
 
     // Verify runtime_type returns None for non-constructible sum type
-    let sum_type: TdTypeEnum<'db> = get_sum_type(
+    let sum_type: TdTypeEnum<'_> = get_sum_type(
       &db,
       vec![
         LazyType::eager(get_str_type(&db).into()),
@@ -609,9 +622,9 @@ mod tests {
   }
 
   #[test]
-  fn test_dunder_methods_call_and_index<'db>() {
+  fn test_dunder_methods_call_and_index() {
     let db = make_db();
-    let str_type: TdTypeEnum<'db> = get_str_type(&db).into();
+    let str_type: TdTypeEnum<'_> = get_str_type(&db).into();
     let sig = FuncSignature::new(&db, vec![str_type.clone()], str_type.clone());
     let index_fn = TdFuncObj::new(
       &db,

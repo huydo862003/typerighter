@@ -115,8 +115,10 @@ pub fn export_property_descriptors(
   project: Project,
   file: File,
 ) -> Option<serde_json::Value> {
-  let symbol = file_symbol(db, project, file).value(db)?;
-  let typ = evaluate_type(db, symbol).typ(db)?;
+  let file_sym = file_symbol(db, project, file);
+  let symbol = file_sym.value(db)?;
+  let eval_result = evaluate_type(db, symbol);
+  let typ = eval_result.typ(db)?;
 
   let schema = typ.as_td_schema_type()?;
   let fields = schema.fields(db);
@@ -597,7 +599,9 @@ impl<'a> MarkdownExporter<'a> {
       }
       let hir = lower_node(self.db, self.project, self.file, expr_node);
       let scope = get_file_runtime_scope(self.db, self.project, self.file);
-      if let Some(obj) = evaluate_node(self.db, hir, scope).value(self.db)
+      let eval = evaluate_node(self.db, hir, scope);
+      let obj = eval.value(self.db);
+      if let Some(obj) = obj
         && let Some(func) = obj.lookup_method(self.db, "to_string")
         && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
         && let Some(str_obj) = result.as_td_str_obj()
@@ -672,7 +676,8 @@ fn try_resolve_fref(
   node: &RedNode,
 ) -> Option<String> {
   let hir = lower_node(db, project, file, node.clone());
-  let target_symbol = referee(db, hir).value(db)?;
+  let referee_result = referee(db, hir);
+  let target_symbol = referee_result.value(db)?;
   let resolved = resolve_ref(db, project, &target_symbol)?;
 
   // Images produce a markdown image, other assets produce a link
@@ -726,10 +731,10 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
   }
 }
 
-pub(super) fn evaluate_lazy_field(
-  db: &TypedownDatabase,
-  field: Either<HirValue, TdObjectEnum>,
-) -> Option<TdObjectEnum> {
+pub(super) fn evaluate_lazy_field<'db>(
+  db: &'db TypedownDatabase,
+  field: Either<HirValue<'db>, TdObjectEnum<'db>>,
+) -> Option<TdObjectEnum<'db>> {
   match field {
     Either::Right(obj) => Some(obj),
     Either::Left(hir) => {

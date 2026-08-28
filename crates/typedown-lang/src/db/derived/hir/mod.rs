@@ -445,7 +445,7 @@ fn lower_frontmatter<'db>(
   project: Project,
   file: File,
   node: RedNode,
-) -> HirValue {
+) -> HirValue<'db> {
   let fm = YamlFrontmatter::cast(node.clone()).expect("node must be a YamlFrontmatter");
   match fm.mapping() {
     Some(mapping) => lower_node(db, project, file, mapping.syntax().clone()),
@@ -458,7 +458,7 @@ fn lower_source_file<'db>(
   project: Project,
   file: File,
   node: RedNode,
-) -> HirValue {
+) -> HirValue<'db> {
   let source_file = SourceFile::cast(node.clone()).expect("node must be a SourceFile");
   let fm_node = match source_file.frontmatter() {
     Some(fm) => fm,

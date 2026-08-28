@@ -41,7 +41,8 @@ fn resolve_ident<'db>(
     if let Some(sym) = result.members(db).get(&name) {
       return MaybeSymbol::new(db, Some(*sym));
     }
-    match parent_scope(db, current_scope).value(db) {
+    let parent = parent_scope(db, current_scope);
+    match parent.value(db) {
       Some(parent) => current_scope = parent,
       None => return MaybeSymbol::new(db, None),
     }

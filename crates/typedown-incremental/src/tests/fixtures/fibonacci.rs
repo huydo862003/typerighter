@@ -28,14 +28,14 @@ pub struct FibInput {
 }
 
 #[query_derived]
-pub struct FibResult {
+pub struct FibResult<'db> {
   #[id]
   n: usize,
   value: usize,
 }
 
 #[query_derived]
-pub fn fibonacci(db: &Database, input: FibInput) -> FibResult {
+pub fn fibonacci<'db>(db: &'db Database, input: FibInput) -> FibResult<'db> {
   let n = input.n(db);
   log(format!("computing fib({})", n));
   if n <= 1 {

@@ -150,7 +150,8 @@ fn resolve_import_members<'db>(
     let Some(&target_file) = project.files(db).get(&target_path) else {
       continue;
     };
-    if let Some(sym) = file_symbol(db, project, target_file).value(db) {
+    let fs = file_symbol(db, project, target_file);
+    if let Some(sym) = fs.value(db) {
       members.insert(alias, sym);
     }
   }
