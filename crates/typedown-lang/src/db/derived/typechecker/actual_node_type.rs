@@ -28,7 +28,7 @@ use typedown_macros::query_derived;
 // Infer the type of an HIR bottom-up from its structure
 // Exception: closures read expected(closure) to get param types (see README.md)
 #[query_derived]
-pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
+pub fn actual_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
   let diagnostics = vec![];
   match hir.kind(db) {
     HirValueKind::Str(ref val) => {
@@ -78,10 +78,10 @@ pub fn actual_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
 }
 
 // Helper to get the type of a mapping
-fn get_mapping_type(
-  db: &TypedownDatabase,
-  _hir: HirValue,
-  entries: Vec<(String, HirValue)>,
+fn get_mapping_type<'db>(
+  db: &'db TypedownDatabase,
+  _hir: HirValue<'db>,
+  entries: Vec<(String, HirValue<'db>)>,
 ) -> TypeResult {
   // If _type is present, resolve the schema
   for (key, value_hir) in &entries {
@@ -122,7 +122,7 @@ fn get_mapping_type(
 }
 
 // Resolve a tag expression like !Person { name: "John" }
-fn get_tag_type(db: &TypedownDatabase, tag: HirValue) -> TypeResult {
+fn get_tag_type<'db>(db: &'db TypedownDatabase, tag: HirValue<'db>) -> TypeResult<'db> {
   let resolved = referee(db, tag);
   match resolved.value(db) {
     Some(symbol) => evaluate_type(db, symbol),
@@ -143,7 +143,7 @@ fn get_tag_type(db: &TypedownDatabase, tag: HirValue) -> TypeResult {
 }
 
 // Synthesize the result type of a prefix expression
-fn get_prefix_type(db: &TypedownDatabase, op: &str) -> TypeResult {
+fn get_prefix_type<'db>(db: &'db TypedownDatabase, op: &str) -> TypeResult<'db> {
   match op {
     "-" | "+" => TypeResult::new(db, Some(get_num_type(db).into()), vec![]),
     "~" => TypeResult::new(db, Some(get_bool_type(db).into()), vec![]),
@@ -152,7 +152,11 @@ fn get_prefix_type(db: &TypedownDatabase, op: &str) -> TypeResult {
 }
 
 // Synthesize the result type of a postfix expression
-fn get_postfix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeResult {
+fn get_postfix_type<'db>(
+  db: &'db TypedownDatabase,
+  op: &str,
+  operand: HirValue<'db>,
+) -> TypeResult<'db> {
   match op {
     // T? is a type operator, its result is the operand type
     "?" => actual_node_type(db, operand),
@@ -161,7 +165,12 @@ fn get_postfix_type(db: &TypedownDatabase, op: &str, operand: HirValue) -> TypeR
 }
 
 // Synthesize the result type of a binary expression
-fn get_binary_type(db: &TypedownDatabase, op: &str, left: HirValue, right: HirValue) -> TypeResult {
+fn get_binary_type<'db>(
+  db: &'db TypedownDatabase,
+  op: &str,
+  left: HirValue<'db>,
+  right: HirValue<'db>,
+) -> TypeResult<'db> {
   // Field access needs actual(left) to look up the field type
   if op == "." {
     let left_result = actual_node_type(db, left);
@@ -203,7 +212,7 @@ fn get_binary_type(db: &TypedownDatabase, op: &str, left: HirValue, right: HirVa
 }
 
 // Helper to get the type of a sequence
-fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult {
+fn get_sequence_type<'db>(db: &'db TypedownDatabase, items: Vec<HirValue<'db>>) -> TypeResult<'db> {
   let mut diagnostics = vec![];
   let mut arms = vec![];
 
@@ -225,7 +234,11 @@ fn get_sequence_type(db: &TypedownDatabase, items: Vec<HirValue>) -> TypeResult 
 }
 
 // Helper to get the type of a call expression
-fn get_call_type(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -> TypeResult {
+fn get_call_type<'db>(
+  db: &'db TypedownDatabase,
+  callee: HirValue<'db>,
+  args: Vec<HirValue<'db>>,
+) -> TypeResult<'db> {
   // Check if callee is a macro
   let resolved = referee(db, callee);
   if let Some(symbol) = resolved.value(db)
@@ -254,10 +267,10 @@ fn get_call_type(db: &TypedownDatabase, callee: HirValue, args: Vec<HirValue>) -
   TypeResult::new(db, None, diagnostics)
 }
 
-fn get_macro_call_type(
-  db: &TypedownDatabase,
+fn get_macro_call_type<'db>(
+  db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
-  args: Vec<HirValue>,
+  args: Vec<HirValue<'db>>,
 ) -> TypeResult {
   match kind {
     BuiltinMacroKind::Fref => get_fref_type(db, args),
@@ -265,7 +278,7 @@ fn get_macro_call_type(
 }
 
 // fref("file.td") returns link[T] where T is the target file's schema type
-fn get_fref_type(db: &TypedownDatabase, args: Vec<HirValue>) -> TypeResult {
+fn get_fref_type<'db>(db: &'db TypedownDatabase, args: Vec<HirValue<'db>>) -> TypeResult<'db> {
   if args.len() != 1 {
     let node = args.first().map(|a| a.node(db));
     let (tr_offset, tr_len) = node.as_ref().map_or((0, 0), |n| n.trimmed_range());
@@ -334,7 +347,11 @@ fn get_fref_type(db: &TypedownDatabase, args: Vec<HirValue>) -> TypeResult {
 }
 
 // Helper to get the type of an index expression
-fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>) -> TypeResult {
+fn get_index_type<'db>(
+  db: &'db TypedownDatabase,
+  expr: HirValue<'db>,
+  indices: Vec<HirValue<'db>>,
+) -> TypeResult<'db> {
   let expr_result = actual_node_type(db, expr);
   let mut diagnostics = expr_result.diagnostics(db).clone();
 
@@ -401,11 +418,11 @@ fn get_index_type(db: &TypedownDatabase, expr: HirValue, indices: Vec<HirValue>)
 }
 
 // actual(closure) = fn(params from expected, return from actual(body))
-fn get_closure_type(
-  db: &TypedownDatabase,
-  hir: HirValue,
+fn get_closure_type<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
   params: Vec<String>,
-  body: HirValue,
+  body: HirValue<'db>,
 ) -> TypeResult {
   let expected = expected_node_type(db, hir).typ(db);
   let param_types = match expected {
@@ -459,21 +476,21 @@ mod tests {
 
   use super::actual_node_type;
 
-  fn is_literal_str(db: &TypedownDatabase, typ: &TdTypeEnum, expected: &str) -> bool {
+  fn is_literal_str<'db>(db: &'db TypedownDatabase, typ: &TdTypeEnum<'db>, expected: &str) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Str(expected.to_string());
     }
     false
   }
 
-  fn is_literal_num(db: &TypedownDatabase, typ: &TdTypeEnum, expected: &str) -> bool {
+  fn is_literal_num<'db>(db: &'db TypedownDatabase, typ: &TdTypeEnum<'db>, expected: &str) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Num(expected.to_string());
     }
     false
   }
 
-  fn is_literal_bool(db: &TypedownDatabase, typ: &TdTypeEnum, expected: bool) -> bool {
+  fn is_literal_bool<'db>(db: &'db TypedownDatabase, typ: &TdTypeEnum<'db>, expected: bool) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Bool(expected);
     }
@@ -544,7 +561,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_of_schema_file_top_level_mapping_is_schema_type() {
+  fn actual_node_type_of_schema_file_top_level_mapping_is_schema_type<'db>() {
     let vault = vault_root();
     let schema_file_path = vault.join("_types/Person.td");
 
@@ -577,7 +594,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_string_literal_returns_literal() {
+  fn actual_node_type_string_literal_returns_literal<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -595,7 +612,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_bool_returns_literal() {
+  fn actual_node_type_bool_returns_literal<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -612,7 +629,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_sequence_returns_list_type() {
+  fn actual_node_type_sequence_returns_list_type<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -627,7 +644,7 @@ mod tests {
 
   // Date strings narrow to date type, not Literal
   #[test]
-  fn actual_node_type_date_string_returns_simple_date() {
+  fn actual_node_type_date_string_returns_simple_date<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -646,7 +663,7 @@ mod tests {
 
   // Fref returns the resource's schema type, not type_type
   #[test]
-  fn actual_node_type_fref_returns_resource_type() {
+  fn actual_node_type_fref_returns_resource_type<'db>() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -669,7 +686,7 @@ mod tests {
 
   // Num literal returns Literal(Num)
   #[test]
-  fn actual_node_type_num_returns_literal() {
+  fn actual_node_type_num_returns_literal<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");
@@ -686,9 +703,10 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_to_string_field_access_returns_func_type() {
+  fn actual_node_type_to_string_field_access_returns_func_type<'db>() {
     let (db, _, _) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let num_lit: TdTypeEnum = get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
+    let num_lit: TdTypeEnum<'db> =
+      get_literal_type(&db, LiteralValue::Num("42".to_string())).into();
 
     let field_type = num_lit
       .lookup_field_type(&db, "to_string")
@@ -700,7 +718,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_method_call_to_string_returns_string_type() {
+  fn actual_node_type_method_call_to_string_returns_string_type<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "method_call.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");

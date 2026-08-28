@@ -36,7 +36,7 @@ struct AnchorResult {
 }
 
 #[query_derived]
-pub fn expected_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
+pub fn expected_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
   let project = hir.project(db);
   let file = hir.file(db);
   let node = hir.node(db);
@@ -82,7 +82,7 @@ pub fn expected_node_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
 }
 
 // Propagate expected type through expression structure
-fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
+fn get_expected_expr_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
   let node = hir.node(db);
   let project = hir.project(db);
   let file = hir.file(db);
@@ -144,8 +144,8 @@ fn get_expected_expr_type(db: &TypedownDatabase, hir: HirValue) -> TypeResult {
 
 // expected(arg_i) = param_i from actual(callee)
 // Macros have no TdFuncType so this returns None for macro args (they validate internally)
-fn get_expected_call_arg_type(
-  db: &TypedownDatabase,
+fn get_expected_call_arg_type<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   call: &CallExpr,
@@ -169,8 +169,8 @@ fn get_expected_call_arg_type(
 }
 
 // expected(callee) = fn(actual(arg_i)...) -> expected(call)
-fn get_expected_call_callee_type(
-  db: &TypedownDatabase,
+fn get_expected_call_callee_type<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   call: &CallExpr,
@@ -196,8 +196,8 @@ fn get_expected_call_callee_type(
 }
 
 // expected(body) = return type from expected(closure)
-fn get_expected_closure_body_type(
-  db: &TypedownDatabase,
+fn get_expected_closure_body_type<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   closure: &ClosureExpr,
@@ -213,7 +213,10 @@ fn get_expected_closure_body_type(
   }
 }
 
-fn get_expected_binary_operand_type(db: &TypedownDatabase, op: &YamlOpKind) -> TypeResult {
+fn get_expected_binary_operand_type<'db>(
+  db: &'db TypedownDatabase,
+  op: &YamlOpKind,
+) -> TypeResult<'db> {
   match op {
     // Arithmetic and power expect number
     YamlOpKind::Plus
@@ -229,7 +232,10 @@ fn get_expected_binary_operand_type(db: &TypedownDatabase, op: &YamlOpKind) -> T
   }
 }
 
-fn get_expected_prefix_operand_type(db: &TypedownDatabase, op: &YamlOpKind) -> TypeResult {
+fn get_expected_prefix_operand_type<'db>(
+  db: &'db TypedownDatabase,
+  op: &YamlOpKind,
+) -> TypeResult<'db> {
   match op {
     YamlOpKind::Plus | YamlOpKind::Minus => {
       TypeResult::new(db, Some(get_num_type(db).into()), vec![])
@@ -264,8 +270,8 @@ fn is_top_level(node: &RedNode) -> bool {
 }
 
 /// Get the static access path from the nearest _type anchor to the target node
-pub fn static_access_path(
-  db: &TypedownDatabase,
+pub fn static_access_path<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
@@ -279,8 +285,8 @@ pub fn static_access_path(
 }
 
 /// Walk up from target to the nearest _type anchor, collecting path steps
-fn collect_path_to_anchor(
-  db: &TypedownDatabase,
+fn collect_path_to_anchor<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   target: &RedNode,
@@ -394,8 +400,8 @@ fn collect_path_to_anchor(
 }
 
 /// Resolve the _type field in a mapping to its symbol and type
-fn resolve_type_anchor(
-  db: &TypedownDatabase,
+fn resolve_type_anchor<'db>(
+  db: &'db TypedownDatabase,
   project: Project,
   file: File,
   mapping: &RedNode,
@@ -431,7 +437,11 @@ fn resolve_type_anchor(
 }
 
 /// Resolve a Sum type by picking the most specific matching arm
-fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> LazyType {
+fn resolve_lazy_type<'db>(
+  db: &'db TypedownDatabase,
+  lazy: &LazyType<'db>,
+  hir: HirValue<'db>,
+) -> LazyType<'db> {
   let Some(typ) = lazy.resolve(db) else {
     return lazy.clone();
   };
@@ -445,10 +455,10 @@ fn resolve_lazy_type(db: &TypedownDatabase, lazy: &LazyType, hir: HirValue) -> L
 }
 
 /// Pick the matching arms for the actual value
-fn pick_most_specific_arm(
-  db: &TypedownDatabase,
-  arms: &HashSet<LazyType>,
-  hir: HirValue,
+fn pick_most_specific_arm<'db>(
+  db: &'db TypedownDatabase,
+  arms: &HashSet<LazyType<'db>>,
+  hir: HirValue<'db>,
 ) -> Option<LazyType> {
   let actual_type = actual_node_type(db, hir).typ(db)?;
 
@@ -473,7 +483,11 @@ fn pick_most_specific_arm(
 }
 
 /// Look up a field in the resolved type
-fn traverse_field(db: &TypedownDatabase, lazy: &LazyType, field_name: &str) -> Option<LazyType> {
+fn traverse_field<'db>(
+  db: &'db TypedownDatabase,
+  lazy: &LazyType<'db>,
+  field_name: &str,
+) -> Option<LazyType<'db>> {
   let typ = lazy.resolve(db)?;
   if let Some(field_type) = typ.get_owned_field_type(db, field_name) {
     return Some(LazyType::eager(field_type));
@@ -488,13 +502,13 @@ fn traverse_field(db: &TypedownDatabase, lazy: &LazyType, field_name: &str) -> O
 }
 
 /// Get the element type from a list
-fn traverse_index(db: &TypedownDatabase, lazy: &LazyType) -> Option<LazyType> {
+fn traverse_index<'db>(db: &'db TypedownDatabase, lazy: &LazyType<'db>) -> Option<LazyType<'db>> {
   let typ = lazy.resolve(db)?;
   let list = typ.as_td_list_type()?;
   list.elem(db)
 }
 
-fn simple_schemaless_result(db: &TypedownDatabase) -> TypeResult {
+fn simple_schemaless_result<'db>(db: &'db TypedownDatabase) -> TypeResult<'db> {
   TypeResult::new(
     db,
     Some(TdProductType::new(db, None, HashMap::new()).into()),
@@ -514,8 +528,8 @@ mod tests {
     utils::lower_file,
   };
 
-  fn get_field_hir(
-    db: &TypedownDatabase,
+  fn get_field_hir<'db>(
+    db: &'db TypedownDatabase,
     project: Project,
     file: File,
     field: &str,
@@ -587,8 +601,8 @@ mod tests {
   }
 
   /// Get the HIR for a nested field value: top[field1][field2]
-  fn get_nested_field_hir(
-    db: &TypedownDatabase,
+  fn get_nested_field_hir<'db>(
+    db: &'db TypedownDatabase,
     project: Project,
     file: File,
     fields: &[&str],
@@ -638,7 +652,7 @@ mod tests {
 
   // Sequence item inside a list field should have expected type
   #[test]
-  fn expected_node_type_sequence_item() {
+  fn expected_node_type_sequence_item<'db>() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should parse");

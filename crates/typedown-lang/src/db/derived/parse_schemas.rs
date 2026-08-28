@@ -13,7 +13,7 @@ use super::get_vault_config::get_vault_config;
 use super::parse_file::parse_file;
 
 #[query_derived]
-pub fn parse_schemas(db: &TypedownDatabase, project: Project) -> SchemaAstResults {
+pub fn parse_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> SchemaAstResults<'db> {
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
   let proj_files = project.files(db);

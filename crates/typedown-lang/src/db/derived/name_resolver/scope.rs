@@ -7,12 +7,12 @@ use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub struct MaybeScope {
+pub struct MaybeScope<'db> {
   pub value: Option<Scope>,
 }
 
 #[query_derived]
-pub fn scope(db: &TypedownDatabase, hir: HirValue) -> Scope {
+pub fn scope<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Scope<'db> {
   let project = hir.project(db);
   let file = hir.file(db);
   let node = hir.node(db);
@@ -31,7 +31,7 @@ pub fn scope(db: &TypedownDatabase, hir: HirValue) -> Scope {
 }
 
 #[query_derived]
-pub fn parent_scope(db: &TypedownDatabase, scope: Scope) -> MaybeScope {
+pub fn parent_scope<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MaybeScope<'db> {
   match scope.kind(db) {
     ScopeKind::Builtin(_) => MaybeScope::new(db, None),
     ScopeKind::Project(project) => MaybeScope::new(db, Some(Scope::builtin_scope(db, project))),
@@ -41,12 +41,18 @@ pub fn parent_scope(db: &TypedownDatabase, scope: Scope) -> MaybeScope {
 }
 
 #[query_derived]
-pub fn get_builtin_runtime_scope(db: &TypedownDatabase, project: Project) -> RuntimeScope {
+pub fn get_builtin_runtime_scope<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+) -> RuntimeScope<'db> {
   RuntimeScope::new(db, Scope::builtin_scope(db, project), vec![], None)
 }
 
 #[query_derived]
-pub fn get_project_runtime_scope(db: &TypedownDatabase, project: Project) -> RuntimeScope {
+pub fn get_project_runtime_scope<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+) -> RuntimeScope<'db> {
   let parent = get_builtin_runtime_scope(db, project);
   RuntimeScope::new(
     db,
@@ -57,7 +63,11 @@ pub fn get_project_runtime_scope(db: &TypedownDatabase, project: Project) -> Run
 }
 
 #[query_derived]
-pub fn get_file_runtime_scope(db: &TypedownDatabase, project: Project, file: File) -> RuntimeScope {
+pub fn get_file_runtime_scope<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> RuntimeScope<'db> {
   let parent = get_project_runtime_scope(db, project);
   RuntimeScope::new(
     db,

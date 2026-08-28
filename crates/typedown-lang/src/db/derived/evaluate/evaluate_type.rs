@@ -27,7 +27,7 @@ use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
+pub fn evaluate_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypeResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(kind) => {
       let typ: TdTypeEnum = match kind {
@@ -58,8 +58,8 @@ pub fn evaluate_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
   }
 }
 
-fn evaluate_user_defined_schema(
-  db: &TypedownDatabase,
+fn evaluate_user_defined_schema<'db>(
+  db: &'db TypedownDatabase,
   schema_name: String,
   project: Project,
   file: File,
@@ -160,10 +160,10 @@ fn evaluate_user_defined_schema(
 }
 
 // Resolve _extends parent, pre-walking to detect cycles
-fn resolve_parent_schema(
-  db: &TypedownDatabase,
+fn resolve_parent_schema<'db>(
+  db: &'db TypedownDatabase,
   current_name: &str,
-  entries: &[(String, HirValue)],
+  entries: &[(String, HirValue<'db>)],
   diagnostics: &mut Vec<Diagnostic>,
 ) -> (HashMap<String, PropertyDescriptor>, Option<TdTypeEnum>) {
   let Some((_, extends_hir)) = entries.iter().find(|(key, _)| key == "_extends") else {
@@ -217,10 +217,10 @@ fn resolve_parent_schema(
 }
 
 // Walk _extends by reading raw HIR to detect cycles without triggering evaluate_type
-fn detect_extends_cycle(
-  db: &TypedownDatabase,
+fn detect_extends_cycle<'db>(
+  db: &'db TypedownDatabase,
   start_name: &str,
-  mut current_symbol: Symbol,
+  mut current_symbol: Symbol<'db>,
 ) -> Option<Vec<String>> {
   let mut visited = HashSet::new();
   visited.insert(start_name.to_string());
@@ -257,9 +257,9 @@ fn detect_extends_cycle(
 
 // Process a property descriptor like `{ type: string, default: "hello" }`
 // Returns Option<PropertyDescriptor>
-pub(crate) fn resolve_property_descriptor(
-  db: &TypedownDatabase,
-  hir: HirValue,
+pub(crate) fn resolve_property_descriptor<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<PropertyDescriptor> {
   let entries = match hir.kind(db) {
@@ -394,9 +394,9 @@ pub(crate) fn resolve_property_descriptor(
   })
 }
 
-fn resolve_type_lazy(
-  db: &TypedownDatabase,
-  hir: HirValue,
+fn resolve_type_lazy<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<LazyType> {
   match hir.kind(db) {
@@ -565,18 +565,18 @@ mod tests {
     utils::lower_file,
   };
 
-  fn make_db() -> TypedownDatabase {
+  fn make_db<'db>() -> TypedownDatabase {
     TypedownDatabase {
       storage: QueryStorage::default(),
     }
   }
 
-  fn make_project(db: &TypedownDatabase) -> Project {
+  fn make_project<'db>(db: &'db TypedownDatabase) -> Project {
     Project::new(db, PathBuf::from("/test"), HashMap::new())
   }
 
   #[test]
-  fn evaluate_type_builtin_schema_returns_schema_type() {
+  fn evaluate_type_builtin_schema_returns_schema_type<'db>() {
     let db = make_db();
     let symbol = Symbol::new(
       &db,
@@ -644,7 +644,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_type_wrong_property_descriptor_has_diagnostics() {
+  fn evaluate_type_wrong_property_descriptor_has_diagnostics<'db>() {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "_types/WrongPropertyDescriptor.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
@@ -951,9 +951,9 @@ mod tests {
   }
 
   #[test]
-  fn display_name_builtin_types() {
+  fn display_name_builtin_types<'db>() {
     let db = make_db();
-    let dn = |t: TdTypeEnum| t.display_name(&db);
+    let dn = |t: TdTypeEnum<'db>| t.display_name(&db);
     assert_eq!(dn(get_str_type(&db).into()), "string");
     assert_eq!(dn(get_num_type(&db).into()), "number");
     assert_eq!(dn(get_bool_type(&db).into()), "boolean");
@@ -969,9 +969,9 @@ mod tests {
   }
 
   #[test]
-  fn display_name_literal_types() {
+  fn display_name_literal_types<'db>() {
     let db = make_db();
-    let dn = |t: TdTypeEnum| t.display_name(&db);
+    let dn = |t: TdTypeEnum<'db>| t.display_name(&db);
     assert_eq!(
       dn(get_literal_type(&db, LiteralValue::Str("draft".to_string())).into()),
       "\"draft\""
@@ -987,7 +987,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_sum_type() {
+  fn display_name_sum_type<'db>() {
     let db = make_db();
     let sum = get_sum_type(
       &db,
@@ -1001,7 +1001,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_product_type() {
+  fn display_name_product_type<'db>() {
     let db = make_db();
     let product = TdProductType::new(
       &db,
@@ -1016,7 +1016,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_instantiated_list() {
+  fn display_name_instantiated_list<'db>() {
     let db = make_db();
     let list_str = TdTypeEnum::from(get_list_type(&db))
       .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())]);
@@ -1024,7 +1024,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_instantiated_dict() {
+  fn display_name_instantiated_dict<'db>() {
     let db = make_db();
     let dict_str_num = TdTypeEnum::from(get_dict_type(&db)).instantiate(
       &db,
@@ -1040,7 +1040,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_type_instantiate_bounded_type_violating_bound_produces_diagnostic() {
+  fn evaluate_type_instantiate_bounded_type_violating_bound_produces_diagnostic<'db>() {
     let db = make_db();
     let num_type = TdTypeEnum::from(get_num_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -1070,7 +1070,7 @@ mod tests {
   }
 
   #[test]
-  fn display_name_anonymous_product() {
+  fn display_name_anonymous_product<'db>() {
     let db = make_db();
     let product = TdProductType::new(
       &db,
@@ -1085,7 +1085,7 @@ mod tests {
   }
 
   // Helper to create an HirValue from a frontmatter string
-  fn make_hir(db: &TypedownDatabase, content: &str) -> HirValue {
+  fn make_hir<'db>(db: &'db TypedownDatabase, content: &str) -> HirValue<'db> {
     let file = File::new(
       db,
       FileHandle::Content(
@@ -1100,7 +1100,7 @@ mod tests {
   }
 
   // Helper to get a specific field's HirValue from a frontmatter mapping
-  fn get_field_hir(db: &TypedownDatabase, hir: HirValue, field: &str) -> HirValue {
+  fn get_field_hir<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>, field: &str) -> HirValue<'db> {
     match hir.kind(db) {
       HirValueKind::Mapping(entries) => entries.into_iter().find(|(k, _)| k == field).unwrap().1,
       _ => panic!("expected mapping"),
@@ -1174,11 +1174,11 @@ mod tests {
 
   // List construct from a sequence
   #[test]
-  fn construct_list() {
+  fn construct_list<'db>() {
     let db = make_db();
     let list_num = TdTypeEnum::from(get_list_type(&db))
       .instantiate(&db, vec![LazyType::eager(get_num_type(&db).into())]);
-    let items: Vec<TdObjectEnum> = vec![
+    let items: Vec<TdObjectEnum<'db>> = vec![
       TdNumObj::new(&db, 1.0).into(),
       TdNumObj::new(&db, 2.0).into(),
     ];
@@ -1227,7 +1227,7 @@ mod tests {
   }
 
   #[test]
-  fn construct_type_type_rejects_non_schema() {
+  fn construct_type_type_rejects_non_schema<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let (hir, _) = lower_file(&db, project, file);
     let scope = get_file_runtime_scope(&db, project, file);
@@ -1240,7 +1240,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_type_fref_resolves_referenced_type() {
+  fn evaluate_type_fref_resolves_referenced_type<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.unwrap();

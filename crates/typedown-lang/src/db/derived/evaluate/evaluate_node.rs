@@ -9,11 +9,11 @@ use crate::db::types::{HirValue, ResourceResult, RuntimeScope};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn evaluate_node(
-  db: &TypedownDatabase,
-  hir: HirValue,
-  runtime_scope: RuntimeScope,
-) -> ResourceResult {
+pub fn evaluate_node<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  runtime_scope: RuntimeScope<'db>,
+) -> ResourceResult<'db> {
   let mut diagnostics = vec![];
 
   let typecheck_result = typecheck(db, hir);

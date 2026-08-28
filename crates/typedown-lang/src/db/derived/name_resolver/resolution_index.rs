@@ -76,13 +76,13 @@ impl StableHash for Reference {
 }
 
 #[query_derived]
-pub struct ResolutionIndex {
+pub struct ResolutionIndex<'db> {
   references: HashMap<Symbol, Vec<Reference>>,
 }
 
 impl ResolutionIndex {
   /// Look up all references to a given symbol
-  pub fn get_references(&self, db: &TypedownDatabase, symbol: Symbol) -> Vec<Reference> {
+  pub fn get_references<'db>(&self, db: &'db TypedownDatabase, symbol: Symbol) -> Vec<Reference> {
     self
       .references(db)
       .get(&symbol)
@@ -91,14 +91,18 @@ impl ResolutionIndex {
   }
 
   /// Get all symbols referenced in this file
-  pub fn symbols(&self, db: &TypedownDatabase) -> Vec<Symbol> {
+  pub fn symbols<'db>(&self, db: &'db TypedownDatabase) -> Vec<Symbol> {
     self.references(db).keys().copied().collect()
   }
 }
 
 /// Build an index of all symbol references in a file
 #[query_derived]
-pub fn resolution_index(db: &TypedownDatabase, project: Project, file: File) -> ResolutionIndex {
+pub fn resolution_index<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> ResolutionIndex<'db> {
   let mut map: HashMap<Symbol, Vec<Reference>> = HashMap::new();
   let (hir, _) = lower_file(db, project, file);
   if let Some(hir) = hir {
@@ -108,7 +112,7 @@ pub fn resolution_index(db: &TypedownDatabase, project: Project, file: File) -> 
 }
 
 fn collect_references(
-  db: &TypedownDatabase,
+  db: &'db TypedownDatabase,
   hir: HirValue,
   map: &mut HashMap<Symbol, Vec<Reference>>,
 ) {
@@ -184,7 +188,7 @@ fn collect_references(
 }
 
 /// Find all references to a symbol across the project
-pub fn references(db: &TypedownDatabase, project: Project, symbol: Symbol) -> Vec<Reference> {
+pub fn references<'db>(db: &'db TypedownDatabase, project: Project, symbol: Symbol) -> Vec<Reference> {
   let mut refs = vec![];
   for file in project.files(db).values() {
     let idx = resolution_index(db, project, *file);

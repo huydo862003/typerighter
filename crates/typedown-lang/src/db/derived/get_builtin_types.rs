@@ -14,77 +14,77 @@ use crate::db::types::{
 use typedown_incremental::{QueryDatabase, StableCompare};
 
 #[query_derived]
-pub fn get_type_type(db: &TypedownDatabase) -> TdTypeType {
+pub fn get_type_type<'db>(db: &'db TypedownDatabase) -> TdTypeType<'db> {
   TdTypeType::new(db)
 }
 
 #[query_derived]
-pub fn get_object_type(db: &TypedownDatabase) -> TdObjectType {
+pub fn get_object_type<'db>(db: &'db TypedownDatabase) -> TdObjectType<'db> {
   TdObjectType::new(db)
 }
 
 #[query_derived]
-pub fn get_bool_type(db: &TypedownDatabase) -> TdBoolType {
+pub fn get_bool_type<'db>(db: &'db TypedownDatabase) -> TdBoolType<'db> {
   TdBoolType::new(db)
 }
 
 #[query_derived]
-pub fn get_str_type(db: &TypedownDatabase) -> TdStrType {
+pub fn get_str_type<'db>(db: &'db TypedownDatabase) -> TdStrType<'db> {
   TdStrType::new(db)
 }
 
 #[query_derived]
-pub fn get_num_type(db: &TypedownDatabase) -> TdNumType {
+pub fn get_num_type<'db>(db: &'db TypedownDatabase) -> TdNumType<'db> {
   TdNumType::new(db)
 }
 
 #[query_derived]
-pub fn get_list_type(db: &TypedownDatabase) -> TdListType {
+pub fn get_list_type<'db>(db: &'db TypedownDatabase) -> TdListType<'db> {
   TdListType::new(db, None)
 }
 
 #[query_derived]
-pub fn get_dict_type(db: &TypedownDatabase) -> TdDictType {
+pub fn get_dict_type<'db>(db: &'db TypedownDatabase) -> TdDictType<'db> {
   TdDictType::new(db, None, None)
 }
 
 #[query_derived]
-pub fn get_math_type(db: &TypedownDatabase) -> TdMathType {
+pub fn get_math_type<'db>(db: &'db TypedownDatabase) -> TdMathType<'db> {
   TdMathType::new(db)
 }
 
 #[query_derived]
-pub fn get_datetime_type(db: &TypedownDatabase) -> TdDateTimeType {
+pub fn get_datetime_type<'db>(db: &'db TypedownDatabase) -> TdDateTimeType<'db> {
   TdDateTimeType::new(db)
 }
 
 #[query_derived]
-pub fn get_date_type(db: &TypedownDatabase) -> TdDateType {
+pub fn get_date_type<'db>(db: &'db TypedownDatabase) -> TdDateType<'db> {
   TdDateType::new(db)
 }
 
 #[query_derived]
-pub fn get_time_type(db: &TypedownDatabase) -> TdTimeType {
+pub fn get_time_type<'db>(db: &'db TypedownDatabase) -> TdTimeType<'db> {
   TdTimeType::new(db)
 }
 
 #[query_derived]
-pub fn get_true(db: &TypedownDatabase) -> TdBoolObj {
+pub fn get_true<'db>(db: &'db TypedownDatabase) -> TdBoolObj<'db> {
   TdBoolObj::new(db, true)
 }
 
 #[query_derived]
-pub fn get_false(db: &TypedownDatabase) -> TdBoolObj {
+pub fn get_false<'db>(db: &'db TypedownDatabase) -> TdBoolObj<'db> {
   TdBoolObj::new(db, false)
 }
 
 // Schema metatype: the type of all schema types
 #[query_derived]
-pub fn get_schema_meta_type(db: &TypedownDatabase) -> TdSchemaMetaType {
+pub fn get_schema_meta_type<'db>(db: &'db TypedownDatabase) -> TdSchemaMetaType<'db> {
   TdSchemaMetaType::new(db)
 }
 
-pub fn get_type_type_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_type_type_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypeType),
@@ -93,7 +93,7 @@ pub fn get_type_type_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_object_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_object_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypeType),
@@ -102,7 +102,7 @@ pub fn get_object_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_schema_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_schema_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
@@ -111,7 +111,7 @@ pub fn get_schema_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_str_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_str_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Str),
@@ -120,7 +120,7 @@ pub fn get_str_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_num_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_num_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Num),
@@ -129,7 +129,7 @@ pub fn get_num_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_bool_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_bool_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Bool),
@@ -138,7 +138,7 @@ pub fn get_bool_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_date_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_date_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Date),
@@ -147,7 +147,7 @@ pub fn get_date_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_datetime_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_datetime_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::DateTime),
@@ -156,7 +156,7 @@ pub fn get_datetime_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_time_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_time_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Time),
@@ -165,7 +165,7 @@ pub fn get_time_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_math_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_math_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Math),
@@ -174,7 +174,7 @@ pub fn get_math_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_list_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_list_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::List),
@@ -183,7 +183,7 @@ pub fn get_list_symbol(db: &TypedownDatabase) -> Symbol {
   )
 }
 
-pub fn get_dict_symbol(db: &TypedownDatabase) -> Symbol {
+pub fn get_dict_symbol<'db>(db: &'db TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Dict),
@@ -193,43 +193,46 @@ pub fn get_dict_symbol(db: &TypedownDatabase) -> Symbol {
 }
 
 #[query_derived]
-pub fn get_blob_type(db: &TypedownDatabase) -> TdBlobType {
+pub fn get_blob_type<'db>(db: &'db TypedownDatabase) -> TdBlobType<'db> {
   TdBlobType::new(db)
 }
 
 #[query_derived]
-pub fn get_null_type(db: &TypedownDatabase) -> TdNullType {
+pub fn get_null_type<'db>(db: &'db TypedownDatabase) -> TdNullType<'db> {
   TdNullType::new(db)
 }
 
 #[query_derived]
-pub fn get_never_type(db: &TypedownDatabase) -> TdNeverType {
+pub fn get_never_type<'db>(db: &'db TypedownDatabase) -> TdNeverType<'db> {
   TdNeverType::new(db)
 }
 
 #[query_derived]
-pub fn get_literal_type(db: &TypedownDatabase, value: LiteralValue) -> TdLiteralType {
+pub fn get_literal_type<'db>(db: &'db TypedownDatabase, value: LiteralValue) -> TdLiteralType<'db> {
   TdLiteralType::new(db, value)
 }
 
 #[query_derived]
-pub fn get_null_obj(db: &TypedownDatabase) -> TdNullObj {
+pub fn get_null_obj<'db>(db: &'db TypedownDatabase) -> TdNullObj<'db> {
   TdNullObj::new(db)
 }
 
 #[query_derived]
-pub fn get_func_type(db: &TypedownDatabase, signature: FuncSignature) -> TdFuncType {
+pub fn get_func_type<'db>(db: &'db TypedownDatabase, signature: FuncSignature<'db>) -> TdFuncType<'db> {
   TdFuncType::new(db, signature)
 }
 
 #[query_derived]
-pub fn get_sum_type(db: &TypedownDatabase, members: Vec<LazyType>) -> TdSumType {
-  fn flatten_sum_members(db: &TypedownDatabase, members: &[LazyType]) -> Vec<LazyType> {
-    fn recurse(
-      db: &TypedownDatabase,
-      members: &[LazyType],
-      visited: &mut HashSet<TdSumType>,
-      out: &mut Vec<LazyType>,
+pub fn get_sum_type<'db>(db: &'db TypedownDatabase, members: Vec<LazyType<'db>>) -> TdSumType<'db> {
+  fn flatten_sum_members<'db>(
+    db: &'db TypedownDatabase,
+    members: &[LazyType<'db>],
+  ) -> Vec<LazyType<'db>> {
+    fn recurse<'db>(
+      db: &'db TypedownDatabase,
+      members: &[LazyType<'db>],
+      visited: &mut HashSet<TdSumType<'db>>,
+      out: &mut Vec<LazyType<'db>>,
     ) {
       for member in members {
         if let Some(TdTypeEnum::TdSumType(sum)) = member.as_eager() {
@@ -275,14 +278,14 @@ mod tests {
     derived::get_builtin_types::{get_dict_type, get_list_type, get_num_type, get_str_type},
   };
 
-  fn make_db() -> TypedownDatabase {
+  fn make_db<'db>() -> TypedownDatabase {
     TypedownDatabase {
       storage: QueryStorage::default(),
     }
   }
 
   #[test]
-  fn instantiate_list_with_correct_arity() {
+  fn instantiate_list_with_correct_arity<'db>() {
     let db = make_db();
     let list = TdTypeEnum::from(get_list_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -303,7 +306,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_record_with_correct_arity() {
+  fn instantiate_record_with_correct_arity<'db>() {
     let db = make_db();
     let record = TdTypeEnum::from(get_dict_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -325,7 +328,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_list_wrong_arity_produces_diagnostic() {
+  fn instantiate_list_wrong_arity_produces_diagnostic<'db>() {
     let db = make_db();
     let list = TdTypeEnum::from(get_list_type(&db));
 
@@ -346,7 +349,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_record_wrong_arity_produces_diagnostic() {
+  fn instantiate_record_wrong_arity_produces_diagnostic<'db>() {
     let db = make_db();
     let record = TdTypeEnum::from(get_dict_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -369,7 +372,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_arity0_type_with_no_args() {
+  fn instantiate_arity0_type_with_no_args<'db>() {
     let db = make_db();
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let expected = str_type.clone();
@@ -387,7 +390,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_arity0_type_with_extra_args_produces_diagnostic() {
+  fn instantiate_arity0_type_with_extra_args_produces_diagnostic<'db>() {
     let db = make_db();
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let num_type = TdTypeEnum::from(get_num_type(&db));
@@ -409,7 +412,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_bounded_type_violating_bound_produces_diagnostic() {
+  fn instantiate_bounded_type_violating_bound_produces_diagnostic<'db>() {
     let db = make_db();
     let num_type = TdTypeEnum::from(get_num_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -431,7 +434,7 @@ mod tests {
   }
 
   #[test]
-  fn sum_type_flattening() {
+  fn sum_type_flattening<'db>() {
     let db = make_db();
     let str_t = LazyType::eager(get_str_type(&db).into());
     let num_t = LazyType::eager(get_num_type(&db).into());

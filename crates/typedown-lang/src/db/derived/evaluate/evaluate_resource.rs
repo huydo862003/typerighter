@@ -13,7 +13,7 @@ use typedown_incremental::QueryDatabase;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 
 #[query_derived]
-pub fn evaluate_resource(db: &TypedownDatabase, symbol: Symbol) -> ResourceResult {
+pub fn evaluate_resource<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> ResourceResult<'db> {
   if let SymbolKind::Asset(asset_kind, _project, file) = symbol.kind(db) {
     let blob = TdBlobObj::new(db, asset_kind, file);
     return ResourceResult::new(db, Some(blob.into()), vec![]);
@@ -299,13 +299,13 @@ mod tests {
     assert_eq!(str_obj.value(&db), "hello 42");
   }
 
-  fn get_num_field(db: &TypedownDatabase, obj: &TdObjectEnum, field: &str) -> f64 {
+  fn get_num_field(db: &'db TypedownDatabase, obj: &TdObjectEnum, field: &str) -> f64 {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
     let num = field_obj.as_td_num_obj().expect("should be TdNumObj");
     num.value(db)
   }
 
-  fn get_bool_field(db: &TypedownDatabase, obj: &TdObjectEnum, field: &str) -> bool {
+  fn get_bool_field(db: &'db TypedownDatabase, obj: &TdObjectEnum, field: &str) -> bool {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
     let b = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
     b.value(db)

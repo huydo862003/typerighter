@@ -16,7 +16,7 @@ use crate::db::types::{
   BuiltinSchemaKind, LazyType, Symbol, SymbolKind, TdProductType, TdStaticType,
 };
 
-fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
+fn get_schema_property_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::SchemaProperty),
@@ -26,7 +26,7 @@ fn get_schema_property_symbol(db: &TypedownDatabase) -> Symbol {
 }
 
 #[query_derived]
-pub fn get_schema_property_type(db: &TypedownDatabase) -> TdProductType {
+pub fn get_schema_property_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   let type_type = get_type_type(db).into();
   let str_type = get_str_type(db).into();
   let bool_type = get_bool_type(db).into();

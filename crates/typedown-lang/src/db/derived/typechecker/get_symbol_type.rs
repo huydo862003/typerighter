@@ -14,7 +14,7 @@ use crate::db::utils::lower_file;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn get_symbol_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
+pub fn get_symbol_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypeResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(_) => TypeResult::new(db, Some(get_type_type(db).into()), vec![]),
     SymbolKind::UserDefinedSchema(_, _) => {
@@ -41,7 +41,7 @@ pub fn get_symbol_type(db: &TypedownDatabase, symbol: Symbol) -> TypeResult {
 }
 
 // Get param type from expected(closure) by position
-fn get_fn_param_type(db: &TypedownDatabase, symbol: Symbol, closure: HirValue) -> TypeResult {
+fn get_fn_param_type(db: &'db TypedownDatabase, symbol: Symbol, closure: HirValue) -> TypeResult {
   let expected = expected_node_type(db, closure).typ(db);
   let func_type = match expected {
     Some(TdTypeEnum::TdFuncType(f)) => f,

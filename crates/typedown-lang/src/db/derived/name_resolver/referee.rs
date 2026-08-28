@@ -12,7 +12,7 @@ use crate::db::types::{HirValue, HirValueKind};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn referee(db: &TypedownDatabase, hir: HirValue) -> MaybeSymbol {
+pub fn referee<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> MaybeSymbol<'db> {
   match hir.kind(db) {
     HirValueKind::Ident(name) => resolve_ident(db, hir, name),
     HirValueKind::Call { callee, args } => resolve_call(db, hir, *callee, args),
@@ -20,7 +20,7 @@ pub fn referee(db: &TypedownDatabase, hir: HirValue) -> MaybeSymbol {
   }
 }
 
-fn resolve_ident(db: &TypedownDatabase, hir: HirValue, name: String) -> MaybeSymbol {
+fn resolve_ident<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>, name: String) -> MaybeSymbol<'db> {
   if is_dot_rhs(&hir.node(db)) {
     return MaybeSymbol::new(db, None);
   }
@@ -44,11 +44,11 @@ fn resolve_ident(db: &TypedownDatabase, hir: HirValue, name: String) -> MaybeSym
   }
 }
 
-fn resolve_call(
-  db: &TypedownDatabase,
-  hir: HirValue,
-  callee: HirValue,
-  args: Vec<HirValue>,
+fn resolve_call<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  callee: HirValue<'db>,
+  args: Vec<HirValue<'db>>,
 ) -> MaybeSymbol {
   if let HirValueKind::Ident(name) = callee.kind(db)
     && name == "fref"
@@ -121,7 +121,7 @@ mod tests {
 
   // fref("nonexistent.td") resolves to None when the target file does not exist
   #[test]
-  fn fref_with_nonexistent_path_resolves_to_none() {
+  fn fref_with_nonexistent_path_resolves_to_none<'db>() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
 
     // Construct a fref("nonexistent.td") HIR node manually
@@ -162,7 +162,11 @@ mod tests {
   }
 
   /// Recursively searches the HIR value tree for the first `Ident` node matching `target_name`
-  fn find_ident(db: &TypedownDatabase, root: HirValue, target_name: &str) -> Option<HirValue> {
+  fn find_ident<'db>(
+    db: &'db TypedownDatabase,
+    root: HirValue<'db>,
+    target_name: &str,
+  ) -> Option<HirValue<'db>> {
     if let HirValueKind::Ident(name) = root.kind(db)
       && name == target_name
     {

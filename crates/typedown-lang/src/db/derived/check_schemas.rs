@@ -14,13 +14,13 @@ use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub struct SchemaCheckResult {
+pub struct SchemaCheckResult<'db> {
   diagnostics: Vec<Diagnostic>,
 }
 
 /// Check all files in _types for duplicate schema names
 #[query_derived]
-pub fn check_schemas(db: &TypedownDatabase, project: Project) -> SchemaCheckResult {
+pub fn check_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> SchemaCheckResult<'db> {
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
