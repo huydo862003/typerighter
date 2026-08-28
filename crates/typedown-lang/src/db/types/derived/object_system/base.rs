@@ -247,7 +247,7 @@ pub trait TdRuntimeObject: Id {
 #[query_derived]
 pub struct TdTypeType<'db> {}
 
-impl TdRuntimeObject for TdTypeType<'_> {
+impl<'db> TdRuntimeObject for TdTypeType<'db> {
   fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -263,7 +263,7 @@ impl TdRuntimeObject for TdTypeType<'_> {
   }
 }
 
-impl TdStaticType for TdTypeType<'_> {
+impl<'db> TdStaticType<'db> for TdTypeType<'db> {
   fn display_name(&self, _db: &::typedown_lang::db::TypedownDatabase) -> String {
     "type".to_string()
   }
@@ -275,7 +275,7 @@ impl TdStaticType for TdTypeType<'_> {
   }
 }
 
-impl TdTypeType<'_> {
+impl<'db> TdTypeType<'db> {
   pub fn get(db: &::typedown_lang::db::TypedownDatabase) -> TdTypeType {
     get_type_type(db)
   }

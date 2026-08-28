@@ -15,7 +15,7 @@ pub(crate) use utils::{is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_ti
 #[query_derived]
 pub struct TdDateTimeType<'db> {}
 
-impl TdRuntimeObject for TdDateTimeType {
+impl<'db> TdRuntimeObject for TdDateTimeType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -27,7 +27,7 @@ impl TdRuntimeObject for TdDateTimeType {
   }
 }
 
-impl TdStaticType for TdDateTimeType {
+impl<'db> TdStaticType<'db> for TdDateTimeType {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "datetime".to_string()
   }
@@ -61,7 +61,7 @@ pub struct TdDateTimeObj<'db> {
   pub value: String,
 }
 
-impl TdRuntimeObject for TdDateTimeObj {
+impl<'db> TdRuntimeObject for TdDateTimeObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdDateTimeType::get(db).into()
   }
@@ -116,7 +116,7 @@ impl TdRuntimeObject for TdDateTimeObj {
 #[query_derived]
 pub struct TdDateType<'db> {}
 
-impl TdRuntimeObject for TdDateType {
+impl<'db> TdRuntimeObject for TdDateType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -128,7 +128,7 @@ impl TdRuntimeObject for TdDateType {
   }
 }
 
-impl TdStaticType for TdDateType {
+impl<'db> TdStaticType<'db> for TdDateType {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "date".to_string()
   }
@@ -162,7 +162,7 @@ pub struct TdDateObj<'db> {
   pub value: String,
 }
 
-impl TdRuntimeObject for TdDateObj {
+impl<'db> TdRuntimeObject for TdDateObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdDateType::get(db).into()
   }
@@ -217,7 +217,7 @@ impl TdRuntimeObject for TdDateObj {
 #[query_derived]
 pub struct TdTimeType<'db> {}
 
-impl TdRuntimeObject for TdTimeType {
+impl<'db> TdRuntimeObject for TdTimeType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -229,7 +229,7 @@ impl TdRuntimeObject for TdTimeType {
   }
 }
 
-impl TdStaticType for TdTimeType {
+impl<'db> TdStaticType<'db> for TdTimeType {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "time".to_string()
   }
@@ -263,7 +263,7 @@ pub struct TdTimeObj<'db> {
   pub value: String,
 }
 
-impl TdRuntimeObject for TdTimeObj {
+impl<'db> TdRuntimeObject for TdTimeObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTimeType::get(db).into()
   }

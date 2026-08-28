@@ -14,7 +14,7 @@ pub struct TdSumType<'db> {
   pub members: HashSet<LazyType>,
 }
 
-impl TdStaticType for TdSumType<'_> {
+impl<'db> TdStaticType<'db> for TdSumType<'db> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     let mut members: Vec<_> = self.members(db).into_iter().collect();
     members.sort_by(|a, b| a.stable_cmp(db, b));
@@ -67,7 +67,7 @@ impl TdStaticType for TdSumType<'_> {
   }
 }
 
-impl TdRuntimeObject for TdSumType<'_> {
+impl<'db> TdRuntimeObject for TdSumType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }

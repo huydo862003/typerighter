@@ -14,7 +14,7 @@ use crate::db::types::FuncSignature;
 #[query_derived]
 pub struct TdObjectType<'db> {}
 
-impl TdStaticType for TdObjectType<'_> {
+impl<'db> TdStaticType<'db> for TdObjectType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "Object".to_string()
   }
@@ -45,7 +45,7 @@ impl TdStaticType for TdObjectType<'_> {
   }
 }
 
-impl TdRuntimeObject for TdObjectType<'_> {
+impl<'db> TdRuntimeObject for TdObjectType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }

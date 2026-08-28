@@ -15,7 +15,7 @@ pub struct TdVariableType<'db> {
   pub variable: TypeVariable,
 }
 
-impl TdStaticType for TdVariableType<'_> {
+impl<'db> TdStaticType<'db> for TdVariableType<'db> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     let var = self.variable(db);
     if let Some(b) = var.upper_bound(db).resolve(db) {
@@ -72,7 +72,7 @@ impl TdStaticType for TdVariableType<'_> {
   }
 }
 
-impl TdRuntimeObject for TdVariableType<'_> {
+impl<'db> TdRuntimeObject for TdVariableType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }

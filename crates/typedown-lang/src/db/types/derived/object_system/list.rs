@@ -17,13 +17,13 @@ pub struct TdListType<'db> {
   pub element_type: Option<LazyType>,
 }
 
-impl TdListType<'_> {
+impl<'db> TdListType<'db> {
   pub fn elem(&self, db: &TypedownDatabase) -> Option<LazyType> {
     self.element_type(db)
   }
 }
 
-impl TdRuntimeObject for TdListType<'_> {
+impl<'db> TdRuntimeObject for TdListType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -46,7 +46,7 @@ impl TdRuntimeObject for TdListType<'_> {
   }
 }
 
-impl TdStaticType for TdListType<'_> {
+impl<'db> TdStaticType<'db> for TdListType<'db> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     match self.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => format!("list[{}]", elem.display_name(db)),
@@ -117,7 +117,7 @@ impl TdStaticType for TdListType<'_> {
   }
 }
 
-impl TdListType<'_> {
+impl<'db> TdListType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdListType {
     get_list_type(db)
   }
@@ -128,7 +128,7 @@ pub struct TdListObj<'db> {
   pub items: Vec<Either<HirValue, TdObjectEnum>>,
 }
 
-impl TdRuntimeObject for TdListObj<'_> {
+impl<'db> TdRuntimeObject for TdListObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdListType::get(db).into()
   }
@@ -149,7 +149,7 @@ impl TdRuntimeObject for TdListObj<'_> {
   }
 }
 
-impl TdListObj<'_> {
+impl<'db> TdListObj<'db> {
   pub fn len(&self, db: &TypedownDatabase) -> usize {
     self.items(db).len()
   }

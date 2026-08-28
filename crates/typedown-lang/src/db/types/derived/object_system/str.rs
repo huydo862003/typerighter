@@ -11,7 +11,7 @@ use typedown_incremental::Id;
 #[query_derived]
 pub struct TdStrType<'db> {}
 
-impl TdRuntimeObject for TdStrType<'_> {
+impl<'db> TdRuntimeObject for TdStrType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -23,7 +23,7 @@ impl TdRuntimeObject for TdStrType<'_> {
   }
 }
 
-impl TdStaticType for TdStrType<'_> {
+impl<'db> TdStaticType<'db> for TdStrType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "string".to_string()
   }
@@ -46,7 +46,7 @@ impl TdStaticType for TdStrType<'_> {
   }
 }
 
-impl TdStrType<'_> {
+impl<'db> TdStrType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdStrType {
     get_str_type(db)
   }
@@ -57,7 +57,7 @@ pub struct TdStrObj<'db> {
   pub value: String,
 }
 
-impl TdRuntimeObject for TdStrObj<'_> {
+impl<'db> TdRuntimeObject for TdStrObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdStrType::get(db).into()
   }

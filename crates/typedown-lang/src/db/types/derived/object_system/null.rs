@@ -9,7 +9,7 @@ use crate::db::types::Project;
 #[query_derived]
 pub struct TdNullType<'db> {}
 
-impl TdRuntimeObject for TdNullType<'_> {
+impl<'db> TdRuntimeObject for TdNullType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -21,7 +21,7 @@ impl TdRuntimeObject for TdNullType<'_> {
   }
 }
 
-impl TdStaticType for TdNullType<'_> {
+impl<'db> TdStaticType<'db> for TdNullType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "null".to_string()
   }
@@ -38,7 +38,7 @@ impl TdStaticType for TdNullType<'_> {
   }
 }
 
-impl TdNullType<'_> {
+impl<'db> TdNullType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdNullType {
     get_null_type(db)
   }
@@ -47,7 +47,7 @@ impl TdNullType<'_> {
 #[query_derived]
 pub struct TdNullObj<'db> {}
 
-impl TdRuntimeObject for TdNullObj<'_> {
+impl<'db> TdRuntimeObject for TdNullObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdNullType::get(db).into()
   }
@@ -62,7 +62,7 @@ impl TdRuntimeObject for TdNullObj<'_> {
   }
 }
 
-impl TdNullObj<'_> {
+impl<'db> TdNullObj<'db> {
   pub fn get(db: &TypedownDatabase) -> TdNullObj {
     get_null_obj(db)
   }

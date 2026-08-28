@@ -19,7 +19,7 @@ pub struct TdDictType<'db> {
   pub value_type: Option<LazyType>,
 }
 
-impl TdDictType<'_> {
+impl<'db> TdDictType<'db> {
   pub fn key(&self, db: &TypedownDatabase) -> Option<LazyType> {
     self.key_type(db)
   }
@@ -29,7 +29,7 @@ impl TdDictType<'_> {
   }
 }
 
-impl TdRuntimeObject for TdDictType<'_> {
+impl<'db> TdRuntimeObject for TdDictType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -51,7 +51,7 @@ impl TdRuntimeObject for TdDictType<'_> {
   }
 }
 
-impl TdStaticType for TdDictType<'_> {
+impl<'db> TdStaticType<'db> for TdDictType<'db> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     match (
       self.key(db).and_then(|l| l.resolve(db)),
@@ -162,7 +162,7 @@ impl TdStaticType for TdDictType<'_> {
   }
 }
 
-impl TdDictType<'_> {
+impl<'db> TdDictType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdDictType {
     get_dict_type(db)
   }
@@ -173,7 +173,7 @@ pub struct TdDictObj<'db> {
   pub entries: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
 
-impl TdRuntimeObject for TdDictObj<'_> {
+impl<'db> TdRuntimeObject for TdDictObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdDictType::get(db).into()
   }

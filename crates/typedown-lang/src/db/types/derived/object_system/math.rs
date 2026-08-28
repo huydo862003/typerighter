@@ -9,7 +9,7 @@ use crate::db::types::Project;
 #[query_derived]
 pub struct TdMathType<'db> {}
 
-impl TdRuntimeObject for TdMathType<'_> {
+impl<'db> TdRuntimeObject for TdMathType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -21,7 +21,7 @@ impl TdRuntimeObject for TdMathType<'_> {
   }
 }
 
-impl TdStaticType for TdMathType<'_> {
+impl<'db> TdStaticType<'db> for TdMathType<'db> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {
     "math".to_string()
   }
@@ -40,7 +40,7 @@ impl TdStaticType for TdMathType<'_> {
   }
 }
 
-impl TdMathType<'_> {
+impl<'db> TdMathType<'db> {
   pub fn get(db: &TypedownDatabase) -> TdMathType {
     get_math_type(db)
   }
@@ -51,7 +51,7 @@ pub struct TdMathObj<'db> {
   pub value: String,
 }
 
-impl TdRuntimeObject for TdMathObj<'_> {
+impl<'db> TdRuntimeObject for TdMathObj<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdMathType::get(db).into()
   }

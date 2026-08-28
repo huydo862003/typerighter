@@ -13,7 +13,7 @@ pub struct TdLiteralType<'db> {
   pub value: LiteralValue,
 }
 
-impl TdRuntimeObject for TdLiteralType<'_> {
+impl<'db> TdRuntimeObject for TdLiteralType<'db> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     TdTypeType::get(db).into()
   }
@@ -25,7 +25,7 @@ impl TdRuntimeObject for TdLiteralType<'_> {
   }
 }
 
-impl TdStaticType for TdLiteralType<'_> {
+impl<'db> TdStaticType<'db> for TdLiteralType<'db> {
   fn display_name(&self, db: &TypedownDatabase) -> String {
     match self.value(db) {
       LiteralValue::Str(s) => format!("\"{}\"", s),
@@ -59,7 +59,7 @@ impl TdStaticType for TdLiteralType<'_> {
   }
 }
 
-impl TdLiteralType<'_> {
+impl<'db> TdLiteralType<'db> {
   pub fn underlying_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
     match self.value(db) {
       LiteralValue::Str(_) => get_str_type(db).into(),
