@@ -601,14 +601,14 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   // Internal field types with 'db erased to 'static for ingredient storage
   let internal_field_types_static: Vec<proc_macro2::TokenStream> = internal_field_types
     .iter()
-    .map(|ty| erase_db_lifetime_tokens(ty))
+    .map(erase_db_lifetime_tokens)
     .collect();
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
   // Field types with 'db erased to 'static for ingredient storage
   let field_types_static: Vec<proc_macro2::TokenStream> = field_types
     .iter()
-    .map(|ty| erase_db_lifetime_tokens(ty))
+    .map(erase_db_lifetime_tokens)
     .collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
   let first_field_ty = internal_field_types_static.first().cloned();
@@ -625,7 +625,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   // Erase 'db to 'static for the identity map key (DashMap requires 'static)
   let id_field_tys_static: Vec<proc_macro2::TokenStream> = id_field_tys
     .iter()
-    .map(|ty| erase_db_lifetime_tokens(ty))
+    .map(erase_db_lifetime_tokens)
     .collect();
   let id_field_names: Vec<_> = id_fields
     .iter()
@@ -970,7 +970,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
   let field_types_static: Vec<proc_macro2::TokenStream> = field_types
     .iter()
-    .map(|ty| erase_db_lifetime_tokens(ty))
+    .map(erase_db_lifetime_tokens)
     .collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
   let intern_key_ty = quote! { (#(#field_types_static,)*) };

@@ -80,7 +80,11 @@ pub struct TypeParams<'db> {
 }
 
 impl<'db> TypeParams<'db> {
-  pub fn instantiate(&self, db: &'db TypedownDatabase, args: Vec<LazyType<'db>>) -> Option<TypeParams<'db>> {
+  pub fn instantiate(
+    &self,
+    db: &'db TypedownDatabase,
+    args: Vec<LazyType<'db>>,
+  ) -> Option<TypeParams<'db>> {
     let params = self.params(db);
     if params.len() != args.len() {
       return None;
@@ -88,7 +92,12 @@ impl<'db> TypeParams<'db> {
     Some(TypeParams::new(db, params, args))
   }
 
-  pub fn bind(&self, db: &'db TypedownDatabase, index: usize, arg: LazyType<'db>) -> Option<TypeParams<'db>> {
+  pub fn bind(
+    &self,
+    db: &'db TypedownDatabase,
+    index: usize,
+    arg: LazyType<'db>,
+  ) -> Option<TypeParams<'db>> {
     let params = self.params(db);
     let mut bindings = self.bindings(db);
     if index >= params.len() {

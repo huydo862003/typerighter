@@ -74,7 +74,7 @@ pub trait TdStaticType<'x0> {
   }
 
   /// Parent type for prototype chain method lookup and type hierarchy
-  fn parent_type (&self, db: &'x0 TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type(&self, db: &'x0 TypedownDatabase) -> Option<TdTypeEnum> {
     Some(get_object_type(db).into())
   }
 
