@@ -454,6 +454,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
       #[allow(non_camel_case_types)]
       #visibility struct #fn_name { private: () }
 
+      #[allow(clippy::useless_transmute)]
       impl #fn_name {
         fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
@@ -517,6 +518,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   // Generate the public wrapper that calls execute_query
   output.extend::<TokenStream>(
     quote! {
+      #[allow(clippy::useless_transmute)]
       #visibility fn #fn_name<'db>(#db_arg, #(#key_names: #key_types),*) -> #return_type {
         let storage = unsafe { db.storage() };
         let ingredient = (&*storage.ingredients[#fn_name::ingredient_index()].ingredient as &dyn ::std::any::Any)
@@ -790,6 +792,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
       #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>);
 
+      #[allow(clippy::useless_transmute)]
       impl<'db> #struct_name<'db> {
         fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static START_INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
@@ -1043,6 +1046,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
       #struct_def;
 
+      #[allow(clippy::useless_transmute)]
       #impl_header {
         fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
