@@ -451,7 +451,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
       // in different namespaces
       // However, unit structs create both a value and a type (cause you can use a unit struct name
       // to represent the singleton value)
-      #[allow(non_camel_case_types)]
+      #[allow(non_camel_case_types, clippy::useless_transmute)]
       #visibility struct #fn_name { private: () }
 
       #[allow(clippy::useless_transmute)]

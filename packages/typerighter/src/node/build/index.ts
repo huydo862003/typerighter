@@ -35,8 +35,6 @@ export interface BuildOptions {
 export async function buildSite (ctx: AppContext, options: BuildOptions = {}): Promise<void> {
   const { root, logger } = ctx;
   const outDir = path.resolve(root, options.outDir ?? 'dist');
-  const base = options.base ?? '/';
-
   const clientOutDir = path.join(outDir, '.client');
   const ssrOutDir = path.join(outDir, '.server');
 
@@ -57,6 +55,9 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     tdContext.listFilesGroupedBySchema(),
     tdContext.listSchemas(),
   ]);
+
+  const rawBase = options.base ?? config.basePath ?? '/';
+  const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
 
   const schemaEntries = await Promise.all(
     schemaNames.map(async (name) => {
