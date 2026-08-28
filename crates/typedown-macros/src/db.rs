@@ -439,7 +439,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
         }
 
         /// The bare query implementation
-        fn #fn_name(db: &#db_type, key: #key_tuple_ty) -> #return_type {
+        fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty) -> #return_type {
           let (#(#key_names,)*) = key;
           #fn_block
         }
