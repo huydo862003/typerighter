@@ -11,7 +11,7 @@ pub enum PathStep {
 
 /// A static access path rooted at an owner symbol
 #[derive(Clone, Debug)]
-pub struct StaticAccessPath {
-  pub owner: Symbol,
+pub struct StaticAccessPath<'db> {
+  pub owner: Symbol<'db>,
   pub steps: Vec<PathStep>,
 }
