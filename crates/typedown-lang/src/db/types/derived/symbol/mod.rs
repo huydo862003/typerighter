@@ -440,7 +440,7 @@ impl<'db> Scope<'db> {
     db: &'db (impl QueryDatabase + ?Sized),
     project: Project,
     file: File,
-    value: HirValue,
+    value: HirValue<'db>,
   ) -> Self {
     Self::new(db, ScopeKind::Fn(project, file, value))
   }
@@ -454,13 +454,14 @@ impl<'db> Scope<'db> {
     }
   }
 
-  pub fn runtime_scope(&self, db: &TypedownDatabase) -> RuntimeScope {
+  pub fn runtime_scope(&self, db: &'db TypedownDatabase) -> RuntimeScope<'db> {
     match self.kind(db) {
       ScopeKind::Builtin(project) => get_builtin_runtime_scope(db, project),
       ScopeKind::Project(project) => get_project_runtime_scope(db, project),
       ScopeKind::File(project, file) => get_file_runtime_scope(db, project, file),
       ScopeKind::Fn(project, file, _) => {
-        let parent_static = parent_scope(db, *self).value(db);
+        let scope = parent_scope(db, *self);
+        let parent_static = scope.value(db);
         if let Some(parent) = parent_static
           && matches!(parent.kind(db), ScopeKind::Fn(..))
         {
@@ -485,7 +486,7 @@ pub struct RuntimeScope<'db> {
 }
 
 impl<'db> RuntimeScope<'db> {
-  pub fn lookup(&self, db: &(impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum> {
+  pub fn lookup(&self, db: &'db (impl QueryDatabase + ?Sized), name: &str) -> Option<TdObjectEnum<'db>> {
     for (key, val) in &self.bindings(db) {
       if key == name {
         return Some(val.clone());
