@@ -494,9 +494,10 @@ fn traverse_field<'db>(
   }
   // Dict: any key maps to the value type
   if let Some(dict) = typ.as_td_dict_type().copied()
-    && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db)) {
-      return Some(LazyType::eager(value_type));
-    }
+    && let Some(value_type) = dict.value(db).and_then(|l| l.resolve(db))
+  {
+    return Some(LazyType::eager(value_type));
+  }
   None
 }
 
