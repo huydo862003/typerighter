@@ -188,7 +188,11 @@ fn collect_references(
 }
 
 /// Find all references to a symbol across the project
-pub fn references<'db>(db: &'db TypedownDatabase, project: Project, symbol: Symbol) -> Vec<Reference> {
+pub fn references<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  symbol: Symbol,
+) -> Vec<Reference> {
   let mut refs = vec![];
   for file in project.files(db).values() {
     let idx = resolution_index(db, project, *file);

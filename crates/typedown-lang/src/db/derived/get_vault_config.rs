@@ -13,7 +13,10 @@ use crate::db::types::{Project, VaultConfigResult};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn get_vault_config<'db>(db: &'db TypedownDatabase, project: Project) -> VaultConfigResult<'db> {
+pub fn get_vault_config<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+) -> VaultConfigResult<'db> {
   let root = project.root_dir(db);
   let mut diagnostics = Vec::new();
 

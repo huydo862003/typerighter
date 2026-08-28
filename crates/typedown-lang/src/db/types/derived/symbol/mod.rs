@@ -420,7 +420,7 @@ impl<'db> Decodable for ScopeKind<'db> {
 #[query_derived]
 pub struct Scope<'db> {
   #[id]
-  kind: ScopeKind,
+  kind: ScopeKind<'db>,
 }
 
 impl<'db> Scope<'db> {

@@ -490,7 +490,11 @@ mod tests {
     false
   }
 
-  fn is_literal_bool<'db>(db: &'db TypedownDatabase, typ: &TdTypeEnum<'db>, expected: bool) -> bool {
+  fn is_literal_bool<'db>(
+    db: &'db TypedownDatabase,
+    typ: &TdTypeEnum<'db>,
+    expected: bool,
+  ) -> bool {
     if let TdTypeEnum::TdLiteralType(lit) = typ {
       return lit.value(db) == LiteralValue::Bool(expected);
     }

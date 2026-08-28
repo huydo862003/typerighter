@@ -12,7 +12,11 @@ pub struct MaybeSymbol<'db> {
 }
 
 #[query_derived]
-pub fn file_symbol<'db>(db: &'db TypedownDatabase, project: Project, file: File) -> MaybeSymbol<'db> {
+pub fn file_symbol<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> MaybeSymbol<'db> {
   let path = file.handle(db).path().cloned().unwrap_or_default();
   let is_schema_file = is_type_file(&path);
 

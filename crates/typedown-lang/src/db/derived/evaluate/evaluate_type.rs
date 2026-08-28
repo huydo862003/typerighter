@@ -1100,7 +1100,11 @@ mod tests {
   }
 
   // Helper to get a specific field's HirValue from a frontmatter mapping
-  fn get_field_hir<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>, field: &str) -> HirValue<'db> {
+  fn get_field_hir<'db>(
+    db: &'db TypedownDatabase,
+    hir: HirValue<'db>,
+    field: &str,
+  ) -> HirValue<'db> {
     match hir.kind(db) {
       HirValueKind::Mapping(entries) => entries.into_iter().find(|(k, _)| k == field).unwrap().1,
       _ => panic!("expected mapping"),

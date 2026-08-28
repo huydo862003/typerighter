@@ -13,7 +13,11 @@ use crate::db::types::{File, FileAstResult, Project};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
-pub fn parse_file<'db>(db: &'db TypedownDatabase, project: Project, file: File) -> FileAstResult<'db> {
+pub fn parse_file<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> FileAstResult<'db> {
   let handle = file.handle(db);
   let stream = handle.open().expect("failed to open file");
 

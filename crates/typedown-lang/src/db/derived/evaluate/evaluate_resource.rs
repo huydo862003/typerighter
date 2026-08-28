@@ -13,7 +13,10 @@ use typedown_incremental::QueryDatabase;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 
 #[query_derived]
-pub fn evaluate_resource<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> ResourceResult<'db> {
+pub fn evaluate_resource<'db>(
+  db: &'db TypedownDatabase,
+  symbol: Symbol<'db>,
+) -> ResourceResult<'db> {
   if let SymbolKind::Asset(asset_kind, _project, file) = symbol.kind(db) {
     let blob = TdBlobObj::new(db, asset_kind, file);
     return ResourceResult::new(db, Some(blob.into()), vec![]);

@@ -4,6 +4,15 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{ItemFn, ItemStruct};
 
+// Replace 'db with 'static in a token stream for storage contexts
+fn erase_db_lifetime_tokens(ty: &impl quote::ToTokens) -> proc_macro2::TokenStream {
+  quote!(#ty)
+    .to_string()
+    .replace("'db", "'static")
+    .parse()
+    .expect("failed to parse type with erased lifetime")
+}
+
 pub fn query_db_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   // Only a struct can be decorated
   let struct_ast = match syn::parse::<ItemStruct>(item) {
@@ -351,7 +360,11 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   };
 
   // Assert that the function is generic over 'db
-  let has_db_lifetime = func.sig.generics.lifetimes().any(|param| param.lifetime.ident == "db");
+  let has_db_lifetime = func
+    .sig
+    .generics
+    .lifetimes()
+    .any(|param| param.lifetime.ident == "db");
   if !has_db_lifetime {
     return syn::Error::new_spanned(
       &func.sig,
@@ -395,10 +408,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   let key_tuple_ty = quote! { (#(#key_types,)*) };
 
   // Key tuple with 'db replaced by 'static for inventory/storage contexts
-  let key_tuple_ty_static = {
-    let s = key_tuple_ty.to_string().replace("'db", "'static");
-    s.parse::<proc_macro2::TokenStream>().expect("failed to parse static key tuple type")
-  };
+  let key_tuple_ty_static = erase_db_lifetime_tokens(&key_tuple_ty);
 
   // The db argument (first arg)
   let db_arg = &all_args[0];
@@ -588,10 +598,20 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   } else {
     fields.iter().map(|f| f.ty.clone()).collect()
   };
+  // Internal field types with 'db erased to 'static for ingredient storage
+  let internal_field_types_static: Vec<proc_macro2::TokenStream> = internal_field_types
+    .iter()
+    .map(|ty| erase_db_lifetime_tokens(ty))
+    .collect();
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
+  // Field types with 'db erased to 'static for ingredient storage
+  let field_types_static: Vec<proc_macro2::TokenStream> = field_types
+    .iter()
+    .map(|ty| erase_db_lifetime_tokens(ty))
+    .collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let first_field_ty = internal_field_types.first().cloned();
+  let first_field_ty = internal_field_types_static.first().cloned();
 
   let id_fields: Vec<_> = fields
     .iter()
@@ -602,16 +622,21 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     .iter()
     .map(|(_, field)| field.ty.clone())
     .collect();
+  // Erase 'db to 'static for the identity map key (DashMap requires 'static)
+  let id_field_tys_static: Vec<proc_macro2::TokenStream> = id_field_tys
+    .iter()
+    .map(|ty| erase_db_lifetime_tokens(ty))
+    .collect();
   let id_field_names: Vec<_> = id_fields
     .iter()
     .map(|(_, field)| field.ident.as_ref().unwrap())
     .collect();
-  let identity_ty = quote! {((usize, usize), usize, (#(#id_field_tys,)*) )};
+  let identity_ty = quote! {((usize, usize), usize, (#(#id_field_tys_static,)*) )};
 
   // Register per-field ingredients via inventory
   let struct_name_str = struct_name.to_string();
   let mut register_tokens = quote! {};
-  for (idx, field_ty) in internal_field_types.iter().enumerate() {
+  for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
     let identity_map_expr = if idx == 0 {
       quote! {
         Some(::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, usize>::new())
@@ -656,26 +681,30 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     let field_name = field.ident.as_ref().unwrap();
     let field_ty = &field.ty;
 
+    let field_ty_static = &field_types_static[idx];
+
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
+        let id = self.0;
         let storage = unsafe { db.storage() };
         let ingredient_index = Self::ingredient_start_index() + #idx;
         let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&self.0).expect("invalid derived id");
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        let entry = ingredient.data.get(&id).expect("invalid derived id");
 
         // Record dependency if inside a derived query
         storage.with_context(|ctx| {
           if let Some(ctx) = ctx {
             ctx.dependencies.push(::typedown_incremental::Dependency {
               ingredient_index,
-              arg_id: self.0,
+              arg_id: id,
               changed_at: entry.changed_at,
             });
           }
         });
 
-        entry.value.clone()
+        // Safety: transmute 'static stored value to 'db at the boundary
+        unsafe { ::std::mem::transmute(entry.value.clone()) }
       }
     });
   }
@@ -730,26 +759,28 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
   for (idx, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
-    let field_ty = &field.ty;
+    let field_ty_static = &field_types_static[idx];
 
     new_body_tokens.extend(quote! {
       {
         let ingredient = (&*storage.ingredients[start_index + #idx].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        // Safety: transmute field value from 'db to 'static at storage boundary
+        let __val: #field_ty_static = unsafe { ::std::mem::transmute(#field_name.clone()) };
         // Backdate: only update changed_at if the value actually changed
         if let Some(existing) = ingredient.data.get(&id) {
-          if existing.value == #field_name.clone() {
+          if existing.value == __val {
             // Value unchanged, keep old changed_at (backdating)
           } else {
             drop(existing);
             ingredient.data.insert(id, ::typedown_incremental::StampedDerivedField {
-              value: #field_name.clone(),
+              value: __val,
               changed_at: current_revision,
             });
           }
         } else {
           ingredient.data.insert(id, ::typedown_incremental::StampedDerivedField {
-            value: #field_name.clone(),
+            value: __val,
             changed_at: current_revision,
           });
         }
@@ -809,7 +840,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           let disambiguator = storage.next_disambiguator(identity_hash);
           let creating_query = storage.current_query_identity();
 
-          let identity = (creating_query, disambiguator, (#(#id_field_names.clone(),)*));
+          // Safety: erase 'db to 'static for the identity map key
+          let identity: #identity_ty = unsafe {
+            ::std::mem::transmute((creating_query, disambiguator, (#(#id_field_names.clone(),)*)))
+          };
           #identity_map_lookup_tokens
 
           #new_body_tokens
@@ -853,7 +887,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
+            let _ = <#field_types_static as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
           )*
           #phantom_decode_tokens
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)

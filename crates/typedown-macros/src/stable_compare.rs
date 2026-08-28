@@ -6,6 +6,8 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
   let input = parse_macro_input!(item as DeriveInput);
   let name = &input.ident;
 
+  let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
   let body = match &input.data {
     Data::Struct(data) => match &data.fields {
       Fields::Named(fields) => {
@@ -105,11 +107,11 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
 
       quote! {
         {
-          fn __disc_idx(v: &#name) -> usize {
+          let __disc_idx = |v: &Self| -> usize {
             match v {
               #(#disc_arms)*
             }
-          }
+          };
           let _ = db;
           match (self, other) {
             #(#cmp_arms)*
@@ -126,7 +128,7 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
   };
 
   quote! {
-    impl ::typedown_incremental::StableCompare for #name {
+    impl #impl_generics ::typedown_incremental::StableCompare for #name #ty_generics #where_clause {
       fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {
         #body
       }

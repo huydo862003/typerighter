@@ -377,7 +377,11 @@ fn check_index<'db>(
   diagnostics
 }
 
-fn check_prefix<'db>(db: &'db TypedownDatabase, op: &str, operand: HirValue<'db>) -> Vec<Diagnostic> {
+fn check_prefix<'db>(
+  db: &'db TypedownDatabase,
+  op: &str,
+  operand: HirValue<'db>,
+) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   let tc_result = typecheck(db, operand);
@@ -410,7 +414,11 @@ fn check_prefix<'db>(db: &'db TypedownDatabase, op: &str, operand: HirValue<'db>
   diagnostics
 }
 
-fn check_postfix<'db>(db: &'db TypedownDatabase, op: &str, operand: HirValue<'db>) -> Vec<Diagnostic> {
+fn check_postfix<'db>(
+  db: &'db TypedownDatabase,
+  op: &str,
+  operand: HirValue<'db>,
+) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
   let tc_result = typecheck(db, operand);
   diagnostics.extend(tc_result.diagnostics(db).iter().cloned());

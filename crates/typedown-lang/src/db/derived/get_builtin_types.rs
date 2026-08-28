@@ -218,7 +218,10 @@ pub fn get_null_obj<'db>(db: &'db TypedownDatabase) -> TdNullObj<'db> {
 }
 
 #[query_derived]
-pub fn get_func_type<'db>(db: &'db TypedownDatabase, signature: FuncSignature<'db>) -> TdFuncType<'db> {
+pub fn get_func_type<'db>(
+  db: &'db TypedownDatabase,
+  signature: FuncSignature<'db>,
+) -> TdFuncType<'db> {
   TdFuncType::new(db, signature)
 }
 

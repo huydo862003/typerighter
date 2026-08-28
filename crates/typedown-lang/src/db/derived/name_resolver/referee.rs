@@ -20,7 +20,11 @@ pub fn referee<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> MaybeSymbo
   }
 }
 
-fn resolve_ident<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>, name: String) -> MaybeSymbol<'db> {
+fn resolve_ident<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  name: String,
+) -> MaybeSymbol<'db> {
   if is_dot_rhs(&hir.node(db)) {
     return MaybeSymbol::new(db, None);
   }
