@@ -334,6 +334,22 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
     }
   };
 
+  // Extract the bare return type name (without lifetime) for use in path expressions
+  // e.g. SchemaCheckResult<'db> -> SchemaCheckResult
+  let return_type_without_lifetime = if let syn::Type::Path(type_path) = return_type {
+    type_path.path.segments.last().map(|seg| &seg.ident)
+  } else {
+    None
+  };
+  let return_type_without_lifetime = match return_type_without_lifetime {
+    Some(ident) => ident,
+    None => {
+      return syn::Error::new_spanned(return_type, "return type must be a named type")
+        .to_compile_error()
+        .into();
+    }
+  };
+
   // Assert that the function is generic over 'db
   let has_db_lifetime = func.sig.generics.lifetimes().any(|param| param.lifetime.ident == "db");
   if !has_db_lifetime {
@@ -377,6 +393,12 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
     .collect();
 
   let key_tuple_ty = quote! { (#(#key_types,)*) };
+
+  // Key tuple with 'db replaced by 'static for inventory/storage contexts
+  let key_tuple_ty_static = {
+    let s = key_tuple_ty.to_string().replace("'db", "'static");
+    s.parse::<proc_macro2::TokenStream>().expect("failed to parse static key tuple type")
+  };
 
   // The db argument (first arg)
   let db_arg = &all_args[0];
@@ -438,10 +460,13 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
           let _ = Self::ingredient_index_lock().set(index);
         }
 
-        /// The bare query implementation
-        fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty) -> #return_type {
-          let (#(#key_names,)*) = key;
-          #fn_block
+        fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty_static) -> #return_type_without_lifetime<'static> {
+          fn __inner<'db>(db: &'db #db_type, #(#key_names: #key_types),*) -> #return_type
+            #fn_block
+
+          // Safety: transmute key from 'static to 'db, then result from 'db to 'static
+          let (#(#key_names,)*): #key_tuple_ty = unsafe { ::std::mem::transmute(key) };
+          unsafe { ::std::mem::transmute(__inner(db, #(#key_names),*)) }
         }
       }
     }
@@ -457,7 +482,17 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
             let index = factories.len();
             factories.push(|index| ::typedown_incremental::IngredientEntry {
               ingredient: Box::new(
-                ::typedown_incremental::DerivedQueryIngredient::<#db_type, #key_tuple_ty, #return_type>::new(index, stringify!(#fn_name), stringify!(#return_type), #return_type::id_counter(), #fn_name::#fn_name),
+                ::typedown_incremental::DerivedQueryIngredient::<
+                  #db_type,
+                  #key_tuple_ty_static,
+                  #return_type_without_lifetime<'static>,
+                >::new(
+                  index,
+                  stringify!(#fn_name),
+                  stringify!(#return_type_without_lifetime),
+                  #return_type_without_lifetime::id_counter(),
+                  #fn_name::#fn_name,
+                ),
               ),
               field_index: None,
             });
@@ -472,12 +507,18 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   // Generate the public wrapper that calls execute_query
   output.extend::<TokenStream>(
     quote! {
-      #visibility fn #fn_name(#db_arg, #(#key_names: #key_types),*) -> #return_type {
+      #visibility fn #fn_name<'db>(#db_arg, #(#key_names: #key_types),*) -> #return_type {
         let storage = unsafe { db.storage() };
         let ingredient = (&*storage.ingredients[#fn_name::ingredient_index()].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedQueryIngredient<#db_type, #key_tuple_ty, #return_type>>()
+          .downcast_ref::<::typedown_incremental::DerivedQueryIngredient<
+            #db_type,
+            #key_tuple_ty_static,
+            #return_type_without_lifetime<'static>,
+          >>()
           .expect("derived ingredient type mismatch");
-        ingredient.execute_query(db, (#(#key_names,)*))
+        // Safety: transmute key 'db -> 'static, then result 'static -> 'db
+        let key: #key_tuple_ty_static = unsafe { ::std::mem::transmute((#(#key_names,)*)) };
+        unsafe { ::std::mem::transmute(ingredient.execute_query(db, key)) }
       }
     }
     .into(),
