@@ -570,7 +570,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
   // Validate each field
   for field in &fields {
-    let field_ty = &field.ty;
+    let field_ty_static = erase_db_lifetime_tokens(&field.ty);
 
     // All fields must be Send + Sync + Clone
     output.extend::<TokenStream>(
@@ -579,9 +579,9 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           const fn assert_send<T: Send>() {}
           const fn assert_sync<T: Sync>() {}
           const fn assert_clone<T: Clone>() {}
-          assert_send::<#field_ty>();
-          assert_sync::<#field_ty>();
-          assert_clone::<#field_ty>();
+          assert_send::<#field_ty_static>();
+          assert_sync::<#field_ty_static>();
+          assert_clone::<#field_ty_static>();
 
           #[cfg(debug_assertions)]
           const _: () = ::typedown_incremental::QueryStorage::__TYPEDOWN_QUERY_STORAGE;
