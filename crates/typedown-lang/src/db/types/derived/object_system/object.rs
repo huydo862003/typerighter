@@ -12,7 +12,7 @@ use crate::db::types::FuncSignature;
 
 /// Top type: `Object` (the universal supertype of all value types)
 #[query_derived]
-pub struct TdObjectType {}
+pub struct TdObjectType<'db> {}
 
 impl TdStaticType for TdObjectType<'_> {
   fn display_name(&self, _db: &TypedownDatabase) -> String {

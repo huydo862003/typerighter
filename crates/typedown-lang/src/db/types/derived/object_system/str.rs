@@ -9,7 +9,7 @@ use crate::db::types::Project;
 use typedown_incremental::Id;
 
 #[query_derived]
-pub struct TdStrType {}
+pub struct TdStrType<'db> {}
 
 impl TdRuntimeObject for TdStrType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -53,7 +53,7 @@ impl TdStrType<'_> {
 }
 
 #[query_derived]
-pub struct TdStrObj {
+pub struct TdStrObj<'db> {
   pub value: String,
 }
 

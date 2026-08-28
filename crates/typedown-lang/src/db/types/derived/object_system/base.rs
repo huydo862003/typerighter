@@ -245,7 +245,7 @@ pub trait TdRuntimeObject: Id {
 // The metatype is the type of all types
 // It is an instance of itself and the type of every type
 #[query_derived]
-pub struct TdTypeType {}
+pub struct TdTypeType<'db> {}
 
 impl TdRuntimeObject for TdTypeType<'_> {
   fn get_type(&self, db: &::typedown_lang::db::TypedownDatabase) -> TdTypeEnum {

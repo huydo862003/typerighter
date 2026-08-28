@@ -7,7 +7,7 @@ use crate::db::derived::get_builtin_types::get_math_type;
 use crate::db::types::Project;
 
 #[query_derived]
-pub struct TdMathType {}
+pub struct TdMathType<'db> {}
 
 impl TdRuntimeObject for TdMathType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -47,7 +47,7 @@ impl TdMathType<'_> {
 }
 
 #[query_derived]
-pub struct TdMathObj {
+pub struct TdMathObj<'db> {
   pub value: String,
 }
 

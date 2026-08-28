@@ -10,7 +10,7 @@ use typedown_incremental::StableCompare;
 
 // A union type: accepts any of its member types
 #[query_derived]
-pub struct TdSumType {
+pub struct TdSumType<'db> {
   pub members: HashSet<LazyType>,
 }
 

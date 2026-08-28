@@ -54,7 +54,7 @@ impl Decodable for PropertyDescriptor {
 
 // Structural data bag with optional display name
 #[query_derived]
-pub struct TdProductType {
+pub struct TdProductType<'db> {
   pub name: Option<String>,
   pub fields: HashMap<String, LazyType>,
 }
@@ -91,7 +91,7 @@ impl TdStaticType for TdProductType<'_> {
 
 // Runtime instance of a product type, plain data bag
 #[query_derived]
-pub struct TdProductObj {
+pub struct TdProductObj<'db> {
   pub product_type: TdTypeEnum,
   pub file_symbol: Option<Symbol>,
   pub fields: HashMap<String, Either<HirValue, TdObjectEnum>>,

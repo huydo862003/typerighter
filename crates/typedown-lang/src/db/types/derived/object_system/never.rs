@@ -7,7 +7,7 @@ use crate::db::derived::get_builtin_types::get_never_type;
 use crate::db::types::FuncSignature;
 
 #[query_derived]
-pub struct TdNeverType {}
+pub struct TdNeverType<'db> {}
 
 impl TdRuntimeObject for TdNeverType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {

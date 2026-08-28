@@ -13,7 +13,7 @@ use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
-pub struct TdListType {
+pub struct TdListType<'db> {
   pub element_type: Option<LazyType>,
 }
 
@@ -124,7 +124,7 @@ impl TdListType<'_> {
 }
 
 #[query_derived]
-pub struct TdListObj {
+pub struct TdListObj<'db> {
   pub items: Vec<Either<HirValue, TdObjectEnum>>,
 }
 

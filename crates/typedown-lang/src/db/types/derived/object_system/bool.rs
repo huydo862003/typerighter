@@ -8,7 +8,7 @@ use crate::db::types::Project;
 use typedown_incremental::Id;
 
 #[query_derived]
-pub struct TdBoolType {}
+pub struct TdBoolType<'db> {}
 
 impl TdRuntimeObject for TdBoolType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -48,7 +48,7 @@ impl TdBoolType<'_> {
 }
 
 #[query_derived]
-pub struct TdBoolObj {
+pub struct TdBoolObj<'db> {
   pub value: bool,
 }
 

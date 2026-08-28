@@ -7,7 +7,7 @@ use crate::db::derived::get_builtin_types::{get_blob_type, get_str_type};
 use crate::db::types::{AssetKind, File};
 
 #[query_derived]
-pub struct TdBlobType {}
+pub struct TdBlobType<'db> {}
 
 impl TdRuntimeObject for TdBlobType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -43,7 +43,7 @@ impl TdBlobType<'_> {
 }
 
 #[query_derived]
-pub struct TdBlobObj {
+pub struct TdBlobObj<'db> {
   asset_kind: AssetKind,
   file: File,
 }

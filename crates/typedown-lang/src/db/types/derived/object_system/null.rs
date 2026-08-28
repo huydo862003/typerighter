@@ -7,7 +7,7 @@ use crate::db::derived::get_builtin_types::{get_null_obj, get_null_type};
 use crate::db::types::Project;
 
 #[query_derived]
-pub struct TdNullType {}
+pub struct TdNullType<'db> {}
 
 impl TdRuntimeObject for TdNullType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -45,7 +45,7 @@ impl TdNullType<'_> {
 }
 
 #[query_derived]
-pub struct TdNullObj {}
+pub struct TdNullObj<'db> {}
 
 impl TdRuntimeObject for TdNullObj<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {

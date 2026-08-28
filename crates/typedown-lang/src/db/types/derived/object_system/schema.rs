@@ -22,7 +22,7 @@ use typedown_types::either::Either;
 // The metatype of all schema types
 // schema is to TdSchemaType as type is to TdTypeType
 #[query_derived]
-pub struct TdSchemaMetaType {}
+pub struct TdSchemaMetaType<'db> {}
 
 impl TdRuntimeObject for TdSchemaMetaType<'_> {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -66,7 +66,7 @@ impl TdStaticType for TdSchemaMetaType<'_> {
 // Named opaque type with methods, construction, and nominal subtyping
 // Analogous to a class in JS
 #[query_derived]
-pub struct TdSchemaType {
+pub struct TdSchemaType<'db> {
   pub name: String,
   pub fields: HashMap<String, PropertyDescriptor>,
   pub vtable: HashMap<String, TdFuncObj>,
@@ -170,7 +170,7 @@ impl TdSchemaType<'_> {
 
 // Runtime instance of a schema type, with computed fields, defaults, and methods
 #[query_derived]
-pub struct TdSchemaObj {
+pub struct TdSchemaObj<'db> {
   pub schema: TdTypeEnum,
   pub project: Project,
   pub file_symbol: Option<Symbol>,

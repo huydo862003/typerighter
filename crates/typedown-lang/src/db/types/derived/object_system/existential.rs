@@ -8,7 +8,7 @@ use crate::db::types::{FuncSignature, LazyType, TypeParams};
 
 /// Existential type: `exists <T0 <: Bound, ...>. Body`
 #[query_derived]
-pub struct TdExistentialType {
+pub struct TdExistentialType<'db> {
   #[id]
   pub type_params: TypeParams,
   #[id]

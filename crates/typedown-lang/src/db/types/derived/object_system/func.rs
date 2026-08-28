@@ -10,9 +10,9 @@ use crate::db::types::{FuncSignature, HirValueKind, Project, RuntimeScope};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
-pub struct TdFuncType {
+pub struct TdFuncType<'db> {
   #[id]
-  pub signature: FuncSignature,
+  pub signature: FuncSignature<'db>,
 }
 
 impl TdRuntimeObject for TdFuncType<'_> {
@@ -57,12 +57,12 @@ impl TdFuncType<'_> {
 }
 
 #[query_derived]
-pub struct TdFuncObj {
+pub struct TdFuncObj<'db> {
   #[id]
   pub name: String,
   #[id]
-  pub signature: FuncSignature,
-  pub func: FnKind,
+  pub signature: FuncSignature<'db>,
+  pub func: FnKind<'db>,
 }
 
 impl TdRuntimeObject for TdFuncObj<'_> {

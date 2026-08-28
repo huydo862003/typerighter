@@ -334,6 +334,17 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
     }
   };
 
+  // Assert that the function is generic over 'db
+  let has_db_lifetime = func.sig.generics.lifetimes().any(|param| param.lifetime.ident == "db");
+  if !has_db_lifetime {
+    return syn::Error::new_spanned(
+      &func.sig,
+      "#[query_derived] function must be generic over 'db, e.g. fn foo<'db>(...)",
+    )
+    .to_compile_error()
+    .into();
+  }
+
   // Extract arguments: first arg is &db, rest are keys
   let all_args: Vec<_> = func.sig.inputs.iter().collect();
   if all_args.is_empty() {
@@ -370,9 +381,22 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   // The db argument (first arg)
   let db_arg = &all_args[0];
 
-  // Extract the db type (e.g. `Database` from `db: &Database`)
+  // Extract the db type (e.g. `Database` from `db: &'db Database`)
   let db_type = if let syn::FnArg::Typed(pat_type) = db_arg {
     if let syn::Type::Reference(type_ref) = pat_type.ty.as_ref() {
+      // Assert that the reference has 'db lifetime
+      let has_db_lifetime = type_ref
+        .lifetime
+        .as_ref()
+        .is_some_and(|lifetime| lifetime.ident == "db");
+      if !has_db_lifetime {
+        return syn::Error::new_spanned(
+          db_arg,
+          "first argument must be &'db, e.g. db: &'db Database",
+        )
+        .to_compile_error()
+        .into();
+      }
       type_ref.elem.as_ref().clone()
     } else {
       return syn::Error::new_spanned(db_arg, "first argument must be a reference to a database")
@@ -465,6 +489,20 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
 fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   let visibility = &struct_ast.vis;
   let struct_name = &struct_ast.ident;
+
+  // Assert that the struct is generic over 'db
+  let has_db_lifetime = struct_ast
+    .generics
+    .lifetimes()
+    .any(|param| param.lifetime.ident == "db");
+  if !has_db_lifetime {
+    return syn::Error::new_spanned(
+      &struct_ast,
+      "#[query_derived] struct must be generic over 'db, e.g. struct Foo<'db> { ... }",
+    )
+    .to_compile_error()
+    .into();
+  }
 
   let fields: Vec<_> = match &struct_ast.fields {
     syn::Fields::Named(fields) => &fields.named,

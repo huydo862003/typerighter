@@ -13,7 +13,7 @@ pub(crate) use utils::{is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_ti
 // DateTime
 
 #[query_derived]
-pub struct TdDateTimeType {}
+pub struct TdDateTimeType<'db> {}
 
 impl TdRuntimeObject for TdDateTimeType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -57,7 +57,7 @@ impl TdDateTimeType {
 }
 
 #[query_derived]
-pub struct TdDateTimeObj {
+pub struct TdDateTimeObj<'db> {
   pub value: String,
 }
 
@@ -114,7 +114,7 @@ impl TdRuntimeObject for TdDateTimeObj {
 // Date
 
 #[query_derived]
-pub struct TdDateType {}
+pub struct TdDateType<'db> {}
 
 impl TdRuntimeObject for TdDateType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -158,7 +158,7 @@ impl TdDateType {
 }
 
 #[query_derived]
-pub struct TdDateObj {
+pub struct TdDateObj<'db> {
   pub value: String,
 }
 
@@ -215,7 +215,7 @@ impl TdRuntimeObject for TdDateObj {
 // Time
 
 #[query_derived]
-pub struct TdTimeType {}
+pub struct TdTimeType<'db> {}
 
 impl TdRuntimeObject for TdTimeType {
   fn get_type(&self, db: &TypedownDatabase) -> TdTypeEnum {
@@ -259,7 +259,7 @@ impl TdTimeType {
 }
 
 #[query_derived]
-pub struct TdTimeObj {
+pub struct TdTimeObj<'db> {
   pub value: String,
 }
 

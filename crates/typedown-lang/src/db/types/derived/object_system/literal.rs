@@ -9,7 +9,7 @@ use crate::db::derived::get_builtin_types::{get_bool_type, get_num_type, get_str
 use crate::db::types::{FuncSignature, LazyType, LiteralValue};
 
 #[query_derived]
-pub struct TdLiteralType {
+pub struct TdLiteralType<'db> {
   pub value: LiteralValue,
 }
 

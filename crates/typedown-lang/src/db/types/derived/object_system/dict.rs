@@ -14,7 +14,7 @@ use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
-pub struct TdDictType {
+pub struct TdDictType<'db> {
   pub key_type: Option<LazyType>,
   pub value_type: Option<LazyType>,
 }
@@ -169,7 +169,7 @@ impl TdDictType<'_> {
 }
 
 #[query_derived]
-pub struct TdDictObj {
+pub struct TdDictObj<'db> {
   pub entries: HashMap<String, Either<HirValue, TdObjectEnum>>,
 }
 

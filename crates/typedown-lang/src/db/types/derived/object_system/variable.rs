@@ -8,7 +8,7 @@ use crate::db::types::{FuncSignature, LazyType, TypeVariable};
 
 /// A type variable reference within a type expression
 #[query_derived]
-pub struct TdVariableType {
+pub struct TdVariableType<'db> {
   #[id]
   pub index: usize,
   #[id]
