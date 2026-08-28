@@ -28,7 +28,7 @@ pub const BUILTIN_TO_STRING: &str = "to_string";
 // Static type properties for the typechecker
 // Each type defines its own display name, arity, and type arguments
 #[delegatable_trait]
-pub trait TdStaticType {
+pub trait TdStaticType<'x0> {
   fn display_name(&self, db: &TypedownDatabase) -> String;
 
   fn arity(&self, _db: &TypedownDatabase) -> usize {
@@ -74,7 +74,7 @@ pub trait TdStaticType {
   }
 
   /// Parent type for prototype chain method lookup and type hierarchy
-  fn parent_type(&self, db: &TypedownDatabase) -> Option<TdTypeEnum> {
+  fn parent_type (&self, db: &'x0 TypedownDatabase) -> Option<TdTypeEnum> {
     Some(get_object_type(db).into())
   }
 

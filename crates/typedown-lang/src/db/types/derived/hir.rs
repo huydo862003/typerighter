@@ -32,8 +32,8 @@ pub enum HirValueKind<'db> {
   Ident(String),
   Mapping(Vec<(String, HirValue<'db>)>),
   Sequence(Vec<HirValue<'db>>),
-  Interpolated(Vec<InterpolatedPart>),
-  Markdown(Vec<InterpolatedPart>),
+  Interpolated(Vec<InterpolatedPart<'db>>),
+  Markdown(Vec<InterpolatedPart<'db>>),
   Tag {
     tag: Box<HirValue<'db>>,
     inner: Box<HirValue<'db>>,

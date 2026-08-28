@@ -65,7 +65,7 @@ use typedown_incremental::Id;
 // The primitive types are fixed anyways
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
 #[delegate(TdRuntimeObject)]
-#[delegate(TdStaticType)]
+#[delegate(TdStaticType<'x>, generics = "'x")]
 pub enum TdTypeEnum<'db> {
   TdTypeType(TdTypeType<'db>),
   TdBoolType(TdBoolType<'db>),
