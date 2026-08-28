@@ -395,9 +395,10 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
       // in different namespaces
       // However, unit structs create both a value and a type (cause you can use a unit struct name
       // to represent the singleton value)
-      #[allow(non_camel_case_types)]
+      #[allow(non_camel_case_types, clippy::useless_transmute)]
       #visibility struct #fn_name { private: () }
 
+      #[allow(clippy::useless_transmute)]
       impl #fn_name {
         fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
@@ -448,6 +449,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   // Generate the public wrapper that calls execute_query
   output.extend::<TokenStream>(
     quote! {
+      #[allow(clippy::useless_transmute)]
       #visibility fn #fn_name(#db_arg, #(#key_names: #key_types),*) -> #return_type {
         let storage = unsafe { db.storage() };
         let ingredient = (&*storage.ingredients[#fn_name::ingredient_index()].ingredient as &dyn ::std::any::Any)
@@ -681,8 +683,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   output.extend::<TokenStream>(
     quote! {
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+      #[allow(clippy::useless_transmute)]
       #visibility struct #struct_name(usize);
 
+      #[allow(clippy::useless_transmute)]
       impl #struct_name {
         fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<usize> {
           static START_INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
