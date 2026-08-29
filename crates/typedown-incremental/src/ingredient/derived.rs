@@ -4,10 +4,12 @@ use std::{
   hash::Hash,
   panic::panic_any,
   sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
   },
 };
+
+use indexmap::IndexSet;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{Cancelled, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage};
@@ -18,6 +20,30 @@ use crate::{DerivedId, QueryDatabase, SerializeContext, UnresolvedDepNode};
 use dashmap::DashMap;
 
 use super::Ingredient;
+
+const LRU_CAPACITY: usize = 128;
+
+// LRU tracker for derived query memos
+#[derive(Default)]
+pub struct Lru {
+  access_order: Mutex<IndexSet<usize>>, // oldest first
+}
+
+impl Lru {
+  // Record access and returns arg_ids to evict
+  pub fn touch(&self, arg_id: usize) -> Vec<usize> {
+    let mut order = self.access_order.lock().unwrap();
+    order.shift_remove(&arg_id);
+    order.insert(arg_id);
+    let mut evicted = Vec::new();
+    while order.len() > LRU_CAPACITY {
+      if let Some(id) = order.shift_remove_index(0) {
+        evicted.push(id);
+      }
+    }
+    evicted
+  }
+}
 
 /// A dependency recorded during a derived query execution
 #[derive(Clone)]
@@ -58,6 +84,7 @@ pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   #[doc(hidden)]
   pub data: Arc<DashMap<usize, QueryState<K, V>>>, // arg_id -> state
   identity_maps: IdentityMapTable,
+  lru: Arc<Lru>, // For stale entry eviction
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicUsize>,
   #[cfg(debug_assertions)]
@@ -105,8 +132,8 @@ impl<
     }
   }
 
-  /// Deserialize edge DepNodeIndices into session-local Dependencies.
-  /// Edges that fail to deserialize are silently dropped.
+  /// Deserialize edge DepNodeIndices into session-local Dependencies
+  /// Edges that fail to deserialize are silently dropped
   fn deserialize_deps(edges: &[u32], ctx: &DeserializeContext) -> Vec<Dependency> {
     edges
       .iter()
@@ -139,6 +166,7 @@ impl<
       intern_map: Arc::new(DashMap::new()),
       data: Arc::new(DashMap::new()),
       identity_maps: Arc::new(DashMap::new()),
+      lru: Arc::new(Lru::default()),
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicUsize::new(0)),
       #[cfg(debug_assertions)]
@@ -301,7 +329,16 @@ impl<
       }
     });
 
+    for evicted_arg_id in self.lru.touch(arg_id) {
+      self.evict_memo(evicted_arg_id);
+    }
+
     value
+  }
+
+  // Evict a memo, forcing recomputation on next access
+  fn evict_memo(&self, arg_id: usize) {
+    self.data.remove(&arg_id);
   }
 
   /// Inner implementation that returns (value, changed_at)
@@ -551,12 +588,14 @@ impl<
     let db: &DB = (db as &dyn Any)
       .downcast_ref::<DB>()
       .expect("database type mismatch in re_execute");
-    // Look up the key from the memo and re-execute
-    if let Some(entry) = self.data.get(&arg_id)
-      && let QueryState::Computed(memo) = &*entry
-    {
-      let key = memo.key.clone();
-      drop(entry);
+    let key = match self.data.get(&arg_id) {
+      Some(entry) => match &*entry {
+        QueryState::Computed(memo) => Some(memo.key.clone()),
+        QueryState::Computing => None,
+      },
+      None => None,
+    };
+    if let Some(key) = key {
       self.execute_query(db, key);
     }
   }
