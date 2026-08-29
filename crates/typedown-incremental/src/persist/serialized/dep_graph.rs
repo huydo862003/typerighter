@@ -100,6 +100,8 @@ pub enum DepNode {
   },
   /// An interned value (e.g. `LiteralValue`). Leaf node.
   Interned { name: Fingerprint, blob_index: u32 },
+  /// Evicted by LRU, forces recomputation on next load
+  Evicted,
 }
 
 // Tag bytes for serialization
@@ -108,6 +110,7 @@ const TAG_DERIVED_QUERY: u8 = 0;
 const TAG_DERIVED_FIELD: u8 = 1;
 const TAG_INPUT_FIELD: u8 = 2;
 const TAG_INTERNED: u8 = 3;
+const TAG_EVICTED: u8 = 4;
 
 // Byte sizes
 const TAG_SIZE: usize = std::mem::size_of::<u8>();
@@ -124,6 +127,7 @@ impl DepNode {
       | DepNode::DerivedField { name, .. }
       | DepNode::InputField { name, .. }
       | DepNode::Interned { name, .. } => *name,
+      DepNode::Evicted => Fingerprint([0; 16]),
     }
   }
 
@@ -132,7 +136,9 @@ impl DepNode {
       DepNode::DerivedQuery { value, .. }
       | DepNode::DerivedField { value, .. }
       | DepNode::InputField { value, .. } => *value,
-      DepNode::Interned { .. } => panic!("Interned nodes do not have a value fingerprint"),
+      DepNode::Interned { .. } | DepNode::Evicted => {
+        panic!("this node does not have a value fingerprint")
+      }
     }
   }
 
@@ -141,7 +147,7 @@ impl DepNode {
       DepNode::DerivedField { field_index, .. } | DepNode::InputField { field_index, .. } => {
         Some(*field_index)
       }
-      DepNode::DerivedQuery { .. } | DepNode::Interned { .. } => None,
+      DepNode::DerivedQuery { .. } | DepNode::Interned { .. } | DepNode::Evicted => None,
     }
   }
 
@@ -150,14 +156,17 @@ impl DepNode {
       DepNode::DerivedQuery { changed_at, .. }
       | DepNode::DerivedField { changed_at, .. }
       | DepNode::InputField { changed_at, .. } => *changed_at,
-      DepNode::Interned { .. } => 0,
+      DepNode::Interned { .. } | DepNode::Evicted => 0,
     }
   }
 
   pub fn edges(&self) -> &[u32] {
     match self {
       DepNode::DerivedQuery { edges, .. } => edges,
-      DepNode::DerivedField { .. } | DepNode::InputField { .. } | DepNode::Interned { .. } => &[],
+      DepNode::DerivedField { .. }
+      | DepNode::InputField { .. }
+      | DepNode::Interned { .. }
+      | DepNode::Evicted => &[],
     }
   }
 
@@ -190,6 +199,7 @@ impl DepNode {
         FINGERPRINT_SIZE + // name fingerprint
         4 // blob_index: u32
       }
+      DepNode::Evicted => TAG_SIZE,
     };
     let mut bytes = Vec::with_capacity(capacity); // preallocated to avoid reallocation overhead
     match self {
@@ -248,6 +258,9 @@ impl DepNode {
         bytes.push(TAG_INTERNED);
         bytes.extend_from_slice(&name.0);
         bytes.extend_from_slice(&blob_index.to_le_bytes());
+      }
+      DepNode::Evicted => {
+        bytes.push(TAG_EVICTED);
       }
     }
     bytes
@@ -380,6 +393,7 @@ impl DepNode {
 
         (DepNode::Interned { name, blob_index }, pos)
       }
+      TAG_EVICTED => (DepNode::Evicted, pos),
       _ => panic!("unknown DepNode tag {tag}"),
     }
   }

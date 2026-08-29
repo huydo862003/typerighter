@@ -21,7 +21,7 @@ use dashmap::DashMap;
 
 use super::Ingredient;
 
-const LRU_CAPACITY: usize = 128;
+const LRU_CAPACITY: usize = 1024;
 
 // LRU tracker for derived query memos
 #[derive(Default)]

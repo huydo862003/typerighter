@@ -48,6 +48,7 @@ impl SerializedQueryStorage {
         DepNode::DerivedField { .. } => stats.derived_fields += 1,
         DepNode::InputField { .. } => stats.input_fields += 1,
         DepNode::Interned { .. } => stats.interned += 1,
+        DepNode::Evicted => {}
       }
     }
     stats

@@ -92,7 +92,7 @@ impl DepGraphBuilder {
     let mut sorted = self.nodes;
     sorted.sort_by_key(|(idx, _)| *idx);
 
-    sorted
+    let result: Vec<DepNode> = sorted
       .into_iter()
       .map(|(_, node)| match node {
         UnresolvedDepNode::DerivedQuery {
@@ -105,7 +105,14 @@ impl DepGraphBuilder {
           verified_at,
           edges,
         } => {
-          let resolved_edges = edges
+          // Skip memos with evicted deps
+          let has_missing = edges
+            .iter()
+            .any(|dep_id| !dep_id_table.contains_key(dep_id));
+          if has_missing {
+            return DepNode::Evicted;
+          }
+          let resolved_edges: Vec<u32> = edges
             .iter()
             .map(|dep_id| *dep_id_table.get(dep_id).expect("unresolved dep edge"))
             .collect();
@@ -148,7 +155,9 @@ impl DepGraphBuilder {
         },
         UnresolvedDepNode::Interned { name, blob_index } => DepNode::Interned { name, blob_index },
       })
-      .collect()
+      .collect();
+
+    result
   }
 }
 
