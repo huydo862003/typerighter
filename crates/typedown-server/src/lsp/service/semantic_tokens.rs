@@ -54,7 +54,7 @@ pub fn semantic_tokens_full(
   }))
 }
 
-// Push a span only if it has non-zero length.
+// Push a span only if it has non-zero length
 fn emit(
   node: &RedNode,
   token_type: SemanticTokenType,
@@ -67,7 +67,7 @@ fn emit(
   }
 }
 
-// Walk the AST and collect (offset, length, type, modifiers) spans for all highlighted regions.
+// Walk the AST and collect (offset, length, type, modifiers) spans for all highlighted regions
 fn collect_tokens(node: RedNode, out: &mut Vec<(usize, usize, SemanticTokenType, u32)>) {
   if !node.is_token() {
     for child in node.children() {
@@ -91,8 +91,7 @@ fn classify_token(node: &RedNode) -> Option<SemanticTokenType> {
   }
 }
 
-// LSP tokens are encoded as deltas: each token's line and column are relative to the previous
-// token, not absolute
+// LSP tokens are encoded as deltas: each token's line and column are relative to the previous token, not absolute
 fn delta_encode(
   raw: Vec<(usize, usize, SemanticTokenType, u32)>,
   rope: &Rope,

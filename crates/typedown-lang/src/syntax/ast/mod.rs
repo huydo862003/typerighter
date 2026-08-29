@@ -1055,21 +1055,21 @@ impl CodeBlock {
   }
 }
 
-// Extract the content from a block scalar node by processing its raw text.
-// The raw text is the full node text, e.g. ` |\n  line one\n  line two\n`.
-// Content starts after the first newline. Indent size is the number of leading
-// spaces on the first content line.
+// Extract the content from a block scalar node by processing its raw text
+// The raw text is the full node text, e.g. ` |\n  line one\n  line two\n`
+// Content starts after the first newline
+// Indent size is the number of leading spaces on the first content line
 fn block_scalar_content(node: &RedNode) -> (Vec<String>, usize) {
   let raw = node.text();
 
-  // Skip past the `|`/`>` marker and the newline that follows it.
+  // Skip past the `|`/`>` marker and the newline that follows it
   let content_start = match raw.find('\n') {
     Some(pos) => pos + 1,
     None => return (vec![], 0),
   };
   let content = &raw[content_start..];
 
-  // Determine indent from the leading spaces of the first non-empty line.
+  // Determine indent from the leading spaces of the first non-empty line
   let indent_size = content
     .lines()
     .find(|l| !l.trim().is_empty())
@@ -1087,7 +1087,7 @@ fn strip_indent(line: &str, indent_size: usize) -> &str {
   }
 }
 
-// Reconstruct a literal block string (`|`): preserve newlines, strip indentation.
+// Reconstruct a literal block string (`|`): preserve newlines, strip indentation
 fn extract_literal_block(node: &RedNode) -> String {
   let (lines, indent_size) = block_scalar_content(node);
   let mut result = String::new();
@@ -1097,7 +1097,7 @@ fn extract_literal_block(node: &RedNode) -> String {
     result.push('\n');
   }
 
-  // Clip chomping: keep exactly one trailing newline.
+  // Clip chomping: keep exactly one trailing newline
   while result.ends_with("\n\n") {
     result.pop();
   }
@@ -1106,11 +1106,11 @@ fn extract_literal_block(node: &RedNode) -> String {
 }
 
 // Reconstruct a folded block string (`>`): fold newlines into spaces,
-// blank lines become paragraph breaks.
+// blank lines become paragraph breaks
 fn extract_folded_block(node: &RedNode) -> String {
   let (lines, indent_size) = block_scalar_content(node);
 
-  // Drop trailing blank lines.
+  // Drop trailing blank lines
   let last_non_blank = lines
     .iter()
     .rposition(|l| !strip_indent(l, indent_size).is_empty());

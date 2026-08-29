@@ -1,6 +1,6 @@
-// TIL: We use nightly `specialization` to simulate C++ `if constexpr` for compile-time type dispatch.
-// - FieldEncodable/FieldDecodable dispatch between query struct IDs (as DepNodeIndex) and plain types.
-// - Stable Rust has no way to do this: autoref specialization fails because Id and Encodable overlap.
+// TIL: We use nightly `specialization` to simulate C++ `if constexpr` for compile-time type dispatch
+// - FieldEncodable/FieldDecodable dispatch between query struct IDs (as DepNodeIndex) and plain types
+// - Stable Rust has no way to do this: autoref specialization fails because Id and Encodable overlap
 
 use crate::{Decodable, Decoder, Encodable, Encoder, Id};
 

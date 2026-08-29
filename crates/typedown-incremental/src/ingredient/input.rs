@@ -105,7 +105,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       return None;
     };
 
-    // Look up or allocate a session-local entry_id shared across all fields of this input entry.
+    // Look up or allocate a session-local entry_id shared across all fields of this input entry
     let entry_id = *ctx
       .entry_id_map
       .entry((*name, *serialized_entry_id))

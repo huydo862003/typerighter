@@ -68,7 +68,7 @@ pub fn ident_is_type_ref(node: &RedNode) -> bool {
   let Some(entry) = entry_value.parent() else {
     return false;
   };
-  // Find the sibling key node.
+  // Find the sibling key node
   let key_text = entry
     .children()
     .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)

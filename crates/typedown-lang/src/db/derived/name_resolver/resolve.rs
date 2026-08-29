@@ -67,7 +67,7 @@ fn collect_unresolved<'db>(
     }
     HirValueKind::Binary { op, left, right } => {
       collect_unresolved(db, *left, diagnostics);
-      // The right side of a dot expression is a field name, not a free variable.
+      // The right side of a dot expression is a field name, not a free variable
       if op != "." {
         collect_unresolved(db, *right, diagnostics);
       }

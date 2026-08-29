@@ -264,8 +264,8 @@ impl<S: Utf8Stream> LexCtx<S> {
         }
       }
       // Named entity: &name;
-      // Advance name chars directly into a local buffer (not text_buffer) so that on
-      // failure we can emit just `&` as MdSymbol and queue the name chars as a separate Ident.
+      // Advance name chars into a local buffer (not text_buffer) so that on failure we can emit just `&` as MdSymbol
+      // The name chars get queued as a separate Ident
       Utf8Result::Char(ch) if ch.is_ascii_alphabetic() => {
         let mut name = String::new();
         loop {

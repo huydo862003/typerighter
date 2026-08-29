@@ -32,7 +32,7 @@ pub struct LexCtx<S: Utf8Stream> {
   mode: LexMode,
   // Text buffer to accumulate the read utf-8
   pub(super) text_buffer: String,
-  // Pending tokens to emit before lexing more input.
+  // Pending tokens to emit before lexing more input
   pub(super) pending_tokens: Vec<LexResult>,
 
   // State for YAML lexing
@@ -46,7 +46,7 @@ pub(super) struct YamlLexCtx {
   // Whether we're just after a newline (linux), CRLF (Windows), carriage return (Mac)
   pub(super) at_line_start: bool,
   // We allow nested interpolations
-  // We need to distinguish between nested strings, interpolations, etc.
+  // We need to distinguish between nested strings, interpolations, etc
   pub(super) interp_stack: Vec<InterpContext>,
   // The indent character established by the first indented line (None = not yet determined)
   pub(super) indent_char: Option<char>,
@@ -214,7 +214,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
   }
 
-  // Number lexer: integer, decimal, scientific notation.
+  // Number lexer: integer, decimal, scientific notation
   pub(super) fn lex_number(&mut self) -> LexResult {
     // Integer part
     loop {
@@ -267,8 +267,8 @@ impl<S: Utf8Stream> LexCtx<S> {
     self.emit(SyntaxKind::Number)
   }
 
-  // Consume inline math content until closing $.
-  // INVARIANT: The opening $ must be already consumed and in the text buffer.
+  // Consume inline math content until closing $
+  // INVARIANT: The opening $ must be already consumed and in the text buffer
   pub(super) fn lex_inline_math_content(&mut self) -> LexResult {
     // text_buffer already contains the opening $
     loop {

@@ -32,8 +32,7 @@ impl AnalysisHost {
     // Scan project directory for .td files
     let project_files = scan_project_files(&project_dir)?;
 
-    // Derived queries are keyed by File/Project entry ID, so we must reuse the
-    // same IDs from the previous session for cache hits to work.
+    // Derived queries are keyed by File/Project entry ID, so we must reuse the same IDs from the previous session for cache hits
     let cached_files: HashMap<PathBuf, File> = File::iter(&db)
       .into_iter()
       .filter_map(|file| {

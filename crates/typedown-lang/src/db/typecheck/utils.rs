@@ -311,7 +311,7 @@ fn is_subtype_of_env<'db>(
 
   // Phase 0: Special pre-check (variables, existentials)
   match (subtype, supertype) {
-    // Universal variables: T1 <: T2 requires identity or checking T1's declared upper bound.
+    // Universal variables: T1 <: T2 requires identity or checking T1's declared upper bound
     (TdTypeEnum::TdVariableType(variable_sub), TdTypeEnum::TdVariableType(_variable_super)) => {
       if subtype == supertype {
         return true;

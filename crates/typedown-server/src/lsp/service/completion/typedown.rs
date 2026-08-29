@@ -38,16 +38,16 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
 
   let file = *project.files(db).get(&path)?;
   let root = parse_file(db, project, file).ast(db);
-  // Use offset-1 so the cursor position (between characters) resolves to the token just typed.
+  // Use offset-1 so the cursor position (between characters) resolves to the token just typed
   let lookup = offset.saturating_sub(1);
   let node = node_at_offset(root, lookup)?;
 
-  // Cursor in a _type value: suggest schema names.
+  // Cursor in a _type value: suggest schema names
   if is_type_value_position(&node) {
     return Some(CompletionResponse::Array(schema_completions(db, project)));
   }
 
-  // Cursor inside a fref() string argument. Suggest .td files matching the field's declared type.
+  // Cursor inside a fref() string argument, suggest .td files matching the field's declared type
   if is_fref_arg_position(&node) {
     return Some(CompletionResponse::Array(fref_completions(
       db, project, file, &node,
@@ -64,7 +64,7 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     }
   }
 
-  // Cursor in a field value: suggest value completions (booleans, null for optional fields).
+  // Cursor in a field value: suggest value completions (booleans, null for optional fields)
   if let Some(items) = value_completions(db, project, file, &node) {
     return Some(CompletionResponse::Array(items));
   }
@@ -96,7 +96,7 @@ fn is_type_value_position(node: &RedNode) -> bool {
 
 // Returns true if the cursor is inside the string argument of a fref() call
 fn is_fref_arg_position(node: &RedNode) -> bool {
-  // Walk up to find an enclosing StrLit, then a CallExpr above it.
+  // Walk up to find an enclosing StrLit, then a CallExpr above it
   let str_lit = find_ancestor(node, SyntaxKind::StrLit);
   let call = match str_lit {
     Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),
@@ -105,7 +105,7 @@ fn is_fref_arg_position(node: &RedNode) -> bool {
   let Some(call) = call else {
     return false;
   };
-  // Check callee text is "fref".
+  // Check callee text is "fref"
   call
     .children()
     .next()
@@ -119,7 +119,7 @@ fn fref_completions(
   file: File,
   node: &RedNode,
 ) -> Vec<CompletionItem> {
-  // Resolve the expected type for the field containing this fref() call.
+  // Resolve the expected type for the field containing this fref() call
   let expected_type = declared_field(db, project, file, node);
 
   let config = get_vault_config(db, project);
@@ -129,7 +129,7 @@ fn fref_completions(
     .iter()
     .filter(|(path, _)| path.starts_with(&root_dir) && is_content_file(path) && !is_type_file(path))
     .filter(|(_, target_file)| {
-      // If we have an expected type, only include files whose type is compatible.
+      // If we have an expected type, only include files whose type is compatible
       let Some(ref expected_typ) = expected_type else {
         return true;
       };
@@ -623,7 +623,7 @@ properties:
 ---
 "#;
 
-  // Schema with a nested inline object field (no named type reference).
+  // Schema with a nested inline object field (no named type reference)
   const SCHEMA_PERSON_WITH_ADDRESS: &str = r#"---
 _type: schema
 properties:
@@ -856,7 +856,7 @@ _type: |
 
   #[test]
   fn schema_name_completion_while_partially_typed() {
-    // Cursor in the middle of a partially typed schema name.
+    // Cursor in the middle of a partially typed schema name
     let (content, offset) = cursor(
       r#"---
 _type: Per|
@@ -876,7 +876,7 @@ _type: Per|
 
   #[test]
   fn field_completion_based_on_declared_type() {
-    // Cursor after typing a partial key, _type already set.
+    // Cursor after typing a partial key, _type already set
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -898,7 +898,7 @@ na|:
 
   #[test]
   fn field_completion_when_type_declared_after_other_fields() {
-    // _type appears after the cursor position in the mapping.
+    // _type appears after the cursor position in the mapping
     let (content, offset) = cursor(
       r#"---
 name: Alice
@@ -928,7 +928,7 @@ _type: Person
 
   #[test]
   fn no_field_completion_without_type() {
-    // No _type in mapping: no field completions expected.
+    // No _type in mapping: no field completions expected
     let (content, offset) = cursor(
       r#"---
 na|:
@@ -1078,7 +1078,7 @@ Some bod|y text.
 
   #[test]
   fn boolean_keywords_suggested_in_any_value_position() {
-    // true/false are keywords usable in any value position, not limited to boolean-typed fields.
+    // true/false are keywords usable in any value position, not limited to boolean-typed fields
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -1110,7 +1110,7 @@ name: tru|
 
   #[test]
   fn null_completion_for_optional_field() {
-    // Cursor in the value of a nullable field: suggest null.
+    // Cursor in the value of a nullable field: suggest null
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -1132,7 +1132,7 @@ nickname: nu|
     );
   }
 
-  // A schema with a field typed as another schema (Person).
+  // A schema with a field typed as another schema (Person)
   const SCHEMA_DIRECTORY: &str = r#"---
 _type: schema
 properties:
@@ -1269,8 +1269,8 @@ date: 2024-01-01
 
   #[test]
   fn fref_completion_filters_by_declared_field_type() {
-    // The 'featured' field on Directory expects type Person.
-    // Only content/alice.td (_type: Person) should be suggested, not content/birthday.td (_type: Event).
+    // The 'featured' field on Directory expects type Person
+    // Only content/alice.td (_type: Person) should be suggested, not content/birthday.td (_type: Event)
     let (content, offset) = cursor(
       r#"---
 _type: Directory
@@ -1298,8 +1298,8 @@ featured: fref("|")
     );
   }
 
-  // fref completions should use vault-relative paths, not project-relative paths.
-  // When root_dir is "vault", fref("alice.td") not fref("vault/alice.td").
+  // fref completions should use vault-relative paths, not project-relative paths
+  // When root_dir is "vault", fref("alice.td") not fref("vault/alice.td")
   #[test]
   fn fref_completion_uses_vault_relative_paths() {
     let project_root = PathBuf::from(if cfg!(windows) {
@@ -1654,7 +1654,7 @@ date: d|
     );
   }
 
-  // Cursor on a key inside a nested mapping whose type is inferred from the parent schema field.
+  // Cursor on a key inside a nested mapping whose type is inferred from the parent schema field
   #[test]
   fn field_completion_in_nested_mapping_without_type() {
     let (content, offset) = cursor(

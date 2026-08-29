@@ -291,6 +291,6 @@ fn extract_base_path(
 fn key_char_offset(source: &str, key: &str) -> Option<usize> {
   let pattern = format!("{}:", key);
   let byte_offset = source.find(pattern.as_str())?;
-  // Convert byte offset to char offset.
+  // Convert byte offset to char offset
   Some(source[..byte_offset].chars().count())
 }

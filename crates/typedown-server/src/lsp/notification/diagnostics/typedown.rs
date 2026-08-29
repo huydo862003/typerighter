@@ -254,7 +254,7 @@ age: 30
 "#,
     );
     let notifications = publish_diagnostics_for_project(&analysis);
-    // Only the content file should have a notification; it must be empty.
+    // Only the content file should have a notification; it must be empty
     let content_notif = notifications
       .iter()
       .find(|notif| notif.params.to_string().contains("file.td"));
@@ -270,7 +270,7 @@ age: 30
 
   #[test]
   fn unresolved_schema_produces_diagnostic() {
-    // _type references a schema that does not exist.
+    // _type references a schema that does not exist
     let analysis = setup(
       r#"---
 _type: NonExistent
@@ -301,7 +301,7 @@ name: "Alice"
 
   #[test]
   fn missing_required_field_produces_diagnostic() {
-    // Required field 'age' is absent.
+    // Required field 'age' is absent
     let analysis = setup(
       r#"---
 _type: Person

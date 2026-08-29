@@ -22,8 +22,8 @@ thread_local! {
 /// A non-thread safe interner for node/token deduplication.
 #[derive(Default)]
 pub struct Cache {
-  // We use HashMap instead of HashSet to access the raw entry API,
-  // which avoids allocating just to check if an entry exists.
+  // We use HashMap instead of HashSet to access the raw entry API
+  // This avoids allocating just to check if an entry exists
   tokens: HashMap<SyntaxToken, ()>,
   nodes: HashMap<SyntaxNode, ()>,
 }

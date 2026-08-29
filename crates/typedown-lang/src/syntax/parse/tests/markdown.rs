@@ -912,7 +912,7 @@ content
   );
 }
 
-// Same, with a prop block between the label and the first separator.
+// Same, with a prop block between the label and the first separator
 #[test]
 fn parse_container_block_with_props_and_leading_slot_separator_no_diagnostics() {
   let (_, diags) = parse_body_with_diags(
@@ -928,7 +928,7 @@ content
   );
 }
 
-// Two separators back to back: the slot between them is empty.
+// Two separators back to back: the slot between them is empty
 #[test]
 fn parse_container_block_with_consecutive_slot_separators_no_diagnostics() {
   let (_, diags) = parse_body_with_diags(

@@ -47,7 +47,7 @@ impl ServerBuilder {
   pub fn start(self) -> Server {
     let dir = TempDir::new().expect("failed to create tempdir");
 
-    // Write vault files to disk.
+    // Write vault files to disk
     for (rel_path, content) in &self.files {
       let abs_path = dir.path().join(rel_path);
       std::fs::create_dir_all(abs_path.parent().unwrap()).unwrap();
@@ -56,7 +56,7 @@ impl ServerBuilder {
 
     let root = dir.path().to_path_buf();
 
-    // In-memory LSP connection: server side + client side.
+    // In-memory LSP connection: server side + client side
     let (server_conn, client_conn) = Connection::memory();
 
     let root_clone = root.clone();
@@ -64,14 +64,14 @@ impl ServerBuilder {
       let multiproject = Multiproject::default();
       multiproject.load_nearest_project(&root_clone).unwrap();
 
-      // Perform the LSP initialize handshake using the server-side connection.
+      // Perform the LSP initialize handshake using the server-side connection
       let capabilities = ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
           TextDocumentSyncKind::INCREMENTAL,
         )),
         ..Default::default()
       };
-      // Read the initialize request sent by the client below, reply with capabilities.
+      // Read the initialize request sent by the client below, reply with capabilities
       let (init_id, _init_params) = server_conn
         .initialize_start()
         .expect("initialize_start failed");
@@ -84,7 +84,7 @@ impl ServerBuilder {
         .ok();
     });
 
-    // Client side: send initialize.
+    // Client side: send initialize
     let workspace_uri = Uri::from_str(&format!("file://{}", root.display())).unwrap();
     let init_params = InitializeParams {
       capabilities: ClientCapabilities::default(),
@@ -140,7 +140,7 @@ impl Server {
       serde_json::to_value(params).unwrap(),
     );
     self.conn.sender.send(Message::Notification(notif)).unwrap();
-    // Drain any diagnostics notifications the server pushes back.
+    // Drain any diagnostics notifications the server pushes back
     self.drain_notifications();
   }
 
@@ -156,7 +156,7 @@ impl Server {
     let req = Request::new(id.into(), R::METHOD.to_string(), params);
     self.conn.sender.send(Message::Request(req)).unwrap();
 
-    // Read messages until we get the response with our id.
+    // Read messages until we get the response with our id
     loop {
       let msg = self
         .conn
@@ -175,7 +175,7 @@ impl Server {
           }
           return result.unwrap_or(Value::Null);
         }
-        // Notifications (e.g. diagnostics) may arrive before the response.
+        // Notifications (e.g. diagnostics) may arrive before the response
         Message::Notification(_) => continue,
         other => panic!("unexpected message: {other:?}"),
       }

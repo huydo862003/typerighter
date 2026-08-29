@@ -70,7 +70,7 @@ fn resolve_call<'db>(
   MaybeSymbol::new(db, None)
 }
 
-// Returns true if `node` is the right-hand operand of a dot binary expression.
+// Returns true if `node` is the right-hand operand of a dot binary expression
 fn is_dot_rhs(node: &RedNode) -> bool {
   let parent = match node.parent() {
     Some(parent) => parent,

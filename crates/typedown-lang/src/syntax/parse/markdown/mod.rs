@@ -1211,7 +1211,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdContainerShorthand, &children), None)
   }
 
-  // Stop on `:::` at matching indent, or EOF.
+  // Stop on `:::` at matching indent, or EOF
   fn synchronize_container_block(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
     let current = self.expr_ctx_stack.current().unwrap();
     let mut error_children = vec![];
@@ -1850,7 +1850,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdBold, &children), None)
   }
 
-  // Stop on `**`, EOF, or end of inline element.
+  // Stop on `**`, EOF, or end of inline element
   fn synchronize_bold(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
     let mut error_children = vec![];
     let result = loop {
@@ -1939,7 +1939,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdItalic, &children), None)
   }
 
-  // Stop on `*`/`_` matching `opening`, EOF, or end of inline element.
+  // Stop on `*`/`_` matching `opening`, EOF, or end of inline element
   fn synchronize_italic(
     &mut self,
     opening: &str,
@@ -2029,7 +2029,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdBoldItalic, &children), None)
   }
 
-  // Stop on `***`, EOF, or end of inline element.
+  // Stop on `***`, EOF, or end of inline element
   fn synchronize_bold_italic(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
     let mut error_children = vec![];
     let result = loop {
@@ -2113,7 +2113,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdStrikethrough, &children), None)
   }
 
-  // Stop on `~~`, EOF, or end of inline element.
+  // Stop on `~~`, EOF, or end of inline element
   fn synchronize_strikethrough(&mut self, children: &mut Vec<GreenNode>) -> Option<ExprCtx> {
     let mut error_children = vec![];
     let result = loop {
@@ -2236,8 +2236,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.consume_md_prefix(children)
   }
 
-  // If the next token should be handled by an outer context, return that context.
-  // Otherwise consume the token into `error_children` for the caller to wrap as Error.
+  // If the next token should be handled by an outer context, return that context
+  // Otherwise consume the token into `error_children` for the caller to wrap as Error
   fn consume_or_delegate_md(
     &mut self,
     current: ExprCtx,

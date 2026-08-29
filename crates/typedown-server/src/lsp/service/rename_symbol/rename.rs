@@ -381,8 +381,7 @@ friend: fref("|alice.td")
     }
   }
 
-  // Simulates rename Person->Human, then Human->Person by rebuilding the analysis
-  // with the first rename's edits applied
+  // Simulates rename Person->Human, then Human->Person by rebuilding the analysis with the first rename's edits applied
   #[test]
   fn rename_ident_roundtrip() {
     // First rename: Person -> Human

@@ -60,7 +60,7 @@ pub fn definition(
     return Some(GotoDefinitionResponse::Scalar(location));
   }
 
-  // Identifier or type reference: resolve via referee.
+  // Identifier or type reference: resolve via referee
   let expr_node = nearest_expr_ancestor(&node)?;
   let hir = lower_node(db, project, file, expr_node);
   let symbol = referee(db, hir).value(db)?;
@@ -406,7 +406,7 @@ name: fref("ali|ce.td")
     );
   }
 
-  // fref resolves from vault root, not project root.
+  // fref resolves from vault root, not project root
   // When root_dir is "vault", fref("alice.td") should resolve to /project/vault/alice.td.
   #[test]
   fn definition_on_fref_uses_vault_root() {

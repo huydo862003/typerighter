@@ -105,8 +105,8 @@ impl Server {
       .map_err(|_| Error::msg("project_entry.host RwLock is poisoned"))?
       .snapshot();
 
-    // Dispatch to thread pool so the main loop stays responsive.
-    // Cancelled::catch handles the case where a didChange cancels in-flight queries.
+    // Dispatch to thread pool so the main loop stays responsive
+    // Cancelled::catch handles the case where a didChange cancels in-flight queries
     let sender = self.connection.sender.clone();
     let request_id = req.id.clone();
     self.thread_pool.execute(move || {
@@ -180,8 +180,8 @@ impl Server {
   }
 
   fn handle_notification(&self, note: Notification) -> anyhow::Result<()> {
-    // DidChangeWatchedFiles can contain changes spanning multiple projects.
-    // Route each change to its own project independently.
+    // DidChangeWatchedFiles can contain changes spanning multiple projects
+    // Route each change to its own project independently
     if note.method == DidChangeWatchedFiles::METHOD {
       let params = serde_json::from_value::<DidChangeWatchedFilesParams>(note.params.clone())?;
       // Collect affected projects so we push diagnostics once per project, not per file
@@ -438,12 +438,12 @@ impl Server {
 /// Handle text document notifications (open, change, close)
 fn handle_text_notification(host: &mut AnalysisHost, note: &Notification) -> anyhow::Result<()> {
   match note.method.as_str() {
-    // Editor opened a file: take ownership of its content from the editor buffer.
+    // Editor opened a file: take ownership of its content from the editor buffer
     DidOpenTextDocument::METHOD => {
       let params = serde_json::from_value::<DidOpenTextDocumentParams>(note.params.clone())?;
       host.on_editor_open_file(&params.text_document.uri, params.text_document.text);
     }
-    // Editor sent incremental diffs: apply each change to the in-memory rope.
+    // Editor sent incremental diffs: apply each change to the in-memory rope
     DidChangeTextDocument::METHOD => {
       let params = serde_json::from_value::<DidChangeTextDocumentParams>(note.params.clone())?;
       let path = uri_to_path(&params.text_document.uri)
@@ -455,7 +455,7 @@ fn handle_text_notification(host: &mut AnalysisHost, note: &Notification) -> any
       }
       host.on_editor_change_file(path, rope);
     }
-    // Editor closed the file: fall back to the on-disk version.
+    // Editor closed the file: fall back to the on-disk version
     DidCloseTextDocument::METHOD => {
       let params = serde_json::from_value::<DidCloseTextDocumentParams>(note.params.clone())?;
       let path = uri_to_path(&params.text_document.uri)

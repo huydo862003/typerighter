@@ -94,7 +94,7 @@ impl GreenNode {
   ) -> Either<impl Iterator<Item = char>, Box<dyn Iterator<Item = char> + 'a>> {
     if self.is_token() {
       let token = self.as_token().unwrap();
-      // Collect bytes first so the iterator owns its data independent of token's lifetime.
+      // Collect bytes first so the iterator owns its data independent of token's lifetime
       let bytes = token.bytes().to_vec();
       Either::Left(
         bytes

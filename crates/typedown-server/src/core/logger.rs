@@ -12,8 +12,8 @@ use lsp_types::{LogMessageParams, MessageType};
 // The LSP sender is set after the handshake completes
 static LSP_SENDER: OnceLock<Sender<Message>> = OnceLock::new();
 
-// Sends log messages to both a local file and the LSP channel.
-// File logging starts immediately, LSP logging starts after set_lsp_sender.
+// Sends log messages to both a local file and the LSP channel
+// File logging starts immediately, LSP logging starts after set_lsp_sender
 struct Logger {
   file: Option<Mutex<File>>,
 }

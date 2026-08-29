@@ -54,14 +54,14 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
   }
 
   let text = if is_in_mapping_value_position(&hovered_node) {
-    // Value position: show the resolved type of the expression.
+    // Value position: show the resolved type of the expression
     let expr_node = nearest_expr_ancestor(&hovered_node)?;
     let hir = lower_node(db, project, file, expr_node);
 
     let typ = actual_node_type(db, hir).typ(db)?;
     typ.display_name(db)
   } else if find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey).is_some() {
-    // Key position: show the field name with its declared type.
+    // Key position: show the field name with its declared type
     let entry_key = find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey)?;
     let entry = entry_key.parent()?;
     let entry_value = entry

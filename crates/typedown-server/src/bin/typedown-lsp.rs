@@ -79,8 +79,7 @@ pub fn main() -> anyhow::Result<()> {
 
   let multiproject = Multiproject::default();
 
-  // connection.initialize wraps its arg in { "capabilities": ... },
-  // so we use initialize_start/initialize_finish to also include serverInfo
+  // connection.initialize wraps its arg in { "capabilities": ... }, so we use initialize_start/initialize_finish to also include serverInfo
   let (init_id, init_params) = connection.initialize_start()?;
   let init_data = serde_json::to_value(InitializeResult {
     capabilities,

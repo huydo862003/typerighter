@@ -210,8 +210,8 @@ impl<
       decoder.get_or_deserialize_dep_node_id(edge_idx);
     }
 
-    // Green check: compare multisets of (ingredient_name, value_fingerprint).
-    // Both the serialized edges and current entries must have matching counts.
+    // Green check: compare multisets of (ingredient_name, value_fingerprint)
+    // Both the serialized edges and current entries must have matching counts
     let mut expected: HashMap<(Fingerprint, Fingerprint), usize> = HashMap::new();
     for edge_idx in edges {
       let edge_node = &ctx.serialized.dep_graph.nodes[*edge_idx as usize];
@@ -341,8 +341,7 @@ impl<
           drop(entry); // Release the read lock
 
           if self.green_check(db, arg_id, changed_at) {
-            // The green check has verified or
-            // recomputed + backdated so the entry must now be fresh
+            // The green check has verified or recomputed + backdated so the entry must now be fresh
             if let Some(entry) = self.data.get(&arg_id)
               && let QueryState::Computed(memo) = &*entry
             {
@@ -568,8 +567,7 @@ impl<
     else {
       return None;
     };
-    // Register dep_id BEFORE decoding to prevent recursion via
-    // get_or_deserialize_dep_node_id (idempotency guard).
+    // Register dep_id BEFORE decoding to prevent recursion via get_or_deserialize_dep_node_id (idempotency guard)
     let arg_id = self.next_arg_id.fetch_add(1, Ordering::Relaxed);
     let dep_id = (self.ingredient_index, arg_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);

@@ -343,8 +343,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
     }
   };
 
-  // Extract the bare return type name (without lifetime) for use in path expressions
-  // e.g. SchemaCheckResult<'db> -> SchemaCheckResult
+  // Extract the bare return type name (without lifetime) for use in path expressions, e.g. SchemaCheckResult<'db> -> SchemaCheckResult
   let return_type_without_lifetime = if let syn::Type::Path(type_path) = return_type {
     type_path.path.segments.last().map(|seg| &seg.ident)
   } else {
@@ -447,10 +446,8 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   output.extend::<TokenStream>(
     quote! {
       // TIL: Originally, i used a unit struct instead of record-like struct
-      // Thinking that a struct would not collide with a function with the same name, as they are
-      // in different namespaces
-      // However, unit structs create both a value and a type (cause you can use a unit struct name
-      // to represent the singleton value)
+      // I thought a struct would not collide with a function with the same name, as they are in different namespaces
+      // However, unit structs create both a value and a type (you can use a unit struct name to represent the singleton value)
       #[allow(non_camel_case_types, clippy::useless_transmute)]
       #visibility struct #fn_name { private: () }
 

@@ -25,9 +25,8 @@ pub fn setup_db_fresh(project_dir: &Path) -> TypedownDatabase {
   db
 }
 
-// Reuses cached File/Project IDs to avoid unnecessary invalidation.
-// This mirrors what AnalysisHost::new does so the incremental cache can
-// match entries and skip recomputation.
+// Reuses cached File/Project IDs to avoid unnecessary invalidation
+// This mirrors what AnalysisHost::new does so the incremental cache can match entries and skip recomputation
 pub fn setup_db_cached(cache_dir: &Path, project_dir: &Path) -> TypedownDatabase {
   let (_session, data) = CacheSession::open(cache_dir).unwrap();
   let serialized = data.expect("cache should exist");
@@ -39,8 +38,8 @@ pub fn setup_db_cached(cache_dir: &Path, project_dir: &Path) -> TypedownDatabase
   db
 }
 
-// Spawn a child process to run a specific test in an isolated session.
-// Child processes get clean statics, which is needed for incremental cache tests.
+// Spawn a child process to run a specific test in an isolated session
+// Child processes get clean statics, which is needed for incremental cache tests
 pub fn run_child_test(test_name: &str, envs: &[(&str, &str)]) {
   let mut cmd = Command::new(std::env::current_exe().unwrap());
   for (key, val) in envs {

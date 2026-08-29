@@ -41,7 +41,7 @@ impl SyntaxNode {
         n_children: n as u32,
       });
 
-      // Clone each child (bumps ref-count) and write into the allocation.
+      // Clone each child (bumps ref-count) and write into the allocation
       let children_ptr = base.add(children_offset) as *mut GreenNode;
       for (i, child) in children.iter().enumerate() {
         children_ptr.add(i).write(child.clone());

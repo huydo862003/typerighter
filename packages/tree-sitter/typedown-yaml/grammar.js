@@ -117,9 +117,9 @@ export default grammar({
         $._block_end,
       ),
 
-    // | and > are internal tokens so they don't conflict with || and > operators.
-    // The operators are infix (require left operand in binary_expression),
-    // while block scalar indicators only appear at the start of a value.
+    // | and > are internal tokens so they don't conflict with || and > operators
+    // The operators are infix (require left operand in binary_expression)
+    // Block scalar indicators only appear at the start of a value
     block_scalar: ($) =>
       seq(
         field('indicator', choice(
