@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{Cancelled, ExecuteContext, QueryStackEntry, QueryStorage};
+use crate::{Cancelled, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage};
 use crate::{
   Decodable, DepId, DeserializeContext, Encodable, Fingerprint, StableHash, StableHasher,
 };
@@ -57,6 +57,7 @@ pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   intern_map: Arc<DashMap<K, usize>>, // key -> stable arg_id
   #[doc(hidden)]
   pub data: Arc<DashMap<usize, QueryState<K, V>>>, // arg_id -> state
+  identity_maps: IdentityMapTable,
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicUsize>,
   #[cfg(debug_assertions)]
@@ -137,6 +138,7 @@ impl<
       query_fn,
       intern_map: Arc::new(DashMap::new()),
       data: Arc::new(DashMap::new()),
+      identity_maps: Arc::new(DashMap::new()),
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicUsize::new(0)),
       #[cfg(debug_assertions)]
@@ -395,22 +397,28 @@ impl<
       return (value, changed_at);
     }
 
-    // Push to query stack, save parent dependencies and disambiguator state
-    let (parent_dependencies, parent_disambiguator_map) = storage.with_context(|ctx| {
-      let ctx = ctx.get_or_insert_with(|| ExecuteContext {
-        query_stack: Vec::new(),
-        dependencies: Vec::new(),
-        disambiguator_map: std::collections::HashMap::new(),
+    // Save parent context and push to query stack
+    let (parent_deps, parent_disambiguators, parent_store, parent_created_ids) = storage
+      .with_context(|ctx| {
+        let ctx = ctx.get_or_insert_with(|| ExecuteContext {
+          query_stack: Vec::new(),
+          dependencies: Vec::new(),
+          disambiguator_map: HashMap::new(),
+          identity_maps: None,
+          created_ids: HashMap::new(),
+        });
+        ctx.query_stack.push(QueryStackEntry {
+          ingredient_index,
+          arg_id,
+        });
+        let parent_store = ctx.identity_maps.replace(self.identity_maps.clone());
+        (
+          std::mem::take(&mut ctx.dependencies),
+          std::mem::take(&mut ctx.disambiguator_map),
+          parent_store,
+          std::mem::take(&mut ctx.created_ids),
+        )
       });
-      ctx.query_stack.push(QueryStackEntry {
-        ingredient_index,
-        arg_id,
-      });
-      (
-        std::mem::take(&mut ctx.dependencies),
-        std::mem::take(&mut ctx.disambiguator_map),
-      )
-    });
 
     // Check for cancellation before recomputing
     let storage = unsafe { db.storage() };
@@ -425,15 +433,24 @@ impl<
     let value = (self.query_fn)(db, arg);
 
     // Collect recorded dependencies, restore parent state, and pop stack
-    let dependencies = storage.with_context(|ctx| {
+    let (dependencies, created_ids) = storage.with_context(|ctx| {
       let ctx = ctx
         .as_mut()
         .expect("context disappeared during query execution");
-      let dependencies = std::mem::replace(&mut ctx.dependencies, parent_dependencies);
-      ctx.disambiguator_map = parent_disambiguator_map;
+      let dependencies = std::mem::replace(&mut ctx.dependencies, parent_deps);
+      ctx.disambiguator_map = parent_disambiguators;
+      ctx.identity_maps = parent_store;
+      let created_ids = std::mem::replace(&mut ctx.created_ids, parent_created_ids);
       ctx.query_stack.pop();
-      dependencies
+      (dependencies, created_ids)
     });
+
+    // Remove identity map entries for structs not recreated in this execution
+    for (start_index, active_ids) in &created_ids {
+      if let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) {
+        map.retain_ids(active_ids);
+      }
+    }
 
     // Backdating: if the new value equals the old, keep the old changed_at
     // This prevents unnecessary invalidation of downstream queries
@@ -668,7 +685,6 @@ pub struct DerivedFieldIngredient<T> {
   field_index: u8,
   name: &'static str,
   pub id_counter: &'static AtomicUsize,
-  pub identity_map: Option<Arc<dyn Any + Send + Sync>>,
   #[doc(hidden)]
   pub data: Arc<DashMap<usize, StampedDerivedField<T>>>,
 }
@@ -691,14 +707,12 @@ impl<T> DerivedFieldIngredient<T> {
     name: &'static str,
     field_index: u8,
     id_counter: &'static AtomicUsize,
-    identity_map: Option<Arc<dyn Any + Send + Sync>>,
   ) -> Self {
     Self {
       ingredient_index,
       field_index,
       name,
       id_counter,
-      identity_map,
       data: Arc::new(DashMap::new()),
     }
   }

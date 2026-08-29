@@ -1,7 +1,10 @@
+use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, OnceLock};
+
+use dashmap::DashMap;
 
 use super::ingredient::{Dependency, IngredientEntry, IngredientFactory, Inventory};
 use super::persist::serialized::SerializedQueryStorage;
@@ -19,11 +22,28 @@ pub struct QueryStackEntry {
   pub arg_id: usize,
 }
 
+// Type-erased identity map that supports sweeping stale entries
+pub trait IdentityMap: Any + Send + Sync {
+  fn retain_ids(&self, active_ids: &HashSet<usize>);
+}
+
+impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K, usize> {
+  fn retain_ids(&self, active_ids: &HashSet<usize>) {
+    self.retain(|_, id| active_ids.contains(id));
+  }
+}
+
+// (arg_id, start_index) -> identity map
+pub type IdentityMapTable = Arc<DashMap<(usize, usize), Arc<dyn IdentityMap>>>;
+
 /// Context passed through derived query execution
 pub struct ExecuteContext {
   pub query_stack: Vec<QueryStackEntry>,
   pub dependencies: Vec<Dependency>,
   pub disambiguator_map: HashMap<u64, usize>, // map hash(ingredient_index, id_field_values) to counter
+  // (arg_id, start_index) -> identity map, from the creating query
+  pub identity_maps: Option<IdentityMapTable>,
+  pub created_ids: HashMap<usize, HashSet<usize>>, // start_index -> IDs created this execution
 }
 
 #[derive(Clone)]

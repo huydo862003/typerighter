@@ -608,8 +608,6 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   let field_types_static: Vec<proc_macro2::TokenStream> =
     field_types.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let first_field_ty = internal_field_types_static.first().cloned();
-
   let id_fields: Vec<_> = fields
     .iter()
     .enumerate()
@@ -626,20 +624,12 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     .iter()
     .map(|(_, field)| field.ident.as_ref().unwrap())
     .collect();
-  let identity_ty = quote! {((usize, usize), usize, (#(#id_field_tys_static,)*) )};
+  let identity_ty = quote! {(usize, (#(#id_field_tys_static,)*) )};
 
   // Register per-field ingredients via inventory
   let struct_name_str = struct_name.to_string();
   let mut register_tokens = quote! {};
   for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
-    let identity_map_expr = if idx == 0 {
-      quote! {
-        Some(::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, usize>::new())
-          as ::std::sync::Arc<dyn ::std::any::Any + Send + Sync>)
-      }
-    } else {
-      quote! { None }
-    };
     register_tokens.extend(quote! {
       factories.push(|index| {
         ::typedown_incremental::IngredientEntry {
@@ -648,7 +638,6 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
             #struct_name_str,
             #idx as u8,
             #struct_name::id_counter(),
-            #identity_map_expr,
           )),
           field_index: Some(#idx as u8),
         }
@@ -704,25 +693,29 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     });
   }
 
-  let identity_map_lookup_tokens = if let Some(fft) = first_field_ty {
-    quote! {
-      let first_ingredient = (&*storage.ingredients[start_index].ingredient as &dyn ::std::any::Any)
-        .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#fft>>()
-        .expect("ingredient type mismatch");
-      let map = first_ingredient.identity_map.as_ref()
-        .expect("first field ingredient must have identity_map")
+  // Look up or allocate a stable ID for this derived struct instance
+  // Reuses existing ID if the same identity was seen before in this query
+  let identity_map_lookup_tokens = quote! {
+    let id = storage.with_context(|ctx| {
+      let ctx = ctx.as_mut()?;
+      let store = ctx.identity_maps.as_ref()?;
+      let arg_id = ctx.query_stack.last().map(|e| e.arg_id)?;
+      let map_arc = store
+        .entry((arg_id, start_index))
+        .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, usize>::new()))
+        .clone();
+      let map = (&*map_arc as &dyn ::std::any::Any)
         .downcast_ref::<dashmap::DashMap<#identity_ty, usize>>()
         .expect("identity_map type mismatch");
-
       let id = if let Some(existing) = map.get(&identity) {
         *existing
       } else {
         let new_id = Self::next_id();
         *map.entry(identity).or_insert(new_id)
       };
-    }
-  } else {
-    unreachable!("all derived structs have at least one internal field (phantom)")
+      ctx.created_ids.entry(start_index).or_default().insert(id);
+      Some(id)
+    }).unwrap_or_else(|| Self::next_id());
   };
 
   let mut new_body_tokens = quote! {};
@@ -834,11 +827,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
             hasher.finish()
           };
           let disambiguator = storage.next_disambiguator(identity_hash);
-          let creating_query = storage.current_query_identity();
 
           // Safety: erase 'db to 'static for the identity map key
           let identity: #identity_ty = unsafe {
-            ::std::mem::transmute((creating_query, disambiguator, (#(#id_field_names.clone(),)*)))
+            ::std::mem::transmute((disambiguator, (#(#id_field_names.clone(),)*)))
           };
           #identity_map_lookup_tokens
 
