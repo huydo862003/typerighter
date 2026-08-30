@@ -30,11 +30,15 @@ pub struct Lru {
 }
 
 impl Lru {
-  // Record access and returns arg_ids to evict
-  pub fn touch(&self, arg_id: usize) -> Vec<usize> {
+  // Record access, no eviction
+  pub fn touch(&self, arg_id: usize) {
     let mut order = self.access_order.lock().unwrap();
     order.shift_remove(&arg_id);
     order.insert(arg_id);
+  }
+
+  pub fn drain_evicted(&self) -> Vec<usize> {
+    let mut order = self.access_order.lock().unwrap();
     let mut evicted = Vec::new();
     while order.len() > LRU_CAPACITY {
       if let Some(id) = order.shift_remove_index(0) {
@@ -329,16 +333,9 @@ impl<
       }
     });
 
-    for evicted_arg_id in self.lru.touch(arg_id) {
-      self.evict_memo(evicted_arg_id);
-    }
+    self.lru.touch(arg_id);
 
     value
-  }
-
-  // Evict a memo, forcing recomputation on next access
-  fn evict_memo(&self, arg_id: usize) {
-    self.data.remove(&arg_id);
   }
 
   /// Inner implementation that returns (value, changed_at)
@@ -617,6 +614,12 @@ impl<
     self.data.remove(&entry_id);
   }
 
+  fn reset_for_new_revision(&self) {
+    for arg_id in self.lru.drain_evicted() {
+      self.data.remove(&arg_id);
+    }
+  }
+
   fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
@@ -797,6 +800,8 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
   fn re_execute(&self, _db: &dyn QueryDatabase, _arg_id: usize) {
     // Derived fields are set by the query, nothing to recompute
   }
+
+  fn reset_for_new_revision(&self) {}
 
   fn remove_entry(&self, entry_id: usize) {
     self.data.remove(&entry_id);

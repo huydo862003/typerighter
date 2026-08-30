@@ -25,6 +25,8 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 
   fn remove_entry(&self, entry_id: usize);
 
+  fn reset_for_new_revision(&self);
+
   fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_>;
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: usize) -> Option<Fingerprint>;

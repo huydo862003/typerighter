@@ -185,6 +185,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // We expect that the Rust borrow checker would only allow one &mut db while no other &db is present
         // We just want a race-free revision counter here to signal "staleness" to later reads
         let new_revision = storage.revision.fetch_add(1, ::std::sync::atomic::Ordering::Release) + 1;
+        storage.reset_for_new_revision();
         let stamped = entry.value_mut();
         stamped.value = value;
         stamped.changed_at = new_revision;

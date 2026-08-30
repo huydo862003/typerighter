@@ -82,6 +82,8 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     // Inputs are ground truth, nothing to recompute
   }
 
+  fn reset_for_new_revision(&self) {}
+
   fn remove_entry(&self, entry_id: usize) {
     self.data.remove(&entry_id);
   }

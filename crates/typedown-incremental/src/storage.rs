@@ -149,6 +149,12 @@ impl QueryStorage {
     }
   }
 
+  pub fn reset_for_new_revision(&self) {
+    for entry in self.ingredients.iter() {
+      entry.ingredient.reset_for_new_revision();
+    }
+  }
+
   /// Total number of query function invocations across all derived ingredients.
   #[cfg(debug_assertions)]
   pub fn total_recompute_count(&self) -> usize {
