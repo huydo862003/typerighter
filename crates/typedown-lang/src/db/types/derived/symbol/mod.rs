@@ -9,8 +9,7 @@ use crate::db::derived::name_resolver::scope::{
 };
 use crate::db::types::{File, HirValue, Project, TdObjectEnum};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, QueryDatabase,
-  StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]

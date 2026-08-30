@@ -478,7 +478,7 @@ fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> St
       // Optional type: use non-null member's placeholder
       let non_null: Vec<_> = members
         .iter()
-        .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
         .collect();
       if non_null.len() == 1 {
         return lazy_placeholder(db, non_null[0], indent);

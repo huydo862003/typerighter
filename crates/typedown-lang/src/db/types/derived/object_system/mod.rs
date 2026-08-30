@@ -25,9 +25,7 @@ use std::hash::{Hash, Hasher};
 
 use strum::FromRepr;
 
-use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder,
-};
+use typedown_incremental::{Decodable, Decoder, Encodable, Encoder};
 
 pub use base::*;
 pub use blob::*;

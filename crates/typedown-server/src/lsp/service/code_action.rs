@@ -38,10 +38,7 @@ pub fn code_action(analysis: &Analysis, params: CodeActionParams) -> Option<Code
   let requested_kinds = &params.context.only;
 
   // Schema initialization for empty frontmatter
-  if !source
-    .frontmatter()
-    .is_some_and(|fm| fm.mapping().is_some())
-  {
+  if source.frontmatter().is_none_or(|fm| fm.mapping().is_none()) {
     for (name, template) in collect_schemas(db, project) {
       let edit = TextEdit {
         range: params.range,
@@ -266,7 +263,7 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
       // Optional type: use non-null member's default
       let non_null: Vec<_> = members
         .iter()
-        .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
         .collect();
       if non_null.len() == 1 {
         return default_value(db, non_null[0]);

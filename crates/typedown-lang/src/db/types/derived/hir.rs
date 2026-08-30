@@ -5,8 +5,7 @@ use typedown_macros::{StableCompare, query_derived};
 
 use crate::db::types::{File, Project};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, QueryDatabase,
-  StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
 /// A lowered YAML value, source-tracked via its originating project, file, and red node.

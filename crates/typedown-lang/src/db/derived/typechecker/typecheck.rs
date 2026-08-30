@@ -123,17 +123,15 @@ fn check_mapping_fields<'db>(
       let value_result = actual_node_type(db, *value_hir);
       let is_optional = is_nullable(db, &field_type);
       match value_result.typ(db) {
-        Some(actual_type) => {
-          if !is_subtype_of(db, &actual_type, &field_type) {
-            let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypeMismatch {
-              field: key.clone(),
-              expected: field_type.display_name(db),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
-            });
-          }
+        Some(actual_type) if !is_subtype_of(db, &actual_type, &field_type) => {
+          let node = value_hir.node(db);
+          let (tr_offset, tr_len) = node.trimmed_range();
+          diagnostics.push(Diagnostic::FieldTypeMismatch {
+            field: key.clone(),
+            expected: field_type.display_name(db),
+            start_offset: tr_offset,
+            end_offset: tr_offset + tr_len,
+          });
         }
         // Unresolved identifier used as a field value
         None if matches!(value_hir.kind(db), HirValueKind::Ident(_)) => {
@@ -156,7 +154,7 @@ fn check_mapping_fields<'db>(
             end_offset: tr_offset + tr_len,
           });
         }
-        None => {}
+        Some(_) | None => {}
       }
     }
   }

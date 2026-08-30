@@ -3,8 +3,7 @@ use std::collections::hash_set::{IntoIter, Iter};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, QueryDatabase,
-  StableCompare, StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableCompare, StableHash, StableHasher,
 };
 
 // Built in HashSet doesnt support hashing so we wrap

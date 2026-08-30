@@ -7,8 +7,7 @@ use super::str::TdStrObj;
 use crate::db::TypedownDatabase;
 use crate::db::types::{HirValue, Project, RuntimeScope};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, QueryDatabase,
-  StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
 use crate::syntax::diagnostic::Diagnostic;

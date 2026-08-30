@@ -11,10 +11,8 @@ pub fn path_to_uri(path: &Path, scheme: &str) -> Uri {
         uri_path.push('/');
         uri_path.push_str(&prefix.as_os_str().to_string_lossy());
       }
-      Component::RootDir => {
-        if uri_path.is_empty() {
-          uri_path.push('/');
-        }
+      Component::RootDir if uri_path.is_empty() => {
+        uri_path.push('/');
       }
       Component::Normal(seg) => {
         if !uri_path.ends_with('/') {
