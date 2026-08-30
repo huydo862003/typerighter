@@ -24,12 +24,22 @@ pub struct QueryStackEntry {
 
 // Type-erased identity map that supports sweeping stale entries
 pub trait IdentityMap: Any + Send + Sync {
-  fn retain_ids(&self, active_ids: &HashSet<usize>);
+  // Remove entries where predicate returns false, return the removed IDs
+  fn retain(&self, predicate: &dyn Fn(usize) -> bool) -> HashSet<usize>;
 }
 
 impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K, usize> {
-  fn retain_ids(&self, active_ids: &HashSet<usize>) {
-    self.retain(|_, id| active_ids.contains(id));
+  fn retain(&self, predicate: &dyn Fn(usize) -> bool) -> HashSet<usize> {
+    let mut removed = HashSet::new();
+    DashMap::retain(self, |_, id| {
+      if predicate(*id) {
+        true
+      } else {
+        removed.insert(*id);
+        false
+      }
+    });
+    removed
   }
 }
 

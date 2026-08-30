@@ -82,6 +82,10 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     // Inputs are ground truth, nothing to recompute
   }
 
+  fn remove_entry(&self, entry_id: usize) {
+    self.data.remove(&entry_id);
+  }
+
   fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }

@@ -482,10 +482,23 @@ impl<
       (dependencies, created_ids)
     });
 
-    // Remove identity map entries for structs not recreated in this execution
+    // Remove identity map entries for structs not recreated
     for (start_index, active_ids) in &created_ids {
-      if let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) {
-        map.retain_ids(active_ids);
+      let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) else {
+        continue;
+      };
+      let removed = map.retain(&|id| active_ids.contains(&id));
+      if removed.is_empty() {
+        continue;
+      }
+      // Remove field data for sibling field ingredients
+      for (i, entry) in storage.ingredients[*start_index..].iter().enumerate() {
+        if entry.field_index != Some(i as u8) {
+          break;
+        }
+        for &id in &removed {
+          entry.ingredient.remove_entry(id);
+        }
       }
     }
 
@@ -598,6 +611,10 @@ impl<
     if let Some(key) = key {
       self.execute_query(db, key);
     }
+  }
+
+  fn remove_entry(&self, entry_id: usize) {
+    self.data.remove(&entry_id);
   }
 
   fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
@@ -779,6 +796,10 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
   fn re_execute(&self, _db: &dyn QueryDatabase, _arg_id: usize) {
     // Derived fields are set by the query, nothing to recompute
+  }
+
+  fn remove_entry(&self, entry_id: usize) {
+    self.data.remove(&entry_id);
   }
 
   fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
