@@ -22,7 +22,7 @@
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
         };
-        rust-nightly = pkgs.rust-bin.nightly.latest.default.override {
+        rust-stable = pkgs.rust-bin.stable.latest.default.override {
           extensions = [
             "rust-src"
             "rust-analyzer"
@@ -60,8 +60,8 @@
           '';
         };
         rustPlatform = pkgs.makeRustPlatform {
-          cargo = rust-nightly;
-          rustc = rust-nightly;
+          cargo = rust-stable;
+          rustc = rust-stable;
         };
         typedown-server = rustPlatform.buildRustPackage {
           pname = "typedown-server";
@@ -84,7 +84,7 @@
           packages = with pkgs; [
             mdbook
             mdbook-mermaid
-            rust-nightly
+            rust-stable
             nodejs
             pnpm
             clang

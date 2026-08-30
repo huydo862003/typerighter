@@ -1,9 +1,3 @@
-// TIL: We use nightly `specialization` to simulate C++ `if constexpr` for compile-time type dispatch
-// - FieldEncodable/FieldDecodable dispatch between query struct IDs (as DepNodeIndex) and plain types
-// - The known unsoundness involves lifetime-dependent specialization, which we don't use
-#![feature(specialization)]
-#![allow(incomplete_features)]
-
 /// We need this so macros can be used within this crate
 extern crate self as typedown_incremental;
 

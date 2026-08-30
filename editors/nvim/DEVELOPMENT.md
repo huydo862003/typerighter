@@ -5,7 +5,7 @@ For full project setup, see the [root DEVELOPMENT.md](../../DEVELOPMENT.md).
 ## Dependencies
 
 - **Neovim** (0.10+)
-- **Rust nightly**: To build `typedown-lsp`
+- **Rust**: To build `typedown-lsp`
 - **Node.js** and **pnpm**: To build tree-sitter grammars
 
 All provided automatically by `nix develop` from the repo root.

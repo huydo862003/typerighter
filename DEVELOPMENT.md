@@ -7,8 +7,7 @@
 Absolutely required dependencies to author the core crates (Rust) & packages (Node):
 
 - Rust
-  - **Rust nightly** (1.99+): Compiler, LSP server, Zed extension
-    > We can avoid Rust nightly technically, but it's a hobby project and I want to utilize some meta-programming, so I opted for Rust nightly
+  - **Rust stable** (1.95+): Compiler, LSP server, Zed extension
   - **wasm32-wasip1 target**: Compile the Zed extension to WASM
   - **wasm32-unknown-unknown target**: Compile the RPC client to browser WASM
   - **wasm-pack**: Build and package the RPC client WASM module for JS consumption
@@ -61,11 +60,11 @@ This drops you into a shell with all dependencies above. If you use [direnv](htt
 
 Install each dependency manually:
 
-1. **Rust nightly** via [rustup](https://rustup.rs/):
+1. **Rust** via [rustup](https://rustup.rs/):
 
    ```bash
-   rustup install nightly
-   rustup default nightly
+   rustup install stable
+   rustup default stable
    rustup component add rust-src rust-analyzer clippy rustfmt
    rustup target add wasm32-wasip1 wasm32-unknown-unknown
    ```

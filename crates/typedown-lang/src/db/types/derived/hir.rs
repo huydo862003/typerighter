@@ -5,7 +5,7 @@ use typedown_macros::{StableCompare, query_derived};
 
 use crate::db::types::{File, Project};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase,
   StableHash, StableHasher,
 };
 
@@ -292,7 +292,7 @@ impl<'db> Encodable for InterpolatedPart<'db> {
       }
       InterpolatedPart::Expr(hir) => {
         encoder.emit_u8(buf, InterpolatedPartTag::Expr as u8);
-        hir.encode_field(buf, encoder);
+        hir.field_encode(buf, encoder);
       }
     }
   }
@@ -303,7 +303,7 @@ impl<'db> Decodable for InterpolatedPart<'db> {
     let tag = decoder.read_u8(data);
     match InterpolatedPartTag::from_repr(tag).expect("unknown InterpolatedPart tag") {
       InterpolatedPartTag::Literal => InterpolatedPart::Literal(String::decode(data, decoder)),
-      InterpolatedPartTag::Expr => InterpolatedPart::Expr(HirValue::decode_field(data, decoder)),
+      InterpolatedPartTag::Expr => InterpolatedPart::Expr(HirValue::field_decode(data, decoder)),
     }
   }
 }

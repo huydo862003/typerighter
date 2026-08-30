@@ -26,7 +26,7 @@ use std::hash::{Hash, Hasher};
 use strum::FromRepr;
 
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable,
+  Decodable, Decoder, Encodable, Encoder,
 };
 
 pub use base::*;
@@ -348,91 +348,91 @@ impl Encodable for TdTypeEnum<'_> {
     match self {
       TdTypeEnum::TdTypeType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Type as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdStrType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Str as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdBoolType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Bool as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdNumType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Num as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdMathType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Math as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdListType(v) => {
         encoder.emit_u8(buf, TdTypeKind::List as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdDictType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Dict as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdFuncType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Func as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdProductType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Product as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdSchemaMetaType(v) => {
         encoder.emit_u8(buf, TdTypeKind::SchemaMetaType as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdSchemaType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Schema as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdDateTimeType(v) => {
         encoder.emit_u8(buf, TdTypeKind::DateTime as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdDateType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Date as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdTimeType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Time as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdBlobType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Blob as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdNullType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Null as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdNeverType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Never as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdLiteralType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Literal as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdSumType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Sum as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdVariableType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Variable as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdExistentialType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Existential as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdTypeEnum::TdObjectType(v) => {
         encoder.emit_u8(buf, TdTypeKind::Object as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
     }
   }
@@ -442,28 +442,28 @@ impl Decodable for TdTypeEnum<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match TdTypeKind::from_repr(tag).expect("unknown TdTypeKind tag") {
-      TdTypeKind::Type => TdTypeType::decode_field(data, decoder).into(),
-      TdTypeKind::Str => TdStrType::decode_field(data, decoder).into(),
-      TdTypeKind::Bool => TdBoolType::decode_field(data, decoder).into(),
-      TdTypeKind::Num => TdNumType::decode_field(data, decoder).into(),
-      TdTypeKind::Math => TdMathType::decode_field(data, decoder).into(),
-      TdTypeKind::List => TdListType::decode_field(data, decoder).into(),
-      TdTypeKind::Dict => TdDictType::decode_field(data, decoder).into(),
-      TdTypeKind::Func => TdFuncType::decode_field(data, decoder).into(),
-      TdTypeKind::Product => TdProductType::decode_field(data, decoder).into(),
-      TdTypeKind::SchemaMetaType => TdSchemaMetaType::decode_field(data, decoder).into(),
-      TdTypeKind::Schema => TdSchemaType::decode_field(data, decoder).into(),
-      TdTypeKind::DateTime => TdDateTimeType::decode_field(data, decoder).into(),
-      TdTypeKind::Date => TdDateType::decode_field(data, decoder).into(),
-      TdTypeKind::Time => TdTimeType::decode_field(data, decoder).into(),
-      TdTypeKind::Blob => TdBlobType::decode_field(data, decoder).into(),
-      TdTypeKind::Null => TdNullType::decode_field(data, decoder).into(),
-      TdTypeKind::Never => TdNeverType::decode_field(data, decoder).into(),
-      TdTypeKind::Literal => TdLiteralType::decode_field(data, decoder).into(),
-      TdTypeKind::Sum => TdSumType::decode_field(data, decoder).into(),
-      TdTypeKind::Existential => TdExistentialType::decode_field(data, decoder).into(),
-      TdTypeKind::Variable => TdVariableType::decode_field(data, decoder).into(),
-      TdTypeKind::Object => TdObjectType::decode_field(data, decoder).into(),
+      TdTypeKind::Type => TdTypeType::field_decode(data, decoder).into(),
+      TdTypeKind::Str => TdStrType::field_decode(data, decoder).into(),
+      TdTypeKind::Bool => TdBoolType::field_decode(data, decoder).into(),
+      TdTypeKind::Num => TdNumType::field_decode(data, decoder).into(),
+      TdTypeKind::Math => TdMathType::field_decode(data, decoder).into(),
+      TdTypeKind::List => TdListType::field_decode(data, decoder).into(),
+      TdTypeKind::Dict => TdDictType::field_decode(data, decoder).into(),
+      TdTypeKind::Func => TdFuncType::field_decode(data, decoder).into(),
+      TdTypeKind::Product => TdProductType::field_decode(data, decoder).into(),
+      TdTypeKind::SchemaMetaType => TdSchemaMetaType::field_decode(data, decoder).into(),
+      TdTypeKind::Schema => TdSchemaType::field_decode(data, decoder).into(),
+      TdTypeKind::DateTime => TdDateTimeType::field_decode(data, decoder).into(),
+      TdTypeKind::Date => TdDateType::field_decode(data, decoder).into(),
+      TdTypeKind::Time => TdTimeType::field_decode(data, decoder).into(),
+      TdTypeKind::Blob => TdBlobType::field_decode(data, decoder).into(),
+      TdTypeKind::Null => TdNullType::field_decode(data, decoder).into(),
+      TdTypeKind::Never => TdNeverType::field_decode(data, decoder).into(),
+      TdTypeKind::Literal => TdLiteralType::field_decode(data, decoder).into(),
+      TdTypeKind::Sum => TdSumType::field_decode(data, decoder).into(),
+      TdTypeKind::Existential => TdExistentialType::field_decode(data, decoder).into(),
+      TdTypeKind::Variable => TdVariableType::field_decode(data, decoder).into(),
+      TdTypeKind::Object => TdObjectType::field_decode(data, decoder).into(),
     }
   }
 }
@@ -479,63 +479,63 @@ impl Encodable for TdObjectEnum<'_> {
       // Objects
       TdObjectEnum::TdStrObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::StrObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdBoolObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::BoolObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdNumObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::NumObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdMathObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::MathObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdListObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::ListObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdDictObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::DictObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdFuncObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::FuncObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdProductObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::ProductObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdSchemaObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::SchemaObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdDateTimeObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::DateTimeObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdDateObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::DateObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdTimeObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::TimeObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdBlobObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::BlobObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdNullObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::NullObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
       TdObjectEnum::TdVaultObj(v) => {
         encoder.emit_u8(buf, TdObjectKind::VaultObj as u8);
-        v.encode_field(buf, encoder);
+        v.field_encode(buf, encoder);
       }
     }
   }
@@ -546,21 +546,21 @@ impl Decodable for TdObjectEnum<'_> {
     let tag = decoder.read_u8(data);
     match TdObjectKind::from_repr(tag) {
       Some(TdObjectKind::Type) => TdObjectEnum::TdTypeObj(TdTypeEnum::decode(data, decoder)),
-      Some(TdObjectKind::StrObj) => TdStrObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::BoolObj) => TdBoolObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::NumObj) => TdNumObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::MathObj) => TdMathObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::ListObj) => TdListObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::DictObj) => TdDictObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::FuncObj) => TdFuncObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::ProductObj) => TdProductObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::SchemaObj) => TdSchemaObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::DateTimeObj) => TdDateTimeObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::DateObj) => TdDateObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::TimeObj) => TdTimeObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::BlobObj) => TdBlobObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::NullObj) => TdNullObj::decode_field(data, decoder).into(),
-      Some(TdObjectKind::VaultObj) => TdVaultObj::decode_field(data, decoder).into(),
+      Some(TdObjectKind::StrObj) => TdStrObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::BoolObj) => TdBoolObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::NumObj) => TdNumObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::MathObj) => TdMathObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::ListObj) => TdListObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::DictObj) => TdDictObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::FuncObj) => TdFuncObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::ProductObj) => TdProductObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::SchemaObj) => TdSchemaObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::DateTimeObj) => TdDateTimeObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::DateObj) => TdDateObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::TimeObj) => TdTimeObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::BlobObj) => TdBlobObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::NullObj) => TdNullObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::VaultObj) => TdVaultObj::field_decode(data, decoder).into(),
       None => panic!("unknown TdObjectKind tag: {}", tag),
     }
   }
