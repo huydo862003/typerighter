@@ -671,6 +671,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
+        debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
         let storage = unsafe { db.storage() };
         let ingredient_index = Self::ingredient_start_index() + #idx;
         let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)

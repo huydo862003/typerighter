@@ -13,6 +13,9 @@ pub use interned::*;
 /// (unique per type) and id is the instance id within that type.
 pub type DepId = (usize, usize);
 
+// Entry ID for evicted or deleted derived structs
+pub const TOMBSTONE_ENTRY_ID: usize = usize::MAX;
+
 pub trait Id {
   fn as_id(&self) -> DepId;
 }

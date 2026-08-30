@@ -2,7 +2,7 @@
 // - FieldEncodable/FieldDecodable dispatch between query struct IDs (as DepNodeIndex) and plain types
 // - Stable Rust has no way to do this: autoref specialization fails because Id and Encodable overlap
 
-use crate::{Decodable, Decoder, Encodable, Encoder, Id};
+use crate::{Decodable, Decoder, Encodable, Encoder, Id, TOMBSTONE_ENTRY_ID};
 
 /// Encode a field value. For query struct IDs (Id types), encodes as DepNodeIndex.
 /// For plain types, delegates to Encodable::encode.
@@ -38,9 +38,10 @@ impl<T: Decodable> FieldDecodable for T {
 impl<T: Id + Decodable + From<usize>> FieldDecodable for T {
   fn decode_field(data: &mut &[u8], decoder: &Decoder) -> Self {
     let index = decoder.read_u32(data);
-    let dep_id = decoder
+    let entry_id = decoder
       .get_or_deserialize_dep_node_id(index)
-      .expect("DepNodeIndex not found after deserialization");
-    Self::from(dep_id.1)
+      .map(|dep_id| dep_id.1)
+      .unwrap_or(TOMBSTONE_ENTRY_ID);
+    Self::from(entry_id)
   }
 }
