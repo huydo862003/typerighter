@@ -4,7 +4,7 @@ For full project setup, see the [root DEVELOPMENT.md](../../DEVELOPMENT.md).
 
 ## Dependencies
 
-- **Rust nightly**: To build the extension WASM
+- **Rust**: To build the extension WASM
 - **wasm32-wasip1 target**: WASM compilation target
 - **Zed**
 

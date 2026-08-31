@@ -496,7 +496,7 @@ mod tests {
   use crate::syntax::red::RedNode;
 
   #[test]
-  fn markdown_body_plain_text<'db>() {
+  fn markdown_body_plain_text() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_plain.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -521,7 +521,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_inline_math<'db>() {
+  fn markdown_body_inline_math() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_inline_math.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -544,7 +544,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_inline_code<'db>() {
+  fn markdown_body_inline_code() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_inline_code.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -570,7 +570,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_interpolation<'db>() {
+  fn markdown_body_interpolation() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_interp.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -591,7 +591,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_math_block<'db>() {
+  fn markdown_body_math_block() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_math_block.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");
@@ -614,7 +614,7 @@ mod tests {
   }
 
   #[test]
-  fn markdown_body_code_block<'db>() {
+  fn markdown_body_code_block() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_code_block.td");
     let (hir, _) = lower_file(&db, project, file);
     let hir = hir.expect("should have HIR");

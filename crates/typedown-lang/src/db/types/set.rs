@@ -3,8 +3,7 @@ use std::collections::hash_set::{IntoIter, Iter};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
-  StableCompare, StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableCompare, StableHash, StableHasher,
 };
 
 // Built in HashSet doesnt support hashing so we wrap
@@ -83,13 +82,13 @@ impl<T: Hash + Eq> Hash for Set<T> {
   }
 }
 
-impl<T: FieldEncodable + StableCompare + Eq + Hash> Encodable for Set<T> {
+impl<T: Encodable + StableCompare + Eq + Hash> Encodable for Set<T> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.0.encode(buf, encoder);
   }
 }
 
-impl<T: FieldDecodable + Eq + Hash> Decodable for Set<T> {
+impl<T: Decodable + Eq + Hash> Decodable for Set<T> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     Set(HashSet::decode(data, decoder))
   }

@@ -203,9 +203,9 @@ fn find_nearest_schema_directory(
     if !matches!(sym.kind(db), SymbolKind::UserDefinedResource(_, _)) {
       continue;
     }
-    if !get_symbol_type(db, sym)
+    if get_symbol_type(db, sym)
       .typ(db)
-      .is_some_and(|t| t.display_name(db) == schema_name)
+      .is_none_or(|t| t.display_name(db) != schema_name)
     {
       continue;
     }

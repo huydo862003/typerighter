@@ -1368,7 +1368,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     let maybe_eq_token = self.lex_ctx.peek_md(SKIP_NONE);
     if maybe_eq_token.token.kind() != SyntaxKind::MdSymbol
-      || !maybe_eq_token.token.text().is_some_and(|t| t == "=")
+      || maybe_eq_token.token.text().is_none_or(|t| t != "=")
     {
       self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
 

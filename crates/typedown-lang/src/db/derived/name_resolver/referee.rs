@@ -126,7 +126,7 @@ mod tests {
 
   // fref("nonexistent.td") resolves to None when the target file does not exist
   #[test]
-  fn fref_with_nonexistent_path_resolves_to_none<'db>() {
+  fn fref_with_nonexistent_path_resolves_to_none() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
 
     // Construct a fref("nonexistent.td") HIR node manually

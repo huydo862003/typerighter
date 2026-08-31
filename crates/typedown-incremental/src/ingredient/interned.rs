@@ -85,6 +85,12 @@ impl<
     // Interned values never change, nothing to recompute
   }
 
+  fn reset_for_new_revision(&self) {}
+
+  fn remove_entry(&self, entry_id: usize) {
+    self.data.remove(&entry_id);
+  }
+
   fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }

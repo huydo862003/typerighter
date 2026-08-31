@@ -92,9 +92,12 @@ impl DepGraphBuilder {
     let mut sorted = self.nodes;
     sorted.sort_by_key(|(idx, _)| *idx);
 
-    sorted
-      .into_iter()
-      .map(|(_, node)| match node {
+    // Total slots = max allocated index + 1
+    let total = sorted.last().map(|(idx, _)| *idx as usize + 1).unwrap_or(0);
+    let mut result = vec![DepNode::Evicted; total];
+
+    for (idx, node) in sorted {
+      result[idx as usize] = match node {
         UnresolvedDepNode::DerivedQuery {
           name,
           key,
@@ -105,7 +108,14 @@ impl DepGraphBuilder {
           verified_at,
           edges,
         } => {
-          let resolved_edges = edges
+          // Skip memos with evicted deps
+          let has_missing = edges
+            .iter()
+            .any(|dep_id| !dep_id_table.contains_key(dep_id));
+          if has_missing {
+            continue;
+          }
+          let resolved_edges: Vec<u32> = edges
             .iter()
             .map(|dep_id| *dep_id_table.get(dep_id).expect("unresolved dep edge"))
             .collect();
@@ -147,8 +157,10 @@ impl DepGraphBuilder {
           changed_at,
         },
         UnresolvedDepNode::Interned { name, blob_index } => DepNode::Interned { name, blob_index },
-      })
-      .collect()
+      };
+    }
+
+    result
   }
 }
 

@@ -1,7 +1,10 @@
+use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, OnceLock};
+
+use dashmap::DashMap;
 
 use super::ingredient::{Dependency, IngredientEntry, IngredientFactory, Inventory};
 use super::persist::serialized::SerializedQueryStorage;
@@ -19,11 +22,38 @@ pub struct QueryStackEntry {
   pub arg_id: usize,
 }
 
+// Type-erased identity map that supports sweeping stale entries
+pub trait IdentityMap: Any + Send + Sync {
+  // Remove entries where predicate returns false, return the removed IDs
+  fn retain(&self, predicate: &dyn Fn(usize) -> bool) -> HashSet<usize>;
+}
+
+impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K, usize> {
+  fn retain(&self, predicate: &dyn Fn(usize) -> bool) -> HashSet<usize> {
+    let mut removed = HashSet::new();
+    DashMap::retain(self, |_, id| {
+      if predicate(*id) {
+        true
+      } else {
+        removed.insert(*id);
+        false
+      }
+    });
+    removed
+  }
+}
+
+// (arg_id, start_index) -> identity map
+pub type IdentityMapTable = Arc<DashMap<(usize, usize), Arc<dyn IdentityMap>>>;
+
 /// Context passed through derived query execution
 pub struct ExecuteContext {
   pub query_stack: Vec<QueryStackEntry>,
   pub dependencies: Vec<Dependency>,
   pub disambiguator_map: HashMap<u64, usize>, // map hash(ingredient_index, id_field_values) to counter
+  // (arg_id, start_index) -> identity map, from the creating query
+  pub identity_maps: Option<IdentityMapTable>,
+  pub created_ids: HashMap<usize, HashSet<usize>>, // start_index -> IDs created this execution
 }
 
 #[derive(Clone)]
@@ -116,6 +146,12 @@ impl QueryStorage {
           break;
         }
       }
+    }
+  }
+
+  pub fn reset_for_new_revision(&self) {
+    for entry in self.ingredients.iter() {
+      entry.ingredient.reset_for_new_revision();
     }
   }
 

@@ -9,8 +9,7 @@ use crate::db::derived::name_resolver::scope::{
 };
 use crate::db::types::{File, HirValue, Project, TdObjectEnum};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
-  StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
@@ -98,19 +97,19 @@ impl<'db> Encodable for SymbolKind<'db> {
     match self {
       SymbolKind::UserDefinedSchema(project, file) => {
         encoder.emit_u8(buf, SymbolKindTag::UserDefinedSchema as u8);
-        project.encode_field(buf, encoder);
-        file.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
+        file.field_encode(buf, encoder);
       }
       SymbolKind::UserDefinedResource(project, file) => {
         encoder.emit_u8(buf, SymbolKindTag::UserDefinedResource as u8);
-        project.encode_field(buf, encoder);
-        file.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
+        file.field_encode(buf, encoder);
       }
       SymbolKind::Asset(asset_kind, project, file) => {
         encoder.emit_u8(buf, SymbolKindTag::Asset as u8);
         asset_kind.encode(buf, encoder);
-        project.encode_field(buf, encoder);
-        file.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
+        file.field_encode(buf, encoder);
       }
       SymbolKind::BuiltinSchema(kind) => {
         encoder.emit_u8(buf, SymbolKindTag::BuiltinSchema as u8);
@@ -126,9 +125,9 @@ impl<'db> Encodable for SymbolKind<'db> {
       }
       SymbolKind::FnParam(project, file, closure) => {
         encoder.emit_u8(buf, SymbolKindTag::FnParam as u8);
-        project.encode_field(buf, encoder);
-        file.encode_field(buf, encoder);
-        closure.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
+        file.field_encode(buf, encoder);
+        closure.field_encode(buf, encoder);
       }
     }
   }
@@ -139,17 +138,17 @@ impl<'db> Decodable for SymbolKind<'db> {
     let tag = decoder.read_u8(data);
     match SymbolKindTag::from_repr(tag).expect("unknown SymbolKind tag") {
       SymbolKindTag::UserDefinedSchema => SymbolKind::UserDefinedSchema(
-        Project::decode_field(data, decoder),
-        File::decode_field(data, decoder),
+        Project::field_decode(data, decoder),
+        File::field_decode(data, decoder),
       ),
       SymbolKindTag::UserDefinedResource => SymbolKind::UserDefinedResource(
-        Project::decode_field(data, decoder),
-        File::decode_field(data, decoder),
+        Project::field_decode(data, decoder),
+        File::field_decode(data, decoder),
       ),
       SymbolKindTag::Asset => SymbolKind::Asset(
         AssetKind::decode(data, decoder),
-        Project::decode_field(data, decoder),
-        File::decode_field(data, decoder),
+        Project::field_decode(data, decoder),
+        File::field_decode(data, decoder),
       ),
       SymbolKindTag::BuiltinSchema => {
         SymbolKind::BuiltinSchema(BuiltinSchemaKind::decode(data, decoder))
@@ -161,9 +160,9 @@ impl<'db> Decodable for SymbolKind<'db> {
         SymbolKind::BuiltinGlobal(BuiltinGlobalKind::decode(data, decoder))
       }
       SymbolKindTag::FnParam => SymbolKind::FnParam(
-        Project::decode_field(data, decoder),
-        File::decode_field(data, decoder),
-        HirValue::decode_field(data, decoder),
+        Project::field_decode(data, decoder),
+        File::field_decode(data, decoder),
+        HirValue::field_decode(data, decoder),
       ),
     }
   }
@@ -377,22 +376,22 @@ impl<'db> Encodable for ScopeKind<'db> {
     match self {
       ScopeKind::Builtin(project) => {
         encoder.emit_u8(buf, ScopeKindTag::Builtin as u8);
-        project.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
       }
       ScopeKind::Project(project) => {
         encoder.emit_u8(buf, ScopeKindTag::Project as u8);
-        project.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
       }
       ScopeKind::File(project, file) => {
         encoder.emit_u8(buf, ScopeKindTag::File as u8);
-        project.encode_field(buf, encoder);
-        file.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
+        file.field_encode(buf, encoder);
       }
       ScopeKind::Fn(project, file, value) => {
         encoder.emit_u8(buf, ScopeKindTag::Fn as u8);
-        project.encode_field(buf, encoder);
-        file.encode_field(buf, encoder);
-        value.encode_field(buf, encoder);
+        project.field_encode(buf, encoder);
+        file.field_encode(buf, encoder);
+        value.field_encode(buf, encoder);
       }
     }
   }
@@ -402,16 +401,16 @@ impl<'db> Decodable for ScopeKind<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match ScopeKindTag::from_repr(tag).expect("unknown ScopeKind tag") {
-      ScopeKindTag::Builtin => ScopeKind::Builtin(Project::decode_field(data, decoder)),
-      ScopeKindTag::Project => ScopeKind::Project(Project::decode_field(data, decoder)),
+      ScopeKindTag::Builtin => ScopeKind::Builtin(Project::field_decode(data, decoder)),
+      ScopeKindTag::Project => ScopeKind::Project(Project::field_decode(data, decoder)),
       ScopeKindTag::File => ScopeKind::File(
-        Project::decode_field(data, decoder),
-        File::decode_field(data, decoder),
+        Project::field_decode(data, decoder),
+        File::field_decode(data, decoder),
       ),
       ScopeKindTag::Fn => ScopeKind::Fn(
-        Project::decode_field(data, decoder),
-        File::decode_field(data, decoder),
-        HirValue::decode_field(data, decoder),
+        Project::field_decode(data, decoder),
+        File::field_decode(data, decoder),
+        HirValue::field_decode(data, decoder),
       ),
     }
   }

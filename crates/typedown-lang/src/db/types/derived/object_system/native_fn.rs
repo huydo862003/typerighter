@@ -7,8 +7,7 @@ use super::str::TdStrObj;
 use crate::db::TypedownDatabase;
 use crate::db::types::{HirValue, Project, RuntimeScope};
 use typedown_incremental::{
-  Decodable, Decoder, Encodable, Encoder, FieldDecodable, FieldEncodable, QueryDatabase,
-  StableHash, StableHasher,
+  Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
 use crate::syntax::diagnostic::Diagnostic;
@@ -100,8 +99,8 @@ impl<'db> Encodable for FnKind<'db> {
       }
       FnKind::UserDefined(hir, runtime_scope) => {
         encoder.emit_u8(buf, FnKindTag::UserDefined as u8);
-        hir.encode_field(buf, encoder);
-        runtime_scope.encode_field(buf, encoder);
+        hir.field_encode(buf, encoder);
+        runtime_scope.field_encode(buf, encoder);
       }
     }
   }
@@ -113,8 +112,8 @@ impl<'db> Decodable for FnKind<'db> {
     match FnKindTag::from_repr(tag).expect("unknown FnKind tag") {
       FnKindTag::Native => FnKind::Native(NativeFnKind::decode(data, decoder)),
       FnKindTag::UserDefined => FnKind::UserDefined(
-        HirValue::decode_field(data, decoder),
-        RuntimeScope::decode_field(data, decoder),
+        HirValue::field_decode(data, decoder),
+        RuntimeScope::field_decode(data, decoder),
       ),
     }
   }

@@ -6,7 +6,7 @@ For full project setup, see the [root DEVELOPMENT.md](../../DEVELOPMENT.md).
 
 - **Node.js** (22+)
 - **pnpm** (11+)
-- **Rust nightly**: To build `typedown-lsp`
+- **Rust**: To build `typedown-lsp`
 - **VS Code** or **VSCodium**
 
 All provided automatically by `nix develop` from the repo root.

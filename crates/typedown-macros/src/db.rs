@@ -111,6 +111,10 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
+  let try_field_names: Vec<_> = field_names
+    .iter()
+    .map(|n| quote::format_ident!("try_{}", n))
+    .collect();
   let field_indices: Vec<_> = (0..fields.len()).collect();
 
   let struct_name_str = struct_name.to_string();
@@ -150,6 +154,8 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let field_ty = &field.ty;
     let setter_name = quote::format_ident!("set_{}", field_name);
 
+    let try_field_name = quote::format_ident!("try_{}", field_name);
+
     getter_setter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
         let storage = unsafe { db.storage() };
@@ -172,6 +178,14 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         entry.value.clone()
       }
 
+      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
+        let storage = unsafe { db.storage() };
+        let ingredient_index = Self::ingredient_start_index() + #idx;
+        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InputFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
+        Some(ingredient.data.get(&self.0)?.value.clone())
+      }
+
       pub fn #setter_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &mut DB, value: #field_ty) {
         let storage = unsafe { db.storage() };
         let ingredient = (&*storage.ingredients[Self::ingredient_start_index() + #idx].ingredient as &dyn ::std::any::Any)
@@ -185,6 +199,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // We expect that the Rust borrow checker would only allow one &mut db while no other &db is present
         // We just want a race-free revision counter here to signal "staleness" to later reads
         let new_revision = storage.revision.fetch_add(1, ::std::sync::atomic::Ordering::Release) + 1;
+        storage.reset_for_new_revision();
         let stamped = entry.value_mut();
         stamped.value = value;
         stamped.changed_at = new_revision;
@@ -249,7 +264,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
       impl ::typedown_incremental::StableHash for #struct_name {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
-            self.#field_names(db).stable_hash(db, hasher);
+            self.#try_field_names(db).stable_hash(db, hasher);
           )*
         }
       }
@@ -259,7 +274,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
-            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
+            .then_with(|| self.#try_field_names(db).stable_cmp(db, &other.#try_field_names(db)))
           )*
         }
       }
@@ -269,8 +284,14 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
           #(
-            ::typedown_incremental::FieldEncodable::encode_field(&self.#field_names(encoder.db()), buf, encoder);
+            ::typedown_incremental::Encodable::field_encode(&self.#field_names(encoder.db()), buf, encoder);
           )*
+        }
+
+        // As a field, write just the dep index reference
+        fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+          let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
+          encoder.emit_u32(buf, index);
         }
       }
 
@@ -278,11 +299,21 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
+            let _ = <#field_types as ::typedown_incremental::Decodable>::field_decode(data, decoder);
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
           Self::from(dep_id.1)
+        }
+
+        // As a field, read just the dep index reference
+        fn field_decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
+          let index = decoder.read_u32(data);
+          let entry_id = decoder
+            .get_or_deserialize_dep_node_id(index)
+            .map(|dep_id| dep_id.1)
+            .unwrap_or(::typedown_incremental::TOMBSTONE_ENTRY_ID);
+          Self::from(entry_id)
         }
       }
 
@@ -608,8 +639,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   let field_types_static: Vec<proc_macro2::TokenStream> =
     field_types.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let first_field_ty = internal_field_types_static.first().cloned();
-
+  let try_field_names: Vec<_> = field_names
+    .iter()
+    .map(|n| quote::format_ident!("try_{}", n))
+    .collect();
   let id_fields: Vec<_> = fields
     .iter()
     .enumerate()
@@ -626,20 +659,12 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
     .iter()
     .map(|(_, field)| field.ident.as_ref().unwrap())
     .collect();
-  let identity_ty = quote! {((usize, usize), usize, (#(#id_field_tys_static,)*) )};
+  let identity_ty = quote! {(usize, (#(#id_field_tys_static,)*) )};
 
   // Register per-field ingredients via inventory
   let struct_name_str = struct_name.to_string();
   let mut register_tokens = quote! {};
   for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
-    let identity_map_expr = if idx == 0 {
-      quote! {
-        Some(::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, usize>::new())
-          as ::std::sync::Arc<dyn ::std::any::Any + Send + Sync>)
-      }
-    } else {
-      quote! { None }
-    };
     register_tokens.extend(quote! {
       factories.push(|index| {
         ::typedown_incremental::IngredientEntry {
@@ -648,7 +673,6 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
             #struct_name_str,
             #idx as u8,
             #struct_name::id_counter(),
-            #identity_map_expr,
           )),
           field_index: Some(#idx as u8),
         }
@@ -678,9 +702,12 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
     let field_ty_static = &field_types_static[idx];
 
+    let try_field_name = quote::format_ident!("try_{}", field_name);
+
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
+        debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
         let storage = unsafe { db.storage() };
         let ingredient_index = Self::ingredient_start_index() + #idx;
         let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
@@ -701,28 +728,48 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         // Safety: transmute 'static stored value to 'db at the boundary
         unsafe { ::std::mem::transmute(entry.value.clone()) }
       }
+
+      // Fallible getter for serialization paths where field data may have been cleaned up
+      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+        let id = self.0;
+        if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
+          return None;
+        }
+        let storage = unsafe { db.storage() };
+        let ingredient_index = Self::ingredient_start_index() + #idx;
+        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        let entry = ingredient.data.get(&id)?;
+
+        // Safety: transmute 'static stored value to 'db at the boundary
+        Some(unsafe { ::std::mem::transmute(entry.value.clone()) })
+      }
     });
   }
 
-  let identity_map_lookup_tokens = if let Some(fft) = first_field_ty {
-    quote! {
-      let first_ingredient = (&*storage.ingredients[start_index].ingredient as &dyn ::std::any::Any)
-        .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#fft>>()
-        .expect("ingredient type mismatch");
-      let map = first_ingredient.identity_map.as_ref()
-        .expect("first field ingredient must have identity_map")
+  // Look up or allocate a stable ID for this derived struct instance
+  // Reuses existing ID if the same identity was seen before in this query
+  let identity_map_lookup_tokens = quote! {
+    let id = storage.with_context(|ctx| {
+      let ctx = ctx.as_mut()?;
+      let store = ctx.identity_maps.as_ref()?;
+      let arg_id = ctx.query_stack.last().map(|e| e.arg_id)?;
+      let map_arc = store
+        .entry((arg_id, start_index))
+        .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, usize>::new()))
+        .clone();
+      let map = (&*map_arc as &dyn ::std::any::Any)
         .downcast_ref::<dashmap::DashMap<#identity_ty, usize>>()
         .expect("identity_map type mismatch");
-
       let id = if let Some(existing) = map.get(&identity) {
         *existing
       } else {
         let new_id = Self::next_id();
         *map.entry(identity).or_insert(new_id)
       };
-    }
-  } else {
-    unreachable!("all derived structs have at least one internal field (phantom)")
+      ctx.created_ids.entry(start_index).or_default().insert(id);
+      Some(id)
+    }).unwrap_or_else(|| Self::next_id());
   };
 
   let mut new_body_tokens = quote! {};
@@ -834,11 +881,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
             hasher.finish()
           };
           let disambiguator = storage.next_disambiguator(identity_hash);
-          let creating_query = storage.current_query_identity();
 
           // Safety: erase 'db to 'static for the identity map key
           let identity: #identity_ty = unsafe {
-            ::std::mem::transmute((creating_query, disambiguator, (#(#id_field_names.clone(),)*)))
+            ::std::mem::transmute((disambiguator, (#(#id_field_names.clone(),)*)))
           };
           #identity_map_lookup_tokens
 
@@ -853,7 +899,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
       impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           #(
-            Self::#field_names(*self, db).stable_hash(db, hasher);
+            Self::#try_field_names(*self, db).stable_hash(db, hasher);
           )*
         }
       }
@@ -863,7 +909,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
-            .then_with(|| Self::#field_names(*self, db).stable_cmp(db, &Self::#field_names(*other, db)))
+            .then_with(|| Self::#try_field_names(*self, db).stable_cmp(db, &Self::#try_field_names(*other, db)))
           )*
         }
       }
@@ -873,9 +919,14 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
           #(
-            ::typedown_incremental::FieldEncodable::encode_field(&Self::#field_names(*self, encoder.db()), buf, encoder);
+            ::typedown_incremental::Encodable::field_encode(&Self::#field_names(*self, encoder.db()), buf, encoder);
           )*
           #phantom_encode_tokens
+        }
+
+        fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+          let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
+          encoder.emit_u32(buf, index);
         }
       }
 
@@ -883,12 +934,21 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types_static as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
+            let _ = <#field_types_static as ::typedown_incremental::Decodable>::field_decode(data, decoder);
           )*
           #phantom_decode_tokens
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
           Self::from(dep_id.1)
+        }
+
+        fn field_decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
+          let index = decoder.read_u32(data);
+          let entry_id = decoder
+            .get_or_deserialize_dep_node_id(index)
+            .map(|dep_id| dep_id.1)
+            .unwrap_or(::typedown_incremental::TOMBSTONE_ENTRY_ID);
+          Self::from(entry_id)
         }
       }
 
@@ -1000,6 +1060,8 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let field_ty = &field.ty;
     let tuple_index = syn::Index::from(idx);
 
+    let try_field_name = quote::format_ident!("try_{}", field_name);
+
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
@@ -1011,6 +1073,18 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
         // Safety: transmute 'static stored value to 'db at the boundary
         unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) }
+      }
+
+      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+        let id = self.0;
+        let storage = unsafe { db.storage() };
+        let ingredient_index = Self::ingredient_index();
+        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
+        let entry = ingredient.data.get(&id)?;
+
+        // Safety: transmute 'static stored value to 'db at the boundary
+        Some(unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) })
       }
     });
   }
@@ -1124,7 +1198,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
           #(
-            ::typedown_incremental::FieldEncodable::encode_field(&Self::#field_names(*self, encoder.db()), buf, encoder);
+            ::typedown_incremental::Encodable::field_encode(&Self::#field_names(*self, encoder.db()), buf, encoder);
           )*
         }
       }
@@ -1133,7 +1207,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types_static as ::typedown_incremental::FieldDecodable>::decode_field(data, decoder);
+            let _ = <#field_types_static as ::typedown_incremental::Decodable>::field_decode(data, decoder);
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");

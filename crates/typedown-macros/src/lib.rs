@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 
 mod ast;
 mod db;
+mod specialize;
 mod stable_compare;
 
 #[proc_macro_derive(AstNode)]
@@ -74,4 +75,14 @@ pub fn query_interned(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_derive(StableCompare)]
 pub fn stable_compare_derive(item: TokenStream) -> TokenStream {
   stable_compare::stable_compare_derive_impl(item)
+}
+
+// Ad-hoc overloading via autoderef-based specialization (stable)
+// specialize!(ident {
+//   where Bound => ident.method();
+//   default => fallback;
+// })
+#[proc_macro]
+pub fn specialize(input: TokenStream) -> TokenStream {
+  specialize::specialize_impl(input)
 }

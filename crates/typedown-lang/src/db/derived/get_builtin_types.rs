@@ -281,14 +281,14 @@ mod tests {
     derived::get_builtin_types::{get_dict_type, get_list_type, get_num_type, get_str_type},
   };
 
-  fn make_db<'db>() -> TypedownDatabase {
+  fn make_db() -> TypedownDatabase {
     TypedownDatabase {
       storage: QueryStorage::default(),
     }
   }
 
   #[test]
-  fn instantiate_list_with_correct_arity<'db>() {
+  fn instantiate_list_with_correct_arity() {
     let db = make_db();
     let list = TdTypeEnum::from(get_list_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -309,7 +309,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_record_with_correct_arity<'db>() {
+  fn instantiate_record_with_correct_arity() {
     let db = make_db();
     let record = TdTypeEnum::from(get_dict_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -331,7 +331,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_list_wrong_arity_produces_diagnostic<'db>() {
+  fn instantiate_list_wrong_arity_produces_diagnostic() {
     let db = make_db();
     let list = TdTypeEnum::from(get_list_type(&db));
 
@@ -352,7 +352,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_record_wrong_arity_produces_diagnostic<'db>() {
+  fn instantiate_record_wrong_arity_produces_diagnostic() {
     let db = make_db();
     let record = TdTypeEnum::from(get_dict_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -375,7 +375,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_arity0_type_with_no_args<'db>() {
+  fn instantiate_arity0_type_with_no_args() {
     let db = make_db();
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let expected = str_type.clone();
@@ -393,7 +393,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_arity0_type_with_extra_args_produces_diagnostic<'db>() {
+  fn instantiate_arity0_type_with_extra_args_produces_diagnostic() {
     let db = make_db();
     let str_type = TdTypeEnum::from(get_str_type(&db));
     let num_type = TdTypeEnum::from(get_num_type(&db));
@@ -415,7 +415,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_bounded_type_violating_bound_produces_diagnostic<'db>() {
+  fn instantiate_bounded_type_violating_bound_produces_diagnostic() {
     let db = make_db();
     let num_type = TdTypeEnum::from(get_num_type(&db));
     let str_type = TdTypeEnum::from(get_str_type(&db));
@@ -437,7 +437,7 @@ mod tests {
   }
 
   #[test]
-  fn sum_type_flattening<'db>() {
+  fn sum_type_flattening() {
     let db = make_db();
     let str_t = LazyType::eager(get_str_type(&db).into());
     let num_t = LazyType::eager(get_num_type(&db).into());

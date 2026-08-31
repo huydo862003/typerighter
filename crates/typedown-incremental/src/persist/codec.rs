@@ -8,7 +8,6 @@ use typedown_types::either::Either;
 
 use crate::persist::serialized::dep_graph::DepNodeIndex;
 use crate::persist::stable::StableCompare;
-use crate::persist::unstable::{FieldDecodable, FieldEncodable};
 use crate::{DepId, QueryDatabase, QueryStorage};
 
 pub struct Encoder<'a> {
@@ -275,10 +274,22 @@ impl Decoder {
 // Encodable / Decodable traits
 pub trait Encodable {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder);
+
+  // Encode as a field inside another struct
+  // Id types override to write just a dep index reference
+  fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.encode(buf, encoder);
+  }
 }
 
 pub trait Decodable: Sized {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self;
+
+  // Decode as a field inside another struct
+  // Id types override to read a dep index reference
+  fn field_decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    Self::decode(data, decoder)
+  }
 }
 
 /* Primitive implementations */
@@ -503,62 +514,62 @@ impl<T: Encodable> Encodable for Option<T> {
       }
       Some(val) => {
         encoder.emit_u8(buf, 1);
-        val.encode_field(buf, encoder);
+        val.field_encode(buf, encoder);
       }
     }
   }
 }
-impl<T: FieldDecodable> Decodable for Option<T> {
+impl<T: Decodable> Decodable for Option<T> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     match decoder.read_u8(data) {
       0 => None,
-      _ => Some(T::decode_field(data, decoder)),
+      _ => Some(T::field_decode(data, decoder)),
     }
   }
 }
 
 // [T]
-impl<T: FieldEncodable> Encodable for [T] {
+impl<T: Encodable> Encodable for [T] {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     encoder.emit_u32(buf, self.len() as u32);
     for item in self {
-      item.encode_field(buf, encoder);
+      item.field_encode(buf, encoder);
     }
   }
 }
 
 // &T
-impl<T: FieldEncodable + ?Sized> Encodable for &T {
+impl<T: Encodable + ?Sized> Encodable for &T {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (**self).encode_field(buf, encoder);
+    (**self).field_encode(buf, encoder);
   }
 }
 
 // Vec
-impl<T: FieldEncodable> Encodable for Vec<T> {
+impl<T: Encodable> Encodable for Vec<T> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     encoder.emit_u32(buf, self.len() as u32);
     for item in self {
-      item.encode_field(buf, encoder);
+      item.field_encode(buf, encoder);
     }
   }
 }
-impl<T: FieldDecodable> Decodable for Vec<T> {
+impl<T: Decodable> Decodable for Vec<T> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let len = decoder.read_u32(data) as usize;
-    (0..len).map(|_| T::decode_field(data, decoder)).collect()
+    (0..len).map(|_| T::field_decode(data, decoder)).collect()
   }
 }
 
 // Box
-impl<T: FieldEncodable> Encodable for Box<T> {
+impl<T: Encodable> Encodable for Box<T> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (**self).encode_field(buf, encoder);
+    (**self).field_encode(buf, encoder);
   }
 }
-impl<T: FieldDecodable> Decodable for Box<T> {
+impl<T: Decodable> Decodable for Box<T> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    Box::new(T::decode_field(data, decoder))
+    Box::new(T::field_decode(data, decoder))
   }
 }
 
@@ -571,71 +582,71 @@ impl Decodable for () {
 }
 
 // (A,) tuple
-impl<A: FieldEncodable> Encodable for (A,) {
+impl<A: Encodable> Encodable for (A,) {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.encode_field(buf, encoder);
+    self.0.field_encode(buf, encoder);
   }
 }
-impl<A: FieldDecodable> Decodable for (A,) {
+impl<A: Decodable> Decodable for (A,) {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    (A::decode_field(data, decoder),)
+    (A::field_decode(data, decoder),)
   }
 }
 
 // (A, B, C) tuple
-impl<A: FieldEncodable, B: FieldEncodable, C: FieldEncodable> Encodable for (A, B, C) {
+impl<A: Encodable, B: Encodable, C: Encodable> Encodable for (A, B, C) {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.encode_field(buf, encoder);
-    self.1.encode_field(buf, encoder);
-    self.2.encode_field(buf, encoder);
+    self.0.field_encode(buf, encoder);
+    self.1.field_encode(buf, encoder);
+    self.2.field_encode(buf, encoder);
   }
 }
-impl<A: FieldDecodable, B: FieldDecodable, C: FieldDecodable> Decodable for (A, B, C) {
+impl<A: Decodable, B: Decodable, C: Decodable> Decodable for (A, B, C) {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     (
-      A::decode_field(data, decoder),
-      B::decode_field(data, decoder),
-      C::decode_field(data, decoder),
+      A::field_decode(data, decoder),
+      B::field_decode(data, decoder),
+      C::field_decode(data, decoder),
     )
   }
 }
 
 // (A, B) tuple
-impl<A: FieldEncodable, B: FieldEncodable> Encodable for (A, B) {
+impl<A: Encodable, B: Encodable> Encodable for (A, B) {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.encode_field(buf, encoder);
-    self.1.encode_field(buf, encoder);
+    self.0.field_encode(buf, encoder);
+    self.1.field_encode(buf, encoder);
   }
 }
-impl<A: FieldDecodable, B: FieldDecodable> Decodable for (A, B) {
+impl<A: Decodable, B: Decodable> Decodable for (A, B) {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     (
-      A::decode_field(data, decoder),
-      B::decode_field(data, decoder),
+      A::field_decode(data, decoder),
+      B::field_decode(data, decoder),
     )
   }
 }
 
 // HashMap
-impl<K: FieldEncodable + StableCompare, V: FieldEncodable> Encodable for HashMap<K, V> {
+impl<K: Encodable + StableCompare, V: Encodable> Encodable for HashMap<K, V> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     encoder.emit_u32(buf, self.len() as u32);
     let mut entries: Vec<(&K, &V)> = self.iter().collect();
     entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(encoder.db(), k2));
     for (key, value) in entries {
-      key.encode_field(buf, encoder);
-      value.encode_field(buf, encoder);
+      key.field_encode(buf, encoder);
+      value.field_encode(buf, encoder);
     }
   }
 }
-impl<K: FieldDecodable + Eq + Hash, V: FieldDecodable> Decodable for HashMap<K, V> {
+impl<K: Decodable + Eq + Hash, V: Decodable> Decodable for HashMap<K, V> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let len = decoder.read_u32(data) as usize;
     let mut map = HashMap::with_capacity(len);
     for _ in 0..len {
       map.insert(
-        K::decode_field(data, decoder),
-        V::decode_field(data, decoder),
+        K::field_decode(data, decoder),
+        V::field_decode(data, decoder),
       );
     }
     map
@@ -643,47 +654,47 @@ impl<K: FieldDecodable + Eq + Hash, V: FieldDecodable> Decodable for HashMap<K, 
 }
 
 // HashSet
-impl<V: FieldEncodable + StableCompare> Encodable for HashSet<V> {
+impl<V: Encodable + StableCompare> Encodable for HashSet<V> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     encoder.emit_u32(buf, self.len() as u32);
     let mut entries: Vec<&V> = self.iter().collect();
     entries.sort_by(|v1, v2| v1.stable_cmp(encoder.db(), v2));
     for v in entries {
-      v.encode_field(buf, encoder);
+      v.field_encode(buf, encoder);
     }
   }
 }
-impl<V: FieldDecodable + Eq + Hash> Decodable for HashSet<V> {
+impl<V: Decodable + Eq + Hash> Decodable for HashSet<V> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let len = decoder.read_u32(data) as usize;
     let mut map = HashSet::with_capacity(len);
     for _ in 0..len {
-      map.insert(V::decode_field(data, decoder));
+      map.insert(V::field_decode(data, decoder));
     }
     map
   }
 }
 
 // Either
-impl<L: FieldEncodable, R: FieldEncodable> Encodable for Either<L, R> {
+impl<L: Encodable, R: Encodable> Encodable for Either<L, R> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       Either::Left(val) => {
         encoder.emit_u8(buf, 0);
-        val.encode_field(buf, encoder);
+        val.field_encode(buf, encoder);
       }
       Either::Right(val) => {
         encoder.emit_u8(buf, 1);
-        val.encode_field(buf, encoder);
+        val.field_encode(buf, encoder);
       }
     }
   }
 }
-impl<L: FieldDecodable, R: FieldDecodable> Decodable for Either<L, R> {
+impl<L: Decodable, R: Decodable> Decodable for Either<L, R> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     match decoder.read_u8(data) {
-      0 => Either::Left(L::decode_field(data, decoder)),
-      _ => Either::Right(R::decode_field(data, decoder)),
+      0 => Either::Left(L::field_decode(data, decoder)),
+      _ => Either::Right(R::field_decode(data, decoder)),
     }
   }
 }

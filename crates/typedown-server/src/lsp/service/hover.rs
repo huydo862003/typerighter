@@ -134,7 +134,7 @@ fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
       // Display non-null members joined by " | " with "?" suffix
       let non_null: Vec<String> = members
         .iter()
-        .filter(|m| !m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()))
+        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
         .filter_map(|m| m.resolve(db).map(|t| t.display_name(db)))
         .collect();
       return format!("{}?", non_null.join(" | "));

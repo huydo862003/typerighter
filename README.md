@@ -213,6 +213,51 @@ Our old design had the evaluator continuously querying the same type objects tha
 
 The fix: split into two systems.
 
+### Stable specialization via autoderef
+
+We needed ad-hoc overloading: call one function for types implementing a trait, another function for everything else. Nightly `specialization` does this but is unsound and may never stabilize.
+
+- Rust method resolution prefers the least-deref match.
+- Implement the same method name on different traits at different reference depths.
+- The compiler picks the one requiring fewer dereferences.
+- Higher priority impls get more `&` layers on `Self`.
+
+```rust
+struct W<T>(T);
+
+// Lower priority: impl on W<T> (no refs)
+trait Default { fn check(&self) -> bool; }
+impl<T> Default for W<T> { fn check(&self) -> bool { true } }
+
+// Higher priority: impl on &W<T> (one ref)
+trait Special { fn check(&self) -> bool; }
+impl<T: Display> Special for &W<T> { fn check(&self) -> bool { false } }
+
+// Compiler picks Special for Display types, Default for others
+(&W(42i32)).check()  // false (Display)
+(&W(Opaque)).check() // true  (no Display)
+```
+
+- Only works where the concrete type is known at the call site.
+- Inside a generic function `fn foo<T>(val: T)`, the compiler cannot resolve which impl to pick because `T` is unknown.
+- So this is only useful in macro-generated code.
+
+Based on: https://lukaskalbertodt.github.io/2019/12/05/generalized-autoref-based-specialization.html
+
+### typeof via generic inference
+
+Rust has no `typeof` operator. When generating code via macros, sometimes you have a value and need to create a type-level witness (like `PhantomData<T>`) without being able to name `T`.
+
+- A generic helper function infers `T` from its argument.
+- We use this in the `specialize!` macro to create a `PhantomData` wrapper that carries the type for autoderef dispatch.
+
+```rust
+fn phantom<T>(_: &T) -> Wrapper<T> { Wrapper(PhantomData) }
+
+let val = some_expression();
+let witness = phantom(&val);  // Wrapper<TypeOfVal> without naming the type
+```
+
 ### LSP: Dynamic vs Static Registration
 
 When a client advertises `dynamicRegistration: true` for `workspace.fileOperations` (as VSCode does), some clients **ignore** static capabilities declared in `InitializeResult`. The server must use `client/registerCapability` to dynamically register for `workspace/willRenameFiles` and `workspace/didRenameFiles` at runtime.
