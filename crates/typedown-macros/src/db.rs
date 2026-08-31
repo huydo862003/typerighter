@@ -111,7 +111,10 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let try_field_names: Vec<_> = field_names.iter().map(|n| quote::format_ident!("try_{}", n)).collect();
+  let try_field_names: Vec<_> = field_names
+    .iter()
+    .map(|n| quote::format_ident!("try_{}", n))
+    .collect();
   let field_indices: Vec<_> = (0..fields.len()).collect();
 
   let struct_name_str = struct_name.to_string();
@@ -636,7 +639,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
   let field_types_static: Vec<proc_macro2::TokenStream> =
     field_types.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let try_field_names: Vec<_> = field_names.iter().map(|n| quote::format_ident!("try_{}", n)).collect();
+  let try_field_names: Vec<_> = field_names
+    .iter()
+    .map(|n| quote::format_ident!("try_{}", n))
+    .collect();
   let id_fields: Vec<_> = fields
     .iter()
     .enumerate()
