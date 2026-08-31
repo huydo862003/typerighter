@@ -36,7 +36,7 @@
       "import": "./dist/client/theme-default.js"
     },
     "./style.css": "./dist/typerighter.css",
-    "./fonts.css": "./src/client/theme-default/styles/fonts.css"
+    "./fonts.css": "./dist/fonts.css"
   },
   "files": [
     "bin",

@@ -23,7 +23,7 @@ Here's a demo of a web generated from typedown:
 
 ## Installation
 
-See the [getting started guide](https://huydo862003.github.io/typerighter/guide/01-getting-started) for full installation and usage instructions.
+See the [homepage](https://huydo862003.github.io/typerighter/) and [getting started guide](https://huydo862003.github.io/typerighter/guide/01-getting-started) for full installation and usage instructions.
 
 ```sh
 npm install typerighter

@@ -1,14 +1,33 @@
 import {
   createRequire,
 } from 'node:module';
+import fs from 'node:fs';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import {
   defineConfig,
+  type Plugin,
 } from 'vitest/config';
 
 const package_ = createRequire(import.meta.url)('./package.json');
+
+// Emit extra CSS files as unresolved manifests into dist
+// Consumer builds (Vite) resolve the @imports at their build time
+function emitCssAssets (assets: Record<string, string>): Plugin {
+  return {
+    name: 'emit-css-assets',
+    generateBundle () {
+      for (const [fileName, sourcePath] of Object.entries(assets)) {
+        this.emitFile({
+          type: 'asset',
+          fileName,
+          source: fs.readFileSync(path.resolve(__dirname, sourcePath), 'utf-8'),
+        });
+      }
+    },
+  };
+}
 
 export default defineConfig({
   define: {
@@ -17,6 +36,9 @@ export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
+    emitCssAssets({
+      'fonts.css': 'src/client/theme-default/styles/fonts.css',
+    }),
   ],
   build: {
     lib: {
