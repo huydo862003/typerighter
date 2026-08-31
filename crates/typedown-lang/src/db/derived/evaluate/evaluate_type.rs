@@ -494,30 +494,9 @@ fn resolve_type_lazy<'db>(
       }
       let mut arg_types = vec![];
       for idx_hir in indices {
-        let resolved = referee(db, idx_hir);
-        match resolved.value(db) {
-          Some(symbol) => match symbol.kind(db) {
-            SymbolKind::UserDefinedSchema(_, _) => {
-              arg_types.push(LazyType::lazy(symbol));
-            }
-            _ => {
-              let result = evaluate_type(db, symbol);
-              diagnostics.extend(result.diagnostics(db).iter().cloned());
-              if let Some(typ) = result.typ(db) {
-                arg_types.push(LazyType::eager(typ));
-              }
-            }
-          },
-          None => {
-            let node = idx_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::UnresolvedSchema {
-              name: node.text(),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
-            });
-            return None;
-          }
+        match resolve_type_lazy(db, idx_hir, diagnostics) {
+          Some(lazy) => arg_types.push(lazy),
+          None => return None,
         }
       }
       let inst_result = base_type.instantiate(db, arg_types);
@@ -534,6 +513,7 @@ fn resolve_type_lazy<'db>(
     HirValueKind::Bool(val) => Some(LazyType::eager(
       get_literal_type(db, LiteralValue::Bool(val)).into(),
     )),
+    HirValueKind::Null => Some(LazyType::eager(get_null_type(db).into())),
     _ => {
       let node = hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
