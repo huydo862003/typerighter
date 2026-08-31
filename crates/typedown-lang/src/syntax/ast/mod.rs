@@ -167,6 +167,7 @@ pub struct MdNode(RedNode);
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
   MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
+  MathBlock, CodeBlock,
 ])]
 pub struct MdBlockElement(RedNode);
 

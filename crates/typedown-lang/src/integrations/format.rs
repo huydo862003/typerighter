@@ -552,4 +552,46 @@ Some text.
 "#
     );
   }
+
+  #[test]
+  fn math_block_in_list_preserved() {
+    let result = fmt(
+      r#"---
+---
+- Example
+
+    $$
+    \frac{p : A \quad f : A \to B(t)}{B(t)}
+    $$
+
+    More text.
+"#,
+    );
+    assert!(
+      result.contains("$$"),
+      "math block $$ should be preserved in list:\n{result}"
+    );
+  }
+
+  #[test]
+  fn math_block_preserved() {
+    let result = fmt(
+      r#"---
+---
+Some text.
+
+$$T_{total} = T_{TTFB} + T_{FCP}$$
+
+More text.
+"#,
+    );
+    assert!(
+      result.contains("$$T_{total}"),
+      "math block opening $$ should be preserved:\n{result}"
+    );
+    assert!(
+      result.contains("T_{FCP}$$"),
+      "math block closing $$ should be preserved:\n{result}"
+    );
+  }
 }
