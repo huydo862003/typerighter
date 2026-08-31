@@ -1,10 +1,33 @@
-Typedown is a typed markdown language for structured content.
+Your documents are a typed graph. Typedown is the language for it.
 
-A typedown document is a structured markdown document. It has YAML frontmatter with a specified schema to describe its properties and its relationship with other documents. Based on this, editor features like autocompletion, go-to-definition, and semantic renaming work out of the box. A static site generator with search is built on top.
+A vault is a collection of `.td` files. Each file is a node. Schemas define node types. File references (`fref`) are edges. The result is a knowledge graph with type safety, autocompletion, and a static site generator built in.
+
+```
+                      Vault (graph)
+          ┌──────────────┴──────────────┐
+          │                             │
+     ┌────┴────┐                   ┌────┴────┐
+     │  alice   │───assignee───▶   │  task-1  │
+     │ (Person) │                  │  (Task)  │
+     └─────────┘                   └────┬────┘
+                                        │
+                                   milestone
+                                        │
+                                   ┌────▼────┐
+                                   │ launch  │
+                                   │(Mstone) │
+                                   └─────────┘
+
+     Nodes  = .td files
+     Types  = schemas in _types/
+     Edges  = fref("path/to/file.td")
+```
+
+Typedown draws from Notion's relational databases, Obsidian's linked vault model, and TypeScript's structural type system. If you have used any of these, the mental model will feel familiar.
 
 ## What it looks like
 
-A schema defines the shape of your content:
+A schema defines the shape of a node:
 
 ```yaml
 ---
@@ -39,16 +62,50 @@ Alice is a backend developer focused on authentication systems.
 | TypeScript | Proficient |
 ```
 
+Link files together with `fref` and traverse the graph:
+
+```yaml
+---
+_type: Task
+title: "Implement auth"
+assignee: fref("people/alice.td")
+assignee_name: self.assignee.name
+---
+
+Assigned to ${self.assignee.name}.
+```
+
+## What you get
+
+**Language**
+
+- Typed frontmatter with schemas, inheritance, and nullable fields
+- Computed fields with expressions, dot access, and closures
+- File references that link documents into a traversable graph
+
+**Editor**
+
+- Autocompletion for schema fields, types, and file references
+- Type checking with inline error diagnostics
+- Go-to-definition, semantic renaming, and hover info
+- Neovim, VS Code, and Zed extensions via LSP
+
+**Build**
+
+- Static site generation with search and sidebar navigation
+- Syntax highlighting, math rendering, and callout blocks
+- Per-page icons, breadcrumbs, and prev/next navigation
+
 ## Quick start
 
-Install `typerighter` and scaffold a new project:
+Install and scaffold a new project:
 
 ```sh
 npm install -g typerighter
 typerighter init
 ```
 
-This creates a `typedown.yaml` config and a `vault/` directory with a starter `index.td`. Run the dev server:
+Start the dev server:
 
 ```sh
 typerighter dev
@@ -60,14 +117,8 @@ Build for production:
 typerighter build
 ```
 
-## What you get
+## Learn more
 
-- **Typed frontmatter**: define schemas for your content. The editor gives you autocompletion, type checking, and go-to-definition.
-- **Schema inheritance**: extend schemas with `_extends` to build type hierarchies.
-- **Computed fields**: use expressions in frontmatter values that reference other fields or linked documents.
-- **File references**: link documents together with `fref("path/to/file.td")` and traverse the graph with dot access.
-- **Modules**: organize internal files in `_`-prefixed directories and import them with `_imports`.
-- **Static site generation**: build a full static site with search, sidebar navigation, and syntax highlighting.
-- **Editor support**: Neovim, VS Code, and Zed extensions with LSP integration.
-
-Read the [guide](guide/index) to learn more, or jump to the [references](references/index).
+- [Guide](guide/index): install Typedown and set up your editor
+- [Concepts](concepts/index): understand the vault, documents, schemas, expressions, and references
+- [Reference](references/index): look up exact syntax for frontmatter, markdown, types, and the CLI

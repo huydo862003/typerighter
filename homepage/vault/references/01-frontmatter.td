@@ -2,7 +2,7 @@ The frontmatter is the YAML block between `---` markers at the top of a `.td` fi
 
 ## Structure
 
-```
+```yaml
 ---
 _type: Person
 name: "Alice"
@@ -20,6 +20,7 @@ Keys starting with `_` are reserved for built-in directives.
 | --- | --- | --- |
 | `_type` | yes | Schema name this resource conforms to |
 | `_label` | no | Human-readable display label (expression) |
+| `_icon` | no | Page icon from the `icon` module (e.g., `icon.rocket`) |
 | `_extends` | no | Parent schema name (schema files only) |
 | `_imports` | no | Map of alias to vault-relative file path |
 | `_content` | implicit | The markdown body (available as `self._content`) |
@@ -40,11 +41,24 @@ _type: schema
 
 ## Display label: `_label`
 
-A display label for the resource. It is an expression that can reference other fields.
+A display label for the resource. Shown in the sidebar, breadcrumbs, and link text. It is an expression that can reference other fields.
 
 ```yaml
+_label: "Alice Chen"
 _label: "${self.first_name} ${self.last_name}"
 ```
+
+## Page icon: `_icon`
+
+An icon displayed in the sidebar and page header. Uses the built-in `icon` module with dot access syntax.
+
+```yaml
+_icon: icon.rocket
+_icon: icon.book
+_icon: icon.lightbulb
+```
+
+See [Icons reference](04-icons) for the full list of available icons.
 
 ## Schema inheritance: `_extends`
 
@@ -81,11 +95,11 @@ name: "Alice" # this is a comment
 All values are expressions. Strings must be quoted. Unquoted values are identifiers, numbers, or compound expressions.
 
 ```yaml
-name: "Alice"               # string
-count: 42                   # number
-active: true                # boolean
-author: fref("people/bob.td") # file reference
-full_name: self.first_name + " " + self.last_name # computed
+name: "Alice"                             # string
+count: 42                                 # number
+active: true                              # boolean
+author: fref("people/bob.td")            # file reference
+full_name: self.first_name + " " + self.last_name  # computed
 ```
 
 ## Explicit type tags

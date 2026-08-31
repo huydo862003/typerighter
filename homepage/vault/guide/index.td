@@ -1,9 +1,8 @@
-A step-by-step guide to authoring content with Typedown.
+Get Typedown running in five minutes.
 
 ## Sections
 
-- [Getting started](01-getting-started) for writing your first file, defining a schema, and linking documents
-- [Vault structure](02-vault-structure) for organizing files, internal directories, and assets
-- [Schemas](03-schemas) for schema inheritance, union types, defaults, and nested objects
-- [Expressions](04-expressions) for computed fields, operators, interpolation, and closures
-- [Editors](05-editors) for Neovim, VS Code, and Zed setup
+- [Getting started](01-getting-started) for installing Typedown, creating a project, and writing your first file
+- [Editors](02-editors) for setting up Neovim, VS Code, or Zed
+
+For deeper understanding, see [Concepts](../concepts/index). For exact syntax, see [Reference](../references/index).

@@ -1,84 +1,67 @@
-A step-by-step introduction to writing content with Typedown.
+Install Typedown and write your first document.
 
-## What is a vault?
+## Install
 
-A vault is a directory of `.td` files managed by a `typedown.yaml` config file. The config tells Typedown where to find your content.
+```sh
+npm install -g typerighter
+```
+
+## Create a project
+
+```sh
+mkdir my-project && cd my-project
+typerighter init
+```
+
+This creates:
 
 ```
 my-project/
-  typedown.yaml
+  typedown.yaml          # project config
   vault/
     _types/
-      Person.td
-    people/
-      alice.td
-      bob.td
-    index.td
+      Article.td         # sample schema
+    hello.td             # sample content
+  index.html
+  package.json
 ```
 
-The `vault/` directory is the vault root. Everything inside it is your content. The `_types/` directory holds schema definitions. Everything else is content files.
+## Start the dev server
 
-## Writing a file
-
-A `.td` file has two parts: a YAML frontmatter and a markdown body.
-
-```
----
-_type: Person
-name: "Alice"
-role: "developer"
----
-
-Alice is a backend developer.
+```sh
+typerighter dev
 ```
 
-The frontmatter is between the `---` markers. It holds structured data. The body is everything after and is regular markdown.
+Open `http://localhost:8686`. You should see your vault rendered as a site with a sidebar, search, and syntax highlighting.
 
-The frontmatter is optional. A file with no `---` markers is treated as a body-only file.
+## Write a file
 
-## Defining a schema
-
-Schemas live in `_types/` and define the shape of your content. A schema declares what properties a resource has and their types.
+Open `vault/hello.td`. A `.td` file has two parts: YAML frontmatter and a markdown body.
 
 ```yaml
 ---
-_type: schema
-properties:
-  name:
-    type: string
-  role:
-    type: ['developer', 'designer', 'manager']
-  email:
-    type: string?
-  tags:
-    type: list[string]?
+_type: Article
+title: "My first document"
+tags:
+  - "getting-started"
 ---
+
+This is the body. It supports **bold**, _italic_, `code`, tables, math ($E = mc^2$), and more.
 ```
 
-The `?` postfix makes a field nullable. Omitted nullable fields default to `null`.
+The frontmatter between `---` markers holds structured data. The `_type` field tells Typedown which schema this file conforms to. The body is standard markdown with some extensions.
 
-Schema names match the file name (without extension). A file at `_types/Person.td` creates a schema named `Person`. Resources reference it with `_type: Person`.
+Save the file. The dev server reloads automatically.
 
-## Linking files
+## Build for production
 
-Use `fref` to link one file to another. The path is relative to the vault root.
-
-```yaml
----
-_type: Task
-title: "Implement auth"
-assignee: fref("people/alice.td")
----
+```sh
+typerighter build
 ```
 
-You can traverse links with dot access in expressions:
+This generates a static site in `dist/`. Deploy it anywhere that serves static files.
 
-```yaml
-assignee_name: self.assignee.name
-```
+## Next steps
 
-And in the markdown body:
-
-```markdown
-Assigned to ${self.assignee.name}.
-```
+- [Set up your editor](02-editors) for autocompletion and type checking
+- [Understand the concepts](../concepts/index) behind vaults, schemas, and references
