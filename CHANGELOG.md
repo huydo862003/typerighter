@@ -1,8 +1,15 @@
+## [0.17.2] - 2026-08-31
+
+### Fixes
+
+* crates/typedown-lang
+  - Don't strip _label when export header
+
 ## [0.17.1] - 2026-08-31
 
 ### Fixes
 
-* crates/typerighter
+* packages/typerighter
   - Properly copy public dir to output
 
 ## [0.17.0] - 2026-08-31
