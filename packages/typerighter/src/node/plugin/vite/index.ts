@@ -556,7 +556,7 @@ async function getPageIndexInput (context: TypedownContext, filepath: string): P
 
     return {
       id: getTdContentUrl(filepath),
-      title: getTdResourceTitle(resource.header, filepath),
+      title: getTdResourceTitle(filepath, resource.label),
       html,
     };
   } catch {

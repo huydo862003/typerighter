@@ -6,6 +6,9 @@ export interface ResolvedRef {
   url: string;
   name: string;
   format?: string;
+  icon?: {
+    name: string;
+  };
   isImage: boolean;
 }
 
@@ -49,6 +52,9 @@ export function extractRef (value: unknown): ResolvedRef | undefined {
   const url = rawRef.url;
   const name = (rawRef.name ?? path.basename(url)) as string;
   const format = (rawRef.format ?? targetObject.format) as string | undefined;
+  const icon = rawRef.icon as {
+    name: string;
+  } | undefined;
   const isImage = isImageRef({
     url,
     name,
@@ -59,6 +65,7 @@ export function extractRef (value: unknown): ResolvedRef | undefined {
     url,
     name,
     format,
+    icon,
     isImage,
   };
 }

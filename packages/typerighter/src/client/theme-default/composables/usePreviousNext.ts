@@ -135,7 +135,7 @@ function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefi
 function getItemLink (item: ContentSummary): PreviousNextLink {
   return {
     url: getTdContentUrl(item.filepath),
-    title: getTdResourceTitle(item.header, item.filepath),
+    title: getTdResourceTitle(item.filepath, item.label),
   };
 }
 

@@ -7,9 +7,9 @@ use std::collections::HashSet;
 
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, LazyType, LiteralValue, Symbol, SymbolKind, TdBlobType,
-  TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdListType,
-  TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType, TdObjectType,
-  TdSchemaMetaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
+  TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdIconType,
+  TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
+  TdObjectType, TdSchemaMetaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -190,6 +190,11 @@ pub fn get_dict_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
     "dict".to_string(),
     "@builtin::dict".to_string(),
   )
+}
+
+#[query_derived]
+pub fn get_icon_type<'db>(db: &'db TypedownDatabase) -> TdIconType<'db> {
+  TdIconType::new(db)
 }
 
 #[query_derived]

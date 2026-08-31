@@ -8,6 +8,7 @@ use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_func_type, get_num_type, get_sum_type,
 };
+use crate::db::types::TdSchemaType;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
@@ -488,6 +489,9 @@ fn traverse_field<'db>(
   lazy: &LazyType<'db>,
   field_name: &str,
 ) -> Option<LazyType<'db>> {
+  if let Some(builtin_type) = TdSchemaType::builtin_field_type(db, field_name) {
+    return Some(LazyType::eager(builtin_type));
+  }
   let typ = lazy.resolve(db)?;
   if let Some(field_type) = typ.get_owned_field_type(db, field_name) {
     return Some(LazyType::eager(field_type));

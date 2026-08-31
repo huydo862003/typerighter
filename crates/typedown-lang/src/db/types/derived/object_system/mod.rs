@@ -5,6 +5,7 @@ mod datetime;
 mod dict;
 mod existential;
 mod func;
+mod icon;
 mod list;
 mod literal;
 mod math;
@@ -34,6 +35,7 @@ pub use datetime::*;
 pub use dict::*;
 pub use existential::*;
 pub use func::*;
+pub use icon::*;
 pub use list::*;
 pub use literal::*;
 pub use math::*;
@@ -87,6 +89,7 @@ pub enum TdTypeEnum<'db> {
   TdVariableType(TdVariableType<'db>),
   TdExistentialType(TdExistentialType<'db>),
   TdObjectType(TdObjectType<'db>),
+  TdIconType(TdIconType<'db>),
 }
 
 // Use this instead of dyn
@@ -112,6 +115,7 @@ pub enum TdObjectEnum<'db> {
   TdBlobObj(TdBlobObj<'db>),
   TdNullObj(TdNullObj<'db>),
   TdVaultObj(TdVaultObj<'db>),
+  TdIconObj(TdIconObj<'db>),
 }
 
 // Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
@@ -150,6 +154,7 @@ impl_from_type_for_obj_enum!(
   TdVariableType,
   TdExistentialType,
   TdObjectType,
+  TdIconType,
 );
 
 impl Id for TdTypeEnum<'_> {
@@ -177,6 +182,7 @@ impl Id for TdTypeEnum<'_> {
       TdTypeEnum::TdVariableType(v) => v.as_id(),
       TdTypeEnum::TdExistentialType(v) => v.as_id(),
       TdTypeEnum::TdObjectType(v) => v.as_id(),
+      TdTypeEnum::TdIconType(v) => v.as_id(),
     }
   }
 }
@@ -200,6 +206,7 @@ impl Id for TdObjectEnum<'_> {
       TdObjectEnum::TdBlobObj(v) => v.as_id(),
       TdObjectEnum::TdNullObj(v) => v.as_id(),
       TdObjectEnum::TdVaultObj(v) => v.as_id(),
+      TdObjectEnum::TdIconObj(v) => v.as_id(),
     }
   }
 }
@@ -259,6 +266,7 @@ impl typedown_incremental::StableHash for TdTypeEnum<'_> {
       TdTypeEnum::TdVariableType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdExistentialType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdObjectType(v) => v.stable_hash(db, hasher),
+      TdTypeEnum::TdIconType(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -286,6 +294,7 @@ impl typedown_incremental::StableHash for TdObjectEnum<'_> {
       TdObjectEnum::TdBlobObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdNullObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdVaultObj(v) => v.stable_hash(db, hasher),
+      TdObjectEnum::TdIconObj(v) => v.stable_hash(db, hasher),
     }
   }
 }
@@ -315,6 +324,7 @@ pub enum TdTypeKind {
   Schema = 19,
   Existential = 20,
   Variable = 21,
+  Icon = 22,
 }
 
 #[derive(FromRepr)]
@@ -338,6 +348,7 @@ pub enum TdObjectKind {
   VaultObj = 140,
   NullObj = 141,
   SchemaObj = 142,
+  IconObj = 143,
 }
 
 // TdTypeEnum
@@ -432,6 +443,10 @@ impl Encodable for TdTypeEnum<'_> {
         encoder.emit_u8(buf, TdTypeKind::Object as u8);
         v.field_encode(buf, encoder);
       }
+      TdTypeEnum::TdIconType(v) => {
+        encoder.emit_u8(buf, TdTypeKind::Icon as u8);
+        v.field_encode(buf, encoder);
+      }
     }
   }
 }
@@ -462,6 +477,7 @@ impl Decodable for TdTypeEnum<'_> {
       TdTypeKind::Existential => TdExistentialType::field_decode(data, decoder).into(),
       TdTypeKind::Variable => TdVariableType::field_decode(data, decoder).into(),
       TdTypeKind::Object => TdObjectType::field_decode(data, decoder).into(),
+      TdTypeKind::Icon => TdIconType::field_decode(data, decoder).into(),
     }
   }
 }
@@ -535,6 +551,10 @@ impl Encodable for TdObjectEnum<'_> {
         encoder.emit_u8(buf, TdObjectKind::VaultObj as u8);
         v.field_encode(buf, encoder);
       }
+      TdObjectEnum::TdIconObj(v) => {
+        encoder.emit_u8(buf, TdObjectKind::IconObj as u8);
+        v.field_encode(buf, encoder);
+      }
     }
   }
 }
@@ -559,6 +579,7 @@ impl Decodable for TdObjectEnum<'_> {
       Some(TdObjectKind::BlobObj) => TdBlobObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::NullObj) => TdNullObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::VaultObj) => TdVaultObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::IconObj) => TdIconObj::field_decode(data, decoder).into(),
       None => panic!("unknown TdObjectKind tag: {}", tag),
     }
   }

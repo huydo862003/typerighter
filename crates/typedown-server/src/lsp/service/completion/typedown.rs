@@ -9,6 +9,7 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
+use typedown_lang::db::derived::icon::ICON_ENTRIES;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
@@ -45,6 +46,11 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
   // Cursor in a _type value: suggest schema names
   if is_type_value_position(&node) {
     return Some(CompletionResponse::Array(schema_completions(db, project)));
+  }
+
+  // Cursor in a _icon value: suggest icon.X completions
+  if is_icon_value_position(&node) {
+    return Some(CompletionResponse::Array(icon_completions()));
   }
 
   // Cursor inside a fref() string argument, suggest .td files matching the field's declared type
@@ -92,6 +98,34 @@ fn is_type_value_position(node: &RedNode) -> bool {
     return false;
   };
   key.text().trim() == "_type"
+}
+
+// Returns true if the cursor is inside the value of an _icon mapping entry
+fn is_icon_value_position(node: &RedNode) -> bool {
+  let Some(entry) = find_ancestor(node, SyntaxKind::YamlMappingEntry) else {
+    return false;
+  };
+  let Some(key) = entry
+    .children()
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
+  else {
+    return false;
+  };
+  key.text().trim() == "_icon"
+}
+
+// Suggest icon.X completions for an _icon value position
+fn icon_completions() -> Vec<CompletionItem> {
+  ICON_ENTRIES
+    .iter()
+    .map(|entry| CompletionItem {
+      label: format!("icon.{}", entry.name),
+      insert_text: Some(format!("icon.{}", entry.name)),
+      detail: Some(format!("lucide: {}", entry.lucide_name)),
+      kind: Some(CompletionItemKind::ENUM_MEMBER),
+      ..Default::default()
+    })
+    .collect()
 }
 
 // Returns true if the cursor is inside the string argument of a fref() call

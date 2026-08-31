@@ -2,7 +2,7 @@ import type {
   Component, Ref,
 } from 'vue';
 import type {
-  FileMetadata,
+  ContentIcon, FileMetadata,
 } from './content';
 import type {
   MarkdownHeading,
@@ -10,6 +10,8 @@ import type {
 
 export interface PageData {
   schema?: string;
+  label?: string;
+  icon?: ContentIcon;
   frontmatter: Record<string, unknown>;
   headings: MarkdownHeading[];
   title: string;

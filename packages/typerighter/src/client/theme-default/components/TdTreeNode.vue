@@ -11,6 +11,9 @@ import {
 import {
   renderInlineMath,
 } from '../composables/renderMath';
+import {
+  getPageIcon,
+} from '../composables/pageIcon';
 import TdTooltip from './TdTooltip.vue';
 import {
   formatRelativeTime, getDirectoryUrl, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, isUrlAncestorOf, path, unslugify,
@@ -126,14 +129,21 @@ function toggle () {
           'is-active': isCurrent(getTdContentUrl(item.filepath)),
         }"
       >
+        <component
+          :is="getPageIcon(item.icon.name)!"
+          v-if="item.icon && getPageIcon(item.icon.name)"
+          :size="14"
+          class="td-tree-file-icon"
+        />
         <File
+          v-else
           :size="14"
           class="td-tree-file-icon"
         />
         <TdTooltip
           class="td-tree-link-text"
-          :text="getTdResourceTitle(item.header, item.filepath)"
-        ><span v-html="renderInlineMath(getTdResourceTitle(item.header, item.filepath))" /></TdTooltip>
+          :text="getTdResourceTitle(item.filepath, item.label)"
+        ><span v-html="renderInlineMath(getTdResourceTitle(item.filepath, item.label))" /></TdTooltip>
         <span class="td-tree-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
       </a>
       <button

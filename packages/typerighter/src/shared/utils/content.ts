@@ -123,9 +123,9 @@ export function getTdIndexTitle (filepath: string, siteTitle: string): string {
   return parent ? unslugify(parent) : siteTitle;
 }
 
-// Resolve a display title from frontmatter _label or the file path
-export function getTdResourceTitle (header: Record<string, unknown>, filepath: string): string {
-  if (header._label !== undefined) return String(header._label);
+// Resolve a display title from label or the file path
+export function getTdResourceTitle (filepath: string, label?: string): string {
+  if (label !== undefined) return label;
 
   const stem = filestem(filepath);
 
@@ -167,7 +167,7 @@ function sortTree (node: ContentTreeNode) {
 
     if (leftPrefix.order !== rightPrefix.order) return leftPrefix.order - rightPrefix.order;
 
-    return getTdResourceTitle(left.header, left.filepath).localeCompare(getTdResourceTitle(right.header, right.filepath));
+    return getTdResourceTitle(left.filepath, left.label).localeCompare(getTdResourceTitle(right.filepath, right.label));
   });
 
   for (const child of node.children) {
@@ -183,7 +183,7 @@ function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
     : [];
 
   return {
-    name: getTdResourceTitle(item.header, item.filepath),
+    name: getTdResourceTitle(item.filepath, item.label),
     url: getTdContentUrl(item.filepath),
     description: getFirstString(item.header, 'description', 'summary') ?? item.excerpt,
     tags: 0 < tags.length ? tags : undefined,

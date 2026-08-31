@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref, watch, watchEffect,
+  computed, ref, watch, watchEffect,
 } from 'vue';
 import {
   X,
@@ -37,6 +37,9 @@ import {
   renderInlineMath,
 } from './composables/renderMath';
 import {
+  getPageIcon,
+} from './composables/pageIcon';
+import {
   formatEditTime, getIndexUrl,
 } from '@/shared';
 import './styles/main.css';
@@ -47,6 +50,11 @@ import './styles/markdown/containers.css';
 const {
   title, page,
 } = useTdContent();
+const pageIcon = computed(() => {
+  const icon = page.value.icon;
+
+  return icon ? getPageIcon(icon.name) : undefined;
+});
 const siteConfig = useSiteConfig();
 const {
   withBase,
@@ -240,6 +248,15 @@ function onResizeStart (event: PointerEvent) {
             >
               {{ page.schema }}
             </div>
+            <div
+              v-if="pageIcon"
+              class="td-page-icon"
+            >
+              <component
+                :is="pageIcon"
+                :size="32"
+              />
+            </div>
             <h1
               v-if="title"
               class="td-page-title"
@@ -380,6 +397,11 @@ function onResizeStart (event: PointerEvent) {
   text-transform: uppercase;
   color: var(--color-td-primary-solid);
   margin-bottom: 6px;
+}
+
+.td-page-icon {
+  margin-bottom: 8px;
+  color: var(--color-td-primary-solid);
 }
 
 .td-page-title {

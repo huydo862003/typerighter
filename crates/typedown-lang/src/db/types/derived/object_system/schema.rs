@@ -11,7 +11,8 @@ use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{
-  get_dict_type, get_func_type, get_object_type, get_schema_meta_type, get_str_type, get_sum_type,
+  get_dict_type, get_func_type, get_icon_type, get_null_type, get_object_type,
+  get_schema_meta_type, get_str_type, get_sum_type,
 };
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_property::get_schema_property_type;
@@ -165,6 +166,25 @@ impl<'db> TdSchemaType<'db> {
     let product: TdTypeEnum = TdProductType::new(db, None, self.get_fields(db)).into();
     let schema: TdTypeEnum = (*self).into();
     get_sum_type(db, vec![LazyType::eager(product), LazyType::eager(schema)]).into()
+  }
+
+  // Resolve the declared type of a built-in underscore-prefixed field
+  pub fn builtin_field_type(db: &'db TypedownDatabase, name: &str) -> Option<TdTypeEnum<'db>> {
+    let null_type = LazyType::eager(get_null_type(db).into());
+    match name {
+      "_label" => {
+        let str_type = LazyType::eager(get_str_type(db).into());
+        Some(get_sum_type(db, vec![str_type, null_type]).into())
+      }
+      "_icon" => {
+        let icon_type = LazyType::eager(get_icon_type(db).into());
+        Some(get_sum_type(db, vec![icon_type, null_type]).into())
+      }
+      "_content" => Some(get_str_type(db).into()),
+      "_type" => Some(get_schema_meta_type(db).into()),
+      "_extends" => Some(get_schema_meta_type(db).into()),
+      _ => None,
+    }
   }
 }
 

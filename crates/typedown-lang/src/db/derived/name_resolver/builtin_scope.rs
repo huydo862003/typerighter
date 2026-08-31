@@ -48,6 +48,15 @@ pub fn builtin_scope<'db>(db: &'db TypedownDatabase) -> BuiltinScopeMembers<'db>
         "@builtin::vault".to_string(),
       ),
     ),
+    (
+      "icon".to_string(),
+      Symbol::new(
+        db,
+        SymbolKind::BuiltinGlobal(BuiltinGlobalKind::Icon),
+        "icon".to_string(),
+        "@builtin::icon".to_string(),
+      ),
+    ),
   ]);
   BuiltinScopeMembers::new(db, members)
 }

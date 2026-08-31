@@ -2,6 +2,12 @@
 import {
   ref,
 } from 'vue';
+import {
+  File as FileIcon,
+} from '@lucide/vue';
+import {
+  getPageIcon,
+} from '../../../composables/pageIcon';
 import TdWidgetRelation from './TdWidgetRelation.vue';
 import {
   extractRef, type ResolvedRef,
@@ -47,11 +53,16 @@ function visible<T> (list: T[]): T[] {
   <!-- List of relations / files / images -->
   <template v-if="isRelationList">
     <div>
-      <ul class="td-widget-list">
+      <ul class="td-widget-list td-widget-list-icons">
         <li
           v-for="(resolvedItem, idx) in visible(resolvedRefs)"
           :key="idx"
         >
+          <component
+            :is="resolvedItem.icon ? getPageIcon(resolvedItem.icon.name) ?? FileIcon : FileIcon"
+            :size="14"
+            class="td-widget-list-icon"
+          />
           <TdWidgetRelation
             :value="{
               $ref: resolvedItem,
@@ -104,6 +115,22 @@ function visible<T> (list: T[]): T[] {
   list-style-type: disc;
   padding-left: 1.25rem;
   margin: 0;
+}
+
+.td-widget-list-icons {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.td-widget-list-icons li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-widget-list-icon {
+  flex-shrink: 0;
+  color: var(--color-td-neutral-fg-muted);
 }
 
 .td-widget-list li {

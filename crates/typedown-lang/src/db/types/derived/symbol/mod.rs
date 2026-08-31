@@ -277,6 +277,7 @@ impl Decodable for BuiltinMacroKind {
 #[repr(u8)]
 pub enum BuiltinGlobalKind {
   Vault = 0,
+  Icon = 1,
 }
 
 impl StableHash for BuiltinGlobalKind {

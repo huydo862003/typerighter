@@ -102,9 +102,14 @@ fn serialize(
         && let Some(symbol) = schema_obj.file_symbol(db)
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
-        return Ok(serde_json::json!({
-          "$ref": { "url": resolved.url, "name": resolved.name }
-        }));
+        let icon = schema_obj.fields(db).get("_icon").cloned()
+          .and_then(|entry| evaluate_lazy_field(db, entry))
+          .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
+        let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
+        if let Some(icon_name) = icon {
+          ref_obj["icon"] = serde_json::json!({ "name": icon_name });
+        }
+        return Ok(serde_json::json!({ "$ref": ref_obj }));
       }
 
       let id = schema_obj.as_id();
@@ -127,9 +132,14 @@ fn serialize(
         && let Some(symbol) = product.file_symbol(db)
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
-        return Ok(serde_json::json!({
-          "$ref": { "url": resolved.url, "name": resolved.name }
-        }));
+        let icon = product.fields(db).get("_icon").cloned()
+          .and_then(|entry| evaluate_lazy_field(db, entry))
+          .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
+        let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
+        if let Some(icon_name) = icon {
+          ref_obj["icon"] = serde_json::json!({ "name": icon_name });
+        }
+        return Ok(serde_json::json!({ "$ref": ref_obj }));
       }
 
       let id = product.as_id();
@@ -177,6 +187,11 @@ fn serialize(
       visiting.remove(&id);
       Ok(serde_json::Value::Object(map))
     }
+
+    TdObjectEnum::TdIconObj(icon_obj) => Ok(serde_json::json!({
+      "name": icon_obj.lucide_name(db),
+      "_type": "icon",
+    })),
 
     // Other type objects and functions are not meaningful as document values
     _ => Ok(serde_json::Value::Null),
