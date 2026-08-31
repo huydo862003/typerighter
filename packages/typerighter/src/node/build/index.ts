@@ -188,6 +188,15 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     });
 
     await copyVaultAssets(path.join(root, config.rootDir), outDir);
+
+    // 8. Copy public directory to output
+    const publicDir = path.join(root, config.publicDir);
+
+    await fs.cp(publicDir, outDir, {
+      recursive: true,
+    }).catch(() => {
+      // No public directory
+    });
   } finally {
     // 8. Clean up intermediate directories
     await Promise.all([
