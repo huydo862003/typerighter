@@ -2,6 +2,7 @@ name: Homepage
 
 on:
   push:
+  workflow_dispatch:
 
 permissions:
   contents: read
