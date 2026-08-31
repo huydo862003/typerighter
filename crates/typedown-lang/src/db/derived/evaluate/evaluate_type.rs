@@ -420,6 +420,12 @@ fn resolve_type_lazy<'db>(
       None
     }
 
+    // Desugar A | B to Sum([A, B])
+    HirValueKind::Binary { op, left, right } if op == "|" => {
+      let left = resolve_type_lazy(db, *left, diagnostics)?;
+      let right = resolve_type_lazy(db, *right, diagnostics)?;
+      Some(LazyType::eager(get_sum_type(db, vec![left, right]).into()))
+    }
     // Desugar T? to Sum([T, null])
     HirValueKind::Postfix { op, operand } if op == "?" => {
       let inner = resolve_type_lazy(db, *operand, diagnostics)?;
@@ -488,31 +494,7 @@ fn resolve_type_lazy<'db>(
       }
       let mut arg_types = vec![];
       for idx_hir in indices {
-        let resolved = referee(db, idx_hir);
-        match resolved.value(db) {
-          Some(symbol) => match symbol.kind(db) {
-            SymbolKind::UserDefinedSchema(_, _) => {
-              arg_types.push(LazyType::lazy(symbol));
-            }
-            _ => {
-              let result = evaluate_type(db, symbol);
-              diagnostics.extend(result.diagnostics(db).iter().cloned());
-              if let Some(typ) = result.typ(db) {
-                arg_types.push(LazyType::eager(typ));
-              }
-            }
-          },
-          None => {
-            let node = idx_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::UnresolvedSchema {
-              name: node.text(),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
-            });
-            return None;
-          }
-        }
+        arg_types.push(resolve_type_lazy(db, idx_hir, diagnostics)?);
       }
       let inst_result = base_type.instantiate(db, arg_types);
       diagnostics.extend(inst_result.diagnostics(db).iter().cloned());
@@ -528,6 +510,7 @@ fn resolve_type_lazy<'db>(
     HirValueKind::Bool(val) => Some(LazyType::eager(
       get_literal_type(db, LiteralValue::Bool(val)).into(),
     )),
+    HirValueKind::Null => Some(LazyType::eager(get_null_type(db).into())),
     _ => {
       let node = hir.node(db);
       let (tr_offset, tr_len) = node.trimmed_range();
@@ -1304,6 +1287,77 @@ mod tests {
       })
     });
     assert!(has_draft, "sum members should contain 'draft'");
+  }
+
+  #[test]
+  fn evaluate_pipe_enum_schema() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/WithPipeEnum.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "pipe enum: {:?}",
+      result.diagnostics(&db)
+    );
+    let typ = result.typ(&db).unwrap();
+    let schema = typ.as_td_schema_type().unwrap();
+    let fields = schema.fields(&db);
+
+    // ('draft' | 'published' | 'archived') -> sum of 3
+    let parens = fields
+      .get("parens")
+      .unwrap()
+      .field_type
+      .resolve(&db)
+      .unwrap();
+    assert_eq!(parens.as_td_sum_type().unwrap().members(&db).len(), 3);
+
+    // 'low' | 'medium' | 'high' -> sum of 3
+    let bare = fields.get("bare").unwrap().field_type.resolve(&db).unwrap();
+    assert_eq!(bare.as_td_sum_type().unwrap().members(&db).len(), 3);
+
+    // ('draft' | 'published' | 'archived')? -> flattened to sum('draft', 'published', 'archived', null)
+    let parens_opt = fields
+      .get("parens_optional")
+      .unwrap()
+      .field_type
+      .resolve(&db)
+      .unwrap();
+    let parens_opt_sum = parens_opt.as_td_sum_type().unwrap();
+    assert_eq!(parens_opt_sum.members(&db).len(), 4);
+
+    // 'low' | 'medium' | 'high'? -> 'low' | 'medium' | ('high' | null) -> flattened to 4
+    let bare_opt = fields
+      .get("bare_optional")
+      .unwrap()
+      .field_type
+      .resolve(&db)
+      .unwrap();
+    let bare_opt_sum = bare_opt.as_td_sum_type().unwrap();
+    assert_eq!(bare_opt_sum.members(&db).len(), 4);
+
+    // list['frontend' | 'backend' | 'devops'] -> list type
+    let pipe_list = fields
+      .get("pipe_list")
+      .unwrap()
+      .field_type
+      .resolve(&db)
+      .unwrap();
+    assert!(
+      pipe_list.is_td_list_type(),
+      "pipe_list: {}",
+      pipe_list.display_name(&db)
+    );
+
+    // list['frontend' | 'backend' | 'devops']? -> sum(list, null)
+    let pipe_list_opt = fields
+      .get("pipe_list_optional")
+      .unwrap()
+      .field_type
+      .resolve(&db)
+      .unwrap();
+    let pipe_list_opt_sum = pipe_list_opt.as_td_sum_type().unwrap();
+    assert_eq!(pipe_list_opt_sum.members(&db).len(), 2);
   }
 
   #[test]

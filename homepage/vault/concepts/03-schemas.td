@@ -46,22 +46,24 @@ properties:
 
 ## Enums and union types
 
-A YAML list of types or literals. The field accepts any member.
+Use `|` to combine types or literals. The field accepts any member.
 
 ```yaml
 properties:
   status:
-    type: ['todo', 'in_progress', 'done']
+    type: 'todo' | 'in_progress' | 'done'
   priority:
-    type: ['low', 'medium', 'high']
+    type: 'low' | 'medium' | 'high'
 ```
 
 String literals must be quoted. Unquoted values are type names:
 
 ```yaml
-type: [string, number]   # accepts a string or a number
-type: ['draft', 'live']  # accepts "draft" or "live"
+type: string | number    # accepts a string or a number
+type: 'draft' | 'live'  # accepts "draft" or "live"
 ```
+
+A YAML list also works: `type: ['todo', 'in_progress', 'done']`.
 
 ## Link fields
 
@@ -116,7 +118,7 @@ Fields can declare defaults. If a resource omits the field, the default is used.
 ```yaml
 properties:
   status:
-    type: ['todo', 'in_progress', 'done']
+    type: 'todo' | 'in_progress' | 'done'
     default: "todo"
   count:
     type: number
@@ -137,7 +139,7 @@ properties:
   description:
     type: string?
   status:
-    type: ['planning', 'active', 'done']
+    type: 'planning' | 'active' | 'done'
     default: "planning"
   started:
     type: date?
@@ -154,7 +156,7 @@ properties:
   metadata:
     type:
       priority:
-        type: ['low', 'medium', 'high']
+        type: 'low' | 'medium' | 'high'
       budget:
         type: number?
 ---

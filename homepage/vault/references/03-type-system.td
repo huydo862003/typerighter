@@ -65,7 +65,22 @@ type:
 
 ## Union types
 
-A YAML list of types or literals. Accepts any member.
+Use `|` to combine types. Accepts any member.
+
+```yaml
+type: string | number
+type: string | null
+type: list[string] | null
+```
+
+Parentheses group when needed:
+
+```yaml
+type: (string | number)?    # string, number, or null
+type: list['a' | 'b' | 'c']
+```
+
+A YAML list also works:
 
 ```yaml
 type: [string, number]
@@ -76,8 +91,14 @@ type: [string, number]
 A union of string or number literals:
 
 ```yaml
+type: 'todo' | 'in_progress' | 'done'
+type: 1 | 2 | 3
+```
+
+List syntax also works:
+
+```yaml
 type: ['todo', 'in_progress', 'done']
-type: [1, 2, 3]
 ```
 
 String literals must be quoted to distinguish them from type names.

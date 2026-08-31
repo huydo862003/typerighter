@@ -1885,7 +1885,9 @@ pub(in crate::syntax::parse) fn children_binding_power(op: &str) -> Option<((), 
 
 pub(in crate::syntax::parse) fn infix_binding_power(op: &str) -> Option<(u8, u8)> {
   let bp = match op {
-    "->" => (2, 1),                     // closure (right-associative)
+    "->" => (2, 1), // closure (right-associative)
+    // FIXME: restrict to type expression contexts only
+    "|" => (3, 4),                      // type union
     "||" => (3, 4),                     // logical OR
     "&&" => (5, 6),                     // logical AND
     "==" | "!=" => (7, 8),              // equality

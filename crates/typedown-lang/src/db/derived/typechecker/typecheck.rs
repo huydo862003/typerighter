@@ -960,7 +960,8 @@ mod tests {
   fn typecheck_schema_with_optional_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithOptional.td");
     let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let hir = hir.unwrap();
+    let result = typecheck(&db, hir);
     assert!(
       result.diagnostics(&db).is_empty(),
       "optional: {:?}",
@@ -992,6 +993,41 @@ mod tests {
       result.diagnostics(&db).is_empty(),
       "content with postfix optional fields should have no errors: {:?}",
       result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_schema_with_pipe_union_no_errors() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithPipeUnion.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "pipe union schema: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_content_with_pipe_union_valid() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_pipe_union.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "valid pipe union content: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_content_with_pipe_union_invalid() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "invalid_pipe_union.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      !result.diagnostics(&db).is_empty(),
+      "invalid pipe union content should have errors"
     );
   }
 
