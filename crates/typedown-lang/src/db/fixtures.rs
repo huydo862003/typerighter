@@ -3,9 +3,96 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use crate::db::types::{AssetKind, File, FileHandle, FileMetadata, Project};
+use typedown_incremental::{QueryDatabase, query_derived};
+use typedown_types::either::Either;
+
+use crate::db::types::*;
 use crate::db::utils::is_content_file;
 use crate::db::{QueryStorage, TypedownDatabase};
+
+// Factory functions for creating derived structs in test query context
+
+#[query_derived]
+pub fn make_str_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdStrObj<'db> {
+  TdStrObj::new(db, value)
+}
+
+#[query_derived]
+pub fn make_num_obj<'db>(db: &'db TypedownDatabase, value: u64) -> TdNumObj<'db> {
+  TdNumObj::new(db, f64::from_bits(value))
+}
+
+#[query_derived]
+pub fn make_bool_obj<'db>(db: &'db TypedownDatabase, value: bool) -> TdBoolObj<'db> {
+  TdBoolObj::new(db, value)
+}
+
+#[query_derived]
+pub fn make_math_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdMathObj<'db> {
+  TdMathObj::new(db, value)
+}
+
+#[query_derived]
+pub fn make_datetime_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdDateTimeObj<'db> {
+  TdDateTimeObj::new(db, value)
+}
+
+#[query_derived]
+pub fn make_date_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdDateObj<'db> {
+  TdDateObj::new(db, value)
+}
+
+#[query_derived]
+pub fn make_time_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdTimeObj<'db> {
+  TdTimeObj::new(db, value)
+}
+
+#[query_derived]
+pub fn make_blob_obj<'db>(
+  db: &'db TypedownDatabase,
+  asset_kind: AssetKind,
+  file: File,
+) -> TdBlobObj<'db> {
+  TdBlobObj::new(db, asset_kind, file)
+}
+
+// Factory functions for types with HashMap fields
+// Accept Vec of tuples (hashable) and convert to HashMap inside
+
+#[query_derived]
+pub fn make_list_obj<'db>(
+  db: &'db TypedownDatabase,
+  items: Vec<Either<HirValue<'db>, TdObjectEnum<'db>>>,
+) -> TdListObj<'db> {
+  TdListObj::new(db, items)
+}
+
+#[query_derived]
+pub fn make_dict_obj<'db>(
+  db: &'db TypedownDatabase,
+  entries: Vec<(String, Either<HirValue<'db>, TdObjectEnum<'db>>)>,
+) -> TdDictObj<'db> {
+  TdDictObj::new(db, entries.into_iter().collect())
+}
+
+#[query_derived]
+pub fn make_product_obj<'db>(
+  db: &'db TypedownDatabase,
+  product_type: TdTypeEnum<'db>,
+  file_symbol: Option<Symbol<'db>>,
+  fields: Vec<(String, Either<HirValue<'db>, TdObjectEnum<'db>>)>,
+) -> TdProductObj<'db> {
+  TdProductObj::new(db, product_type, file_symbol, fields.into_iter().collect())
+}
+
+#[query_derived]
+pub fn make_product_type<'db>(
+  db: &'db TypedownDatabase,
+  name: Option<String>,
+  fields: Vec<(String, LazyType<'db>)>,
+) -> TdProductType<'db> {
+  TdProductType::new(db, name, fields.into_iter().collect())
+}
 
 pub struct Fixture {
   pub path: PathBuf,

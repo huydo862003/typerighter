@@ -219,12 +219,8 @@ mod tests {
   use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
   use crate::db::derived::evaluate::evaluate_type::evaluate_type;
   use crate::db::derived::name_resolver::file_symbol::file_symbol;
-  use crate::db::fixtures::load_vault_fixture;
-  use crate::db::types::{
-    AssetKind, File, FileHandle, FileMetadata, Project, TdBlobObj, TdBoolObj, TdDateObj,
-    TdDateTimeObj, TdDictObj, TdListObj, TdMathObj, TdNumObj, TdNumType, TdProductObj,
-    TdProductType, TdStrObj, TdStrType, TdTimeObj,
-  };
+  use crate::db::fixtures::*;
+  use crate::db::types::*;
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn empty_db() -> (TypedownDatabase, Project) {
@@ -239,7 +235,7 @@ mod tests {
   #[test]
   fn serializes_string() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdStrObj::new(&db, "hello".to_string()));
+    let obj = TdObjectEnum::from(make_str_obj(&db, "hello".to_string()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("hello".to_string()));
   }
@@ -247,7 +243,7 @@ mod tests {
   #[test]
   fn serializes_number() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdNumObj::new(&db, 42.0));
+    let obj = TdObjectEnum::from(make_num_obj(&db, 42.0_f64.to_bits()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::json!(42.0));
   }
@@ -255,7 +251,7 @@ mod tests {
   #[test]
   fn non_finite_float_serializes_to_null() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdNumObj::new(&db, f64::NAN));
+    let obj = TdObjectEnum::from(make_num_obj(&db, f64::NAN.to_bits()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Null);
   }
@@ -263,7 +259,7 @@ mod tests {
   #[test]
   fn infinity_serializes_to_null() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdNumObj::new(&db, f64::INFINITY));
+    let obj = TdObjectEnum::from(make_num_obj(&db, f64::INFINITY.to_bits()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Null);
   }
@@ -271,7 +267,7 @@ mod tests {
   #[test]
   fn serializes_bool() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdBoolObj::new(&db, true));
+    let obj = TdObjectEnum::from(make_bool_obj(&db, true));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Bool(true));
   }
@@ -280,11 +276,11 @@ mod tests {
   fn serializes_list() {
     let (db, project) = empty_db();
     let items = vec![
-      Either::Right(TdObjectEnum::from(TdNumObj::new(&db, 1.0))),
-      Either::Right(TdObjectEnum::from(TdStrObj::new(&db, "two".to_string()))),
-      Either::Right(TdObjectEnum::from(TdBoolObj::new(&db, false))),
+      Either::Right(TdObjectEnum::from(make_num_obj(&db, 1.0_f64.to_bits()))),
+      Either::Right(TdObjectEnum::from(make_str_obj(&db, "two".to_string()))),
+      Either::Right(TdObjectEnum::from(make_bool_obj(&db, false))),
     ];
-    let obj = TdObjectEnum::from(TdListObj::new(&db, items));
+    let obj = TdObjectEnum::from(make_list_obj(&db, items));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::json!([1.0, "two", false]));
   }
@@ -292,16 +288,17 @@ mod tests {
   #[test]
   fn serializes_dict() {
     let (db, project) = empty_db();
-    let mut entries = HashMap::new();
-    entries.insert(
-      "x".to_string(),
-      Either::Right(TdObjectEnum::from(TdNumObj::new(&db, 10.0))),
-    );
-    entries.insert(
-      "y".to_string(),
-      Either::Right(TdObjectEnum::from(TdStrObj::new(&db, "hello".to_string()))),
-    );
-    let obj = TdObjectEnum::from(TdDictObj::new(&db, entries));
+    let entries = vec![
+      (
+        "x".to_string(),
+        Either::Right(TdObjectEnum::from(make_num_obj(&db, 10.0_f64.to_bits()))),
+      ),
+      (
+        "y".to_string(),
+        Either::Right(TdObjectEnum::from(make_str_obj(&db, "hello".to_string()))),
+      ),
+    ];
+    let obj = TdObjectEnum::from(make_dict_obj(&db, entries));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value["x"], serde_json::json!(10.0));
     assert_eq!(value["y"], serde_json::json!("hello"));
@@ -310,7 +307,7 @@ mod tests {
   #[test]
   fn serializes_math_as_string() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdMathObj::new(&db, "$E = mc^2$".to_string()));
+    let obj = TdObjectEnum::from(make_math_obj(&db, "$E = mc^2$".to_string()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("$E = mc^2$".to_string()));
   }
@@ -318,7 +315,7 @@ mod tests {
   #[test]
   fn serializes_datetime_as_string() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdDateTimeObj::new(&db, "2024-01-15T10:30:00Z".to_string()));
+    let obj = TdObjectEnum::from(make_datetime_obj(&db, "2024-01-15T10:30:00Z".to_string()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(
       value,
@@ -329,7 +326,7 @@ mod tests {
   #[test]
   fn serializes_date_as_string() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdDateObj::new(&db, "2024-01-15".to_string()));
+    let obj = TdObjectEnum::from(make_date_obj(&db, "2024-01-15".to_string()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("2024-01-15".to_string()));
   }
@@ -337,7 +334,7 @@ mod tests {
   #[test]
   fn serializes_time_as_string() {
     let (db, project) = empty_db();
-    let obj = TdObjectEnum::from(TdTimeObj::new(&db, "10:30:00".to_string()));
+    let obj = TdObjectEnum::from(make_time_obj(&db, "10:30:00".to_string()));
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("10:30:00".to_string()));
   }
@@ -395,16 +392,15 @@ mod tests {
   #[test]
   fn nested_product_serializes_without_cycle() {
     let (db, project) = empty_db();
-    let _product_type: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
+    let _product_type: TdTypeEnum = make_product_type(&db, None, vec![]).into();
     let str_type: TdTypeEnum = TdStrType::get(&db).into();
     let num_type: TdTypeEnum = TdNumType::get(&db).into();
-    let inner = TdProductObj::new(&db, str_type, None, HashMap::new());
-    let mut fields = HashMap::new();
-    fields.insert(
+    let inner = make_product_obj(&db, str_type, None, vec![]);
+    let fields = vec![(
       "inner".to_string(),
       Either::Right(TdObjectEnum::from(inner)),
-    );
-    let outer = TdProductObj::new(&db, num_type, None, fields);
+    )];
+    let outer = make_product_obj(&db, num_type, None, fields);
 
     let result = to_json(&db, project, &TdObjectEnum::from(outer));
     assert!(result.is_ok(), "non-cyclic nested product should serialize");
@@ -471,7 +467,7 @@ mod tests {
     let (db, project) = empty_db();
     let path = PathBuf::from("/vault/_assets/photo.png");
     let file = File::new(&db, FileHandle::Path(path.clone(), FileMetadata::default()));
-    let blob = TdBlobObj::new(&db, AssetKind::Png, file);
+    let blob = make_blob_obj(&db, AssetKind::Png, file);
     let obj = TdObjectEnum::from(blob);
     let value = to_json(&db, project, &obj).unwrap();
     assert_eq!(value["format"], "png");

@@ -126,7 +126,7 @@ mod tests {
 
   use super::*;
   use crate::db::QueryStorage;
-  use crate::db::types::TdNumObj;
+  use crate::db::fixtures::make_num_obj;
 
   fn make_db() -> (TypedownDatabase, Project) {
     let db = TypedownDatabase {
@@ -140,7 +140,7 @@ mod tests {
   fn test_native_fn_optional_this() {
     let (db, project) = make_db();
     let native_fn = NativeFnKind::ToStringMethod.resolve();
-    let num_obj: TdObjectEnum = TdNumObj::new(&db, 42.0).into();
+    let num_obj: TdObjectEnum = make_num_obj(&db, 42.0_f64.to_bits()).into();
 
     let result_with_this = native_fn(&db, project, Some(num_obj), vec![]);
     assert!(result_with_this.is_ok());
