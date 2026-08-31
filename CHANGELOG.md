@@ -1,3 +1,10 @@
+## [0.17.3] - 2026-08-31
+
+### Perf
+
+* packages/typerighter
+  - Optimize css loading by splitting fonts out of main.css
+
 ## [0.17.2] - 2026-08-31
 
 ### Fixes
