@@ -5,4 +5,4 @@ repo: "https://github.com/huydo862003/typerighter"
 site:
   title: "Typedown"
   description: "A typed markdown language for structured content"
-  basePath: "/typerighter"
+  base_path: "/typerighter"

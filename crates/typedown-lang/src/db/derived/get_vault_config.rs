@@ -176,7 +176,7 @@ fn check_unknown_fields(
   if let Some(hash) = doc.as_hash() {
     for key in hash.keys() {
       if let Some(key_str) = key.as_str()
-        && !matches!(key_str, "version" | "vault" | "build" | "site" | "repo")
+        && !matches!(key_str, "version" | "vault" | "site" | "repo")
       {
         let offset = key_char_offset(contents, key_str).unwrap_or(0);
         diagnostics.push(Diagnostic::VaultConfigUnknownField {
@@ -248,15 +248,14 @@ fn extract_root_dir(
   )
 }
 
-/// Extract `build.base_path`, defaulting to "/" if absent.
-/// Validates that the value is a valid URL path segment.
+/// Extract `site.base_path`, defaulting to "/" if absent
 fn extract_base_path(
   doc: &yaml_rust2::Yaml,
   contents: &str,
   path_str: &str,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> String {
-  let Some(raw) = doc["build"]["base_path"].as_str() else {
+  let Some(raw) = doc["site"]["base_path"].as_str() else {
     return "/".to_string();
   };
 
@@ -276,7 +275,7 @@ fn extract_base_path(
     let offset = key_char_offset(contents, "base_path").unwrap_or(0);
     diagnostics.push(Diagnostic::VaultConfigInvalidValue {
       path: path_str.to_string(),
-      field: "build.base_path".to_string(),
+      field: "site.base_path".to_string(),
       message: format!("invalid URL path: {raw}"),
       start_offset: offset,
       end_offset: offset + raw.chars().count(),

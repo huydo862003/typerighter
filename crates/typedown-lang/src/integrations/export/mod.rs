@@ -968,7 +968,7 @@ mod tests {
     assert!(exported.content.is_empty(), "asset has no markdown body");
   }
 
-  // fref links use build.base_path from typedown.yaml
+  // fref links use site.base_path from typedown.yaml
   #[test]
   fn fref_uses_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
