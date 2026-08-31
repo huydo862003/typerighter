@@ -35,7 +35,8 @@
       "types": "./dist/client/theme-default/index.d.ts",
       "import": "./dist/client/theme-default.js"
     },
-    "./style.css": "./dist/typerighter.css"
+    "./style.css": "./dist/typerighter.css",
+    "./fonts.css": "./src/client/theme-default/styles/fonts.css"
   },
   "files": [
     "bin",
