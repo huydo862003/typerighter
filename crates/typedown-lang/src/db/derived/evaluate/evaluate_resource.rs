@@ -59,17 +59,20 @@ mod tests {
   use std::path::PathBuf;
 
   use crate::db::types::{
-    AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdBlobObj,
-    TdObjectEnum, TdRuntimeObject,
+    AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdObjectEnum,
+    TdRuntimeObject,
   };
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
-    QueryStorage, TypedownDatabase, derived::evaluate::evaluate_node::evaluate_node,
+    QueryStorage, TypedownDatabase,
+    derived::evaluate::evaluate_node::evaluate_node,
     derived::evaluate::evaluate_resource::evaluate_resource,
     derived::name_resolver::file_symbol::file_symbol,
     derived::name_resolver::scope::get_file_runtime_scope,
-    derived::typechecker::typecheck::typecheck, fixtures::load_vault_fixture, types::HirValueKind,
+    derived::typechecker::typecheck::typecheck,
+    fixtures::{load_vault_fixture, make_blob_obj},
+    types::HirValueKind,
     utils::lower_file,
   };
 
@@ -613,7 +616,7 @@ mod tests {
     ];
 
     for (kind, expected_format) in cases {
-      let blob = TdBlobObj::new(&db, kind, file);
+      let blob = make_blob_obj(&db, kind, file);
       let format = TdObjectEnum::from(blob)
         .get_owned_field(&db, "format")
         .expect("should have format");

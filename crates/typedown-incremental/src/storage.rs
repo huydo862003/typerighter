@@ -179,6 +179,12 @@ impl QueryStorage {
     CTX.with(|c| f(&mut c.borrow_mut()))
   }
 
+  // Whether the current thread is inside a query execution
+  #[doc(hidden)]
+  pub fn is_in_query(&self) -> bool {
+    self.with_context(|ctx| ctx.is_some())
+  }
+
   /// Get the next disambiguator for a given identity hash within the current query execution
   /// Returns 0 if not inside a query execution
   #[doc(hidden)]

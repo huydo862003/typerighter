@@ -868,6 +868,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
         #[allow(clippy::too_many_arguments)]
         pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &'db DB, #(#field_names: #field_types),*) -> Self {
           let storage = unsafe { db.storage() };
+          debug_assert!(
+            storage.is_in_query(),
+            "cannot create a derived struct outside of a query function"
+          );
           let start_index = Self::ingredient_start_index();
           let current_revision = storage.revision.load(::std::sync::atomic::Ordering::Acquire);
 
