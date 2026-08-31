@@ -1,3 +1,20 @@
+## [0.18.0] - 2026-08-31
+
+### Feat
+
+* crates/typedown-lang
+  - **Page icons**: add `_icon` built-in field with dedicated `Icon` type and `icon` built-in module
+  - LSP autocompletion for `_icon` values with all available icon names
+
+* packages/typerighter
+  - Render page icons in sidebar nav (replaces generic file icon when set)
+  - Render page icons in page header (only when explicitly set)
+
+### Fixes
+
+* crates/typedown-lang
+  - **Formatter deleting `$$` and code blocks**: `MathBlock` and `CodeBlock` were missing from `MdBlockElement` AST wrapper, causing the formatter to silently drop them when nested inside list items
+
 ## [0.17.5] - 2026-08-31
 
 ### Fixes
