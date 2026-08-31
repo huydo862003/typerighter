@@ -57,12 +57,10 @@ export function cli () {
     .option('--outDir <dir>', 'Output directory', {
       default: 'dist',
     })
-    .option('--base <path>', 'Base public path', {
-      default: '/',
-    })
+    .option('--base <path>', 'Base public path')
     .action(async (root: string | undefined, options: {
       outDir: string;
-      base: string;
+      base?: string;
     }) => {
       const context = createAppContext(resolveRoot(root));
 
