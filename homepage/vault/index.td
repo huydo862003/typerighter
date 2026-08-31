@@ -36,7 +36,7 @@ properties:
   name:
     type: string
   role:
-    type: ['developer', 'designer', 'manager']
+    type: 'developer' | 'designer' | 'manager'
   email:
     type: string?
 ---
