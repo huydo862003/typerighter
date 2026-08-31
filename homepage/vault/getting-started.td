@@ -63,5 +63,5 @@ This generates a static site in `dist/`. Deploy it anywhere that serves static f
 
 ## Next steps
 
-- [Set up your editor](02-editors) for autocompletion and type checking
-- [Understand the concepts](../concepts/index) behind vaults, schemas, and references
+- [Set up your editor](editors) for autocompletion and type checking
+- [Understand the concepts](concepts/index) behind vaults, schemas, and references

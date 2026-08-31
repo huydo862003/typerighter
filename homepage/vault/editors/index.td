@@ -13,7 +13,7 @@ Editor integrations for Typedown. All editors use the same LSP server, so featur
 - Inlay hints (show `_label` for `fref` targets)
 - Hover (show type info for fields, show label and schema for `fref` targets)
 
-## Editors
+## Sections
 
 - [Neovim](01-neovim) for installation, commands, and tips
 - [VS Code](02-vscode) for installation and features
