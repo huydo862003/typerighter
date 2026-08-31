@@ -420,6 +420,12 @@ fn resolve_type_lazy<'db>(
       None
     }
 
+    // Desugar A | B to Sum([A, B])
+    HirValueKind::Binary { op, left, right } if op == "|" => {
+      let left = resolve_type_lazy(db, *left, diagnostics)?;
+      let right = resolve_type_lazy(db, *right, diagnostics)?;
+      Some(LazyType::eager(get_sum_type(db, vec![left, right]).into()))
+    }
     // Desugar T? to Sum([T, null])
     HirValueKind::Postfix { op, operand } if op == "?" => {
       let inner = resolve_type_lazy(db, *operand, diagnostics)?;
