@@ -232,13 +232,15 @@ function changeRoute (
     return false;
   }
 
+  const browserHref = base === '/' ? href : base + (href.startsWith('/') ? href : '/' + href);
+
   if (replace) {
-    history.replaceState({}, '', href);
+    history.replaceState({}, '', browserHref);
   } else {
     history.replaceState({
       scrollPosition: window.scrollY,
     }, '');
-    history.pushState({}, '', href);
+    history.pushState({}, '', browserHref);
   }
 
   const nextUrl = new URL(href, location.origin);
@@ -259,7 +261,7 @@ function normalizeHref (href: string, base: string): string {
 
   let pathname = url.pathname.replace(/\.html$/, '');
 
-  if (base && pathname.startsWith(base)) {
+  if (base && base !== '/' && (pathname === base || pathname.startsWith(base + '/'))) {
     pathname = pathname.slice(base.length) || '/';
   }
 

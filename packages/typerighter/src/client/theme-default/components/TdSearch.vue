@@ -9,7 +9,7 @@ import {
   LoaderCircle, Search, X,
 } from '@lucide/vue';
 import {
-  usePageLoader, useSearchIndex,
+  usePageLoader, useSearchIndex, useSiteConfig,
 } from '../../app';
 import {
   debounce,
@@ -17,6 +17,22 @@ import {
   SEARCH_FIELDS, SEARCH_STORE_FIELDS, stripHtml,
   type PageModule,
 } from '@/shared';
+
+const active = defineModel<boolean>('active', {
+  default: false,
+});
+
+const query = defineModel<string>('query', {
+  default: '',
+});
+
+const emit = defineEmits<{
+  select: [];
+}>();
+
+const {
+  withBase,
+} = useSiteConfig();
 
 interface SearchResult {
   id: string;
@@ -31,17 +47,6 @@ interface SearchResultGroup {
   pageTitle: string;
   results: SearchResult[];
 }
-
-const active = defineModel<boolean>('active', {
-  default: false,
-});
-const query = defineModel<string>('query', {
-  default: '',
-});
-
-const emit = defineEmits<{
-  select: [];
-}>();
 
 const EXCERPT_CHARS = 120;
 
@@ -240,7 +245,7 @@ function onKeydown (event: KeyboardEvent) {
     const selected = flatResults.value[selectedIndex.value];
 
     if (!selected) return;
-    const link = document.querySelector<HTMLAnchorElement>(`.td-search-result[href="${CSS.escape(selected.id)}"]`);
+    const link = document.querySelector<HTMLAnchorElement>(`.td-search-result[href="${CSS.escape(withBase(selected.id))}"]`);
 
     link?.click();
   }
@@ -341,7 +346,7 @@ async function runSearch (trimmed: string) {
         <a
           v-for="result in group.results"
           :key="result.id"
-          :href="result.id"
+          :href="withBase(result.id)"
           class="td-search-result"
           :class="{
             'is-selected': flatIndexMap.get(result.id) === selectedIndex,

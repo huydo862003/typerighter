@@ -163,7 +163,9 @@ export function useSiteConfig () {
     withBase (path: string): string {
       if (base === '/') return path;
 
-      return base + path;
+      const normalized = path.startsWith('/') ? path : '/' + path;
+
+      return base + normalized;
     },
   };
 }
