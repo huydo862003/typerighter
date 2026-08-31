@@ -1,6 +1,7 @@
 # Typedown
 
-![Status](https://img.shields.io/badge/status-active-brightblue)
+![Status](https://img.shields.io/badge/status-alpha-orange)
+[![npm](https://img.shields.io/npm/v/typerighter)](https://www.npmjs.com/package/typerighter)
 ![License](https://img.shields.io/badge/license-GPL-green)
 <a href="https://github.com/huydo862003/Fck-AI-Slop#plan"><img src="https://img.shields.io/badge/Human%20slop-90EE90"></a>
 
@@ -22,7 +23,7 @@ Here's a demo of a web generated from typedown:
 
 ## Installation
 
-TBU
+See the [getting started guide](https://huydo862003.github.io/typerighter/guide/01-getting-started) for full installation and usage instructions.
 
 ```sh
 npm install typerighter
