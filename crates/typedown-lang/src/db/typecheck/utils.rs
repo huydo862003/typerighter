@@ -248,6 +248,7 @@ fn is_subtype_of_env<'db>(
       | TdTypeEnum::TdDateType(_)
       | TdTypeEnum::TdTimeType(_)
       | TdTypeEnum::TdNullType(_) => false,
+      TdTypeEnum::TdIconType(_) => matches!(subtype, TdTypeEnum::TdIconType(_)),
       TdTypeEnum::TdSchemaMetaType(_)
       | TdTypeEnum::TdVariableType(_)
       | TdTypeEnum::TdExistentialType(_) => false,

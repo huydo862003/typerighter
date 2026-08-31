@@ -38,7 +38,7 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
   CANCELLED_ERROR_CODE, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdIcon,
   TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
 };
 
@@ -318,6 +318,8 @@ impl RpcServer {
 
         results.push(TdBuiltResource {
           schema: exported.schema,
+          label: exported.label,
+          icon: exported.icon.map(|i| TdIcon { name: i.name }),
           header: exported.header,
           content: exported.content,
           metadata: TdFileMetadata {
@@ -384,6 +386,8 @@ impl RpcServer {
           groups.entry(group_key).or_default().push(TdContentSummary {
             filepath: relative,
             schema: exported.schema,
+            label: exported.label,
+            icon: exported.icon.map(|i| TdIcon { name: i.name }),
             header: exported.header,
             excerpt,
             metadata: TdFileMetadata {

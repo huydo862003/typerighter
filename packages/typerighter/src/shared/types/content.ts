@@ -1,8 +1,17 @@
+export interface ContentIcon {
+  /** Lucide icon name */
+  name: string;
+}
+
 export interface ContentSummary {
   /** File path relative to content dir, with extension */
   filepath: string;
   /** Schema type name */
   schema?: string;
+  /** Display label */
+  label?: string;
+  /** Page icon */
+  icon?: ContentIcon;
   /** Frontmatter header */
   header: Record<string, unknown>;
   /** First paragraph of the body content */

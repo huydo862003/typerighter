@@ -129,6 +129,12 @@ pub struct TdContentSummary {
   /// Schema type name
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
+  /// Display label
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  /// Page icon
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<TdIcon>,
   /// Frontmatter header as JSON
   #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub header: serde_json::Value,
@@ -146,11 +152,26 @@ pub struct TdContentSummary {
 pub struct TdBuiltResource {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
+  /// Display label
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  /// Page icon
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<TdIcon>,
   #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub header: serde_json::Value,
   pub content: String,
   /// File metadata
   pub metadata: TdFileMetadata,
+}
+
+/// Page icon
+#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
+pub struct TdIcon {
+  /// Lucide icon name
+  pub name: String,
 }
 
 /// File metadata

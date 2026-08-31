@@ -6,14 +6,15 @@ use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_type::{evaluate_type, resolve_property_descriptor};
 use crate::db::derived::get_builtin_types::{get_never_type, get_null_type, get_sum_type};
 use crate::db::derived::get_vault_config::get_vault_config;
+use crate::db::derived::icon::{ICON_ENTRIES, get_icon_module_type};
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, FnKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
   PropertyDescriptor, RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType,
-  TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum, TdProductObj, TdRuntimeObject,
-  TdSchemaObj, TdSchemaType, TdStaticType, TdStrObj, TdTypeEnum, TdVaultObj,
+  TdIconObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum, TdProductObj,
+  TdRuntimeObject, TdSchemaObj, TdSchemaType, TdStaticType, TdStrObj, TdTypeEnum, TdVaultObj,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -39,6 +40,16 @@ pub(crate) fn construct_from_hir<'db>(
           SymbolKind::BuiltinGlobal(kind) => {
             return match kind {
               BuiltinGlobalKind::Vault => Some(TdVaultObj::new(db, hir.project(db)).into()),
+              BuiltinGlobalKind::Icon => {
+                let mut fields = HashMap::new();
+                for entry in ICON_ENTRIES {
+                  let obj =
+                    TdIconObj::new(db, entry.name.to_string(), entry.lucide_name.to_string());
+                  fields.insert(entry.name.to_string(), Either::Right(obj.into()));
+                }
+                let module_type = get_icon_module_type(db).into();
+                Some(TdProductObj::new(db, module_type, None, fields).into())
+              }
             };
           }
           // Schema identifiers evaluate to the schema type as an object
@@ -411,11 +422,7 @@ fn evaluate_mapping<'db>(
     };
     let mut fields = HashMap::new();
     for (prop_name, prop_hir) in properties_entries {
-      if prop_name.starts_with('_')
-        && prop_name != "_type"
-        && prop_name != "_label"
-        && prop_name != "_content"
-      {
+      if prop_name.starts_with('_') && TdSchemaType::builtin_field_type(db, &prop_name).is_none() {
         fields.insert(
           prop_name,
           PropertyDescriptor {

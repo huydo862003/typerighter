@@ -35,10 +35,12 @@ export async function renderToVueSfc (
   const isIndex = path.filestem(filepath) === INDEX_FILENAME;
   const title = env.title || (isIndex
     ? getTdIndexTitle(filepath, (await context.getConfig()).siteTitle)
-    : getTdResourceTitle(resource.header, filepath));
+    : getTdResourceTitle(filepath, resource.label));
 
   const pageData = {
     schema: resource.schema,
+    label: resource.label,
+    icon: resource.icon,
     frontmatter: resource.header,
     headings: env.headers ?? [],
     title,

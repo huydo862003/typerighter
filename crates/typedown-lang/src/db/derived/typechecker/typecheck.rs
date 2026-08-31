@@ -14,7 +14,7 @@ use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 
 use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
 use crate::db::types::derived::object_system::TdStaticType;
-use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, TypecheckResult};
+use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, TdSchemaType, TdTypeEnum, TypecheckResult};
 use crate::syntax::ast::{AstNode, YamlMapping};
 use typedown_incremental::QueryDatabase;
 
@@ -107,6 +107,23 @@ fn check_mapping_fields<'db>(
         diagnostics.push(Diagnostic::FieldTypeMismatch {
           field: "_type".to_string(),
           expected: "schema".to_string(),
+          start_offset: tr_offset,
+          end_offset: tr_offset + tr_len,
+        });
+      }
+      continue;
+    }
+    // Built-in fields (_label, _icon) have fixed types
+    if let Some(builtin_type) = TdSchemaType::builtin_field_type(db, key) {
+      let value_result = actual_node_type(db, *value_hir);
+      if let Some(actual_type) = value_result.typ(db)
+        && !is_subtype_of(db, &actual_type, &builtin_type)
+      {
+        let node = value_hir.node(db);
+        let (tr_offset, tr_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::FieldTypeMismatch {
+          field: key.clone(),
+          expected: builtin_type.display_name(db),
           start_offset: tr_offset,
           end_offset: tr_offset + tr_len,
         });

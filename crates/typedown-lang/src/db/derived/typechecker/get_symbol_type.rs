@@ -4,6 +4,7 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_schema_meta_type, get_type_type};
+use crate::db::derived::icon::get_icon_module_type;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::derived::vault::get_vault_type;
@@ -34,6 +35,7 @@ pub fn get_symbol_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> T
     SymbolKind::BuiltinGlobal(kind) => {
       let typ = match kind {
         BuiltinGlobalKind::Vault => get_vault_type(db).into(),
+        BuiltinGlobalKind::Icon => get_icon_module_type(db).into(),
       };
       TypeResult::new(db, Some(typ), vec![])
     }

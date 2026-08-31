@@ -31,12 +31,25 @@ pub struct ExportedResource {
   /// Schema type name
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
+  /// Display label
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  /// Page icon
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<ExportedIcon>,
   /// Frontmatter fields as a JSON object
   pub header: serde_json::Value,
   /// Commonmark-compatible markdown body
   pub content: String,
   /// File metadata
   pub metadata: ExportedMetadata,
+}
+
+/// Exported page icon
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct ExportedIcon {
+  /// Lucide icon name
+  pub name: String,
 }
 
 /// File metadata exported alongside a resource
@@ -62,6 +75,8 @@ pub fn export_resource(
   if obj.as_td_blob_obj().is_some() {
     return Some(ExportedResource {
       schema: Some(TdBlobType::get(db).display_name(db)),
+      label: None,
+      icon: None,
       header: json::to_json(db, project, &obj).unwrap_or_default(),
       content: String::new(),
       metadata,
@@ -76,10 +91,17 @@ pub fn export_resource(
     return None;
   };
   let mut header = json::to_json(db, project, &obj).unwrap_or_default();
-  // _content is available in ExportedResource.content, not the header
-  if let serde_json::Value::Object(ref mut map) = header {
-    map.retain(|k, v| (!k.starts_with('_') || k == "_label") && !v.is_null());
-  }
+  let (label, icon) = if let serde_json::Value::Object(ref mut map) = header {
+    let label_val = map.remove("_label").and_then(|v| v.as_str().map(str::to_string));
+    let icon_val = map.remove("_icon").and_then(|v| {
+      let name = v.get("name")?.as_str()?.to_string();
+      Some(ExportedIcon { name })
+    });
+    map.retain(|k, v| !k.starts_with('_') && !v.is_null());
+    (label_val, icon_val)
+  } else {
+    (None, None)
+  };
 
   // Walk the AST and translate to somewhat commonmark-conformant markdown
   let parse_result = parse_file(db, project, file);
@@ -90,6 +112,8 @@ pub fn export_resource(
 
   Some(ExportedResource {
     schema,
+    label,
+    icon,
     header,
     content,
     metadata,

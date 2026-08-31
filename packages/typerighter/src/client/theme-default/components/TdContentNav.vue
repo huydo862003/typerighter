@@ -62,7 +62,7 @@ function isCurrent (href: string): boolean {
         :size="14"
         class="td-root-link-icon"
       />
-      <span class="td-root-link-text">{{ getTdResourceTitle(item.header, item.filepath) }}</span>
+      <span class="td-root-link-text">{{ getTdResourceTitle(item.filepath, item.label) }}</span>
       <span class="td-root-link-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
     </a>
     <TdTreeNode
