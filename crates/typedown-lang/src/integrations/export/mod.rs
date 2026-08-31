@@ -78,7 +78,7 @@ pub fn export_resource(
   let mut header = json::to_json(db, project, &obj).unwrap_or_default();
   // _content is available in ExportedResource.content, not the header
   if let serde_json::Value::Object(ref mut map) = header {
-    map.retain(|k, v| !k.starts_with('_') && !v.is_null());
+    map.retain(|k, v| (!k.starts_with('_') || k == "_label") && !v.is_null());
   }
 
   // Walk the AST and translate to somewhat commonmark-conformant markdown
