@@ -150,6 +150,8 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let field_ty = &field.ty;
     let setter_name = quote::format_ident!("set_{}", field_name);
 
+    let try_field_name = quote::format_ident!("try_{}", field_name);
+
     getter_setter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
         let storage = unsafe { db.storage() };
@@ -170,6 +172,14 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         });
 
         entry.value.clone()
+      }
+
+      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
+        let storage = unsafe { db.storage() };
+        let ingredient_index = Self::ingredient_start_index() + #idx;
+        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InputFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
+        Some(ingredient.data.get(&self.0)?.value.clone())
       }
 
       pub fn #setter_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &mut DB, value: #field_ty) {
@@ -684,6 +694,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
     let field_ty_static = &field_types_static[idx];
 
+    let try_field_name = quote::format_ident!("try_{}", field_name);
+
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
@@ -707,6 +719,22 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
         // Safety: transmute 'static stored value to 'db at the boundary
         unsafe { ::std::mem::transmute(entry.value.clone()) }
+      }
+
+      // Fallible getter for serialization paths where field data may have been cleaned up
+      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+        let id = self.0;
+        if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
+          return None;
+        }
+        let storage = unsafe { db.storage() };
+        let ingredient_index = Self::ingredient_start_index() + #idx;
+        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        let entry = ingredient.data.get(&id)?;
+
+        // Safety: transmute 'static stored value to 'db at the boundary
+        Some(unsafe { ::std::mem::transmute(entry.value.clone()) })
       }
     });
   }
@@ -1024,6 +1052,8 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let field_ty = &field.ty;
     let tuple_index = syn::Index::from(idx);
 
+    let try_field_name = quote::format_ident!("try_{}", field_name);
+
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
@@ -1035,6 +1065,18 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
         // Safety: transmute 'static stored value to 'db at the boundary
         unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) }
+      }
+
+      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+        let id = self.0;
+        let storage = unsafe { db.storage() };
+        let ingredient_index = Self::ingredient_index();
+        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
+        let entry = ingredient.data.get(&id)?;
+
+        // Safety: transmute 'static stored value to 'db at the boundary
+        Some(unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) })
       }
     });
   }
