@@ -1,3 +1,10 @@
+## [0.17.5] - 2026-08-31
+
+### Fixes
+
+* packages/typerighter
+  - FOUD issues when accessing the website
+
 ## [0.17.4] - 2026-08-31
 
 ### Fixes
