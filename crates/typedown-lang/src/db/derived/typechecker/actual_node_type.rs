@@ -8,6 +8,7 @@ use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_date_type, get_datetime_type, get_func_type, get_list_type, get_literal_type,
   get_math_type, get_null_type, get_num_type, get_str_type, get_sum_type, get_time_type,
+  get_type_type,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -207,6 +208,8 @@ fn get_binary_type<'db>(
       TypeResult::new(db, Some(get_bool_type(db).into()), vec![])
     }
     "&&" | "||" => TypeResult::new(db, Some(get_bool_type(db).into()), vec![]),
+    // FIXME: validate both operands are type expressions
+    "|" => TypeResult::new(db, Some(get_type_type(db).into()), vec![]),
     _ => TypeResult::new(db, None, vec![]),
   }
 }
@@ -377,26 +380,11 @@ fn get_index_type<'db>(
   if expr_type.arity(db) > 0 {
     let mut arg_types = vec![];
     for idx_hir in indices {
-      let resolved = referee(db, idx_hir);
-      match resolved.value(db) {
-        Some(symbol) => {
-          let schema_result = evaluate_type(db, symbol);
-          diagnostics.extend(schema_result.diagnostics(db).iter().cloned());
-          match schema_result.typ(db) {
-            Some(typ) => arg_types.push(typ),
-            None => return TypeResult::new(db, None, diagnostics),
-          }
-        }
-        None => {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::UnresolvedSchema {
-            name: node.text(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
-          });
-          return TypeResult::new(db, None, diagnostics);
-        }
+      let idx_result = actual_node_type(db, idx_hir);
+      diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
+      match idx_result.typ(db) {
+        Some(typ) => arg_types.push(typ),
+        None => return TypeResult::new(db, None, diagnostics),
       }
     }
     let inst_result =
