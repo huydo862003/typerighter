@@ -1,3 +1,33 @@
+## [0.17.0] - 2026-08-31
+
+### Feat
+
+* crates/typedown-lang
+  - **Excess field check**: schema-typed mappings now report unknown fields that are not declared in the schema
+
+* crates/typedown-incremental
+  - **Cache GC**: identity map cleanup, LRU eviction (`LRU_CAPACITY = 1024`), field data cleanup on stale entries
+  - **Fallible getters**: `try_<field>` on all struct types (input, derived, interned), returns `None` on dead data
+  - `specialize!` proc macro: stable autoderef-based dispatch (no nightly)
+
+### Refactor
+
+* **Remove nightly Rust**: replace `FieldEncodable`/`FieldDecodable` (nightly `specialization`) with `field_encode`/`field_decode` default methods on `Encodable`/`Decodable`
+  - Switch `rust-toolchain.toml` to stable
+  - Update flake.nix, CI workflows, and all DEVELOPMENT.md docs
+
+* crates/typedown-lang
+  - `base_path` config moved from `build.base_path` to `site.base_path`
+
+### Fixes
+
+* packages/typerighter
+  - **Base path routing**: client-side navigation now preserves `base_path` in browser URL
+  - `normalizeHref` uses segment-boundary check to prevent partial prefix stripping
+  - `withBase` guards against paths missing leading `/`
+  - Search results wrapped in `withBase` for correct navigation
+  - CLI `--base` no longer defaults to `/`, allowing `site.base_path` from config to take effect
+
 ## [0.16.0] - 2026-08-27
 
 ### Feat
