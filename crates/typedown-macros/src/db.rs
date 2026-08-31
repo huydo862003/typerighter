@@ -271,7 +271,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
-            .then_with(|| self.#field_names(db).stable_cmp(db, &other.#field_names(db)))
+            .then_with(|| self.#try_field_names(db).stable_cmp(db, &other.#try_field_names(db)))
           )*
         }
       }
@@ -903,7 +903,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
           let _ = db;
           ::std::cmp::Ordering::Equal
           #(
-            .then_with(|| Self::#field_names(*self, db).stable_cmp(db, &Self::#field_names(*other, db)))
+            .then_with(|| Self::#try_field_names(*self, db).stable_cmp(db, &Self::#try_field_names(*other, db)))
           )*
         }
       }
