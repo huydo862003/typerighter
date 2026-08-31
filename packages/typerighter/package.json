@@ -36,7 +36,7 @@
       "import": "./dist/client/theme-default.js"
     },
     "./style.css": "./dist/typerighter.css",
-    "./fonts.css": "./dist/fonts.css"
+    "./katex.css": "./dist/katex.css"
   },
   "files": [
     "bin",

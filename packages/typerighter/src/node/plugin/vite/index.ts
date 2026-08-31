@@ -98,7 +98,7 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
 
   return `
 import 'typerighter/style.css';
-import('typerighter/fonts.css');
+import('typerighter/katex.css');
 import { createTypedownApp } from 'typerighter/client';
 import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';

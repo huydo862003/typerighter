@@ -112,6 +112,14 @@ function generateHtmlDocument (context: HtmlDocumentContext): string {
     <meta name="twitter:description" content="${description}">
     <meta name="twitter:image" content="${context.base}og-image.png">
     <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Article', headline: context.title, description: context.description })}</script>
+    <script>
+      // Apply dark mode before CSS to prevent flash
+      !function () {
+        var theme = localStorage.getItem('td-theme');
+        var isDark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) document.documentElement.classList.add('dark');
+      }()
+    </script>
 ${cssLinks}
 ${modulePreloads}
   </head>

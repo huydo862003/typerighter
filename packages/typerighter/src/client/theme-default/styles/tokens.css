@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@fontsource-variable/archivo";
+@import "@fontsource-variable/jetbrains-mono";
 
 @theme {
   --font-sans: "Archivo Variable", "Archivo", system-ui, sans-serif;
