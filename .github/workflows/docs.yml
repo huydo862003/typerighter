@@ -37,6 +37,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: cargo build -p typedown-server
+      - run: pnpm --filter typerighter run build
       - run: pnpm --filter @typedown/homepage run build
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
