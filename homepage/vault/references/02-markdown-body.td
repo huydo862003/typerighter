@@ -89,7 +89,7 @@ Task lists:
 Standard markdown links:
 
 ```markdown
-[Anthropic](https://anthropic.com)
+[Example](https://example.com)
 [Alice](people/alice)
 ```
 
