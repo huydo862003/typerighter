@@ -1,3 +1,10 @@
+## [0.17.1] - 2026-08-31
+
+### Fixes
+
+* crates/typerighter
+  - Properly copy public dir to output
+
 ## [0.17.0] - 2026-08-31
 
 ### Feat
