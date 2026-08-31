@@ -102,7 +102,10 @@ fn serialize(
         && let Some(symbol) = schema_obj.file_symbol(db)
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
-        let icon = schema_obj.fields(db).get("_icon").cloned()
+        let icon = schema_obj
+          .fields(db)
+          .get("_icon")
+          .cloned()
           .and_then(|entry| evaluate_lazy_field(db, entry))
           .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
         let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
@@ -132,7 +135,10 @@ fn serialize(
         && let Some(symbol) = product.file_symbol(db)
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
-        let icon = product.fields(db).get("_icon").cloned()
+        let icon = product
+          .fields(db)
+          .get("_icon")
+          .cloned()
           .and_then(|entry| evaluate_lazy_field(db, entry))
           .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
         let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });

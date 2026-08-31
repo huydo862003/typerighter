@@ -8,11 +8,11 @@ use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
   get_bool_type, get_func_type, get_num_type, get_sum_type,
 };
-use crate::db::types::TdSchemaType;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::typecheck::utils::is_subtype_of;
+use crate::db::types::TdSchemaType;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
   File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdProductType,

@@ -14,7 +14,9 @@ use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 
 use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
 use crate::db::types::derived::object_system::TdStaticType;
-use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, TdSchemaType, TdTypeEnum, TypecheckResult};
+use crate::db::types::{
+  HirValue, HirValueKind, InterpolatedPart, TdSchemaType, TdTypeEnum, TypecheckResult,
+};
 use crate::syntax::ast::{AstNode, YamlMapping};
 use typedown_incremental::QueryDatabase;
 

@@ -92,7 +92,9 @@ pub fn export_resource(
   };
   let mut header = json::to_json(db, project, &obj).unwrap_or_default();
   let (label, icon) = if let serde_json::Value::Object(ref mut map) = header {
-    let label_val = map.remove("_label").and_then(|v| v.as_str().map(str::to_string));
+    let label_val = map
+      .remove("_label")
+      .and_then(|v| v.as_str().map(str::to_string));
     let icon_val = map.remove("_icon").and_then(|v| {
       let name = v.get("name")?.as_str()?.to_string();
       Some(ExportedIcon { name })
