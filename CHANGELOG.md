@@ -1,3 +1,10 @@
+## [0.17.4] - 2026-08-31
+
+### Fixes
+
+* packages/typerighter
+  - Broken font imports
+
 ## [0.17.3] - 2026-08-31
 
 ### Perf

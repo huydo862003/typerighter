@@ -1,6 +1,6 @@
 {
   "name": "typedown-zed",
-  "version": "0.17.3",
+  "version": "0.17.4",
   "private": true,
   "scripts": {
     "build": "cargo build -p typedown-zed --target wasm32-wasip1 --release",
