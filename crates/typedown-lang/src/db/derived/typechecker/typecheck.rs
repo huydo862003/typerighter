@@ -15,6 +15,7 @@ use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, TdTypeEnum, TypecheckResult};
+use crate::syntax::ast::{AstNode, YamlMapping};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -112,50 +113,63 @@ fn check_mapping_fields<'db>(
       }
       continue;
     }
-    if let Some(field_lazy) = declared_fields.get(key)
-      && let Some(field_type) = field_lazy.resolve(db)
-    {
-      // Recursively typecheck the field value
-      let tc_result = typecheck(db, *value_hir);
-      diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+    if let Some(field_lazy) = declared_fields.get(key) {
+      if let Some(field_type) = field_lazy.resolve(db) {
+        // Recursively typecheck the field value
+        let tc_result = typecheck(db, *value_hir);
+        diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
 
-      // Check synthesized type against expected field type
-      let value_result = actual_node_type(db, *value_hir);
-      let is_optional = is_nullable(db, &field_type);
-      match value_result.typ(db) {
-        Some(actual_type) if !is_subtype_of(db, &actual_type, &field_type) => {
-          let node = value_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::FieldTypeMismatch {
-            field: key.clone(),
-            expected: field_type.display_name(db),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
-          });
+        // Check synthesized type against expected field type
+        let value_result = actual_node_type(db, *value_hir);
+        let is_optional = is_nullable(db, &field_type);
+        match value_result.typ(db) {
+          Some(actual_type) if !is_subtype_of(db, &actual_type, &field_type) => {
+            let node = value_hir.node(db);
+            let (tr_offset, tr_len) = node.trimmed_range();
+            diagnostics.push(Diagnostic::FieldTypeMismatch {
+              field: key.clone(),
+              expected: field_type.display_name(db),
+              start_offset: tr_offset,
+              end_offset: tr_offset + tr_len,
+            });
+          }
+          // Unresolved identifier used as a field value
+          None if matches!(value_hir.kind(db), HirValueKind::Ident(_)) => {
+            let node = value_hir.node(db);
+            let (tr_offset, tr_len) = node.trimmed_range();
+            diagnostics.push(Diagnostic::UnresolvedSchema {
+              name: node.text(),
+              start_offset: tr_offset,
+              end_offset: tr_offset + tr_len,
+            });
+          }
+          // Null on a non-optional field is a type error
+          None if !is_optional => {
+            let node = value_hir.node(db);
+            let (tr_offset, tr_len) = node.trimmed_range();
+            diagnostics.push(Diagnostic::FieldTypeMismatch {
+              field: key.clone(),
+              expected: field_type.display_name(db),
+              start_offset: tr_offset,
+              end_offset: tr_offset + tr_len,
+            });
+          }
+          Some(_) | None => {}
         }
-        // Unresolved identifier used as a field value
-        None if matches!(value_hir.kind(db), HirValueKind::Ident(_)) => {
-          let node = value_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::UnresolvedSchema {
-            name: node.text(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
-          });
-        }
-        // Null on a non-optional field is a type error
-        None if !is_optional => {
-          let node = value_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::FieldTypeMismatch {
-            field: key.clone(),
-            expected: field_type.display_name(db),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
-          });
-        }
-        Some(_) | None => {}
       }
+    } else if expected_type.as_td_schema_type().is_some() && !key.starts_with('_') {
+      // Excess property: key not declared on the schema
+      let (start_offset, end_offset) = YamlMapping::cast(mapping_hir.node(db))
+        .and_then(|m| m.find_entry(key))
+        .and_then(|e| e.key_node())
+        .map(|n| n.trimmed_range())
+        .unwrap_or_else(|| value_hir.node(db).trimmed_range());
+      diagnostics.push(Diagnostic::UnknownField {
+        field: key.clone(),
+        on_type: expected_type.display_name(db),
+        start_offset,
+        end_offset,
+      });
     }
   }
 
@@ -603,6 +617,21 @@ mod tests {
       result.diagnostics(&db).is_empty(),
       "expected no diagnostics, got: {:?}",
       result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_excess_field_has_diagnostics() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "excess_field.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    let diags = result.diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnknownField { field, on_type, .. } if field == "favorite_color" && on_type == "Person")),
+      "expected UnknownField for 'favorite_color', got: {:?}",
+      diags
     );
   }
 

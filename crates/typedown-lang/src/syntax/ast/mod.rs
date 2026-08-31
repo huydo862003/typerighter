@@ -84,6 +84,11 @@ impl YamlMapping {
   pub fn entries(&self) -> impl Iterator<Item = (String, Expr)> {
     children::<YamlMappingEntry>(&self.0).filter_map(|e| e.entry())
   }
+
+  /// Find a mapping entry by key name
+  pub fn find_entry(&self, target: &str) -> Option<YamlMappingEntry> {
+    children::<YamlMappingEntry>(&self.0).find(|e| e.key().as_deref() == Some(target))
+  }
 }
 
 /// The YAML mapping's key-value pair
@@ -93,11 +98,15 @@ pub struct YamlMappingEntry(RedNode);
 impl YamlMappingEntry {
   /// Return the key of this mapping entry
   pub fn key(&self) -> Option<String> {
+    self.key_node().map(|v| v.chars().collect::<String>())
+  }
+
+  /// Return the key CST node of this mapping entry
+  pub fn key_node(&self) -> Option<RedNode> {
     self
       .0
       .children()
       .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)
-      .map(|v| v.chars().collect::<String>())
   }
 
   /// Return the value of this mapping entry
