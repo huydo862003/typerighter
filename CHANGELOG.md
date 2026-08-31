@@ -1,3 +1,10 @@
+## [0.19.0] - 2026-08-31
+
+### Feat
+
+* crates/typedown-lang
+  - Support `|` operator for enum
+
 ## [0.18.0] - 2026-08-31
 
 ### Feat
