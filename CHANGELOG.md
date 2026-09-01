@@ -1,3 +1,11 @@
+## [0.20.0] - 2026-09-01
+
+### Feat
+
+* crates/typedown-lang
+  - Support schema label and icon
+  - Enhance consistencies of type system regarding internal fields
+
 ## [0.19.0] - 2026-08-31
 
 ### Feat
