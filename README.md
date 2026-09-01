@@ -17,10 +17,6 @@ Typedown extends from markdown:
    - Semantic renaming.
 3. Extended furthermore, static site generators, search engines can be built on top of the core compiler.
 
-Here's a demo of a web generated from typedown:
-
-<img width="2880" height="1582" alt="image" src="https://github.com/user-attachments/assets/2223934e-86ce-4e3c-bed3-2c2c5133c2fd" />
-
 ## Installation
 
 See the [homepage](https://huydo862003.github.io/typerighter/) and [getting started guide](https://huydo862003.github.io/typerighter/guide/01-getting-started) for full installation and usage instructions.
