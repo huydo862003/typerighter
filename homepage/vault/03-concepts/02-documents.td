@@ -96,4 +96,4 @@ The expression inside `\${...}` is evaluated at build time and replaced with the
 
 **Container shorthands** like `[[toc]]` and `[[directory-index]]` insert built-in components.
 
-See [Markdown reference](../references/02-markdown-body) for the full syntax.
+See [Markdown reference](../04-references/02-markdown-body) for the full syntax.
