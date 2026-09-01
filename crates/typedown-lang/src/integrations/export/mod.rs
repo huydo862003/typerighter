@@ -92,19 +92,17 @@ pub fn export_resource(
     return None;
   };
   let mut header = json::to_json(db, project, &obj).unwrap_or_default();
-  let (label, icon) = if let serde_json::Value::Object(ref mut map) = header {
-    let label_val = map
-      .remove("_label")
-      .and_then(|v| v.as_str().map(str::to_string));
-    let icon_val = map.remove("_icon").and_then(|v| {
-      let name = v.get("name")?.as_str()?.to_string();
-      Some(ExportedIcon { name })
-    });
+  if let serde_json::Value::Object(ref mut map) = header {
     map.retain(|k, v| !k.starts_with('_') && !v.is_null());
-    (label_val, icon_val)
-  } else {
-    (None, None)
-  };
+  }
+  let label = obj
+    .get_builtin_field(db, "_label")
+    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+  let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
+    o.as_td_icon_obj().map(|i| ExportedIcon {
+      name: i.lucide_name(db),
+    })
+  });
 
   // Walk the AST and translate to somewhat commonmark-conformant markdown
   let parse_result = parse_file(db, project, file);
@@ -721,7 +719,7 @@ pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File)
   // Try _label from the schema type
   if let Some(symbol) = file_symbol(db, project, file).value(db)
     && let Some(typ) = evaluate_type(db, symbol).typ(db)
-    && let Some(label_obj) = typ.get_owned_field(db, "_label")
+    && let Some(label_obj) = typ.get_builtin_field(db, "_label")
     && let Some(str_obj) = label_obj.as_td_str_obj()
   {
     return str_obj.value(db);
@@ -746,7 +744,7 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     SymbolKind::UserDefinedResource(_, target_file) => {
       if let Some(target_symbol) = file_symbol(db, project, *target_file).value(db)
         && let Some(obj) = evaluate_resource(db, target_symbol).value(db)
-        && let Some(label_obj) = obj.get_owned_field(db, "_label")
+        && let Some(label_obj) = obj.get_builtin_field(db, "_label")
         && let Some(str_obj) = label_obj.as_td_str_obj()
       {
         return str_obj.value(db);
@@ -754,7 +752,7 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     }
     SymbolKind::UserDefinedSchema(_, _) => {
       if let Some(typ) = evaluate_type(db, *symbol).typ(db)
-        && let Some(label_obj) = typ.get_owned_field(db, "_label")
+        && let Some(label_obj) = typ.get_builtin_field(db, "_label")
         && let Some(str_obj) = label_obj.as_td_str_obj()
       {
         return str_obj.value(db);
@@ -1207,7 +1205,7 @@ name: "Alice"
       result
         .typ(&db)
         .unwrap()
-        .get_owned_field(&db, "_icon")
+        .get_builtin_field(&db, "_icon")
         .is_none()
     );
 
@@ -1244,7 +1242,7 @@ properties:
       result2
         .typ(&db)
         .unwrap()
-        .get_owned_field(&db, "_icon")
+        .get_builtin_field(&db, "_icon")
         .is_some(),
       "should have _icon after mutation"
     );

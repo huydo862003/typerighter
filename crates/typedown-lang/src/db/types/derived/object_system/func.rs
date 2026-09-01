@@ -22,6 +22,9 @@ impl<'db> TdRuntimeObject<'db> for TdFuncType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     let sig = self.signature(db);
     let params: Vec<String> = sig
@@ -78,6 +81,9 @@ impl<'db> TdRuntimeObject<'db> for TdFuncObj<'db> {
     get_func_type(db, self.signature(db)).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {

@@ -165,12 +165,17 @@ pub(crate) fn construct_from_hir<'db>(
   if let HirValueKind::Mapping(entries) = hir.kind(db)
     && type_result.typ(db).is_some_and(|t| t.is_td_product_type())
   {
-    let fields: HashMap<_, _> = entries
-      .into_iter()
-      .map(|(k, v)| (k, Either::Left(v)))
-      .collect();
+    let mut builtins = HashMap::new();
+    let mut fields = HashMap::new();
+    for (key, val_hir) in entries {
+      if key.starts_with('_') {
+        builtins.insert(key, Either::Left(val_hir));
+      } else {
+        fields.insert(key, Either::Left(val_hir));
+      }
+    }
     let product_type = type_result.typ(db).unwrap();
-    return Some(TdProductObj::new(db, product_type, None, HashMap::new(), fields).into());
+    return Some(TdProductObj::new(db, product_type, None, builtins, fields).into());
   }
 
   // Normal construction: convert HIR to args, then call construct

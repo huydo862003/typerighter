@@ -66,6 +66,9 @@ impl<'db> TdRuntimeObject<'db> for TdProductType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
   }
@@ -103,15 +106,6 @@ impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
     self.product_type(db)
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
-    if let Some(entry) = self.builtins(db).get(key).cloned() {
-      return match entry {
-        Either::Left(hir) => {
-          let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
-          evaluate_node(db, hir, file_scope).value(db)
-        }
-        Either::Right(obj) => Some(obj),
-      };
-    }
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
@@ -119,6 +113,16 @@ impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
       }
       Some(Either::Right(obj)) => Some(obj),
       None => Some(TdNullObj::get(db).into()),
+    }
+  }
+  fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    match self.builtins(db).get(key).cloned() {
+      Some(Either::Left(hir)) => {
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        evaluate_node(db, hir, file_scope).value(db)
+      }
+      Some(Either::Right(obj)) => Some(obj),
+      None => None,
     }
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {

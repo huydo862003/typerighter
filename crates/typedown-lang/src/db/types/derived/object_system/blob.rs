@@ -16,6 +16,9 @@ impl<'db> TdRuntimeObject<'db> for TdBlobType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::blob".to_string()
   }
@@ -57,6 +60,9 @@ impl<'db> TdRuntimeObject<'db> for TdBlobObj<'db> {
       "format" => Some(TdStrObj::new(db, self.asset_kind(db).as_format_str().to_string()).into()),
       _ => None,
     }
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)

@@ -16,6 +16,9 @@ impl<'db> TdRuntimeObject<'db> for TdMathType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::math".to_string()
   }
@@ -56,6 +59,9 @@ impl<'db> TdRuntimeObject<'db> for TdMathObj<'db> {
     TdMathType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {

@@ -71,7 +71,7 @@ pub fn is_schemaless_file(db: &TypedownDatabase, project: Project, file: File) -
 }
 
 /// Find the value of the _type field in a mapping or dict node
-pub fn schema_name_in_mapping(mapping: &RedNode) -> Option<String> {
+pub fn get_mapping_schema_name(mapping: &RedNode) -> Option<String> {
   for entry in mapping.children() {
     // Block mapping entry
     if entry.kind() == SyntaxKind::YamlMappingEntry {

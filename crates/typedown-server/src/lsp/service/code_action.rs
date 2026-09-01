@@ -168,7 +168,7 @@ fn resolve_entry_type<'db>(
     .trim()
     .to_string();
   let mapping = find_ancestor(entry, SyntaxKind::YamlMapping)?;
-  let schema_name = typedown_lang::db::utils::schema_name_in_mapping(&mapping)?;
+  let schema_name = typedown_lang::db::utils::get_mapping_schema_name(&mapping)?;
   let scope = Scope::project_scope(db, project);
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let typ = evaluate_type(db, symbol).typ(db)?;

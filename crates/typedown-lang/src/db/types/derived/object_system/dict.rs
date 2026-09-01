@@ -36,6 +36,9 @@ impl<'db> TdRuntimeObject<'db> for TdDictType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     match (
       self.key(db).and_then(|l| l.resolve(db)),
@@ -182,6 +185,18 @@ impl<'db> TdRuntimeObject<'db> for TdDictObj<'db> {
     TdDictType::get(db).into()
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    match self.entries(db).get(key).cloned()? {
+      Either::Left(hir) => {
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        evaluate_node(db, hir, file_scope).value(db)
+      }
+      Either::Right(obj) => Some(obj),
+    }
+  }
+  fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    if !key.starts_with('_') {
+      return None;
+    }
     match self.entries(db).get(key).cloned()? {
       Either::Left(hir) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));

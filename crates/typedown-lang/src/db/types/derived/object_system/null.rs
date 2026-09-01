@@ -16,6 +16,9 @@ impl<'db> TdRuntimeObject<'db> for TdNullType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::null".to_string()
   }
@@ -52,6 +55,9 @@ impl<'db> TdRuntimeObject<'db> for TdNullObj<'db> {
     TdNullType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {

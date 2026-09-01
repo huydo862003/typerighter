@@ -22,6 +22,9 @@ impl<'db> TdRuntimeObject<'db> for TdDateTimeType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::datetime".to_string()
   }
@@ -66,6 +69,9 @@ impl<'db> TdRuntimeObject<'db> for TdDateTimeObj<'db> {
     TdDateTimeType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
@@ -123,6 +129,9 @@ impl<'db> TdRuntimeObject<'db> for TdDateType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::date".to_string()
   }
@@ -167,6 +176,9 @@ impl<'db> TdRuntimeObject<'db> for TdDateObj<'db> {
     TdDateType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
@@ -224,6 +236,9 @@ impl<'db> TdRuntimeObject<'db> for TdTimeType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::time".to_string()
   }
@@ -268,6 +283,9 @@ impl<'db> TdRuntimeObject<'db> for TdTimeObj<'db> {
     TdTimeType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
