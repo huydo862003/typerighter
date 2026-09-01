@@ -16,7 +16,7 @@ import {
 } from '../composables/pageIcon';
 import TdTooltip from './TdTooltip.vue';
 import {
-  formatRelativeTime, getDirectoryUrl, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, isUrlAncestorOf, path, unslugify,
+  formatRelativeTime, getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdResourceTitle, isIndexFile, isUrlAncestorOf, unslugify,
   type ContentTreeNode,
 } from '@/shared';
 
@@ -35,24 +35,46 @@ const {
   withBase,
 } = useSiteConfig();
 const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
-const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+const indexItem = getNodeIndexItem(node);
 const folderPath = indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl);
 const folderHref = withBase(folderPath);
-const regularItems = node.items.filter((item) => path.filestem(item.filepath) !== INDEX_FILENAME);
+const regularEntries = node.entries.filter((entry) =>
+  entry.kind === 'dir' || !isIndexFile(entry.item.filepath));
 
-const hasContent = 0 < node.children.length || 0 < node.items.length;
+const hasContent = 0 < node.entries.length;
 
 const totalCount = computed(() => countItems(node));
 
 function countItems (n: ContentTreeNode): number {
-  return n.items.length + n.children.reduce((sum, child) => sum + countItems(child), 0);
+  let count = 0;
+
+  for (const entry of n.entries) {
+    if (entry.kind === 'file') {
+      count++;
+    } else {
+      count += countItems(entry.node);
+    }
+  }
+
+  return count;
 }
 
 const collapsed = ref(!isUrlAncestorOf(directoryUrl, route.path));
 const showAll = ref(false);
-const MAX_VISIBLE = 5;
-const visibleItems = computed(() => showAll.value ? regularItems : regularItems.slice(0, MAX_VISIBLE));
-const hiddenCount = computed(() => Math.max(0, regularItems.length - MAX_VISIBLE));
+const MAX_VISIBLE_FILES = 5;
+const fileCount = regularEntries.filter((entry) => entry.kind === 'file').length;
+const hiddenCount = computed(() => showAll.value ? 0 : Math.max(0, fileCount - MAX_VISIBLE_FILES));
+const visibleEntries = computed(() => {
+  if (showAll.value) return regularEntries;
+
+  let filesShown = 0;
+
+  return regularEntries.filter((entry) => {
+    if (entry.kind === 'dir') return true;
+
+    return ++filesShown <= MAX_VISIBLE_FILES;
+  });
+});
 
 watch(() => route.path, (currentPath) => {
   if (isUrlAncestorOf(directoryUrl, currentPath)) collapsed.value = false;
@@ -114,38 +136,41 @@ function toggle () {
       v-if="!collapsed"
       class="td-tree-children"
     >
-      <TdTreeNode
-        v-for="child in node.children"
-        :key="child.name"
-        :node="child"
-        :url-prefix="directoryUrl"
-      />
-      <a
-        v-for="item in visibleItems"
-        :key="item.filepath"
-        :href="withBase(getTdContentUrl(item.filepath))"
-        class="td-tree-link"
-        :class="{
-          'is-active': isCurrent(getTdContentUrl(item.filepath)),
-        }"
+      <template
+        v-for="entry in visibleEntries"
+        :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
       >
-        <component
-          :is="getPageIcon(item.icon.name)!"
-          v-if="item.icon && getPageIcon(item.icon.name)"
-          :size="14"
-          class="td-tree-file-icon"
+        <TdTreeNode
+          v-if="entry.kind === 'dir'"
+          :node="entry.node"
+          :url-prefix="directoryUrl"
         />
-        <File
+        <a
           v-else
-          :size="14"
-          class="td-tree-file-icon"
-        />
-        <TdTooltip
-          class="td-tree-link-text"
-          :text="getTdResourceTitle(item.filepath, item.label)"
-        ><span v-html="renderInlineMath(getTdResourceTitle(item.filepath, item.label))" /></TdTooltip>
-        <span class="td-tree-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
-      </a>
+          :href="withBase(getTdContentUrl(entry.item.filepath))"
+          class="td-tree-link"
+          :class="{
+            'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
+          }"
+        >
+          <component
+            :is="getPageIcon(entry.item.icon.name)!"
+            v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+            :size="14"
+            class="td-tree-file-icon"
+          />
+          <File
+            v-else
+            :size="14"
+            class="td-tree-file-icon"
+          />
+          <TdTooltip
+            class="td-tree-link-text"
+            :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
+          ><span v-html="renderInlineMath(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
+          <span class="td-tree-time">{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+        </a>
+      </template>
       <button
         v-if="hiddenCount > 0 && !showAll"
         class="td-tree-more"

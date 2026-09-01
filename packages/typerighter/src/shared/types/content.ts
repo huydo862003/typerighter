@@ -21,16 +21,24 @@ export interface ContentSummary {
 }
 
 export interface ContentTree {
-  /** Files at the content root */
-  rootItems: ContentSummary[];
-  /** Top-level directory nodes */
-  children: ContentTreeNode[];
+  /** Interleaved files and directories at the root, sorted by numeric prefix */
+  entries: ContentTreeEntry[];
 }
+
+export type ContentTreeEntry =
+  | {
+    kind: 'file';
+    item: ContentSummary;
+  }
+  | {
+    kind: 'dir';
+    node: ContentTreeNode;
+  };
 
 export interface ContentTreeNode {
   name: string;
-  children: ContentTreeNode[];
-  items: ContentSummary[];
+  /** Interleaved files and directories, sorted by numeric prefix */
+  entries: ContentTreeEntry[];
 }
 
 export interface DirectoryEntry {
@@ -49,9 +57,19 @@ export interface DirectoryEntry {
 export interface DirectoryListing {
   title: string;
   url: string;
-  subdirectories: SubdirectoryEntry[];
-  items: DirectoryEntry[];
+  /** Interleaved subdirectories and items, sorted by numeric prefix */
+  entries: DirectoryListingEntry[];
 }
+
+export type DirectoryListingEntry =
+  | {
+    kind: 'file';
+    item: DirectoryEntry;
+  }
+  | {
+    kind: 'dir';
+    sub: SubdirectoryEntry;
+  };
 
 export interface FileMetadata {
   /** Last modification time as seconds since UNIX epoch */

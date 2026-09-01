@@ -119,7 +119,7 @@ typerighter build
 
 ## Learn more
 
-- [Getting started](getting-started): install Typedown, create a project, and write your first file
-- [Editors](editors): set up Neovim, VS Code, or Zed
-- [Concepts](concepts/index): understand the vault, documents, schemas, expressions, and references
-- [Reference](references/index): look up exact syntax for frontmatter, markdown, types, and the CLI
+- [Getting started](01-getting-started): install Typedown, create a project, and write your first file
+- [Editors](02-editors): set up Neovim, VS Code, or Zed
+- [Concepts](03-concepts/index): understand the vault, documents, schemas, expressions, and references
+- [Reference](04-references/index): look up exact syntax for frontmatter, markdown, types, and the CLI

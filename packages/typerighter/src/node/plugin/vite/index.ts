@@ -535,7 +535,7 @@ async function fetchSiteData (context: TypedownContext): Promise<{
 
   const allItems = Object.values(schemaGroups).flat();
   const contentTree = buildContentTree(allItems);
-  const directoryListings = buildDirectoryListingMap(contentTree.children, config.siteTitle);
+  const directoryListings = buildDirectoryListingMap(contentTree.entries, config.siteTitle);
 
   return {
     contentTree,

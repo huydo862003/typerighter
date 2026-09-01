@@ -88,8 +88,7 @@ export async function createTypedownApp (
 
   const siteData = shallowRef<TypedownSiteData>({
     contentTree: data.contentTree ?? {
-      rootItems: [],
-      children: [],
+      entries: [],
     },
     schemas: data.schemas ?? {},
     directoryListings: data.directoryListings ?? {},
@@ -172,8 +171,7 @@ export function useSiteConfig () {
 
 const defaultSiteData = shallowRef<TypedownSiteData>({
   contentTree: {
-    rootItems: [],
-    children: [],
+    entries: [],
   },
   schemas: {},
   directoryListings: {},

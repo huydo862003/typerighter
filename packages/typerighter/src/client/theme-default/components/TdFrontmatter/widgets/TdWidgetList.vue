@@ -3,15 +3,15 @@ import {
   ref,
 } from 'vue';
 import {
-  File as FileIcon,
+  File,
 } from '@lucide/vue';
-import {
-  getPageIcon,
-} from '../../../composables/pageIcon';
 import TdWidgetRelation from './TdWidgetRelation.vue';
 import {
   extractRef, type ResolvedRef,
 } from './ref';
+import {
+  getPageIcon,
+} from '@/client/theme-default/composables/pageIcon';
 import type {
   PropertyDescriptor,
 } from '@/shared';
@@ -59,7 +59,7 @@ function visible<T> (list: T[]): T[] {
           :key="idx"
         >
           <component
-            :is="resolvedItem.icon ? getPageIcon(resolvedItem.icon.name) ?? FileIcon : FileIcon"
+            :is="resolvedItem.icon ? getPageIcon(resolvedItem.icon.name) ?? File : File"
             :size="14"
             class="td-widget-list-icon"
           />

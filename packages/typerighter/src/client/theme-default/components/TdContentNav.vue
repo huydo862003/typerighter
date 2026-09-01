@@ -7,14 +7,14 @@ import {
 } from '../../app';
 import TdTreeNode from './TdTreeNode.vue';
 import {
-  formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path,
+  formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, isIndexFile,
   type ContentTree,
 } from '@/shared';
 
 const {
   tree,
 } = defineProps<{
-  /** Content tree with root items and directory nodes */
+  /** Content tree with interleaved entries */
   tree: ContentTree;
 }>();
 
@@ -22,8 +22,14 @@ const route = useRoute();
 const {
   withBase,
 } = useSiteConfig();
-const indexItem = tree.rootItems.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
-const regularRootItems = tree.rootItems.filter((item) => path.filestem(item.filepath) !== INDEX_FILENAME);
+
+const indexItem = tree.entries
+  .find((entry): entry is Extract<typeof entry, {
+    kind: 'file';
+  }> => entry.kind === 'file' && isIndexFile(entry.item.filepath))
+  ?.item;
+const regularEntries = tree.entries.filter((entry) =>
+  entry.kind === 'dir' || !isIndexFile(entry.item.filepath));
 
 function isCurrent (href: string): boolean {
   return route.path === href;
@@ -49,27 +55,30 @@ function isCurrent (href: string): boolean {
         class="td-root-link-time"
       >{{ formatRelativeTime(indexItem.metadata.mtime) }}</span>
     </a>
-    <a
-      v-for="item in regularRootItems"
-      :key="item.filepath"
-      :href="withBase(getTdContentUrl(item.filepath))"
-      class="td-root-link"
-      :class="{
-        'is-active': isCurrent(getTdContentUrl(item.filepath)),
-      }"
+    <template
+      v-for="entry in regularEntries"
+      :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
     >
-      <File
-        :size="14"
-        class="td-root-link-icon"
+      <TdTreeNode
+        v-if="entry.kind === 'dir'"
+        :node="entry.node"
       />
-      <span class="td-root-link-text">{{ getTdResourceTitle(item.filepath, item.label) }}</span>
-      <span class="td-root-link-time">{{ formatRelativeTime(item.metadata.mtime) }}</span>
-    </a>
-    <TdTreeNode
-      v-for="node in tree.children"
-      :key="node.name"
-      :node="node"
-    />
+      <a
+        v-else
+        :href="withBase(getTdContentUrl(entry.item.filepath))"
+        class="td-root-link"
+        :class="{
+          'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
+        }"
+      >
+        <File
+          :size="14"
+          class="td-root-link-icon"
+        />
+        <span class="td-root-link-text">{{ getTdResourceTitle(entry.item.filepath, entry.item.label) }}</span>
+        <span class="td-root-link-time">{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+      </a>
+    </template>
   </nav>
 </template>
 
