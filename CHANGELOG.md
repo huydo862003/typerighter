@@ -1,3 +1,10 @@
+## [0.20.1] - 2026-09-01
+
+### Fixes
+
+* crates/typedown-incremental
+  - **Fix false cycle panics during concurrent query execution**: cancelled queries left stale `Computing` state in the query cache, causing other threads to detect false dependency cycles and panic. Wrap query execution in `catch_unwind` to ensure `Computing` entries are always cleaned up on cancellation.
+
 ## [0.20.0] - 2026-09-01
 
 ### Feat

@@ -3,4 +3,4 @@ resolver = "3"
 members = ["crates/*", "editors/zed"]
 
 [workspace.package]
-version = "0.20.0"
+version = "0.20.1"
