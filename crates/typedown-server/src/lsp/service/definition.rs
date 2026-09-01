@@ -11,7 +11,7 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{
   File, FileHandle, HirValueKind, Project, Scope, Symbol, SymbolKind,
 };
-use typedown_lang::db::utils::schema_name_in_mapping;
+use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::AstNode;
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -112,7 +112,7 @@ fn field_key_definition(
   // Find the enclosing mapping and its _type
   let entry = entry_key.parent()?;
   let mapping = find_ancestor(&entry, SyntaxKind::YamlMapping)?;
-  let schema_name = schema_name_in_mapping(&mapping)?;
+  let schema_name = get_mapping_schema_name(&mapping)?;
 
   // Resolve the schema and walk the _extends chain to find the file that defines the field
   let scope = Scope::project_scope(db, project);

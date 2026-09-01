@@ -12,6 +12,7 @@ import {
 import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
 import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
 import TdGlossaryIndex from '../theme-default/components/custom/glossary/TdGlossaryIndex.vue';
+import TdLucideIcon from '../theme-default/components/TdLucideIcon.vue';
 import {
   Content,
 } from './components/Content';
@@ -123,6 +124,7 @@ export async function createTypedownApp (
   app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('GlossaryIndex', TdGlossaryIndex);
   app.component('Flashcard', TdFlashcard);
+  app.component('LucideIcon', TdLucideIcon);
   /* eslint-enable vue/multi-word-component-names */
 
   if (typeof window !== 'undefined') {

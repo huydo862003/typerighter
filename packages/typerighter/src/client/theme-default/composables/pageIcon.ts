@@ -4,6 +4,7 @@ import type {
 import {
   Archive,
   Apple,
+  ArrowUpRight,
   AtSign,
   Atom,
   Bell,
@@ -271,6 +272,7 @@ const PAGE_ICONS: Record<string, Component> = {
   eye: Eye,
   search: Search,
   settings: Settings,
+  'arrow-up-right': ArrowUpRight,
 };
 
 export function getPageIcon (lucideName: string): Component | undefined {

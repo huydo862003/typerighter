@@ -16,6 +16,9 @@ impl<'db> TdRuntimeObject<'db> for TdIconType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "@builtin::icon".to_string()
   }
@@ -47,6 +50,9 @@ impl<'db> TdRuntimeObject<'db> for TdIconObj<'db> {
     TdIconType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {

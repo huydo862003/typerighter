@@ -153,6 +153,10 @@ pub trait TdRuntimeObject<'x0>: Id {
 
   fn get_owned_field(&self, db: &'x0 TypedownDatabase, key: &str) -> Option<TdObjectEnum<'x0>>;
 
+  // Access builtin fields (_icon, _label, etc.)
+  // Schema instances fall back to schema type builtins
+  fn get_builtin_field(&self, db: &'x0 TypedownDatabase, key: &str) -> Option<TdObjectEnum<'x0>>;
+
   fn source_path(&self, db: &'x0 TypedownDatabase) -> String;
 
   fn eq(&self, _db: &'x0 TypedownDatabase, other: &TdObjectEnum<'x0>) -> bool {
@@ -212,6 +216,9 @@ impl<'db> TdRuntimeObject<'db> for TdTypeType<'db> {
     TdTypeType::get(db).into()
   }
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {

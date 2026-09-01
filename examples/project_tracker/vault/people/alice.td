@@ -41,6 +41,11 @@ She joined the team in 2023 and has been ***leading*** the website redesign effo
 | Friday | Documentation, tech debt |
 :::
 
+## Links
+
+- GitHub profile: [alice-chen](https://github.com/alice-chen)
+- Company wiki: [Onboarding guide](https://wiki.example.com/onboarding)
+
 ## Tools
 
 Alice uses a custom shell function to check CI status:

@@ -1,5 +1,6 @@
 ---
 _type: schema
+_icon: icon.flag
 properties:
   title:
     type: string

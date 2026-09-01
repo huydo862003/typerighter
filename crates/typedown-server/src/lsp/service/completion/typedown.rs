@@ -19,7 +19,7 @@ use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
   File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdStaticType, TdTypeEnum,
 };
-use typedown_lang::db::utils::schema_name_in_mapping;
+use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -301,7 +301,7 @@ fn enclosing_mapping_type<'db>(
   let mapping = find_ancestor(node, SyntaxKind::YamlMapping)?;
 
   // Explicit _type in this mapping
-  if let Some(schema_name) = schema_name_in_mapping(&mapping) {
+  if let Some(schema_name) = get_mapping_schema_name(&mapping) {
     let scope = Scope::project_scope(db, project);
     let symbol = *members(db, scope).members(db).get(&schema_name)?;
     let typ = evaluate_type(db, symbol).typ(db)?;
@@ -436,7 +436,7 @@ fn resolve_field_type_from_schema<'db>(
   mapping: &RedNode,
   key: &str,
 ) -> Option<TdTypeEnum<'db>> {
-  let schema_name = schema_name_in_mapping(mapping)?;
+  let schema_name = get_mapping_schema_name(mapping)?;
   let scope = Scope::project_scope(db, project);
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let typ = evaluate_type(db, symbol).typ(db)?;

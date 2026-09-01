@@ -30,6 +30,9 @@ impl<'db> TdRuntimeObject<'db> for TdListType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     match self.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => format!("@builtin::list[{}]", elem.source_path(db)),
@@ -139,6 +142,9 @@ impl<'db> TdRuntimeObject<'db> for TdListObj<'db> {
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     let idx: usize = key.parse().ok()?;
     self.get(db, idx)
+  }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)

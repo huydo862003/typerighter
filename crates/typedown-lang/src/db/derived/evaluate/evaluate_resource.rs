@@ -1,11 +1,14 @@
 //! Evaluate a resource file into typed objects
 
+use std::collections::HashMap;
+
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::types::{
-  ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj, TdSchemaObj,
+  ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj, TdProductType,
+  TdSchemaObj,
 };
 use crate::db::utils::{is_schemaless_file, lower_file};
 use typedown_incremental::QueryDatabase;
@@ -61,6 +64,28 @@ pub fn evaluate_resource<'db>(
           file_sym,
           obj.builtins(db),
           obj.fields(db),
+        )
+        .into(),
+      )
+    }
+    // Schemaless files with no type produce a DictObj, convert to ProductObj
+    Some(TdObjectEnum::TdDictObj(dict)) if is_schemaless => {
+      let mut builtins = HashMap::new();
+      let mut fields = HashMap::new();
+      for (key, val) in dict.entries(db) {
+        if key.starts_with('_') {
+          builtins.insert(key, val);
+        } else {
+          fields.insert(key, val);
+        }
+      }
+      Some(
+        TdProductObj::new(
+          db,
+          TdProductType::new(db, None, HashMap::new()).into(),
+          Some(symbol),
+          builtins,
+          fields,
         )
         .into(),
       )
@@ -515,7 +540,7 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let content = obj
-      .get_owned_field(&db, "_content")
+      .get_builtin_field(&db, "_content")
       .expect("should have _content field");
     let str_obj = content.as_td_str_obj().expect("expected TdStrObj");
     assert!(str_obj.value(&db).contains("Hello world"));

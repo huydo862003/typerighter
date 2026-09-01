@@ -69,6 +69,7 @@ export function linkPlugin (
 
       if (isUrlExternal(url)) {
         // External link: apply configured attributes (e.g. target="_blank", rel="noreferrer")
+        token.attrJoin('class', 'td-external-link');
         Object.entries(externalAttrs).forEach(([
           key,
           value,

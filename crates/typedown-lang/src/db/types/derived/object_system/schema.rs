@@ -32,6 +32,9 @@ impl<'db> TdRuntimeObject<'db> for TdSchemaMetaType<'db> {
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
     None
   }
+  fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
   fn source_path(&self, _db: &'db TypedownDatabase) -> String {
     "schema".to_string()
   }
@@ -79,7 +82,10 @@ impl<'db> TdRuntimeObject<'db> for TdSchemaType<'db> {
   fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     get_schema_meta_type(db).into()
   }
-  fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
+    None
+  }
+  fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     match self.builtins(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
@@ -212,16 +218,6 @@ impl<'db> TdRuntimeObject<'db> for TdSchemaObj<'db> {
     self.schema(db)
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
-    // Check builtins first
-    if let Some(entry) = self.builtins(db).get(key).cloned() {
-      return match entry {
-        Either::Left(hir) => {
-          let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
-          evaluate_node(db, hir, file_scope).value(db)
-        }
-        Either::Right(obj) => Some(obj),
-      };
-    }
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
@@ -246,6 +242,23 @@ impl<'db> TdRuntimeObject<'db> for TdSchemaObj<'db> {
         Some(TdNullObj::get(db).into())
       }
     }
+  }
+  fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    // Check instance builtins first
+    if let Some(entry) = self.builtins(db).get(key).cloned() {
+      return match entry {
+        Either::Left(hir) => {
+          let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+          evaluate_node(db, hir, file_scope).value(db)
+        }
+        Either::Right(obj) => Some(obj),
+      };
+    }
+    // Fall back to schema type for _icon default
+    if key == "_icon" {
+      return self.schema(db).get_builtin_field(db, key);
+    }
+    None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_type(db).source_path(db)

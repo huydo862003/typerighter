@@ -94,7 +94,7 @@ pub fn str_content_node(str_lit: &RedNode) -> Option<RedNode> {
 // Get the _label string from a resource symbol
 pub fn get_resource_label(db: &TypedownDatabase, sym: Symbol) -> Option<String> {
   let obj = evaluate_resource(db, sym).value(db)?;
-  let field = obj.get_owned_field(db, "_label")?;
+  let field = obj.get_builtin_field(db, "_label")?;
   let str_obj = field.as_td_str_obj()?;
   Some(str_obj.value(db))
 }
