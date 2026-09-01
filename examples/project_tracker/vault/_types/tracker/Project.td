@@ -1,5 +1,6 @@
 ---
 _type: schema
+_icon: icon.briefcase
 properties:
   name:
     type: string

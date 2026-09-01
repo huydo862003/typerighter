@@ -1,6 +1,7 @@
 ---
 _type: schema
 _extends: Person
+_icon: icon.contact
 properties:
   role:
     type: ['developer', 'designer']

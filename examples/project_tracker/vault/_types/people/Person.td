@@ -1,5 +1,6 @@
 ---
 _type: schema
+_icon: icon.user
 properties:
   name:
     type: string

@@ -1,5 +1,6 @@
 ---
 _type: schema
+_icon: icon.check
 properties:
   status:
     type: ['todo', 'in progress', 'done']
