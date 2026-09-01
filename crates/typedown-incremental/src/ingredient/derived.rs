@@ -1,8 +1,8 @@
 use std::{
   any::Any,
-  collections::HashMap,
+  collections::{HashMap, HashSet},
   hash::Hash,
-  panic::panic_any,
+  panic::{AssertUnwindSafe, catch_unwind, panic_any, resume_unwind},
   sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -432,7 +432,7 @@ impl<
     }
 
     // Save parent context and push to query stack
-    let (parent_deps, parent_disambiguators, parent_store, parent_created_ids) = storage
+    let (parent_deps, parent_disambiguators, parent_identity_maps, parent_created_ids) = storage
       .with_context(|ctx| {
         let ctx = ctx.get_or_insert_with(|| ExecuteContext {
           query_stack: Vec::new(),
@@ -454,17 +454,19 @@ impl<
         )
       });
 
-    // Check for cancellation before recomputing
     let storage = unsafe { db.storage() };
-    if storage.cancelled.load(Ordering::Relaxed) {
-      panic_any(Cancelled);
-    }
 
     // Recompute
     #[cfg(debug_assertions)]
     self.recompute_count.fetch_add(1, Ordering::Relaxed);
     let key = arg.clone();
-    let value = (self.query_fn)(db, arg);
+    let execute_result = catch_unwind(AssertUnwindSafe(|| {
+      // Check for cancellation before recomputing
+      if storage.cancelled.load(Ordering::Relaxed) {
+        panic_any(Cancelled);
+      }
+      (self.query_fn)(db, arg)
+    }));
 
     // Collect recorded dependencies, restore parent state, and pop stack
     let (dependencies, created_ids) = storage.with_context(|ctx| {
@@ -473,31 +475,23 @@ impl<
         .expect("context disappeared during query execution");
       let dependencies = std::mem::replace(&mut ctx.dependencies, parent_deps);
       ctx.disambiguator_map = parent_disambiguators;
-      ctx.identity_maps = parent_store;
+      ctx.identity_maps = parent_identity_maps;
       let created_ids = std::mem::replace(&mut ctx.created_ids, parent_created_ids);
       ctx.query_stack.pop();
       (dependencies, created_ids)
     });
 
+    let value = match execute_result {
+      Ok(v) => v,
+      Err(payload) => {
+        // Remove stale Computing state so other threads don't see it
+        self.data.remove(&arg_id);
+        resume_unwind(payload);
+      }
+    };
+
     // Remove identity map entries for structs not recreated
-    for (start_index, active_ids) in &created_ids {
-      let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) else {
-        continue;
-      };
-      let removed = map.retain(&|id| active_ids.contains(&id));
-      if removed.is_empty() {
-        continue;
-      }
-      // Remove field data for sibling field ingredients
-      for (i, entry) in storage.ingredients[*start_index..].iter().enumerate() {
-        if entry.field_index != Some(i as u8) {
-          break;
-        }
-        for &id in &removed {
-          entry.ingredient.remove_entry(id);
-        }
-      }
-    }
+    self.cleanup_identity_maps(storage, arg_id, &created_ids);
 
     // Backdating: if the new value equals the old, keep the old changed_at
     // This prevents unnecessary invalidation of downstream queries
@@ -519,6 +513,33 @@ impl<
     );
 
     (value, changed_at)
+  }
+
+  /// Remove identity map entries for structs not recreated during recomputation
+  fn cleanup_identity_maps(
+    &self,
+    storage: &QueryStorage,
+    arg_id: usize,
+    created_ids: &HashMap<usize, HashSet<usize>>,
+  ) {
+    for (start_index, active_ids) in created_ids {
+      let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) else {
+        continue;
+      };
+      let removed = map.retain(&|id| active_ids.contains(&id));
+      if removed.is_empty() {
+        continue;
+      }
+      // Remove field data for sibling field ingredients
+      for (i, entry) in storage.ingredients[*start_index..].iter().enumerate() {
+        if entry.field_index != Some(i as u8) {
+          break;
+        }
+        for &id in &removed {
+          entry.ingredient.remove_entry(id);
+        }
+      }
+    }
   }
 }
 

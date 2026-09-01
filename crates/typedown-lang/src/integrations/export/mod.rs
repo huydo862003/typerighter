@@ -802,11 +802,11 @@ pub(super) fn evaluate_lazy_field<'db>(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::fixtures::load_vault_fixture;
-  use crate::db::{QueryStorage, TypedownDatabase};
   use crate::db::derived::evaluate::evaluate_type::evaluate_type;
   use crate::db::derived::name_resolver::file_symbol::file_symbol;
+  use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{File, FileHandle, FileMetadata, Project};
+  use crate::db::{QueryStorage, TypedownDatabase};
   use std::collections::HashMap;
   use std::path::PathBuf;
 
@@ -1198,8 +1198,18 @@ name: "Alice"
     // First evaluation, no icon
     let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();
     let result = evaluate_type(&db, symbol);
-    assert!(result.diagnostics(&db).is_empty(), "{:?}", result.diagnostics(&db));
-    assert!(result.typ(&db).unwrap().get_owned_field(&db, "_icon").is_none());
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "{:?}",
+      result.diagnostics(&db)
+    );
+    assert!(
+      result
+        .typ(&db)
+        .unwrap()
+        .get_owned_field(&db, "_icon")
+        .is_none()
+    );
 
     let exported = export_resource(&db, project, content_file).expect("should export");
     assert_eq!(exported.schema.as_deref(), Some("MySchema"));
@@ -1231,11 +1241,16 @@ properties:
       result2.diagnostics(&db)
     );
     assert!(
-      result2.typ(&db).unwrap().get_owned_field(&db, "_icon").is_some(),
+      result2
+        .typ(&db)
+        .unwrap()
+        .get_owned_field(&db, "_icon")
+        .is_some(),
       "should have _icon after mutation"
     );
 
-    let exported2 = export_resource(&db, project, content_file).expect("should export after mutation");
+    let exported2 =
+      export_resource(&db, project, content_file).expect("should export after mutation");
     assert_eq!(exported2.schema.as_deref(), Some("MySchema"));
   }
 }
