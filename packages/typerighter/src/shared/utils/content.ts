@@ -202,6 +202,11 @@ function sortTree (node: ContentTreeNode) {
 
     if (leftPrefix.order !== rightPrefix.order) return leftPrefix.order - rightPrefix.order;
 
+    // When neither has a numeric prefix, folders sort above files
+    if (leftPrefix.order === Infinity && left.kind !== right.kind) {
+      return left.kind === 'dir' ? -1 : 1;
+    }
+
     return leftPrefix.rest.localeCompare(rightPrefix.rest);
   });
 
