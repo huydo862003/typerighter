@@ -5,8 +5,8 @@ import {
   useSiteData, useRoute, useSiteConfig,
 } from '../../app';
 import {
-  getDirectoryUrl, getIndexUrl, getTdContentUrl, getTdResourceTitle, INDEX_FILENAME, path, unslugify,
-  type ContentTree, type ContentTreeNode, type ContentSummary,
+  getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdResourceTitle, isIndexFile, unslugify,
+  type ContentTree, type ContentTreeEntry, type ContentTreeNode, type ContentSummary,
 } from '@/shared';
 
 export interface PreviousNextLink {
@@ -68,17 +68,24 @@ interface SiblingGroup {
   groupName: string;
 }
 
+function entriesToLinks (entries: ContentTreeEntry[], urlPrefix: string): PreviousNextLink[] {
+  const pages: PreviousNextLink[] = [];
+
+  for (const entry of entries) {
+    if (entry.kind === 'file') {
+      pages.push(getItemLink(entry.item));
+    } else {
+      pages.push(getNodeIndexLink(entry.node, urlPrefix));
+    }
+  }
+
+  return pages;
+}
+
 // Find all sibling pages in the same directory as the current route
 function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | undefined {
-  if (tree.rootItems.some((item) => getTdContentUrl(item.filepath) === currentUrl)) {
-    const pages: PreviousNextLink[] = [];
-
-    for (const item of tree.rootItems) {
-      pages.push(getItemLink(item));
-    }
-    for (const child of tree.children) {
-      pages.push(getNodeIndexLink(child, ''));
-    }
+  if (tree.entries.some((entry) => entry.kind === 'file' && getTdContentUrl(entry.item.filepath) === currentUrl)) {
+    const pages = entriesToLinks(tree.entries, '');
 
     return {
       pages,
@@ -86,8 +93,10 @@ function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | un
     };
   }
 
-  for (const child of tree.children) {
-    const found = findSiblingsInNode(child, currentUrl, '');
+  for (const entry of tree.entries) {
+    if (entry.kind !== 'dir') continue;
+
+    const found = findSiblingsInNode(entry.node, currentUrl, '');
 
     if (found !== undefined) return found;
   }
@@ -97,24 +106,26 @@ function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | un
 
 function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefix: string): SiblingGroup | undefined {
   const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
-  const isDirectChild = node.items.some((item) => getTdContentUrl(item.filepath) === currentUrl);
+  const isDirectChild = node.entries.some(
+    (entry) => entry.kind === 'file' && getTdContentUrl(entry.item.filepath) === currentUrl,
+  );
 
   if (isDirectChild) {
     const pages: PreviousNextLink[] = [];
-    const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+    const indexItem = getNodeIndexItem(node);
 
     if (indexItem) {
       pages.push(getItemLink(indexItem));
     }
 
-    for (const item of node.items) {
-      if (path.filestem(item.filepath) !== INDEX_FILENAME) {
-        pages.push(getItemLink(item));
+    for (const entry of node.entries) {
+      if (entry.kind === 'file') {
+        if (!isIndexFile(entry.item.filepath)) {
+          pages.push(getItemLink(entry.item));
+        }
+      } else {
+        pages.push(getNodeIndexLink(entry.node, directoryUrl));
       }
-    }
-
-    for (const child of node.children) {
-      pages.push(getNodeIndexLink(child, directoryUrl));
     }
 
     return {
@@ -123,8 +134,10 @@ function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefi
     };
   }
 
-  for (const child of node.children) {
-    const found = findSiblingsInNode(child, currentUrl, directoryUrl);
+  for (const entry of node.entries) {
+    if (entry.kind !== 'dir') continue;
+
+    const found = findSiblingsInNode(entry.node, currentUrl, directoryUrl);
 
     if (found !== undefined) return found;
   }
@@ -141,7 +154,7 @@ function getItemLink (item: ContentSummary): PreviousNextLink {
 
 function getNodeIndexLink (node: ContentTreeNode, urlPrefix: string): PreviousNextLink {
   const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
-  const indexItem = node.items.find((item) => path.filestem(item.filepath) === INDEX_FILENAME);
+  const indexItem = getNodeIndexItem(node);
 
   if (indexItem) {
     return getItemLink(indexItem);

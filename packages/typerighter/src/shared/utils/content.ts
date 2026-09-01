@@ -2,7 +2,7 @@ import {
   INDEX_FILENAME,
 } from '../constants';
 import type {
-  ContentSummary, ContentTree, ContentTreeNode, DirectoryEntry, DirectoryListing,
+  ContentSummary, ContentTree, ContentTreeEntry, ContentTreeNode, DirectoryEntry, DirectoryListing, DirectoryListingEntry,
 } from '../types/content';
 import {
   parseNumericPrefix, unslugify,
@@ -18,8 +18,7 @@ import {
 export function buildContentTree (items: ContentSummary[]): ContentTree {
   const root: ContentTreeNode = {
     name: '',
-    children: [],
-    items: [],
+    entries: [],
   };
 
   for (const item of items) {
@@ -29,72 +28,105 @@ export function buildContentTree (items: ContentSummary[]): ContentTree {
     let current = root;
 
     for (const part of directoryParts) {
-      let child = current.children.find((node) => node.name === part);
+      let directoryEntry = current.entries.find(
+        (entry): entry is ContentTreeEntry & {
+          kind: 'dir';
+        } => entry.kind === 'dir' && entry.node.name === part,
+      );
 
-      if (!child) {
-        child = {
+      if (!directoryEntry) {
+        const node: ContentTreeNode = {
           name: part,
-          children: [],
-          items: [],
+          entries: [],
         };
-        current.children.push(child);
+
+        directoryEntry = {
+          kind: 'dir',
+          node,
+        };
+        current.entries.push(directoryEntry);
       }
 
-      current = child;
+      current = directoryEntry.node;
     }
 
-    current.items.push(item);
+    current.entries.push({
+      kind: 'file',
+      item,
+    });
   }
 
   sortTree(root);
 
   return {
-    rootItems: root.items,
-    children: root.children,
+    entries: root.entries,
   };
 }
 
 // Build a map of directory paths to their directory listing data
-export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: string): Record<string, DirectoryListing> {
+export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle: string): Record<string, DirectoryListing> {
   const map: Record<string, DirectoryListing> = {};
 
   function countDescendants (node: ContentTreeNode): number {
-    let count = node.items.filter((item) => filestem(item.filepath) !== INDEX_FILENAME).length;
+    let count = 0;
 
-    for (const child of node.children) {
-      count += countDescendants(child);
+    for (const entry of node.entries) {
+      if (entry.kind === 'file') {
+        if (!isIndexFile(entry.item.filepath)) count++;
+      } else {
+        count += countDescendants(entry.node);
+      }
     }
 
     return count;
   }
 
   function getChildUrl (child: ContentTreeNode, urlPrefix: string): string {
-    const indexItem = child.items.find((item) => filestem(item.filepath) === INDEX_FILENAME);
+    const indexItem = getNodeIndexItem(child);
 
     if (indexItem) return getTdContentUrl(indexItem.filepath);
 
     return getIndexUrl(`${urlPrefix}/${child.name}`);
   }
 
-  function walk (nodes: ContentTreeNode[], urlPrefix: string) {
-    for (const node of nodes) {
+  function toListingEntries (nodeEntries: ContentTreeEntry[], urlPrefix: string): DirectoryListingEntry[] {
+    const result: DirectoryListingEntry[] = [];
+
+    for (const entry of nodeEntries) {
+      if (entry.kind === 'dir') {
+        result.push({
+          kind: 'dir',
+          sub: {
+            name: unslugify(entry.node.name),
+            url: getChildUrl(entry.node, urlPrefix),
+            count: countDescendants(entry.node),
+          },
+        });
+      } else if (!isIndexFile(entry.item.filepath)) {
+        result.push({
+          kind: 'file',
+          item: toDirectoryEntry(entry.item),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  function walk (nodeEntries: ContentTreeEntry[], urlPrefix: string) {
+    for (const entry of nodeEntries) {
+      if (entry.kind !== 'dir') continue;
+
+      const node = entry.node;
       const directoryUrl = urlPrefix ? `${urlPrefix}/${node.name}` : `/${node.name}`;
 
       map[directoryUrl] = {
         title: unslugify(node.name),
         url: directoryUrl,
-        subdirectories: node.children
-          .map((child) => ({
-            name: unslugify(child.name),
-            url: getChildUrl(child, directoryUrl),
-            count: countDescendants(child),
-          })),
-        items: node.items
-          .filter((item) => filestem(item.filepath) !== INDEX_FILENAME)
-          .map((item) => toDirectoryEntry(item)),
+        entries: toListingEntries(node.entries, directoryUrl),
       };
 
-      walk(node.children, directoryUrl);
+      walk(node.entries, directoryUrl);
     }
   }
 
@@ -102,18 +134,20 @@ export function buildDirectoryListingMap (tree: ContentTreeNode[], rootTitle: st
   map['/'] = {
     title: rootTitle,
     url: '/',
-    subdirectories: tree
-      .map((child) => ({
-        name: unslugify(child.name),
-        url: getChildUrl(child, ''),
-        count: countDescendants(child),
-      })),
-    items: [],
+    entries: toListingEntries(entries, ''),
   };
 
-  walk(tree, '');
+  walk(entries, '');
 
   return map;
+}
+
+export function getNodeIndexItem (node: ContentTreeNode): ContentSummary | undefined {
+  for (const entry of node.entries) {
+    if (entry.kind === 'file' && isIndexFile(entry.item.filepath)) return entry.item;
+  }
+
+  return undefined;
 }
 
 // Derive the page title for an index file from its parent directory name
@@ -130,13 +164,21 @@ export function getTdResourceTitle (filepath: string, label?: string): string {
   const stem = filestem(filepath);
 
   // For index files, use the parent directory name
-  if (stem === INDEX_FILENAME) {
+  if (isIndexFile(filepath)) {
     const parent = basename(dirname(filepath));
 
     return parent ? unslugify(parent) : stem;
   }
 
   return unslugify(stem);
+}
+
+export function isIndexFile (filepath: string): boolean {
+  return filestem(filepath) === INDEX_FILENAME;
+}
+
+function entryName (entry: ContentTreeEntry): string {
+  return entry.kind === 'dir' ? entry.node.name : filestem(entry.item.filepath);
 }
 
 // Return the first non-empty string value found among the given header keys
@@ -150,28 +192,21 @@ function getFirstString (header: Record<string, unknown>, ...keys: string[]): st
   return undefined;
 }
 
-// Sort by numeric prefix first, then alphabetically as fallback
+// Sort entries by numeric prefix, interleaving files and directories
 function sortTree (node: ContentTreeNode) {
-  node.children.sort((left, right) => {
-    const leftPrefix = parseNumericPrefix(left.name);
-    const rightPrefix = parseNumericPrefix(right.name);
+  node.entries.sort((left, right) => {
+    const leftName = entryName(left);
+    const rightName = entryName(right);
+    const leftPrefix = parseNumericPrefix(leftName);
+    const rightPrefix = parseNumericPrefix(rightName);
 
     if (leftPrefix.order !== rightPrefix.order) return leftPrefix.order - rightPrefix.order;
 
     return leftPrefix.rest.localeCompare(rightPrefix.rest);
   });
 
-  node.items.sort((left, right) => {
-    const leftPrefix = parseNumericPrefix(filestem(left.filepath));
-    const rightPrefix = parseNumericPrefix(filestem(right.filepath));
-
-    if (leftPrefix.order !== rightPrefix.order) return leftPrefix.order - rightPrefix.order;
-
-    return getTdResourceTitle(left.filepath, left.label).localeCompare(getTdResourceTitle(right.filepath, right.label));
-  });
-
-  for (const child of node.children) {
-    sortTree(child);
+  for (const entry of node.entries) {
+    if (entry.kind === 'dir') sortTree(entry.node);
   }
 }
 

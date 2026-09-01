@@ -24,8 +24,7 @@ const listing = computed(() => {
 
   return {
     url: path,
-    subdirectories: directory?.subdirectories ?? [],
-    items: directory?.items ?? [],
+    entries: directory?.entries ?? [],
   };
 });
 
@@ -47,32 +46,30 @@ const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value
       <span class="td-dir-parent">..</span>
     </a>
 
-    <div v-if="listing.subdirectories.length > 0">
+    <template
+      v-for="entry in listing.entries"
+      :key="entry.kind === 'dir' ? entry.sub.url : entry.item.url"
+    >
       <a
-        v-for="sub in listing.subdirectories"
-        :key="sub.url"
-        :href="withBase(sub.url)"
+        v-if="entry.kind === 'dir'"
+        :href="withBase(entry.sub.url)"
         class="td-dir-row"
       >
         <Folder
           :size="16"
           class="td-dir-icon"
         />
-        <span class="td-dir-name">{{ sub.name }}</span>
-        <span class="td-dir-count">{{ sub.count }}</span>
+        <span class="td-dir-name">{{ entry.sub.name }}</span>
+        <span class="td-dir-count">{{ entry.sub.count }}</span>
       </a>
-    </div>
-
-    <div v-if="listing.items.length > 0">
       <a
-        v-for="item in listing.items"
-        :key="item.url"
-        :href="withBase(item.url)"
+        v-else
+        :href="withBase(entry.item.url)"
         class="td-dir-row"
       >
-        <span class="td-dir-name">{{ item.name }}</span>
+        <span class="td-dir-name">{{ entry.item.name }}</span>
       </a>
-    </div>
+    </template>
   </div>
 </template>
 

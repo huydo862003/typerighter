@@ -13,7 +13,7 @@ import {
   ProgressLogger,
 } from '../lib/progress';
 import {
-  buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentTreeNode,
+  buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentTreeEntry,
   escapeHtml, path as tdpath,
 } from '@/shared';
 import type {
@@ -156,7 +156,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     // Add directory index pages (root + all subdirectories)
     pagePaths.push('/');
-    collectDirectoryPaths(contentTree.children, '', pagePaths);
+    collectDirectoryPaths(contentTree.entries, '', pagePaths);
 
     const phase3 = new ProgressLogger(logger, 'Pre-rendering pages...');
 
@@ -221,8 +221,8 @@ function generateSsrEntry (options: SsrEntryOptions): string {
   const glob = `/${options.rootDir}/${CONTENT_GLOB}`;
   const parsedConfig = JSON.parse(options.siteConfig);
   const parsedData = JSON.parse(options.siteData);
-  const contentTree = parsedData.contentTree ?? { rootItems: [], children: [] };
-  const directoryListingMap = buildDirectoryListingMap(contentTree.children ?? [], parsedConfig.title ?? '');
+  const contentTree = parsedData.contentTree ?? { entries: [] };
+  const directoryListingMap = buildDirectoryListingMap(contentTree.entries ?? [], parsedConfig.title ?? '');
   const siteDataWithListings = JSON.stringify({ ...parsedData, directoryListings: directoryListingMap });
 
   return `
@@ -305,11 +305,13 @@ ${urls}
 }
 
 // Collect all directory paths from the content tree for pre-rendering
-function collectDirectoryPaths (nodes: ContentTreeNode[], prefix: string, paths: string[]) {
-  for (const node of nodes) {
-    const dirPath = `${prefix}/${node.name}`;
+function collectDirectoryPaths (entries: ContentTreeEntry[], prefix: string, paths: string[]) {
+  for (const entry of entries) {
+    if (entry.kind !== 'dir') continue;
+
+    const dirPath = `${prefix}/${entry.node.name}`;
 
     paths.push(dirPath);
-    collectDirectoryPaths(node.children, dirPath, paths);
+    collectDirectoryPaths(entry.node.entries, dirPath, paths);
   }
 }
