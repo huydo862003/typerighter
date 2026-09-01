@@ -1,3 +1,10 @@
+## [0.20.4] - 2026-09-02
+
+### Fixes
+
+* crates/typedown-lang
+  - Icon handling in markdown body
+
 ## [0.20.3] - 2026-09-01
 
 ### Perf
