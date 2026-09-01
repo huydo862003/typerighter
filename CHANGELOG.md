@@ -1,3 +1,21 @@
+## [0.20.2] - 2026-09-01
+
+### Feat
+
+* packages/typerighter
+  - By default, folders sort above files in sidebar (unless explicitly ordered with numeric prefix)
+  - Schemaless files support `_label` and `_icon`
+
+* crates/typedown-server
+  - Add `schemaLabel` to `TdContentSummary`, `TdBuiltResource`, and `TdSchemaInfo`
+  - JSON serialization includes builtins for `TdSchemaObj` and `TdProductObj`
+
+* packages/typerighter
+  - Display `schemaLabel` in page eyebrow (falls back to raw schema name)
+  - Folder icon inherits from index file's `_icon`
+  - Folder label inherits from index file's `_label`
+  - Sidebar interleaves files and folders sorted by numeric prefix
+
 ## [0.20.1] - 2026-09-01
 
 ### Fixes
