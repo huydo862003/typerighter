@@ -112,7 +112,13 @@ export function linkPlugin (
       }
     }
 
-    return self.renderToken(tokens, index, options);
+    let result = self.renderToken(tokens, index, options);
+
+    if (token.attrGet('class')?.includes('td-external-link')) {
+      result = '<LucideIcon name="arrow-up-right" />' + result;
+    }
+
+    return result;
   };
 
   // Normalize an internal page href: strip .td/.md extensions, ensure relative prefix, track for dead link checking

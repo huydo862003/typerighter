@@ -35,7 +35,8 @@ import {
 import {
   resolveAliases,
 } from './alias';
-import {
+import type {
+  ContentTree,
   buildContentTree,
   buildDirectoryListingMap,
   CONTENT_EXTENSIONS,
@@ -44,9 +45,6 @@ import {
   getTdResourceTitle,
   path,
   type ContentSummary,
-} from '@/shared';
-import type {
-  ContentTree,
 } from '@/shared';
 
 const COMMON_MIME_TYPES: Record<string, string> = {

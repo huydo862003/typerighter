@@ -22,7 +22,7 @@ use crate::db::types::{
 };
 use crate::db::utils::strip_content_extension;
 
-use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdLink, SourceFile};
+use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -654,19 +654,6 @@ impl<'a> MarkdownExporter<'a> {
   fn emit_inline(&mut self, node: &RedNode) {
     if node.as_token().is_some() {
       self.write(&node.text());
-      return;
-    }
-
-    // External links get an arrow icon prepended
-    if node.kind() == SyntaxKind::MdLink
-      && let Some(link) = MdLink::cast(node.clone())
-      && let Some(url) = link.url()
-      && is_external_url(&url.syntax().text())
-    {
-      self.write("<LucideIcon name=\"arrow-up-right\" />");
-      for child in node.children() {
-        self.emit_inline(&child);
-      }
       return;
     }
 
