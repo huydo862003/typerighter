@@ -803,6 +803,12 @@ pub(super) fn evaluate_lazy_field<'db>(
 mod tests {
   use super::*;
   use crate::db::fixtures::load_vault_fixture;
+  use crate::db::{QueryStorage, TypedownDatabase};
+  use crate::db::derived::evaluate::evaluate_type::evaluate_type;
+  use crate::db::derived::name_resolver::file_symbol::file_symbol;
+  use crate::db::types::{File, FileHandle, FileMetadata, Project};
+  use std::collections::HashMap;
+  use std::path::PathBuf;
 
   #[test]
   fn exports_header_fields() {
@@ -1123,5 +1129,113 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let label = resolve_schema_label(&db, project, file);
     assert_eq!(label, "Person");
+  }
+
+  // Regression: adding _icon to a schema during dev server hot-reload previously caused a cycle in the incremental query system
+  #[test]
+  fn incremental_add_icon_to_schema_no_cycle() {
+    let mut db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let vault = PathBuf::from("/test_vault");
+    let schema_path = vault.join("vault/_types/MySchema.td");
+    let config_path = vault.join("typedown.yaml");
+    let content_path = vault.join("vault/page.td");
+
+    let meta = || FileMetadata::default();
+
+    let schema_file = File::new(
+      &db,
+      FileHandle::Content(
+        schema_path.clone(),
+        r#"---
+_type: schema
+properties:
+  name:
+    type: string
+---
+"#
+        .to_string(),
+        meta(),
+      ),
+    );
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        config_path.clone(),
+        r#"version: "1.0.0"
+vault:
+  root_dir: vault
+"#
+        .to_string(),
+        meta(),
+      ),
+    );
+    let content_file = File::new(
+      &db,
+      FileHandle::Content(
+        content_path.clone(),
+        r#"---
+_type: MySchema
+name: "Alice"
+---
+"#
+        .to_string(),
+        meta(),
+      ),
+    );
+
+    let files: HashMap<PathBuf, File> = [
+      (schema_path.clone(), schema_file),
+      (config_path.clone(), config_file),
+      (content_path.clone(), content_file),
+    ]
+    .into_iter()
+    .collect();
+    let project = Project::new(&db, vault.clone(), files);
+
+    // First evaluation, no icon
+    let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();
+    let result = evaluate_type(&db, symbol);
+    assert!(result.diagnostics(&db).is_empty(), "{:?}", result.diagnostics(&db));
+    assert!(result.typ(&db).unwrap().get_owned_field(&db, "_icon").is_none());
+
+    let exported = export_resource(&db, project, content_file).expect("should export");
+    assert_eq!(exported.schema.as_deref(), Some("MySchema"));
+
+    // Mutate: add _icon to the schema
+    schema_file.set_handle(
+      &mut db,
+      FileHandle::Content(
+        schema_path.clone(),
+        r#"---
+_type: schema
+_icon: icon.book
+properties:
+  name:
+    type: string
+---
+"#
+        .to_string(),
+        meta(),
+      ),
+    );
+
+    // Re-evaluate, should not panic with a query cycle
+    let symbol2 = file_symbol(&db, project, schema_file).value(&db).unwrap();
+    let result2 = evaluate_type(&db, symbol2);
+    assert!(
+      result2.diagnostics(&db).is_empty(),
+      "after adding _icon: {:?}",
+      result2.diagnostics(&db)
+    );
+    assert!(
+      result2.typ(&db).unwrap().get_owned_field(&db, "_icon").is_some(),
+      "should have _icon after mutation"
+    );
+
+    let exported2 = export_resource(&db, project, content_file).expect("should export after mutation");
+    assert_eq!(exported2.schema.as_deref(), Some("MySchema"));
   }
 }
