@@ -22,7 +22,7 @@ use crate::db::types::{
 };
 use crate::db::utils::strip_content_extension;
 
-use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
+use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdLink, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -611,6 +611,19 @@ impl<'a> MarkdownExporter<'a> {
       return;
     }
 
+    // External links get an arrow icon prepended
+    if node.kind() == SyntaxKind::MdLink
+      && let Some(link) = MdLink::cast(node.clone())
+      && let Some(url) = link.url()
+      && is_external_url(&url.syntax().text())
+    {
+      self.write("<LucideIcon name=\"arrow-up-right\" />");
+      for child in node.children() {
+        self.emit_inline(&child);
+      }
+      return;
+    }
+
     if node.kind() == SyntaxKind::InterpFragment {
       let Some(fragment) = InterpFragment::cast(node.clone()) else {
         return;
@@ -640,6 +653,14 @@ impl<'a> MarkdownExporter<'a> {
       self.emit_inline(&child);
     }
   }
+}
+
+// Matches /^[a-z]+:/i, same as EXTERNAL_URL_RE on the TS side
+fn is_external_url(url: &str) -> bool {
+  let Some(colon_pos) = url.find(':') else {
+    return false;
+  };
+  url[..colon_pos].bytes().all(|b| b.is_ascii_alphabetic())
 }
 
 /// Resolved reference: display name and URL
@@ -693,7 +714,7 @@ pub fn resolve_ref(
   }
 }
 
-/// Resolve a fref interpolation to a markdown link
+/// Resolve a fref interpolation to a markdown link with optional icon
 fn try_resolve_fref(
   db: &TypedownDatabase,
   project: Project,
@@ -712,7 +733,37 @@ fn try_resolve_fref(
     return Some(format!("![{}]({})", resolved.name, resolved.url));
   }
 
-  Some(format!("[{}]({})", resolved.name, resolved.url))
+  // Resolve icon from the target resource
+  // Safe: icon names come from ICON_ENTRIES (hardcoded), not user input
+  let icon = resolve_fref_icon(db, project, &target_symbol);
+  let icon_html = icon
+    .map(|name| format!("<LucideIcon name=\"{}\" />", name))
+    .unwrap_or_default();
+
+  Some(format!(
+    "{}[{}]({})",
+    icon_html, resolved.name, resolved.url
+  ))
+}
+
+// Get the lucide icon name for a fref target
+fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> Option<String> {
+  match symbol.kind(db) {
+    SymbolKind::UserDefinedResource(_, target_file) => {
+      let target_symbol = file_symbol(db, project, target_file).value(db)?;
+      let obj = evaluate_resource(db, target_symbol).value(db)?;
+      obj
+        .get_builtin_field(db, "_icon")
+        .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
+    }
+    SymbolKind::UserDefinedSchema(_, _) => {
+      let typ = evaluate_type(db, *symbol).typ(db)?;
+      typ
+        .get_builtin_field(db, "_icon")
+        .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
+    }
+    _ => None,
+  }
 }
 
 pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File) -> String {

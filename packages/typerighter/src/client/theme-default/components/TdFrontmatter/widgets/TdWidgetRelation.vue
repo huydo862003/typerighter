@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ExternalLink,
+  ArrowUpRight,
   LucideFileText,
 } from '@lucide/vue';
 import {
@@ -72,7 +72,7 @@ const isExternal = resolved && isUrlExternal(resolved.url);
       target="_blank"
       rel="noopener noreferrer"
       class="td-widget-ref td-widget-ref-external"
-    >{{ resolved.name }}<ExternalLink
+    ><ArrowUpRight
       :size="12"
       class="td-widget-external-icon"
     /></a>
