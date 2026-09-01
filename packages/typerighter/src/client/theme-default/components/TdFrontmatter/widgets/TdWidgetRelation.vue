@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import {
+  ExternalLink,
   LucideFileText,
 } from '@lucide/vue';
 import {
   extractRef,
 } from './ref';
 import {
+  getPageIcon,
+} from '@/client/theme-default/composables/pageIcon';
+import {
   useSiteConfig,
 } from '@/client/app';
+import {
+  isUrlExternal,
+} from '@/shared';
 
 const {
   value,
@@ -20,6 +27,8 @@ const {
   withBase,
 } = useSiteConfig();
 const resolved = extractRef(value);
+const refIcon = resolved?.icon ? getPageIcon(resolved.icon.name) : undefined;
+const isExternal = resolved && isUrlExternal(resolved.url);
 </script>
 
 <template>
@@ -56,12 +65,29 @@ const resolved = extractRef(value);
       <span class="td-widget-file-name">{{ resolved.name }}</span>
     </a>
 
-    <!-- Normal relation link -->
+    <!-- External link -->
+    <a
+      v-else-if="isExternal"
+      :href="resolved.url"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="td-widget-ref td-widget-ref-external"
+    >{{ resolved.name }}<ExternalLink
+      :size="12"
+      class="td-widget-external-icon"
+    /></a>
+
+    <!-- Normal relation link with icon -->
     <a
       v-else
       :href="withBase(resolved.url)"
       class="td-widget-ref"
-    >{{ resolved.name }}</a>
+    ><component
+      :is="refIcon"
+      v-if="refIcon"
+      :size="14"
+      class="td-widget-ref-icon"
+    />{{ resolved.name }}</a>
   </span>
   <span v-else>{{ value }}</span>
 </template>
@@ -73,6 +99,9 @@ const resolved = extractRef(value);
 }
 
 .td-widget-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--color-td-link);
   text-decoration: none;
 }
@@ -80,6 +109,17 @@ const resolved = extractRef(value);
 .td-widget-ref:hover {
   color: var(--color-td-link-hover);
   text-decoration: underline;
+}
+
+.td-widget-ref-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.td-widget-external-icon {
+  flex-shrink: 0;
+  margin-left: 3px;
+  opacity: 0.5;
 }
 
 .td-widget-image-preview {
