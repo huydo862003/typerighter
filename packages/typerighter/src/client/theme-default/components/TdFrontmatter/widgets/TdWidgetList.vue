@@ -67,6 +67,7 @@ function visible<T> (list: T[]): T[] {
             :value="{
               $ref: resolvedItem,
             }"
+            hide-icon
           />
         </li>
       </ul>

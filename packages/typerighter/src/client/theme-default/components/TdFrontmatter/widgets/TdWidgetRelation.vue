@@ -18,9 +18,12 @@ import {
 
 const {
   value,
+  hideIcon = false,
 } = defineProps<{
   /** Raw value ({ $ref: { url, name, format? } }) */
   value: unknown;
+  /** Suppress icon rendering (when parent already shows one) */
+  hideIcon?: boolean;
 }>();
 
 const {
@@ -84,7 +87,7 @@ const isExternal = resolved && isUrlExternal(resolved.url);
       class="td-widget-ref"
     ><component
       :is="refIcon"
-      v-if="refIcon"
+      v-if="refIcon && !hideIcon"
       :size="14"
       class="td-widget-ref-icon"
     />{{ resolved.name }}</a>
