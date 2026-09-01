@@ -1,3 +1,16 @@
+## [0.20.3] - 2026-09-01
+
+### Perf
+
+* crates/typedown-lang
+  - Add `export_resource_meta`: lightweight metadata export that skips `json::to_json` and markdown body export
+
+* crates/typedown-server
+  - Add `list_sidebar` RPC endpoint returning only sidebar-relevant fields (filepath, schema, label, icon, metadata)
+
+* packages/typerighter
+  - `fetchSiteData` uses `listSidebar` for content tree instead of `listFilesGroupedBySchema`
+
 ## [0.20.2] - 2026-09-01
 
 ### Feat
