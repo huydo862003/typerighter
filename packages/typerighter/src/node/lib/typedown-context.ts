@@ -192,7 +192,7 @@ export class TypedownContext {
   }
 }
 
-function isRpcCancelled (error: unknown): boolean {
+export function isRpcCancelled (error: unknown): boolean {
   if (error instanceof Error && 'code' in error) {
     return (error as Error & {
       code: number;
@@ -202,12 +202,15 @@ function isRpcCancelled (error: unknown): boolean {
   return false;
 }
 
-async function withRetry<T> (fn: () => Promise<T>, retries = 3): Promise<T> {
+async function withRetry<T> (fn: () => Promise<T>, retries = 5): Promise<T> {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       return await fn();
     } catch (error: unknown) {
       if (!isRpcCancelled(error) || attempt === retries - 1) throw error;
+
+      // Backoff: wait for the server to finish processing file changes
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
     }
   }
 

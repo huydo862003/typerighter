@@ -19,8 +19,9 @@ import {
 import {
   createAppContext, resolveProjectRoot, type AppContext,
 } from '../../context';
-import type {
-  TypedownContext,
+import {
+  isRpcCancelled,
+  type TypedownContext,
 } from '../../lib/typedown-context';
 import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
@@ -484,6 +485,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           map: null,
         };
       } catch (error) {
+        // Cancellation during rapid edits is expected, skip the transform
+        if (isRpcCancelled(error)) return;
+
         const message = error instanceof Error ? error.message : String(error);
 
         this.error(`[typedown] Failed to transform ${relativePath}: ${message}`);
