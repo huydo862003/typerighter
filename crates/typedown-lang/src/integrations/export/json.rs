@@ -103,7 +103,7 @@ fn serialize(
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
         let icon = schema_obj
-          .fields(db)
+          .builtins(db)
           .get("_icon")
           .cloned()
           .and_then(|entry| evaluate_lazy_field(db, entry))
@@ -120,6 +120,11 @@ fn serialize(
         return Err(CircularRef);
       }
       let mut map = serde_json::Map::new();
+      for (key, entry) in schema_obj.builtins(db) {
+        if let Some(item) = evaluate_lazy_field(db, entry) {
+          map.insert(key, serialize(db, project, &item, visiting, true)?);
+        }
+      }
       for (key, entry) in schema_obj.fields(db) {
         if let Some(item) = evaluate_lazy_field(db, entry) {
           map.insert(key, serialize(db, project, &item, visiting, true)?);
@@ -136,7 +141,7 @@ fn serialize(
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
         let icon = product
-          .fields(db)
+          .builtins(db)
           .get("_icon")
           .cloned()
           .and_then(|entry| evaluate_lazy_field(db, entry))
@@ -153,6 +158,11 @@ fn serialize(
         return Err(CircularRef);
       }
       let mut map = serde_json::Map::new();
+      for (key, entry) in product.builtins(db) {
+        if let Some(item) = evaluate_lazy_field(db, entry) {
+          map.insert(key, serialize(db, project, &item, visiting, true)?);
+        }
+      }
       for (key, entry) in product.fields(db) {
         if let Some(item) = evaluate_lazy_field(db, entry) {
           map.insert(key, serialize(db, project, &item, visiting, true)?);
