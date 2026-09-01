@@ -13,6 +13,7 @@ pub fn get_vault_type<'db>(db: &'db TypedownDatabase) -> TdSchemaType<'db> {
     "vault".to_string(),
     HashMap::new(),
     HashMap::new(),
+    HashMap::new(),
     None,
   )
 }

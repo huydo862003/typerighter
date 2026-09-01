@@ -39,6 +39,7 @@ export async function renderToVueSfc (
 
   const pageData = {
     schema: resource.schema,
+    schemaLabel: resource.schemaLabel,
     label: resource.label,
     icon: resource.icon,
     frontmatter: resource.header,

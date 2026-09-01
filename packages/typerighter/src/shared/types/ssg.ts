@@ -10,6 +10,7 @@ import type {
 
 export interface PageData {
   schema?: string;
+  schemaLabel?: string;
   label?: string;
   icon?: ContentIcon;
   frontmatter: Record<string, unknown>;

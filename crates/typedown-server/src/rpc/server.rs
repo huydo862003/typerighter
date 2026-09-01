@@ -25,7 +25,9 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
-use typedown_lang::integrations::export::{export_property_descriptors, export_resource};
+use typedown_lang::integrations::export::{
+  export_property_descriptors, export_resource, resolve_schema_label,
+};
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
@@ -51,6 +53,21 @@ enum FsEventKind {
 struct FsEvent {
   path: PathBuf,
   kind: FsEventKind,
+}
+
+fn get_schema_label(
+  db: &TypedownDatabase,
+  project: Project,
+  schema: Option<&str>,
+) -> Option<String> {
+  let name = schema?;
+  let members = schema_members(db, project);
+  let sym = members.members(db).get(name).copied()?;
+  if let SymbolKind::UserDefinedSchema(_, file) = sym.kind(db) {
+    Some(resolve_schema_label(db, project, file))
+  } else {
+    None
+  }
 }
 
 // Build a TdSiteConfig from the current project state
@@ -316,8 +333,11 @@ impl RpcServer {
           )
         })?;
 
+        let schema_label = get_schema_label(db, project, exported.schema.as_deref());
+
         results.push(TdBuiltResource {
           schema: exported.schema,
+          schema_label,
           label: exported.label,
           icon: exported.icon.map(|i| TdIcon { name: i.name }),
           header: exported.header,
@@ -382,10 +402,12 @@ impl RpcServer {
         let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
         if let Some(exported) = export_resource(db, project, *file) {
           let group_key = exported.schema.clone().unwrap_or_default();
+          let schema_label = get_schema_label(db, project, exported.schema.as_deref());
           let excerpt = extract_excerpt(&exported.content);
           groups.entry(group_key).or_default().push(TdContentSummary {
             filepath: relative,
             schema: exported.schema,
+            schema_label,
             label: exported.label,
             icon: exported.icon.map(|i| TdIcon { name: i.name }),
             header: exported.header,
@@ -463,10 +485,15 @@ impl RpcServer {
         ));
       };
 
+      let label = resolve_schema_label(db, project, file);
       let properties = export_property_descriptors(db, project, file)
         .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
 
-      Ok(TdSchemaInfo { schema, properties })
+      Ok(TdSchemaInfo {
+        schema,
+        label,
+        properties,
+      })
     })
   }
 

@@ -19,12 +19,13 @@ use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project,
-  PropertyDescriptor, Symbol, SymbolKind, TdBlobType, TdProductType, TdSchemaType, TdStaticType,
-  TdTypeEnum, TypeResult,
+  PropertyDescriptor, Symbol, SymbolKind, TdBlobType, TdObjectEnum, TdProductType, TdSchemaType,
+  TdStaticType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::lower_file;
 use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
+use typedown_types::either::Either;
 
 #[query_derived]
 pub fn evaluate_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypeResult<'db> {
@@ -83,6 +84,12 @@ fn evaluate_user_defined_schema<'db>(
   let (inherited_fields, parent_type) =
     resolve_parent_schema(db, &schema_name, &entries, &mut diagnostics);
 
+  let builtins: HashMap<String, Either<HirValue, TdObjectEnum>> = entries
+    .iter()
+    .filter(|(k, _)| k.starts_with('_'))
+    .map(|(k, v)| (k.clone(), Either::Left(*v)))
+    .collect();
+
   // Find the "properties" entry
   let properties_hir = entries.iter().find(|(key, _)| key == "properties");
   let properties_entries = match properties_hir {
@@ -108,6 +115,7 @@ fn evaluate_user_defined_schema<'db>(
           TdSchemaType::new(
             db,
             schema_name,
+            builtins,
             inherited_fields,
             HashMap::new(),
             parent_type,
@@ -154,7 +162,17 @@ fn evaluate_user_defined_schema<'db>(
 
   TypeResult::new(
     db,
-    Some(TdSchemaType::new(db, schema_name, fields, HashMap::new(), parent_type).into()),
+    Some(
+      TdSchemaType::new(
+        db,
+        schema_name,
+        builtins,
+        fields,
+        HashMap::new(),
+        parent_type,
+      )
+      .into(),
+    ),
     diagnostics,
   )
 }
