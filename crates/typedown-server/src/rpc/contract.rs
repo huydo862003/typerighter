@@ -49,6 +49,9 @@ pub trait TdBuildRpc<Hash, StorageKey> {
   async fn list_files_grouped_by_schema(&self)
   -> RpcResult<HashMap<String, Vec<TdContentSummary>>>;
 
+  #[method(name = "list_sidebar")]
+  async fn list_sidebar(&self) -> RpcResult<Vec<TdSidebarItem>>;
+
   #[method(name = "list_schemas")]
   async fn list_schemas(&self) -> RpcResult<Vec<String>>;
 
@@ -145,6 +148,24 @@ pub struct TdContentSummary {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
   /// File metadata
+  pub metadata: TdFileMetadata,
+}
+
+/// Lightweight sidebar item (no header/content/excerpt)
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi))]
+pub struct TdSidebarItem {
+  pub filepath: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema_label: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<TdIcon>,
   pub metadata: TdFileMetadata,
 }
 

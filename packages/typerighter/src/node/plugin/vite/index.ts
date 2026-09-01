@@ -43,6 +43,7 @@ import {
   getTdContentUrl,
   getTdResourceTitle,
   path,
+  type ContentSummary,
 } from '@/shared';
 import type {
   ContentTree,
@@ -517,11 +518,11 @@ async function fetchSiteData (context: TypedownContext): Promise<{
 }> {
   const [
     config,
-    schemaGroups,
+    sidebarItems,
     schemaNames,
   ] = await Promise.all([
     context.getConfig(),
-    context.listFilesGroupedBySchema(),
+    context.listSidebar(),
     context.listSchemas(),
   ]);
 
@@ -537,8 +538,12 @@ async function fetchSiteData (context: TypedownContext): Promise<{
   );
   const schemas = Object.fromEntries(schemaEntries);
 
-  const allItems = Object.values(schemaGroups).flat();
-  const contentTree = buildContentTree(allItems);
+  // Build content tree from lightweight sidebar items
+  const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
+    ...item,
+    header: {},
+  }));
+  const contentTree = buildContentTree(contentItems);
   const directoryListings = buildDirectoryListingMap(contentTree.entries, config.siteTitle);
 
   return {

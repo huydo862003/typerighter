@@ -10,7 +10,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::rpc::contract::{
   CANCELLED_ERROR_CODE, TdBuildRpcClient, TdBuiltResource, TdDiagnosticReport, TdFilePath,
-  TdFormatResult, TdSchemaInfo, TdSiteConfig,
+  TdFormatResult, TdSchemaInfo, TdSidebarItem, TdSiteConfig,
 };
 
 #[wasm_bindgen(js_name = "RPC_CANCELLED_CODE")]
@@ -115,6 +115,13 @@ impl RpcClient {
         .await
         .map_err(rpc_err)?;
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+  }
+
+  #[wasm_bindgen(js_name = "listSidebar")]
+  pub async fn list_sidebar(&self) -> Result<Vec<TdSidebarItem>, JsValue> {
+    <WasmClient as TdBuildRpcClient<(), ()>>::list_sidebar(&*self.inner)
+      .await
+      .map_err(rpc_err)
   }
 
   #[wasm_bindgen(js_name = "listSchemas")]

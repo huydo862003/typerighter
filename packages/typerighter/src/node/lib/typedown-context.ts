@@ -1,7 +1,7 @@
 import {
   RPC_CANCELLED_CODE,
   type RpcClient,
-  type TdBuiltResource, type TdDiagnosticReport, type TdFormatResult, type TdSiteConfig,
+  type TdBuiltResource, type TdDiagnosticReport, type TdFormatResult, type TdSidebarItem, type TdSiteConfig,
   type TdSchemaInfo,
 } from '@typerighter/rpc-client';
 import {
@@ -147,6 +147,10 @@ export class TypedownContext {
     this.cachedFilesGroupedBySchema = result;
 
     return result;
+  }
+
+  async listSidebar (): Promise<TdSidebarItem[]> {
+    return withRetry(() => this.rpc.listSidebar());
   }
 
   /* Project operations */
