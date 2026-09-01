@@ -62,6 +62,52 @@ pub struct ExportedMetadata {
   pub ctime: u64,
 }
 
+/// Lightweight metadata for sidebar/navigation
+/// Skips json::to_json and markdown export
+pub struct ExportedResourceMeta {
+  pub schema: Option<String>,
+  pub label: Option<String>,
+  pub icon: Option<ExportedIcon>,
+  pub metadata: ExportedMetadata,
+}
+
+pub fn export_resource_meta(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceMeta> {
+  let symbol = file_symbol(db, project, file).value(db)?;
+  let obj = evaluate_resource(db, symbol).value(db)?;
+
+  if obj.as_td_blob_obj().is_some() {
+    return None;
+  }
+
+  let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
+    Some(schema_obj.schema(db).display_name(db))
+  } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
+    None
+  } else {
+    return None;
+  };
+
+  let label = obj
+    .get_builtin_field(db, "_label")
+    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+  let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
+    o.as_td_icon_obj().map(|i| ExportedIcon {
+      name: i.lucide_name(db),
+    })
+  });
+
+  Some(ExportedResourceMeta {
+    schema,
+    label,
+    icon,
+    metadata: export_metadata(file.handle(db)),
+  })
+}
+
 /// Export a resource file as structured header and commonmark content
 pub fn export_resource(
   db: &TypedownDatabase,

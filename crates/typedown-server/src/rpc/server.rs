@@ -26,7 +26,7 @@ use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
 use typedown_lang::integrations::export::{
-  export_property_descriptors, export_resource, resolve_schema_label,
+  export_property_descriptors, export_resource, export_resource_meta, resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -41,7 +41,7 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 use super::contract::{
   CANCELLED_ERROR_CODE, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
   TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdIcon,
-  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSiteConfig,
+  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSidebarItem, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -424,6 +424,42 @@ impl RpcServer {
     })
   }
 
+  async fn list_sidebar_impl(&self) -> RpcResult<Vec<TdSidebarItem>> {
+    let analysis = self.host.read().await.snapshot();
+    catch_cancelled(move || {
+      let db = &analysis.db;
+      let project = analysis.project;
+
+      let config = get_vault_config(db, project);
+      let root_dir = config.root_dir(db);
+      let files = project.files(db);
+
+      let mut items = Vec::new();
+      for (path, file) in files.iter() {
+        if !path.starts_with(&root_dir) || !is_content_file(path) || is_internal_file(path) {
+          continue;
+        }
+        let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+        if let Some(meta) = export_resource_meta(db, project, *file) {
+          let schema_label = get_schema_label(db, project, meta.schema.as_deref());
+          items.push(TdSidebarItem {
+            filepath: relative,
+            schema: meta.schema,
+            schema_label,
+            label: meta.label,
+            icon: meta.icon.map(|i| TdIcon { name: i.name }),
+            metadata: TdFileMetadata {
+              mtime: meta.metadata.mtime,
+              ctime: meta.metadata.ctime,
+            },
+          });
+        }
+      }
+
+      Ok(items)
+    })
+  }
+
   async fn get_config_impl(&self) -> RpcResult<TdSiteConfig> {
     let analysis = self.host.read().await.snapshot();
     catch_cancelled(move || {
@@ -745,6 +781,10 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
     &self,
   ) -> RpcResult<HashMap<String, Vec<TdContentSummary>>> {
     self.list_files_grouped_by_schema_impl().await
+  }
+
+  async fn list_sidebar(&self) -> RpcResult<Vec<TdSidebarItem>> {
+    self.list_sidebar_impl().await
   }
 
   async fn list_schemas(&self) -> RpcResult<Vec<String>> {
