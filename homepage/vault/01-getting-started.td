@@ -1,3 +1,8 @@
+---
+_label: "Getting Started"
+_icon: icon.rocket
+---
+
 Install Typedown and write your first document.
 
 ## Install

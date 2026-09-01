@@ -1,3 +1,7 @@
+---
+_icon: icon.code
+---
+
 Editor integrations for Typedown. All editors use the same LSP server, so features are consistent across editors.
 
 ## LSP features

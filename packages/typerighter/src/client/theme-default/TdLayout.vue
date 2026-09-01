@@ -246,7 +246,7 @@ function onResizeStart (event: PointerEvent) {
               v-if="page.schema"
               class="td-page-eyebrow"
             >
-              {{ page.schema }}
+              {{ page.schemaLabel ?? page.schema }}
             </div>
             <div
               v-if="pageIcon"

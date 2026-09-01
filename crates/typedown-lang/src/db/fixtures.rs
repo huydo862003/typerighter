@@ -82,7 +82,13 @@ pub fn make_product_obj<'db>(
   file_symbol: Option<Symbol<'db>>,
   fields: Vec<(String, Either<HirValue<'db>, TdObjectEnum<'db>>)>,
 ) -> TdProductObj<'db> {
-  TdProductObj::new(db, product_type, file_symbol, fields.into_iter().collect())
+  TdProductObj::new(
+    db,
+    product_type,
+    file_symbol,
+    HashMap::new(),
+    fields.into_iter().collect(),
+  )
 }
 
 #[query_derived]

@@ -38,6 +38,8 @@ const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
 const indexItem = getNodeIndexItem(node);
 const folderPath = indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl);
 const folderHref = withBase(folderPath);
+const folderLabel = indexItem?.label ?? unslugify(node.name);
+const folderIcon = indexItem?.icon ? getPageIcon(indexItem.icon.name) : undefined;
 const regularEntries = node.entries.filter((entry) =>
   entry.kind === 'dir' || !isIndexFile(entry.item.filepath));
 
@@ -112,7 +114,7 @@ function toggle () {
             'is-collapsed': collapsed,
           }"
         />
-        <span class="td-tree-label-text">{{ unslugify(node.name) }}</span>
+        <span class="td-tree-label-text">{{ folderLabel }}</span>
       </button>
       <a
         :href="folderHref"
@@ -121,8 +123,13 @@ function toggle () {
           'is-active': isCurrent(folderPath),
         }"
       >
+        <component
+          :is="folderIcon"
+          v-if="folderIcon"
+          :size="12"
+        />
         <FolderOpen
-          v-if="isCurrent(folderPath)"
+          v-else-if="isCurrent(folderPath)"
           :size="12"
         />
         <Folder

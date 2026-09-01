@@ -1096,6 +1096,7 @@ mod tests {
     let schema: TdTypeEnum = TdSchemaType::new(
       &db,
       "Test".to_string(),
+      HashMap::new(),
       make_property_descriptors(
         &db,
         HashMap::from([(
@@ -1128,6 +1129,7 @@ mod tests {
     let schema: TdTypeEnum = TdSchemaType::new(
       &db,
       "Test".to_string(),
+      HashMap::new(),
       make_property_descriptors(
         &db,
         HashMap::from([(

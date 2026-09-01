@@ -8,6 +8,8 @@ export interface ContentSummary {
   filepath: string;
   /** Schema type name */
   schema?: string;
+  /** Human-readable schema label */
+  schemaLabel?: string;
   /** Display label */
   label?: string;
   /** Page icon */

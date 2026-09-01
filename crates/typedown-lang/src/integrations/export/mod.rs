@@ -3,6 +3,7 @@
 pub mod json;
 
 use typedown_types::either::Either;
+use typedown_types::string::split_pascal_case;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -716,22 +717,50 @@ fn try_resolve_fref(
   Some(format!("[{}]({})", resolved.name, resolved.url))
 }
 
+pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File) -> String {
+  // Try _label from the schema type
+  if let Some(symbol) = file_symbol(db, project, file).value(db)
+    && let Some(typ) = evaluate_type(db, symbol).typ(db)
+    && let Some(label_obj) = typ.get_owned_field(db, "_label")
+    && let Some(str_obj) = label_obj.as_td_str_obj()
+  {
+    return str_obj.value(db);
+  }
+
+  // Fall back to PascalCase split of file stem
+  let handle = file.handle(db);
+  let stem = handle
+    .path()
+    .and_then(|p| p.file_stem())
+    .and_then(|s| s.to_str())
+    .unwrap_or("unknown");
+  split_pascal_case(stem)
+}
+
 /// Get a display name for a symbol: Try _label, then file stem
 fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> String {
   let kind = symbol.kind(db);
 
-  // Try _label or name from the evaluated resource
-  if let SymbolKind::UserDefinedResource(_, target_file) = &kind
-    && let Some(target_symbol) = file_symbol(db, project, *target_file).value(db)
-    && let Some(obj) = evaluate_resource(db, target_symbol).value(db)
-  {
-    let label_or_name = obj.get_owned_field(db, "_label");
-    if let Some(str_obj) = label_or_name
-      .as_ref()
-      .and_then(|field| field.as_td_str_obj())
-    {
-      return str_obj.value(db);
+  // Try _label from the evaluated resource or schema type
+  match &kind {
+    SymbolKind::UserDefinedResource(_, target_file) => {
+      if let Some(target_symbol) = file_symbol(db, project, *target_file).value(db)
+        && let Some(obj) = evaluate_resource(db, target_symbol).value(db)
+        && let Some(label_obj) = obj.get_owned_field(db, "_label")
+        && let Some(str_obj) = label_obj.as_td_str_obj()
+      {
+        return str_obj.value(db);
+      }
     }
+    SymbolKind::UserDefinedSchema(_, _) => {
+      if let Some(typ) = evaluate_type(db, *symbol).typ(db)
+        && let Some(label_obj) = typ.get_owned_field(db, "_label")
+        && let Some(str_obj) = label_obj.as_td_str_obj()
+      {
+        return str_obj.value(db);
+      }
+    }
+    _ => {}
   }
 
   // Fallback: file stem, or parent directory name for index files
@@ -1067,5 +1096,32 @@ mod tests {
       "should contain markdown body: {}",
       exported.content
     );
+  }
+
+  #[test]
+  fn exports_schemaless_file_with_label_and_icon() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless_with_label.td");
+    let exported = export_resource(&db, project, file).expect("should export");
+    assert_eq!(exported.schema, None);
+    assert_eq!(exported.label.as_deref(), Some("My Custom Title"));
+    assert!(
+      exported.icon.is_some(),
+      "schemaless file with _icon should have icon"
+    );
+    assert_eq!(exported.icon.unwrap().name, "book-open");
+  }
+
+  #[test]
+  fn resolve_schema_label_uses_label_field() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/LabeledSchema.td");
+    let label = resolve_schema_label(&db, project, file);
+    assert_eq!(label, "Custom Label");
+  }
+
+  #[test]
+  fn resolve_schema_label_falls_back_to_pascal_split() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
+    let label = resolve_schema_label(&db, project, file);
+    assert_eq!(label, "Person");
   }
 }

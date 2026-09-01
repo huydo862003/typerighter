@@ -1,3 +1,7 @@
+---
+_icon: icon.library
+---
+
 Exact syntax for every part of Typedown. Use these pages as a lookup when you know what you want but need the details.
 
 ## Sections

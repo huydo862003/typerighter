@@ -48,7 +48,7 @@ pub(crate) fn construct_from_hir<'db>(
                   fields.insert(entry.name.to_string(), Either::Right(obj.into()));
                 }
                 let module_type = get_icon_module_type(db).into();
-                Some(TdProductObj::new(db, module_type, None, fields).into())
+                Some(TdProductObj::new(db, module_type, None, HashMap::new(), fields).into())
               }
             };
           }
@@ -170,7 +170,7 @@ pub(crate) fn construct_from_hir<'db>(
       .map(|(k, v)| (k, Either::Left(v)))
       .collect();
     let product_type = type_result.typ(db).unwrap();
-    return Some(TdProductObj::new(db, product_type, None, fields).into());
+    return Some(TdProductObj::new(db, product_type, None, HashMap::new(), fields).into());
   }
 
   // Normal construction: convert HIR to args, then call construct
@@ -438,37 +438,53 @@ fn evaluate_mapping<'db>(
       }
     }
     return Some(
-      TdSchemaType::new(db, "anonymous".to_string(), fields, HashMap::new(), None).into(),
+      TdSchemaType::new(
+        db,
+        "anonymous".to_string(),
+        HashMap::new(),
+        fields,
+        HashMap::new(),
+        None,
+      )
+      .into(),
     );
   }
 
   // Schema type: build product obj from fields, then construct schema instance
   if let TdTypeEnum::TdSchemaType(schema_typ) = &typ {
+    let mut builtins = HashMap::new();
     let mut fields = HashMap::new();
     for (key, val_hir) in entries {
-      if key == "_type" || key == "_imports" {
-        continue;
+      if key.starts_with('_') {
+        builtins.insert(key, Either::Left(val_hir));
+      } else {
+        fields.insert(key, Either::Left(val_hir));
       }
-      fields.insert(key, Either::Left(val_hir));
     }
-    // entries are non-empty since we matched a schema type from _type
-    let project = fields.values().next().and_then(|v| match v {
-      Either::Left(hir) => Some(hir.project(db)),
-      _ => None,
-    })?;
-    return Some(TdSchemaObj::new(db, (*schema_typ).into(), project, None, fields).into());
+    let project = builtins
+      .values()
+      .chain(fields.values())
+      .find_map(|v| match v {
+        Either::Left(hir) => Some(hir.project(db)),
+        _ => None,
+      })?;
+    return Some(
+      TdSchemaObj::new(db, (*schema_typ).into(), project, None, builtins, fields).into(),
+    );
   }
 
   // Product type
   if let TdTypeEnum::TdProductType(product_typ) = &typ {
+    let mut builtins = HashMap::new();
     let mut fields = HashMap::new();
     for (key, val_hir) in entries {
-      if key == "_type" || key == "_imports" {
-        continue;
+      if key.starts_with('_') {
+        builtins.insert(key, Either::Left(val_hir));
+      } else {
+        fields.insert(key, Either::Left(val_hir));
       }
-      fields.insert(key, Either::Left(val_hir));
     }
-    return Some(TdProductObj::new(db, (*product_typ).into(), None, fields).into());
+    return Some(TdProductObj::new(db, (*product_typ).into(), None, builtins, fields).into());
   }
 
   let dict_entries: HashMap<_, _> = entries
@@ -650,8 +666,14 @@ mod tests {
     vtable.insert(PROTOCOL_INDEX.to_string(), index_fn);
     vtable.insert(PROTOCOL_CALL.to_string(), call_fn);
 
-    let schema_type =
-      TdSchemaType::new(&db, "CustomContainer".into(), HashMap::new(), vtable, None);
+    let schema_type = TdSchemaType::new(
+      &db,
+      "CustomContainer".into(),
+      HashMap::new(),
+      HashMap::new(),
+      vtable,
+      None,
+    );
     let schema_enum: TdTypeEnum = schema_type.into();
 
     // Verify static typechecking detects [[index]] and [[call]] return types

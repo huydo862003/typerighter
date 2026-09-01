@@ -129,6 +129,9 @@ pub struct TdContentSummary {
   /// Schema type name
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
+  /// Human-readable schema label
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema_label: Option<String>,
   /// Display label
   #[serde(skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
@@ -147,11 +150,15 @@ pub struct TdContentSummary {
 
 /// Structured build result: Header (frontmatter) and content (commonmark body)
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdBuiltResource {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
+  /// Human-readable schema label
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema_label: Option<String>,
   /// Display label
   #[serde(skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
@@ -192,6 +199,7 @@ pub struct TdFileMetadata {
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdSchemaInfo {
   pub schema: String,
+  pub label: String,
   #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub properties: serde_json::Value,
 }

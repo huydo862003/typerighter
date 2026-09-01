@@ -1,3 +1,7 @@
+---
+_icon: icon.lightbulb
+---
+
 How Typedown thinks about content. Start from the top (the vault) and zoom in to the details.
 
 ## Sections

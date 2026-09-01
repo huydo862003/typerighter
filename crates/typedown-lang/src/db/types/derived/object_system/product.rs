@@ -94,6 +94,7 @@ impl<'db> TdStaticType<'db> for TdProductType<'db> {
 pub struct TdProductObj<'db> {
   pub product_type: TdTypeEnum<'db>,
   pub file_symbol: Option<Symbol<'db>>,
+  pub builtins: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
@@ -102,6 +103,15 @@ impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
     self.product_type(db)
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    if let Some(entry) = self.builtins(db).get(key).cloned() {
+      return match entry {
+        Either::Left(hir) => {
+          let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+          evaluate_node(db, hir, file_scope).value(db)
+        }
+        Either::Right(obj) => Some(obj),
+      };
+    }
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));

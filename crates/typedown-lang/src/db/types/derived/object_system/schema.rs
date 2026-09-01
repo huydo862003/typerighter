@@ -69,6 +69,7 @@ impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
 #[query_derived]
 pub struct TdSchemaType<'db> {
   pub name: String,
+  pub builtins: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: HashMap<String, PropertyDescriptor<'db>>,
   pub vtable: HashMap<String, TdFuncObj<'db>>,
   pub parent: Option<TdTypeEnum<'db>>,
@@ -78,8 +79,15 @@ impl<'db> TdRuntimeObject<'db> for TdSchemaType<'db> {
   fn get_type(&self, db: &'db TypedownDatabase) -> TdTypeEnum<'db> {
     get_schema_meta_type(db).into()
   }
-  fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjectEnum<'db>> {
-    None
+  fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    match self.builtins(db).get(key).cloned() {
+      Some(Either::Left(hir)) => {
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        evaluate_node(db, hir, file_scope).value(db)
+      }
+      Some(Either::Right(obj)) => Some(obj),
+      None => None,
+    }
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.display_name(db)
@@ -105,8 +113,9 @@ impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
   ) -> Option<TdObjectEnum<'db>> {
     let arg = args.into_iter().next()?;
     let product = arg.as_td_product_obj()?;
+    let builtins = product.builtins(db);
     let fields = product.fields(db);
-    Some(TdSchemaObj::new(db, (*self).into(), project, None, fields).into())
+    Some(TdSchemaObj::new(db, (*self).into(), project, None, builtins, fields).into())
   }
   fn runtime_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdFuncObj<'db>> {
     let mut result = self
@@ -194,6 +203,7 @@ pub struct TdSchemaObj<'db> {
   pub schema: TdTypeEnum<'db>,
   pub project: Project,
   pub file_symbol: Option<Symbol<'db>>,
+  pub builtins: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
@@ -202,6 +212,16 @@ impl<'db> TdRuntimeObject<'db> for TdSchemaObj<'db> {
     self.schema(db)
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
+    // Check builtins first
+    if let Some(entry) = self.builtins(db).get(key).cloned() {
+      return match entry {
+        Either::Left(hir) => {
+          let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+          evaluate_node(db, hir, file_scope).value(db)
+        }
+        Either::Right(obj) => Some(obj),
+      };
+    }
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
         let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
