@@ -6,7 +6,7 @@ use typedown_incremental::Id;
 
 use super::{evaluate_lazy_field, file_symbol, resolve_ref};
 use crate::db::TypedownDatabase;
-use crate::db::types::derived::object_system::TdStaticType;
+use crate::db::types::derived::object_system::{TdRuntimeObject, TdStaticType};
 use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum};
 
 /// Serialize a FileHandle to a JSON object
@@ -76,8 +76,9 @@ fn serialize(
     TdObjectEnum::TdTimeObj(dt) => Ok(serde_json::Value::String(dt.value(db))),
 
     TdObjectEnum::TdListObj(list) => {
-      let mut items = Vec::with_capacity(list.len(db));
-      for idx in 0..list.len(db) {
+      let count = list.items(db).len();
+      let mut items = Vec::with_capacity(count);
+      for idx in 0..count {
         match list.get(db, idx) {
           Some(item) => items.push(serialize(db, project, &item, visiting, true)?),
           None => items.push(serde_json::Value::Null),
@@ -103,10 +104,7 @@ fn serialize(
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
         let icon = schema_obj
-          .builtins(db)
-          .get("_icon")
-          .cloned()
-          .and_then(|entry| evaluate_lazy_field(db, entry))
+          .get_builtin_field(db, "_icon")
           .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
         let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
         if let Some(icon_name) = icon {
@@ -141,10 +139,7 @@ fn serialize(
         && let Some(resolved) = resolve_ref(db, project, &symbol)
       {
         let icon = product
-          .builtins(db)
-          .get("_icon")
-          .cloned()
-          .and_then(|entry| evaluate_lazy_field(db, entry))
+          .get_builtin_field(db, "_icon")
           .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
         let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
         if let Some(icon_name) = icon {
