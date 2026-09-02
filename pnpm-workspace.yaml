@@ -16,3 +16,5 @@ minimumReleaseAgeExclude:
   - '@typerighter/rpc-client@0.1.6'
   - '@typerighter/rpc-server@0.1.6'
   - typerighter@0.1.6
+  - '@lucide/vue@1.39.0'
+  - '@types/node@26.4.1'
