@@ -2,7 +2,7 @@
 #   typedown-lsp-{version}-{os}-{arch}[.exe]
 #   typedown-rpc-{version}-{os}-{arch}[.exe]
 #   typedown-treesitter-{grammar}-{version}-{os}-{arch}.{so|wasm}
-#   typedown-vscode-{version}-{os}-{arch}.vsix
+#   typedown-vscode-{version}.vsix
 #
 # Examples:
 #   typedown-lsp-0.1.0-linux-x86_64
@@ -12,7 +12,7 @@
 #   typedown-treesitter-typedown-0.1.0-linux-x86_64.so
 #   typedown-treesitter-typedown_md-0.1.0-linux-x86_64.so
 #   typedown-treesitter-typedown-0.1.0.wasm
-#   typedown-vscode-0.1.0-linux-x86_64.vsix
+#   typedown-vscode-0.1.0.vsix
 
 name: Release
 
@@ -61,25 +61,21 @@ jobs:
             os-arch: linux-x86_64
             lsp-bin: typedown-lsp
             rpc-bin: typedown-rpc
-            vsce-target: linux-x64
           - runner: macos-15
             target: x86_64-apple-darwin
             os-arch: darwin-x86_64
             lsp-bin: typedown-lsp
             rpc-bin: typedown-rpc
-            vsce-target: darwin-x64
           - runner: macos-15
             target: aarch64-apple-darwin
             os-arch: darwin-aarch64
             lsp-bin: typedown-lsp
             rpc-bin: typedown-rpc
-            vsce-target: darwin-arm64
           - runner: windows-2025
             target: x86_64-pc-windows-msvc
             os-arch: windows-x86_64
             lsp-bin: typedown-lsp.exe
             rpc-bin: typedown-rpc.exe
-            vsce-target: win32-x64
     env:
       VERSION: ${{ needs.validate-tag.outputs.version }}
       REPO_URL: https://github.com/${{ github.repository }}
@@ -134,31 +130,29 @@ jobs:
           path: dist/typedown-rpc-*
           retention-days: 2
 
-      # VSCode
+      # VSCode (portable, no bundled binary, built once on ubuntu)
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: matrix.runner == 'ubuntu-24.04'
         with:
           node-version: "22"
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install VSCode dependencies
+        if: matrix.runner == 'ubuntu-24.04'
         run: pnpm install --frozen-lockfile
         working-directory: editors/vscode
 
-      - name: Copy binary into extension
-        shell: bash
-        run: |
-          mkdir -p editors/vscode/bin
-          cp target/${{ matrix.target }}/release/${{ matrix.lsp-bin }} editors/vscode/bin/
-
       - name: Package VSIX
-        run: pnpm exec vsce package --no-dependencies --allow-missing-repository --target ${{ matrix.vsce-target }} --out typedown-vscode-${{ env.VERSION }}-${{ matrix.os-arch }}.vsix
+        if: matrix.runner == 'ubuntu-24.04'
+        run: pnpm exec vsce package --no-dependencies --allow-missing-repository --out typedown-vscode-${{ env.VERSION }}.vsix
         working-directory: editors/vscode
 
       - name: Upload VSIX
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: matrix.runner == 'ubuntu-24.04'
         with:
-          name: typedown-vscode-${{ matrix.os-arch }}
+          name: typedown-vscode
           path: editors/vscode/typedown-vscode-*.vsix
           retention-days: 2
 
@@ -260,7 +254,7 @@ jobs:
           files: |
             artifacts/typedown-lsp-*/*
             artifacts/typedown-rpc-*/*
-            artifacts/typedown-vscode-*/*
+            artifacts/typedown-vscode/*
             artifacts/typedown-treesitters-so-*/*
             artifacts/typedown-treesitters-wasm/*
             artifacts/typedown-zed/*
