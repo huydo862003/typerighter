@@ -1,3 +1,15 @@
+## [0.21.1] - 2026-09-02
+
+### Perf
+
+* packages/typerighter
+  - Remove all dead dependencies
+
+### Chore
+
+* packages/typerighter
+  - Bump packages to resolve vulnerabilities
+
 ## [0.21.0] - 2026-09-02
 
 ### Feat
