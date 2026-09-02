@@ -4,17 +4,11 @@
 * */
 
 import {
-  frontmatterPlugin,
-} from '@mdit-vue/plugin-frontmatter';
-import {
   headersPlugin,
 } from '@mdit-vue/plugin-headers';
 import {
   titlePlugin,
 } from '@mdit-vue/plugin-title';
-import {
-  tocPlugin,
-} from '@mdit-vue/plugin-toc';
 import {
   slugify,
 } from '@mdit-vue/shared';
@@ -162,7 +156,6 @@ export async function createMarkdownRenderer (
 
   /* mdit-vue plugins */
 
-  frontmatterPlugin(md);
   headersPlugin(md, {
     level: [
       2,
@@ -174,14 +167,6 @@ export async function createMarkdownRenderer (
     slugify,
   });
   titlePlugin(md);
-  tocPlugin(md, {
-    slugify,
-    format: (raw) => {
-      const title = raw.replaceAll('&amp;', '&'); // encoded twice because of restoreEntities
-
-      return title;
-    },
-  });
 
   return md;
 }

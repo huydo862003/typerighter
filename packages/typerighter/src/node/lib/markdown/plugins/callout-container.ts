@@ -23,8 +23,8 @@ export function calloutContainerPlugin (
   for (const name of Object.keys(DEFAULT_TITLES)) {
     md.use(container, {
       name,
-      openRender: createOpenRender(md, name),
-      closeRender: () => (name === 'details' ? '</details>\n' : '</div>\n'),
+      openRenderer: createOpenRender(md, name),
+      closeRenderer: () => (name === 'details' ? '</details>\n' : '</div>\n'),
     });
   }
 }

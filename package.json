@@ -13,17 +13,17 @@
     "dev": "pnpm -r --if-present run dev"
   },
   "devDependencies": {
-    "@hdnax/nuclint": "^0.17.4",
+    "@hdnax/nuclint": "^0.17.5",
     "@stylistic/eslint-plugin": "^5.10.0",
-    "@types/node": "~24.13.3",
-    "esbuild": "^0.28.1",
-    "eslint": "^9.39.4",
+    "@types/node": "^26.4.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
     "eslint-plugin-import-x": "^4.17.1",
-    "eslint-plugin-n": "^18.2.1",
-    "eslint-plugin-perfectionist": "^5.10.0",
-    "eslint-plugin-unicorn": "^64.0.0",
-    "tsx": "^4.23.0",
+    "eslint-plugin-n": "^18.3.0",
+    "eslint-plugin-perfectionist": "^5.11.0",
+    "eslint-plugin-unicorn": "^74.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.63.0"
+    "typescript-eslint": "^8.69.0"
   }
 }

@@ -15,8 +15,8 @@ import type {
 } from 'markdown-it-async';
 import type Token from 'markdown-it/lib/token.mjs';
 import {
-  imageSize,
-} from 'image-size';
+  getImageDimensions,
+} from '@/node/lib/image-dimensions';
 import {
   EXTERNAL_URL_RE, type MarkdownEnv,
 } from '@/shared';
@@ -62,7 +62,7 @@ function addImageDimensions (
 
   if (width && height) return;
 
-  const dimensions = getImageDimensions(url, env);
+  const dimensions = resolveImageDimensions(url, env);
 
   if (!dimensions) return;
 
@@ -85,13 +85,16 @@ function addImageDimensions (
   }
 }
 
-function getImageDimensions (url: string, env: MarkdownEnv): ReturnType<typeof imageSize> | undefined {
+function resolveImageDimensions (url: string, env: MarkdownEnv): {
+  width: number;
+  height: number;
+} | undefined {
   try {
     const imagePath = resolveLocalImage(url, env);
 
-    return imagePath ? imageSize(fs.readFileSync(imagePath)) : undefined;
+    return imagePath ? getImageDimensions(fs.readFileSync(imagePath)) : undefined;
   } catch {
-    // Best-effort: may fail if the env has no file path, the file doesn't exist, or `image-size` doesn't support the image format
+    // Best-effort: may fail if the file doesn't exist or the format is unsupported
     return undefined;
   }
 }

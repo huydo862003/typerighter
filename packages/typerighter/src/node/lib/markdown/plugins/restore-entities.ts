@@ -12,11 +12,12 @@ import type {
 } from 'markdown-it-async';
 import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
 import type Token from 'markdown-it/lib/token.mjs';
-import {
-  escapeHtml,
-} from 'markdown-it/lib/common/utils.mjs';
 
 export function restoreEntities (md: MarkdownItAsync): void {
+  const {
+    escapeHtml,
+  } = md.utils;
+
   md.core.ruler.at('text_join', textJoin);
   md.renderer.rules.text = function (tokens, index): string {
     return escapeHtml(tokens[index].content);

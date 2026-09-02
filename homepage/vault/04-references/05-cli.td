@@ -1,3 +1,7 @@
+---
+_label: "CLI"
+---
+
 Command-line interface for the `typerighter` package.
 
 ## `typerighter init`
