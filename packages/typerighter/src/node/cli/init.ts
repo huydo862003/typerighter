@@ -19,13 +19,24 @@ import {
   BRAND_ARROW, BRAND_BORDER, BRAND_COLOR, BRAND_LETTER, BRAND_VIEWBOX,
 } from '@/shared/brand';
 
-// Interactive project scaffolding
-export async function initialize (root: string): Promise<void> {
-  const options = await collectUserInput(root);
+export interface InitializeFlags {
+  name?: string;
+  title?: string;
+  description?: string;
+  yes?: boolean;
+}
+
+export async function initialize (root: string, flags: InitializeFlags = {}): Promise<void> {
+  const interactive = !hasAllFlags(flags);
+  const options = interactive
+    ? await collectUserInput(root, flags)
+    : toOptions(flags);
 
   await scaffold(root, options);
 
-  printFurtherSteps(root);
+  if (interactive) {
+    printFurtherSteps(root);
+  }
 }
 
 interface ExistingProject {
@@ -44,18 +55,19 @@ interface InitializeOptions {
 
 async function collectUserInput (
   root: string,
+  flags: InitializeFlags,
 ): Promise<InitializeOptions> {
   intro('typedown');
 
   const existing = await detectExistingProject(root);
 
-  if (existing.hasTypedownYaml) {
+  if (existing.hasTypedownYaml && !flags.yes) {
     await confirmExistingProject();
   }
 
-  const projectName = await prompt('Project name', existing.packageName ?? path.basename(root));
-  const siteTitle = await prompt('Site title', existing.siteTitle ?? projectName);
-  const siteDescription = await prompt('Site description', existing.siteDescription ?? 'A typedown site');
+  const projectName = flags.name ?? await prompt('Project name', existing.packageName ?? path.basename(root));
+  const siteTitle = flags.title ?? await prompt('Site title', existing.siteTitle ?? projectName);
+  const siteDescription = flags.description ?? await prompt('Site description', existing.siteDescription ?? 'A typedown site');
 
   return {
     projectName,
@@ -222,6 +234,10 @@ site:
 `;
 }
 
+function hasAllFlags (flags: InitializeFlags): flags is Required<InitializeFlags> {
+  return flags.name !== undefined && flags.title !== undefined && flags.description !== undefined;
+}
+
 function printFurtherSteps (root: string): void {
   const steps = ['Done scaffolding.'];
 
@@ -310,6 +326,14 @@ async function scaffold (root: string, options: InitializeOptions): Promise<void
   if (0 < skipped.length) {
     log.warn(`skipped ${skipped.length} sample files (already exist)`);
   }
+}
+
+function toOptions (flags: Required<InitializeFlags>): InitializeOptions {
+  return {
+    projectName: flags.name,
+    siteTitle: flags.title,
+    siteDescription: flags.description,
+  };
 }
 
 async function writeIfMissing (

@@ -76,12 +76,21 @@ export function cli () {
 
   program
     .command('init [root]', 'Scaffold a new project')
-    .action(async (root: string | undefined) => {
+    .option('--name <name>', 'Project name')
+    .option('--title <title>', 'Site title')
+    .option('--description <description>', 'Site description')
+    .option('--yes', 'Skip confirmation for existing projects')
+    .action(async (root: string | undefined, options: {
+      name?: string;
+      title?: string;
+      description?: string;
+      yes?: boolean;
+    }) => {
       const {
         initialize,
       } = await import('./init');
 
-      await initialize(resolveRoot(root));
+      await initialize(resolveRoot(root), options);
     });
 
   program
