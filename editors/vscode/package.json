@@ -6,12 +6,34 @@
   "displayName": "Typerighter",
   "description": "vscode extension providing lsp services for the typedown language",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/huydo862003/typerighter",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/huydo862003/typerighter/issues"
+  },
+  "homepage": "https://github.com/huydo862003/typerighter",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "author": "Huy-DNA <huydo862003@gmail.com>",
   "version": "0.21.1",
   "icon": "icons/typedown.png",
   "engines": {
     "vscode": "^1.125.0"
   },
+  "keywords": [
+    "typedown",
+    "typerighter",
+    "markdown",
+    "typed",
+    "schema",
+    "content",
+    "lsp"
+  ],
   "categories": [
     "Programming Languages"
   ],
