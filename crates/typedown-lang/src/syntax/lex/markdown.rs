@@ -440,9 +440,10 @@ impl<S: Utf8Stream> LexCtx<S> {
             } else {
               SyntaxKind::InlineCode
             };
+            // Range diagnostics only apply to code blocks, not inline code
             return match range_diagnostic {
-              Some(diag) => self.emit_with(kind, diag),
-              None => self.emit(kind),
+              Some(diag) if is_block => self.emit_with(kind, diag),
+              _ => self.emit(kind),
             };
           }
         }

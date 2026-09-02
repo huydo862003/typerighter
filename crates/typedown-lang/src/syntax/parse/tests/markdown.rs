@@ -1894,6 +1894,45 @@ fn parse_inline_code_simple() {
   );
 }
 
+// Inline code with braces should not produce range indicator diagnostics
+#[test]
+fn parse_inline_code_with_braces_object() {
+  let (tree, diags) = parse_body_with_diags(
+    r#"`{ a: b }`
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (InlineCode
+        "`{ a: b }`"))
+    "\n"))"####
+  );
+  assert_eq!(diags, &[] as &[Diagnostic]);
+}
+
+#[test]
+fn parse_inline_code_with_range_like_braces() {
+  let (_, diags) = parse_body_with_diags("`a{1,3}`\n");
+  assert_eq!(diags, &[] as &[Diagnostic]);
+}
+
+#[test]
+fn parse_inline_code_json_object() {
+  let (_, diags) = parse_body_with_diags(r#"`{"key": "value"}`
+"#);
+  assert_eq!(diags, &[] as &[Diagnostic]);
+}
+
 // Inline elements inside block elements
 
 // Parses a paragraph with italic and link
