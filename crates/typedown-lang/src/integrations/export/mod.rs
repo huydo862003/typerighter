@@ -688,14 +688,6 @@ impl<'a> MarkdownExporter<'a> {
   }
 }
 
-// Matches /^[a-z]+:/i, same as EXTERNAL_URL_RE on the TS side
-fn is_external_url(url: &str) -> bool {
-  let Some(colon_pos) = url.find(':') else {
-    return false;
-  };
-  url[..colon_pos].bytes().all(|b| b.is_ascii_alphabetic())
-}
-
 /// Resolved reference: display name and URL
 pub struct ResolvedRef {
   pub name: String,
