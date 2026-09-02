@@ -1,3 +1,10 @@
+## [0.22.1] - 2026-09-03
+
+### Chore
+
+* crates/typedown-server
+  - Switch Linux release binary to static linking (musl) for NixOS/Alpine compatibility
+
 ## [0.22.0] - 2026-09-03
 
 ### Chore
