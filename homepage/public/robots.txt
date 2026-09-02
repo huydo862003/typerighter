@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://huydo862003.github.io/typerighter/sitemap.xml
