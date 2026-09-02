@@ -35,8 +35,8 @@ import {
 import {
   resolveAliases,
 } from './alias';
-import type {
-  ContentTree,
+import {
+  type ContentTree,
   buildContentTree,
   buildDirectoryListingMap,
   CONTENT_EXTENSIONS,
