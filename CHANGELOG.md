@@ -1,3 +1,12 @@
+## [0.22.0] - 2026-09-03
+
+### Chore
+
+* editors/vscode
+  - Rename publisher to `huydo862003`
+  - Add missing metadata
+  - Unify the vscode extension to use 1 vsix variant to bypass vscode marketplace hassels
+
 ## [0.21.1] - 2026-09-02
 
 ### Perf
