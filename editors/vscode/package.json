@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "license": "AGPL-3.0-only",
-  "publisher": "hdnax",
+  "publisher": "huydo862003",
   "name": "typedown-vscode",
   "displayName": "Typerighter",
   "description": "vscode extension providing lsp services for the typedown language",
