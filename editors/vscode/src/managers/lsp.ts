@@ -1,9 +1,3 @@
-import {
-  join,
-} from 'node:path';
-import {
-  platform,
-} from 'node:process';
 import type {
   Disposable,
 } from 'vscode';
@@ -23,9 +17,6 @@ import {
   resolvePromptsAndExecute,
 } from './command';
 import {
-  ExtensionContextManager,
-} from './extensionContext';
-import {
   LogManager,
 } from './log';
 
@@ -37,13 +28,10 @@ export class LspManager implements Disposable {
     this.client = client;
   }
 
-  static getInstance (): LspManager {
+  static getInstance (binaryPath: string): LspManager {
     if (!LspManager.instance) {
-      const context = ExtensionContextManager.context;
-      const binName = platform === 'win32' ? 'typedown-lsp.exe' : 'typedown-lsp';
-
       const serverOptions: ServerOptions = {
-        command: context.asAbsolutePath(join('bin', binName)),
+        command: binaryPath,
         transport: TransportKind.stdio,
       };
 

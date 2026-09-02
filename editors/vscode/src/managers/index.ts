@@ -1,4 +1,8 @@
 export {
+  ensureBinary,
+} from './ensureBinary';
+
+export {
   ExtensionContextManager,
 } from './extensionContext';
 
