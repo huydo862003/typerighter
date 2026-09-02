@@ -78,7 +78,9 @@ export function createAppContext (root: string): AppContext {
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
 
-    server = new RpcServer({ root });
+    server = new RpcServer({
+      root,
+    });
 
     await new Promise<void>((resolve, reject) => {
       server?.once('error', reject);
