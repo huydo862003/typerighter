@@ -1,3 +1,17 @@
+## [0.21.0] - 2026-09-02
+
+### Feat
+
+* packages/typerighter
+  - `typedown({ root })`: mount a vault as a subpath of an existing Vite app. Scopes bundled `vue()` to vault files, serves pages at `base_path` in dev via `configureServer` middleware, runs isolated build via `closeBundle`
+  - `typerighter init` accepts `--name`, `--title`, `--description`, `--yes` flags for non-interactive scaffolding
+  - `typerighter build <dir>` now resolves `<dir>` as the project root (passes resolved root to RPC server)
+
+### Fixes
+
+* crates/typedown-lang
+  - Inline code blocks (`` `{ a: b }` ``) no longer emit invalid code range indicator diagnostics
+
 ## [0.20.4] - 2026-09-02
 
 ### Fixes
