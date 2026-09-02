@@ -1928,8 +1928,10 @@ fn parse_inline_code_with_range_like_braces() {
 
 #[test]
 fn parse_inline_code_json_object() {
-  let (_, diags) = parse_body_with_diags(r#"`{"key": "value"}`
-"#);
+  let (_, diags) = parse_body_with_diags(
+    r#"`{"key": "value"}`
+"#,
+  );
   assert_eq!(diags, &[] as &[Diagnostic]);
 }
 

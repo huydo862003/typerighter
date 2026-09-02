@@ -14,6 +14,9 @@ import {
   type Plugin, type ViteDevServer,
 } from 'vite';
 import {
+  buildSite,
+} from '../../build';
+import {
   renderToVueSfc,
 } from '../../lib/render';
 import {
@@ -78,10 +81,11 @@ export interface ClientAppEntryOptions {
   repo?: string;
 }
 
-// Create the typedown vite plugin with the Vue plugin bundled
 export interface TypedownPluginOptions {
   // @internal Used by buildSite to share the RPC connection
   context?: AppContext;
+  /** Vault directory relative to the host project root */
+  root?: string;
 }
 
 export function generateClientAppEntry (options: ClientAppEntryOptions): string {
@@ -158,6 +162,8 @@ if (import.meta.hot) {
 export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   let context = options.context;
   let server: ViteDevServer | undefined;
+  let hostOutDirectory: string;
+  let hostBase: string;
 
   const searchIndexer = new SearchIndexer();
   let searchIndexReady: Promise<void> | undefined;
@@ -168,10 +174,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     return context.getTdContext();
   }
 
-  const vuePlugin = vue({
-    include: /\.(?:vue|td)$/,
-  });
-
   const typedownPlugin: Plugin = {
     name: 'vite-plugin-typedown',
 
@@ -179,8 +181,14 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
     async config (userConfig) {
       if (!context) {
-        context = createAppContext(resolveProjectRoot(userConfig.root ?? process.cwd()));
+        const root = options.root
+          ? resolve(userConfig.root ?? process.cwd(), options.root)
+          : resolveProjectRoot(userConfig.root ?? process.cwd());
+
+        context = createAppContext(root);
       }
+
+      hostBase = userConfig.base ?? '/';
 
       const tdContext = await resolveTdContext();
       const tdConfig = await tdContext.getConfig();
@@ -199,6 +207,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           noExternal: ['typerighter'],
         },
       };
+    },
+
+    configResolved (config) {
+      hostOutDirectory = resolve(config.root, config.build.outDir);
     },
 
     async buildStart () {
@@ -411,13 +423,27 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         next();
       });
 
-      // Serve a default index.html for SPA routing
+      const initialConfig = await tdContext.getConfig();
+      let cachedBasePath = initialConfig.basePath;
+
+      tdContext.rpc.onConfigChanged((updated: {
+        basePath: string;
+      }) => {
+        cachedBasePath = updated.basePath;
+      });
+
       return () => {
         devServer.middlewares.use((request, result, next) => {
           if (!request.url || result.writableEnded) return next();
 
           if (request.url.startsWith('/@') || request.url.startsWith('/node_modules') || request.url.includes('.')) {
             return next();
+          }
+
+          if (!request.url.startsWith(cachedBasePath)) {
+            next();
+
+            return;
           }
 
           tdContext.getConfig().then((config) => {
@@ -499,7 +525,34 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       if (path.isContentFile(file)) return [];
     },
 
+    async closeBundle () {
+      // When context was provided externally (CLI), the caller manages the build
+      if (options.context) return;
+      if (!context) return;
+
+      try {
+        const tdContext = await context.getTdContext();
+        const config = await tdContext.getConfig();
+        const basePath = config.basePath;
+        const subpath = basePath.startsWith(hostBase)
+          ? basePath.slice(hostBase.length)
+          : basePath.replace(/^\//, '');
+
+        await buildSite(context, {
+          outDir: resolve(hostOutDirectory, subpath),
+          base: basePath,
+        });
+      } finally {
+        context.dispose();
+      }
+    },
   };
+
+  const vuePlugin = vue({
+    include: options.root
+      ? new RegExp(`${options.root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/.*\\.(?:vue|td)$`)
+      : /\.(?:vue|td)$/,
+  });
 
   return [
     typedownPlugin,
