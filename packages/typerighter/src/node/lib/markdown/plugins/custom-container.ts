@@ -68,7 +68,7 @@ export function componentContainerPlugin (md: MarkdownItAsync): void {
       );
     },
 
-    openRender: (tokens, index) => {
+    openRenderer: (tokens: Token[], index: number) => {
       const token = tokens[index];
       // Normally attrs has stripped `{...}`
       // However, if it could not parse the block (empty braces, unterminated quote), the braces survive, so fall back
@@ -79,10 +79,11 @@ export function componentContainerPlugin (md: MarkdownItAsync): void {
 
       const name = match[1];
       const attributeList = (token.attrs ?? [])
-        .filter(([key]) => ATTR_NAME_RE.test(key))
+        .filter(([key]: [string, string]) => ATTR_NAME_RE.test(key))
         .map(([
           key,
           value,
+        ]: [string, string,
         ]) =>
           value === ''
             ? key
@@ -97,7 +98,7 @@ export function componentContainerPlugin (md: MarkdownItAsync): void {
       return `<${name}${attributeList ? ` ${attributeList}` : ''}>\n`;
     },
 
-    closeRender: (tokens, index) => `</${findOpenName(tokens, index)}>\n`,
+    closeRenderer: (tokens: Token[], index: number) => `</${findOpenName(tokens, index)}>\n`,
   });
 
   // `=== slot-name` becomes its own block token
