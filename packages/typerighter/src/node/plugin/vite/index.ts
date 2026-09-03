@@ -3,6 +3,9 @@ import {
   existsSync,
   statSync,
 } from 'node:fs';
+import type {
+  ServerResponse,
+} from 'node:http';
 import {
   resolve,
 } from 'node:path';
@@ -22,6 +25,9 @@ import {
 import {
   createAppContext, resolveProjectRoot, type AppContext,
 } from '../../context';
+import {
+  generateHtmlTemplate,
+} from '../../lib/html-template';
 import {
   isRpcCancelled,
   type TypedownContext,
@@ -43,9 +49,10 @@ import {
   buildContentTree,
   buildDirectoryListingMap,
   CONTENT_EXTENSIONS,
-  escapeHtml,
   getTdContentUrl,
   getTdResourceTitle,
+  getUrlPath,
+  stripTrailingSlash,
   path,
   type ContentSummary,
 } from '@/shared';
@@ -394,7 +401,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       devServer.middlewares.use((request, result, next) => {
         if (!request.url || request.method !== 'GET' || result.writableEnded || !server) return next();
 
-        const urlPath = request.url.split('?')[0].split('#')[0];
+        const urlPath = getUrlPath(request.url);
 
         if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules')) return next();
 
@@ -432,52 +439,62 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         cachedBasePath = updated.basePath;
       });
 
-      return () => {
-        devServer.middlewares.use((request, result, next) => {
-          if (!request.url || result.writableEnded) return next();
+      // Cached HTML template, regenerated only when config changes
+      let cachedDevHtml: string | undefined;
 
-          if (request.url.startsWith('/@') || request.url.startsWith('/node_modules') || request.url.includes('.')) {
-            return next();
-          }
+      function getDevHtml (config: {
+        siteTitle: string;
+        siteDescription: string;
+      }): string {
+        if (cachedDevHtml !== undefined) return cachedDevHtml;
 
-          if (!request.url.startsWith(cachedBasePath)) {
-            next();
-
-            return;
-          }
-
-          tdContext.getConfig().then((config) => {
-            const title = escapeHtml(config.siteTitle);
-            const description = escapeHtml(config.siteDescription);
-            const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <meta name="description" content="${description}">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="${title}">
-  <meta property="og:description" content="${description}">
-  <meta property="og:image" content="/og-image.png">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${title}">
-  <meta name="twitter:description" content="${description}">
-  <meta name="twitter:image" content="/og-image.png">
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="/${VIRTUAL_APP_ID}"></script>
-</body>
-</html>`;
-
-            result.setHeader('Content-Type', 'text/html');
-            result.end(html);
-          })
-            .catch(next);
+        cachedDevHtml = generateHtmlTemplate({
+          title: config.siteTitle,
+          description: config.siteDescription,
+          base: '/',
+          entryScript: VIRTUAL_APP_ID,
         });
-      };
+
+        return cachedDevHtml;
+      }
+
+      tdContext.rpc.onConfigChanged(() => {
+        cachedDevHtml = undefined;
+      });
+
+      async function serveVirtualHtml (
+        url: string,
+        response: ServerResponse,
+        next: () => void,
+      ): Promise<void> {
+        try {
+          const config = await tdContext.getConfig();
+          const html = await devServer.transformIndexHtml(url, getDevHtml(config));
+
+          response.setHeader('Content-Type', 'text/html');
+          response.end(html);
+        } catch {
+          next();
+        }
+      }
+
+      // Pre-middleware: intercept root and index.html before Vite's static file handler
+      // This avoids needing a physical index.html on disk
+      devServer.middlewares.use((request, result, next) => {
+        if (!request.url) return next();
+
+        const urlPath = stripTrailingSlash(getUrlPath(request.url));
+        const base = stripTrailingSlash(cachedBasePath);
+
+        if (urlPath === base || urlPath === base + '/index.html') {
+          void serveVirtualHtml(request.url, result, next);
+
+          return;
+        }
+
+        next();
+      });
+
     },
 
     async transform (_, id) {

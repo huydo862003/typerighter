@@ -44,6 +44,11 @@ export function getTdContentUrl (filepath: string): string {
   return '/' + join(dirname(filepath), name);
 }
 
+// Strip query string and anchor fragment from a URL, returning only the path
+export function getUrlPath (url: string): string {
+  return url.split('?')[0].split('#')[0];
+}
+
 // Whether a page URL ends with /index
 export function isIndexUrl (url: string): boolean {
   return url === '/index' || url.endsWith('/index');
