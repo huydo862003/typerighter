@@ -2,7 +2,7 @@
 <!-- https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/components/VPLocalSearchBox.vue -->
 <script setup lang="ts">
 import {
-  computed, markRaw, ref, shallowRef, watch,
+  computed, createApp, markRaw, ref, shallowRef, triggerRef, watch,
 } from 'vue';
 import MiniSearch from 'minisearch';
 import {
@@ -13,8 +13,8 @@ import {
 } from '../../app';
 import {
   debounce,
-  escapeHtml, escapeRegex, stripAnchor, unslugify,
-  SEARCH_FIELDS, SEARCH_STORE_FIELDS, stripHtml,
+  escapeHtml, escapeRegex, getAnchor, stripAnchor, stripHtml, unslugify,
+  SEARCH_FIELDS, SEARCH_STORE_FIELDS,
   type PageModule,
 } from '@/shared';
 
@@ -49,6 +49,7 @@ interface SearchResultGroup {
 }
 
 const EXCERPT_CHARS = 120;
+const HEADING_RE = /^h[1-6]$/i;
 
 const results = shallowRef<SearchResult[]>([]);
 const searching = ref(false);
@@ -88,10 +89,55 @@ const searchIndex = useSearchIndex();
 const loadPage = usePageLoader();
 let engine: MiniSearch | undefined;
 
-// Rebuild engine when the search index changes (e.g. HMR update)
+// LRU cache: page URL -> Map<anchor, sectionText>
+const sectionCache = new Map<string, Map<string, string>>();
+const CACHE_SIZE = 16;
+
+// Rebuild engine and clear excerpt cache when the search index changes (e.g. HMR update)
 watch(searchIndex, () => {
   engine = undefined;
+  sectionCache.clear();
 });
+
+// Mount a page component in a throwaway div and extract section text keyed by anchor
+function extractSections (component: PageModule['default']): Map<string, string> {
+  const sections = new Map<string, string>();
+  const app = createApp(component);
+  const container = document.createElement('div');
+
+  // Suppress warnings from missing injections/plugins during headless mount
+  app.config.warnHandler = () => {};
+
+  try {
+    app.mount(container);
+    const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+
+    for (const heading of headings) {
+      const anchor = heading.querySelector('a')?.getAttribute('href')
+        ?.slice(1) ?? '';
+      let html = '';
+      let sibling = heading.nextElementSibling;
+
+      while (sibling && !HEADING_RE.test(sibling.tagName)) {
+        html += sibling.outerHTML;
+        sibling = sibling.nextElementSibling;
+      }
+
+      sections.set(anchor, stripHtml(html));
+    }
+
+    // Full page text as fallback for results without an anchor
+    if (sections.size === 0) {
+      sections.set('', stripHtml(container.innerHTML));
+    } else {
+      sections.set('', [...sections.values()].join(' '));
+    }
+  } finally {
+    app.unmount();
+  }
+
+  return sections;
+}
 
 // Lazily deserialize the MiniSearch index on first search
 function getEngine (): MiniSearch | undefined {
@@ -104,6 +150,39 @@ function getEngine (): MiniSearch | undefined {
   }));
 
   return engine;
+}
+
+// Load a page and get section text, using cache
+async function getSectionText (documentId: string): Promise<string> {
+  if (!loadPage) return '';
+
+  const pageUrl = stripAnchor(documentId);
+  const anchor = getAnchor(documentId);
+
+  let sections = sectionCache.get(pageUrl);
+
+  if (!sections) {
+    try {
+      const module_ = await loadPage(pageUrl);
+      const component = module_?.default;
+
+      if (!component) return '';
+      sections = extractSections(component);
+
+      // LRU eviction
+      if (CACHE_SIZE <= sectionCache.size) {
+        const oldest = sectionCache.keys().next().value;
+
+        if (oldest !== undefined) sectionCache.delete(oldest);
+      }
+
+      sectionCache.set(pageUrl, sections);
+    } catch {
+      return '';
+    }
+  }
+
+  return sections.get(anchor) ?? sections.get('') ?? '';
 }
 
 let canceled = false;
@@ -133,22 +212,6 @@ function clearQuery () {
   query.value = '';
 }
 
-// Extract text between the target heading and the next heading
-function extractSection (html: string, anchor: string): string {
-  // Anchor may contain regex-special chars (e.g. dots in generated ids)
-  const regex = new RegExp(`id="${escapeRegex(anchor)}"[^>]*>`, 'i');
-  const headingMatch = regex.exec(html);
-
-  if (!headingMatch) return stripHtml(html);
-
-  const afterHeading = html.slice(headingMatch.index + headingMatch[0].length);
-
-  const nextHeading = afterHeading.search(/<h[1-6]/i);
-  const section = 0 <= nextHeading ? afterHeading.slice(0, nextHeading) : afterHeading;
-
-  return stripHtml(section);
-}
-
 // Build a short snippet centered on the earliest matched term
 function extractSnippet (text: string, match: Record<string, string[]>): string {
   if (!text) return '';
@@ -173,30 +236,6 @@ function extractSnippet (text: string, match: Record<string, string[]>): string 
   if (end < text.length) snippet = snippet + '...';
 
   return snippet;
-}
-
-// Load a page module and extract a text excerpt for the matched section
-async function fetchExcerpt (
-  loadPage: (path: string) => Promise<PageModule | undefined>,
-  documentId: string,
-  match: Record<string, string[]>,
-): Promise<string> {
-  const pageUrl = stripAnchor(documentId);
-  const hashIndex = documentId.indexOf('#');
-  const anchor = 0 <= hashIndex ? documentId.slice(hashIndex + 1) : '';
-
-  try {
-    const module_ = await loadPage(pageUrl);
-    // Vue SFC pages store rendered HTML in component.data().__html
-    const component = module_?.default as Record<string, unknown> | undefined;
-    const data = typeof component?.data === 'function' ? (component.data as () => Record<string, string>)() : {};
-    const html = data.__html ?? '';
-    const sectionText = anchor ? extractSection(html, anchor) : stripHtml(html);
-
-    return extractSnippet(sectionText, match);
-  } catch {
-    return '';
-  }
 }
 
 // Flat list of grouped results for keyboard navigation
@@ -255,43 +294,52 @@ function onResultClick () {
   emit('select');
 }
 
-// Run search and fetch excerpts for the top results
+// Run search, show results immediately, then fill in excerpts progressively
 async function runSearch (trimmed: string) {
   const index = getEngine();
 
-  if (!index) return;
+  if (!index) {
+    searching.value = false;
 
-  try {
-    const rawResults = index.search(trimmed, {
-      prefix: true,
-      fuzzy: 0.2,
-      boost: {
-        title: 2,
-      },
-    });
+    return;
+  }
 
-    // Cap results to avoid fetching too many page modules at once
-    const withExcerpts = await Promise.all(
-      rawResults.slice(0, 20).map(async (result) => {
-        const excerpt = loadPage
-          ? await fetchExcerpt(loadPage, result.id, result.match)
-          : '';
+  const rawResults = index.search(trimmed, {
+    prefix: true,
+    fuzzy: (term: string) => (3 < term.length ? 0.2 : false),
+    boost: {
+      title: 4,
+      text: 2,
+      titles: 1,
+    },
+  });
 
-        return {
-          id: result.id,
-          title: result.title as string,
-          titles: result.titles as string[],
-          excerpt,
-          score: result.score,
-        };
-      }),
-    );
+  const top = rawResults.slice(0, 20);
 
-    // Query changed while awaiting excerpts, discard stale results
+  // Show results immediately with titles only
+  results.value = top.map((result) => ({
+    id: result.id,
+    title: result.title as string,
+    titles: result.titles as string[],
+    excerpt: '',
+    score: result.score,
+  }));
+  searching.value = false;
+
+  // Fill in excerpts one at a time to avoid blocking the main thread
+  for (const [
+    index_,
+    result,
+  ] of top.entries()) {
     if (canceled) return;
-    results.value = withExcerpts;
-  } finally {
-    if (!canceled) searching.value = false;
+
+    const sectionText = await getSectionText(result.id);
+    const excerpt = extractSnippet(sectionText, result.match);
+
+    if (canceled) return;
+
+    results.value[index_].excerpt = excerpt;
+    triggerRef(results);
   }
 }
 </script>
@@ -384,14 +432,14 @@ async function runSearch (trimmed: string) {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid var(--color-td-neutral-border-subtle);
+  border: 1px solid color-mix(in srgb, var(--color-td-primary-solid) 12%, transparent);
   border-radius: 6px;
-  background: var(--color-td-neutral-bg);
+  background: color-mix(in srgb, var(--color-td-primary-solid) 5%, transparent);
   transition: border-color 0.15s;
 }
 
 .td-search-input-wrap:focus-within {
-  border-color: var(--color-td-primary-solid);
+  border-color: color-mix(in srgb, var(--color-td-primary-solid) 30%, transparent);
 }
 
 .td-search-icon {

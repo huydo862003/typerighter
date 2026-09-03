@@ -39,7 +39,14 @@ const allItems = computed((): DirectoryEntry[] => {
   const path = getParentUrl(route.path);
   const directory = siteData.value.directoryListings[path];
 
-  return directory?.items ?? [];
+  if (!directory) return [];
+
+  return directory.entries
+    .filter((entry): entry is {
+      kind: 'file';
+      item: DirectoryEntry;
+    } => entry.kind === 'file')
+    .map((entry) => entry.item);
 });
 
 const totalCount = computed(() => allItems.value.length);

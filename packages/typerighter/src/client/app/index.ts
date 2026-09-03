@@ -89,6 +89,8 @@ export async function createTypedownApp (
     description: config.description ?? '',
     basePath: config.basePath ?? '/',
     repo: config.repo,
+    author: config.author,
+    license: config.license,
   };
 
   const siteData = shallowRef<TypedownSiteData>({

@@ -9,8 +9,8 @@ import {
   useRoute, useSiteConfig,
 } from '../../app';
 import {
-  renderInlineMath,
-} from '../composables/renderMath';
+  renderInlineMarkup,
+} from '../composables/renderInlineMarkup';
 import {
   getPageIcon,
 } from '../composables/pageIcon';
@@ -174,7 +174,7 @@ function toggle () {
           <TdTooltip
             class="td-tree-link-text"
             :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
-          ><span v-html="renderInlineMath(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
+          ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
           <span class="td-tree-time">{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
         </a>
       </template>

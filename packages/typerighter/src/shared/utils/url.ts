@@ -18,6 +18,13 @@ const DOWNLOADABLE_FILE_EXTENSIONS = new Set(
   ).split(','),
 );
 
+// Get the anchor fragment from a URL, or empty string if none
+export function getAnchor (url: string): string {
+  const hashIndex = url.indexOf('#');
+
+  return 0 <= hashIndex ? url.slice(hashIndex + 1) : '';
+}
+
 // Get the directory path for a page URL (strips /index suffix)
 export function getDirectoryFromPageUrl (url: string): string {
   return isIndexUrl(url) ? getParentUrl(url) : url;

@@ -35,8 +35,8 @@ import {
   useMenu,
 } from './composables/useMenu';
 import {
-  renderInlineMath,
-} from './composables/renderMath';
+  renderInlineMarkup,
+} from './composables/renderInlineMarkup';
 import {
   getPageIcon,
 } from './composables/pageIcon';
@@ -261,7 +261,7 @@ function onResizeStart (event: PointerEvent) {
             <h1
               v-if="title"
               class="td-page-title"
-              v-html="renderInlineMath(title)"
+              v-html="renderInlineMarkup(title)"
             />
             <div
               v-if="page.metadata"
@@ -290,9 +290,9 @@ function onResizeStart (event: PointerEvent) {
 
         <TdRail class="td-rail" />
       </div>
-
-      <TdFooter />
     </div>
+
+    <TdFooter />
   </div>
 </template>
 
