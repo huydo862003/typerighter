@@ -14,6 +14,7 @@ import {
 import TdBrandIcon from './components/TdBrandIcon.vue';
 import TdButton from './components/TdButton.vue';
 import TdContentNav from './components/TdContentNav.vue';
+import TdFooter from './components/TdFooter.vue';
 import TdBreadcrumb from './components/TdBreadcrumb.vue';
 import {
   TdFrontmatter,
@@ -289,6 +290,8 @@ function onResizeStart (event: PointerEvent) {
 
         <TdRail class="td-rail" />
       </div>
+
+      <TdFooter />
     </div>
   </div>
 </template>

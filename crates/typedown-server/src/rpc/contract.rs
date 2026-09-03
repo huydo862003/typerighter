@@ -114,6 +114,10 @@ pub struct TdSiteConfig {
   pub site_description: String,
   /// Repository URL from typedown.yaml
   pub repo: Option<String>,
+  /// Site author from typedown.yaml
+  pub author: Option<String>,
+  /// License name from typedown.yaml
+  pub license: Option<String>,
   pub public_dir: String,
 }
 

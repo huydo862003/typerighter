@@ -29,6 +29,8 @@ pub fn get_vault_config<'db>(
       String::new(),
       String::new(),
       None,
+      None,
+      None,
       "public".to_string(),
       diagnostics,
     );
@@ -42,6 +44,8 @@ pub fn get_vault_config<'db>(
       "/".to_string(),
       String::new(),
       String::new(),
+      None,
+      None,
       None,
       "public".to_string(),
       diagnostics,
@@ -61,6 +65,8 @@ pub fn get_vault_config<'db>(
     .unwrap_or("")
     .to_string();
   let repo = doc["repo"].as_str().map(str::to_string);
+  let author = doc["site"]["author"].as_str().map(str::to_string);
+  let license = doc["site"]["license"].as_str().map(str::to_string);
   let public_dir = doc["site"]["public_dir"]
     .as_str()
     .unwrap_or("public")
@@ -74,6 +80,8 @@ pub fn get_vault_config<'db>(
     site_title,
     site_description,
     repo,
+    author,
+    license,
     public_dir,
     diagnostics,
   )

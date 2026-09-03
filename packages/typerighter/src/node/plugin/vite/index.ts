@@ -58,6 +58,10 @@ export interface ClientAppEntryOptions {
   siteDescription: string;
   /** Repository URL */
   repo?: string;
+  /** Site author */
+  author?: string;
+  /** License name */
+  license?: string;
 }
 
 export interface TypedownPluginCache {
@@ -85,6 +89,8 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
     description: options.siteDescription,
     basePath: options.basePath ?? '/',
     repo: options.repo,
+    author: options.author,
+    license: options.license,
   });
 
   return `

@@ -5,3 +5,5 @@ repo: "https://github.com/huydo862003/typerighter"
 site:
   title: "Project Tracker"
   description: "A typedown site"
+  author: "Huy-DNA"
+  license: "MIT License"

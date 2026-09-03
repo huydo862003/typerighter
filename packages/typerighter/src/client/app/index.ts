@@ -49,6 +49,10 @@ export interface TypedownSiteConfig {
   basePath: string;
   /** Repository URL */
   repo?: string;
+  /** Site author */
+  author?: string;
+  /** License name */
+  license?: string;
 }
 
 export interface TypedownSiteData {
