@@ -84,8 +84,8 @@ watchEffect(() => {
     ? `${pageTitle} - ${siteName}`
     : siteName;
 
-  const description = page.frontmatter?.description !== undefined
-    ? String(page.frontmatter.description)
+  const description = page.value.frontmatter?.description !== undefined
+    ? String(page.value.frontmatter.description)
     : siteConfig.description ?? '';
   const metaDescription = document.querySelector('meta[name="description"]');
 
