@@ -1,3 +1,15 @@
+## [0.22.2] - 2026-09-03
+
+### Perf
+
+* packages/typerighter
+  - Avoid waterfall when fetching search indexes, site data, etc.
+
+### Fixes
+
+* packages/typerighter
+  - `index.html` is no longer required and is ignored
+
 ## [0.22.1] - 2026-09-03
 
 ### Chore
