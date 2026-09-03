@@ -37,7 +37,11 @@ export function virtualHtml (
     const urlPath = stripTrailingSlash(getUrlPath(request.url));
     const base = stripTrailingSlash(cache.basePath);
 
-    if (urlPath !== base && urlPath !== base + '/index.html') return next();
+    if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules')) return next();
+    if (!urlPath.startsWith(base)) return next();
+
+    // Skip static file requests (has extension), except index.html
+    if (urlPath.includes('.') && !urlPath.endsWith('/index.html')) return next();
 
     tdContext
       .getConfig()
