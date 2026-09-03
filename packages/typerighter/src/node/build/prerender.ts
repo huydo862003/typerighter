@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  escapeHtml,
-} from '@/shared';
 import type {
   ProgressLogger,
 } from '../lib/progress';
+import {
+  generateHtmlTemplate,
+} from '../lib/html-template';
 
 export interface PrerenderContext {
   /** Absolute path to the SSR bundle entry */
@@ -38,18 +38,28 @@ export async function prerenderHtmlPages (context: PrerenderContext): Promise<vo
   await Promise.all(context.pagePaths.map(async (pagePath) => {
     const result = await ssrModule.render(pagePath);
 
-    const html = generateHtmlDocument({
-      content: result.html,
+    const cssLinks = cssFiles
+      .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
+      .join('\n');
+
+    const modulePreloads = jsFiles
+      .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
+      .join('\n');
+
+    const html = generateHtmlTemplate({
       title: result.pageData.title,
       description: result.pageData.frontmatter.description !== undefined
         ? String(result.pageData.frontmatter.description)
         : '',
-      url: context.base + pagePath.replace(/^\//, ''),
       siteTitle: context.siteTitle,
-      clientEntry,
-      cssFiles,
-      jsFiles,
       base: context.base,
+      entryScript: clientEntry,
+      canonicalUrl: context.base + pagePath.replace(/^\//, ''),
+      headExtra: [
+        cssLinks,
+        modulePreloads,
+      ].filter(Boolean).join('\n') || undefined,
+      appContent: result.html,
     });
 
     const fileName = pagePath === '/'
@@ -63,71 +73,6 @@ export async function prerenderHtmlPages (context: PrerenderContext): Promise<vo
     renderedPages++;
     context.progress?.update(renderedPages, totalPages);
   }));
-}
-
-// Generate the full HTML document shell for a pre-rendered page
-interface HtmlDocumentContext {
-  content: string;
-  title: string;
-  description: string;
-  url: string;
-  siteTitle: string;
-  clientEntry: string;
-  cssFiles: string[];
-  jsFiles: string[];
-  base: string;
-  lang?: string;
-}
-
-function generateHtmlDocument (context: HtmlDocumentContext): string {
-  const title = escapeHtml(context.title);
-  const description = escapeHtml(context.description);
-  const pageTitle = context.title !== context.siteTitle
-    ? `${title} - ${escapeHtml(context.siteTitle)}`
-    : title;
-
-  const cssLinks = context.cssFiles
-    .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
-    .join('\n');
-
-  const modulePreloads = context.jsFiles
-    .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
-    .join('\n');
-
-  return `<!DOCTYPE html>
-<html lang="${context.lang ?? 'en'}">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${pageTitle}</title>
-    <meta name="description" content="${description}">
-    <link rel="icon" href="${context.base}favicon.svg" type="image/svg+xml">
-    <link rel="canonical" href="${escapeHtml(context.url)}">
-    <meta property="og:type" content="article">
-    <meta property="og:title" content="${title}">
-    <meta property="og:description" content="${description}">
-    <meta property="og:image" content="${context.base}og-image.png">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${title}">
-    <meta name="twitter:description" content="${description}">
-    <meta name="twitter:image" content="${context.base}og-image.png">
-    <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Article', headline: context.title, description: context.description })}</script>
-    <script>
-      // Apply dark mode before CSS to prevent flash
-      !function () {
-        var theme = localStorage.getItem('td-theme');
-        var isDark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-        if (isDark) document.documentElement.classList.add('dark');
-      }()
-    </script>
-${cssLinks}
-${modulePreloads}
-  </head>
-  <body>
-    <div id="app">${context.content}</div>
-    <script type="module" src="${context.base}${context.clientEntry}"></script>
-  </body>
-</html>`;
 }
 
 // Read the Vite manifest to find the client entry and asset files

@@ -7,14 +7,8 @@ import {
   cancel, intro, isCancel, log, outro, select, text,
 } from '@clack/prompts';
 import {
-  VIRTUAL_APP_ID,
-} from '../plugin/vite/constants';
-import {
   CONFIG_FILE_NAMES,
 } from '../context';
-import {
-  escapeHtml,
-} from '@/shared';
 import {
   BRAND_ARROW, BRAND_BORDER, BRAND_COLOR, BRAND_LETTER, BRAND_VIEWBOX,
 } from '@/shared/brand';
@@ -156,26 +150,6 @@ function generateFaviconSvg (): string {
 `;
 }
 
-function generateIndexHtml (options: InitializeOptions): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(options.siteTitle)}</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  </head>
-  <body>
-    <div id="app"></div>
-    <script
-      type="module"
-      src="/${VIRTUAL_APP_ID}"
-    ></script>
-  </body>
-</html>
-`;
-}
-
 function generatePackageJson (options: InitializeOptions): string {
   return JSON.stringify({
     name: options.projectName,
@@ -298,7 +272,6 @@ async function scaffold (root: string, options: InitializeOptions): Promise<void
     }),
     writeIfMissing(root, 'package.json', generatePackageJson(options)),
     writeIfMissing(root, 'typedown.yaml', generateTypedownYaml(options)),
-    writeIfMissing(root, 'index.html', generateIndexHtml(options)),
     writeIfMissing(publicDirectory, 'favicon.svg', generateFaviconSvg(), {
       silent: true,
     }),
