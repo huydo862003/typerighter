@@ -435,6 +435,7 @@ function onResizeStart (event: PointerEvent) {
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 22px 0 60px;
   flex-shrink: 0;
 }
