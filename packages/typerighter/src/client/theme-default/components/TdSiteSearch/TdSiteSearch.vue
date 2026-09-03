@@ -2,21 +2,32 @@
 <!-- https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/components/VPLocalSearchBox.vue -->
 <script setup lang="ts">
 import {
-  computed, createApp, markRaw, ref, shallowRef, triggerRef, watch,
+  computed, ref, useTemplateRef, watch,
 } from 'vue';
-import MiniSearch from 'minisearch';
 import {
   LoaderCircle, Search, X,
 } from '@lucide/vue';
 import {
-  usePageLoader, useSearchIndex, useSiteConfig,
-} from '../../app';
+  TdKeyName,
+} from '../../utils/keys';
+import TdKbdShortcut from '../TdKbdShortcut.vue';
 import {
-  debounce,
-  escapeHtml, escapeRegex, getAnchor, stripAnchor, stripHtml, unslugify,
-  SEARCH_FIELDS, SEARCH_STORE_FIELDS,
-  type PageModule,
+  useSiteSearch,
+} from './useSiteSearch';
+import type {
+  SearchResult,
+} from './useSiteSearch';
+import {
+  highlight,
+} from './highlight';
+import {
+  useSiteConfig,
+} from '@/client/app';
+import {
+  stripAnchor, unslugify,
 } from '@/shared';
+
+// States and emits
 
 const active = defineModel<boolean>('active', {
   default: false,
@@ -33,28 +44,19 @@ const emit = defineEmits<{
 const {
   withBase,
 } = useSiteConfig();
+const {
+  results, searching, search, cancel,
+} = useSiteSearch();
+const selectedIndex = ref(-1);
+const isSearchActive = computed(() => 0 < query.value.trim().length);
 
-interface SearchResult {
-  id: string;
-  title: string;
-  titles: string[];
-  excerpt: string;
-  score: number;
-}
+// Result grouping
 
 interface SearchResultGroup {
   pageUrl: string;
   pageTitle: string;
   results: SearchResult[];
 }
-
-const EXCERPT_CHARS = 120;
-const HEADING_RE = /^h[1-6]$/i;
-
-const results = shallowRef<SearchResult[]>([]);
-const searching = ref(false);
-const selectedIndex = ref(-1);
-const isSearchActive = computed(() => 0 < query.value.trim().length);
 
 const groupedResults = computed((): SearchResultGroup[] => {
   const groups: SearchResultGroup[] = [];
@@ -81,167 +83,26 @@ const groupedResults = computed((): SearchResultGroup[] => {
   return groups;
 });
 
+// Query watcher
+
 watch(isSearchActive, (value) => {
   active.value = value;
 });
 
-const searchIndex = useSearchIndex();
-const loadPage = usePageLoader();
-let engine: MiniSearch | undefined;
-
-// LRU cache: page URL -> Map<anchor, sectionText>
-const sectionCache = new Map<string, Map<string, string>>();
-const CACHE_SIZE = 16;
-
-// Rebuild engine and clear excerpt cache when the search index changes (e.g. HMR update)
-watch(searchIndex, () => {
-  engine = undefined;
-  sectionCache.clear();
-});
-
-// Mount a page component in a throwaway div and extract section text keyed by anchor
-function extractSections (component: PageModule['default']): Map<string, string> {
-  const sections = new Map<string, string>();
-  const app = createApp(component);
-  const container = document.createElement('div');
-
-  // Suppress warnings from missing injections/plugins during headless mount
-  app.config.warnHandler = () => {};
-
-  try {
-    app.mount(container);
-    const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
-
-    for (const heading of headings) {
-      const anchor = heading.querySelector('a')?.getAttribute('href')
-        ?.slice(1) ?? '';
-      let html = '';
-      let sibling = heading.nextElementSibling;
-
-      while (sibling && !HEADING_RE.test(sibling.tagName)) {
-        html += sibling.outerHTML;
-        sibling = sibling.nextElementSibling;
-      }
-
-      sections.set(anchor, stripHtml(html));
-    }
-
-    // Full page text as fallback for results without an anchor
-    if (sections.size === 0) {
-      sections.set('', stripHtml(container.innerHTML));
-    } else {
-      sections.set('', [...sections.values()].join(' '));
-    }
-  } finally {
-    app.unmount();
-  }
-
-  return sections;
-}
-
-// Lazily deserialize the MiniSearch index on first search
-function getEngine (): MiniSearch | undefined {
-  if (engine) return engine;
-  if (!searchIndex.value) return undefined;
-  engine = markRaw(MiniSearch.loadJSON(searchIndex.value, {
-    // fields/storeFields must match the build-time indexer in search.ts
-    fields: SEARCH_FIELDS,
-    storeFields: SEARCH_STORE_FIELDS,
-  }));
-
-  return engine;
-}
-
-// Load a page and get section text, using cache
-async function getSectionText (documentId: string): Promise<string> {
-  if (!loadPage) return '';
-
-  const pageUrl = stripAnchor(documentId);
-  const anchor = getAnchor(documentId);
-
-  let sections = sectionCache.get(pageUrl);
-
-  if (!sections) {
-    try {
-      const module_ = await loadPage(pageUrl);
-      const component = module_?.default;
-
-      if (!component) return '';
-      sections = extractSections(component);
-
-      // LRU eviction
-      if (CACHE_SIZE <= sectionCache.size) {
-        const oldest = sectionCache.keys().next().value;
-
-        if (oldest !== undefined) sectionCache.delete(oldest);
-      }
-
-      sectionCache.set(pageUrl, sections);
-    } catch {
-      return '';
-    }
-  }
-
-  return sections.get(anchor) ?? sections.get('') ?? '';
-}
-
-let canceled = false;
-
-const debouncedSearch = debounce((trimmed: string) => runSearch(trimmed), 150);
-
 watch(query, (value, _old, onCleanup) => {
-  onCleanup(() => {
-    canceled = true;
-  });
-  canceled = false;
-
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    results.value = [];
-    searching.value = false;
-
-    return;
-  }
-  searching.value = true;
+  onCleanup(() => cancel());
   selectedIndex.value = -1;
-  debouncedSearch(trimmed);
+  search(value);
 });
 
 function clearQuery () {
   query.value = '';
 }
 
-// Build a short snippet centered on the earliest matched term
-function extractSnippet (text: string, match: Record<string, string[]>): string {
-  if (!text) return '';
-  const terms = Object.keys(match);
+// Keyboard navigation
 
-  if (terms.length === 0) return text.slice(0, EXCERPT_CHARS);
-
-  const lower = text.toLowerCase();
-  let earliest = text.length;
-
-  for (const term of terms) {
-    const index = lower.indexOf(term.toLowerCase());
-
-    if (index !== -1 && index < earliest) earliest = index;
-  }
-
-  const start = Math.max(0, earliest - 30);
-  const end = Math.min(text.length, start + EXCERPT_CHARS);
-  let snippet = text.slice(start, end).trim();
-
-  if (0 < start) snippet = '...' + snippet;
-  if (end < text.length) snippet = snippet + '...';
-
-  return snippet;
-}
-
-// Flat list of grouped results for keyboard navigation
 const flatResults = computed(() => groupedResults.value.flatMap((group) => group.results));
 
-// Map each result id to its flat index for keyboard navigation
 const flatIndexMap = computed(() => {
   const map = new Map<string, number>();
 
@@ -251,22 +112,6 @@ const flatIndexMap = computed(() => {
 
   return map;
 });
-
-// Highlight matched terms in text by wrapping in <mark> tags
-function highlight (text: string, searchQuery: string): string {
-  if (!text || !searchQuery) return escapeHtml(text);
-  const terms = searchQuery.trim().split(/\s+/)
-    .filter(Boolean);
-  let result = escapeHtml(text);
-
-  for (const term of terms) {
-    const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
-
-    result = result.replace(regex, '<mark>$1</mark>');
-  }
-
-  return result;
-}
 
 function onKeydown (event: KeyboardEvent) {
   const count = flatIndexMap.value.size;
@@ -294,65 +139,28 @@ function onResultClick () {
   emit('select');
 }
 
-// Run search, show results immediately, then fill in excerpts progressively
-async function runSearch (trimmed: string) {
-  const index = getEngine();
+const searchInput = useTemplateRef<HTMLInputElement>('searchInput');
 
-  if (!index) {
-    searching.value = false;
-
-    return;
-  }
-
-  const rawResults = index.search(trimmed, {
-    prefix: true,
-    fuzzy: (term: string) => (3 < term.length ? 0.2 : false),
-    boost: {
-      title: 4,
-      text: 2,
-      titles: 1,
-    },
-  });
-
-  const top = rawResults.slice(0, 20);
-
-  // Show results immediately with titles only
-  results.value = top.map((result) => ({
-    id: result.id,
-    title: result.title as string,
-    titles: result.titles as string[],
-    excerpt: '',
-    score: result.score,
-  }));
-  searching.value = false;
-
-  // Fill in excerpts one at a time to avoid blocking the main thread
-  for (const [
-    index_,
-    result,
-  ] of top.entries()) {
-    if (canceled) return;
-
-    const sectionText = await getSectionText(result.id);
-    const excerpt = extractSnippet(sectionText, result.match);
-
-    if (canceled) return;
-
-    results.value[index_].excerpt = excerpt;
-    triggerRef(results);
-  }
-}
+defineExpose({
+  focus () {
+    searchInput.value?.focus();
+  },
+  get isVisible () {
+    return searchInput.value?.offsetParent !== null;
+  },
+});
 </script>
 
 <template>
+  <!-- Input -->
   <div class="td-search">
     <div class="td-search-input-wrap">
       <Search
         :size="14"
         class="td-search-icon"
       />
-      <!-- size="1" overrides the intrinsic input width so flex can shrink it -->
       <input
+        ref="searchInput"
         v-model="query"
         class="td-search-input"
         type="text"
@@ -360,6 +168,14 @@ async function runSearch (trimmed: string) {
         placeholder="Search..."
         @keydown="onKeydown"
       >
+      <TdKbdShortcut
+        v-if="!isSearchActive && !searching"
+        :keys="[
+          TdKeyName.Meta,
+          TdKeyName.k,
+        ]"
+        class="td-search-kbd"
+      />
       <LoaderCircle
         v-if="searching"
         :size="12"
@@ -379,6 +195,8 @@ async function runSearch (trimmed: string) {
         <X :size="12" />
       </button>
     </div>
+
+    <!-- Results -->
     <div
       v-if="isSearchActive && results.length > 0"
       class="td-search-results"
@@ -413,6 +231,8 @@ async function runSearch (trimmed: string) {
         </a>
       </div>
     </div>
+
+    <!-- Empty state -->
     <div
       v-if="isSearchActive && results.length === 0"
       class="td-search-empty"
@@ -423,6 +243,8 @@ async function runSearch (trimmed: string) {
 </template>
 
 <style scoped>
+/* Input */
+
 .td-search {
   padding: 16px 16px 12px;
 }
@@ -440,6 +262,15 @@ async function runSearch (trimmed: string) {
 
 .td-search-input-wrap:focus-within {
   border-color: color-mix(in srgb, var(--color-td-primary-solid) 30%, transparent);
+}
+
+.td-search-input-wrap:focus-within .td-search-kbd {
+  display: none;
+}
+
+.td-search-kbd {
+  flex-shrink: 0;
+  opacity: 0.5;
 }
 
 .td-search-icon {
@@ -493,6 +324,8 @@ async function runSearch (trimmed: string) {
 .td-search-clear:hover {
   color: var(--color-td-fg);
 }
+
+/* Results */
 
 .td-search-results {
   margin-top: 8px;
@@ -554,6 +387,8 @@ async function runSearch (trimmed: string) {
   color: var(--color-td-primary-solid);
   font-weight: 600;
 }
+
+/* Empty state */
 
 .td-search-empty {
   margin-top: 8px;

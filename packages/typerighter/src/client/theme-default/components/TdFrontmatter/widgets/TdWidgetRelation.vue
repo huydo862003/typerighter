@@ -8,7 +8,7 @@ import {
 } from './ref';
 import {
   getPageIcon,
-} from '@/client/theme-default/composables/pageIcon';
+} from '@/client/theme-default/utils/pageIcon';
 import {
   useSiteConfig,
 } from '@/client/app';

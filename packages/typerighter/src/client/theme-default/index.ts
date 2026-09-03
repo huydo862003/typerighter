@@ -9,6 +9,18 @@ export {
 } from './composables/useCopyCode';
 
 export {
+  TdKeyName,
+} from './utils/keys';
+
+export {
+  useGlobalHotkey, useLocalHotkeys,
+} from './composables/useHotkey';
+
+export {
+  default as TdKbdShortcut,
+} from './components/TdKbdShortcut.vue';
+
+export {
   default as TdDirectoryIndex,
 } from './components/custom/TdDirectoryIndex.vue';
 

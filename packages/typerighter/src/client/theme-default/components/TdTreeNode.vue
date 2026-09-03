@@ -10,10 +10,10 @@ import {
 } from '../../app';
 import {
   renderInlineMarkup,
-} from '../composables/renderInlineMarkup';
+} from '../utils/renderInlineMarkup';
 import {
   getPageIcon,
-} from '../composables/pageIcon';
+} from '../utils/pageIcon';
 import TdTooltip from './TdTooltip.vue';
 import {
   formatRelativeTime, getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdResourceTitle, isIndexFile, isUrlAncestorOf, unslugify,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  computed, ref, watch, watchEffect,
+  computed, nextTick, ref, useTemplateRef, watch, watchEffect,
 } from 'vue';
 import {
   X,
@@ -23,11 +23,17 @@ import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
 import TdToc from './components/TdToc.vue';
-import TdSearch from './components/TdSearch.vue';
+import TdSiteSearch from './components/TdSiteSearch/TdSiteSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
   useCopyCode,
 } from './composables/useCopyCode';
+import {
+  useGlobalHotkey,
+} from './composables/useHotkey';
+import {
+  TdKeyName,
+} from './utils/keys';
 import {
   useResizableTable,
 } from './composables/useResizableTable';
@@ -36,10 +42,10 @@ import {
 } from './composables/useMenu';
 import {
   renderInlineMarkup,
-} from './composables/renderInlineMarkup';
+} from './utils/renderInlineMarkup';
 import {
   getPageIcon,
-} from './composables/pageIcon';
+} from './utils/pageIcon';
 import {
   formatEditTime, getIndexUrl,
 } from '@/shared';
@@ -62,7 +68,7 @@ const {
 } = siteConfig;
 const siteData = useSiteData();
 const {
-  isOpen, close: closeMenu,
+  isOpen, open: openMenu, close: closeMenu,
 } = useMenu();
 
 const searchQuery = ref('');
@@ -70,9 +76,36 @@ const sidebarSearchActive = ref(false);
 const menuSearchActive = ref(false);
 const route = useRoute();
 
-watch(() => route.path, () => closeMenu());
+watch(
+  () => route.path,
+  () => closeMenu(),
+);
 
 useCopyCode();
+
+const sidebarSearch =
+  useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
+const menuSearch = useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
+
+function focusSearch () {
+  if (isOpen.value) {
+    menuSearch.value?.focus();
+  } else if (sidebarSearch.value?.isVisible) {
+    sidebarSearch.value.focus();
+  } else {
+    openMenu();
+    nextTick(() => menuSearch.value?.focus());
+  }
+}
+
+useGlobalHotkey([
+  TdKeyName.Control,
+  TdKeyName.k,
+], focusSearch);
+useGlobalHotkey([
+  TdKeyName.Meta,
+  TdKeyName.k,
+], focusSearch);
 
 // Update document title and meta description per page
 watchEffect(() => {
@@ -80,13 +113,15 @@ watchEffect(() => {
   const pageTitle = title.value;
   const siteName = siteConfig.title;
 
-  document.title = pageTitle && pageTitle !== siteName
-    ? `${pageTitle} - ${siteName}`
-    : siteName;
+  document.title =
+    pageTitle && pageTitle !== siteName
+      ? `${pageTitle} - ${siteName}`
+      : siteName;
 
-  const description = page.value.frontmatter?.description !== undefined
-    ? String(page.value.frontmatter.description)
-    : siteConfig.description ?? '';
+  const description =
+    page.value.frontmatter?.description !== undefined
+      ? String(page.value.frontmatter.description)
+      : (siteConfig.description ?? '');
   const metaDescription = document.querySelector('meta[name="description"]');
 
   if (metaDescription) {
@@ -114,7 +149,10 @@ function onResizeStart (event: PointerEvent) {
   target.setPointerCapture(event.pointerId);
 
   function onMove (event: PointerEvent) {
-    const width = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX));
+    const width = Math.min(
+      SIDEBAR_MAX,
+      Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX),
+    );
 
     sidebarWidth.value = width;
   }
@@ -142,7 +180,9 @@ function onResizeStart (event: PointerEvent) {
           class="td-brand"
         >
           <TdBrandIcon />
-          <span class="td-brand-name">{{ siteConfig.title || 'Typedown' }}</span>
+          <span class="td-brand-name">{{
+            siteConfig.title || "Typedown"
+          }}</span>
         </a>
         <TdBreadcrumb class="td-header-breadcrumb" />
       </div>
@@ -200,11 +240,14 @@ function onResizeStart (event: PointerEvent) {
             class="td-brand"
           >
             <TdBrandIcon />
-            <span class="td-brand-name">{{ siteConfig.title || 'Typedown' }}</span>
+            <span class="td-brand-name">{{
+              siteConfig.title || "Typedown"
+            }}</span>
           </a>
         </div>
       </header>
-      <TdSearch
+      <TdSiteSearch
+        ref="menuSearch"
         v-model:query="searchQuery"
         v-model:active="menuSearchActive"
         @select="closeMenu"
@@ -226,7 +269,8 @@ function onResizeStart (event: PointerEvent) {
           width: `${sidebarWidth}px`,
         }"
       >
-        <TdSearch
+        <TdSiteSearch
+          ref="sidebarSearch"
           v-model:query="searchQuery"
           v-model:active="sidebarSearchActive"
         />
@@ -267,8 +311,9 @@ function onResizeStart (event: PointerEvent) {
               v-if="page.metadata"
               class="td-page-meta"
             >
-              <span>{{ formatEditTime(page.metadata.mtime, 'Modified') }}</span>
-              <span v-if="page.metadata.ctime !== page.metadata.mtime"> · {{ formatEditTime(page.metadata.ctime, 'Created') }}</span>
+              <span>{{ formatEditTime(page.metadata.mtime, "Modified") }}</span>
+              <span v-if="page.metadata.ctime !== page.metadata.mtime">
+                · {{ formatEditTime(page.metadata.ctime, "Created") }}</span>
             </div>
             <TdFrontmatter
               class="td-frontmatter-inline"

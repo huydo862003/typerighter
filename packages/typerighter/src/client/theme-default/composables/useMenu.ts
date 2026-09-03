@@ -9,6 +9,10 @@ export function useMenu () {
     isOpen.value = !isOpen.value;
   }
 
+  function open (): void {
+    isOpen.value = true;
+  }
+
   function close (): void {
     isOpen.value = false;
   }
@@ -16,6 +20,7 @@ export function useMenu () {
   return {
     isOpen: readonly(isOpen),
     toggle,
+    open,
     close,
   };
 }

@@ -11,7 +11,7 @@ import {
 } from './ref';
 import {
   getPageIcon,
-} from '@/client/theme-default/composables/pageIcon';
+} from '@/client/theme-default/utils/pageIcon';
 import type {
   PropertyDescriptor,
 } from '@/shared';

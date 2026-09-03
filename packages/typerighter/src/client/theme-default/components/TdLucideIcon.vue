@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   getPageIcon,
-} from '../composables/pageIcon';
+} from '../utils/pageIcon';
 
 const {
   name,
