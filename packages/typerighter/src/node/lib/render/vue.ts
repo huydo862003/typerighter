@@ -55,7 +55,7 @@ export async function renderToVueSfc (
     `export default { name: ${JSON.stringify(filepath)} }`,
     '</script>',
     // Inlined rather than bound with `v-html`: the content has to pass through the Vue compiler for custom components and their slots to resolve
-    `<template><div class="typedown-content">\n${neutralizeInterpolation(html)}\n</div></template>`,
+    `<template><div class="typedown-content">\n${escapeVueInterpolation(html)}\n</div></template>`,
   ].join('\n');
 
   return {
@@ -67,6 +67,6 @@ export async function renderToVueSfc (
 /**
  * The rendered HTML becomes a Vue template, so `{{ ... }}` in authored content would be evaluated as an expression
  */
-function neutralizeInterpolation (html: string): string {
+function escapeVueInterpolation (html: string): string {
   return html.replaceAll('{{', '&#123;&#123;');
 }

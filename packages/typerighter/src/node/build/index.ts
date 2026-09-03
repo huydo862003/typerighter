@@ -59,15 +59,6 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   const rawBase = options.base ?? config.basePath ?? '/';
   const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
 
-  const schemaEntries = await Promise.all(
-    schemaNames.map(async (name) => {
-      const info = await tdContext.getSchema(name);
-
-      return [name, info.properties] as const;
-    }),
-  );
-  const schemas = Object.fromEntries(schemaEntries);
-
   const allItems = Object.values(schemaGroups).flat();
   const contentTree = buildContentTree(allItems);
   const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base });

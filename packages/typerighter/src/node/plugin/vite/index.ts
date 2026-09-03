@@ -1,12 +1,4 @@
 import {
-  createReadStream,
-  existsSync,
-  statSync,
-} from 'node:fs';
-import type {
-  ServerResponse,
-} from 'node:http';
-import {
   resolve,
 } from 'node:path';
 import pc from 'picocolors';
@@ -26,9 +18,6 @@ import {
   createAppContext, resolveProjectRoot, type AppContext,
 } from '../../context';
 import {
-  generateHtmlTemplate,
-} from '../../lib/html-template';
-import {
   isRpcCancelled,
   type TypedownContext,
 } from '../../lib/typedown-context';
@@ -45,35 +34,18 @@ import {
   resolveAliases,
 } from './alias';
 import {
+  vaultAssets, virtualHtml,
+} from './middleware';
+import {
   type ContentTree,
   buildContentTree,
   buildDirectoryListingMap,
   CONTENT_EXTENSIONS,
   getTdContentUrl,
   getTdResourceTitle,
-  getUrlPath,
-  stripTrailingSlash,
   path,
   type ContentSummary,
 } from '@/shared';
-
-const COMMON_MIME_TYPES: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  avif: 'image/avif',
-  ico: 'image/x-icon',
-  pdf: 'application/pdf',
-  zip: 'application/zip',
-  mp3: 'audio/mpeg',
-  mp4: 'video/mp4',
-  woff: 'font/woff',
-  woff2: 'font/woff2',
-  ttf: 'font/ttf',
-};
 
 export interface ClientAppEntryOptions {
   /** Vault root directory relative to project root */
@@ -86,6 +58,14 @@ export interface ClientAppEntryOptions {
   siteDescription: string;
   /** Repository URL */
   repo?: string;
+}
+
+export interface TypedownPluginCache {
+  searchIndex: Promise<void> | undefined;
+  siteData: ReturnType<typeof fetchSiteData> | undefined;
+  devHtml: string | undefined;
+  basePath: string;
+  rootDirectory: string;
 }
 
 export interface TypedownPluginOptions {
@@ -117,8 +97,6 @@ import { h } from 'vue';
 import theme from 'typerighter/client/theme-default';
 import { pages as initialPages } from '${PAGES_ID}';
 import initialSiteData from '${SITE_DATA_ID}';
-import searchIndex from '${SEARCH_INDEX_ID}';
-
 let pages = initialPages;
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
 
@@ -146,8 +124,11 @@ async function loadPageModule(pagePath) {
   return undefined;
 }
 
-const { app, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, { ...initialSiteData, searchIndex });
+const { app, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, initialSiteData);
 app.mount('#app');
+
+// Load search index in the background after the app is mounted
+import('${SEARCH_INDEX_ID}').then((m) => { searchIndexRef.value = m.default; });
 
 // Accept HMR so modules update without a full page reload
 if (import.meta.hot) {
@@ -173,7 +154,14 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   let hostBase: string;
 
   const searchIndexer = new SearchIndexer();
-  let searchIndexReady: Promise<void> | undefined;
+
+  const cache: TypedownPluginCache = {
+    searchIndex: undefined,
+    siteData: undefined,
+    devHtml: undefined,
+    basePath: '/',
+    rootDirectory: 'vault',
+  };
 
   function resolveTdContext () {
     if (context === undefined) throw new Error('typedown plugin not initialized');
@@ -259,12 +247,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     // Serve virtual modules
     async load (id) {
       if (id === RESOLVED_SEARCH_INDEX_ID) {
-        if (!searchIndexReady) {
+        if (!cache.searchIndex) {
           const tdContext = await resolveTdContext();
 
-          searchIndexReady = indexAllPages(tdContext, searchIndexer);
+          cache.searchIndex = indexAllPages(tdContext, searchIndexer);
         }
-        await searchIndexReady;
+
+        await cache.searchIndex;
 
         return `export default ${JSON.stringify(searchIndexer.serialize())}`;
       }
@@ -279,10 +268,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       }
 
       if (id === RESOLVED_SITE_DATA_ID) {
-        const tdContext = await resolveTdContext();
-        const siteData = await fetchSiteData(tdContext);
+        if (!cache.siteData) {
+          cache.siteData = fetchSiteData(await resolveTdContext());
+        }
 
-        return `export default ${JSON.stringify(siteData)}`;
+        return `export default ${JSON.stringify(await cache.siteData)}`;
       }
 
       if (id !== RESOLVED_VIRTUAL_APP_ID) return;
@@ -300,6 +290,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       server = devServer;
       const tdContext = await resolveTdContext();
 
+      // Prefetch eagerly so data is ready by the time virtual modules are loaded
+      cache.searchIndex = indexAllPages(tdContext, searchIndexer);
+      cache.siteData = fetchSiteData(tdContext);
+
       // Print vault diagnostics after the server URL is shown
       devServer.httpServer?.once('listening', async () => {
         const report = await tdContext.checkVault();
@@ -313,6 +307,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       // Config changes affect the rendering pipeline itself, requires full reload
       tdContext.rpc.onConfigChanged(() => {
         if (!server) return;
+        cache.devHtml = undefined;
+        cache.siteData = undefined;
         invalidateVirtualAppModule(server);
         invalidatePages(server);
         invalidateSiteData(server);
@@ -367,10 +363,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       // Full re-index when files are added or removed
       function handleContentListChange () {
         if (!server) return;
-        searchIndexReady = indexAllPages(tdContext, searchIndexer);
-        searchIndexReady.then(() => {
+        cache.searchIndex = indexAllPages(tdContext, searchIndexer);
+        cache.searchIndex.then(() => {
           if (server) invalidateSearchIndex(server);
         });
+        cache.siteData = undefined;
         invalidatePages(server);
         invalidateSiteData(server);
       }
@@ -381,6 +378,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       // Schema changes affect all pages using that schema and sidebar data
       function handleSchemaChange () {
         if (!server) return;
+        cache.siteData = undefined;
         invalidateSiteData(server);
         hmrInvalidateAll(server);
       }
@@ -389,112 +387,22 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       tdContext.rpc.onSchemaCreated(handleSchemaChange);
       tdContext.rpc.onSchemaDeleted(handleSchemaChange);
 
-      let cachedRootDirectory = 'vault';
-
-      tdContext.getConfig()
-        .then((config) => {
-          cachedRootDirectory = config.rootDir;
-        })
-        .catch(() => {});
-
-      // Middleware to serve assets (images, PDFs, etc.) from rootDir
-      devServer.middlewares.use((request, result, next) => {
-        if (!request.url || request.method !== 'GET' || result.writableEnded || !server) return next();
-
-        const urlPath = getUrlPath(request.url);
-
-        if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules')) return next();
-
-        const relativePath = urlPath.replace(/^\//, '');
-        const contentFilePath = resolve(server.config.root, cachedRootDirectory, relativePath);
-
-        if (existsSync(contentFilePath)) {
-          try {
-            const stat = statSync(contentFilePath);
-
-            if (stat.isFile()) {
-              const extension = path.extname(contentFilePath)
-                .slice(1)
-                .toLowerCase();
-              const mimeType = COMMON_MIME_TYPES[extension] ?? 'application/octet-stream';
-
-              result.setHeader('Content-Type', mimeType);
-              result.setHeader('Content-Length', stat.size);
-              createReadStream(contentFilePath).pipe(result);
-
-              return;
-            }
-          } catch {}
-        }
-
-        next();
-      });
-
       const initialConfig = await tdContext.getConfig();
-      let cachedBasePath = initialConfig.basePath;
+
+      cache.basePath = initialConfig.basePath;
+      cache.rootDirectory = initialConfig.rootDir;
 
       tdContext.rpc.onConfigChanged((updated: {
         basePath: string;
+        rootDir: string;
       }) => {
-        cachedBasePath = updated.basePath;
+        cache.basePath = updated.basePath;
+        cache.rootDirectory = updated.rootDir;
+        cache.devHtml = undefined;
       });
 
-      // Cached HTML template, regenerated only when config changes
-      let cachedDevHtml: string | undefined;
-
-      function getDevHtml (config: {
-        siteTitle: string;
-        siteDescription: string;
-      }): string {
-        if (cachedDevHtml !== undefined) return cachedDevHtml;
-
-        cachedDevHtml = generateHtmlTemplate({
-          title: config.siteTitle,
-          description: config.siteDescription,
-          base: '/',
-          entryScript: VIRTUAL_APP_ID,
-        });
-
-        return cachedDevHtml;
-      }
-
-      tdContext.rpc.onConfigChanged(() => {
-        cachedDevHtml = undefined;
-      });
-
-      async function serveVirtualHtml (
-        url: string,
-        response: ServerResponse,
-        next: () => void,
-      ): Promise<void> {
-        try {
-          const config = await tdContext.getConfig();
-          const html = await devServer.transformIndexHtml(url, getDevHtml(config));
-
-          response.setHeader('Content-Type', 'text/html');
-          response.end(html);
-        } catch {
-          next();
-        }
-      }
-
-      // Pre-middleware: intercept root and index.html before Vite's static file handler
-      // This avoids needing a physical index.html on disk
-      devServer.middlewares.use((request, result, next) => {
-        if (!request.url) return next();
-
-        const urlPath = stripTrailingSlash(getUrlPath(request.url));
-        const base = stripTrailingSlash(cachedBasePath);
-
-        if (urlPath === base || urlPath === base + '/index.html') {
-          void serveVirtualHtml(request.url, result, next);
-
-          return;
-        }
-
-        next();
-      });
-
+      devServer.middlewares.use(vaultAssets(devServer, cache));
+      devServer.middlewares.use(virtualHtml(devServer, tdContext, cache));
     },
 
     async transform (_, id) {
@@ -678,7 +586,7 @@ function hmrInvalidateAll (server: ViteDevServer): void {
   }
 }
 
-// Render all pages and rebuild the search index
+// Fetch all pages as search index inputs
 async function indexAllPages (context: TypedownContext, indexer: SearchIndexer): Promise<void> {
   const files = await context.listFiles();
   const pages = await Promise.all(files.map((filepath) => getPageIndexInput(context, filepath)));
