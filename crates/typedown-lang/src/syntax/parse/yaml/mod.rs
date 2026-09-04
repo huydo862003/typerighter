@@ -103,23 +103,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.enter(ExprCtx::YamlFrontmatter);
 
-    let early_exit = if !self.should_end_yaml_document() {
-      let (mapping, early_exit) = self.parse_block_mapping_lit(vec![], 0);
+    if !self.should_end_yaml_document() {
+      let (mapping, _) = self.parse_block_mapping_lit(vec![], 0);
       children.push(mapping);
-      early_exit
-    } else {
-      None
-    };
-
-    if let Some(ctx) = early_exit
-      && ctx != ExprCtx::YamlFrontmatter
-    {
-      self
-        .diagnostics
-        .push(Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine {
-          start_offset: self.offset(),
-          end_offset: self.offset(),
-        });
     }
 
     self.expr_ctx_stack.exit(ExprCtx::YamlFrontmatter);
