@@ -120,6 +120,7 @@ pub enum SyntaxKind {
 }
 
 impl SyntaxKind {
+  /// Whether this token is trivia (whitespace, newline, indent, comment)
   pub fn is_trivia(self) -> bool {
     matches!(
       self,

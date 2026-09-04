@@ -4,9 +4,17 @@ import type {
 import type {
   ContentIcon, FileMetadata,
 } from './content';
-import type {
-  MarkdownHeading,
-} from './markdown';
+
+export interface MarkdownHeading {
+  /** 1 to 6 for h1 to h6 */
+  level: number;
+  title: string;
+  /** The id attr of the header anchor */
+  slug: string;
+  /** Anchor link, typically #slug */
+  link: string;
+  children: MarkdownHeading[];
+}
 
 export interface PageData {
   schema?: string;

@@ -139,7 +139,7 @@ impl<'a> HtmlEmitter<'a> {
     self.write(&format!("<h{level} id=\"{escaped_slug}\">"));
     self.emit_inline_children(node);
     self.write(&format!(
-      " <a class=\"header-anchor\" href=\"#{escaped_slug}\" aria-label=\"Permalink to &quot;{}&quot;\">&#8203;</a>",
+      " <a class=\"td-header-anchor\" href=\"#{escaped_slug}\" aria-label=\"Permalink to &quot;{}&quot;\">&#8203;</a>",
       html_escape(&plain_text)
     ));
     self.write(&format!("</h{level}>\n"));
@@ -172,7 +172,7 @@ impl<'a> HtmlEmitter<'a> {
       .any(|c| c.kind() == SyntaxKind::MdTaskListItem);
 
     if has_task {
-      self.write("<ul class=\"task-list-container\">\n");
+      self.write("<ul class=\"td-task-list\">\n");
     } else {
       self.write("<ul>\n");
     }
@@ -235,7 +235,7 @@ impl<'a> HtmlEmitter<'a> {
       .children()
       .any(|c| c.kind() == SyntaxKind::MdCheckbox && c.text().contains('x'));
 
-    self.write("<li class=\"task-list-item\">");
+    self.write("<li class=\"td-task-list-item\">");
     if checked {
       self.write("<input type=\"checkbox\" disabled checked> ");
     } else {
@@ -361,16 +361,16 @@ impl<'a> HtmlEmitter<'a> {
 
     if name == "details" {
       self.write(&format!(
-        "<details class=\"details custom-block\"><summary>{title_text}</summary>\n"
+        "<details class=\"details td-callout\"><summary>{title_text}</summary>\n"
       ));
     } else {
       let title_class = if has_custom_title {
-        "custom-block-title"
+        "td-callout-title"
       } else {
-        "custom-block-title custom-block-title-default"
+        "td-callout-title td-callout-title-default"
       };
       self.write(&format!(
-        "<div class=\"{name} custom-block\"><p class=\"{title_class}\">{title_text}</p>\n"
+        "<div class=\"{name} td-callout\"><p class=\"{title_class}\">{title_text}</p>\n"
       ));
     }
 

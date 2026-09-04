@@ -1518,16 +1518,12 @@ properties:
   fn html_export_headings() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    assert!(
-      exported
-        .content
-        .contains("<h1 id=\"heading-1\">Heading 1 <a class=\"header-anchor\" href=\"#heading-1\"")
-    );
-    assert!(
-      exported
-        .content
-        .contains("<h2 id=\"heading-2\">Heading 2 <a class=\"header-anchor\" href=\"#heading-2\"")
-    );
+    assert!(exported.content.contains(
+      "<h1 id=\"heading-1\">Heading 1 <a class=\"td-header-anchor\" href=\"#heading-1\""
+    ));
+    assert!(exported.content.contains(
+      "<h2 id=\"heading-2\">Heading 2 <a class=\"td-header-anchor\" href=\"#heading-2\""
+    ));
     assert_eq!(exported.headings.len(), 2);
     assert_eq!(exported.headings[0].level, 1);
     assert_eq!(exported.headings[0].title, "Heading 1");
@@ -1641,7 +1637,7 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
-      "<div class=\"note custom-block\"><p class=\"custom-block-title custom-block-title-default\">NOTE</p>"
+      "<div class=\"note td-callout\"><p class=\"td-callout-title td-callout-title-default\">NOTE</p>"
     ));
     assert!(exported.content.contains("<p>callout content</p>"));
   }
@@ -1653,7 +1649,7 @@ properties:
     assert!(
       exported
         .content
-        .contains("<details class=\"details custom-block\"><summary>Click to expand</summary>")
+        .contains("<details class=\"details td-callout\"><summary>Click to expand</summary>")
     );
     assert!(exported.content.contains("<p>details content</p>"));
   }

@@ -1,4 +1,4 @@
-import katex from 'katex';
+import temml from 'temml';
 import {
   escapeHtml,
 } from '@/shared';
@@ -18,9 +18,8 @@ export function renderInlineMarkup (text: string): string {
       result += `<code>${escapeHtml(match[1])}</code>`;
     } else if (match[2] !== undefined) {
       try {
-        result += katex.renderToString(match[2], {
+        result += temml.renderToString(match[2], {
           throwOnError: false,
-          output: 'htmlAndMathml',
         });
       } catch {
         result += escapeHtml(match[0]);

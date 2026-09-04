@@ -1,9 +1,12 @@
-// Post-process Rust-emitted HTML: replace code/math placeholders with shiki and KaTeX output
+// Post-process Rust-emitted HTML: replace code/math placeholders with shiki and Temml output
 
-import katex from 'katex';
+import temml from 'temml';
 import {
   createHighlighter,
 } from './highlight';
+import {
+  unescapeHtml,
+} from '@/shared';
 
 let highlighterPromise: Promise<(code: string, language: string, attrs: string) => Promise<string>> | undefined;
 
@@ -111,21 +114,11 @@ function renderTex (escapedTex: string, displayMode: boolean): string {
   const tag = displayMode ? 'div' : 'span';
 
   try {
-    return katex.renderToString(unescapeHtml(escapedTex), {
+    return temml.renderToString(unescapeHtml(escapedTex), {
       throwOnError: false,
-      output: 'htmlAndMathml',
       displayMode,
     });
   } catch {
-    return `<${tag} class="katex-error">${escapedTex}</${tag}>`;
+    return `<${tag} class="td-math-error">${escapedTex}</${tag}>`;
   }
-}
-
-function unescapeHtml (text: string): string {
-  return text
-    .replaceAll('&amp;', '&')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', '\'');
 }

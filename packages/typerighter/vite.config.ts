@@ -18,7 +18,10 @@ function emitCssAssets (assets: Record<string, string>): Plugin {
   return {
     name: 'emit-css-assets',
     generateBundle () {
-      for (const [fileName, sourcePath] of Object.entries(assets)) {
+      for (const [
+        fileName,
+        sourcePath,
+      ] of Object.entries(assets)) {
         this.emitFile({
           type: 'asset',
           fileName,
@@ -37,7 +40,8 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     emitCssAssets({
-      'katex.css': 'src/client/theme-default/styles/katex.css',
+      'fonts.css': 'src/client/theme-default/styles/fonts.css',
+      'math.css': 'src/client/theme-default/styles/math.css',
     }),
   ],
   build: {
