@@ -865,10 +865,10 @@ mod tests {
   #[test]
   #[cfg(feature = "export")]
   fn imports_stripped_from_export() {
-    use crate::integrations::export::export_resource;
+    use crate::integrations::export::export_resource_markdown;
 
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
-    let result = export_resource(&db, project, file);
+    let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
     let header = exported
       .header

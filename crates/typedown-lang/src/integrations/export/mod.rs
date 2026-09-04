@@ -1,6 +1,8 @@
 //! Export typedown resources
 
+pub mod html;
 pub mod json;
+pub(super) mod utils;
 
 use typedown_types::either::Either;
 use typedown_types::string::split_pascal_case;
@@ -62,6 +64,52 @@ pub struct ExportedMetadata {
   pub ctime: u64,
 }
 
+/// Structured export result with HTML content and extracted headings
+#[derive(serde::Serialize)]
+pub struct ExportedResourceHtml {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<ExportedIcon>,
+  pub header: serde_json::Value,
+  /// HTML body with placeholders for code/math post-processing
+  pub content: String,
+  pub headings: Vec<html::ExportedHeading>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  pub metadata: ExportedMetadata,
+}
+
+/// Summary for content listings (no rendered body)
+pub struct ExportedResourceSummary {
+  pub schema: Option<String>,
+  pub label: Option<String>,
+  pub icon: Option<ExportedIcon>,
+  pub header: serde_json::Value,
+  pub excerpt: Option<String>,
+  pub metadata: ExportedMetadata,
+}
+
+pub fn export_resource_summary(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceSummary> {
+  match resolve_resource(db, project, file)? {
+    ResourceKind::Blob { .. } => None,
+    ResourceKind::Content(pre) => Some(ExportedResourceSummary {
+      schema: pre.schema,
+      label: pre.label,
+      icon: pre.icon,
+      header: pre.header,
+      excerpt: pre.excerpt,
+      metadata: pre.metadata,
+    }),
+  }
+}
+
 /// Lightweight metadata for sidebar/navigation
 /// Skips json::to_json and markdown export
 pub struct ExportedResourceMeta {
@@ -108,24 +156,35 @@ pub fn export_resource_meta(
   })
 }
 
-/// Export a resource file as structured header and commonmark content
-pub fn export_resource(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResource> {
+// Common resource fields extracted before body rendering
+struct ResourcePreamble {
+  schema: Option<String>,
+  label: Option<String>,
+  icon: Option<ExportedIcon>,
+  header: serde_json::Value,
+  metadata: ExportedMetadata,
+  excerpt: Option<String>,
+  body: MdBody,
+}
+
+enum ResourceKind {
+  Blob {
+    schema: String,
+    header: serde_json::Value,
+    metadata: ExportedMetadata,
+  },
+  Content(ResourcePreamble),
+}
+
+fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
   let symbol = file_symbol(db, project, file).value(db)?;
   let obj = evaluate_resource(db, symbol).value(db)?;
   let metadata = export_metadata(file.handle(db));
 
-  // Assets export as a blob descriptor with no body
   if obj.as_td_blob_obj().is_some() {
-    return Some(ExportedResource {
-      schema: Some(TdBlobType::get(db).display_name(db)),
-      label: None,
-      icon: None,
+    return Some(ResourceKind::Blob {
+      schema: TdBlobType::get(db).display_name(db),
       header: json::to_json(db, project, &obj).unwrap_or_default(),
-      content: String::new(),
       metadata,
     });
   }
@@ -137,10 +196,12 @@ pub fn export_resource(
   } else {
     return None;
   };
+
   let mut header = json::to_json(db, project, &obj).unwrap_or_default();
   if let serde_json::Value::Object(ref mut map) = header {
     map.retain(|k, v| !k.starts_with('_') && !v.is_null());
   }
+
   let label = obj
     .get_builtin_field(db, "_label")
     .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
@@ -150,21 +211,95 @@ pub fn export_resource(
     })
   });
 
-  // Walk the AST and translate to somewhat commonmark-conformant markdown
   let parse_result = parse_file(db, project, file);
   let root = parse_result.ast(db);
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
-  let content = export_markdown_body(db, project, file, &body);
 
-  Some(ExportedResource {
+  // Extract plain text from the first paragraph (at any depth) for search excerpts
+  let excerpt = find_first_paragraph(body.syntax())
+    .map(|p| utils::extract_plain_text(&p))
+    .filter(|s| !s.is_empty());
+
+  Some(ResourceKind::Content(ResourcePreamble {
     schema,
     label,
     icon,
     header,
-    content,
     metadata,
-  })
+    excerpt,
+    body,
+  }))
+}
+
+/// Export a resource file as structured header and commonmark content
+pub fn export_resource_markdown(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResource> {
+  match resolve_resource(db, project, file)? {
+    ResourceKind::Blob {
+      schema,
+      header,
+      metadata,
+    } => Some(ExportedResource {
+      schema: Some(schema),
+      label: None,
+      icon: None,
+      header,
+      content: String::new(),
+      metadata,
+    }),
+    ResourceKind::Content(pre) => {
+      let content = export_markdown_body(db, project, file, &pre.body);
+      Some(ExportedResource {
+        schema: pre.schema,
+        label: pre.label,
+        icon: pre.icon,
+        header: pre.header,
+        content,
+        metadata: pre.metadata,
+      })
+    }
+  }
+}
+
+/// Export a resource file as structured header and HTML content
+pub fn export_resource_html(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceHtml> {
+  match resolve_resource(db, project, file)? {
+    ResourceKind::Blob {
+      schema,
+      header,
+      metadata,
+    } => Some(ExportedResourceHtml {
+      schema: Some(schema),
+      label: None,
+      icon: None,
+      header,
+      content: String::new(),
+      headings: Vec::new(),
+      title: None,
+      metadata,
+    }),
+    ResourceKind::Content(pre) => {
+      let html_result = html::export_html_body(db, project, file, &pre.body);
+      Some(ExportedResourceHtml {
+        schema: pre.schema,
+        label: pre.label,
+        icon: pre.icon,
+        header: pre.header,
+        content: html_result.html,
+        headings: html_result.headings,
+        title: html_result.title,
+        metadata: pre.metadata,
+      })
+    }
+  }
 }
 
 #[derive(serde::Serialize)]
@@ -315,6 +450,19 @@ pub fn export_property_descriptors(
       _ => serde_json::json!({ "widget": Widget::Text }),
     }
   }
+}
+
+// Depth-first search for the first MdParagraph in the AST
+fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
+  for child in node.children() {
+    if child.kind() == SyntaxKind::MdParagraph {
+      return Some(child);
+    }
+    if let Some(found) = find_first_paragraph(&child) {
+      return Some(found);
+    }
+  }
+  None
 }
 
 fn export_metadata(handle: FileHandle) -> ExportedMetadata {
@@ -739,6 +887,44 @@ pub fn resolve_ref(
   }
 }
 
+/// Resolved fref target with display name, URL, optional icon, and image flag
+pub(super) struct FrefTarget {
+  pub name: String,
+  pub url: String,
+  pub icon: Option<String>,
+  pub is_image: bool,
+}
+
+pub(super) fn resolve_fref_target(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<FrefTarget> {
+  let hir = lower_node(db, project, file, node.clone());
+  let referee_result = referee(db, hir);
+  let target_symbol = referee_result.value(db)?;
+  let resolved = resolve_ref(db, project, &target_symbol)?;
+
+  let is_image = matches!(
+    target_symbol.kind(db),
+    SymbolKind::Asset(asset_kind, _, _) if asset_kind.is_image()
+  );
+
+  let icon = if is_image {
+    None
+  } else {
+    resolve_fref_icon(db, project, &target_symbol)
+  };
+
+  Some(FrefTarget {
+    name: resolved.name,
+    url: resolved.url,
+    icon,
+    is_image,
+  })
+}
+
 /// Resolve a fref interpolation to a markdown link with optional icon
 fn try_resolve_fref(
   db: &TypedownDatabase,
@@ -746,29 +932,18 @@ fn try_resolve_fref(
   file: File,
   node: &RedNode,
 ) -> Option<String> {
-  let hir = lower_node(db, project, file, node.clone());
-  let referee_result = referee(db, hir);
-  let target_symbol = referee_result.value(db)?;
-  let resolved = resolve_ref(db, project, &target_symbol)?;
+  let target = resolve_fref_target(db, project, file, node)?;
 
-  // Images produce a markdown image, other assets produce a link
-  if let SymbolKind::Asset(asset_kind, _, _) = target_symbol.kind(db)
-    && asset_kind.is_image()
-  {
-    return Some(format!("![{}]({})", resolved.name, resolved.url));
+  if target.is_image {
+    return Some(format!("![{}]({})", target.name, target.url));
   }
 
-  // Resolve icon from the target resource
-  // Safe: icon names come from ICON_ENTRIES (hardcoded), not user input
-  let icon = resolve_fref_icon(db, project, &target_symbol);
-  let icon_html = icon
+  let icon_html = target
+    .icon
     .map(|name| format!("<LucideIcon name=\"{}\" />", name))
     .unwrap_or_default();
 
-  Some(format!(
-    "{}[{}]({})",
-    icon_html, resolved.name, resolved.url
-  ))
+  Some(format!("{}[{}]({})", icon_html, target.name, target.url))
 }
 
 // Get the lucide icon name for a fref target
@@ -887,7 +1062,7 @@ mod tests {
   #[test]
   fn exports_header_fields() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let result = export_resource(&db, project, file);
+    let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("should export");
     assert!(
       exported.header.as_object().is_some_and(|m| !m.is_empty()),
@@ -912,7 +1087,7 @@ mod tests {
   #[test]
   fn exports_content_body() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let result = export_resource(&db, project, file);
+    let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("should export");
     assert!(
       exported.content.contains("Hello world"),
@@ -924,14 +1099,14 @@ mod tests {
   #[test]
   fn exports_markdown_body() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     assert_eq!(exported.content, "Hello world\n");
   }
 
   #[test]
   fn exports_all_markdown_elements() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
     // Verify key elements are present in the exported content
     assert!(content.contains("# Heading 1"), "should contain h1");
@@ -948,7 +1123,7 @@ mod tests {
   #[test]
   fn exports_container_shorthand() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_shorthand.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("::: toc\n:::\n"),
@@ -968,7 +1143,7 @@ mod tests {
   #[test]
   fn exports_unresolved_interpolation_as_empty() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_unresolved_interp.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
     // ${question} resolves to nothing because `question` is not a field on Person
     assert!(
@@ -984,7 +1159,7 @@ mod tests {
   #[test]
   fn exports_nested_blocks_without_extra_indentation() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_nested_blocks.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
 
     // No line should have 4+ leading spaces (which markdown-it treats as a code block)
@@ -1019,7 +1194,7 @@ mod tests {
   #[test]
   fn exports_container_with_title() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("::: details Click to expand"),
       "should contain container with title: {}",
@@ -1030,7 +1205,7 @@ mod tests {
   #[test]
   fn returns_none_for_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let result = export_resource(&db, project, file);
+    let result = export_resource_markdown(&db, project, file);
     assert!(result.is_none(), "schema should return None");
   }
 
@@ -1089,7 +1264,7 @@ mod tests {
   #[test]
   fn exports_asset_as_blob_descriptor() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
-    let exported = export_resource(&db, project, file).expect("asset should export");
+    let exported = export_resource_markdown(&db, project, file).expect("asset should export");
     assert_eq!(exported.schema, Some("blob".to_string()));
     assert_eq!(
       exported.header["format"],
@@ -1107,7 +1282,7 @@ mod tests {
   #[test]
   fn fref_uses_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("[Alice](/blog/alice)"),
       "fref should use base_path /blog: {}",
@@ -1118,7 +1293,7 @@ mod tests {
   #[test]
   fn fref_resolves_image_asset_to_markdown_image() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_asset_fref.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("![icon](/icon.svg)"),
       "image asset fref should produce markdown image: {}",
@@ -1130,7 +1305,7 @@ mod tests {
   #[test]
   fn fref_default_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     assert!(
       !exported.content.contains("/blog"),
       "default base_path should not have /blog prefix: {}",
@@ -1141,7 +1316,7 @@ mod tests {
   #[test]
   fn export_separates_blocks_with_blank_lines() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     // Block elements should be separated by blank lines
     let lines: Vec<&str> = exported.content.lines().collect();
     let heading_indices: Vec<usize> = lines
@@ -1165,7 +1340,7 @@ mod tests {
   #[test]
   fn exports_schemaless_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless.td");
-    let result = export_resource(&db, project, file);
+    let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("schemaless file should export");
     assert_eq!(
       exported.schema, None,
@@ -1181,7 +1356,7 @@ mod tests {
   #[test]
   fn exports_schemaless_file_with_label_and_icon() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless_with_label.td");
-    let exported = export_resource(&db, project, file).expect("should export");
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
     assert_eq!(exported.schema, None);
     assert_eq!(exported.label.as_deref(), Some("My Custom Title"));
     assert!(
@@ -1285,7 +1460,7 @@ name: "Alice"
         .is_none()
     );
 
-    let exported = export_resource(&db, project, content_file).expect("should export");
+    let exported = export_resource_markdown(&db, project, content_file).expect("should export");
     assert_eq!(exported.schema.as_deref(), Some("MySchema"));
 
     // Mutate: add _icon to the schema
@@ -1324,7 +1499,248 @@ properties:
     );
 
     let exported2 =
-      export_resource(&db, project, content_file).expect("should export after mutation");
+      export_resource_markdown(&db, project, content_file).expect("should export after mutation");
     assert_eq!(exported2.schema.as_deref(), Some("MySchema"));
+  }
+
+  // HTML export tests
+  // Uses all_md_elements.td which covers headings, inline markup, code, math,
+  // blockquotes, tables, lists, containers, links
+
+  #[test]
+  fn html_export_simple_paragraph() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert_eq!(exported.content, "<p>Hello world</p>\n");
+  }
+
+  #[test]
+  fn html_export_headings() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<h1 id=\"heading-1\">Heading 1 <a class=\"header-anchor\" href=\"#heading-1\"")
+    );
+    assert!(
+      exported
+        .content
+        .contains("<h2 id=\"heading-2\">Heading 2 <a class=\"header-anchor\" href=\"#heading-2\"")
+    );
+    assert_eq!(exported.headings.len(), 2);
+    assert_eq!(exported.headings[0].level, 1);
+    assert_eq!(exported.headings[0].title, "Heading 1");
+    assert_eq!(exported.headings[0].slug, "heading-1");
+    assert_eq!(exported.headings[1].level, 2);
+    assert_eq!(exported.headings[1].slug, "heading-2");
+    assert_eq!(exported.title.as_deref(), Some("Heading 1"));
+  }
+
+  #[test]
+  fn html_export_inline_markup() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("<strong>bold</strong>"));
+    assert!(exported.content.contains("<em>italic</em>"));
+    assert!(
+      exported
+        .content
+        .contains("<strong><em>bold italic</em></strong>")
+    );
+    assert!(exported.content.contains("<s>strikethrough</s>"));
+  }
+
+  #[test]
+  fn html_export_inline_code() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("<code>inline code</code>"));
+  }
+
+  #[test]
+  fn html_export_code_block_placeholder() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains(
+      "<pre class=\"td-code-placeholder\" data-lang=\"python\" data-meta=\"python\"><code>print(&quot;hello&quot;)"
+    ));
+    assert!(exported.content.contains(
+      "<pre class=\"td-code-placeholder\" data-lang=\"js\" data-meta=\"js{1,3}\"><code>const x = 1;"
+    ));
+  }
+
+  #[test]
+  fn html_export_inline_math_placeholder() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<span class=\"td-math-inline\">E = mc^2</span>")
+    );
+  }
+
+  #[test]
+  fn html_export_math_block_placeholder() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<div class=\"td-math-block\">\\int_0^\\infty e^{-x^2} dx")
+    );
+  }
+
+  #[test]
+  fn html_export_blockquote() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<blockquote>\n<p>blockquote line</p>\n</blockquote>")
+    );
+  }
+
+  #[test]
+  fn html_export_table() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("<table tabindex=\"0\">"));
+    assert!(exported.content.contains("<th>"));
+    assert!(exported.content.contains("Col1"));
+    assert!(exported.content.contains("Col2"));
+    assert!(exported.content.contains("<td>"));
+    // Cells are now properly split into separate th/td elements
+    let th_count = exported.content.matches("<th>").count();
+    let td_count = exported.content.matches("<td>").count();
+    assert_eq!(th_count, 2, "should have 2 header cells");
+    assert_eq!(td_count, 2, "should have 2 data cells");
+  }
+
+  #[test]
+  fn html_export_bullet_list() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("<ul>\n<li>"));
+    assert!(exported.content.contains("bullet one"));
+    assert!(exported.content.contains("bullet two"));
+  }
+
+  #[test]
+  fn html_export_ordered_list() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("<ol>\n<li>"));
+    assert!(exported.content.contains("ordered one"));
+  }
+
+  #[test]
+  fn html_export_callout_container() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains(
+      "<div class=\"note custom-block\"><p class=\"custom-block-title custom-block-title-default\">NOTE</p>"
+    ));
+    assert!(exported.content.contains("<p>callout content</p>"));
+  }
+
+  #[test]
+  fn html_export_details_container() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<details class=\"details custom-block\"><summary>Click to expand</summary>")
+    );
+    assert!(exported.content.contains("<p>details content</p>"));
+  }
+
+  #[test]
+  fn html_export_external_link() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains(
+      "<LucideIcon name=\"arrow-up-right\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noreferrer\">link text</a>"
+    ));
+  }
+
+  #[test]
+  fn html_export_container_shorthand() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_shorthand.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("<toc />\n"));
+    assert!(exported.content.contains("<directory-index />\n"));
+    assert!(exported.content.contains("<grid cols=\"2\" />\n"));
+  }
+
+  #[test]
+  fn html_export_blob_empty() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert_eq!(exported.schema, Some("blob".to_string()));
+    assert!(exported.content.is_empty());
+    assert!(exported.headings.is_empty());
+    assert!(exported.title.is_none());
+  }
+
+  #[test]
+  fn html_export_schema_and_header() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert_eq!(exported.schema, Some("Person".to_string()));
+    assert_eq!(exported.header["name"], "Alice");
+    assert_eq!(exported.header["age"], 30.0);
+  }
+
+  #[test]
+  fn html_export_fref_link() {
+    let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<a href=\"/blog/alice\">Alice</a>")
+    );
+  }
+
+  #[test]
+  fn html_export_fref_image() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_asset_fref.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<img src=\"/icon.svg\" alt=\"icon\" loading=\"lazy\">")
+    );
+  }
+
+  #[test]
+  fn html_export_no_raw_markdown() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(!exported.content.contains("\n> "));
+    assert!(!exported.content.contains("\n- "));
+    assert!(!exported.content.contains("\n1. "));
+    assert!(!exported.content.contains("**"));
+    assert!(!exported.content.contains("~~"));
+  }
+
+  #[test]
+  fn html_export_heading_slugs_unique() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let slugs: Vec<&str> = exported.headings.iter().map(|h| h.slug.as_str()).collect();
+    let mut deduped = slugs.clone();
+    deduped.sort();
+    deduped.dedup();
+    assert_eq!(
+      slugs.len(),
+      deduped.len(),
+      "slugs should be unique: {:?}",
+      slugs
+    );
   }
 }

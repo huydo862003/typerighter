@@ -4,9 +4,6 @@ import {
   type TdBuiltResource, type TdDiagnosticReport, type TdFormatResult, type TdSidebarItem, type TdSiteConfig,
   type TdSchemaInfo,
 } from '@typerighter/rpc-client';
-import {
-  createMarkdownRenderer, type MarkdownRenderer,
-} from './markdown';
 import type {
   SchemaGroups,
 } from '@/shared';
@@ -15,11 +12,9 @@ import type {
 // This is fine: `typedown.yaml` should be at project root + user can run within any dir nested in the project root
 export class TypedownContext {
   private client: RpcClient;
-  private _md: MarkdownRenderer;
 
-  constructor (client: RpcClient, md: MarkdownRenderer) {
+  constructor (client: RpcClient) {
     this.client = client;
-    this._md = md;
     this.registerNotificationHandlers(client);
   }
 
@@ -30,22 +25,9 @@ export class TypedownContext {
   private cachedSchemaMap = new Map<string, TdSchemaInfo>();
   private cachedFileMap = new Map<string, TdBuiltResource>();
 
-  private configVersion = 0;
-
   private registerNotificationHandlers (client: RpcClient) {
     client.onConfigChanged((config: TdSiteConfig) => {
       this.cachedConfig = config;
-      // Recreate the markdown renderer with the new config (e.g. basePath may have changed)
-      const version = ++this.configVersion;
-
-      createMarkdownRenderer(config).then((newMd) => {
-        if (this.configVersion === version) {
-          this._md = newMd;
-        }
-      })
-        .catch((error) => {
-          console.error(`Failed to recreate markdown renderer: ${error}`);
-        });
     });
 
     client.onContentChanged(({
@@ -189,10 +171,6 @@ export class TypedownContext {
 
   async formatFile (filepath: string): Promise<TdFormatResult> {
     return withRetry(() => this.rpc.formatFile(filepath));
-  }
-
-  get md (): MarkdownRenderer {
-    return this._md;
   }
 }
 

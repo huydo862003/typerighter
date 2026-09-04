@@ -6,7 +6,7 @@ name: "Alice"
 
 ## Heading 2
 
-Plain paragraph with **bold** and _italic_ and ***bold italic*** and ~strikethrough~.
+Plain paragraph with **bold** and _italic_ and ***bold italic*** and ~~strikethrough~~.
 
 `inline code`
 

@@ -26,7 +26,8 @@ use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
 use typedown_lang::integrations::export::{
-  export_property_descriptors, export_resource, export_resource_meta, resolve_schema_label,
+  export_property_descriptors, export_resource_html, export_resource_meta, export_resource_summary,
+  resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -40,8 +41,9 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::{
   CANCELLED_ERROR_CODE, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
-  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdIcon,
-  TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSidebarItem, TdSiteConfig,
+  TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdHeading,
+  TdIcon, TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSidebarItem,
+  TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -327,7 +329,7 @@ impl RpcServer {
           )
         })?;
 
-        let exported = export_resource(db, project, *file).ok_or_else(|| {
+        let exported = export_resource_html(db, project, *file).ok_or_else(|| {
           ErrorObjectOwned::owned(
             INVALID_PARAMS_CODE,
             format!("File is not a resource: {file_path}"),
@@ -344,6 +346,16 @@ impl RpcServer {
           icon: exported.icon.map(|i| TdIcon { name: i.name }),
           header: exported.header,
           content: exported.content,
+          headings: exported
+            .headings
+            .into_iter()
+            .map(|h| TdHeading {
+              level: h.level,
+              title: h.title,
+              slug: h.slug,
+            })
+            .collect(),
+          title: exported.title,
           metadata: TdFileMetadata {
             mtime: exported.metadata.mtime,
             ctime: exported.metadata.ctime,
@@ -402,21 +414,20 @@ impl RpcServer {
           continue;
         }
         let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-        if let Some(exported) = export_resource(db, project, *file) {
-          let group_key = exported.schema.clone().unwrap_or_default();
-          let schema_label = get_schema_label(db, project, exported.schema.as_deref());
-          let excerpt = extract_excerpt(&exported.content);
+        if let Some(summary) = export_resource_summary(db, project, *file) {
+          let group_key = summary.schema.clone().unwrap_or_default();
+          let schema_label = get_schema_label(db, project, summary.schema.as_deref());
           groups.entry(group_key).or_default().push(TdContentSummary {
             filepath: relative,
-            schema: exported.schema,
+            schema: summary.schema,
             schema_label,
-            label: exported.label,
-            icon: exported.icon.map(|i| TdIcon { name: i.name }),
-            header: exported.header,
-            excerpt,
+            label: summary.label,
+            icon: summary.icon.map(|i| TdIcon { name: i.name }),
+            header: summary.header,
+            excerpt: summary.excerpt,
             metadata: TdFileMetadata {
-              mtime: exported.metadata.mtime,
-              ctime: exported.metadata.ctime,
+              mtime: summary.metadata.mtime,
+              ctime: summary.metadata.ctime,
             },
           });
         }
@@ -857,83 +868,4 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
   ) -> TdRpcSubscriptionCloseResponse {
     run_subscription(pending, self.events.config_changed_tx.subscribe()).await
   }
-}
-
-// Extract the first non-empty paragraph from markdown content as a plain text excerpt
-fn extract_excerpt(content: &str) -> Option<String> {
-  for line in content.lines() {
-    let trimmed = line.trim();
-    // Skip blank lines, headings, lists, code fences, HTML, containers
-    if trimmed.is_empty()
-      || trimmed.starts_with('#')
-      || trimmed.starts_with('-')
-      || trimmed.starts_with('*')
-      || trimmed.starts_with('>')
-      || trimmed.starts_with("```")
-      || trimmed.starts_with(":::")
-      || trimmed.starts_with('<')
-      || trimmed.starts_with('|')
-      || trimmed.starts_with("[[")
-    {
-      continue;
-    }
-    // Strip inline markdown: bold, italic, links, code
-    let plain = trimmed
-      .replace("**", "")
-      .replace("__", "")
-      .replace('*', "")
-      .replace('_', " ");
-    // Strip markdown links [text](url) -> text
-    let plain = regex_replace_links(&plain);
-    let plain = plain.trim().to_string();
-    if plain.is_empty() {
-      continue;
-    }
-    return Some(plain);
-  }
-  None
-}
-
-// Replace [text](url) with text
-fn regex_replace_links(s: &str) -> String {
-  let mut result = String::with_capacity(s.len());
-  let mut chars = s.chars().peekable();
-  while let Some(c) = chars.next() {
-    if c == '[' {
-      let mut text = String::new();
-      let mut found_close = false;
-      for inner in chars.by_ref() {
-        if inner == ']' {
-          found_close = true;
-          break;
-        }
-        text.push(inner);
-      }
-      if found_close && chars.peek() == Some(&'(') {
-        chars.next(); // skip (
-        let mut depth = 1;
-        for inner in chars.by_ref() {
-          if inner == '(' {
-            depth += 1;
-          }
-          if inner == ')' {
-            depth -= 1;
-            if depth == 0 {
-              break;
-            }
-          }
-        }
-        result.push_str(&text);
-      } else {
-        result.push('[');
-        result.push_str(&text);
-        if found_close {
-          result.push(']');
-        }
-      }
-    } else {
-      result.push(c);
-    }
-  }
-  result
 }

@@ -1,28 +1,3 @@
-/* Based on https://github.com/vuejs/vitepress/blob/main/types/shared.d.ts
- *
- * Commit: 2fa0ded
- * */
-// Manually declaring all properties as rollup-plugin-dts
-// is unable to merge augmented module declarations
-export interface MarkdownEnv {
-  /**
-   * Populated by `@mdit-vue/plugin-headers`
-   */
-  headers?: MarkdownHeading[];
-  /**
-   * The title that extracted by `@mdit-vue/plugin-title`
-   */
-  title?: string;
-  path: string;
-  relativePath: string;
-  cleanUrls: boolean;
-  links?: string[];
-  linkLines?: number[];
-  includes?: string[];
-  realPath?: string;
-  localeIndex?: string;
-}
-
 export interface MarkdownHeading {
   /**
    * The level of the header

@@ -173,7 +173,7 @@ pub struct TdSidebarItem {
   pub metadata: TdFileMetadata,
 }
 
-/// Structured build result: Header (frontmatter) and content (commonmark body)
+/// Structured build result: header (frontmatter), HTML content, and extracted headings
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
@@ -192,9 +192,26 @@ pub struct TdBuiltResource {
   pub icon: Option<TdIcon>,
   #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub header: serde_json::Value,
+  /// HTML body with placeholders for code/math post-processing
   pub content: String,
+  /// Headings extracted during HTML emission
+  pub headings: Vec<TdHeading>,
+  /// Page title extracted from the first h1
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
   /// File metadata
   pub metadata: TdFileMetadata,
+}
+
+/// Heading extracted from page content
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi))]
+pub struct TdHeading {
+  pub level: u32,
+  pub title: String,
+  pub slug: String,
 }
 
 /// Page icon

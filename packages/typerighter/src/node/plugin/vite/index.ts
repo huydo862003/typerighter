@@ -539,16 +539,11 @@ async function fetchSiteData (context: TypedownContext): Promise<{
 async function getPageIndexInput (context: TypedownContext, filepath: string): Promise<PageIndexInput | undefined> {
   try {
     const resource = await context.getFile(filepath);
-    const html = await context.md.renderAsync(resource.content, {
-      path: filepath,
-      relativePath: filepath,
-      cleanUrls: true,
-    });
 
     return {
       id: getTdContentUrl(filepath),
       title: getTdResourceTitle(filepath, resource.label),
-      html,
+      html: resource.content,
     };
   } catch {
     return undefined;
