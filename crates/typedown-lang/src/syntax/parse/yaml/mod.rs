@@ -78,6 +78,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.emit(SyntaxKind::YamlFrontmatter, &children)
   }
 
+  /* YAML frontmatter body */
   // Expects --- delimiters, ends on --- or EOF
   pub(in crate::syntax::parse) fn parse_yaml_frontmatter_body(
     &mut self,
