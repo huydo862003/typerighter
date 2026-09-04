@@ -1,10 +1,11 @@
 //! Shared type compatibility utilities for typechecking
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::get_builtin_types::get_null_type;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::fields_compatible;
 use crate::db::types::{
-  LazyType, TdExistentialType, TdSchemaType, TdTypeEnum, TypeParams, TypeVariable,
+  LazyType, TdExistentialType, TdSchemaType, TdSumType, TdTypeEnum, TypeParams, TypeVariable,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use std::collections::{HashMap, HashSet};
@@ -406,6 +407,13 @@ fn is_subtype_of_env<'db>(
       are_type_args_compatible(db, subtype, supertype, env)
     }
   }
+}
+
+// Wrap a type in Sum(T, null)
+pub fn make_nullable<'db>(db: &'db TypedownDatabase, typ: TdTypeEnum<'db>) -> TdTypeEnum<'db> {
+  let null_type: TdTypeEnum = get_null_type(db).into();
+  let members = HashSet::from([LazyType::eager(typ), LazyType::eager(null_type)]);
+  TdSumType::new(db, members).into()
 }
 
 // Check if a type includes null

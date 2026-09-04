@@ -2,4 +2,4 @@ version: "1"
 vault:
   root_dir: "."
 site:
-  base_path: /blog
+  base_path: "/blog"

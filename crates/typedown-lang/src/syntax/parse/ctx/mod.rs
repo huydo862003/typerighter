@@ -22,12 +22,11 @@ pub struct ParseCtx<S: Utf8Stream> {
   pub(in crate::syntax::parse) lex_ctx: PeekableLexCtx<S>,
   pub(in crate::syntax::parse) diagnostics: Vec<Diagnostic>,
   pub(in crate::syntax::parse) expr_ctx_stack: ExprCtxStack,
-  ast: Option<GreenNode>,
 }
 
-pub struct ParseResult<'a> {
+pub struct ParseResult {
   pub ast: GreenNode,
-  pub diagnostics: &'a [Diagnostic],
+  pub diagnostics: Vec<Diagnostic>,
 }
 
 impl<S: Utf8Stream> ParseCtx<S> {
@@ -38,23 +37,25 @@ impl<S: Utf8Stream> ParseCtx<S> {
       lex_ctx: PeekableLexCtx::new(LexCtx::new(stream, cache)),
       diagnostics: Vec::new(),
       expr_ctx_stack,
-      ast: None,
     }
   }
 
-  pub fn parse<'a>(&'a mut self) -> ParseResult<'a> {
-    if let Some(ref ast) = self.ast {
-      ParseResult {
-        ast: ast.clone(),
-        diagnostics: &self.diagnostics,
-      }
-    } else {
-      let root = self.parse_source_file();
-      self.ast = Some(root.clone());
-      ParseResult {
-        ast: root,
-        diagnostics: &self.diagnostics,
-      }
+  // Consumes the parser, returns the source file AST (frontmatter + markdown body)
+  pub fn parse(mut self) -> ParseResult {
+    let root = self.parse_source_file();
+    ParseResult {
+      ast: root,
+      diagnostics: self.diagnostics,
+    }
+  }
+
+  // Consumes the parser, returns a bare YAML document AST (no --- delimiters)
+  pub fn parse_yaml_document(mut self) -> ParseResult {
+    let yaml_document = self.parse_yaml_document_body();
+    let root = self.emit(SyntaxKind::SourceFile, &[yaml_document]);
+    ParseResult {
+      ast: root,
+      diagnostics: self.diagnostics,
     }
   }
 

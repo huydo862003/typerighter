@@ -34,15 +34,39 @@ pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Typechec
     },
   };
 
-  // Validate structure based on the node kind
+  diagnostics.extend(typecheck_body(db, hir, &declared_type));
+  TypecheckResult::new(db, diagnostics)
+}
+
+// Typecheck a HIR node against an externally provided expected type
+pub fn typecheck_with_expected<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  expected_type: &TdTypeEnum<'db>,
+) -> TypecheckResult<'db> {
+  let type_result = actual_node_type(db, hir);
+  let mut diagnostics = type_result.diagnostics(db).clone();
+
+  diagnostics.extend(typecheck_body(db, hir, expected_type));
+  TypecheckResult::new(db, diagnostics)
+}
+
+// Validate structure based on the node kind
+fn typecheck_body<'db>(
+  db: &'db TypedownDatabase,
+  hir: HirValue<'db>,
+  declared_type: &TdTypeEnum<'db>,
+) -> Vec<Diagnostic> {
+  let mut diagnostics = vec![];
+
   match hir.kind(db) {
     // Check mapping fields against declared schema type
     HirValueKind::Mapping(entries) => {
-      diagnostics.extend(check_mapping_fields(db, hir, &entries, &declared_type));
+      diagnostics.extend(check_mapping_fields(db, hir, &entries, declared_type));
     }
     // Check tag inner matches the tag's schema
     HirValueKind::Tag { inner, .. } => {
-      diagnostics.extend(check_tag(db, &declared_type, *inner));
+      diagnostics.extend(check_tag(db, declared_type, *inner));
     }
     // Check call arity and arg types against function signature
     HirValueKind::Call { callee, args } => {
@@ -50,7 +74,7 @@ pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Typechec
     }
     // Check each item against the list's element type
     HirValueKind::Sequence(items) => {
-      diagnostics.extend(check_sequence(db, &declared_type, items));
+      diagnostics.extend(check_sequence(db, declared_type, items));
     }
     // Typecheck each embedded expression in an interpolated string
     HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
@@ -85,7 +109,7 @@ pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Typechec
     _ => {}
   }
 
-  TypecheckResult::new(db, diagnostics)
+  diagnostics
 }
 
 fn check_mapping_fields<'db>(

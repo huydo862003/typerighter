@@ -1112,3 +1112,81 @@ fn unquoted_multiword_value_has_parse_error() {
     "unquoted multi-word value should produce parse errors, got none"
   );
 }
+
+// Bare YAML document (no --- delimiters)
+
+fn parse_document(input: &str) -> String {
+  let (ast, _) = parse_yaml_document(input);
+  let root = ast.as_node().unwrap();
+  let frontmatter = &root.children()[0];
+  render_tree(frontmatter)
+}
+
+fn parse_document_with_diagnostics(input: &str) -> (String, Vec<Diagnostic>) {
+  let (ast, diagnostics) = parse_yaml_document(input);
+  let root = ast.as_node().unwrap();
+  let frontmatter = &root.children()[0];
+  (render_tree(frontmatter), diagnostics)
+}
+
+#[test]
+fn document_empty() {
+  let tree = parse_document("");
+  assert_eq!(tree, "(YamlFrontmatter)");
+}
+
+#[test]
+fn document_simple_mapping() {
+  let (tree, diags) = parse_document_with_diagnostics("key: value\n");
+  assert!(diags.is_empty(), "unexpected diagnostics: {diags:?}");
+  assert!(
+    tree.contains("YamlMapping"),
+    "should contain a mapping: {tree}"
+  );
+  assert!(
+    tree.contains("YamlMappingEntry"),
+    "should contain entries: {tree}"
+  );
+  assert!(tree.contains(r#""key""#), "should contain key: {tree}");
+  assert!(tree.contains(r#""value""#), "should contain value: {tree}");
+}
+
+#[test]
+fn document_nested_mapping() {
+  let (tree, diags) = parse_document_with_diagnostics(
+    r#"site:
+  title: "My Site"
+  description: "A description"
+"#,
+  );
+  assert!(diags.is_empty(), "unexpected diagnostics: {diags:?}");
+  assert!(
+    tree.contains(r#""site""#),
+    "should contain site key: {tree}"
+  );
+  assert!(
+    tree.contains(r#""My Site""#),
+    "should contain title value: {tree}"
+  );
+}
+
+#[test]
+fn document_matches_frontmatter_structure() {
+  let input = r#"version: "1.0.0"
+repo: "https://github.com/test"
+"#;
+
+  let bare_tree = parse_document(input);
+  let fm_tree = parse_frontmatter(input);
+
+  assert!(bare_tree.contains("YamlMapping"), "bare: {bare_tree}");
+  assert!(fm_tree.contains("YamlMapping"), "frontmatter: {fm_tree}");
+  assert!(
+    bare_tree.contains(r#""version""#),
+    "bare should have version: {bare_tree}"
+  );
+  assert!(
+    fm_tree.contains(r#""version""#),
+    "frontmatter should have version: {fm_tree}"
+  );
+}

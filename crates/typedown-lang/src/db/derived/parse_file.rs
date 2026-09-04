@@ -22,18 +22,11 @@ pub fn parse_file<'db>(
   let stream = handle.open().expect("failed to open file");
 
   let cache = green_cache();
-  let mut ctx = ParseCtx::new(stream, cache);
+  let ctx = ParseCtx::new(stream, cache);
   let ParseResult { diagnostics, ast } = ctx.parse();
 
   let root = RedNode::new_root(ast.as_node().expect("AST root must be a node").clone());
-  FileAstResult::new(
-    db,
-    file.handle(db),
-    project,
-    file,
-    root,
-    diagnostics.to_vec(),
-  )
+  FileAstResult::new(db, file.handle(db), project, file, root, diagnostics)
 }
 
 #[cfg(test)]
