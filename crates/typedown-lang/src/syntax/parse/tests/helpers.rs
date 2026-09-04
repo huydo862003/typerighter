@@ -15,6 +15,7 @@ pub(crate) fn parse(input: &str) -> (GreenNode, Vec<Diagnostic>) {
   (ast, diagnostics)
 }
 
+// Parse a bare YAML file (no --- delimiters, EOF-terminated)
 pub(crate) fn parse_yaml_document(input: &str) -> (GreenNode, Vec<Diagnostic>) {
   let stream = StringStream::new(input);
   let cache = Rc::new(RefCell::new(Cache::new()));
