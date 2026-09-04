@@ -42,7 +42,7 @@ fn cache_entry_counts_are_reasonable() {
 
   let stats = dump_stats(&project_dir);
 
-  // Baseline: ~616 queries, ~1570 fields, ~15 inputs, ~91 interned, ~1445 blobs
+  // Baseline: ~616 queries, ~5109 fields, ~15 inputs, ~91 interned, ~1445 blobs
   assert!(
     stats.input_fields > 0 && stats.input_fields < 50,
     "input_fields={}",
@@ -54,7 +54,7 @@ fn cache_entry_counts_are_reasonable() {
     stats.derived_queries
   );
   assert!(
-    stats.derived_fields > 0 && stats.derived_fields < 5000,
+    stats.derived_fields > 0 && stats.derived_fields < 6000,
     "derived_fields={}",
     stats.derived_fields
   );

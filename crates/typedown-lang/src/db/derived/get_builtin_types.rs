@@ -3,13 +3,15 @@
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use crate::db::typecheck::utils::make_nullable;
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, LazyType, LiteralValue, Symbol, SymbolKind, TdBlobType,
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdIconType,
   TdListType, TdLiteralType, TdMathType, TdNeverType, TdNullObj, TdNullType, TdNumType,
-  TdObjectType, TdSchemaMetaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum, TdTypeType,
+  TdObjectType, TdProductType, TdSchemaMetaType, TdStrType, TdSumType, TdTimeType, TdTypeEnum,
+  TdTypeType,
 };
 use typedown_incremental::{QueryDatabase, StableCompare};
 
@@ -273,6 +275,63 @@ pub fn get_sum_type<'db>(db: &'db TypedownDatabase, members: Vec<LazyType<'db>>)
   }
 }
 
+// Built-in config type for typedown.yaml structural validation
+#[query_derived]
+pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
+  let str_type: TdTypeEnum = get_str_type(db).into();
+  let optional_str = make_nullable(db, str_type.clone());
+
+  let vault_fields = HashMap::from([(
+    "root_dir".to_string(),
+    LazyType::eager(optional_str.clone()),
+  )]);
+  let vault_type: TdTypeEnum =
+    TdProductType::new(db, Some("vault".to_string()), vault_fields).into();
+
+  let nav_item_fields = HashMap::from([
+    ("text".to_string(), LazyType::eager(str_type.clone())),
+    ("link".to_string(), LazyType::eager(str_type.clone())),
+  ]);
+  let nav_item_type: TdTypeEnum = TdProductType::new(db, None, nav_item_fields).into();
+  let nav_list_type: TdTypeEnum = TdListType::new(db, Some(LazyType::eager(nav_item_type))).into();
+  let optional_nav = make_nullable(db, nav_list_type);
+
+  let site_fields = HashMap::from([
+    ("title".to_string(), LazyType::eager(optional_str.clone())),
+    (
+      "description".to_string(),
+      LazyType::eager(optional_str.clone()),
+    ),
+    (
+      "base_path".to_string(),
+      LazyType::eager(optional_str.clone()),
+    ),
+    ("author".to_string(), LazyType::eager(optional_str.clone())),
+    ("license".to_string(), LazyType::eager(optional_str.clone())),
+    (
+      "public_dir".to_string(),
+      LazyType::eager(optional_str.clone()),
+    ),
+    ("nav".to_string(), LazyType::eager(optional_nav)),
+  ]);
+  let site_type: TdTypeEnum = TdProductType::new(db, Some("site".to_string()), site_fields).into();
+
+  let config_fields = HashMap::from([
+    ("version".to_string(), LazyType::eager(str_type)),
+    (
+      "vault".to_string(),
+      LazyType::eager(make_nullable(db, vault_type)),
+    ),
+    ("repo".to_string(), LazyType::eager(optional_str)),
+    (
+      "site".to_string(),
+      LazyType::eager(make_nullable(db, site_type)),
+    ),
+  ]);
+
+  TdProductType::new(db, Some("config".to_string()), config_fields)
+}
+
 #[cfg(test)]
 mod tests {
   use super::{get_bool_type, get_sum_type};
@@ -283,7 +342,9 @@ mod tests {
 
   use crate::db::{
     QueryStorage, TypedownDatabase,
-    derived::get_builtin_types::{get_dict_type, get_list_type, get_num_type, get_str_type},
+    derived::get_builtin_types::{
+      get_config_type, get_dict_type, get_list_type, get_num_type, get_str_type,
+    },
   };
 
   fn make_db() -> TypedownDatabase {
@@ -456,5 +517,67 @@ mod tests {
     assert!(members.contains(&str_t));
     assert!(members.contains(&num_t));
     assert!(members.contains(&bool_t));
+  }
+
+  #[test]
+  fn config_type_has_expected_fields() {
+    let db = make_db();
+    let config = get_config_type(&db);
+    let fields = config.fields(&db);
+
+    assert!(fields.contains_key("version"), "missing version");
+    assert!(fields.contains_key("vault"), "missing vault");
+    assert!(fields.contains_key("repo"), "missing repo");
+    assert!(fields.contains_key("site"), "missing site");
+    assert_eq!(fields.len(), 4, "unexpected field count");
+  }
+
+  #[test]
+  fn config_version_is_required() {
+    use crate::db::typecheck::utils::is_nullable;
+
+    let db = make_db();
+    let config = get_config_type(&db);
+    let fields = config.fields(&db);
+
+    let version_type = fields["version"].resolve(&db).unwrap();
+    assert!(
+      !is_nullable(&db, &version_type),
+      "version should not be nullable"
+    );
+  }
+
+  #[test]
+  fn config_site_has_expected_fields() {
+    let db = make_db();
+    let config = get_config_type(&db);
+    let fields = config.fields(&db);
+
+    let site_type = fields["site"].resolve(&db).unwrap();
+    // site is nullable, unwrap the sum to get the product
+    let site_product = if let TdTypeEnum::TdSumType(sum) = &site_type {
+      sum
+        .members(&db)
+        .iter()
+        .find_map(|m| {
+          let resolved = m.resolve(&db)?;
+          resolved.as_td_product_type().cloned()
+        })
+        .expect("site sum should contain a product type")
+    } else {
+      panic!("site should be a sum type (nullable)")
+    };
+
+    let site_fields = site_product.fields(&db);
+    assert!(site_fields.contains_key("title"), "missing title");
+    assert!(
+      site_fields.contains_key("description"),
+      "missing description"
+    );
+    assert!(site_fields.contains_key("base_path"), "missing base_path");
+    assert!(site_fields.contains_key("author"), "missing author");
+    assert!(site_fields.contains_key("license"), "missing license");
+    assert!(site_fields.contains_key("public_dir"), "missing public_dir");
+    assert!(site_fields.contains_key("nav"), "missing nav");
   }
 }

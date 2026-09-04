@@ -1240,7 +1240,7 @@ properties:
         config_path.clone(),
         r#"version: "1.0.0"
 vault:
-  root_dir: vault
+  root_dir: "vault"
 "#
         .to_string(),
         meta(),

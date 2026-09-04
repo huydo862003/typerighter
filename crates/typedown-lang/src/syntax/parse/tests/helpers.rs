@@ -10,9 +10,18 @@ use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
 pub(crate) fn parse(input: &str) -> (GreenNode, Vec<Diagnostic>) {
   let stream = StringStream::new(input);
   let cache = Rc::new(RefCell::new(Cache::new()));
-  let mut ctx = ParseCtx::new(stream, cache);
+  let ctx = ParseCtx::new(stream, cache);
   let ParseResult { diagnostics, ast } = ctx.parse();
-  (ast, diagnostics.to_vec())
+  (ast, diagnostics)
+}
+
+// Parse a bare YAML file (no --- delimiters, EOF-terminated)
+pub(crate) fn parse_yaml_document(input: &str) -> (GreenNode, Vec<Diagnostic>) {
+  let stream = StringStream::new(input);
+  let cache = Rc::new(RefCell::new(Cache::new()));
+  let ctx = ParseCtx::new(stream, cache);
+  let ParseResult { diagnostics, ast } = ctx.parse_yaml_document();
+  (ast, diagnostics)
 }
 
 /// Render a green tree in multiline lisp format
