@@ -76,20 +76,32 @@ export class TypedownContext {
   /* File operations */
 
   async getFile (filepath: string): Promise<TdBuiltResource> {
-    return withRetry(() => this.rpc.requestFile(filepath));
+    const cached = this.cachedFileMap.get(filepath);
+
+    if (cached) return cached;
+
+    const result = await withRetry(() => this.rpc.requestFile(filepath));
+
+    this.cachedFileMap.set(filepath, result);
+
+    return result;
   }
 
   async getFiles (paths: string[]): Promise<TdBuiltResource[]> {
-    const results = await withRetry(() => this.rpc.requestFiles(paths));
+    const uncached = paths.filter((filepath) => !this.cachedFileMap.has(filepath));
 
-    for (const [
-      index,
-      filepath,
-    ] of paths.entries()) {
-      this.cachedFileMap.set(filepath, results[index]);
+    if (0 < uncached.length) {
+      const results = await withRetry(() => this.rpc.requestFiles(uncached));
+
+      for (const [
+        index,
+        filepath,
+      ] of uncached.entries()) {
+        this.cachedFileMap.set(filepath, results[index]);
+      }
     }
 
-    return results;
+    return paths.map((filepath) => this.cachedFileMap.get(filepath)!);
   }
 
   async listFiles (): Promise<string[]> {
