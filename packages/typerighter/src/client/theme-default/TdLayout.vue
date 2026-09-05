@@ -95,6 +95,7 @@ function focusSearch () {
     menuSearch.value?.blur();
     sidebarSearch.value?.blur();
     if (isOpen.value) closeMenu();
+
     return;
   }
 

@@ -15,9 +15,6 @@ import {
   renderToVueSfc,
 } from '../../lib/render';
 import {
-  postprocessHtml,
-} from '../../lib/render/postprocess';
-import {
   createAppContext, resolveProjectRoot, type AppContext,
 } from '../../context';
 import {
@@ -25,14 +22,17 @@ import {
   type TypedownContext,
 } from '../../lib/typedown-context';
 import {
+  SearchIndexer,
+} from '../../lib/search-indexer';
+import {
+  indexAllFiles, reindexFile,
+} from '../../lib/search-indexer/scan';
+import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
   PAGES_ID, RESOLVED_PAGES_ID,
   SITE_DATA_ID, RESOLVED_SITE_DATA_ID,
   SEARCH_INDEX_ID, RESOLVED_SEARCH_INDEX_ID,
 } from './constants';
-import {
-  SearchIndexer, type PageIndexInput,
-} from './search';
 import {
   resolveAliases,
 } from './alias';
@@ -44,8 +44,6 @@ import {
   buildContentTree,
   buildDirectoryListingMap,
   CONTENT_EXTENSIONS,
-  getTdContentUrl,
-  getTdResourceTitle,
   path,
   type ContentSummary,
 } from '@/shared';
@@ -74,7 +72,6 @@ export interface ClientAppEntryOptions {
 }
 
 export interface TypedownPluginCache {
-  searchIndex: Promise<void> | undefined;
   siteData: ReturnType<typeof fetchSiteData> | undefined;
   devHtml: string | undefined;
   basePath: string;
@@ -173,7 +170,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   const searchIndexer = new SearchIndexer();
 
   const cache: TypedownPluginCache = {
-    searchIndex: undefined,
     siteData: undefined,
     devHtml: undefined,
     basePath: '/',
@@ -264,14 +260,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     // Serve virtual modules
     async load (id) {
       if (id === RESOLVED_SEARCH_INDEX_ID) {
-        if (!cache.searchIndex) {
-          const tdContext = await resolveTdContext();
-
-          cache.searchIndex = indexAllPages(tdContext, searchIndexer);
-        }
-
-        await cache.searchIndex;
-
         return `export default ${JSON.stringify(searchIndexer.serialize())}`;
       }
 
@@ -308,7 +296,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const tdContext = await resolveTdContext();
 
       // Prefetch eagerly so data is ready by the time virtual modules are loaded
-      cache.searchIndex = indexAllPages(tdContext, searchIndexer);
+      const config = await tdContext.getConfig();
+      const rootDirectory = resolve(config.rootDir);
+
+      indexAllFiles(rootDirectory, searchIndexer);
       cache.siteData = fetchSiteData(tdContext);
 
       // Print vault diagnostics after the server URL is shown
@@ -339,15 +330,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       }) => {
         if (!server) return;
 
-        // Incrementally re-index the changed file
-        getPageIndexInput(tdContext, content)
-          .then((page) => {
-            if (page && server) {
-              searchIndexer.addPage(page);
-              invalidateSearchIndex(server);
-            }
-          })
-          .catch(() => {});
+        // Re-index the changed file from disk
+        reindexFile(rootDirectory, content, searchIndexer);
+        invalidateSearchIndex(server);
 
         tdContext.getConfig()
           .then((config) => {
@@ -380,10 +365,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       // Full re-index when files are added or removed
       function handleContentListChange () {
         if (!server) return;
-        cache.searchIndex = indexAllPages(tdContext, searchIndexer);
-        cache.searchIndex.then(() => {
-          if (server) invalidateSearchIndex(server);
-        });
+        indexAllFiles(rootDirectory, searchIndexer);
+        invalidateSearchIndex(server);
         cache.siteData = undefined;
         invalidatePages(server);
         invalidateSiteData(server);
@@ -546,22 +529,6 @@ async function fetchSiteData (context: TypedownContext): Promise<{
   };
 }
 
-// Render a single file into a PageIndexInput for the search indexer
-async function getPageIndexInput (context: TypedownContext, filepath: string): Promise<PageIndexInput | undefined> {
-  try {
-    const resource = await context.getFile(filepath);
-    const html = await postprocessHtml(resource.content);
-
-    return {
-      id: getTdContentUrl(filepath),
-      title: getTdResourceTitle(filepath, resource.label),
-      html,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
 // Get all .td modules from the module graph
 function getTdModules (server: ViteDevServer) {
   return [...server.moduleGraph.idToModuleMap.entries()]
@@ -597,14 +564,6 @@ function hmrInvalidateAll (server: ViteDevServer): void {
       updates,
     });
   }
-}
-
-// Fetch all pages as search index inputs
-async function indexAllPages (context: TypedownContext, indexer: SearchIndexer): Promise<void> {
-  const files = await context.listFiles();
-  const pages = await Promise.all(files.map((filepath) => getPageIndexInput(context, filepath)));
-
-  indexer.addAll(pages.filter((page): page is PageIndexInput => page !== undefined));
 }
 
 // Invalidate the pages virtual module so import.meta.glob re-scans the filesystem
