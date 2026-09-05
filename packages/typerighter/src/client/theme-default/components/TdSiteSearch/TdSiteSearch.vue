@@ -46,7 +46,7 @@ const {
   withBase,
 } = useSiteConfig();
 const {
-  results, searching, search, cancel,
+  results, searching, indexLoaded, search, cancel,
 } = useSiteSearch();
 const selectedIndex = ref(-1);
 const isSearchActive = computed(() => 0 < query.value.trim().length);
@@ -184,7 +184,7 @@ defineExpose({
         class="td-search-kbd"
       />
       <LoaderCircle
-        v-if="searching"
+        v-if="searching || !indexLoaded"
         :size="12"
         class="td-search-spinner"
       />

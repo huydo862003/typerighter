@@ -62,6 +62,8 @@ export interface TypedownSiteConfig {
 }
 
 export interface TypedownSiteData {
+  /** Whether the data has been fetched from the server */
+  ready: boolean;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
   /** Serialized MiniSearch index for full-text search */
@@ -101,6 +103,7 @@ export async function createTypedownApp (
   };
 
   const siteData = shallowRef<TypedownSiteData>({
+    ready: data.ready ?? false,
     contentTree: data.contentTree ?? {
       entries: [],
     },
@@ -185,6 +188,7 @@ export function useSiteConfig () {
 }
 
 const defaultSiteData = shallowRef<TypedownSiteData>({
+  ready: false,
   contentTree: {
     entries: [],
   },

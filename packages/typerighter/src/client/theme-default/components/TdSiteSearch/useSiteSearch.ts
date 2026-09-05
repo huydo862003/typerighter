@@ -217,6 +217,7 @@ export function useSiteSearch () {
   return {
     results: results as Readonly<ShallowRef<SearchResult[]>>,
     searching: computed(() => searching.value),
+    indexLoaded: computed(() => searchIndex.value !== undefined),
     search,
     cancel,
   };
