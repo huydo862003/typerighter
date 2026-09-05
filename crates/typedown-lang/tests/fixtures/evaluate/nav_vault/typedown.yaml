@@ -1,0 +1,13 @@
+version: "1"
+vault:
+  root_dir: "."
+site:
+  nav:
+    - title: "Guide"
+      link: "/guide"
+      icon: icon.book
+    - title: "GitHub"
+      link: "https://github.com/example"
+    - title: ""
+      link: "/empty-text"
+    - link: "/no-text"

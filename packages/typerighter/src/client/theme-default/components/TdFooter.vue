@@ -8,22 +8,45 @@ const year = new Date().getFullYear();
 </script>
 
 <template>
-  <footer class="border-t border-td-neutral-border bg-td-neutral-bg">
-    <div class="mx-auto max-w-[1180px] flex items-center justify-between gap-5 flex-wrap px-7 py-6 font-mono text-[length:var(--font-size-td-2xs)] text-td-neutral-fg-muted">
-      <span>
-        Powered by
-        <a
-          href="https://github.com/huydo862003/typerighter"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="font-medium text-td-primary-solid hover:underline"
-        >Typerighter</a>
-      </span>
-      <span v-if="config.author || config.license">
-        <template v-if="config.license">{{ config.license }}</template>
-        <template v-if="config.license && config.author"> · </template>
-        <template v-if="config.author">&copy; {{ year }} {{ config.author }}</template>
-      </span>
-    </div>
+  <footer class="td-footer">
+    <span>
+      Powered by
+      <a
+        href="https://github.com/huydo862003/typerighter"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="td-footer-link"
+      >Typerighter</a>
+    </span>
+    <span v-if="config.author || config.license">
+      <template v-if="config.license">{{ config.license }}</template>
+      <template v-if="config.license && config.author"> · </template>
+      <template v-if="config.author">&copy; {{ year }} {{ config.author }}</template>
+    </span>
   </footer>
 </template>
+
+<style scoped>
+.td-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 1.5rem 24px;
+  border-top: 1px solid var(--color-td-neutral-border);
+  background: var(--color-td-neutral-bg);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  color: var(--color-td-neutral-fg-muted);
+}
+
+.td-footer-link {
+  font-weight: 500;
+  color: var(--color-td-primary-solid);
+}
+
+.td-footer-link:hover {
+  text-decoration: underline;
+}
+</style>

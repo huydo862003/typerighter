@@ -65,6 +65,12 @@ export interface ClientAppEntryOptions {
   author?: string;
   /** License name */
   license?: string;
+  /** Navigation links */
+  nav?: {
+    title: string;
+    link: string;
+    icon?: string;
+  }[];
 }
 
 export interface TypedownPluginCache {
@@ -94,6 +100,7 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
     repo: options.repo,
     author: options.author,
     license: options.license,
+    nav: options.nav,
   });
 
   return `

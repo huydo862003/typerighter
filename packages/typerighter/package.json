@@ -39,6 +39,9 @@
     "./fonts.css": "./dist/fonts.css",
     "./math.css": "./dist/math.css"
   },
+  "sideEffects": [
+    "*.css"
+  ],
   "files": [
     "bin",
     "dist"

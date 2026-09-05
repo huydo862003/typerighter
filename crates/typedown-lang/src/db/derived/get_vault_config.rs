@@ -47,6 +47,17 @@ pub fn get_vault_config<'db>(
   let author = site_str(db, &site, "author");
   let license = site_str(db, &site, "license");
   let public_dir = site_str(db, &site, "public_dir").unwrap_or_else(|| "public".to_string());
+  let nav = extract_nav(db, &site);
+  if nav.len() > 4 {
+    use std::sync::Once;
+    static WARN: Once = Once::new();
+    WARN.call_once(|| {
+      eprintln!(
+        "[typedown] warning: site.nav has {} items (max recommended: 4)",
+        nav.len()
+      );
+    });
+  }
 
   VaultConfigResult::new(
     db,
@@ -59,6 +70,7 @@ pub fn get_vault_config<'db>(
     author,
     license,
     public_dir,
+    nav,
     diagnostics,
   )
 }
@@ -79,6 +91,7 @@ fn empty_config<'db>(
     None,
     None,
     "public".to_string(),
+    Vec::new(),
     diagnostics,
   )
 }
@@ -123,6 +136,39 @@ fn site_str<'db>(
   site.as_ref().and_then(|s| get_str_field(db, s, key))
 }
 
+fn extract_nav<'db>(
+  db: &'db TypedownDatabase,
+  site: &Option<TdObjectEnum<'db>>,
+) -> Vec<(String, String, Option<String>)> {
+  let Some(site) = site else {
+    return Vec::new();
+  };
+  let Some(list) = get_field(db, site, "nav") else {
+    return Vec::new();
+  };
+  let Some(list_obj) = list.as_td_list_obj() else {
+    return Vec::new();
+  };
+
+  let mut items = Vec::new();
+  let Some(len) = list_obj.len(db) else {
+    return items;
+  };
+  for i in 0..len {
+    let Some(item) = list_obj.get(db, i) else {
+      continue;
+    };
+    let title = get_str_field(db, &item, "title").unwrap_or_default();
+    let link = get_str_field(db, &item, "link").unwrap_or_default();
+    let icon =
+      get_field(db, &item, "icon").and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)));
+    if !title.is_empty() && !link.is_empty() {
+      items.push((title, link, icon));
+    }
+  }
+  items
+}
+
 // Normalize and validate base_path
 fn normalize_base_path(raw: &str) -> String {
   let trimmed = raw.trim_end_matches('/');
@@ -141,5 +187,36 @@ fn normalize_base_path(raw: &str) -> String {
     normalized
   } else {
     "/".to_string()
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::db::fixtures::load_vault_fixture;
+
+  use super::*;
+
+  #[test]
+  fn extracts_nav_items() {
+    let (db, project, _) = load_vault_fixture("evaluate/nav_vault", "page.td");
+    let config = get_vault_config(&db, project);
+    let nav = config.nav_items(&db);
+    // Items with empty text or missing text are skipped
+    assert_eq!(nav.len(), 2);
+    // Item with icon
+    assert_eq!(nav[0].0, "Guide");
+    assert_eq!(nav[0].1, "/guide");
+    assert_eq!(nav[0].2, Some("book-open".to_string()));
+    // Item without icon
+    assert_eq!(nav[1].0, "GitHub");
+    assert_eq!(nav[1].1, "https://github.com/example");
+    assert_eq!(nav[1].2, None);
+  }
+
+  #[test]
+  fn empty_nav_when_not_configured() {
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let config = get_vault_config(&db, project);
+    assert!(config.nav_items(&db).is_empty());
   }
 }

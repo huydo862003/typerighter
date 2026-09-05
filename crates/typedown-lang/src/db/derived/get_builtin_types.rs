@@ -288,9 +288,13 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   let vault_type: TdTypeEnum =
     TdProductType::new(db, Some("vault".to_string()), vault_fields).into();
 
+  let icon_type: TdTypeEnum = get_icon_type(db).into();
+  let optional_icon = make_nullable(db, icon_type);
+
   let nav_item_fields = HashMap::from([
-    ("text".to_string(), LazyType::eager(str_type.clone())),
+    ("title".to_string(), LazyType::eager(str_type.clone())),
     ("link".to_string(), LazyType::eager(str_type.clone())),
+    ("icon".to_string(), LazyType::eager(optional_icon)),
   ]);
   let nav_item_type: TdTypeEnum = TdProductType::new(db, None, nav_item_fields).into();
   let nav_list_type: TdTypeEnum = TdListType::new(db, Some(LazyType::eager(nav_item_type))).into();

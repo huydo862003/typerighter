@@ -29,6 +29,8 @@ pub struct VaultConfigResult<'db> {
   author: Option<String>,
   license: Option<String>,
   public_dir: String,
+  // (text, link, icon_name) tuples for StableHash/Encodable/Decodable compatibility
+  nav_items: Vec<(String, String, Option<String>)>,
   diagnostics: Vec<Diagnostic>,
 }
 

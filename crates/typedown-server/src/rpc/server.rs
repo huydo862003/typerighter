@@ -42,8 +42,8 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 use super::contract::{
   CANCELLED_ERROR_CODE, TdBuildRpcServer, TdBuiltResource, TdContentNotification, TdContentSummary,
   TdDiagnosticItem, TdDiagnosticReport, TdFileMetadata, TdFilePath, TdFormatResult, TdHeading,
-  TdIcon, TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification, TdSidebarItem,
-  TdSiteConfig,
+  TdIcon, TdNavItem, TdRpcSubscriptionCloseResponse, TdSchemaInfo, TdSchemaNotification,
+  TdSidebarItem, TdSiteConfig,
 };
 
 enum FsEventKind {
@@ -91,6 +91,15 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
     author: config.author(db).clone(),
     license: config.license(db).clone(),
     public_dir: config.public_dir(db).to_string(),
+    nav: config
+      .nav_items(db)
+      .iter()
+      .map(|(title, link, icon)| TdNavItem {
+        title: title.clone(),
+        link: link.clone(),
+        icon: icon.clone(),
+      })
+      .collect(),
   }
 }
 
