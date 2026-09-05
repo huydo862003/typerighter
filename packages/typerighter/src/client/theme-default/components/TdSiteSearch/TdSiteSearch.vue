@@ -145,8 +145,14 @@ defineExpose({
   focus () {
     searchInput.value?.focus();
   },
+  blur () {
+    searchInput.value?.blur();
+  },
   get isVisible () {
     return searchInput.value?.offsetParent !== null;
+  },
+  get isFocused () {
+    return document.activeElement === searchInput.value;
   },
 });
 </script>
