@@ -26,6 +26,7 @@ import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
 import TdToc from './components/TdToc.vue';
+import TdSkeleton from './components/TdSkeleton.vue';
 import TdSiteSearch from './components/TdSiteSearch/TdSiteSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
@@ -70,6 +71,7 @@ const {
   withBase,
 } = siteConfig;
 const siteData = useSiteData();
+const siteDataReady = computed(() => siteData.value.ready);
 const {
   isOpen, open: openMenu, close: closeMenu,
 } = useMenu();
@@ -270,7 +272,11 @@ function onResizeStart (event: PointerEvent) {
         class="pt-4"
         aria-label="Site navigation"
       >
-        <TdContentNav :tree="siteData.contentTree" />
+        <TdSkeleton v-if="!siteDataReady" />
+        <TdContentNav
+          v-else
+          :tree="siteData.contentTree"
+        />
       </nav>
     </div>
 
@@ -287,8 +293,9 @@ function onResizeStart (event: PointerEvent) {
           v-model:query="searchQuery"
           v-model:active="sidebarSearchActive"
         />
+        <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
         <TdContentNav
-          v-if="!sidebarSearchActive"
+          v-else-if="!sidebarSearchActive"
           :tree="siteData.contentTree"
         />
         <div

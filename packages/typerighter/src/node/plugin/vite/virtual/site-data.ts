@@ -23,7 +23,8 @@ interface SiteData {
   directoryListings: ReturnType<typeof buildDirectoryListingMap>;
 }
 
-const EMPTY: SiteData = {
+const EMPTY = {
+  ready: false,
   contentTree: {
     entries: [],
   },
@@ -35,7 +36,14 @@ export class VirtualSiteData implements VirtualModule {
   private data: SiteData | undefined;
 
   load (_context: TypedownContext): string {
-    return `export default ${JSON.stringify(this.data ?? EMPTY)}`;
+    const payload = this.data
+      ? {
+        ready: true,
+        ...this.data,
+      }
+      : EMPTY;
+
+    return `export default ${JSON.stringify(payload)}`;
   }
 
   clear (): void {

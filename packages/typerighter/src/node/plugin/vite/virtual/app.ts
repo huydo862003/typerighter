@@ -2,6 +2,12 @@ import type {
   ViteDevServer,
 } from 'vite';
 import {
+  RESOLVED_VIRTUAL_APP_ID,
+  PAGES_ID,
+  SITE_DATA_ID,
+  SEARCH_INDEX_ID,
+} from '../constants';
+import {
   invalidateVirtualModule,
   type VirtualModule,
 } from './utils';
@@ -11,12 +17,6 @@ import type {
 import {
   CONTENT_EXTENSIONS,
 } from '@/shared';
-
-const RESOLVED_ID = '\0@typedown/app';
-
-const PAGES_ID = '@typedown/pages';
-const SITE_DATA_ID = '@typedown/site-data';
-const SEARCH_INDEX_ID = '@typedown/search-index';
 
 export interface AppEntryOptions {
   rootDir?: string;
@@ -44,7 +44,7 @@ export class VirtualApp implements VirtualModule {
   }
 
   invalidate (server: ViteDevServer): void {
-    invalidateVirtualModule(server, RESOLVED_ID);
+    invalidateVirtualModule(server, RESOLVED_VIRTUAL_APP_ID);
   }
 }
 

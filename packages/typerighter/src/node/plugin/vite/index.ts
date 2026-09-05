@@ -159,6 +159,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
     // Serve virtual modules
     async load (id) {
+      if (
+        id !== RESOLVED_SEARCH_INDEX_ID
+        && id !== RESOLVED_SITE_DATA_ID
+        && id !== RESOLVED_PAGES_ID
+        && id !== RESOLVED_VIRTUAL_APP_ID
+      ) return;
+
       const context = await resolveTdContext();
 
       if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(context);
