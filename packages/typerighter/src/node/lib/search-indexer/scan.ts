@@ -40,14 +40,23 @@ export function reindexFile (rootDirectory: string, filepath: string, indexer: S
 }
 
 // Strip YAML frontmatter, resolve title from _label or filepath
-function parseFrontmatter (relative: string, raw: string): { title: string; body: string } {
+function parseFrontmatter (relative: string, raw: string): {
+  title: string;
+  body: string;
+} {
   const fallbackTitle = getTdResourceTitle(relative);
 
-  if (!raw.startsWith('---')) return { title: fallbackTitle, body: raw };
+  if (!raw.startsWith('---')) return {
+    title: fallbackTitle,
+    body: raw,
+  };
 
   const end = raw.indexOf('\n---', 3);
 
-  if (end === -1) return { title: fallbackTitle, body: raw };
+  if (end === -1) return {
+    title: fallbackTitle,
+    body: raw,
+  };
 
   const frontmatter = raw.slice(4, end);
   const body = raw.slice(end + 4).trim();
@@ -56,7 +65,10 @@ function parseFrontmatter (relative: string, raw: string): { title: string; body
     ?? /^_label:\s*'(.+)'$/m.exec(frontmatter);
   const title = match?.[1]?.trim() || fallbackTitle;
 
-  return { title, body };
+  return {
+    title,
+    body,
+  };
 }
 
 function readPage (rootDirectory: string, filepath: string): PageIndexInput | undefined {
@@ -71,7 +83,9 @@ function readPage (rootDirectory: string, filepath: string): PageIndexInput | un
   if (!raw.trim()) return undefined;
 
   const relative = filepath.slice(rootDirectory.length + 1);
-  const { title, body } = parseFrontmatter(relative, raw);
+  const {
+    title, body,
+  } = parseFrontmatter(relative, raw);
 
   return {
     id: getTdContentUrl(relative),

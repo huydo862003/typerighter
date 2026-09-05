@@ -21,7 +21,7 @@ import {
   highlight,
 } from './highlight';
 import {
-  useSiteConfig,
+  useRoute, useSiteConfig,
 } from '@/client/app';
 import {
   stripAnchor, unslugify,
@@ -41,6 +41,7 @@ const emit = defineEmits<{
   select: [];
 }>();
 
+const route = useRoute();
 const {
   withBase,
 } = useSiteConfig();
@@ -222,6 +223,7 @@ defineExpose({
           class="td-search-result"
           :class="{
             'is-selected': flatIndexMap.get(result.id) === selectedIndex,
+            'is-current': withBase(result.id) === route.path,
           }"
           @click="onResultClick"
         >
@@ -354,9 +356,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 5px 12px;
-  margin-left: 20px;
-  border-left: 1px solid var(--color-td-neutral-border-subtle);
+  padding: 5px 12px 5px 20px;
+  border-left: 2px solid var(--color-td-neutral-border-subtle);
   text-decoration: none;
   transition: background-color 0.1s;
 }
@@ -364,6 +365,16 @@ defineExpose({
 .td-search-result:hover,
 .td-search-result.is-selected {
   background: var(--color-td-neutral-bg-hover);
+}
+
+.td-search-result.is-current {
+  border-left-color: var(--color-td-primary-solid);
+  background: color-mix(in srgb, var(--color-td-primary-solid) 6%, transparent);
+}
+
+.td-search-result.is-current .td-search-result-title {
+  color: var(--color-td-primary-solid);
+  font-weight: 600;
 }
 
 .td-search-result-title {
