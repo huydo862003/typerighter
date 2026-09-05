@@ -101,6 +101,13 @@ impl RpcClient {
       .map_err(rpc_err)
   }
 
+  #[wasm_bindgen(js_name = "getVersion")]
+  pub async fn get_version(&self) -> Result<String, JsValue> {
+    <WasmClient as TdBuildRpcClient<(), ()>>::get_version(&*self.inner)
+      .await
+      .map_err(rpc_err)
+  }
+
   #[wasm_bindgen(js_name = "getConfig")]
   pub async fn get_config(&self) -> Result<TdSiteConfig, JsValue> {
     <WasmClient as TdBuildRpcClient<(), ()>>::get_config(&*self.inner)
