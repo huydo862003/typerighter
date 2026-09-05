@@ -17,6 +17,15 @@ import {
 
 const TAG = pc.bold(pc.cyan('[typerighter]'));
 
+async function printVersionInfo (context: ReturnType<typeof createAppContext>) {
+  const tdContext = await context.getTdContext();
+  const rpcVersion = await tdContext.rpc.getVersion();
+
+  console.log(`${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})`);
+  console.log(`${TAG} rpc v${rpcVersion}`);
+  console.log('');
+}
+
 export function cli () {
   const program = cac('typerighter');
 
@@ -33,10 +42,16 @@ export function cli () {
     .alias('dev')
     .option('--port <port>', 'Port to listen on')
     .option('--host', 'Expose to network')
+    .option('--verbose', 'Print version and build info')
     .action(async (root: string | undefined, options: {
       port?: number;
       host?: boolean;
+      verbose?: boolean;
     }) => {
+      if (options.verbose) {
+        console.log(`${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})\n`);
+      }
+
       const server = await createServer({
         root: resolveRoot(root),
         // Skip configFile so user's vite.config.ts does not duplicate the typedown plugin
@@ -58,11 +73,15 @@ export function cli () {
       default: 'dist',
     })
     .option('--base <path>', 'Base public path')
+    .option('--verbose', 'Print version and build info')
     .action(async (root: string | undefined, options: {
       outDir: string;
       base?: string;
+      verbose?: boolean;
     }) => {
       const context = createAppContext(resolveRoot(root));
+
+      if (options.verbose) await printVersionInfo(context);
 
       try {
         await buildSite(context, {
@@ -115,10 +134,15 @@ export function cli () {
   program
     .command('check [root]', 'Check vault for errors')
     .option('--fix', 'Auto-fix formatting issues')
+    .option('--verbose', 'Print version and build info')
     .action(async (root: string | undefined, options: {
       fix?: boolean;
+      verbose?: boolean;
     }) => {
       const context = createAppContext(resolveRoot(root));
+
+      if (options.verbose) await printVersionInfo(context);
+
       const {
         logger,
       } = context;

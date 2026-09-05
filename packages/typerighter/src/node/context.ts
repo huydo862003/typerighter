@@ -96,11 +96,6 @@ export function createAppContext (root: string): AppContext {
 
     client = await RpcClient.connect(new URL(address).hostname, port);
 
-    const rpcVersion = await client.getVersion();
-
-    logger.info(`cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})`);
-    logger.info(`rpc v${rpcVersion}`);
-
     tdContext = new TypedownContext(client);
     // Unref the child so it does not prevent Node from exiting after vite build finishes
     server.unref();

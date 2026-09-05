@@ -16,27 +16,27 @@ export class TdLogger {
   }
 
   info (message: string) {
-    console.log(pc.cyan(`ℹ ${message}`));
+    console.log(pc.cyan(`ℹ  ${message}`));
     this.writeToFile('INFO', message);
   }
 
   warn (message: string) {
-    console.warn(pc.yellow(`⚠ ${message}`));
+    console.warn(pc.yellow(`⚠  ${message}`));
     this.writeToFile('WARN', message);
   }
 
   error (message: string) {
-    console.error(pc.red(`✖ ${message}`));
+    console.error(pc.red(`✖  ${message}`));
     this.writeToFile('ERROR', message);
   }
 
   success (message: string) {
-    console.log(pc.green(`✔ ${message}`));
+    console.log(pc.green(`✔  ${message}`));
     this.writeToFile('SUCCESS', message);
   }
 
   start (message: string) {
-    console.log(pc.cyan(`◐ ${message}`));
+    console.log(pc.cyan(`◐  ${message}`));
     this.writeToFile('START', message);
   }
 

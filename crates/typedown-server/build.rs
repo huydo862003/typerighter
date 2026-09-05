@@ -1,8 +1,8 @@
 fn main() {
     println!(
         "cargo:rustc-env=BUILD_TIMESTAMP={}",
-        std::process::Command::new("date")
-            .args(["-u", "+%Y-%m-%d %H:%M:%S UTC"])
+        std::process::Command::new("node")
+            .args(["-e", "process.stdout.write(new Date().toLocaleString())"])
             .output()
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())

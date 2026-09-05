@@ -35,7 +35,7 @@ function emitCssAssets (assets: Record<string, string>): Plugin {
 export default defineConfig({
   define: {
     __VERSION__: JSON.stringify(package_.version),
-    __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')),
+    __BUILD_TIMESTAMP__: JSON.stringify(new Date().toLocaleString()),
   },
   plugins: [
     vue(),
