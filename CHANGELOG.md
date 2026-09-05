@@ -1,3 +1,10 @@
+## [0.24.1] - 2026-09-05
+
+### Fixes
+
+* crates/typedown-lang
+  - Export html for custom container contain unclosed templates
+
 ## [0.24.0] - 2026-09-05
 
 ### Perf
