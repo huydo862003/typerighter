@@ -4,9 +4,6 @@ import {
   type TdBuiltResource, type TdDiagnosticReport, type TdFormatResult, type TdSidebarItem, type TdSiteConfig,
   type TdSchemaInfo,
 } from '@typerighter/rpc-client';
-import type {
-  SchemaGroups,
-} from '@/shared';
 
 // The context is always rooted at the current directory
 // This is fine: `typedown.yaml` should be at project root + user can run within any dir nested in the project root
@@ -20,7 +17,6 @@ export class TypedownContext {
 
   private cachedConfig: TdSiteConfig | undefined;
   private cachedFiles: string[] | undefined;
-  private cachedFilesGroupedBySchema: SchemaGroups | undefined;
   private cachedSchemas: string[] | undefined;
   private cachedSchemaMap = new Map<string, TdSchemaInfo>();
   private cachedFileMap = new Map<string, TdBuiltResource>();
@@ -36,12 +32,10 @@ export class TypedownContext {
       content: string;
     }) => {
       this.cachedFileMap.delete(content);
-      this.cachedFilesGroupedBySchema = undefined;
     });
 
     client.onContentCreated(() => {
       this.cachedFiles = undefined;
-      this.cachedFilesGroupedBySchema = undefined;
     });
 
     client.onContentDeleted(({
@@ -50,7 +44,6 @@ export class TypedownContext {
       content: string;
     }) => {
       this.cachedFiles = undefined;
-      this.cachedFilesGroupedBySchema = undefined;
       this.cachedFileMap.delete(content);
     });
 
@@ -60,7 +53,6 @@ export class TypedownContext {
       schema: string;
     }) => {
       this.cachedSchemaMap.delete(schema);
-      this.cachedFilesGroupedBySchema = undefined;
     });
 
     client.onSchemaCreated(() => {
@@ -106,29 +98,6 @@ export class TypedownContext {
     this.cachedFiles = await withRetry(() => this.rpc.listVault());
 
     return this.cachedFiles;
-  }
-
-  async listFilesGroupedBySchema (): Promise<SchemaGroups> {
-    if (this.cachedFilesGroupedBySchema) return this.cachedFilesGroupedBySchema;
-
-    const raw = await withRetry(() => this.rpc.listFilesGroupedBySchema());
-    // serde_wasm_bindgen converts HashMap to a JS Map, convert to plain object
-    const result: SchemaGroups = raw instanceof Map
-      ? Object.fromEntries(raw)
-      : raw ?? {};
-
-    // serde_json::Value::Object fields (like header) also arrive as JS Maps
-    for (const items of Object.values(result)) {
-      for (const item of items) {
-        if (item.header instanceof Map) {
-          item.header = Object.fromEntries(item.header);
-        }
-      }
-    }
-
-    this.cachedFilesGroupedBySchema = result;
-
-    return result;
   }
 
   async listSidebar (): Promise<TdSidebarItem[]> {
