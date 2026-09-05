@@ -1674,8 +1674,7 @@ properties:
 
   #[test]
   fn html_export_container_empty_named_slot() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "md_container_empty_slot.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_empty_slot.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     // The empty named slot should still produce a closed template tag
