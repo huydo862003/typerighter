@@ -817,6 +817,14 @@ impl TdBuildRpcServer<(), ()> for RpcServer {
     self.get_schema_impl(&schema).await
   }
 
+  async fn get_version(&self) -> RpcResult<String> {
+    Ok(format!(
+      "{} (built {})",
+      env!("CARGO_PKG_VERSION"),
+      env!("BUILD_TIMESTAMP"),
+    ))
+  }
+
   async fn get_config(&self) -> RpcResult<TdSiteConfig> {
     self.get_config_impl().await
   }

@@ -58,6 +58,9 @@ pub trait TdBuildRpc<Hash, StorageKey> {
   #[method(name = "get_schema")]
   async fn get_schema(&self, schema: String) -> RpcResult<TdSchemaInfo>;
 
+  #[method(name = "get_version")]
+  async fn get_version(&self) -> RpcResult<String>;
+
   #[method(name = "get_config")]
   async fn get_config(&self) -> RpcResult<TdSiteConfig>;
 
