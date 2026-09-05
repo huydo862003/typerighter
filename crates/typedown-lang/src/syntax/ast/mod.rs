@@ -945,7 +945,7 @@ pub struct InlineMath(RedNode);
 
 impl InlineMath {
   pub fn value(&self) -> Option<String> {
-    let text = self.0.as_token()?.text()?.to_string();
+    let text = self.0.text();
     let fence_count = text.chars().take_while(|c| *c == '$').count();
     // Strip opening and closing fence
     let content = text.get(fence_count..text.len().checked_sub(fence_count)?)?;
@@ -958,7 +958,7 @@ pub struct MathBlock(RedNode);
 
 impl MathBlock {
   pub fn value(&self) -> Option<String> {
-    let text = self.0.as_token()?.text()?.to_string();
+    let text = self.0.text();
     let fence_count = text.chars().take_while(|c| *c == '$').count();
     // Skip opening fence then the newline
     let after_fence = text.get(fence_count..)?;
@@ -975,9 +975,8 @@ pub struct InlineCode(RedNode);
 
 impl InlineCode {
   pub fn value(&self) -> Option<String> {
-    let text = self.0.as_token()?.text()?.to_string();
+    let text = self.0.text();
     let fence_count = text.chars().take_while(|c| *c == '`').count();
-    // Strip opening and closing fence
     let content = text.get(fence_count..text.len().checked_sub(fence_count)?)?;
     Some(content.to_string())
   }
@@ -994,7 +993,7 @@ pub struct CodeLineRange {
 impl CodeBlock {
   // Full label text after the opening fence (e.g. "js{1,3,5-8}")
   pub fn label(&self) -> Option<String> {
-    let text = self.0.as_token()?.text()?.to_string();
+    let text = self.0.text();
     let fence_count = text.chars().take_while(|c| *c == '`').count();
     let after_fence = text.get(fence_count..)?;
     let label_end = after_fence.find('\n')?;
@@ -1053,7 +1052,7 @@ impl CodeBlock {
   }
 
   pub fn value(&self) -> Option<String> {
-    let text = self.0.as_token()?.text()?.to_string();
+    let text = self.0.text();
     let fence_count = text.chars().take_while(|c| *c == '`').count();
     // Skip opening fence and optional language tag, then the newline
     let after_fence = text.get(fence_count..)?;

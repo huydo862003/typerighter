@@ -2140,11 +2140,20 @@ impl<S: Utf8Stream> ParseCtx<S> {
   /// Parse a text run: consecutive plain text, including surrounding whitespace.
   /// Consumes leading and trailing spaces.
   pub(in crate::syntax::parse) fn parse_text(&mut self) -> (GreenNode, Option<ExprCtx>) {
+    let in_table_cell = self.expr_ctx_stack.current() == Some(ExprCtx::MdTableCell);
     let mut children = vec![];
 
     loop {
-      let next_kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
+      let next = self.lex_ctx.peek_md(SKIP_NONE);
+      let next_kind = next.token.kind();
       if matches!(next_kind, SyntaxKind::Newline | SyntaxKind::Eof) {
+        break;
+      }
+      // Inside a table cell, pipe is a cell separator, not text
+      if in_table_cell
+        && next_kind == SyntaxKind::MdSymbol
+        && next.token.chars().collect::<String>() == "|"
+      {
         break;
       }
       if self.is_md_inline_start() {

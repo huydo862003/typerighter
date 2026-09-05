@@ -1,9 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  load,
-} from 'js-yaml';
-import {
   cancel, intro, isCancel, log, outro, select, text,
 } from '@clack/prompts';
 import {
@@ -37,8 +34,6 @@ interface ExistingProject {
   hasPackageJson: boolean;
   hasTypedownYaml: boolean;
   packageName: string | undefined;
-  siteTitle: string | undefined;
-  siteDescription: string | undefined;
 }
 
 interface InitializeOptions {
@@ -60,8 +55,8 @@ async function collectUserInput (
   }
 
   const projectName = flags.name ?? await prompt('Project name', existing.packageName ?? path.basename(root));
-  const siteTitle = flags.title ?? await prompt('Site title', existing.siteTitle ?? projectName);
-  const siteDescription = flags.description ?? await prompt('Site description', existing.siteDescription ?? 'A typedown site');
+  const siteTitle = flags.title ?? await prompt('Site title', projectName);
+  const siteDescription = flags.description ?? await prompt('Site description', 'A typedown site');
 
   return {
     projectName,
@@ -98,14 +93,10 @@ async function detectExistingProject (root: string): Promise<ExistingProject> {
     hasPackageJson: false,
     hasTypedownYaml: false,
     packageName: undefined,
-    siteTitle: undefined,
-    siteDescription: undefined,
   };
 
-  const packagePath = path.join(root, 'package.json');
-
   try {
-    const raw = await fs.readFile(packagePath, 'utf-8');
+    const raw = await fs.readFile(path.join(root, 'package.json'), 'utf-8');
     const package_ = JSON.parse(raw);
 
     result.hasPackageJson = true;
@@ -118,23 +109,11 @@ async function detectExistingProject (root: string): Promise<ExistingProject> {
 
   for (const name of CONFIG_FILE_NAMES) {
     try {
-      const raw = await fs.readFile(path.join(root, name), 'utf-8');
-      const document = load(raw) as Record<string, unknown> | undefined;
-
+      await fs.access(path.join(root, name));
       result.hasTypedownYaml = true;
-
-      const site = document?.site as Record<string, unknown> | undefined;
-
-      if (typeof site?.title === 'string') {
-        result.siteTitle = site.title;
-      }
-
-      if (typeof site?.description === 'string') {
-        result.siteDescription = site.description;
-      }
       break;
     } catch {
-      // No config file or invalid YAML
+      // No config file
     }
   }
 

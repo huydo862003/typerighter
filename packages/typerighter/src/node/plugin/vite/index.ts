@@ -15,6 +15,9 @@ import {
   renderToVueSfc,
 } from '../../lib/render';
 import {
+  postprocessHtml,
+} from '../../lib/render/postprocess';
+import {
   createAppContext, resolveProjectRoot, type AppContext,
 } from '../../context';
 import {
@@ -95,7 +98,8 @@ export function generateClientAppEntry (options: ClientAppEntryOptions): string 
 
   return `
 import 'typerighter/style.css';
-import('typerighter/katex.css');
+import 'typerighter/fonts.css';
+import('typerighter/math.css');
 import { createTypedownApp } from 'typerighter/client';
 import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
@@ -539,11 +543,7 @@ async function fetchSiteData (context: TypedownContext): Promise<{
 async function getPageIndexInput (context: TypedownContext, filepath: string): Promise<PageIndexInput | undefined> {
   try {
     const resource = await context.getFile(filepath);
-    const html = await context.md.renderAsync(resource.content, {
-      path: filepath,
-      relativePath: filepath,
-      cleanUrls: true,
-    });
+    const html = await postprocessHtml(resource.content);
 
     return {
       id: getTdContentUrl(filepath),

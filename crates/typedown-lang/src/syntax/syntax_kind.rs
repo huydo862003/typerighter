@@ -130,4 +130,39 @@ impl SyntaxKind {
         | SyntaxKind::YamlComment
     )
   }
+
+  pub fn is_md_block(self) -> bool {
+    matches!(
+      self,
+      SyntaxKind::MdParagraph
+        | SyntaxKind::MdHeading
+        | SyntaxKind::MdBlockquote
+        | SyntaxKind::MdBulletList
+        | SyntaxKind::MdOrderedList
+        | SyntaxKind::MdTable
+        | SyntaxKind::MdContainerBlock
+        | SyntaxKind::MdContainerShorthand
+        | SyntaxKind::CodeBlock
+        | SyntaxKind::MathBlock
+        | SyntaxKind::MdHorizontalRule
+    )
+  }
+
+  pub fn is_md_inline(self) -> bool {
+    matches!(
+      self,
+      SyntaxKind::MdBold
+        | SyntaxKind::MdItalic
+        | SyntaxKind::MdBoldItalic
+        | SyntaxKind::MdStrikethrough
+        | SyntaxKind::MdLink
+        | SyntaxKind::MdMedia
+        | SyntaxKind::MdText
+        | SyntaxKind::MdHtmlEntity
+        | SyntaxKind::InlineCode
+        | SyntaxKind::InlineMath
+        | SyntaxKind::CodeLit
+        | SyntaxKind::MathLit
+    )
+  }
 }

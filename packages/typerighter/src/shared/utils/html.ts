@@ -1,3 +1,5 @@
+import striptags from 'striptags';
+
 export function escapeHtml (value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -7,11 +9,17 @@ export function escapeHtml (value: string): string {
 }
 
 export function stripHtml (html: string): string {
-  return html
-    // Remove style/script blocks entirely (including MathJax injected styles)
-    .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, '')
-    // Strip angle brackets directly to avoid incomplete multi-character tag sanitization
-    .replace(/[<>]/g, '')
+  return unescapeHtml(striptags(html))
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function unescapeHtml (html: string): string {
+  return html
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', '\'')
+    // &amp; decoded last to avoid double-decoding (e.g. &amp;lt; should become &lt;, not <)
+    .replaceAll('&amp;', '&');
 }

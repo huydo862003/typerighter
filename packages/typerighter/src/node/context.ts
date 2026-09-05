@@ -13,9 +13,6 @@ import {
   TypedownContext,
 } from './lib/typedown-context';
 import {
-  createMarkdownRenderer,
-} from './lib/markdown';
-import {
   TdLogger,
 } from './lib/logger';
 
@@ -98,10 +95,8 @@ export function createAppContext (root: string): AppContext {
     }
 
     client = await RpcClient.connect(new URL(address).hostname, port);
-    const config = await client.getConfig();
-    const md = await createMarkdownRenderer(config);
 
-    tdContext = new TypedownContext(client, md);
+    tdContext = new TypedownContext(client);
     // Unref the child so it does not prevent Node from exiting after vite build finishes
     server.unref();
 

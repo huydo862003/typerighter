@@ -626,12 +626,14 @@ fn parse_table_simple() {
           " "
           (MdText
             "a"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "b"
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       (MdTableSeparatorRow
         "|"
@@ -650,12 +652,14 @@ fn parse_table_simple() {
           " "
           (MdText
             "1"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "2"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"))"####
   );
 }
@@ -2344,8 +2348,8 @@ fn parse_table_with_bold_cells() {
               "h")
             "**")
           (MdText
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       (MdTableSeparatorRow
         "|"
@@ -2360,8 +2364,8 @@ fn parse_table_with_bold_cells() {
           " "
           (MdText
             "cell"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"))"####
   );
 }
@@ -2534,8 +2538,8 @@ text
           " "
           (MdText
             "h"
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       (MdTableSeparatorRow
         "|"
@@ -2550,8 +2554,8 @@ text
           " "
           (MdText
             "c"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"
     "\n"
     (MdParagraph
@@ -2989,9 +2993,10 @@ fn parse_table_with_links() {
               "x")
             ")")
           (MdText
-            " "
-            "|"
-            " ")
+            " "))
+        "|"
+        (MdTableCell
+          " "
           (MdLink
             "["
             (MdText
@@ -3002,8 +3007,8 @@ fn parse_table_with_links() {
               "y")
             ")")
           (MdText
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       (MdTableSeparatorRow
         "|"
@@ -3022,12 +3027,14 @@ fn parse_table_with_links() {
           " "
           (MdText
             "1"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "2"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"))"####
   );
 }
@@ -3060,12 +3067,14 @@ fn parse_table_indented_rows() {
           " "
           (MdText
             "a"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "b"
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       " "
       " "
@@ -3090,12 +3099,14 @@ fn parse_table_indented_rows() {
           " "
           (MdText
             "1"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "2"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"))"####
   );
 }
@@ -3135,12 +3146,14 @@ fn parse_paragraph_then_indented_table() {
           " "
           (MdText
             "a"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "b"
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       " "
       " "
@@ -3163,12 +3176,14 @@ fn parse_paragraph_then_indented_table() {
           " "
           (MdText
             "1"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "2"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"))"####
   );
 }
@@ -3202,12 +3217,14 @@ hello world
           " "
           (MdText
             "a"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "b"
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       " "
       " "
@@ -3230,12 +3247,14 @@ hello world
           " "
           (MdText
             "1"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "2"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"
     (MdParagraph
       (MdText
@@ -3272,12 +3291,14 @@ fn parse_table_mixed_indentation() {
           " "
           (MdText
             "a"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "b"
-            " "
-            "|")))
+            " "))
+        "|")
       "\n"
       " "
       " "
@@ -3302,12 +3323,14 @@ fn parse_table_mixed_indentation() {
           " "
           (MdText
             "1"
-            " "
-            "|"
-            " "
+            " "))
+        "|"
+        (MdTableCell
+          " "
+          (MdText
             "2"
-            " "
-            "|"))))
+            " "))
+        "|"))
     "\n"))"####
   );
 }
@@ -3352,12 +3375,14 @@ fn parse_indented_table_in_list() {
               " "
               (MdText
                 "a"
-                " "
-                "|"
-                " "
+                " "))
+            "|"
+            (MdTableCell
+              " "
+              (MdText
                 "b"
-                " "
-                "|")))
+                " "))
+            "|")
           "\n"
           " "
           " "
@@ -3380,12 +3405,14 @@ fn parse_indented_table_in_list() {
               " "
               (MdText
                 "1"
-                " "
-                "|"
-                " "
+                " "))
+            "|"
+            (MdTableCell
+              " "
+              (MdText
                 "2"
-                " "
-                "|")))))
+                " "))
+            "|")))
       "\n"
       (MdBulletListItem
         "-"
@@ -3427,12 +3454,14 @@ fn parse_indented_table_in_blockquote() {
             " "
             (MdText
               "a"
-              " "
-              "|"
-              " "
+              " "))
+          "|"
+          (MdTableCell
+            " "
+            (MdText
               "b"
-              " "
-              "|")))
+              " "))
+          "|")
         "\n"
         ">"
         " "
@@ -3455,12 +3484,14 @@ fn parse_indented_table_in_blockquote() {
             " "
             (MdText
               "1"
-              " "
-              "|"
-              " "
+              " "))
+          "|"
+          (MdTableCell
+            " "
+            (MdText
               "2"
-              " "
-              "|")))))
+              " "))
+          "|")))
     "\n"))"####
   );
 }
@@ -3506,12 +3537,14 @@ fn parse_indented_table_in_list_with_continuation() {
               " "
               (MdText
                 "a"
-                " "
-                "|"
-                " "
+                " "))
+            "|"
+            (MdTableCell
+              " "
+              (MdText
                 "b"
-                " "
-                "|")))
+                " "))
+            "|")
           "\n"
           " "
           " "
@@ -3534,12 +3567,14 @@ fn parse_indented_table_in_list_with_continuation() {
               " "
               (MdText
                 "1"
-                " "
-                "|"
-                " "
+                " "))
+            "|"
+            (MdTableCell
+              " "
+              (MdText
                 "2"
-                " "
-                "|"))))
+                " "))
+            "|"))
         "\n"
         "\n"
         " "
