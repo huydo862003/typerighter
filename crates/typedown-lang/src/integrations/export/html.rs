@@ -423,6 +423,11 @@ impl<'a> HtmlEmitter<'a> {
       }
     }
 
+    // Close any trailing open slot template (empty named slot)
+    if current_slot_name.is_some() {
+      self.write("</template>\n");
+    }
+
     self.write(&format!("</{label}>\n"));
   }
 

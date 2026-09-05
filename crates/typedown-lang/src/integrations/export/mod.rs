@@ -1673,6 +1673,27 @@ properties:
   }
 
   #[test]
+  fn html_export_container_empty_named_slot() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "md_container_empty_slot.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    // The empty named slot should still produce a closed template tag
+    assert!(
+      content.contains("<template #key>"),
+      "should have named slot: {content}"
+    );
+    assert!(
+      content.contains("</template>"),
+      "named slot template should be closed: {content}"
+    );
+    assert!(
+      content.contains("</flashcard>"),
+      "container should be closed: {content}"
+    );
+  }
+
+  #[test]
   fn html_export_blob_empty() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
     let exported = export_resource_html(&db, project, file).expect("should export");
