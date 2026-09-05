@@ -1,3 +1,33 @@
+## [0.23.0] - 2026-09-05
+
+### Features
+
+* packages/typerighter
+  - Add site footer with author and license from `typedown.yaml`
+  - Add keyboard shortcut system (`Ctrl+K` / `Cmd+K` to toggle search)
+  - Support `site.nav` links in `typedown.yaml` for header navigation
+
+* crates/typedown-lang
+  - Support `site.nav` config with icon syntax (`icon.book`)
+
+### Refactor
+
+* crates/typedown-lang
+  - Parse `typedown.yaml` config via native typedown YAML parser, drop `yaml-rust2`
+  - Replace markdown-it with Rust HTML emitter for markdown-to-HTML conversion
+
+* packages/typerighter
+  - Replace markdown-it pipeline with lightweight post-processor (shiki + Temml only)
+  - Drop 14 npm dependencies (`markdown-it`, `@mdit-vue/*`, `@mdit/plugin-*`, `katex`, etc.)
+
+### Fixes
+
+* packages/typerighter
+  - Fix `page.frontmatter` access error
+  - Fix left sidebar overflow-x
+  - Fix search toggle focus on `Ctrl+K` / `Cmd+K`
+  - Use template refs for search toggle instead of DOM class query
+
 ## [0.22.2] - 2026-09-03
 
 ### Perf
