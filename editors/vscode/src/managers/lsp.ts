@@ -1,3 +1,12 @@
+import {
+  createConnection,
+} from 'node:net';
+import {
+  spawn,
+} from 'node:child_process';
+import {
+  createInterface,
+} from 'node:readline';
 import type {
   Disposable,
 } from 'vscode';
@@ -15,15 +24,6 @@ import {
   RevealOutputChannelOn,
 } from 'vscode-languageclient/node';
 import {
-  createConnection,
-} from 'net';
-import {
-  spawn,
-} from 'child_process';
-import {
-  createInterface,
-} from 'readline';
-import {
   resolvePromptsAndExecute,
 } from './command';
 import {
@@ -32,33 +32,6 @@ import {
 import {
   LogManager,
 } from './log';
-
-// Spawn the LSP binary and read the TCP port it prints to stdout
-function spawnAndConnect (binaryPath: string): Promise<StreamInfo> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(binaryPath, [], { stdio: ['ignore', 'pipe', 'inherit'] });
-
-    proc.on('error', reject);
-
-    const rl = createInterface({ input: proc.stdout! });
-
-    rl.once('line', (line) => {
-      rl.close();
-      const port = Number(line.trim());
-
-      if (!port) {
-        reject(new Error(`Invalid port from LSP binary: ${line}`));
-
-        return;
-      }
-
-      const socket = createConnection(port, '127.0.0.1', () => {
-        resolve({ reader: socket, writer: socket });
-      });
-      socket.on('error', reject);
-    });
-  });
-}
 
 export class LspManager implements Disposable {
   private static instance: LspManager | undefined;
@@ -133,4 +106,58 @@ export class LspManager implements Disposable {
 
     return this.client?.stop() ?? Promise.resolve();
   }
+}
+
+// Spawn the LSP binary and read the TCP port it prints to stdout
+function spawnAndConnect (binaryPath: string): Promise<StreamInfo> {
+  return new Promise((resolve, reject) => {
+    const process = spawn(binaryPath, [], {
+      stdio: [
+        'ignore',
+        'pipe',
+        'inherit',
+      ],
+    });
+
+    const cleanup = () => process.kill();
+
+    process.on('error', (error) => {
+      cleanup();
+      reject(error);
+    });
+
+    const reader = createInterface({
+      input: process.stdout!,
+    });
+
+    reader.once('line', (line) => {
+      reader.close();
+      const address = line.trim();
+      const colonIndex = address.lastIndexOf(':');
+      const host = address.slice(0, colonIndex);
+      const port = Number(address.slice(colonIndex + 1));
+
+      if (!port || !host) {
+        cleanup();
+        reject(new Error(`Invalid address from LSP binary: ${line}`));
+
+        return;
+      }
+
+      const socket = createConnection({
+        host,
+        port,
+      }, () => {
+        resolve({
+          reader: socket,
+          writer: socket,
+        });
+      });
+
+      socket.on('error', (error) => {
+        cleanup();
+        reject(error);
+      });
+    });
+  });
 }

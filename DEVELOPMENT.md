@@ -9,8 +9,6 @@ Absolutely required dependencies to author the core crates (Rust) & packages (No
 - Rust
   - **Rust stable** (1.95+): Compiler, LSP server, Zed extension
   - **wasm32-wasip1 target**: Compile the Zed extension to WASM
-  - **wasm32-unknown-unknown target**: Compile the RPC client to browser WASM
-  - **wasm-pack**: Build and package the RPC client WASM module for JS consumption
 - Node
   - **Node.js** (22+): Tree-sitter grammar build tooling
   - **pnpm** (11+): Node package manager
@@ -66,7 +64,7 @@ Install each dependency manually:
    rustup install stable
    rustup default stable
    rustup component add rust-src rust-analyzer clippy rustfmt
-   rustup target add wasm32-wasip1 wasm32-unknown-unknown
+   rustup target add wasm32-wasip1
    ```
 
 2. **Node.js** (22+) and **pnpm**:
@@ -84,11 +82,10 @@ Install each dependency manually:
 
 5. **clang** and **clangd**: Install via your system package manager.
 
-6. **cargo-edit**, **cargo-watch**, and **wasm-pack**:
+6. **cargo-edit** and **cargo-watch**:
 
    ```bash
    cargo install cargo-edit cargo-watch
-   cargo install wasm-pack
    ```
 
 7. **mdbook** and **mdbook-mermaid** (only needed for docs):

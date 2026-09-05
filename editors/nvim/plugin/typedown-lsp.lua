@@ -86,8 +86,16 @@ local function resolve_prompts_and_execute(cmd, ctx)
   end
 end
 
--- Track spawned server process and its port
+-- Parse "host:port" into (host, port) components
+local function parse_address(line)
+  local colon = line:match(".*():")
+  if not colon then return nil, nil end
+  return line:sub(1, colon - 1), tonumber(line:sub(colon + 1))
+end
+
+-- Track spawned server process and its address
 local server_job = nil
+local server_addr = nil
 local server_port = nil
 
 local function start_lsp()
@@ -95,33 +103,34 @@ local function start_lsp()
   local root = vim.fs.root(0, { "typedown.yaml", "typedown.yml" })
       or vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":h")
 
-  -- Spawn the LSP binary if not already running, read port from stdout
+  -- Spawn the LSP binary if not already running, read addr:port from stdout
   if not server_job then
-    local port_received = false
+    local addr_received = false
     server_job = vim.fn.jobstart({ binary }, {
       stdout_buffered = false,
       on_stdout = function(_, data)
-        if not port_received and data and data[1] and data[1] ~= "" then
-          server_port = tonumber(data[1])
-          port_received = true
+        if not addr_received and data and data[1] and data[1] ~= "" then
+          server_addr, server_port = parse_address(data[1])
+          addr_received = true
         end
       end,
       on_exit = function()
         server_job = nil
+        server_addr = nil
         server_port = nil
       end,
     })
-    -- Wait for the port to be printed
+    -- Wait for the address to be printed
     vim.wait(2000, function() return server_port ~= nil end, 10)
     if not server_port then
-      vim.notify("[typedown] Failed to get LSP port", vim.log.levels.ERROR)
+      vim.notify("[typedown] Failed to get LSP address", vim.log.levels.ERROR)
       return
     end
   end
 
   vim.lsp.start({
     name = "typedown-lsp",
-    cmd = vim.lsp.rpc.connect("127.0.0.1", server_port),
+    cmd = vim.lsp.rpc.connect(server_addr, server_port),
     root_dir = root,
     -- Neovim defaults fileOperations to false
     -- Enabling these lets file managers send workspace/willRenameFiles before renaming .td files,

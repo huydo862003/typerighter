@@ -87,14 +87,14 @@ export function createAppContext (root: string): AppContext {
       });
     });
 
-    const address = server.address;
+    const host = server.host;
     const port = server.port;
 
-    if (address === undefined || port === undefined) {
-      throw new Error('RPC server started but address/port not available');
+    if (host === undefined || port === undefined) {
+      throw new Error('RPC server started but host/port not available');
     }
 
-    client = await RpcClient.connect(new URL(address).hostname, port);
+    client = await RpcClient.connectTcp(host, port);
 
     tdContext = new TypedownContext(client);
     // Unref the child so it does not prevent Node from exiting after vite build finishes
@@ -114,7 +114,7 @@ export function createAppContext (root: string): AppContext {
     process.removeListener('SIGINT', onSignal);
     process.removeListener('SIGTERM', onSignal);
 
-    client?.close();
+    client?.dispose();
     server?.close();
 
     tdContext = undefined;

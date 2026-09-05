@@ -1,8 +1,3 @@
-use std::io::BufReader;
-use std::net::TcpListener;
-
-use crossbeam_channel::bounded;
-use lsp_server::{Connection, Message};
 use lsp_types::{
   CompletionOptions, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions,
   HoverProviderCapability, InitializeParams, InitializeResult, OneOf, RenameOptions,
@@ -13,76 +8,23 @@ use lsp_types::{
 };
 use typedown_server::core::logger;
 use typedown_server::core::multiproject::Multiproject;
+use typedown_server::core::transport;
 use typedown_server::lsp::server::Server;
 use typedown_server::lsp::service::{commands, semantic_tokens};
-
-enum IoHandle {
-  Stdio(lsp_server::IoThreads),
-  Tcp {
-    reader: std::thread::JoinHandle<()>,
-    writer: std::thread::JoinHandle<()>,
-  },
-}
-
-impl IoHandle {
-  fn join(self) {
-    match self {
-      Self::Stdio(io) => { io.join().unwrap(); }
-      Self::Tcp { reader, writer } => {
-        reader.join().unwrap();
-        writer.join().unwrap();
-      }
-    }
-  }
-}
-
-fn connect_tcp() -> anyhow::Result<(Connection, IoHandle)> {
-  let port = std::env::var("TYPEDOWN_LSP_PORT")
-    .ok()
-    .and_then(|p| p.parse::<u16>().ok())
-    .unwrap_or(0);
-  let listener = TcpListener::bind(format!("127.0.0.1:{port}"))?;
-  let bound_port = listener.local_addr()?.port();
-  // Print the port so clients can read it from stdout
-  println!("{bound_port}");
-
-  let (stream, _) = listener.accept()?;
-  let reader_stream = stream.try_clone()?;
-  let mut writer_stream = stream;
-
-  let (writer_sender, writer_receiver) = bounded::<Message>(0);
-  let (reader_sender, reader_receiver) = bounded::<Message>(0);
-
-  let reader = std::thread::spawn(move || {
-    let mut buf_read = BufReader::new(reader_stream);
-    while let Some(msg) = Message::read(&mut buf_read).unwrap() {
-      let is_exit = matches!(&msg, Message::Notification(n) if n.method == "exit");
-      reader_sender.send(msg).unwrap();
-      if is_exit {
-        break;
-      }
-    }
-  });
-
-  let writer = std::thread::spawn(move || {
-    writer_receiver.into_iter().for_each(|msg| {
-      msg.write(&mut writer_stream).unwrap();
-    });
-  });
-
-  let connection = Connection { sender: writer_sender, receiver: reader_receiver };
-  Ok((connection, IoHandle::Tcp { reader, writer }))
-}
 
 // The entrypoint
 pub fn main() -> anyhow::Result<()> {
   let use_stdio = std::env::args().any(|arg| arg == "--stdio");
   let (connection, io_handle) = if use_stdio {
-    let (conn, io) = Connection::stdio();
-    (conn, IoHandle::Stdio(io))
+    Ok(transport::connect_stdio())
   } else {
-    connect_tcp()?
-  };
+    let addr = std::env::var("TYPEDOWN_LSP_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("TYPEDOWN_LSP_PORT")
+      .ok()
+      .and_then(|port_str| port_str.parse::<u16>().ok())
+      .unwrap_or(0);
+    transport::connect_tcp(&addr, port)
+  }?;
 
   // File logger available immediately, before handshake
   logger::init_file();
@@ -153,7 +95,11 @@ pub fn main() -> anyhow::Result<()> {
     capabilities,
     server_info: Some(ServerInfo {
       name: "typedown-lsp".to_string(),
-      version: Some(format!("{} (built {})", env!("CARGO_PKG_VERSION"), env!("BUILD_TIMESTAMP"))),
+      version: Some(format!(
+        "{} (built {})",
+        env!("CARGO_PKG_VERSION"),
+        env!("BUILD_TIMESTAMP")
+      )),
     }),
   })?;
   connection.initialize_finish(init_id, init_data)?;

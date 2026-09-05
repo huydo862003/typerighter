@@ -1,12 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use jsonrpsee::server::Server;
 use typedown_incremental::Cancelled;
-use typedown_server::rpc::contract::TdBuildRpcServer;
+use typedown_server::core::transport;
 use typedown_server::rpc::server::RpcServer;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+pub fn main() -> anyhow::Result<()> {
   // Cancelled panics are expected control flow in the incremental query engine
   // Suppress them so they don't print "Box<dyn Any>" to stderr
   let default_hook = std::panic::take_hook();
@@ -24,20 +22,17 @@ async fn main() -> anyhow::Result<()> {
   let root_dir = find_vault_root(&start)?;
 
   let addr = std::env::var("TYPEDOWN_RPC_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
-  let port: u16 = std::env::var("TYPEDOWN_RPC_PORT")
-    .unwrap_or_else(|_| "4747".to_string())
-    .parse()
-    .expect("TYPEDOWN_RPC_PORT must be a valid port number");
-  let rpc_server = RpcServer::new(root_dir)?;
-  let module = rpc_server.into_rpc();
+  let port = std::env::var("TYPEDOWN_RPC_PORT")
+    .ok()
+    .and_then(|port_str| port_str.parse::<u16>().ok())
+    .unwrap_or(0);
+  let (connection, io_handle) = transport::connect_tcp(&addr, port)?;
 
-  let server = Server::builder().build(format!("{addr}:{port}")).await?;
-  let addr = server.local_addr()?;
-  let handle = server.start(module);
+  let server = RpcServer::new(connection, root_dir)?;
+  server.run()?;
+  server.shutdown();
 
-  println!("ws://{addr}");
-
-  handle.stopped().await;
+  io_handle.join();
 
   Ok(())
 }

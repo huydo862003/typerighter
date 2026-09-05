@@ -1,6 +1,6 @@
 import {
   RPC_CANCELLED_CODE,
-  type RpcClient,
+  type RpcClient, type ResponseError,
   type TdBuiltResource, type TdDiagnosticReport, type TdFormatResult, type TdSidebarItem, type TdSiteConfig,
   type TdSchemaInfo,
 } from '@typerighter/rpc-client';
@@ -157,9 +157,7 @@ export class TypedownContext {
 
 export function isRpcCancelled (error: unknown): boolean {
   if (error instanceof Error && 'code' in error) {
-    return (error as Error & {
-      code: number;
-    }).code === RPC_CANCELLED_CODE();
+    return (error as ResponseError).code === RPC_CANCELLED_CODE;
   }
 
   return false;

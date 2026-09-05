@@ -2,24 +2,23 @@
   "$schema": "https://json.schemastore.org/package",
   "name": "@typerighter/rpc-client",
   "version": "0.24.1",
-  "description": "WASM RPC client for Typedown.",
+  "description": "JSON-RPC client for Typedown over TCP/stdio.",
   "repository": {
     "type": "git",
     "url": "https://github.com/huydo862003/typerighter.git",
     "directory": "packages/rpc-client"
   },
   "type": "module",
-  "main": "./src/typedown_server.js",
-  "types": "./src/typedown_server.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/typedown_server.d.ts",
-      "import": "./src/typedown_server.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "scripts": {
-    "build": "wasm-pack build ../../crates/typedown-server --target bundler --out-dir ../../packages/rpc-client/src && rm -f src/package.json src/.gitignore",
-    "prepublishOnly": "pnpm build"
+    "build": "tsc"
   },
   "author": "Huy-DNA <huydo862003@gmail.com>",
   "license": "AGPL-3.0-only"

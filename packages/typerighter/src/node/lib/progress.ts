@@ -3,7 +3,12 @@ import type {
   TdLogger,
 } from './logger';
 
-const SPINNER_FRAMES = ['◐', '◓', '◑', '◒'];
+const SPINNER_FRAMES = [
+  '◐',
+  '◓',
+  '◑',
+  '◒',
+];
 
 export class ProgressLogger {
   private logger: TdLogger;
