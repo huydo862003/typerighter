@@ -85,7 +85,7 @@ pub fn main() -> anyhow::Result<()> {
     capabilities,
     server_info: Some(ServerInfo {
       name: "typedown-lsp".to_string(),
-      version: Some(env!("CARGO_PKG_VERSION").to_string()),
+      version: Some(format!("{} (built {})", env!("CARGO_PKG_VERSION"), env!("BUILD_TIMESTAMP"))),
     }),
   })?;
   connection.initialize_finish(init_id, init_data)?;
