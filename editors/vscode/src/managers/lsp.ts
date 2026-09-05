@@ -8,12 +8,21 @@ import {
 import type {
   LanguageClientOptions,
   ServerOptions,
+  StreamInfo,
 } from 'vscode-languageclient/node';
 import {
   LanguageClient,
   RevealOutputChannelOn,
-  TransportKind,
 } from 'vscode-languageclient/node';
+import {
+  createConnection,
+} from 'net';
+import {
+  spawn,
+} from 'child_process';
+import {
+  createInterface,
+} from 'readline';
 import {
   resolvePromptsAndExecute,
 } from './command';
@@ -23,6 +32,33 @@ import {
 import {
   LogManager,
 } from './log';
+
+// Spawn the LSP binary and read the TCP port it prints to stdout
+function spawnAndConnect (binaryPath: string): Promise<StreamInfo> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(binaryPath, [], { stdio: ['ignore', 'pipe', 'inherit'] });
+
+    proc.on('error', reject);
+
+    const rl = createInterface({ input: proc.stdout! });
+
+    rl.once('line', (line) => {
+      rl.close();
+      const port = Number(line.trim());
+
+      if (!port) {
+        reject(new Error(`Invalid port from LSP binary: ${line}`));
+
+        return;
+      }
+
+      const socket = createConnection(port, '127.0.0.1', () => {
+        resolve({ reader: socket, writer: socket });
+      });
+      socket.on('error', reject);
+    });
+  });
+}
 
 export class LspManager implements Disposable {
   private static instance: LspManager | undefined;
@@ -49,10 +85,7 @@ export class LspManager implements Disposable {
     // Extension was deactivated while downloading
     if (this.disposed) return;
 
-    const serverOptions: ServerOptions = {
-      command: binaryPath,
-      transport: TransportKind.stdio,
-    };
+    const serverOptions: ServerOptions = () => spawnAndConnect(binaryPath);
 
     const clientOptions: LanguageClientOptions = {
       documentSelector: [

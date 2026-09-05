@@ -86,13 +86,42 @@ local function resolve_prompts_and_execute(cmd, ctx)
   end
 end
 
+-- Track spawned server process and its port
+local server_job = nil
+local server_port = nil
+
 local function start_lsp()
   if not binary then return end
   local root = vim.fs.root(0, { "typedown.yaml", "typedown.yml" })
       or vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":h")
+
+  -- Spawn the LSP binary if not already running, read port from stdout
+  if not server_job then
+    local port_received = false
+    server_job = vim.fn.jobstart({ binary }, {
+      stdout_buffered = false,
+      on_stdout = function(_, data)
+        if not port_received and data and data[1] and data[1] ~= "" then
+          server_port = tonumber(data[1])
+          port_received = true
+        end
+      end,
+      on_exit = function()
+        server_job = nil
+        server_port = nil
+      end,
+    })
+    -- Wait for the port to be printed
+    vim.wait(2000, function() return server_port ~= nil end, 10)
+    if not server_port then
+      vim.notify("[typedown] Failed to get LSP port", vim.log.levels.ERROR)
+      return
+    end
+  end
+
   vim.lsp.start({
     name = "typedown-lsp",
-    cmd = { binary },
+    cmd = vim.lsp.rpc.connect("127.0.0.1", server_port),
     root_dir = root,
     -- Neovim defaults fileOperations to false
     -- Enabling these lets file managers send workspace/willRenameFiles before renaming .td files,
