@@ -1,3 +1,16 @@
+## [0.24.0] - 2026-09-05
+
+### Perf
+
+* packages/typerighter
+  - Search indexing reads directly from disk instead of going through RPC, ~100x faster for large vaults
+  - Virtual modules (site data, pages, search index) loaded lazily on first access instead of blocking startup
+
+### Fixes
+
+* packages/typerighter
+  - Search bar styling
+
 ## [0.23.0] - 2026-09-05
 
 ### Features
