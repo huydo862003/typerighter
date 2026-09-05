@@ -16,7 +16,6 @@ import {
 export interface SearchResult {
   id: string;
   title: string;
-  titles: string[];
   excerpt: string;
   score: number;
 }
@@ -165,7 +164,6 @@ export function useSiteSearch () {
       boost: {
         title: 4,
         text: 2,
-        titles: 1,
       },
     });
 
@@ -174,7 +172,6 @@ export function useSiteSearch () {
     results.value = top.map((result) => ({
       id: result.id,
       title: result.title as string,
-      titles: result.titles as string[],
       excerpt: '',
       score: result.score,
     }));
