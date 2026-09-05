@@ -17,15 +17,6 @@ import {
 
 const TAG = pc.bold(pc.cyan('[typerighter]'));
 
-async function printVersionInfo (context: ReturnType<typeof createAppContext>) {
-  const tdContext = await context.getTdContext();
-  const rpcVersion = await tdContext.rpc.getVersion();
-
-  console.log(`${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})`);
-  console.log(`${TAG} rpc v${rpcVersion}`);
-  console.log('');
-}
-
 export function cli () {
   const program = cac('typerighter');
 
@@ -207,6 +198,15 @@ function handleError (command: string, error: unknown): never {
   console.error(pc.red(message));
   console.error('');
   process.exit(1);
+}
+
+async function printVersionInfo (context: ReturnType<typeof createAppContext>) {
+  const tdContext = await context.getTdContext();
+  const rpcVersion = await tdContext.rpc.getVersion();
+
+  console.log(`${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})`);
+  console.log(`${TAG} rpc v${rpcVersion}`);
+  console.log('');
 }
 
 function resolveRoot (root: string | undefined): string {
