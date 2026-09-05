@@ -61,7 +61,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
   const allItems = Object.values(schemaGroups).flat();
   const contentTree = buildContentTree(allItems);
-  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base });
+  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, nav: config.nav });
   const siteData = JSON.stringify({ contentTree });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports
@@ -79,6 +79,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       repo: config.repo,
       author: config.author,
       license: config.license,
+      nav: config.nav,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
       rootDir: config.rootDir,

@@ -17,6 +17,9 @@ import TdContentNav from './components/TdContentNav.vue';
 import TdFooter from './components/TdFooter.vue';
 import TdBreadcrumb from './components/TdBreadcrumb.vue';
 import {
+  TdHeaderNavBar, TdHeaderNavMenu,
+} from './components/TdHeaderNav';
+import {
   TdFrontmatter,
 } from './components/TdFrontmatter';
 import TdMenuButton from './components/TdMenuButton.vue';
@@ -186,6 +189,7 @@ function onResizeStart (event: PointerEvent) {
         </a>
         <TdBreadcrumb class="td-header-breadcrumb" />
       </div>
+      <TdHeaderNavBar />
       <div class="td-header-right">
         <TdThemeToggle />
         <a
@@ -246,6 +250,7 @@ function onResizeStart (event: PointerEvent) {
           </a>
         </div>
       </header>
+      <TdHeaderNavMenu v-if="!menuSearchActive" />
       <TdSiteSearch
         ref="menuSearch"
         v-model:query="searchQuery"
@@ -511,6 +516,7 @@ function onResizeStart (event: PointerEvent) {
   background: var(--color-td-neutral-bg);
   flex-direction: column;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .td-menu-overlay.is-open {

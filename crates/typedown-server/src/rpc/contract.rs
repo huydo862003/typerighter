@@ -119,6 +119,19 @@ pub struct TdSiteConfig {
   /// License name from typedown.yaml
   pub license: Option<String>,
   pub public_dir: String,
+  pub nav: Vec<TdNavItem>,
+}
+
+/// Navigation link from typedown.yaml
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi))]
+pub struct TdNavItem {
+  pub title: String,
+  pub link: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<String>,
 }
 
 /// Path relative to the vault root

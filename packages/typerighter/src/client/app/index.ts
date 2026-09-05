@@ -53,6 +53,12 @@ export interface TypedownSiteConfig {
   author?: string;
   /** License name */
   license?: string;
+  /** Navigation links */
+  nav?: {
+    title: string;
+    link: string;
+    icon?: string;
+  }[];
 }
 
 export interface TypedownSiteData {
@@ -91,6 +97,7 @@ export async function createTypedownApp (
     repo: config.repo,
     author: config.author,
     license: config.license,
+    nav: config.nav,
   };
 
   const siteData = shallowRef<TypedownSiteData>({

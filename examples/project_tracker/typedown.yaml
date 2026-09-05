@@ -7,3 +7,15 @@ site:
   description: "A typedown site"
   author: "Huy-DNA"
   license: "MIT License"
+  nav:
+    - title: "People"
+      link: "/people/index"
+      icon: icon.users
+    - title: "Projects"
+      link: "/projects/index"
+      icon: icon.folder
+    - title: "Tasks"
+      link: "/tasks/index"
+      icon: icon.check
+    - title: "GitHub"
+      link: "https://github.com/huydo862003/typerighter"

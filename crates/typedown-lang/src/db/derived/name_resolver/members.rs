@@ -14,7 +14,7 @@ use crate::syntax::ast::{AstNode, ClosureExpr};
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
-/// Schema-only members (fast path for _type resolution)
+// Schema-only members for server-side schema lookup
 #[query_derived]
 pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> MembersResult<'db> {
   let config = get_vault_config(db, project);
