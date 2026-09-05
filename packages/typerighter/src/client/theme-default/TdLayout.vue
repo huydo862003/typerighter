@@ -260,7 +260,7 @@ function onResizeStart (event: PointerEvent) {
           </a>
         </div>
       </header>
-      <TdHeaderNavMenu v-if="!menuSearchActive" />
+      <TdHeaderNavMenu />
       <TdSiteSearch
         ref="menuSearch"
         v-model:query="searchQuery"
