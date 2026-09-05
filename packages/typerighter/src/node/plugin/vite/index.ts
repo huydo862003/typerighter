@@ -19,14 +19,7 @@ import {
 } from '../../context';
 import {
   isRpcCancelled,
-  type TypedownContext,
 } from '../../lib/typedown-context';
-import {
-  SearchIndexer,
-} from '../../lib/search-indexer';
-import {
-  indexAllFiles, reindexFile,
-} from '../../lib/search-indexer/scan';
 import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
   PAGES_ID, RESOLVED_PAGES_ID,
@@ -34,45 +27,34 @@ import {
   SEARCH_INDEX_ID, RESOLVED_SEARCH_INDEX_ID,
 } from './constants';
 import {
+  VirtualApp,
+} from './virtual/app';
+import {
+  VirtualPages,
+} from './virtual/pages';
+import {
+  VirtualSiteData,
+} from './virtual/site-data';
+import {
+  VirtualSearchIndex,
+} from './virtual/search-index';
+import {
   resolveAliases,
 } from './alias';
 import {
   vaultAssets, virtualHtml,
 } from './middleware';
 import {
-  type ContentTree,
-  buildContentTree,
-  buildDirectoryListingMap,
-  CONTENT_EXTENSIONS,
   path,
-  type ContentSummary,
 } from '@/shared';
 
-export interface ClientAppEntryOptions {
-  /** Vault root directory relative to project root */
-  rootDir?: string;
-  /** URL base path */
-  basePath?: string;
-  /** Site title */
-  siteTitle: string;
-  /** Site description */
-  siteDescription: string;
-  /** Repository URL */
-  repo?: string;
-  /** Site author */
-  author?: string;
-  /** License name */
-  license?: string;
-  /** Navigation links */
-  nav?: {
-    title: string;
-    link: string;
-    icon?: string;
-  }[];
-}
+// Re-export for SSG build
+export {
+  generate as generateClientAppEntry,
+  type AppEntryOptions as ClientAppEntryOptions,
+} from './virtual/app';
 
 export interface TypedownPluginCache {
-  siteData: ReturnType<typeof fetchSiteData> | undefined;
   devHtml: string | undefined;
   basePath: string;
   rootDirectory: string;
@@ -85,92 +67,18 @@ export interface TypedownPluginOptions {
   root?: string;
 }
 
-export function generateClientAppEntry (options: ClientAppEntryOptions): string {
-  const {
-    rootDir: rootDirectory = '.',
-  } = options;
-
-  const siteConfig = JSON.stringify({
-    title: options.siteTitle,
-    description: options.siteDescription,
-    basePath: options.basePath ?? '/',
-    repo: options.repo,
-    author: options.author,
-    license: options.license,
-    nav: options.nav,
-  });
-
-  return `
-import 'typerighter/style.css';
-import 'typerighter/fonts.css';
-import('typerighter/math.css');
-import { createTypedownApp } from 'typerighter/client';
-import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
-import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
-import { h } from 'vue';
-import theme from 'typerighter/client/theme-default';
-import { pages as initialPages } from '${PAGES_ID}';
-import initialSiteData from '${SITE_DATA_ID}';
-let pages = initialPages;
-const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
-
-function findPage(base) {
-  for (const ext of contentExts) {
-    const key = base + ext;
-    if (pages[key]) return pages[key];
-  }
-}
-
-async function loadPageModule(pagePath) {
-  const base = ('/${rootDirectory}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
-  const loader = findPage(base);
-  if (loader) return loader();
-
-  if (isIndexUrl(pagePath)) {
-    const dirPath = getDirectoryFromPageUrl(pagePath);
-    const dir = siteData.value.directoryListings[dirPath];
-    if (dir) return {
-      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-      __pageData: { frontmatter: {}, headings: [], title: dir.title },
-    };
-  }
-
-  return undefined;
-}
-
-const { app, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, initialSiteData);
-app.mount('#app');
-
-// Load search index in the background after the app is mounted
-import('${SEARCH_INDEX_ID}').then((m) => { searchIndexRef.value = m.default; });
-
-// Accept HMR so modules update without a full page reload
-if (import.meta.hot) {
-  import.meta.hot.accept('${PAGES_ID}', (m) => {
-    if (m) pages = m.pages;
-  });
-
-  import.meta.hot.accept('${SEARCH_INDEX_ID}', (m) => {
-    if (m) searchIndexRef.value = m.default;
-  });
-
-  import.meta.hot.accept('${SITE_DATA_ID}', (m) => {
-    if (m) siteData.value = m.default;
-  });
-}
-`;
-}
-
 export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   let context = options.context;
   let server: ViteDevServer | undefined;
   let hostOutDirectory: string;
   let hostBase: string;
 
-  const searchIndexer = new SearchIndexer();
+  const virtualApp = new VirtualApp();
+  const virtualPages = new VirtualPages();
+  const virtualSiteData = new VirtualSiteData();
+  const virtualSearchIndex = new VirtualSearchIndex();
 
   const cache: TypedownPluginCache = {
-    siteData: undefined,
     devHtml: undefined,
     basePath: '/',
     rootDirectory: 'vault',
@@ -241,66 +149,33 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       }
     },
 
-    // Resolve virtual modules
+    // Resolve virtual module IDs
     resolveId (id) {
-      if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID) {
-        return RESOLVED_VIRTUAL_APP_ID;
-      }
-      if (id === PAGES_ID) {
-        return RESOLVED_PAGES_ID;
-      }
-      if (id === SITE_DATA_ID) {
-        return RESOLVED_SITE_DATA_ID;
-      }
-      if (id === SEARCH_INDEX_ID) {
-        return RESOLVED_SEARCH_INDEX_ID;
-      }
+      if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID) return RESOLVED_VIRTUAL_APP_ID;
+      if (id === PAGES_ID) return RESOLVED_PAGES_ID;
+      if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
+      if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
     },
 
     // Serve virtual modules
     async load (id) {
-      if (id === RESOLVED_SEARCH_INDEX_ID) {
-        return `export default ${JSON.stringify(searchIndexer.serialize())}`;
-      }
+      const context = await resolveTdContext();
 
-      if (id === RESOLVED_PAGES_ID) {
-        const tdContext = await resolveTdContext();
-        const config = await tdContext.getConfig();
-        const rootDirectory = config.rootDir ?? '.';
-        const glob = rootDirectory === '.' ? '/**/*.{td,md}' : `/${rootDirectory}/**/*.{td,md}`;
-
-        return `export const pages = import.meta.glob('${glob}');`;
-      }
-
-      if (id === RESOLVED_SITE_DATA_ID) {
-        if (!cache.siteData) {
-          cache.siteData = fetchSiteData(await resolveTdContext());
-        }
-
-        return `export default ${JSON.stringify(await cache.siteData)}`;
-      }
-
-      if (id !== RESOLVED_VIRTUAL_APP_ID) return;
-
-      const tdContext = await resolveTdContext();
-      const config = await tdContext.getConfig();
-
-      return generateClientAppEntry({
-        ...config,
-        rootDir: config.rootDir,
-      });
+      if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(context);
+      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(context);
+      if (id === RESOLVED_PAGES_ID) return virtualPages.load(context);
+      if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context);
     },
 
     async configureServer (devServer) {
       server = devServer;
       const tdContext = await resolveTdContext();
-
-      // Prefetch eagerly so data is ready by the time virtual modules are loaded
       const config = await tdContext.getConfig();
       const rootDirectory = resolve(config.rootDir);
 
-      indexAllFiles(rootDirectory, searchIndexer);
-      cache.siteData = fetchSiteData(tdContext);
+      // Populate search index and fetch site data in background
+      virtualSearchIndex.index(rootDirectory);
+      virtualSiteData.fetch(tdContext, server);
 
       // Print vault diagnostics after the server URL is shown
       devServer.httpServer?.once('listening', async () => {
@@ -312,17 +187,18 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         }
       });
 
-      // Config changes affect the rendering pipeline itself, requires full reload
+      // Config changes require full reload
       tdContext.rpc.onConfigChanged(() => {
         if (!server) return;
         cache.devHtml = undefined;
-        cache.siteData = undefined;
-        invalidateVirtualAppModule(server);
-        invalidatePages(server);
-        invalidateSiteData(server);
+        virtualSiteData.clear();
+        virtualApp.invalidate(server);
+        virtualPages.invalidate(server);
         hmrFullReload(server);
+        virtualSiteData.fetch(tdContext, server);
       });
 
+      // Content changed: re-index file + invalidate .td modules
       tdContext.rpc.onContentChanged(({
         content,
       }: {
@@ -330,9 +206,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       }) => {
         if (!server) return;
 
-        // Re-index the changed file from disk
-        reindexFile(rootDirectory, content, searchIndexer);
-        invalidateSearchIndex(server);
+        virtualSearchIndex.reindex(rootDirectory, content);
+        virtualSearchIndex.invalidate(server);
 
         tdContext.getConfig()
           .then((config) => {
@@ -362,25 +237,25 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       });
 
-      // Full re-index when files are added or removed
+      // Files added or removed: full re-index
       function handleContentListChange () {
         if (!server) return;
-        indexAllFiles(rootDirectory, searchIndexer);
-        invalidateSearchIndex(server);
-        cache.siteData = undefined;
-        invalidatePages(server);
-        invalidateSiteData(server);
+        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.invalidate(server);
+        virtualPages.invalidate(server);
+        virtualSiteData.clear();
+        virtualSiteData.fetch(tdContext, server);
       }
 
       tdContext.rpc.onContentCreated(handleContentListChange);
       tdContext.rpc.onContentDeleted(handleContentListChange);
 
-      // Schema changes affect all pages using that schema and sidebar data
+      // Schema changes affect all pages and sidebar data
       function handleSchemaChange () {
         if (!server) return;
-        cache.siteData = undefined;
-        invalidateSiteData(server);
+        virtualSiteData.clear();
         hmrInvalidateAll(server);
+        virtualSiteData.fetch(tdContext, server);
       }
 
       tdContext.rpc.onSchemaChanged(handleSchemaChange);
@@ -486,49 +361,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   ];
 }
 
-// Fetch site data (content tree, schemas, directory listings) from the RPC server
-async function fetchSiteData (context: TypedownContext): Promise<{
-  contentTree: ContentTree;
-  schemas: Record<string, unknown>;
-  directoryListings: ReturnType<typeof buildDirectoryListingMap>;
-}> {
-  const [
-    config,
-    sidebarItems,
-    schemaNames,
-  ] = await Promise.all([
-    context.getConfig(),
-    context.listSidebar(),
-    context.listSchemas(),
-  ]);
-
-  const schemaEntries = await Promise.all(
-    schemaNames.map(async (name) => {
-      const info = await context.getSchema(name);
-
-      return [
-        name,
-        info.properties,
-      ] as const;
-    }),
-  );
-  const schemas = Object.fromEntries(schemaEntries);
-
-  // Build content tree from lightweight sidebar items
-  const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
-    ...item,
-    header: {},
-  }));
-  const contentTree = buildContentTree(contentItems);
-  const directoryListings = buildDirectoryListingMap(contentTree.entries, config.siteTitle);
-
-  return {
-    contentTree,
-    schemas,
-    directoryListings,
-  };
-}
-
 // Get all .td modules from the module graph
 function getTdModules (server: ViteDevServer) {
   return [...server.moduleGraph.idToModuleMap.entries()]
@@ -563,51 +395,6 @@ function hmrInvalidateAll (server: ViteDevServer): void {
       type: 'update',
       updates,
     });
-  }
-}
-
-// Invalidate the pages virtual module so import.meta.glob re-scans the filesystem
-function invalidatePages (server: ViteDevServer): void {
-  const module_ = server.moduleGraph.getModuleById(RESOLVED_PAGES_ID);
-
-  if (!module_) return;
-  server.moduleGraph.invalidateModule(module_);
-  server.hot.send({
-    type: 'update',
-    updates: [makeHmrUpdate(module_)],
-  });
-}
-
-// Invalidate the search index virtual module and push an HMR update
-function invalidateSearchIndex (server: ViteDevServer): void {
-  const module_ = server.moduleGraph.getModuleById(RESOLVED_SEARCH_INDEX_ID);
-
-  if (!module_) return;
-  server.moduleGraph.invalidateModule(module_);
-  server.hot.send({
-    type: 'update',
-    updates: [makeHmrUpdate(module_)],
-  });
-}
-
-// Invalidate the site data virtual module and push an HMR update
-function invalidateSiteData (server: ViteDevServer): void {
-  const module_ = server.moduleGraph.getModuleById(RESOLVED_SITE_DATA_ID);
-
-  if (!module_) return;
-  server.moduleGraph.invalidateModule(module_);
-  server.hot.send({
-    type: 'update',
-    updates: [makeHmrUpdate(module_)],
-  });
-}
-
-// Invalidate the virtual app module so it regenerates with fresh siteData
-function invalidateVirtualAppModule (server: ViteDevServer): void {
-  const module_ = server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_APP_ID);
-
-  if (module_) {
-    server.moduleGraph.invalidateModule(module_);
   }
 }
 
