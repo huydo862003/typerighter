@@ -91,6 +91,13 @@ const sidebarSearch =
 const menuSearch = useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
 
 function focusSearch () {
+  // Toggle: if search is already focused, blur and close
+  if (document.activeElement?.closest('.td-search-input-wrap')) {
+    (document.activeElement as HTMLElement).blur();
+    if (isOpen.value) closeMenu();
+    return;
+  }
+
   if (isOpen.value) {
     menuSearch.value?.focus();
   } else if (sidebarSearch.value?.isVisible) {
