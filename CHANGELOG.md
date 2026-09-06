@@ -1,3 +1,25 @@
+## [0.25.0] - 2026-09-06
+
+### Fixes
+
+* crates/typedown-lang
+  - Failed exporting schemaless files
+
+* packages/rpc-client
+  - Use a handrolled rpc client
+
+### Perf
+
+* crates/typedown-server
+  - Drop jsonrpsee and uses multithreading instead of tokio
+
+## [0.24.1] - 2026-09-05
+
+### Fixes
+
+* crates/typedown-lang
+  - Exported html for custom container contains unclosed templates
+
 ## [0.24.1] - 2026-09-05
 
 ### Fixes

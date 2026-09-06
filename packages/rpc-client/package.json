@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@typerighter/rpc-client",
-  "version": "0.24.1",
+  "version": "0.25.0",
   "description": "JSON-RPC client for Typedown over TCP/stdio.",
   "repository": {
     "type": "git",
