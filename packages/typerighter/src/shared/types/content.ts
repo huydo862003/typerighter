@@ -99,8 +99,6 @@ export interface SchemaDefinition {
   [property: string]: PropertyDescriptor;
 }
 
-export type SchemaGroups = Record<string, ContentSummary[]>;
-
 export interface SubdirectoryEntry {
   name: string;
   url: string;

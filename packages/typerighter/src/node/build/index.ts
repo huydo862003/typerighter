@@ -13,7 +13,7 @@ import {
   ProgressLogger,
 } from '../lib/progress';
 import {
-  buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentTreeEntry,
+  buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
   escapeHtml, path as tdpath,
 } from '@/shared';
 import type {
@@ -47,20 +47,23 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   const [
     config,
     files,
-    schemaGroups,
+    sidebarItems,
     schemaNames,
   ] = await Promise.all([
     tdContext.getConfig(),
     tdContext.listFiles(),
-    tdContext.listFilesGroupedBySchema(),
+    tdContext.listSidebar(),
     tdContext.listSchemas(),
   ]);
 
   const rawBase = options.base ?? config.basePath ?? '/';
   const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
 
-  const allItems = Object.values(schemaGroups).flat();
-  const contentTree = buildContentTree(allItems);
+  const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
+    ...item,
+    header: {},
+  }));
+  const contentTree = buildContentTree(contentItems);
   const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, nav: config.nav });
   const siteData = JSON.stringify({ ready: true, contentTree });
 

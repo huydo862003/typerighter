@@ -1,4 +1,3 @@
-use lsp_server::Connection;
 use lsp_types::{
   CompletionOptions, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions,
   HoverProviderCapability, InitializeParams, InitializeResult, OneOf, RenameOptions,
@@ -9,12 +8,23 @@ use lsp_types::{
 };
 use typedown_server::core::logger;
 use typedown_server::core::multiproject::Multiproject;
+use typedown_server::core::transport;
 use typedown_server::lsp::server::Server;
 use typedown_server::lsp::service::{commands, semantic_tokens};
 
 // The entrypoint
 pub fn main() -> anyhow::Result<()> {
-  let (connection, io_thread) = Connection::stdio();
+  let use_stdio = std::env::args().any(|arg| arg == "--stdio");
+  let (connection, io_handle) = if use_stdio {
+    Ok(transport::connect_stdio())
+  } else {
+    let addr = std::env::var("TYPEDOWN_LSP_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("TYPEDOWN_LSP_PORT")
+      .ok()
+      .and_then(|port_str| port_str.parse::<u16>().ok())
+      .unwrap_or(0);
+    transport::connect_tcp(&addr, port)
+  }?;
 
   // File logger available immediately, before handshake
   logger::init_file();
@@ -85,7 +95,11 @@ pub fn main() -> anyhow::Result<()> {
     capabilities,
     server_info: Some(ServerInfo {
       name: "typedown-lsp".to_string(),
-      version: Some(format!("{} (built {})", env!("CARGO_PKG_VERSION"), env!("BUILD_TIMESTAMP"))),
+      version: Some(format!(
+        "{} (built {})",
+        env!("CARGO_PKG_VERSION"),
+        env!("BUILD_TIMESTAMP")
+      )),
     }),
   })?;
   connection.initialize_finish(init_id, init_data)?;
@@ -104,6 +118,6 @@ pub fn main() -> anyhow::Result<()> {
   log::info!("Shutting down, saving cache");
   server.save();
 
-  io_thread.join()?;
+  io_handle.join();
   Ok(())
 }

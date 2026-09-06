@@ -1,110 +1,56 @@
-#![allow(clippy::double_must_use)]
-
-use std::collections::HashMap;
-
-#[cfg(not(target_arch = "wasm32"))]
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
-#[cfg(target_arch = "wasm32")]
-use tsify_next::Tsify;
-
-#[cfg(not(target_arch = "wasm32"))]
-use jsonrpsee::{
-  IntoSubscriptionCloseResponse, SubscriptionCloseResponse, core::to_json_raw_value,
-};
 
 /// Server-defined JSON-RPC error code for query cancellation
 /// NOTE: -32000 to -32099 are server-reserved in JSON-RPC
 pub const CANCELLED_ERROR_CODE: i32 = -32002;
 
-/// On native: generates both TdBuildRpcServer and TdBuildRpcClient traits
-#[cfg_attr(
-  not(target_arch = "wasm32"),
-  rpc(
-    server,
-    client,
-    namespace = "typedown_build",
-    namespace_separator = "."
-  )
-)]
-/// On WASM: generates only TdBuildRpcClient (no server types available)
-#[cfg_attr(
-  target_arch = "wasm32",
-  rpc(client, namespace = "typedown_build", namespace_separator = ".")
-)]
-pub trait TdBuildRpc<Hash, StorageKey> {
-  /* Requests */
+/* JSON-RPC method names */
 
-  #[method(name = "request_file")]
-  async fn request_file(&self, file_path: TdFilePath) -> RpcResult<TdBuiltResource>;
+pub const METHOD_REQUEST_FILE: &str = "typedown_build.request_file";
+pub const METHOD_REQUEST_FILES: &str = "typedown_build.request_files";
+pub const METHOD_LIST_VAULT: &str = "typedown_build.list_vault";
+pub const METHOD_LIST_FILES_GROUPED_BY_SCHEMA: &str = "typedown_build.list_files_grouped_by_schema";
+pub const METHOD_LIST_SIDEBAR: &str = "typedown_build.list_sidebar";
+pub const METHOD_LIST_SCHEMAS: &str = "typedown_build.list_schemas";
+pub const METHOD_GET_SCHEMA: &str = "typedown_build.get_schema";
+pub const METHOD_GET_VERSION: &str = "typedown_build.get_version";
+pub const METHOD_GET_CONFIG: &str = "typedown_build.get_config";
+pub const METHOD_CHECK_VAULT: &str = "typedown_build.check_vault";
+pub const METHOD_FORMAT_FILE: &str = "typedown_build.format_file";
 
-  #[method(name = "request_files")]
-  async fn request_files(&self, file_paths: Vec<TdFilePath>) -> RpcResult<Vec<TdBuiltResource>>;
+/* JSON-RPC notification names (server -> client) */
 
-  #[method(name = "list_vault")]
-  async fn list_vault(&self) -> RpcResult<Vec<String>>;
+pub const NOTIF_CONTENT_CHANGED: &str = "typedown_build.content_changed";
+pub const NOTIF_CONTENT_CREATED: &str = "typedown_build.content_created";
+pub const NOTIF_CONTENT_DELETED: &str = "typedown_build.content_deleted";
+pub const NOTIF_SCHEMA_CHANGED: &str = "typedown_build.schema_changed";
+pub const NOTIF_SCHEMA_CREATED: &str = "typedown_build.schema_created";
+pub const NOTIF_SCHEMA_DELETED: &str = "typedown_build.schema_deleted";
+pub const NOTIF_CONFIG_CHANGED: &str = "typedown_build.config_changed";
 
-  #[method(name = "list_files_grouped_by_schema")]
-  async fn list_files_grouped_by_schema(&self)
-  -> RpcResult<HashMap<String, Vec<TdContentSummary>>>;
+/* RPC error types */
 
-  #[method(name = "list_sidebar")]
-  async fn list_sidebar(&self) -> RpcResult<Vec<TdSidebarItem>>;
-
-  #[method(name = "list_schemas")]
-  async fn list_schemas(&self) -> RpcResult<Vec<String>>;
-
-  #[method(name = "get_schema")]
-  async fn get_schema(&self, schema: String) -> RpcResult<TdSchemaInfo>;
-
-  #[method(name = "get_version")]
-  async fn get_version(&self) -> RpcResult<String>;
-
-  #[method(name = "get_config")]
-  async fn get_config(&self) -> RpcResult<TdSiteConfig>;
-
-  #[method(name = "check_vault")]
-  async fn check_vault(&self) -> RpcResult<TdDiagnosticReport>;
-
-  #[method(name = "format_file")]
-  async fn format_file(&self, file_path: TdFilePath) -> RpcResult<TdFormatResult>;
-
-  /* Content subscriptions */
-
-  #[subscription(name = "subscribe_content_changed", item = TdContentNotification)]
-  async fn subscribe_content_changed(&self) -> TdRpcSubscriptionCloseResponse;
-
-  #[subscription(name = "subscribe_content_created", item = TdContentNotification)]
-  async fn subscribe_content_created(&self) -> TdRpcSubscriptionCloseResponse;
-
-  #[subscription(name = "subscribe_content_deleted", item = TdContentNotification)]
-  async fn subscribe_content_deleted(&self) -> TdRpcSubscriptionCloseResponse;
-
-  /* Schema subscriptions */
-
-  #[subscription(name = "subscribe_schema_changed", item = TdSchemaNotification)]
-  async fn subscribe_schema_changed(&self) -> TdRpcSubscriptionCloseResponse;
-
-  #[subscription(name = "subscribe_schema_created", item = TdSchemaNotification)]
-  async fn subscribe_schema_created(&self) -> TdRpcSubscriptionCloseResponse;
-
-  #[subscription(name = "subscribe_schema_deleted", item = TdSchemaNotification)]
-  async fn subscribe_schema_deleted(&self) -> TdRpcSubscriptionCloseResponse;
-
-  /* Config subscriptions */
-
-  #[subscription(name = "subscribe_config_changed", item = TdSiteConfig)]
-  async fn subscribe_config_changed(&self) -> TdRpcSubscriptionCloseResponse;
+pub struct RpcError {
+  pub code: i32,
+  pub message: String,
 }
+
+impl RpcError {
+  pub fn invalid_params(message: impl Into<String>) -> Self {
+    Self {
+      code: lsp_server::ErrorCode::InvalidParams as i32,
+      message: message.into(),
+    }
+  }
+}
+
+pub type RpcResult<T> = Result<T, RpcError>;
 
 /* RPC request params and results */
 
 /// Site-wide configuration derived from typedown.yaml
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdSiteConfig {
   pub version: String,
   /// URL base path (e.g. "/" or "/docs")
@@ -128,8 +74,6 @@ pub struct TdSiteConfig {
 /// Navigation link from typedown.yaml
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi))]
 pub struct TdNavItem {
   pub title: String,
   pub link: String,
@@ -137,15 +81,9 @@ pub struct TdNavItem {
   pub icon: Option<String>,
 }
 
-/// Path relative to the vault root
-#[derive(Serialize, Deserialize)]
-pub struct TdFilePath(pub String);
-
 /// Lightweight summary of a content file (no body content)
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdContentSummary {
   /// File path relative to the vault root
   pub filepath: String,
@@ -162,7 +100,6 @@ pub struct TdContentSummary {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub icon: Option<TdIcon>,
   /// Frontmatter header as JSON
-  #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub header: serde_json::Value,
   /// First paragraph of the body content
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -174,8 +111,6 @@ pub struct TdContentSummary {
 /// Lightweight sidebar item (no header/content/excerpt)
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi))]
 pub struct TdSidebarItem {
   pub filepath: String,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -192,8 +127,6 @@ pub struct TdSidebarItem {
 /// Structured build result: header (frontmatter), HTML content, and extracted headings
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdBuiltResource {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
@@ -206,7 +139,6 @@ pub struct TdBuiltResource {
   /// Page icon
   #[serde(skip_serializing_if = "Option::is_none")]
   pub icon: Option<TdIcon>,
-  #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub header: serde_json::Value,
   /// HTML body with placeholders for code/math post-processing
   pub content: String,
@@ -222,8 +154,6 @@ pub struct TdBuiltResource {
 /// Heading extracted from page content
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi))]
 pub struct TdHeading {
   pub level: u32,
   pub title: String,
@@ -232,8 +162,6 @@ pub struct TdHeading {
 
 /// Page icon
 #[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdIcon {
   /// Lucide icon name
   pub name: String,
@@ -242,8 +170,6 @@ pub struct TdIcon {
 /// File metadata
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdFileMetadata {
   /// Last modification time as seconds since UNIX epoch
   pub mtime: u64,
@@ -253,12 +179,9 @@ pub struct TdFileMetadata {
 
 /// Schema metadata
 #[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdSchemaInfo {
   pub schema: String,
   pub label: String,
-  #[cfg_attr(target_arch = "wasm32", tsify(type = "Record<string, any>"))]
   pub properties: serde_json::Value,
 }
 
@@ -267,8 +190,6 @@ pub struct TdSchemaInfo {
 /// Result of formatting a single file
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdFormatResult {
   /// Full formatted file content (frontmatter + body)
   pub content: String,
@@ -281,8 +202,6 @@ pub struct TdFormatResult {
 /// A single diagnostic item with location and message
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdDiagnosticItem {
   /// File path relative to the vault root
   pub filepath: String,
@@ -301,8 +220,6 @@ pub struct TdDiagnosticItem {
 /// Result of checking all vault files for diagnostics
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdDiagnosticReport {
   pub diagnostics: Vec<TdDiagnosticItem>,
   pub file_count: u32,
@@ -314,37 +231,12 @@ pub struct TdDiagnosticReport {
 
 /// Content file event: A resource file was created, changed, or deleted
 #[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdContentNotification {
   pub content: String,
 }
 
 /// Schema file event: A schema file was created, changed, or deleted
 #[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, hashmap_as_object))]
 pub struct TdSchemaNotification {
   pub schema: String,
-}
-
-/* Server's response to client subscription termination */
-
-#[cfg(not(target_arch = "wasm32"))]
-pub enum TdRpcSubscriptionCloseResponse {
-  Ok,
-  Err(String),
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl IntoSubscriptionCloseResponse for TdRpcSubscriptionCloseResponse {
-  fn into_response(self) -> SubscriptionCloseResponse {
-    match self {
-      TdRpcSubscriptionCloseResponse::Ok => SubscriptionCloseResponse::None,
-      TdRpcSubscriptionCloseResponse::Err(msg) => {
-        let err = to_json_raw_value(&msg).unwrap();
-        SubscriptionCloseResponse::Notif(err.into())
-      }
-    }
-  }
 }
