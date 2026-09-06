@@ -1,6 +1,6 @@
 //! Emit HTML directly from the typedown AST, with placeholders for shiki and KaTeX
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -53,7 +53,7 @@ struct HtmlEmitter<'a> {
   out: String,
   headings: Vec<ExportedHeading>,
   title: Option<String>,
-  slug_counts: HashMap<String, usize>,
+  slug_counts: BTreeMap<String, usize>,
 }
 
 impl<'a> HtmlEmitter<'a> {
@@ -65,7 +65,7 @@ impl<'a> HtmlEmitter<'a> {
       out: String::new(),
       headings: Vec::new(),
       title: None,
-      slug_counts: HashMap::new(),
+      slug_counts: BTreeMap::new(),
     }
   }
 
@@ -841,8 +841,8 @@ mod tests {
   // Identical headings get -1, -2 suffixes
   #[test]
   fn slug_dedup() {
-    let mut counts = HashMap::new();
-    let make = |counts: &mut HashMap<String, usize>, text: &str| -> String {
+    let mut counts = BTreeMap::new();
+    let make = |counts: &mut BTreeMap<String, usize>, text: &str| -> String {
       let base = slugify(text);
       let count = counts.entry(base.clone()).or_insert(0);
       let slug = if *count == 0 {

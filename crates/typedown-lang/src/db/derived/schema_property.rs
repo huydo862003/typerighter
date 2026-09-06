@@ -2,7 +2,7 @@
 // A property descriptor inside a schema's `properties` field
 // Has a required `type` field and an optional `default` field
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
@@ -103,7 +103,7 @@ pub fn get_schema_property_type<'db>(db: &'db TypedownDatabase) -> TdProductType
     .into(),
   );
 
-  let fields = HashMap::from([
+  let fields = BTreeMap::from([
     ("type".to_string(), type_field),
     ("default".to_string(), default_field),
   ]);

@@ -344,14 +344,28 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   output
 }
 
-pub fn query_derived_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
+/// Cache modifiers parsed from #[query_derived(no_hash)]
+struct CacheModifiers {
+  no_hash: bool,
+}
+
+fn parse_cache_modifiers(attr: TokenStream) -> CacheModifiers {
+  let attr_str = attr.to_string();
+  CacheModifiers {
+    no_hash: attr_str.contains("no_hash"),
+  }
+}
+
+pub fn query_derived_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
+  let modifiers = parse_cache_modifiers(attr);
+
   // Try parsing as a function first, then as a struct
   if let Ok(func) = syn::parse::<ItemFn>(item.clone()) {
-    return query_derived_fn_impl(func);
+    return query_derived_fn_impl(func, &modifiers);
   }
 
   if let Ok(struct_ast) = syn::parse::<ItemStruct>(item.clone()) {
-    return query_derived_struct_impl(struct_ast);
+    return query_derived_struct_impl(struct_ast, &modifiers);
   }
   syn::Error::new(
     proc_macro::Span::call_site().into(),
@@ -361,7 +375,7 @@ pub fn query_derived_impl(_attr: TokenStream, item: TokenStream) -> TokenStream 
   .into()
 }
 
-fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
+fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStream {
   let visibility = &func.vis;
   let fn_name = &func.sig.ident;
   let fn_block = &func.block;
@@ -513,27 +527,30 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   );
 
   // Register derived query ingredient via inventory
+  let no_hash = modifiers.no_hash;
   output.extend::<TokenStream>(
     quote! {
       ::inventory::submit! {
         ::typedown_incremental::Inventory {
           register: |factories| {
             let index = factories.len();
-            factories.push(|index| ::typedown_incremental::IngredientEntry {
-              ingredient: Box::new(
-                ::typedown_incremental::DerivedQueryIngredient::<
-                  #db_type,
-                  #key_tuple_ty_static,
-                  #return_type_without_lifetime<'static>,
-                >::new(
-                  index,
-                  stringify!(#fn_name),
-                  stringify!(#return_type_without_lifetime),
-                  #return_type_without_lifetime::id_counter(),
-                  #fn_name::#fn_name,
-                ),
-              ),
-              field_index: None,
+            factories.push(|index| {
+              let mut ingredient = ::typedown_incremental::DerivedQueryIngredient::<
+                #db_type,
+                #key_tuple_ty_static,
+                #return_type_without_lifetime<'static>,
+              >::new(
+                index,
+                stringify!(#fn_name),
+                stringify!(#return_type_without_lifetime),
+                #return_type_without_lifetime::id_counter(),
+                #fn_name::#fn_name,
+              );
+              ingredient.no_hash_flag = #no_hash;
+              ::typedown_incremental::IngredientEntry {
+                ingredient: Box::new(ingredient),
+                field_index: None,
+              }
             });
             #fn_name::set_ingredient_index(index);
           },
@@ -567,7 +584,7 @@ fn query_derived_fn_impl(func: ItemFn) -> TokenStream {
   output
 }
 
-fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
+fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers) -> TokenStream {
   let visibility = &struct_ast.vis;
   let struct_name = &struct_ast.ident;
 
@@ -663,17 +680,20 @@ fn query_derived_struct_impl(struct_ast: ItemStruct) -> TokenStream {
 
   // Register per-field ingredients via inventory
   let struct_name_str = struct_name.to_string();
+  let no_hash = modifiers.no_hash;
   let mut register_tokens = quote! {};
   for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
     register_tokens.extend(quote! {
       factories.push(|index| {
+        let mut ingredient = ::typedown_incremental::DerivedFieldIngredient::<#field_ty>::new(
+          index,
+          #struct_name_str,
+          #idx as u8,
+          #struct_name::id_counter(),
+        );
+        ingredient.no_hash_flag = #no_hash;
         ::typedown_incremental::IngredientEntry {
-          ingredient: Box::new(::typedown_incremental::DerivedFieldIngredient::<#field_ty>::new(
-            index,
-            #struct_name_str,
-            #idx as u8,
-            #struct_name::id_counter(),
-          )),
+          ingredient: Box::new(ingredient),
           field_index: Some(#idx as u8),
         }
       });

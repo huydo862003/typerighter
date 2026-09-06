@@ -135,7 +135,7 @@ impl zed::Extension for TypedownExtension {
     let binary = self.resolve_binary(language_server_id, worktree)?;
     Ok(zed::Command {
       command: binary,
-      args: vec![],
+      args: vec!["--stdio".to_string()],
       env: vec![],
     })
   }

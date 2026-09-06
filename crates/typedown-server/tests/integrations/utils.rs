@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -62,7 +62,7 @@ pub fn run_child_test(test_name: &str, envs: &[(&str, &str)]) {
 }
 
 fn register_project_fresh(db: &TypedownDatabase, project_dir: &Path) {
-  let mut files = HashMap::new();
+  let mut files = BTreeMap::new();
   for path in scan_project_files(project_dir) {
     let meta = std::fs::metadata(&path).ok();
     let mtime = meta
@@ -81,7 +81,7 @@ fn register_project_fresh(db: &TypedownDatabase, project_dir: &Path) {
 }
 
 fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
-  let cached_files: HashMap<PathBuf, File> = File::iter(db)
+  let cached_files: BTreeMap<PathBuf, File> = File::iter(db)
     .into_iter()
     .filter_map(|file| {
       let handle = file.handle(db);
@@ -89,7 +89,7 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
     })
     .collect();
 
-  let mut files = HashMap::new();
+  let mut files = BTreeMap::new();
   for path in scan_project_files(project_dir) {
     let meta = std::fs::metadata(&path).ok();
     let mtime = meta

@@ -11,6 +11,15 @@ use super::persist::serialized::SerializedQueryStorage;
 use super::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{DeserializeContext, Fingerprint};
 
+#[cfg(debug_assertions)]
+pub struct IngredientStats {
+  pub name: String,
+  pub recompute_count: usize,
+  pub entry_count: usize,
+  pub no_hash: bool,
+  pub is_field: bool,
+}
+
 /// A registry of ingredient factories
 /// This is used in QueryStorage::default() to initialize the internal ingredient vector
 /// TIL: By storing the callbacks (IngredientFactory is a function pointer type), instead of the empty dyn Ingredients (used as templates so default can clone), this avoid requiring the Ingredient to be cloneable... but Ingredient is a supertrait of Any, which is not clonable so cannot be used with dyn!
@@ -155,14 +164,30 @@ impl QueryStorage {
     }
   }
 
-  /// Total number of query function invocations across all derived ingredients.
+  /// Total number of query function invocations across all derived ingredients
   #[cfg(debug_assertions)]
   pub fn total_recompute_count(&self) -> usize {
     self
       .ingredients
       .iter()
-      .map(|e| e.ingredient.recompute_count())
+      .map(|entry| entry.ingredient.recompute_count())
       .sum()
+  }
+
+  /// Stats for each ingredient, indexed by ingredient position
+  #[cfg(debug_assertions)]
+  pub fn ingredient_stats(&self) -> Vec<IngredientStats> {
+    self
+      .ingredients
+      .iter()
+      .map(|entry| IngredientStats {
+        name: entry.ingredient.readable_name(),
+        recompute_count: entry.ingredient.recompute_count(),
+        entry_count: entry.ingredient.entry_ids().count(),
+        no_hash: entry.ingredient.no_hash(),
+        is_field: entry.field_index.is_some(),
+      })
+      .collect()
   }
 
   /// Marker used by the `query_db` macro to verify the storage field type at compile time.

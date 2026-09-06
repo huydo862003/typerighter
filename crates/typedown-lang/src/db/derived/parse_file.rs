@@ -31,7 +31,7 @@ pub fn parse_file<'db>(
 
 #[cfg(test)]
 mod tests {
-  use std::{collections::HashMap, path::PathBuf};
+  use std::{collections::BTreeMap, path::PathBuf};
 
   use crate::syntax::ast::{AstNode, SourceFile};
 
@@ -52,7 +52,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), BTreeMap::new());
 
     let file = File::new(
       &db,
@@ -86,7 +86,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), BTreeMap::new());
     let file = File::new(
       &db,
       FileHandle::Path(fixture.path.clone(), FileMetadata::default()),
@@ -117,7 +117,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), BTreeMap::new());
     let file = File::new(
       &db,
       FileHandle::Content(
@@ -152,7 +152,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), BTreeMap::new());
     let file = File::new(
       &db,
       FileHandle::Path(fixture.path.clone(), FileMetadata::default()),

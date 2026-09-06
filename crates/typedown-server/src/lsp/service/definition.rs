@@ -231,7 +231,7 @@ fn fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Optio
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -341,7 +341,7 @@ age: 30
       ),
     );
 
-    let files = HashMap::from([
+    let files = BTreeMap::from([
       (root.join("typedown.yaml"), config_file),
       (root.join("_types/Person.td"), person_file),
       (root.join("alice.td"), alice_file),
@@ -352,8 +352,8 @@ age: 30
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(HashMap::new()),
-      Arc::new(HashMap::new()),
+      Arc::new(BTreeMap::new()),
+      Arc::new(BTreeMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 
@@ -438,7 +438,7 @@ vault:
       storage: QueryStorage::default(),
     };
 
-    let files = HashMap::from([
+    let files = BTreeMap::from([
       (
         project_root.join("typedown.yaml"),
         File::new(
@@ -485,8 +485,8 @@ vault:
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(HashMap::new()),
-      Arc::new(HashMap::new()),
+      Arc::new(BTreeMap::new()),
+      Arc::new(BTreeMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 
@@ -566,7 +566,7 @@ agency: "Acme"
       storage: QueryStorage::default(),
     };
 
-    let files = HashMap::from([
+    let files = BTreeMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -613,8 +613,8 @@ agency: "Acme"
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(HashMap::new()),
-      Arc::new(HashMap::new()),
+      Arc::new(BTreeMap::new()),
+      Arc::new(BTreeMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 

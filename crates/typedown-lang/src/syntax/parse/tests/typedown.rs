@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
@@ -201,7 +201,7 @@ fn parse_all_project_tracker_files() {
     storage: QueryStorage::default(),
   };
 
-  let mut file_map = HashMap::new();
+  let mut file_map = BTreeMap::new();
   fn collect_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap().flatten() {
       let p = entry.path();

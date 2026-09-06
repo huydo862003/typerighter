@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use typedown_macros::query_derived;
 
 use super::base::{
@@ -47,7 +47,7 @@ impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
   fn parent_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some(TdTypeType::get(db).into())
   }
-  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
     let properties_type = get_dict_type(db)
       .instantiate(
         db,
@@ -57,7 +57,7 @@ impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
         ],
       )
       .typ(db);
-    HashMap::from([("properties".to_string(), LazyType::eager(properties_type))])
+    BTreeMap::from([("properties".to_string(), LazyType::eager(properties_type))])
   }
   fn is_type(&self, _db: &'db TypedownDatabase) -> bool {
     true
@@ -72,9 +72,9 @@ impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
 #[query_derived]
 pub struct TdSchemaType<'db> {
   pub name: String,
-  pub builtins: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
-  pub fields: HashMap<String, PropertyDescriptor<'db>>,
-  pub vtable: HashMap<String, TdFuncObj<'db>>,
+  pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  pub fields: BTreeMap<String, PropertyDescriptor<'db>>,
+  pub vtable: BTreeMap<String, TdFuncObj<'db>>,
   pub parent: Option<TdTypeEnum<'db>>,
 }
 
@@ -123,7 +123,7 @@ impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
     let fields = product.fields(db);
     Some(TdSchemaObj::new(db, (*self).into(), project, None, builtins, fields).into())
   }
-  fn runtime_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdFuncObj<'db>> {
+  fn runtime_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdFuncObj<'db>> {
     let mut result = self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
@@ -141,7 +141,7 @@ impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
     result.extend(self.vtable(db));
     result
   }
-  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'db>> {
     let mut result = self
       .parent_type(db)
       .map(|p| p.static_vtable(db))
@@ -156,7 +156,7 @@ impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
     }
     result
   }
-  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
     // Include inherited fields from parent schema
     let mut result = self
       .parent(db)
@@ -209,8 +209,8 @@ pub struct TdSchemaObj<'db> {
   pub schema: TdTypeEnum<'db>,
   pub project: Project,
   pub file_symbol: Option<Symbol<'db>>,
-  pub builtins: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
-  pub fields: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
 impl<'db> TdRuntimeObject<'db> for TdSchemaObj<'db> {

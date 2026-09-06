@@ -7,7 +7,7 @@
 //! - Multiple H1 headings
 //! - Duplicate headings
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::syntax::ast::{AstNode, MdBody, MdHeading, MdLink, MdMedia};
 use crate::syntax::red::RedNode;
@@ -76,7 +76,7 @@ pub fn lint_markdown(body: &MdBody) -> Vec<LintDiagnostic> {
 fn lint_headings(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
   let mut h1_count = 0;
   // heading text -> (level, first offset)
-  let mut seen_headings: HashMap<String, usize> = HashMap::new();
+  let mut seen_headings: BTreeMap<String, usize> = BTreeMap::new();
 
   for block in body.block_elements() {
     if block.syntax().kind() != SyntaxKind::MdHeading {

@@ -33,10 +33,15 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 
   fn serialize(&self, ctx: &mut SerializeContext, entry_id: usize);
 
-  /// Load a dep node into this ingredient's storage.
+  /// Skip fingerprint computation, always mark dirty on reload
+  fn no_hash(&self) -> bool {
+    false
+  }
+
+  /// Load a dep node into this ingredient's storage
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
-  /// Number of times the query function was actually invoked (not served from cache).
+  /// Number of times the query function was actually invoked (not served from cache)
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize;
 }

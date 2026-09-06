@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
+import { createInterface } from "node:readline";
 import { EventEmitter } from "node:events";
 import { binPath } from "./platform.js";
 
@@ -29,11 +30,11 @@ export class RpcServer extends EventEmitter {
     super();
     this._root = root ?? process.cwd();
     this._addr = addr ?? "127.0.0.1";
-    // Port 0 lets the OS pick a free port, avoiding conflicts between dev and build
     this._port = port ?? 0;
     this._process = undefined;
     this._listening = false;
     this._resolvedAddress = undefined;
+    this._resolvedPort = undefined;
   }
 
   get address() {
@@ -41,9 +42,14 @@ export class RpcServer extends EventEmitter {
     return this._resolvedAddress;
   }
 
+  get host() {
+    if (!this._listening) return undefined;
+    return this._addr;
+  }
+
   get port() {
     if (!this._listening) return undefined;
-    return Number(new URL(this._resolvedAddress).port);
+    return this._resolvedPort;
   }
 
   get listening() {
@@ -64,6 +70,8 @@ export class RpcServer extends EventEmitter {
         TYPEDOWN_RPC_PORT: String(this._port),
       },
       stdio: ["ignore", "pipe", "inherit"],
+      // Detach so the server can save its cache after Node exits
+      detached: true,
     });
 
     this._process = child;
@@ -74,9 +82,14 @@ export class RpcServer extends EventEmitter {
       return this;
     }
 
-    // The server prints the ws:// address when ready
-    stdout.once("data", (data) => {
-      this._resolvedAddress = data.toString().trim();
+    // The server prints addr:port as the first line to stdout
+    const reader = createInterface({ input: stdout });
+    reader.once("line", (line) => {
+      reader.close();
+      const address = line.trim();
+      this._resolvedAddress = address;
+      const colonIndex = address.lastIndexOf(":");
+      this._resolvedPort = Number(address.slice(colonIndex + 1));
       this._listening = true;
       this.emit("listening");
       if (callback) callback();
@@ -90,6 +103,7 @@ export class RpcServer extends EventEmitter {
       this._listening = false;
       this._process = undefined;
       this._resolvedAddress = undefined;
+      this._resolvedPort = undefined;
       this.emit("close", code, signal);
     });
 
@@ -104,10 +118,9 @@ export class RpcServer extends EventEmitter {
     return this;
   }
 
+  // Let the server detect the socket close and save cache in the background
+  // The process is already unref'd so it won't block Node from exiting
   close() {
-    if (this._process) {
-      this._process.kill();
-    }
     return this;
   }
 }

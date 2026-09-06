@@ -1,6 +1,6 @@
 //! Per-file index mapping each symbol to the HIR nodes that reference it
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::hash::Hasher;
 
 use strum::FromRepr;
@@ -77,7 +77,8 @@ impl<'db> StableHash for Reference<'db> {
 
 #[query_derived]
 pub struct ResolutionIndex<'db> {
-  references: HashMap<Symbol<'db>, Vec<Reference<'db>>>,
+  // Keyed by Symbol.def_id for stable ordering (Symbol is interned with session-local IDs)
+  references: BTreeMap<String, Vec<Reference<'db>>>,
 }
 
 impl<'db> ResolutionIndex<'db> {
@@ -89,14 +90,14 @@ impl<'db> ResolutionIndex<'db> {
   ) -> Vec<Reference<'db>> {
     self
       .references(db)
-      .get(&symbol)
+      .get(&symbol.def_id(db).to_string())
       .cloned()
       .unwrap_or_default()
   }
 
-  /// Get all symbols referenced in this file
-  pub fn symbols(&self, db: &'db TypedownDatabase) -> Vec<Symbol<'db>> {
-    self.references(db).keys().copied().collect()
+  /// Get all def_ids referenced in this file
+  pub fn def_ids(&self, db: &'db TypedownDatabase) -> Vec<String> {
+    self.references(db).keys().cloned().collect()
   }
 }
 
@@ -107,7 +108,7 @@ pub fn resolution_index<'db>(
   project: Project,
   file: File,
 ) -> ResolutionIndex<'db> {
-  let mut map: HashMap<Symbol, Vec<Reference>> = HashMap::new();
+  let mut map: BTreeMap<String, Vec<Reference>> = BTreeMap::new();
   let (hir, _) = lower_file(db, project, file);
   if let Some(hir) = hir {
     collect_references(db, hir, &mut map);
@@ -118,7 +119,7 @@ pub fn resolution_index<'db>(
 fn collect_references<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,
-  map: &mut HashMap<Symbol<'db>, Vec<Reference<'db>>>,
+  map: &mut BTreeMap<String, Vec<Reference<'db>>>,
 ) {
   match hir.kind(db) {
     HirValueKind::Mapping(values) => {
@@ -157,10 +158,13 @@ fn collect_references<'db>(
         && matches!(callee_symbol.kind(db), SymbolKind::BuiltinMacro(_))
         && let Some(target_symbol) = hir_ref.value(db)
       {
-        map.entry(target_symbol).or_default().push(Reference {
-          hir,
-          kind: ReferenceKind::Fref,
-        });
+        map
+          .entry(target_symbol.def_id(db).to_string())
+          .or_default()
+          .push(Reference {
+            hir,
+            kind: ReferenceKind::Fref,
+          });
       }
       collect_references(db, *callee, map);
       for arg in args {
@@ -180,10 +184,13 @@ fn collect_references<'db>(
     HirValueKind::Ident(_) => {
       let resolved = referee(db, hir);
       if let Some(symbol) = resolved.value(db) {
-        map.entry(symbol).or_default().push(Reference {
-          hir,
-          kind: ReferenceKind::Ident,
-        });
+        map
+          .entry(symbol.def_id(db).to_string())
+          .or_default()
+          .push(Reference {
+            hir,
+            kind: ReferenceKind::Ident,
+          });
       }
     }
     HirValueKind::Str(_)
@@ -220,9 +227,15 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let idx = resolution_index(&db, project, file);
     // valid_person.td has _type: Person, so "Person" should be in the index
-    let syms = idx.symbols(&db);
-    assert!(!syms.is_empty(), "should have symbols");
-    let refs = idx.get_references(&db, syms[0]);
+    let def_ids = idx.def_ids(&db);
+    assert!(!def_ids.is_empty(), "should have symbols");
+    // Look up the first symbol by def_id
+    let refs: Vec<_> = idx
+      .references(&db)
+      .values()
+      .next()
+      .cloned()
+      .unwrap_or_default();
     assert!(!refs.is_empty(), "should have references");
     assert_eq!(refs[0].kind, ReferenceKind::Ident);
   }
@@ -233,7 +246,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let idx = resolution_index(&db, project, file);
     assert!(
-      idx.symbols(&db).is_empty(),
+      idx.def_ids(&db).is_empty(),
       "untyped file with no identifiers should have no symbols"
     );
   }
@@ -269,9 +282,9 @@ mod tests {
     // article_fref_status.td has fref("summary.td") which resolves to a symbol
     let idx = resolution_index(&db, project, file);
     let all_refs: Vec<_> = idx
-      .symbols(&db)
-      .into_iter()
-      .flat_map(|sym| idx.get_references(&db, sym))
+      .references(&db)
+      .values()
+      .flat_map(|refs| refs.iter().cloned())
       .collect();
     assert!(
       all_refs.len() >= 2,

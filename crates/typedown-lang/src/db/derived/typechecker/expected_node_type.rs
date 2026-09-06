@@ -2,7 +2,7 @@
 // I think this is the idea of bidirectional typechecking
 
 use crate::db::TypedownDatabase;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_builtin_types::{
@@ -36,7 +36,7 @@ struct AnchorResult<'db> {
   path: Vec<(PathStep, RedNode)>,
 }
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn expected_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
   let project = hir.project(db);
   let file = hir.file(db);
@@ -515,7 +515,7 @@ fn traverse_index<'db>(db: &'db TypedownDatabase, lazy: &LazyType<'db>) -> Optio
 fn simple_schemaless_result<'db>(db: &'db TypedownDatabase) -> TypeResult<'db> {
   TypeResult::new(
     db,
-    Some(TdProductType::new(db, None, HashMap::new()).into()),
+    Some(TdProductType::new(db, None, BTreeMap::new()).into()),
     vec![],
   )
 }

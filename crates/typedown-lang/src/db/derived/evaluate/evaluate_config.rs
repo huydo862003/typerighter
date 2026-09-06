@@ -14,7 +14,7 @@ use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
 use crate::syntax::red::RedNode;
 use typedown_incremental::QueryDatabase;
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> ResourceResult<'db> {
   let root_dir = project.root_dir(db);
   let files = project.files(db);

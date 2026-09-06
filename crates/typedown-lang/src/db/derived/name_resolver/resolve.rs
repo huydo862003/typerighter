@@ -8,7 +8,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{HirValue, HirValueKind, InterpolatedPart, ResolveResult};
 use typedown_incremental::QueryDatabase;
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn resolve<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> ResolveResult<'db> {
   let mut diagnostics = vec![];
   collect_unresolved(db, hir, &mut diagnostics);

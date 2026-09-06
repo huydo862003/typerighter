@@ -1,13 +1,13 @@
 //! Static type formatting utilities
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::LazyType;
 use crate::db::types::derived::object_system::TdStaticType;
 
 // Format a field map as "{ name: type, ... }"
-pub fn format_field_map(db: &TypedownDatabase, fields: &HashMap<String, LazyType>) -> String {
+pub fn format_field_map(db: &TypedownDatabase, fields: &BTreeMap<String, LazyType>) -> String {
   if fields.is_empty() {
     return "{}".to_string();
   }

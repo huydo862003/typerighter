@@ -2,7 +2,7 @@
 //! - TdStaticType: static properties for the typechecker (display_name, arity, etc)
 //! - TdRuntimeObject: runtime object protocol for the evaluator (field access, method dispatch)
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use ambassador::delegatable_trait;
 
@@ -72,22 +72,22 @@ pub trait TdStaticType<'x0> {
     Some(get_object_type(db).into())
   }
 
-  fn runtime_vtable(&self, db: &'x0 TypedownDatabase) -> HashMap<String, TdFuncObj<'x0>> {
+  fn runtime_vtable(&self, db: &'x0 TypedownDatabase) -> BTreeMap<String, TdFuncObj<'x0>> {
     self
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
       .unwrap_or_default()
   }
 
-  fn static_vtable(&self, db: &'x0 TypedownDatabase) -> HashMap<String, TdTypeEnum<'x0>> {
+  fn static_vtable(&self, db: &'x0 TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'x0>> {
     self
       .parent_type(db)
       .map(|p| p.static_vtable(db))
       .unwrap_or_default()
   }
 
-  fn get_fields(&self, _db: &'x0 TypedownDatabase) -> HashMap<String, LazyType<'x0>> {
-    HashMap::new()
+  fn get_fields(&self, _db: &'x0 TypedownDatabase) -> BTreeMap<String, LazyType<'x0>> {
+    BTreeMap::new()
   }
 
   fn get_owned_field_type(&self, db: &'x0 TypedownDatabase, name: &str) -> Option<TdTypeEnum<'x0>> {

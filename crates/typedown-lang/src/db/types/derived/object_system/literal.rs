@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_macros::query_derived;
 
@@ -41,11 +41,11 @@ impl<'db> TdStaticType<'db> for TdLiteralType<'db> {
     Some(self.underlying_type(db))
   }
 
-  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'db>> {
     self.underlying_type(db).static_vtable(db)
   }
 
-  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
     self.underlying_type(db).get_fields(db)
   }
 

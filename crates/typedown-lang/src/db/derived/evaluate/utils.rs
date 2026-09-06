@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -41,14 +41,14 @@ pub(crate) fn construct_from_hir<'db>(
             return match kind {
               BuiltinGlobalKind::Vault => Some(TdVaultObj::new(db, hir.project(db)).into()),
               BuiltinGlobalKind::Icon => {
-                let mut fields = HashMap::new();
+                let mut fields = BTreeMap::new();
                 for entry in ICON_ENTRIES {
                   let obj =
                     TdIconObj::new(db, entry.name.to_string(), entry.lucide_name.to_string());
                   fields.insert(entry.name.to_string(), Either::Right(obj.into()));
                 }
                 let module_type = get_icon_module_type(db).into();
-                Some(TdProductObj::new(db, module_type, None, HashMap::new(), fields).into())
+                Some(TdProductObj::new(db, module_type, None, BTreeMap::new(), fields).into())
               }
             };
           }
@@ -165,8 +165,8 @@ pub(crate) fn construct_from_hir<'db>(
   if let HirValueKind::Mapping(entries) = hir.kind(db)
     && type_result.typ(db).is_some_and(|t| t.is_td_product_type())
   {
-    let mut builtins = HashMap::new();
-    let mut fields = HashMap::new();
+    let mut builtins = BTreeMap::new();
+    let mut fields = BTreeMap::new();
     for (key, val_hir) in entries {
       if key.starts_with('_') {
         builtins.insert(key, Either::Left(val_hir));
@@ -425,7 +425,7 @@ fn evaluate_mapping<'db>(
       },
       None => vec![],
     };
-    let mut fields = HashMap::new();
+    let mut fields = BTreeMap::new();
     for (prop_name, prop_hir) in properties_entries {
       if prop_name.starts_with('_') && TdSchemaType::builtin_field_type(db, &prop_name).is_none() {
         fields.insert(
@@ -446,9 +446,9 @@ fn evaluate_mapping<'db>(
       TdSchemaType::new(
         db,
         "anonymous".to_string(),
-        HashMap::new(),
+        BTreeMap::new(),
         fields,
-        HashMap::new(),
+        BTreeMap::new(),
         None,
       )
       .into(),
@@ -457,8 +457,8 @@ fn evaluate_mapping<'db>(
 
   // Schema type: build product obj from fields, then construct schema instance
   if let TdTypeEnum::TdSchemaType(schema_typ) = &typ {
-    let mut builtins = HashMap::new();
-    let mut fields = HashMap::new();
+    let mut builtins = BTreeMap::new();
+    let mut fields = BTreeMap::new();
     for (key, val_hir) in entries {
       if key.starts_with('_') {
         builtins.insert(key, Either::Left(val_hir));
@@ -480,8 +480,8 @@ fn evaluate_mapping<'db>(
 
   // Product type
   if let TdTypeEnum::TdProductType(product_typ) = &typ {
-    let mut builtins = HashMap::new();
-    let mut fields = HashMap::new();
+    let mut builtins = BTreeMap::new();
+    let mut fields = BTreeMap::new();
     for (key, val_hir) in entries {
       if key.starts_with('_') {
         builtins.insert(key, Either::Left(val_hir));
@@ -492,7 +492,7 @@ fn evaluate_mapping<'db>(
     return Some(TdProductObj::new(db, (*product_typ).into(), None, builtins, fields).into());
   }
 
-  let dict_entries: HashMap<_, _> = entries
+  let dict_entries: BTreeMap<_, _> = entries
     .into_iter()
     .map(|(k, v)| (k, Either::Left(v)))
     .collect();
@@ -540,7 +540,7 @@ mod tests {
   use crate::db::utils::lower_file;
   use crate::db::{QueryStorage, TypedownDatabase};
 
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
   use std::path::PathBuf;
 
   fn make_db() -> TypedownDatabase {
@@ -601,7 +601,7 @@ mod tests {
     )
     .into();
     let never_type: TdTypeEnum = get_never_type(&db).into();
-    let product_type: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
+    let product_type: TdTypeEnum = TdProductType::new(&db, None, BTreeMap::new()).into();
 
     let type_type_val: TdTypeEnum = get_type_type(&db).into();
     assert_eq!(type_type_val.runtime_type(&db), Some(type_type_val.clone()));
@@ -638,7 +638,7 @@ mod tests {
         FileMetadata::default(),
       ),
     );
-    let project = Project::new(&db, PathBuf::from("/vault"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/vault"), BTreeMap::new());
     let (hir, _) = lower_file(&db, project, file);
     let str_hir = hir.expect("file should parse");
 
@@ -667,15 +667,15 @@ mod tests {
       FnKind::Native(NativeFnKind::ToStringMethod),
     );
 
-    let mut vtable = HashMap::new();
+    let mut vtable = BTreeMap::new();
     vtable.insert(PROTOCOL_INDEX.to_string(), index_fn);
     vtable.insert(PROTOCOL_CALL.to_string(), call_fn);
 
     let schema_type = TdSchemaType::new(
       &db,
       "CustomContainer".into(),
-      HashMap::new(),
-      HashMap::new(),
+      BTreeMap::new(),
+      BTreeMap::new(),
       vtable,
       None,
     );

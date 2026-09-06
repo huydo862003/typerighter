@@ -16,15 +16,7 @@ name = "typedown-rpc"
 path = "src/bin/typedown-rpc.rs"
 
 [lib]
-crate-type = [
-  # TIL: Produces .wasm when targeting wasm32, .so/.dylib/.dll on native.
-  # This format strips Rust metadata and conforms to the C shared library format
-  # TIL: It happens that wasm exports the same interface as C - Just numeric types everywhere...
-  "cdylib",
-  # TIL: Rust static archive consumed by rustc at compile time.
-  # Required so [[bin]] targets (typedown-lsp, typedown-rpc) can depend on this crate.
-  "rlib",
-]
+crate-type = ["rlib"]
 
 [features]
 default = ["session"]
@@ -35,37 +27,16 @@ anyhow = "1"
 log = "0.4"
 serde_json = "1"
 serde = "1"
-jsonrpsee = { version = "0.26.0", features = ["macros"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-jsonrpsee = { version = "0.26.0", features = ["server", "client"] }
-tokio = "1.53.1"
 notify = "8.2.0"
 crossbeam-channel = "0.5"
-typedown-incremental = { version = "0.24.1", path = "../typedown-incremental" }
-typedown-lang = { version = "0.24.1", path = "../typedown-lang", features = ["export"] }
-typedown-types = { version = "0.24.1", path = "../typedown-types" }
+typedown-incremental = { version = "0.25.0", path = "../typedown-incremental" }
+typedown-lang = { version = "0.25.0", path = "../typedown-lang", features = ["export"] }
+typedown-types = { version = "0.25.0", path = "../typedown-types" }
 lsp-types = "0.97"
 lsp-server = "0.7"
 ropey = "1.6.1"
 dashmap = "6.2.1"
 threadpool = "1"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-jsonrpsee = { version = "0.26.0", features = ["wasm-client"] }
-tsify-next = { version = "0.5", features = ["js"] }
-# TIL: Bridge between Rust and JS
-# 1. #[wasm_bindgen] marks Rust fns/types to expose -> The compiled binary will contain the markers for those
-# 2. CLI reads .wasm at build time
-# 3. CLI then generates JS glue that converts JS types <-> i32 pointers.
-wasm-bindgen = "0.2"
-# TIL: Bridges Rust Future and JS Promise
-# This is required because there is no tokio in WASM, the JS event loop is the only executor
-wasm-bindgen-futures = "0.4"
-# Converts Rust types to/from JS values via serde
-serde-wasm-bindgen = "0.6"
-js-sys = "0.3"
-futures = "0.3"
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,6 +1,6 @@
 //! Evaluate a resource file into typed objects
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_macros::query_derived;
 
@@ -15,7 +15,7 @@ use typedown_incremental::QueryDatabase;
 
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn evaluate_resource<'db>(
   db: &'db TypedownDatabase,
   symbol: Symbol<'db>,
@@ -70,8 +70,8 @@ pub fn evaluate_resource<'db>(
     }
     // Schemaless files with no type produce a DictObj, convert to ProductObj
     Some(TdObjectEnum::TdDictObj(dict)) if is_schemaless => {
-      let mut builtins = HashMap::new();
-      let mut fields = HashMap::new();
+      let mut builtins = BTreeMap::new();
+      let mut fields = BTreeMap::new();
       for (key, val) in dict.entries(db) {
         if key.starts_with('_') {
           builtins.insert(key, val);
@@ -82,7 +82,7 @@ pub fn evaluate_resource<'db>(
       Some(
         TdProductObj::new(
           db,
-          TdProductType::new(db, None, HashMap::new()).into(),
+          TdProductType::new(db, None, BTreeMap::new()).into(),
           Some(symbol),
           builtins,
           fields,
@@ -457,7 +457,7 @@ mod tests {
     let HirValueKind::Mapping(entries) = hir.kind(&db) else {
       panic!("expected mapping at top level");
     };
-    let field_hirs: std::collections::HashMap<_, _> = entries.into_iter().collect();
+    let field_hirs: std::collections::BTreeMap<_, _> = entries.into_iter().collect();
 
     let file_scope = get_file_runtime_scope(&db, project, file);
     let list_result = evaluate_node(&db, field_hirs["list_oob"], file_scope);

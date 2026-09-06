@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
@@ -534,7 +534,7 @@ pub static ICON_ENTRIES: &[IconEntry] = &[
 #[query_derived]
 pub fn get_icon_module_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   let icon_type = get_icon_type(db);
-  let mut fields = HashMap::new();
+  let mut fields = BTreeMap::new();
   for entry in ICON_ENTRIES {
     fields.insert(entry.name.to_string(), LazyType::eager(icon_type.into()));
   }
