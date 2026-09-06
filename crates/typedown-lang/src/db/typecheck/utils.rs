@@ -433,8 +433,6 @@ pub fn is_nullable(db: &TypedownDatabase, typ: &TdTypeEnum) -> bool {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-
   use super::*;
   use crate::db::derived::get_builtin_types::{
     get_bool_type, get_date_type, get_datetime_type, get_dict_type, get_list_type,
@@ -446,6 +444,7 @@ mod tests {
     TdVariableType, TypeVariable, make_property_descriptors,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
+  use std::collections::BTreeMap;
 
   fn db() -> TypedownDatabase {
     TypedownDatabase {
@@ -993,7 +992,7 @@ mod tests {
     let expected: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1002,7 +1001,7 @@ mod tests {
     let actual: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1017,13 +1016,13 @@ mod tests {
     let expected: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
     )
     .into();
-    let actual: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
+    let actual: TdTypeEnum = TdProductType::new(&db, None, BTreeMap::new()).into();
     assert!(!is_subtype_of(&db, &actual, &expected));
   }
 
@@ -1037,10 +1036,10 @@ mod tests {
     let expected: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([("name".to_string(), LazyType::eager(nullable_string))]),
+      BTreeMap::from([("name".to_string(), LazyType::eager(nullable_string))]),
     )
     .into();
-    let actual: TdTypeEnum = TdProductType::new(&db, None, HashMap::new()).into();
+    let actual: TdTypeEnum = TdProductType::new(&db, None, BTreeMap::new()).into();
     assert!(is_subtype_of(&db, &actual, &expected));
   }
 
@@ -1050,7 +1049,7 @@ mod tests {
     let expected: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1059,7 +1058,7 @@ mod tests {
     let actual: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_num_type(&db).into()),
       )]),
@@ -1075,7 +1074,7 @@ mod tests {
     let expected: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1084,7 +1083,7 @@ mod tests {
     let actual: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([
+      BTreeMap::from([
         (
           "name".to_string(),
           LazyType::eager(get_str_type(&db).into()),
@@ -1104,22 +1103,22 @@ mod tests {
     let schema: TdTypeEnum = TdSchemaType::new(
       &db,
       "Test".to_string(),
-      HashMap::new(),
+      BTreeMap::new(),
       make_property_descriptors(
         &db,
-        HashMap::from([(
+        BTreeMap::from([(
           "name".to_string(),
           LazyType::eager(get_str_type(&db).into()),
         )]),
       ),
-      HashMap::new(),
+      BTreeMap::new(),
       None,
     )
     .into();
     let product: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1137,22 +1136,22 @@ mod tests {
     let schema: TdTypeEnum = TdSchemaType::new(
       &db,
       "Test".to_string(),
-      HashMap::new(),
+      BTreeMap::new(),
       make_property_descriptors(
         &db,
-        HashMap::from([(
+        BTreeMap::from([(
           "name".to_string(),
           LazyType::eager(get_str_type(&db).into()),
         )]),
       ),
-      HashMap::new(),
+      BTreeMap::new(),
       None,
     )
     .into();
     let product: TdTypeEnum = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),

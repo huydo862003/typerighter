@@ -14,7 +14,7 @@ use crate::db::types::{
 use crate::db::utils::lower_file;
 use typedown_incremental::QueryDatabase;
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn get_symbol_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypeResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(_) => TypeResult::new(db, Some(get_type_type(db).into()), vec![]),

@@ -18,7 +18,7 @@ const bin = binPath();
 if (dev()) {
   console.log("[rpc-server] Development mode: building typedown-rpc with cargo");
   try {
-    execFileSync("cargo", ["build", "-p", "typedown-server"], {
+    execFileSync("cargo", ["build", "--release", "-p", "typedown-server"], {
       cwd: repoRoot(),
       stdio: "inherit",
     });

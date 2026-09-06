@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_macros::query_derived;
 
@@ -13,12 +13,12 @@ use typedown_incremental::QueryDatabase;
 
 #[query_derived]
 pub struct BuiltinScopeMembers<'db> {
-  pub members: HashMap<String, Symbol<'db>>,
+  pub members: BTreeMap<String, Symbol<'db>>,
 }
 
 #[query_derived]
 pub fn builtin_scope<'db>(db: &'db TypedownDatabase) -> BuiltinScopeMembers<'db> {
-  let members = HashMap::from([
+  let members = BTreeMap::from([
     ("schema".to_string(), get_schema_symbol(db)),
     ("string".to_string(), get_str_symbol(db)),
     ("number".to_string(), get_num_symbol(db)),

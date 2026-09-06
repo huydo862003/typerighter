@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
@@ -56,7 +56,7 @@ impl<'db> Decodable for PropertyDescriptor<'db> {
 #[query_derived]
 pub struct TdProductType<'db> {
   pub name: Option<String>,
-  pub fields: HashMap<String, LazyType<'db>>,
+  pub fields: BTreeMap<String, LazyType<'db>>,
 }
 
 impl<'db> TdRuntimeObject<'db> for TdProductType<'db> {
@@ -87,7 +87,7 @@ impl<'db> TdStaticType<'db> for TdProductType<'db> {
   fn parent_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some(get_object_type(db).into())
   }
-  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
     self.fields(db)
   }
 }
@@ -97,8 +97,8 @@ impl<'db> TdStaticType<'db> for TdProductType<'db> {
 pub struct TdProductObj<'db> {
   pub product_type: TdTypeEnum<'db>,
   pub file_symbol: Option<Symbol<'db>>,
-  pub builtins: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
-  pub fields: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
 impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
@@ -133,8 +133,8 @@ impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
 // Check if expected fields are compatible with actual fields
 pub fn fields_compatible<'db>(
   db: &'db TypedownDatabase,
-  expected_fields: &HashMap<String, LazyType<'db>>,
-  actual_fields: &HashMap<String, LazyType<'db>>,
+  expected_fields: &BTreeMap<String, LazyType<'db>>,
+  actual_fields: &BTreeMap<String, LazyType<'db>>,
 ) -> bool {
   expected_fields.iter().all(|(name, expected_lazy)| {
     let optional = expected_lazy
@@ -157,8 +157,8 @@ pub fn fields_compatible<'db>(
 
 pub fn make_property_descriptors<'db>(
   _db: &'db TypedownDatabase,
-  fields: HashMap<String, LazyType<'db>>,
-) -> HashMap<String, PropertyDescriptor<'db>> {
+  fields: BTreeMap<String, LazyType<'db>>,
+) -> BTreeMap<String, PropertyDescriptor<'db>> {
   fields
     .into_iter()
     .map(|(k, v)| {

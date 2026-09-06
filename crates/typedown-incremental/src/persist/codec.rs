@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -624,6 +624,50 @@ impl<A: Decodable, B: Decodable> Decodable for (A, B) {
       A::field_decode(data, decoder),
       B::field_decode(data, decoder),
     )
+  }
+}
+
+// BTreeMap, already sorted so no StableCompare needed for encode
+impl<K: Encodable + Ord, V: Encodable> Encodable for BTreeMap<K, V> {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buf, self.len() as u32);
+    for (key, value) in self {
+      key.field_encode(buf, encoder);
+      value.field_encode(buf, encoder);
+    }
+  }
+}
+impl<K: Decodable + Ord, V: Decodable> Decodable for BTreeMap<K, V> {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let len = decoder.read_u32(data) as usize;
+    let mut map = BTreeMap::new();
+    for _ in 0..len {
+      map.insert(
+        K::field_decode(data, decoder),
+        V::field_decode(data, decoder),
+      );
+    }
+    map
+  }
+}
+
+// BTreeSet
+impl<V: Encodable + Ord> Encodable for BTreeSet<V> {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buf, self.len() as u32);
+    for v in self {
+      v.field_encode(buf, encoder);
+    }
+  }
+}
+impl<V: Decodable + Ord> Decodable for BTreeSet<V> {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let len = decoder.read_u32(data) as usize;
+    let mut set = BTreeSet::new();
+    for _ in 0..len {
+      set.insert(V::field_decode(data, decoder));
+    }
+    set
   }
 }
 

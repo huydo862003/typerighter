@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_macros::query_derived;
 
@@ -21,7 +21,7 @@ pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> Membe
   let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
 
-  let mut members = HashMap::new();
+  let mut members = BTreeMap::new();
   for (path, file) in &proj_files {
     if !path.starts_with(&root_dir) || !is_type_file(path) {
       continue;
@@ -44,7 +44,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
   match scope.kind(db) {
     ScopeKind::Builtin(_) => MembersResult::new(db, builtin_scope(db).members(db)),
     ScopeKind::File(project, file) => {
-      let mut members = HashMap::new();
+      let mut members = BTreeMap::new();
 
       if let Some(sym) = file_symbol(db, project, file).value(db) {
         let name = file
@@ -71,7 +71,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
     ScopeKind::Project(project) => {
       let proj_files = project.files(db);
 
-      let mut members = HashMap::new();
+      let mut members = BTreeMap::new();
 
       for (path, file) in &proj_files {
         if !is_content_file(path) {
@@ -92,7 +92,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
     ScopeKind::Fn(project, file, value) => {
       let func = value.node(db);
       let closure = ClosureExpr::cast(func).expect("expected ClosureExpr");
-      let mut members = HashMap::new();
+      let mut members = BTreeMap::new();
 
       if let Some(params) = closure.params() {
         let param_idents: Vec<_> = match params {
@@ -125,7 +125,7 @@ fn resolve_import_members<'db>(
   db: &'db TypedownDatabase,
   project: Project,
   file: File,
-  members: &mut HashMap<String, Symbol<'db>>,
+  members: &mut BTreeMap<String, Symbol<'db>>,
 ) {
   let (hir, _) = lower_file(db, project, file);
   let Some(hir) = hir else { return };

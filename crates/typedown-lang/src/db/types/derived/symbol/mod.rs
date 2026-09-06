@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived, query_interned};
@@ -512,10 +512,10 @@ pub struct Symbol<'db> {
 
 #[query_derived]
 pub struct ProjectSchemaResult<'db> {
-  members: HashMap<String, Symbol<'db>>,
+  members: BTreeMap<String, Symbol<'db>>,
 }
 
 #[query_derived]
 pub struct MembersResult<'db> {
-  members: HashMap<String, Symbol<'db>>,
+  members: BTreeMap<String, Symbol<'db>>,
 }

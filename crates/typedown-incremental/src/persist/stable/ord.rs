@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use typedown_types::either::Either::{self};
 
@@ -83,6 +83,32 @@ impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
       (Either::Left(s), Either::Left(o)) => s.stable_cmp(db, o),
       (Either::Right(s), Either::Right(o)) => s.stable_cmp(db, o),
     }
+  }
+}
+
+impl<K: StableCompare + Ord, V: StableCompare> StableCompare for BTreeMap<K, V> {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    self.len().cmp(&other.len()).then_with(|| {
+      self
+        .iter()
+        .zip(other.iter())
+        .map(|((k1, v1), (k2, v2))| k1.stable_cmp(db, k2).then_with(|| v1.stable_cmp(db, v2)))
+        .find(|o| o.is_ne())
+        .unwrap_or(std::cmp::Ordering::Equal)
+    })
+  }
+}
+
+impl<V: StableCompare + Ord> StableCompare for BTreeSet<V> {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    self.len().cmp(&other.len()).then_with(|| {
+      self
+        .iter()
+        .zip(other.iter())
+        .map(|(a, b)| a.stable_cmp(db, b))
+        .find(|o| o.is_ne())
+        .unwrap_or(std::cmp::Ordering::Equal)
+    })
   }
 }
 

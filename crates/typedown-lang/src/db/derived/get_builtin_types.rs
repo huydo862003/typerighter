@@ -3,7 +3,7 @@
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use crate::db::typecheck::utils::make_nullable;
 use crate::db::types::{
@@ -281,7 +281,7 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   let str_type: TdTypeEnum = get_str_type(db).into();
   let optional_str = make_nullable(db, str_type.clone());
 
-  let vault_fields = HashMap::from([(
+  let vault_fields = BTreeMap::from([(
     "root_dir".to_string(),
     LazyType::eager(optional_str.clone()),
   )]);
@@ -291,7 +291,7 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   let icon_type: TdTypeEnum = get_icon_type(db).into();
   let optional_icon = make_nullable(db, icon_type);
 
-  let nav_item_fields = HashMap::from([
+  let nav_item_fields = BTreeMap::from([
     ("title".to_string(), LazyType::eager(str_type.clone())),
     ("link".to_string(), LazyType::eager(str_type.clone())),
     ("icon".to_string(), LazyType::eager(optional_icon)),
@@ -300,7 +300,7 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   let nav_list_type: TdTypeEnum = TdListType::new(db, Some(LazyType::eager(nav_item_type))).into();
   let optional_nav = make_nullable(db, nav_list_type);
 
-  let site_fields = HashMap::from([
+  let site_fields = BTreeMap::from([
     ("title".to_string(), LazyType::eager(optional_str.clone())),
     (
       "description".to_string(),
@@ -320,7 +320,7 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
   ]);
   let site_type: TdTypeEnum = TdProductType::new(db, Some("site".to_string()), site_fields).into();
 
-  let config_fields = HashMap::from([
+  let config_fields = BTreeMap::from([
     ("version".to_string(), LazyType::eager(str_type)),
     (
       "vault".to_string(),

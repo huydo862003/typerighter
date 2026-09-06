@@ -23,6 +23,9 @@ impl FromStableHash for Fingerprint {
 }
 
 impl Fingerprint {
+  /// Sentinel for no_hash queries: signals "fingerprint not computed, must re-verify at runtime"
+  pub const SKIPPED: Self = Fingerprint([0u8; 16]);
+
   pub fn from_hasher(hasher: StableHasher) -> Self {
     hasher.finish()
   }

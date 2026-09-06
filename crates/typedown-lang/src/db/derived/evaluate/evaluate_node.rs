@@ -10,7 +10,7 @@ use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
 // Evaluate with schema-resolved expected type
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn evaluate_node<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,

@@ -1,7 +1,7 @@
 //! Tracked query to get the actual (bottom-up) type of a HIR value
 // I think this is the idea of bidirectional typechecking
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
@@ -28,7 +28,7 @@ use typedown_macros::query_derived;
 
 // Infer the type of an HIR bottom-up from its structure
 // Exception: closures read expected(closure) to get param types (see README.md)
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn actual_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
   let diagnostics = vec![];
   match hir.kind(db) {
@@ -107,7 +107,7 @@ fn get_mapping_type<'db>(
 
   // No _type: infer a structural shape from the entries
   let mut diagnostics = vec![];
-  let mut fields = HashMap::new();
+  let mut fields = BTreeMap::new();
   for (key, value_hir) in entries {
     let field_result = actual_node_type(db, value_hir);
     diagnostics.extend(field_result.diagnostics(db).iter().cloned());
@@ -456,7 +456,7 @@ mod tests {
   use crate::db::types::TdTypeEnum;
   use crate::db::types::derived::object_system::TdStaticType;
   use crate::db::types::{File, FileHandle, FileMetadata, FuncSignature, LiteralValue, Project};
-  use std::{collections::HashMap, path::PathBuf};
+  use std::{collections::BTreeMap, path::PathBuf};
 
   use crate::db::{QueryStorage, TypedownDatabase, utils::lower_file};
 
@@ -561,7 +561,7 @@ mod tests {
       &db,
       FileHandle::Path(schema_file_path.clone(), FileMetadata::default()),
     );
-    let files = HashMap::from([(schema_file_path, file)]);
+    let files = BTreeMap::from([(schema_file_path, file)]);
     let project = Project::new(&db, vault, files);
 
     let (hir, _) = lower_file(&db, project, file);

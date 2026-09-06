@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_macros::query_derived;
 
@@ -23,8 +23,8 @@ impl<'db> TdStaticType<'db> for TdObjectType<'db> {
     None
   }
 
-  fn runtime_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdFuncObj<'db>> {
-    let mut result = HashMap::new();
+  fn runtime_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdFuncObj<'db>> {
+    let mut result = BTreeMap::new();
     let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
     let to_string_fn = TdFuncObj::new(
       db,
@@ -36,8 +36,8 @@ impl<'db> TdStaticType<'db> for TdObjectType<'db> {
     result
   }
 
-  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
-    let mut result = HashMap::new();
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'db>> {
+    let mut result = BTreeMap::new();
     let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
     let func_type = get_func_type(db, sig).into();
     result.insert(BUILTIN_TO_STRING.to_string(), func_type);

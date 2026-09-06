@@ -74,7 +74,7 @@ export function repoRoot() {
 export function binPath() {
   const ext = process.platform === "win32" ? ".exe" : "";
   if (isDev) {
-    return path.join(repoRoot(), "target", "debug", `typedown-rpc${ext}`);
+    return path.join(repoRoot(), "target", "release", `typedown-rpc${ext}`);
   }
   return path.join(path.dirname(import.meta.filename), "bin", `typedown-rpc${ext}`);
 }

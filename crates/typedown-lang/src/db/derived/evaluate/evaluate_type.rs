@@ -1,6 +1,6 @@
 //! Evaluate a schema symbol to extract the type it defines.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_macros::query_derived;
@@ -27,7 +27,7 @@ use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn evaluate_type<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypeResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(kind) => {
@@ -84,7 +84,7 @@ fn evaluate_user_defined_schema<'db>(
   let (inherited_fields, parent_type) =
     resolve_parent_schema(db, &schema_name, &entries, &mut diagnostics);
 
-  let builtins: HashMap<String, Either<HirValue, TdObjectEnum>> = entries
+  let builtins: BTreeMap<String, Either<HirValue, TdObjectEnum>> = entries
     .iter()
     .filter(|(k, _)| k.starts_with('_'))
     .map(|(k, v)| (k.clone(), Either::Left(*v)))
@@ -117,7 +117,7 @@ fn evaluate_user_defined_schema<'db>(
             schema_name,
             builtins,
             inherited_fields,
-            HashMap::new(),
+            BTreeMap::new(),
             parent_type,
           )
           .into(),
@@ -168,7 +168,7 @@ fn evaluate_user_defined_schema<'db>(
         schema_name,
         builtins,
         fields,
-        HashMap::new(),
+        BTreeMap::new(),
         parent_type,
       )
       .into(),
@@ -184,11 +184,11 @@ fn resolve_parent_schema<'db>(
   entries: &[(String, HirValue<'db>)],
   diagnostics: &mut Vec<Diagnostic>,
 ) -> (
-  HashMap<String, PropertyDescriptor<'db>>,
+  BTreeMap<String, PropertyDescriptor<'db>>,
   Option<TdTypeEnum<'db>>,
 ) {
   let Some((_, extends_hir)) = entries.iter().find(|(key, _)| key == "_extends") else {
-    return (HashMap::new(), None);
+    return (BTreeMap::new(), None);
   };
 
   let resolved = referee(db, *extends_hir);
@@ -200,7 +200,7 @@ fn resolve_parent_schema<'db>(
       start_offset: tr_offset,
       end_offset: tr_offset + tr_len,
     });
-    return (HashMap::new(), None);
+    return (BTreeMap::new(), None);
   };
 
   if !matches!(parent_symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
@@ -211,7 +211,7 @@ fn resolve_parent_schema<'db>(
       start_offset: tr_offset,
       end_offset: tr_offset + tr_len,
     });
-    return (HashMap::new(), None);
+    return (BTreeMap::new(), None);
   }
 
   // Pre-walk the _extends chain to detect cycles before calling evaluate_type
@@ -220,18 +220,18 @@ fn resolve_parent_schema<'db>(
       name: current_name.to_string(),
       cycle,
     });
-    return (HashMap::new(), None);
+    return (BTreeMap::new(), None);
   }
 
   let parent_result = evaluate_type(db, parent_symbol);
   diagnostics.extend(parent_result.diagnostics(db).iter().cloned());
 
   let Some(parent_type) = parent_result.typ(db) else {
-    return (HashMap::new(), None);
+    return (BTreeMap::new(), None);
   };
 
   let Some(parent_schema) = parent_type.as_td_schema_type() else {
-    return (HashMap::new(), None);
+    return (BTreeMap::new(), None);
   };
 
   (parent_schema.fields(db), Some(parent_type))
@@ -495,7 +495,7 @@ fn resolve_type_lazy<'db>(
     }
     // Inline object like `type: { name: { type: string }, age: { type: number } }`
     HirValueKind::Mapping(entries) => {
-      let mut fields = HashMap::new();
+      let mut fields = BTreeMap::new();
       for (key, value_hir) in entries {
         if let Some(desc) = resolve_property_descriptor(db, value_hir, diagnostics) {
           fields.insert(key.clone(), desc.field_type);
@@ -550,7 +550,7 @@ mod tests {
   use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
   use crate::syntax::diagnostic::Diagnostic;
 
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
   use std::path::PathBuf;
 
   use crate::db::{
@@ -577,7 +577,7 @@ mod tests {
   }
 
   fn make_project(db: &TypedownDatabase) -> Project {
-    Project::new(db, PathBuf::from("/test"), HashMap::new())
+    Project::new(db, PathBuf::from("/test"), BTreeMap::new())
   }
 
   #[test]
@@ -1011,7 +1011,7 @@ mod tests {
     let product = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1080,7 +1080,7 @@ mod tests {
     let product = TdProductType::new(
       &db,
       None,
-      HashMap::from([(
+      BTreeMap::from([(
         "name".to_string(),
         LazyType::eager(get_str_type(&db).into()),
       )]),
@@ -1099,7 +1099,7 @@ mod tests {
         FileMetadata::default(),
       ),
     );
-    let project = Project::new(db, PathBuf::new(), HashMap::new());
+    let project = Project::new(db, PathBuf::new(), BTreeMap::new());
     let (hir, _) = lower_file(db, project, file);
     hir.unwrap()
   }

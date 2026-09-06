@@ -1,6 +1,6 @@
 //! Tracked query to parse all schema files in the vault's _types directory
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
@@ -18,7 +18,7 @@ pub fn parse_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> Schema
   let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
 
-  let mut schema_asts = HashMap::new();
+  let mut schema_asts = BTreeMap::new();
 
   for (path, file) in &proj_files {
     if path.starts_with(&root_dir) && is_type_file(path) {

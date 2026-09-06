@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use typedown_macros::query_derived;
 
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
@@ -45,7 +45,7 @@ impl<'db> TdStaticType<'db> for TdExistentialType<'db> {
     }
   }
 
-  fn static_vtable(&self, db: &'db TypedownDatabase) -> HashMap<String, TdTypeEnum<'db>> {
+  fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))
@@ -53,7 +53,7 @@ impl<'db> TdStaticType<'db> for TdExistentialType<'db> {
       .unwrap_or_default()
   }
 
-  fn get_fields(&self, db: &'db TypedownDatabase) -> HashMap<String, LazyType<'db>> {
+  fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
     self
       .body(db)
       .and_then(|b| b.resolve(db))
@@ -126,7 +126,7 @@ mod tests {
     let db = make_db();
     let str_type: TdTypeEnum = get_str_type(&db).into();
 
-    let mut fields = HashMap::new();
+    let mut fields = BTreeMap::new();
     fields.insert("title".to_string(), LazyType::eager(str_type.clone()));
     let body_struct: TdTypeEnum = TdProductType::new(&db, None, fields).into();
 

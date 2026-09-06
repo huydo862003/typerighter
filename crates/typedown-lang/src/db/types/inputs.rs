@@ -1,6 +1,6 @@
 //! Input types for the incremental database
 
-use std::{collections::HashMap, fs, io, path::PathBuf, time::SystemTime};
+use std::{collections::BTreeMap, fs, io, path::PathBuf, time::SystemTime};
 
 use typedown_macros::{StableCompare, query_input};
 
@@ -170,5 +170,5 @@ impl Decodable for FileHandle {
 #[query_input]
 pub struct Project {
   root_dir: PathBuf,
-  files: HashMap<PathBuf, File>,
+  files: BTreeMap<PathBuf, File>,
 }

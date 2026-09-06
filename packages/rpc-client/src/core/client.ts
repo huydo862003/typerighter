@@ -86,6 +86,9 @@ export class JsonRpcClient implements MessageConnection {
     this.disposed = true;
 
     this.rejectAllPending('Connection disposed');
+    // Close the streams so the server detects the disconnect
+    this.reader.destroy();
+    this.writer.destroy();
   }
 
   // https://github.com/microsoft/vscode-languageserver-node/blob/5010cdf9822e1038a30ee7eb6ee5d7aaa79acc4a/jsonrpc/src/common/connection.ts#L565

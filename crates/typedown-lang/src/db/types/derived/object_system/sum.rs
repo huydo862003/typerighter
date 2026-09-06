@@ -96,7 +96,7 @@ mod tests {
   use crate::db::derived::get_builtin_types::{get_num_type, get_str_type};
   use crate::db::types::derived::object_system::TdProductType;
   use crate::db::{QueryStorage, TypedownDatabase};
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
@@ -110,11 +110,11 @@ mod tests {
     let str_type: TdTypeEnum = get_str_type(&db).into();
     let num_type: TdTypeEnum = get_num_type(&db).into();
 
-    let mut fields1 = HashMap::new();
+    let mut fields1 = BTreeMap::new();
     fields1.insert("val".to_string(), LazyType::eager(str_type.clone()));
     let struct1: TdTypeEnum = TdProductType::new(&db, None, fields1).into();
 
-    let mut fields2 = HashMap::new();
+    let mut fields2 = BTreeMap::new();
     fields2.insert("val".to_string(), LazyType::eager(num_type.clone()));
     let struct2: TdTypeEnum = TdProductType::new(&db, None, fields2).into();
 
@@ -140,11 +140,11 @@ mod tests {
     let str_type: TdTypeEnum = get_str_type(&db).into();
     let num_type: TdTypeEnum = get_num_type(&db).into();
 
-    let mut fields1 = HashMap::new();
+    let mut fields1 = BTreeMap::new();
     fields1.insert("val".to_string(), LazyType::eager(str_type));
     let struct1: TdTypeEnum = TdProductType::new(&db, None, fields1).into();
 
-    let mut fields2 = HashMap::new();
+    let mut fields2 = BTreeMap::new();
     fields2.insert("other".to_string(), LazyType::eager(num_type));
     let struct2: TdTypeEnum = TdProductType::new(&db, None, fields2).into();
 

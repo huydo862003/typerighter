@@ -21,7 +21,7 @@ mod sum;
 mod variable;
 mod vault;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
 use strum::FromRepr;

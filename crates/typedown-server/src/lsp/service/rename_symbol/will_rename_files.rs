@@ -9,7 +9,7 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::rename_symbol::utils::{build_workspace_edit, collect_reference_edits};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use lsp_types::TextEdit;
@@ -19,7 +19,7 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
   let db = &analysis.db;
   let project = analysis.project;
   let root_dir = get_vault_config(db, project).root_dir(db);
-  let mut all_edits: HashMap<PathBuf, Vec<TextEdit>> = HashMap::new();
+  let mut all_edits: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
 
   for file_rename in &params.files {
     let old_uri: lsp_types::Uri = file_rename.old_uri.parse().ok()?;
@@ -52,7 +52,7 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -147,7 +147,7 @@ avatar: fref("icon.svg")
       ),
     );
 
-    let mut files = HashMap::from([
+    let mut files = BTreeMap::from([
       (root.join("typedown.yaml"), config_file),
       (root.join("_types/Person.td"), person_file),
       (root.join("alice.td"), alice_file),
@@ -166,8 +166,8 @@ avatar: fref("icon.svg")
     Analysis::new(
       db,
       project,
-      Arc::new(HashMap::new()),
-      Arc::new(HashMap::new()),
+      Arc::new(BTreeMap::new()),
+      Arc::new(BTreeMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     )
   }

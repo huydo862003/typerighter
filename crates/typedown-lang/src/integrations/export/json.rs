@@ -239,7 +239,7 @@ mod tests {
 
   use typedown_types::either::Either;
 
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
 
   use super::*;
   use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
@@ -253,7 +253,7 @@ mod tests {
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-    let project = Project::new(&db, PathBuf::new(), HashMap::new());
+    let project = Project::new(&db, PathBuf::new(), BTreeMap::new());
 
     (db, project)
   }

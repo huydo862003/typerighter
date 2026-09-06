@@ -70,6 +70,8 @@ export class RpcServer extends EventEmitter {
         TYPEDOWN_RPC_PORT: String(this._port),
       },
       stdio: ["ignore", "pipe", "inherit"],
+      // Detach so the server can save its cache after Node exits
+      detached: true,
     });
 
     this._process = child;
@@ -116,10 +118,9 @@ export class RpcServer extends EventEmitter {
     return this;
   }
 
+  // Let the server detect the socket close and save cache in the background
+  // The process is already unref'd so it won't block Node from exiting
   close() {
-    if (this._process) {
-      this._process.kill();
-    }
     return this;
   }
 }

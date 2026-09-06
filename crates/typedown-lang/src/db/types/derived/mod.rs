@@ -8,7 +8,7 @@ pub use hir::*;
 pub use object_system::*;
 pub use symbol::*;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::syntax::diagnostic::Diagnostic;
@@ -46,7 +46,7 @@ pub struct FileAstResult<'db> {
 
 #[query_derived]
 pub struct SchemaAstResults<'db> {
-  files: HashMap<PathBuf, FileAstResult<'db>>,
+  files: BTreeMap<PathBuf, FileAstResult<'db>>,
 }
 
 #[query_derived]

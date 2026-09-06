@@ -166,7 +166,10 @@ export class RpcClient {
     return new RpcClient(JsonRpcClient.connectStdio(stdin, stdout));
   }
 
+  /** Send exit notification and close the connection
+   * The detached server will detect the disconnect and save its cache */
   dispose (): void {
+    this.rpc.sendNotification('exit');
     this.rpc.dispose();
   }
 

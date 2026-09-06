@@ -12,7 +12,6 @@ use typedown_server::core::transport;
 use typedown_server::lsp::server::Server;
 use typedown_server::lsp::service::{commands, semantic_tokens};
 
-// The entrypoint
 pub fn main() -> anyhow::Result<()> {
   let use_stdio = std::env::args().any(|arg| arg == "--stdio");
   let (connection, io_handle) = if use_stdio {

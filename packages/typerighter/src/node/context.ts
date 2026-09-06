@@ -114,6 +114,8 @@ export function createAppContext (root: string): AppContext {
     process.removeListener('SIGINT', onSignal);
     process.removeListener('SIGTERM', onSignal);
 
+    // Dispose the client (closes TCP socket), then let the server
+    // detect the disconnect, save its incremental cache, and exit
     client?.dispose();
     server?.close();
 

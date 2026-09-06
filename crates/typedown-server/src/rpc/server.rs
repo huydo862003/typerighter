@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -282,7 +282,7 @@ impl RpcServer {
     fs_rx: crossbeam_channel::Receiver<FsEvent>,
   ) {
     while let Ok(first) = fs_rx.recv() {
-      let mut pending: HashMap<PathBuf, FsEvent> = HashMap::new();
+      let mut pending: BTreeMap<PathBuf, FsEvent> = BTreeMap::new();
       pending.insert(first.path.clone(), first);
 
       // Drain additional events within 50ms for batching
@@ -366,7 +366,7 @@ fn send_notification<T: serde::Serialize>(sender: &Sender<Message>, method: &str
 }
 
 fn parse_params<T: serde::de::DeserializeOwned>(params: serde_json::Value) -> RpcResult<T> {
-  serde_json::from_value(params).map_err(|e| RpcError::invalid_params(e.to_string()))
+  serde_json::from_value(params).map_err(|err| RpcError::invalid_params(err.to_string()))
 }
 
 fn dispatch_request(
@@ -462,7 +462,7 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
       schema: exported.schema,
       schema_label,
       label: exported.label,
-      icon: exported.icon.map(|i| TdIcon { name: i.name }),
+      icon: exported.icon.map(|icon| TdIcon { name: icon.name }),
       header: exported.header,
       content: exported.content,
       headings: exported
@@ -510,7 +510,7 @@ fn list_vault(analysis: &Analysis) -> RpcResult<Vec<String>> {
 
 fn list_files_grouped_by_schema(
   analysis: &Analysis,
-) -> RpcResult<HashMap<String, Vec<TdContentSummary>>> {
+) -> RpcResult<BTreeMap<String, Vec<TdContentSummary>>> {
   let db = &analysis.db;
   let project = analysis.project;
 
@@ -518,7 +518,7 @@ fn list_files_grouped_by_schema(
   let root_dir = config.root_dir(db);
   let files = project.files(db);
 
-  let mut groups: HashMap<String, Vec<TdContentSummary>> = HashMap::new();
+  let mut groups: BTreeMap<String, Vec<TdContentSummary>> = BTreeMap::new();
   for (path, file) in files.iter() {
     if !path.starts_with(&root_dir) {
       continue;
@@ -535,7 +535,7 @@ fn list_files_grouped_by_schema(
         schema: summary.schema,
         schema_label,
         label: summary.label,
-        icon: summary.icon.map(|i| TdIcon { name: i.name }),
+        icon: summary.icon.map(|icon| TdIcon { name: icon.name }),
         header: summary.header,
         excerpt: summary.excerpt,
         metadata: TdFileMetadata {
@@ -570,7 +570,7 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
         schema: meta.schema,
         schema_label,
         label: meta.label,
-        icon: meta.icon.map(|i| TdIcon { name: i.name }),
+        icon: meta.icon.map(|icon| TdIcon { name: icon.name }),
         metadata: TdFileMetadata {
           mtime: meta.metadata.mtime,
           ctime: meta.metadata.ctime,

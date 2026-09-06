@@ -89,6 +89,7 @@ pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
   pub data: Arc<DashMap<usize, QueryState<K, V>>>, // arg_id -> state
   identity_maps: IdentityMapTable,
   lru: Arc<Lru>, // For stale entry eviction
+  pub no_hash_flag: bool,
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicUsize>,
   #[cfg(debug_assertions)]
@@ -171,6 +172,7 @@ impl<
       data: Arc::new(DashMap::new()),
       identity_maps: Arc::new(DashMap::new()),
       lru: Arc::new(Lru::default()),
+      no_hash_flag: false,
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicUsize::new(0)),
       #[cfg(debug_assertions)]
@@ -244,33 +246,34 @@ impl<
       decoder.get_or_deserialize_dep_node_id(edge_idx);
     }
 
-    // Green check: compare multisets of (ingredient_name, value_fingerprint)
-    // Both the serialized edges and current entries must have matching counts
-    let mut expected: HashMap<(Fingerprint, Fingerprint), usize> = HashMap::new();
+    // Green check: verify each dep edge exists with a matching fingerprint
+    let mut expected: HashSet<(Fingerprint, Fingerprint)> = HashSet::new();
     for edge_idx in edges {
       let edge_node = &ctx.serialized.dep_graph.nodes[*edge_idx as usize];
-      *expected
-        .entry((edge_node.name(), edge_node.value_fingerprint()))
-        .or_default() += 1;
+      if matches!(edge_node, DepNode::Evicted) {
+        return None;
+      }
+      // no_hash deps: skip fingerprint check, handled by runtime green_check
+      if edge_node.value_fingerprint() == Fingerprint::SKIPPED {
+        continue;
+      }
+      expected.insert((edge_node.name(), edge_node.value_fingerprint()));
     }
 
-    let mut actual: HashMap<(Fingerprint, Fingerprint), usize> = HashMap::new();
-    for (name, _) in expected.keys() {
+    let mut actual: HashSet<(Fingerprint, Fingerprint)> = HashSet::new();
+    for (name, _) in &expected {
       for &idx in ctx.ingredients_by_name(name) {
         let entry = &storage.ingredients[idx];
         for eid in entry.ingredient.entry_ids() {
           if let Some(fp) = entry.ingredient.value_fingerprint(db, eid) {
-            *actual.entry((*name, fp)).or_default() += 1;
+            actual.insert((*name, fp));
           }
         }
       }
     }
 
-    for (key, &needed) in &expected {
-      let available = actual.get(key).copied().unwrap_or(0);
-      if available < needed {
-        return None;
-      }
+    if !expected.is_subset(&actual) {
+      return None;
     }
 
     // Deserialize field data
@@ -591,7 +594,7 @@ impl<
             }
           }
 
-          // Re-check whether are all deps green
+          // Re-check whether all deps are green
           let all_green = deps.iter().all(|dep| {
             storage.ingredients[dep.ingredient_index]
               .ingredient
@@ -728,9 +731,13 @@ impl<
         key: self
           .key_fingerprint(ctx.db(), entry_id)
           .expect("Computed entry must have a key fingerprint"),
-        value: self
-          .value_fingerprint(ctx.db(), entry_id)
-          .expect("Computed entry must have a value fingerprint"),
+        value: if self.no_hash() {
+          Fingerprint::SKIPPED
+        } else {
+          self
+            .value_fingerprint(ctx.db(), entry_id)
+            .expect("Computed entry must have a value fingerprint")
+        },
         entry_id: entry_id as u64,
         value_entry_id: memo.value.clone().into() as u64,
         changed_at: memo.changed_at as u64,
@@ -743,6 +750,10 @@ impl<
     let mut buf = vec![];
     memo.key.encode(&mut buf, &mut ctx.encoder);
     ctx.query_cache.set(node_index, &buf);
+  }
+
+  fn no_hash(&self) -> bool {
+    self.no_hash_flag
   }
 
   #[cfg(debug_assertions)]
@@ -767,6 +778,7 @@ pub struct DerivedFieldIngredient<T> {
   pub id_counter: &'static AtomicUsize,
   #[doc(hidden)]
   pub data: Arc<DashMap<usize, StampedDerivedField<T>>>,
+  pub no_hash_flag: bool,
 }
 
 impl<T> std::fmt::Debug for DerivedFieldIngredient<T> {
@@ -794,6 +806,7 @@ impl<T> DerivedFieldIngredient<T> {
       name,
       id_counter,
       data: Arc::new(DashMap::new()),
+      no_hash_flag: false,
     }
   }
 }
@@ -897,9 +910,13 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
         name: self.name_fingerprint(),
         field_index: self.field_index,
         entry_id: entry_id as u64,
-        value: self
-          .value_fingerprint(ctx.db(), entry_id)
-          .expect("Entry is available so there must be a fingerprint"),
+        value: if self.no_hash() {
+          Fingerprint::SKIPPED
+        } else {
+          self
+            .value_fingerprint(ctx.db(), entry_id)
+            .expect("Entry is available so there must be a fingerprint")
+        },
         changed_at: entry.changed_at as u64,
       },
     );
@@ -908,6 +925,10 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     let mut buf = vec![];
     entry.value.encode(&mut buf, &mut ctx.encoder);
     ctx.query_cache.set(node_index, &buf);
+  }
+
+  fn no_hash(&self) -> bool {
+    self.no_hash_flag
   }
 
   // Derived fields are set by their parent query, not independently recomputed

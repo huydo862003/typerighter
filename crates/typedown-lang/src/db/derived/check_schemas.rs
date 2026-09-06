@@ -1,6 +1,6 @@
 //! Check that schema files have unique names across the _types directory
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use typedown_macros::query_derived;
@@ -25,7 +25,7 @@ pub fn check_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> Schema
   let root_dir = config.root_dir(db);
   let proj_files = project.files(db);
   let mut diagnostics = vec![];
-  let mut seen_schemas: HashMap<String, PathBuf> = HashMap::new();
+  let mut seen_schemas: BTreeMap<String, PathBuf> = BTreeMap::new();
 
   let mut schema_paths: Vec<_> = proj_files
     .keys()

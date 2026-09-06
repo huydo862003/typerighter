@@ -24,7 +24,7 @@ pub trait SerializableQueryDatabase: QueryDatabase {
     let storage = unsafe { self.storage() };
     let mut ctx = SerializeContext::new(self);
 
-    // Serialize all ingredients
+    // Serialize all ingredients, respecting no_hash
     // NOTE: If we're intending to lazily load the deps
     // instead of eagerly loading the deps like we're doing
     // We must perform cache promotion here

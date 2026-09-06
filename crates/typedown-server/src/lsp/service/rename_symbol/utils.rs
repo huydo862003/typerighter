@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use lsp_types::{
@@ -22,9 +22,9 @@ pub fn collect_reference_edits(
   new_stem: &str,
   new_absolute: &Path,
   root_dir: &Path,
-) -> Option<HashMap<PathBuf, Vec<TextEdit>>> {
+) -> Option<BTreeMap<PathBuf, Vec<TextEdit>>> {
   let db = &analysis.db;
-  let mut edits: HashMap<PathBuf, Vec<TextEdit>> = HashMap::new();
+  let mut edits: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
 
   for r in refs {
     let ref_path = r.hir.file(db).handle(db).path()?.clone();
@@ -71,7 +71,7 @@ pub fn collect_reference_edits(
 /// Assemble text edits and file renames into a WorkspaceEdit
 pub fn build_workspace_edit(
   analysis: &Analysis,
-  edits_by_path: HashMap<PathBuf, Vec<TextEdit>>,
+  edits_by_path: BTreeMap<PathBuf, Vec<TextEdit>>,
   file_renames: Vec<(PathBuf, PathBuf)>,
 ) -> Option<WorkspaceEdit> {
   let mut changes: Vec<DocumentChangeOperation> = Vec::new();

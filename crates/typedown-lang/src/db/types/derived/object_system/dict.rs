@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
@@ -79,7 +79,7 @@ impl<'db> TdStaticType<'db> for TdDictType<'db> {
     _project: Project,
     args: Vec<TdObjectEnum<'db>>,
   ) -> Option<TdObjectEnum<'db>> {
-    let mut entries = HashMap::new();
+    let mut entries = BTreeMap::new();
     for arg in args {
       let pair = *arg.as_td_list_obj()?;
       if pair.len(db) != 2 {
@@ -177,7 +177,7 @@ impl<'db> TdDictType<'db> {
 
 #[query_derived]
 pub struct TdDictObj<'db> {
-  pub entries: HashMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  pub entries: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
 }
 
 impl<'db> TdRuntimeObject<'db> for TdDictObj<'db> {

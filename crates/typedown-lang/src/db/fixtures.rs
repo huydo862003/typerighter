@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -86,7 +86,7 @@ pub fn make_product_obj<'db>(
     db,
     product_type,
     file_symbol,
-    HashMap::new(),
+    BTreeMap::new(),
     fields.into_iter().collect(),
   )
 }
@@ -106,13 +106,13 @@ pub struct Fixture {
 }
 
 /// Load all files in a fixture subdirectory as a map of filename to Fixture
-pub fn load_fixtures(subdir: &str) -> HashMap<String, Fixture> {
+pub fn load_fixtures(subdir: &str) -> BTreeMap<String, Fixture> {
   // TIL: CARGO_MANIFEST_DIR is set to the folder containing the Cargo.toml
   let fixtures_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
     .join("tests/fixtures")
     .join(subdir);
 
-  let mut result = HashMap::new();
+  let mut result = BTreeMap::new();
 
   for entry in std::fs::read_dir(&fixtures_dir).unwrap_or_else(|_| {
     panic!(
@@ -163,7 +163,7 @@ pub fn load_vault_fixture(
 }
 
 /// Collect all vault files (`.td` and `typedown.yaml`/`typedown.yml`) recursively.
-fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, File> {
+fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> BTreeMap<PathBuf, File> {
   fn is_vault_file(path: &Path) -> bool {
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let is_asset = path
@@ -174,7 +174,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, Fi
     is_content_file(path) || is_asset || name == "typedown.yaml" || name == "typedown.yml"
   }
 
-  fn walk(dir: &Path, db: &TypedownDatabase, files: &mut HashMap<PathBuf, File>) {
+  fn walk(dir: &Path, db: &TypedownDatabase, files: &mut BTreeMap<PathBuf, File>) {
     if let Ok(entries) = std::fs::read_dir(dir) {
       for entry in entries.flatten() {
         let path = entry.path();
@@ -188,7 +188,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, Fi
     }
   }
 
-  let mut files = HashMap::new();
+  let mut files = BTreeMap::new();
   walk(dir, db, &mut files);
   files
 }

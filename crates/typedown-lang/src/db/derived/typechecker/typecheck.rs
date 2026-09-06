@@ -20,7 +20,7 @@ use crate::db::types::{
 use crate::syntax::ast::{AstNode, YamlMapping};
 use typedown_incremental::QueryDatabase;
 
-#[query_derived]
+#[query_derived(no_hash)]
 pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypecheckResult<'db> {
   let type_result = actual_node_type(db, hir);
   let mut diagnostics = type_result.diagnostics(db).clone();

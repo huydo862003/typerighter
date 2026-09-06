@@ -118,7 +118,7 @@ fn compute_ident_target(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -227,7 +227,7 @@ age: 30
       ),
     );
 
-    let files = HashMap::from([
+    let files = BTreeMap::from([
       (root.join("typedown.yaml"), config_file),
       (root.join("_types/Person.td"), person_file),
       (root.join("alice.td"), alice_file),
@@ -238,8 +238,8 @@ age: 30
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(HashMap::new()),
-      Arc::new(HashMap::new()),
+      Arc::new(BTreeMap::new()),
+      Arc::new(BTreeMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
     (analysis, uri)
@@ -435,7 +435,7 @@ name: Alice
         FileMetadata::default(),
       ),
     );
-    let files = HashMap::from([
+    let files = BTreeMap::from([
       (root.join("typedown.yaml"), config_file),
       (root.join("_types/Human.td"), schema_file),
       (root.join("alice.td"), alice_file),
@@ -445,8 +445,8 @@ name: Alice
     let analysis2 = Analysis::new(
       db,
       project,
-      Arc::new(HashMap::new()),
-      Arc::new(HashMap::new()),
+      Arc::new(BTreeMap::new()),
+      Arc::new(BTreeMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
     let uri2 = path_to_uri(&root.join("file.td"), "file");
