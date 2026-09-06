@@ -14,7 +14,6 @@ fn erase_db_lifetime_tokens(ty: &impl quote::ToTokens) -> proc_macro2::TokenStre
 }
 
 pub fn query_db_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
-  // Only a struct can be decorated
   let struct_ast = match syn::parse::<ItemStruct>(item) {
     Ok(ast) => ast,
     Err(err) => return err.to_compile_error().into(),
@@ -22,13 +21,11 @@ pub fn query_db_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
   let struct_name = &struct_ast.ident;
 
-  // Require the struct to have a `storage` field
   let storage_field = struct_ast
     .fields
     .iter()
     .find(|field| field.ident.as_ref().is_some_and(|name| name == "storage"));
 
-  // Get the type the user wrote for the `storage` field
   let storage_ty = match storage_field {
     Some(field) => &field.ty,
     None => {
@@ -41,7 +38,6 @@ pub fn query_db_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   quote! {
     #struct_ast
 
-    // Compile-time check: the `storage` field must be `::typedown_incremental::QueryStorage`
     #[cfg(debug_assertions)]
     const _: () = <#storage_ty>::__TYPEDOWN_QUERY_STORAGE;
 
@@ -61,7 +57,6 @@ pub fn query_db_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
-  // Only a struct can be decorated
   let struct_ast = match syn::parse::<ItemStruct>(item) {
     Ok(ast) => ast,
     Err(err) => return err.to_compile_error().into(),
@@ -85,7 +80,6 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
   for field in &fields {
     let field_ty = &field.ty;
-    // Validate that every field is Send + Sync + Clone
     output.extend::<TokenStream>(
       quote! {
         const _: () = {
@@ -96,11 +90,9 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           assert_sync::<#field_ty>();
           assert_clone::<#field_ty>();
 
-          // Validate that InputFieldIngredient is what it is supposed to be
           #[cfg(debug_assertions)]
-          const _: () = <::typedown_incremental::InputFieldIngredient<#field_ty>>::__TYPEDOWN_INPUT_FIELD_INGREDIENT;
+          const _: () = <::typedown_incremental::InputIngredientStore<#field_ty>>::__TYPEDOWN_INPUT_FIELD_INGREDIENT;
 
-          // Validate that QueryStorage is what it is supposed to be
           #[cfg(debug_assertions)]
           const _: () = ::typedown_incremental::QueryStorage::__TYPEDOWN_QUERY_STORAGE;
         };
@@ -119,24 +111,21 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
   let struct_name_str = struct_name.to_string();
 
-  // Generate ingredients for all fields
+  // Register input ingredients
   output.extend::<TokenStream>(
     quote! {
       ::inventory::submit! {
-        ::typedown_incremental::Inventory {
+        ::typedown_incremental::InputInventory {
           register: |factories| {
-            let start_index = factories.len();
+            let start_index = factories.len() as u32;
             #(
-              factories.push(|index| {
-                ::typedown_incremental::IngredientEntry {
-                  ingredient: Box::new(::typedown_incremental::InputFieldIngredient::<#field_types>::new(
-                    index,
-                    #struct_name_str,
-                    #field_indices as u8,
-                    #struct_name::id_counter(),
-                  )),
-                  field_index: Some(#field_indices as u8),
-                }
+              factories.push(|dep_id_prefix| {
+                Box::new(::typedown_incremental::InputIngredientStore::<#field_types>::new(
+                  dep_id_prefix,
+                  #struct_name_str,
+                  #field_indices as u8,
+                  #struct_name::id_counter(),
+                ))
               });
             )*
             #struct_name::set_ingredient_start_index(start_index);
@@ -153,23 +142,26 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let field_name = field.ident.as_ref().unwrap();
     let field_ty = &field.ty;
     let setter_name = quote::format_ident!("set_{}", field_name);
-
     let try_field_name = quote::format_ident!("try_{}", field_name);
 
     getter_setter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_start_index() + #idx;
-        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InputFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
+        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.inputs[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&self.0).expect("invalid input id");
 
         // Record dependency if inside a derived query
+        let dep_id = ::typedown_incremental::DepId::new(
+          ::typedown_incremental::IngredientKind::Input,
+          ingredient_index as u32,
+          self.0,
+        );
         storage.with_context(|ctx| {
           if let Some(ctx) = ctx {
             ctx.dependencies.push(::typedown_incremental::Dependency {
-              ingredient_index,
-              arg_id: self.0,
+              dep_id,
               changed_at: entry.changed_at,
             });
           }
@@ -180,60 +172,58 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
       pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_start_index() + #idx;
-        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InputFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
+        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.inputs[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         Some(ingredient.data.get(&self.0)?.value.clone())
       }
 
       pub fn #setter_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &mut DB, value: #field_ty) {
         let storage = unsafe { db.storage() };
-        let ingredient = (&*storage.ingredients[Self::ingredient_start_index() + #idx].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InputFieldIngredient<#field_ty>>().expect("ingredient type mismatch");
+        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.inputs[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         let mut entry = ingredient.data.get_mut(&self.0).expect("invalid input id");
         if entry.value.eq(&value) {
-          return; // Old value is new value, nothing to do here
+          return;
         }
 
-        // We don't need to lock here
-        // We expect that the Rust borrow checker would only allow one &mut db while no other &db is present
-        // We just want a race-free revision counter here to signal "staleness" to later reads
         let new_revision = storage.revision.fetch_add(1, ::std::sync::atomic::Ordering::Release) + 1;
         storage.reset_for_new_revision();
         let stamped = entry.value_mut();
         stamped.value = value;
-        stamped.changed_at = new_revision;
+        stamped.changed_at = new_revision as u32;
       }
     });
   }
 
   output.extend::<TokenStream>(
     quote! {
-      #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-      #visibility struct #struct_name(usize);
+      #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+      #visibility struct #struct_name(u32);
 
       impl #struct_name {
-        fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<usize> {
-          static START_INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
+        fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<u32> {
+          static START_INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &START_INDEX
         }
 
-        fn ingredient_start_index() -> usize {
+        fn ingredient_start_index() -> u32 {
           *Self::ingredient_start_index_lock().get()
             .expect("ingredient not registered; was QueryStorage initialized?")
         }
 
         #[doc(hidden)]
-        pub fn set_ingredient_start_index(index: usize) {
+        pub fn set_ingredient_start_index(index: u32) {
           let _ = Self::ingredient_start_index_lock().set(index);
         }
 
-        fn id_counter() -> &'static ::std::sync::atomic::AtomicUsize {
-          static COUNTER: ::std::sync::atomic::AtomicUsize = ::std::sync::atomic::AtomicUsize::new(0);
+        fn id_counter() -> &'static ::std::sync::atomic::AtomicU32 {
+          static COUNTER: ::std::sync::atomic::AtomicU32 = ::std::sync::atomic::AtomicU32::new(0);
           &COUNTER
         }
 
-        fn next_id() -> usize {
+        fn next_id() -> u32 {
           Self::id_counter().fetch_add(1, ::std::sync::atomic::Ordering::Relaxed)
         }
 
@@ -241,13 +231,13 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_types),*) -> Self {
           let storage = unsafe { db.storage() };
           let id = Self::next_id();
-          let start_index = Self::ingredient_start_index();
+          let start_index = Self::ingredient_start_index() as usize;
 
           let current_revision = storage.revision.load(::std::sync::atomic::Ordering::Acquire);
           #(
             {
-              let ingredient = (&*storage.ingredients[start_index + #field_indices].ingredient as &dyn ::std::any::Any)
-                .downcast_ref::<::typedown_incremental::InputFieldIngredient<#field_types>>().expect("ingredient type mismatch");
+              let ingredient = (&*storage.inputs[start_index + #field_indices] as &dyn ::std::any::Any)
+                .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_types>>().expect("ingredient type mismatch");
               ingredient.data.insert(id, ::typedown_incremental::StampedInputField {
                 value: #field_names,
                 changed_at: current_revision,
@@ -288,7 +278,6 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           )*
         }
 
-        // As a field, write just the dep index reference
         fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
@@ -303,34 +292,39 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
-          Self::from(dep_id.1)
+          Self::from(dep_id.entry_id())
         }
 
-        // As a field, read just the dep index reference
         fn field_decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           let entry_id = decoder
             .get_or_deserialize_dep_node_id(index)
-            .map(|dep_id| dep_id.1)
+            .map(|dep_id| dep_id.entry_id())
             .unwrap_or(::typedown_incremental::TOMBSTONE_ENTRY_ID);
           Self::from(entry_id)
         }
       }
 
       impl ::typedown_incremental::Id for #struct_name {
-        fn as_id(&self) -> (usize, usize) { (Self::ingredient_start_index(), self.0) }
+        fn as_id(&self) -> ::typedown_incremental::DepId {
+          ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Input,
+            Self::ingredient_start_index(),
+            self.0,
+          )
+        }
       }
-      impl From<usize> for #struct_name {
-        fn from(id: usize) -> Self { Self(id) }
+      impl From<u32> for #struct_name {
+        fn from(id: u32) -> Self { Self(id) }
       }
-      impl From<#struct_name> for usize {
-        fn from(val: #struct_name) -> usize { val.0 }
+      impl From<#struct_name> for u32 {
+        fn from(val: #struct_name) -> u32 { val.0 }
       }
 
       impl ::typedown_incremental::InputId for #struct_name {
         fn iter<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB) -> Vec<Self> {
           let storage = unsafe { db.storage() };
-          let ingredient = &storage.ingredients[Self::ingredient_start_index()].ingredient;
+          let ingredient = &storage.inputs[Self::ingredient_start_index() as usize];
           ingredient.entry_ids().map(Self).collect()
         }
       }
@@ -359,7 +353,6 @@ fn parse_cache_modifiers(attr: TokenStream) -> CacheModifiers {
 pub fn query_derived_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
   let modifiers = parse_cache_modifiers(attr);
 
-  // Try parsing as a function first, then as a struct
   if let Ok(func) = syn::parse::<ItemFn>(item.clone()) {
     return query_derived_fn_impl(func, &modifiers);
   }
@@ -388,7 +381,6 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     }
   };
 
-  // Extract the bare return type name (without lifetime) for use in path expressions, e.g. SchemaCheckResult<'db> -> SchemaCheckResult
   let return_type_without_lifetime = if let syn::Type::Path(type_path) = return_type {
     type_path.path.segments.last().map(|seg| &seg.ident)
   } else {
@@ -403,7 +395,6 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     }
   };
 
-  // Assert that the function is generic over 'db
   let has_db_lifetime = func
     .sig
     .generics
@@ -418,7 +409,6 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     .into();
   }
 
-  // Extract arguments: first arg is &db, rest are keys
   let all_args: Vec<_> = func.sig.inputs.iter().collect();
   if all_args.is_empty() {
     return syn::Error::new_spanned(&func.sig, "derived query must take &db as first argument")
@@ -426,7 +416,6 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
       .into();
   }
 
-  // Skip the first arg (db), collect the rest as key params
   let key_args: Vec<_> = all_args[1..].to_vec();
   let key_names: Vec<_> = key_args
     .iter()
@@ -450,17 +439,12 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     .collect();
 
   let key_tuple_ty = quote! { (#(#key_types,)*) };
-
-  // Key tuple with 'db replaced by 'static for inventory/storage contexts
   let key_tuple_ty_static = erase_db_lifetime_tokens(&key_tuple_ty);
 
-  // The db argument (first arg)
   let db_arg = &all_args[0];
 
-  // Extract the db type (e.g. `Database` from `db: &'db Database`)
   let db_type = if let syn::FnArg::Typed(pat_type) = db_arg {
     if let syn::Type::Reference(type_ref) = pat_type.ty.as_ref() {
-      // Assert that the reference has 'db lifetime
       let has_db_lifetime = type_ref
         .lifetime
         .as_ref()
@@ -487,29 +471,26 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
 
   let mut output: TokenStream = quote! {}.into();
 
-  // Generate marker struct with ingredient index management
+  // Generate marker struct
   output.extend::<TokenStream>(
     quote! {
-      // TIL: Originally, i used a unit struct instead of record-like struct
-      // I thought a struct would not collide with a function with the same name, as they are in different namespaces
-      // However, unit structs create both a value and a type (you can use a unit struct name to represent the singleton value)
       #[allow(non_camel_case_types, clippy::useless_transmute)]
       #visibility struct #fn_name { private: () }
 
       #[allow(clippy::useless_transmute)]
       impl #fn_name {
-        fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<usize> {
-          static INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
+        fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<u32> {
+          static INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &INDEX
         }
 
-        fn ingredient_index() -> usize {
+        fn ingredient_index() -> u32 {
           *Self::ingredient_index_lock().get()
             .expect("derived query ingredient not registered; was QueryStorage initialized?")
         }
 
         #[doc(hidden)]
-        pub fn set_ingredient_index(index: usize) {
+        pub fn set_ingredient_index(index: u32) {
           let _ = Self::ingredient_index_lock().set(index);
         }
 
@@ -526,31 +507,28 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     .into(),
   );
 
-  // Register derived query ingredient via inventory
+  // Register derived query ingredient via QueryInventory
   let no_hash = modifiers.no_hash;
   output.extend::<TokenStream>(
     quote! {
       ::inventory::submit! {
-        ::typedown_incremental::Inventory {
+        ::typedown_incremental::QueryInventory {
           register: |factories| {
-            let index = factories.len();
-            factories.push(|index| {
-              let mut ingredient = ::typedown_incremental::DerivedQueryIngredient::<
+            let index = factories.len() as u32;
+            factories.push(|dep_id_prefix| {
+              let mut ingredient = ::typedown_incremental::DerivedQueryIngredientStore::<
                 #db_type,
                 #key_tuple_ty_static,
                 #return_type_without_lifetime<'static>,
               >::new(
-                index,
+                dep_id_prefix,
                 stringify!(#fn_name),
                 stringify!(#return_type_without_lifetime),
                 #return_type_without_lifetime::id_counter(),
                 #fn_name::#fn_name,
               );
               ingredient.no_hash_flag = #no_hash;
-              ::typedown_incremental::IngredientEntry {
-                ingredient: Box::new(ingredient),
-                field_index: None,
-              }
+              Box::new(ingredient)
             });
             #fn_name::set_ingredient_index(index);
           },
@@ -566,8 +544,8 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
       #[allow(clippy::useless_transmute)]
       #visibility fn #fn_name<'db>(#db_arg, #(#key_names: #key_types),*) -> #return_type {
         let storage = unsafe { db.storage() };
-        let ingredient = (&*storage.ingredients[#fn_name::ingredient_index()].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedQueryIngredient<
+        let ingredient = (&*storage.queries[#fn_name::ingredient_index() as usize] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedQueryIngredientStore<
             #db_type,
             #key_tuple_ty_static,
             #return_type_without_lifetime<'static>,
@@ -588,7 +566,6 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let visibility = &struct_ast.vis;
   let struct_name = &struct_ast.ident;
 
-  // Assert that the struct is generic over 'db
   let has_db_lifetime = struct_ast
     .generics
     .lifetimes()
@@ -615,11 +592,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
   let mut output: TokenStream = quote! {}.into();
 
-  // Validate each field
   for field in &fields {
     let field_ty_static = erase_db_lifetime_tokens(&field.ty);
-
-    // All fields must be Send + Sync + Clone
     output.extend::<TokenStream>(
       quote! {
         const _: () = {
@@ -638,21 +612,18 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     );
   }
 
-  // Ensure at least one field ingredient exists for serialization
   let has_phantom = fields.is_empty();
   let internal_field_types: Vec<syn::Type> = if has_phantom {
     vec![syn::parse_quote! { () }]
   } else {
     fields.iter().map(|f| f.ty.clone()).collect()
   };
-  // Internal field types with 'db erased to 'static for ingredient storage
   let internal_field_types_static: Vec<proc_macro2::TokenStream> = internal_field_types
     .iter()
     .map(erase_db_lifetime_tokens)
     .collect();
 
   let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
-  // Field types with 'db erased to 'static for ingredient storage
   let field_types_static: Vec<proc_macro2::TokenStream> =
     field_types.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
@@ -669,42 +640,38 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     .iter()
     .map(|(_, field)| field.ty.clone())
     .collect();
-  // Erase 'db to 'static for the identity map key (DashMap requires 'static)
   let id_field_tys_static: Vec<proc_macro2::TokenStream> =
     id_field_tys.iter().map(erase_db_lifetime_tokens).collect();
   let id_field_names: Vec<_> = id_fields
     .iter()
     .map(|(_, field)| field.ident.as_ref().unwrap())
     .collect();
-  let identity_ty = quote! {(usize, (#(#id_field_tys_static,)*) )};
+  let identity_ty = quote! {(u32, (#(#id_field_tys_static,)*) )};
 
-  // Register per-field ingredients via inventory
+  // Register per-field ingredients via FieldInventory
   let struct_name_str = struct_name.to_string();
   let no_hash = modifiers.no_hash;
   let mut register_tokens = quote! {};
   for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
     register_tokens.extend(quote! {
-      factories.push(|index| {
-        let mut ingredient = ::typedown_incremental::DerivedFieldIngredient::<#field_ty>::new(
-          index,
+      factories.push(|dep_id_prefix| {
+        let mut ingredient = ::typedown_incremental::DerivedFieldIngredientStore::<#field_ty>::new(
+          dep_id_prefix,
           #struct_name_str,
           #idx as u8,
           #struct_name::id_counter(),
         );
         ingredient.no_hash_flag = #no_hash;
-        ::typedown_incremental::IngredientEntry {
-          ingredient: Box::new(ingredient),
-          field_index: Some(#idx as u8),
-        }
+        Box::new(ingredient)
       });
     });
   }
   output.extend::<TokenStream>(
     quote! {
       ::inventory::submit! {
-        ::typedown_incremental::Inventory {
+        ::typedown_incremental::FieldInventory {
           register: |factories| {
-            let start_index = factories.len();
+            let start_index = factories.len() as u32;
             #register_tokens
             #struct_name::set_ingredient_start_index(start_index);
           },
@@ -719,9 +686,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   for (idx, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
     let field_ty = &field.ty;
-
     let field_ty_static = &field_types_static[idx];
-
     let try_field_name = quote::format_ident!("try_{}", field_name);
 
     getter_tokens.extend(quote! {
@@ -729,17 +694,21 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         let id = self.0;
         debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_start_index() + #idx;
-        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.fields[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id).expect("invalid derived id");
 
         // Record dependency if inside a derived query
+        let dep_id = ::typedown_incremental::DepId::new(
+          ::typedown_incremental::IngredientKind::Field,
+          ingredient_index as u32,
+          id,
+        );
         storage.with_context(|ctx| {
           if let Some(ctx) = ctx {
             ctx.dependencies.push(::typedown_incremental::Dependency {
-              ingredient_index,
-              arg_id: id,
+              dep_id,
               changed_at: entry.changed_at,
             });
           }
@@ -756,9 +725,9 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
           return None;
         }
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_start_index() + #idx;
-        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.fields[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id)?;
 
         // Safety: transmute 'static stored value to 'db at the boundary
@@ -767,19 +736,18 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     });
   }
 
-  // Look up or allocate a stable ID for this derived struct instance
-  // Reuses existing ID if the same identity was seen before in this query
+  // Identity map lookup
   let identity_map_lookup_tokens = quote! {
     let id = storage.with_context(|ctx| {
       let ctx = ctx.as_mut()?;
       let store = ctx.identity_maps.as_ref()?;
-      let arg_id = ctx.query_stack.last().map(|e| e.arg_id)?;
+      let arg_id = ctx.query_stack.last().map(|e| e.dep_id.entry_id())?;
       let map_arc = store
         .entry((arg_id, start_index))
-        .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, usize>::new()))
+        .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, u32>::new()))
         .clone();
       let map = (&*map_arc as &dyn ::std::any::Any)
-        .downcast_ref::<dashmap::DashMap<#identity_ty, usize>>()
+        .downcast_ref::<dashmap::DashMap<#identity_ty, u32>>()
         .expect("identity_map type mismatch");
       let id = if let Some(existing) = map.get(&identity) {
         *existing
@@ -805,12 +773,11 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     quote! {}
   };
 
-  // Insert phantom field value for zero-field structs
   if has_phantom {
     new_body_tokens.extend(quote! {
       {
-        let ingredient = (&*storage.ingredients[start_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<()>>().expect("ingredient type mismatch");
+        let ingredient = (&*storage.fields[start_index as usize] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<()>>().expect("ingredient type mismatch");
         ingredient.data.entry(id).or_insert(::typedown_incremental::StampedDerivedField {
           value: (),
           changed_at: current_revision,
@@ -825,8 +792,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
     new_body_tokens.extend(quote! {
       {
-        let ingredient = (&*storage.ingredients[start_index + #idx].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredient<#field_ty_static>>().expect("ingredient type mismatch");
+        let ingredient = (&*storage.fields[(start_index + #idx as u32) as usize] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
         // Safety: transmute field value from 'db to 'static at storage boundary
         let __val: #field_ty_static = unsafe { ::std::mem::transmute(#field_name.clone()) };
         // Backdate: only update changed_at if the value actually changed
@@ -852,39 +819,37 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
   output.extend::<TokenStream>(
     quote! {
-      // Derived struct is bound to an immutable database
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-      #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>);
+      #visibility struct #struct_name<'db>(u32, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>);
 
       #[allow(clippy::useless_transmute)]
       impl<'db> #struct_name<'db> {
-        fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<usize> {
-          static START_INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
+        fn ingredient_start_index_lock() -> &'static ::std::sync::OnceLock<u32> {
+          static START_INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &START_INDEX
         }
 
-        fn ingredient_start_index() -> usize {
+        fn ingredient_start_index() -> u32 {
           *Self::ingredient_start_index_lock().get()
             .expect("ingredient not registered; was QueryStorage initialized?")
         }
 
         #[doc(hidden)]
-        pub fn set_ingredient_start_index(index: usize) {
+        pub fn set_ingredient_start_index(index: u32) {
           let _ = Self::ingredient_start_index_lock().set(index);
         }
 
         #[doc(hidden)]
-        pub fn id_counter() -> &'static ::std::sync::atomic::AtomicUsize {
-          static COUNTER: ::std::sync::atomic::AtomicUsize = ::std::sync::atomic::AtomicUsize::new(0);
+        pub fn id_counter() -> &'static ::std::sync::atomic::AtomicU32 {
+          static COUNTER: ::std::sync::atomic::AtomicU32 = ::std::sync::atomic::AtomicU32::new(0);
           &COUNTER
         }
 
-        fn next_id() -> usize {
+        fn next_id() -> u32 {
           Self::id_counter().fetch_add(1, ::std::sync::atomic::Ordering::Relaxed)
         }
 
         /// Create or update a derived struct by identity
-        /// If a struct with the same identity already exists, reuses its ID and updates fields in place
         #[allow(clippy::too_many_arguments)]
         pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &'db DB, #(#field_names: #field_types),*) -> Self {
           let storage = unsafe { db.storage() };
@@ -900,7 +865,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
             use ::std::hash::{Hash, Hasher};
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             start_index.hash(&mut hasher);
-            storage.current_query_identity().hash(&mut hasher);
+            storage.current_query_dep_id().hash(&mut hasher);
             #(#id_field_names.hash(&mut hasher);)*
             hasher.finish()
           };
@@ -963,27 +928,33 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
           #phantom_decode_tokens
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
-          Self::from(dep_id.1)
+          Self::from(dep_id.entry_id())
         }
 
         fn field_decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           let entry_id = decoder
             .get_or_deserialize_dep_node_id(index)
-            .map(|dep_id| dep_id.1)
+            .map(|dep_id| dep_id.entry_id())
             .unwrap_or(::typedown_incremental::TOMBSTONE_ENTRY_ID);
           Self::from(entry_id)
         }
       }
 
       impl<'db> ::typedown_incremental::Id for #struct_name<'db> {
-        fn as_id(&self) -> (usize, usize) { (Self::ingredient_start_index(), self.0) }
+        fn as_id(&self) -> ::typedown_incremental::DepId {
+          ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Field,
+            Self::ingredient_start_index(),
+            self.0,
+          )
+        }
       }
-      impl<'db> From<usize> for #struct_name<'db> {
-        fn from(id: usize) -> Self { Self(id, ::std::marker::PhantomData) }
+      impl<'db> From<u32> for #struct_name<'db> {
+        fn from(id: u32) -> Self { Self(id, ::std::marker::PhantomData) }
       }
-      impl<'db> From<#struct_name<'db>> for usize {
-        fn from(val: #struct_name<'db>) -> usize { val.0 }
+      impl<'db> From<#struct_name<'db>> for u32 {
+        fn from(val: #struct_name<'db>) -> u32 { val.0 }
       }
 
       impl<'db> ::typedown_incremental::DerivedId for #struct_name<'db> {}
@@ -1053,21 +1024,20 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
   let intern_key_ty = quote! { (#(#field_types_static,)*) };
 
-  // Register a single InternedIngredient for the whole struct
+  // Register via InternedInventory
   output.extend::<TokenStream>(
     quote! {
       ::inventory::submit! {
-        ::typedown_incremental::Inventory {
+        ::typedown_incremental::InternedInventory {
           register: |factories| {
-            let index = factories.len();
-            factories.push(|index| ::typedown_incremental::IngredientEntry {
-              ingredient: Box::new(::typedown_incremental::InternedIngredient::<#intern_key_ty>::new(
-                index,
+            let index = factories.len() as u32;
+            factories.push(|dep_id_prefix| {
+              Box::new(::typedown_incremental::InternedIngredientStore::<#intern_key_ty>::new(
+                dep_id_prefix,
                 stringify!(#struct_name),
                 #struct_name::id_counter(),
                 #struct_name::intern_map(),
-              )),
-              field_index: None,
+              ))
             });
             #struct_name::set_ingredient_index(index);
           },
@@ -1077,22 +1047,21 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     .into(),
   );
 
-  // Generate getters that access fields from the interned tuple
+  // Generate getters
   let mut getter_tokens = quote! {};
   for (idx, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
     let field_ty = &field.ty;
     let tuple_index = syn::Index::from(idx);
-
     let try_field_name = quote::format_ident!("try_{}", field_name);
 
     getter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_index();
-        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
+        let ingredient_index = Self::ingredient_index() as usize;
+        let ingredient = (&*storage.interned[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id).expect("invalid interned id");
 
         // Safety: transmute 'static stored value to 'db at the boundary
@@ -1102,9 +1071,9 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
         let id = self.0;
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_index();
-        let ingredient = (&*storage.ingredients[ingredient_index].ingredient as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
+        let ingredient_index = Self::ingredient_index() as usize;
+        let ingredient = (&*storage.interned[ingredient_index] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id)?;
 
         // Safety: transmute 'static stored value to 'db at the boundary
@@ -1117,7 +1086,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
   let (struct_def, self_constructor, iter_map, impl_trait_prefix, impl_trait_for, debug_check_ty) =
     if has_db_lifetime {
       (
-        quote! { #visibility struct #struct_name<'db>(usize, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>) },
+        quote! { #visibility struct #struct_name<'db>(u32, ::std::marker::PhantomData<&'db (dyn ::typedown_incremental::QueryDatabase + Sync + Send)>) },
         quote! { Self(id, ::std::marker::PhantomData) },
         quote! { ingredient.entry_ids().map(|id| Self(id, ::std::marker::PhantomData)).collect() },
         quote! { impl<'db> },
@@ -1126,7 +1095,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       )
     } else {
       (
-        quote! { #visibility struct #struct_name(usize) },
+        quote! { #visibility struct #struct_name(u32) },
         quote! { Self(id) },
         quote! { ingredient.entry_ids().map(Self).collect() },
         quote! { impl },
@@ -1143,32 +1112,32 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
       #[allow(clippy::useless_transmute)]
       #impl_header {
-        fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<usize> {
-          static INDEX: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();
+        fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<u32> {
+          static INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &INDEX
         }
 
-        fn ingredient_index() -> usize {
+        fn ingredient_index() -> u32 {
           *Self::ingredient_index_lock().get()
             .expect("ingredient not registered; was QueryStorage initialized?")
         }
 
         #[doc(hidden)]
-        pub fn set_ingredient_index(index: usize) {
+        pub fn set_ingredient_index(index: u32) {
           let _ = Self::ingredient_index_lock().set(index);
         }
 
-        fn id_counter() -> &'static ::std::sync::atomic::AtomicUsize {
-          static COUNTER: ::std::sync::atomic::AtomicUsize = ::std::sync::atomic::AtomicUsize::new(0);
+        fn id_counter() -> &'static ::std::sync::atomic::AtomicU32 {
+          static COUNTER: ::std::sync::atomic::AtomicU32 = ::std::sync::atomic::AtomicU32::new(0);
           &COUNTER
         }
 
-        fn next_id() -> usize {
+        fn next_id() -> u32 {
           Self::id_counter().fetch_add(1, ::std::sync::atomic::Ordering::Relaxed)
         }
 
-        fn intern_map() -> &'static dashmap::DashMap<#intern_key_ty, usize> {
-          static MAP: ::std::sync::OnceLock<dashmap::DashMap<#intern_key_ty, usize>> = ::std::sync::OnceLock::new();
+        fn intern_map() -> &'static dashmap::DashMap<#intern_key_ty, u32> {
+          static MAP: ::std::sync::OnceLock<dashmap::DashMap<#intern_key_ty, u32>> = ::std::sync::OnceLock::new();
           MAP.get_or_init(|| dashmap::DashMap::new())
         }
 
@@ -1187,10 +1156,9 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
             *map.entry(intern_key.clone()).or_insert(id)
           };
 
-          // Always ensure data exists in the current storage
           let storage = unsafe { db.storage() };
-          let ingredient = (&*storage.ingredients[Self::ingredient_index()].ingredient as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::InternedIngredient<#intern_key_ty>>().expect("ingredient type mismatch");
+          let ingredient = (&*storage.interned[Self::ingredient_index() as usize] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
           ingredient.data.entry(id).or_insert(intern_key);
 
           #self_constructor
@@ -1235,24 +1203,30 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
-          Self::from(dep_id.1)
+          Self::from(dep_id.entry_id())
         }
       }
 
       #impl_trait_prefix ::typedown_incremental::Id for #impl_trait_for {
-        fn as_id(&self) -> (usize, usize) { (Self::ingredient_index(), self.0) }
+        fn as_id(&self) -> ::typedown_incremental::DepId {
+          ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Interned,
+            Self::ingredient_index(),
+            self.0,
+          )
+        }
       }
-      #impl_trait_prefix From<usize> for #impl_trait_for {
-        fn from(id: usize) -> Self { #self_constructor }
+      #impl_trait_prefix From<u32> for #impl_trait_for {
+        fn from(id: u32) -> Self { #self_constructor }
       }
-      #impl_trait_prefix From<#impl_trait_for> for usize {
-        fn from(val: #impl_trait_for) -> usize { val.0 }
+      #impl_trait_prefix From<#impl_trait_for> for u32 {
+        fn from(val: #impl_trait_for) -> u32 { val.0 }
       }
 
       #impl_trait_prefix ::typedown_incremental::InternedId for #impl_trait_for {
         fn iter<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB) -> Vec<Self> {
           let storage = unsafe { db.storage() };
-          let ingredient = &storage.ingredients[Self::ingredient_index()].ingredient;
+          let ingredient = &storage.interned[Self::ingredient_index() as usize];
           #iter_map
         }
       }

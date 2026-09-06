@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use dashmap::DashMap;
 
@@ -10,41 +10,41 @@ use crate::{
   StableHash, StableHasher, UnresolvedDepNode,
 };
 
-use super::Ingredient;
+use super::{Ingredient, InternedIngredient};
 
 /// An ingredient for an interned struct
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct InternedIngredient<T: 'static> {
-  ingredient_index: usize,
+pub struct InternedIngredientStore<T: 'static> {
+  dep_id_prefix: u64,
   name: &'static str,
-  pub(crate) id_counter: &'static AtomicUsize,
-  pub(crate) intern_map: &'static DashMap<T, usize>,
+  pub(crate) id_counter: &'static AtomicU32,
+  pub(crate) intern_map: &'static DashMap<T, u32>,
   #[doc(hidden)]
-  pub data: Arc<DashMap<usize, T>>,
+  pub data: Arc<DashMap<u32, T>>,
 }
 
-impl<T: 'static> std::fmt::Debug for InternedIngredient<T> {
+impl<T: 'static> std::fmt::Debug for InternedIngredientStore<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("InternedIngredient")
+    f.debug_struct("InternedIngredientStore")
       .field("name", &self.name)
       .finish_non_exhaustive()
   }
 }
 
-impl<T: 'static> InternedIngredient<T> {
+impl<T: 'static> InternedIngredientStore<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
   pub const __TYPEDOWN_INTERNED_INGREDIENT: () = ();
 
   pub fn new(
-    ingredient_index: usize,
+    dep_id_prefix: u64,
     name: &'static str,
-    id_counter: &'static AtomicUsize,
-    intern_map: &'static DashMap<T, usize>,
+    id_counter: &'static AtomicU32,
+    intern_map: &'static DashMap<T, u32>,
   ) -> Self {
     Self {
-      ingredient_index,
+      dep_id_prefix,
       name,
       id_counter,
       intern_map,
@@ -53,19 +53,19 @@ impl<T: 'static> InternedIngredient<T> {
   }
 }
 
-impl<T: StableHash + Send + Sync + 'static> InternedIngredient<T> {
-  pub fn value_fingerprint(&self, db: &dyn QueryDatabase, arg_id: usize) -> Option<Fingerprint> {
-    self.data.get(&arg_id).map(|entry| {
-      let mut hasher = StableHasher::new();
-      entry.value().stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
-  }
-}
 
 impl<
-  T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-> Ingredient for InternedIngredient<T>
+  T: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + Eq
+    + Hash
+    + Clone
+    + Send
+    + Sync
+    + 'static,
+> Ingredient for InternedIngredientStore<T>
 {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
@@ -76,27 +76,36 @@ impl<
     Fingerprint::from_name(self.name)
   }
 
-  fn green_check(&self, _db: &dyn QueryDatabase, _arg_id: usize, _last_changed_at: usize) -> bool {
-    // Interned values never change, always green
-    true
-  }
 
-  fn re_execute(&self, _db: &dyn QueryDatabase, _arg_id: usize) {
-    // Interned values never change, nothing to recompute
-  }
-
-  fn reset_for_new_revision(&self) {}
-
-  fn remove_entry(&self, entry_id: usize) {
-    self.data.remove(&entry_id);
-  }
-
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: usize) -> Option<Fingerprint> {
-    InternedIngredient::value_fingerprint(self, db, entry_id)
+  #[cfg(debug_assertions)]
+  fn recompute_count(&self) -> usize {
+    0
+  }
+}
+
+impl<
+  T: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + Eq
+    + Hash
+    + Clone
+    + Send
+    + Sync
+    + 'static,
+> InternedIngredient for InternedIngredientStore<T>
+{
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher = StableHasher::new();
+      entry.value().stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
@@ -114,24 +123,23 @@ impl<
     let entry_id = *self
       .intern_map
       .entry(value.clone())
-      .or_insert_with(|| id_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+      .or_insert_with(|| id_counter.fetch_add(1, Ordering::Relaxed));
     self.data.entry(entry_id).or_insert(value);
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: usize) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32) {
     let Some(entry) = self.data.get(&entry_id) else {
       return;
     };
 
-    // Encode the value to register it in the encoder's intern table
     let mut buf = vec![];
     entry.value().encode(&mut buf, &mut ctx.encoder);
     let blob_index = ctx.encoder.intern_blob::<T>(buf, Some(entry_id));
 
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,
@@ -140,11 +148,5 @@ impl<
         blob_index,
       },
     );
-  }
-
-  // Interned values are never recomputed
-  #[cfg(debug_assertions)]
-  fn recompute_count(&self) -> usize {
-    0
   }
 }

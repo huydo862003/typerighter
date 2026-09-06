@@ -52,7 +52,7 @@ fn serialize(
   db: &TypedownDatabase,
   project: Project,
   obj: &TdObjectEnum,
-  visiting: &mut HashSet<(usize, usize)>,
+  visiting: &mut HashSet<typedown_incremental::DepId>,
   should_serialize_as_fref: bool, /* false for the top-level object */
 ) -> Result<serde_json::Value, CircularRef> {
   match obj {
@@ -214,7 +214,7 @@ fn serialize_lazy_type(
   db: &TypedownDatabase,
   project: Project,
   lazy: &LazyType,
-  visiting: &mut HashSet<(usize, usize)>,
+  visiting: &mut HashSet<typedown_incremental::DepId>,
 ) -> Result<serde_json::Value, CircularRef> {
   if let Some(TdTypeEnum::TdSchemaType(schema)) = lazy.resolve(db) {
     serialize(

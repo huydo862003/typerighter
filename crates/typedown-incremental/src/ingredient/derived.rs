@@ -5,7 +5,7 @@ use std::{
   panic::{AssertUnwindSafe, catch_unwind, panic_any, resume_unwind},
   sync::{
     Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicU32, Ordering},
   },
 };
 
@@ -26,18 +26,18 @@ pub const LRU_CAPACITY: usize = 1024;
 // LRU tracker for derived query memos
 #[derive(Default)]
 pub struct Lru {
-  access_order: Mutex<IndexSet<usize>>, // oldest first
+  access_order: Mutex<IndexSet<u32>>, // oldest first
 }
 
 impl Lru {
   // Record access, no eviction
-  pub fn touch(&self, arg_id: usize) {
+  pub fn touch(&self, arg_id: u32) {
     let mut order = self.access_order.lock().unwrap();
     order.shift_remove(&arg_id);
     order.insert(arg_id);
   }
 
-  pub fn drain_evicted(&self) -> Vec<usize> {
+  pub fn drain_evicted(&self) -> Vec<u32> {
     let mut order = self.access_order.lock().unwrap();
     let mut evicted = Vec::new();
     while order.len() > LRU_CAPACITY {
@@ -52,18 +52,17 @@ impl Lru {
 /// A dependency recorded during a derived query execution
 #[derive(Clone)]
 pub struct Dependency {
-  pub ingredient_index: usize, // Which ingredient
-  pub arg_id: usize,           // Which entry in that ingredient
-  pub changed_at: usize,       // The revision it had when we read it
+  pub dep_id: DepId,
+  pub changed_at: u32,
 }
 
 /// A memoized derived query result
 pub struct StampedDerivedQuery<K, V: DerivedId> {
-  pub key: K,                        // The original key, for re-execution
-  pub value: V,                      // The derived struct ID
-  pub changed_at: usize,             // Revision when the value last actually changed
-  pub verified_at: usize,            // Revision when last confirmed valid
-  pub dependencies: Vec<Dependency>, // What this query read during execution
+  pub key: K,
+  pub value: V,
+  pub changed_at: u32,
+  pub verified_at: u32,
+  pub dependencies: Vec<Dependency>,
 }
 
 /// The state of a query entry in the cache
@@ -74,29 +73,35 @@ pub enum QueryState<K, V: DerivedId> {
   Computed(StampedDerivedQuery<K, V>),
 }
 
+/// A stamped field value for a derived struct
+pub struct StampedDerivedField<T> {
+  pub value: T,
+  pub changed_at: u32,
+}
+
 /// Ingredient for a derived query function: maps key tuple to memoized result
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct DerivedQueryIngredient<DB, K, V: DerivedId> {
-  ingredient_index: usize,
+pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
+  dep_id_prefix: u64,
   name_fingerprint: Fingerprint,
-  value_fingerprint: Fingerprint, // name of the return type struct (e.g. "FibResult")
-  next_arg_id: Arc<AtomicUsize>,
-  value_id_counter: &'static AtomicUsize,
+  return_type_fingerprint: Fingerprint,
+  next_arg_id: Arc<AtomicU32>,
+  value_id_counter: &'static AtomicU32,
   query_fn: fn(&DB, K) -> V,
-  intern_map: Arc<DashMap<K, usize>>, // key -> stable arg_id
+  intern_map: Arc<DashMap<K, u32>>,
   #[doc(hidden)]
-  pub data: Arc<DashMap<usize, QueryState<K, V>>>, // arg_id -> state
+  pub data: Arc<DashMap<u32, QueryState<K, V>>>,
   identity_maps: IdentityMapTable,
-  lru: Arc<Lru>, // For stale entry eviction
+  lru: Arc<Lru>,
   pub no_hash_flag: bool,
   #[cfg(debug_assertions)]
-  recompute_count: Arc<AtomicUsize>,
+  recompute_count: Arc<AtomicU32>,
   #[cfg(debug_assertions)]
   readable_name: &'static str,
 }
 
-impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredient<DB, K, V> {
+impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredientStore<DB, K, V> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let name = {
       #[cfg(debug_assertions)]
@@ -105,7 +110,7 @@ impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredient<DB, K, V> {
       }
       #[cfg(not(debug_assertions))]
       {
-        "DerivedQueryIngredient"
+        "DerivedQueryIngredientStore"
       }
     };
     f.debug_struct(name).finish_non_exhaustive()
@@ -125,11 +130,11 @@ impl<
     + Send
     + Sync
     + 'static,
-> DerivedQueryIngredient<DB, K, V>
+> DerivedQueryIngredientStore<DB, K, V>
 {
   /// Deserialize all sibling DerivedField nodes for a value struct.
   fn deserialize_field_group(&self, ctx: &DeserializeContext, serialized_entry_id: u64) {
-    let group_key = (self.value_fingerprint, serialized_entry_id);
+    let group_key = (self.return_type_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
       for &(_, field_node_index) in &field_group.fields {
         ctx.decoder.get_or_deserialize_dep_node_id(field_node_index);
@@ -146,26 +151,25 @@ impl<
         let dep_id = ctx.decoder.get_or_deserialize_dep_node_id(edge_idx)?;
         let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
         Some(Dependency {
-          ingredient_index: dep_id.0,
-          arg_id: dep_id.1,
-          changed_at: edge_node.changed_at() as usize,
+          dep_id,
+          changed_at: edge_node.changed_at() as u32,
         })
       })
       .collect()
   }
 
   pub fn new(
-    ingredient_index: usize,
+    dep_id_prefix: u64,
     name_fingerprint: &'static str,
-    value_fingerprint: &'static str,
-    value_id_counter: &'static AtomicUsize,
+    return_type_name: &'static str,
+    value_id_counter: &'static AtomicU32,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
-      ingredient_index,
+      dep_id_prefix,
       name_fingerprint: Fingerprint::from_name(name_fingerprint),
-      value_fingerprint: Fingerprint::from_name(value_fingerprint),
-      next_arg_id: Arc::new(AtomicUsize::new(0)),
+      return_type_fingerprint: Fingerprint::from_name(return_type_name),
+      next_arg_id: Arc::new(AtomicU32::new(0)),
       value_id_counter,
       query_fn,
       intern_map: Arc::new(DashMap::new()),
@@ -174,13 +178,13 @@ impl<
       lru: Arc::new(Lru::default()),
       no_hash_flag: false,
       #[cfg(debug_assertions)]
-      recompute_count: Arc::new(AtomicUsize::new(0)),
+      recompute_count: Arc::new(AtomicU32::new(0)),
       #[cfg(debug_assertions)]
       readable_name: name_fingerprint,
     }
   }
 
-  pub fn key_fingerprint(&self, db: &dyn QueryDatabase, arg_id: usize) -> Option<Fingerprint>
+  pub fn key_fingerprint(&self, db: &dyn QueryDatabase, arg_id: u32) -> Option<Fingerprint>
   where
     K: StableHash,
   {
@@ -197,22 +201,6 @@ impl<
     None
   }
 
-  pub fn value_fingerprint(&self, db: &dyn QueryDatabase, arg_id: usize) -> Option<Fingerprint>
-  where
-    V: StableHash,
-  {
-    let db = (db as &dyn Any)
-      .downcast_ref::<DB>()
-      .expect("database type mismatch in value_fingerprint");
-    if let Some(entry) = self.data.get(&arg_id)
-      && let QueryState::Computed(memo) = &*entry
-    {
-      let mut hasher: StableHasher = StableHasher::new();
-      memo.value.stable_hash(db, &mut hasher);
-      return Some(Fingerprint::from_hasher(hasher));
-    }
-    None
-  }
 
   /// Try to load a cached result from the serialized cache.
   fn try_load_from_serialized(
@@ -220,7 +208,7 @@ impl<
     db: &DB,
     storage: &QueryStorage,
     arg: &K,
-  ) -> Option<(V, usize)> {
+  ) -> Option<(V, u32)> {
     let ctx = storage.deserialize_ctx.get()?;
 
     // Compute key fingerprint to find the matching node
@@ -247,7 +235,6 @@ impl<
     }
 
     // Green check: verify each dep edge exists with a matching fingerprint
-    let mut expected: HashSet<(Fingerprint, Fingerprint)> = HashSet::new();
     for edge_idx in edges {
       let edge_node = &ctx.serialized.dep_graph.nodes[*edge_idx as usize];
       if matches!(edge_node, DepNode::Evicted) {
@@ -257,30 +244,16 @@ impl<
       if edge_node.value_fingerprint() == Fingerprint::SKIPPED {
         continue;
       }
-      expected.insert((edge_node.name(), edge_node.value_fingerprint()));
-    }
-
-    let mut actual: HashSet<(Fingerprint, Fingerprint)> = HashSet::new();
-    for (name, _) in &expected {
-      for &idx in ctx.ingredients_by_name(name) {
-        let entry = &storage.ingredients[idx];
-        for eid in entry.ingredient.entry_ids() {
-          if let Some(fp) = entry.ingredient.value_fingerprint(db, eid) {
-            actual.insert((*name, fp));
-          }
-        }
+      if !storage.has_fingerprint(ctx, edge_node, db) {
+        return None;
       }
-    }
-
-    if !expected.is_subset(&actual) {
-      return None;
     }
 
     // Deserialize field data
     self.deserialize_field_group(ctx, *serialized_value_entry_id);
     let value_entry_id = *ctx
       .entry_id_map
-      .entry((self.value_fingerprint, *serialized_value_entry_id))
+      .entry((self.return_type_fingerprint, *serialized_value_entry_id))
       .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
 
     // Decode key
@@ -289,7 +262,7 @@ impl<
     let key = K::decode(&mut data, decoder);
     let arg_id = self.get_or_intern_arg(&key);
     let value = V::from(value_entry_id);
-    let changed_at = *changed_at as usize;
+    let changed_at = *changed_at as u32;
     let dependencies = Self::deserialize_deps(edges, ctx);
     let current_revision = storage.revision.load(Ordering::Acquire);
     self.data.insert(
@@ -307,7 +280,7 @@ impl<
   }
 
   /// Get or create a stable entry ID for a key
-  fn get_or_intern_arg(&self, arg: &K) -> usize {
+  fn get_or_intern_arg(&self, arg: &K) -> u32 {
     if let Some(entry) = self.intern_map.get(arg) {
       return *entry.value();
     }
@@ -319,18 +292,17 @@ impl<
   pub fn execute_query(&self, db: &DB, arg: K) -> V {
     let storage = unsafe { db.storage() };
     let current_revision = storage.revision.load(Ordering::Acquire);
-    let ingredient_index = self.ingredient_index;
     let arg_id = self.get_or_intern_arg(&arg);
 
     let (value, changed_at) =
-      self.execute_query_inner(db, storage, current_revision, ingredient_index, arg_id, arg);
+      self.execute_query_inner(db, storage, current_revision, arg_id, arg);
 
     // Record dependency for the caller
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
     storage.with_context(|ctx| {
       if let Some(ctx) = ctx {
         ctx.dependencies.push(Dependency {
-          ingredient_index,
-          arg_id,
+          dep_id,
           changed_at,
         });
       }
@@ -346,11 +318,10 @@ impl<
     &self,
     db: &DB,
     storage: &QueryStorage,
-    current_revision: usize,
-    ingredient_index: usize,
-    arg_id: usize,
+    current_revision: u32,
+    arg_id: u32,
     arg: K,
-  ) -> (V, usize) {
+  ) -> (V, u32) {
     // Check cache
     if let Some(entry) = self.data.get(&arg_id) {
       match &*entry {
@@ -359,12 +330,13 @@ impl<
         }
         QueryState::Computing => {
           // Cycle detection: Check if this entry is in our call stack
+          let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
           let is_cycle = storage.with_context(|ctx| {
             ctx.as_ref().is_some_and(|ctx| {
               ctx
                 .query_stack
                 .iter()
-                .any(|e| e.ingredient_index == ingredient_index && e.arg_id == arg_id)
+                .any(|e| e.dep_id == dep_id)
             })
           });
           if is_cycle {
@@ -379,7 +351,7 @@ impl<
           let changed_at = memo.changed_at;
           drop(entry); // Release the read lock
 
-          if self.green_check(db, arg_id, changed_at) {
+          if self.green_check_inner(db, storage, arg_id, changed_at) {
             // The green check has verified or recomputed + backdated so the entry must now be fresh
             if let Some(entry) = self.data.get(&arg_id)
               && let QueryState::Computed(memo) = &*entry
@@ -435,6 +407,7 @@ impl<
     }
 
     // Save parent context and push to query stack
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
     let (parent_deps, parent_disambiguators, parent_identity_maps, parent_created_ids) = storage
       .with_context(|ctx| {
         let ctx = ctx.get_or_insert_with(|| ExecuteContext {
@@ -445,8 +418,7 @@ impl<
           created_ids: HashMap::new(),
         });
         ctx.query_stack.push(QueryStackEntry {
-          ingredient_index,
-          arg_id,
+          dep_id,
         });
         let parent_store = ctx.identity_maps.replace(self.identity_maps.clone());
         (
@@ -522,8 +494,8 @@ impl<
   fn cleanup_identity_maps(
     &self,
     storage: &QueryStorage,
-    arg_id: usize,
-    created_ids: &HashMap<usize, HashSet<usize>>,
+    arg_id: u32,
+    created_ids: &HashMap<u32, HashSet<u32>>,
   ) {
     for (start_index, active_ids) in created_ids {
       let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) else {
@@ -534,46 +506,18 @@ impl<
         continue;
       }
       // Remove field data for sibling field ingredients
-      for (i, entry) in storage.ingredients[*start_index..].iter().enumerate() {
-        if entry.field_index != Some(i as u8) {
-          break;
-        }
-        for &id in &removed {
-          entry.ingredient.remove_entry(id);
-        }
-      }
+      storage.remove_field_entries(*start_index, &removed);
     }
   }
-}
 
-impl<
-  DB: QueryDatabase + Send + Sync + 'static,
-  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
-  V: StableHash
-    + std::fmt::Debug
-    + Encodable
-    + Decodable
-    + DerivedId
-    + Clone
-    + PartialEq
-    + Send
-    + Sync
-    + 'static,
-> Ingredient for DerivedQueryIngredient<DB, K, V>
-{
-  #[cfg(debug_assertions)]
-  fn readable_name(&self) -> String {
-    self.readable_name.to_string()
-  }
-
-  fn name_fingerprint(&self) -> Fingerprint {
-    self.name_fingerprint
-  }
-
-  /// Check the red-green algo here: https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html#improving-accuracy-the-red-green-algorithm
-  /// We're similar in idea
-  fn green_check(&self, db: &dyn QueryDatabase, arg_id: usize, last_changed_at: usize) -> bool {
-    let storage = unsafe { db.storage() };
+  /// Red-green algorithm: https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html#improving-accuracy-the-red-green-algorithm
+  fn green_check_inner(
+    &self,
+    db: &dyn QueryDatabase,
+    storage: &QueryStorage,
+    arg_id: u32,
+    last_changed_at: u32,
+  ) -> bool {
     let current_revision = storage.revision.load(Ordering::Acquire);
 
     match self.data.get(&arg_id) {
@@ -587,19 +531,14 @@ impl<
           drop(entry);
 
           for dep in &deps {
-            let ingredient = &storage.ingredients[dep.ingredient_index].ingredient;
-            if !ingredient.green_check(db, dep.arg_id, dep.changed_at) {
+            if !storage.green_check_dep(db, dep) {
               // Dep reports changed, force it to re-execute
-              ingredient.re_execute(db, dep.arg_id);
+              storage.re_execute_dep(db, dep);
             }
           }
 
           // Re-check whether all deps are green
-          let all_green = deps.iter().all(|dep| {
-            storage.ingredients[dep.ingredient_index]
-              .ingredient
-              .green_check(db, dep.arg_id, dep.changed_at)
-          });
+          let all_green = deps.iter().all(|dep| storage.green_check_dep(db, dep));
 
           if all_green {
             // Bump verified_at
@@ -617,8 +556,69 @@ impl<
       None => false,
     }
   }
+}
 
-  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: usize) {
+impl<
+  DB: QueryDatabase + Send + Sync + 'static,
+  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+  V: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + DerivedId
+    + Clone
+    + PartialEq
+    + Send
+    + Sync
+    + 'static,
+> Ingredient for DerivedQueryIngredientStore<DB, K, V>
+{
+  #[cfg(debug_assertions)]
+  fn readable_name(&self) -> String {
+    self.readable_name.to_string()
+  }
+
+  fn name_fingerprint(&self) -> Fingerprint {
+    self.name_fingerprint
+  }
+
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+    Box::new(self.data.iter().map(|entry| *entry.key()))
+  }
+
+  #[cfg(debug_assertions)]
+  fn recompute_count(&self) -> usize {
+    self.recompute_count.load(Ordering::Relaxed) as usize
+  }
+}
+
+impl<
+  DB: QueryDatabase + Send + Sync + 'static,
+  K: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
+  V: StableHash
+    + std::fmt::Debug
+    + Encodable
+    + Decodable
+    + DerivedId
+    + Clone
+    + PartialEq
+    + Send
+    + Sync
+    + 'static,
+> super::DerivedQueryIngredient for DerivedQueryIngredientStore<DB, K, V>
+{
+  fn reset_for_new_revision(&self) {
+    for arg_id in self.lru.drain_evicted() {
+      self.data.remove(&arg_id);
+    }
+  }
+
+  fn green_check(&self, db: &dyn QueryDatabase, arg_id: u32, last_changed_at: u32) -> bool {
+    let storage = unsafe { db.storage() };
+    self.green_check_inner(db, storage, arg_id, last_changed_at)
+  }
+
+  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: u32) {
     let db: &DB = (db as &dyn Any)
       .downcast_ref::<DB>()
       .expect("database type mismatch in re_execute");
@@ -634,22 +634,18 @@ impl<
     }
   }
 
-  fn remove_entry(&self, entry_id: usize) {
-    self.data.remove(&entry_id);
-  }
-
-  fn reset_for_new_revision(&self) {
-    for arg_id in self.lru.drain_evicted() {
-      self.data.remove(&arg_id);
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+    let db = (db as &dyn Any)
+      .downcast_ref::<DB>()
+      .expect("database type mismatch in value_fingerprint");
+    if let Some(entry) = self.data.get(&entry_id)
+      && let QueryState::Computed(memo) = &*entry
+    {
+      let mut hasher: StableHasher = StableHasher::new();
+      memo.value.stable_hash(db, &mut hasher);
+      return Some(Fingerprint::from_hasher(hasher));
     }
-  }
-
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
-    Box::new(self.data.iter().map(|entry| *entry.key()))
-  }
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: usize) -> Option<Fingerprint> {
-    DerivedQueryIngredient::value_fingerprint(self, db, entry_id)
+    None
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
@@ -669,7 +665,7 @@ impl<
     };
     // Register dep_id BEFORE decoding to prevent recursion via get_or_deserialize_dep_node_id (idempotency guard)
     let arg_id = self.next_arg_id.fetch_add(1, Ordering::Relaxed);
-    let dep_id = (self.ingredient_index, arg_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Deserialize all sibling DerivedField nodes, which populates field data
@@ -678,7 +674,7 @@ impl<
     // Get the session-local entry_id allocated by field deserialization
     let value_entry_id = *ctx
       .entry_id_map
-      .entry((self.value_fingerprint, *serialized_value_entry_id))
+      .entry((self.return_type_fingerprint, *serialized_value_entry_id))
       .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
 
     // Decode key
@@ -698,8 +694,8 @@ impl<
       QueryState::Computed(StampedDerivedQuery {
         key,
         value,
-        changed_at: *changed_at as usize,
-        verified_at: *verified_at as usize,
+        changed_at: *changed_at as u32,
+        verified_at: *verified_at as u32,
         dependencies,
       }),
     );
@@ -707,7 +703,7 @@ impl<
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: usize) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32) {
     let Some(entry) = self.data.get(&entry_id) else {
       return;
     };
@@ -719,10 +715,10 @@ impl<
     let edges = memo
       .dependencies
       .iter()
-      .map(|dep| (dep.ingredient_index, dep.arg_id))
+      .map(|dep| dep.dep_id)
       .collect();
 
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,
@@ -731,15 +727,14 @@ impl<
         key: self
           .key_fingerprint(ctx.db(), entry_id)
           .expect("Computed entry must have a key fingerprint"),
-        value: if self.no_hash() {
+        value: if self.no_hash_flag {
           Fingerprint::SKIPPED
         } else {
-          self
-            .value_fingerprint(ctx.db(), entry_id)
+          self.value_fingerprint(ctx.db(), entry_id)
             .expect("Computed entry must have a value fingerprint")
         },
         entry_id: entry_id as u64,
-        value_entry_id: memo.value.clone().into() as u64,
+        value_entry_id: <V as Into<u32>>::into(memo.value.clone()) as u64,
         changed_at: memo.changed_at as u64,
         verified_at: memo.verified_at as u64,
         edges,
@@ -755,53 +750,42 @@ impl<
   fn no_hash(&self) -> bool {
     self.no_hash_flag
   }
-
-  #[cfg(debug_assertions)]
-  fn recompute_count(&self) -> usize {
-    self.recompute_count.load(Ordering::Relaxed)
-  }
-}
-
-/// A stamped field value for a derived struct
-pub struct StampedDerivedField<T> {
-  pub value: T,
-  pub changed_at: usize, // The last revision number this one changed
 }
 
 /// Ingredient for a derived struct field: maps entry id to stamped value
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct DerivedFieldIngredient<T> {
-  ingredient_index: usize,
+pub struct DerivedFieldIngredientStore<T> {
+  dep_id_prefix: u64,
   field_index: u8,
   name: &'static str,
-  pub id_counter: &'static AtomicUsize,
+  pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
-  pub data: Arc<DashMap<usize, StampedDerivedField<T>>>,
+  pub data: Arc<DashMap<u32, StampedDerivedField<T>>>,
   pub no_hash_flag: bool,
 }
 
-impl<T> std::fmt::Debug for DerivedFieldIngredient<T> {
+impl<T> std::fmt::Debug for DerivedFieldIngredientStore<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("DerivedFieldIngredient")
+    f.debug_struct("DerivedFieldIngredientStore")
       .field("name", &self.name)
       .finish_non_exhaustive()
   }
 }
 
-impl<T> DerivedFieldIngredient<T> {
+impl<T> DerivedFieldIngredientStore<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
   pub const __TYPEDOWN_DERIVED_FIELD_INGREDIENT: () = ();
 
   pub fn new(
-    ingredient_index: usize,
+    dep_id_prefix: u64,
     name: &'static str,
     field_index: u8,
-    id_counter: &'static AtomicUsize,
+    id_counter: &'static AtomicU32,
   ) -> Self {
     Self {
-      ingredient_index,
+      dep_id_prefix,
       field_index,
       name,
       id_counter,
@@ -812,7 +796,7 @@ impl<T> DerivedFieldIngredient<T> {
 }
 
 impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static> Ingredient
-  for DerivedFieldIngredient<T>
+  for DerivedFieldIngredientStore<T>
 {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
@@ -823,7 +807,25 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     Fingerprint::from_name(self.name)
   }
 
-  fn green_check(&self, _db: &dyn QueryDatabase, arg_id: usize, last_changed_at: usize) -> bool {
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+    Box::new(self.data.iter().map(|entry| *entry.key()))
+  }
+
+  // Derived fields are set by their parent query, not independently recomputed
+  #[cfg(debug_assertions)]
+  fn recompute_count(&self) -> usize {
+    0
+  }
+}
+
+impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static>
+  super::DerivedFieldIngredient for DerivedFieldIngredientStore<T>
+{
+  fn remove_entry(&self, entry_id: u32) {
+    self.data.remove(&entry_id);
+  }
+
+  fn green_check(&self, arg_id: u32, last_changed_at: u32) -> bool {
     self
       .data
       .get(&arg_id)
@@ -831,22 +833,17 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       .unwrap_or(false)
   }
 
-  fn re_execute(&self, _db: &dyn QueryDatabase, _arg_id: usize) {
-    // Derived fields are set by the query, nothing to recompute
+
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher: StableHasher = StableHasher::new();
+      entry.value.stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
   }
 
-  fn reset_for_new_revision(&self) {}
-
-  fn remove_entry(&self, entry_id: usize) {
-    self.data.remove(&entry_id);
-  }
-
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
-    Box::new(self.data.iter().map(|entry| *entry.key()))
-  }
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: usize) -> Option<Fingerprint> {
-    DerivedFieldIngredient::value_fingerprint(self, db, entry_id)
+  fn field_index(&self) -> u8 {
+    self.field_index
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
@@ -877,11 +874,11 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       entry_id,
       StampedDerivedField {
         value,
-        changed_at: *changed_at as usize,
+        changed_at: *changed_at as u32,
       },
     );
 
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Trigger deserialization of sibling fields so the whole struct is populated
@@ -897,12 +894,12 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: usize) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32) {
     let Some(entry) = self.data.get(&entry_id) else {
       return;
     };
 
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,
@@ -910,11 +907,10 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
         name: self.name_fingerprint(),
         field_index: self.field_index,
         entry_id: entry_id as u64,
-        value: if self.no_hash() {
+        value: if self.no_hash_flag {
           Fingerprint::SKIPPED
         } else {
-          self
-            .value_fingerprint(ctx.db(), entry_id)
+          self.value_fingerprint(ctx.db(), entry_id)
             .expect("Entry is available so there must be a fingerprint")
         },
         changed_at: entry.changed_at as u64,
@@ -929,21 +925,5 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
   fn no_hash(&self) -> bool {
     self.no_hash_flag
-  }
-
-  // Derived fields are set by their parent query, not independently recomputed
-  #[cfg(debug_assertions)]
-  fn recompute_count(&self) -> usize {
-    0
-  }
-}
-
-impl<T: StableHash + Send + Sync + 'static> DerivedFieldIngredient<T> {
-  pub fn value_fingerprint(&self, db: &dyn QueryDatabase, arg_id: usize) -> Option<Fingerprint> {
-    self.data.get(&arg_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
   }
 }

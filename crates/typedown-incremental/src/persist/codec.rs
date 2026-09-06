@@ -6,7 +6,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use typedown_types::either::Either;
 
-use crate::persist::serialized::dep_graph::DepNodeIndex;
+use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::persist::stable::StableCompare;
 use crate::{DepId, QueryDatabase, QueryStorage};
 
@@ -15,7 +15,7 @@ pub struct Encoder<'a> {
   intern_hints: HashMap<(std::any::TypeId, usize), u32>,
   intern_blobs: Vec<Vec<u8>>,
   intern_table: HashMap<Vec<u8>, u32>,
-  dep_id_table: HashMap<DepId, DepNodeIndex>,
+  dep_id_table: HashMap<u64, DepNodeIndex>,
   next_dep_node_index: DepNodeIndex,
 }
 
@@ -33,12 +33,13 @@ impl<'a> Encoder<'a> {
 
   /// Register a DepId and get a stable DepNodeIndex for it.
   pub fn add_dep_id(&mut self, dep_id: DepId) -> DepNodeIndex {
-    if let Some(&index) = self.dep_id_table.get(&dep_id) {
+    let key = dep_id.raw();
+    if let Some(&index) = self.dep_id_table.get(&key) {
       return index;
     }
     let index = self.next_dep_node_index;
     self.next_dep_node_index += 1;
-    self.dep_id_table.insert(dep_id, index);
+    self.dep_id_table.insert(key, index);
     index
   }
 
@@ -46,7 +47,7 @@ impl<'a> Encoder<'a> {
     self.db
   }
 
-  pub fn dep_id_table(&self) -> &HashMap<DepId, DepNodeIndex> {
+  pub fn dep_id_table(&self) -> &HashMap<u64, DepNodeIndex> {
     &self.dep_id_table
   }
 
@@ -54,8 +55,8 @@ impl<'a> Encoder<'a> {
     self.intern_blobs
   }
 
-  pub fn intern_blob<T: 'static>(&mut self, blob: Vec<u8>, hint: Option<usize>) -> u32 {
-    let hint = hint.map(|id| (std::any::TypeId::of::<T>(), id));
+  pub fn intern_blob<T: 'static>(&mut self, blob: Vec<u8>, hint: Option<u32>) -> u32 {
+    let hint = hint.map(|id| (std::any::TypeId::of::<T>(), id as usize));
     if let Some(key) = hint
       && let Some(&index) = self.intern_hints.get(&key)
     {
@@ -171,12 +172,35 @@ impl Decoder {
     let node = &ctx.serialized.dep_graph.nodes[index as usize];
     let name = node.name();
     let node_field_index = node.field_index();
-    for &idx in ctx.ingredients_by_name(&name) {
-      if self.storage.ingredients[idx].field_index == node_field_index {
-        return self.storage.ingredients[idx]
-          .ingredient
-          .deserialize(ctx, index);
+
+    match node {
+      DepNode::InputField { .. } => {
+        for &idx in ctx.inputs_by_name(&name) {
+          let input = &self.storage.inputs[idx];
+          if Some(input.field_index()) == node_field_index {
+            return input.deserialize(ctx, index);
+          }
+        }
       }
+      DepNode::Interned { .. } => {
+        for &idx in ctx.interned_by_name(&name) {
+          return self.storage.interned[idx].deserialize(ctx, index);
+        }
+      }
+      DepNode::DerivedQuery { .. } => {
+        for &idx in ctx.queries_by_name(&name) {
+          return self.storage.queries[idx].deserialize(ctx, index);
+        }
+      }
+      DepNode::DerivedField { .. } => {
+        for &idx in ctx.fields_by_name(&name) {
+          let field = &self.storage.fields[idx];
+          if Some(field.field_index()) == node_field_index {
+            return field.deserialize(ctx, index);
+          }
+        }
+      }
+      DepNode::Evicted => {}
     }
     None
   }

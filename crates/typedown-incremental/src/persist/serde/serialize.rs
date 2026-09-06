@@ -87,16 +87,16 @@ impl DepGraphBuilder {
   }
 
   /// Resolve edges and return the final dep graph nodes, using the Encoder's dep_id_table
-  pub fn finalize(self, dep_id_table: &HashMap<DepId, DepNodeIndex>) -> Vec<DepNode> {
-    // Sort by index to ensure correct ordering
-    let mut sorted = self.nodes;
-    sorted.sort_by_key(|(idx, _)| *idx);
-
-    // Total slots = max allocated index + 1
-    let total = sorted.last().map(|(idx, _)| *idx as usize + 1).unwrap_or(0);
+  pub fn finalize(self, dep_id_table: &HashMap<u64, DepNodeIndex>) -> Vec<DepNode> {
+    let total = self
+      .nodes
+      .iter()
+      .map(|(idx, _)| *idx as usize + 1)
+      .max()
+      .unwrap_or(0);
     let mut result = vec![DepNode::Evicted; total];
 
-    for (idx, node) in sorted {
+    for (idx, node) in self.nodes {
       result[idx as usize] = match node {
         UnresolvedDepNode::DerivedQuery {
           name,
@@ -111,13 +111,13 @@ impl DepGraphBuilder {
           // Skip memos with evicted deps
           let has_missing = edges
             .iter()
-            .any(|dep_id| !dep_id_table.contains_key(dep_id));
+            .any(|dep_id| !dep_id_table.contains_key(&dep_id.raw()));
           if has_missing {
             continue;
           }
           let resolved_edges: Vec<u32> = edges
             .iter()
-            .map(|dep_id| *dep_id_table.get(dep_id).expect("unresolved dep edge"))
+            .map(|dep_id| *dep_id_table.get(&dep_id.raw()).expect("unresolved dep edge"))
             .collect();
           DepNode::DerivedQuery {
             name,
