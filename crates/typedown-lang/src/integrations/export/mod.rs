@@ -178,38 +178,54 @@ enum ResourceKind {
 
 fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
   let symbol = file_symbol(db, project, file).value(db)?;
-  let obj = evaluate_resource(db, symbol).value(db)?;
   let metadata = export_metadata(file.handle(db));
 
-  if obj.as_td_blob_obj().is_some() {
+  // Body-only files (no frontmatter) have no evaluated object
+  let obj = evaluate_resource(db, symbol).value(db);
+
+  if let Some(ref obj) = obj
+    && obj.as_td_blob_obj().is_some()
+  {
     return Some(ResourceKind::Blob {
       schema: TdBlobType::get(db).display_name(db),
-      header: json::to_json(db, project, &obj).unwrap_or_default(),
+      header: json::to_json(db, project, obj).unwrap_or_default(),
       metadata,
     });
   }
 
-  let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
-    Some(schema_obj.schema(db).display_name(db))
-  } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
-    None
+  let (schema, header, label, icon) = if let Some(ref obj) = obj {
+    let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
+      Some(schema_obj.schema(db).display_name(db))
+    } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
+      None
+    } else {
+      return None;
+    };
+
+    let mut header = json::to_json(db, project, obj).unwrap_or_default();
+    if let serde_json::Value::Object(ref mut map) = header {
+      map.retain(|k, v| !k.starts_with('_') && !v.is_null());
+    }
+
+    let label = obj
+      .get_builtin_field(db, "_label")
+      .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+    let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
+      o.as_td_icon_obj().map(|i| ExportedIcon {
+        name: i.lucide_name(db),
+      })
+    });
+
+    (schema, header, label, icon)
   } else {
-    return None;
+    // Body-only file with no frontmatter
+    (
+      None,
+      serde_json::Value::Object(Default::default()),
+      None,
+      None,
+    )
   };
-
-  let mut header = json::to_json(db, project, &obj).unwrap_or_default();
-  if let serde_json::Value::Object(ref mut map) = header {
-    map.retain(|k, v| !k.starts_with('_') && !v.is_null());
-  }
-
-  let label = obj
-    .get_builtin_field(db, "_label")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
-  let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
-    o.as_td_icon_obj().map(|i| ExportedIcon {
-      name: i.lucide_name(db),
-    })
-  });
 
   let parse_result = parse_file(db, project, file);
   let root = parse_result.ast(db);
@@ -1758,5 +1774,51 @@ properties:
       "slugs should be unique: {:?}",
       slugs
     );
+  }
+
+  // Body-only files (no frontmatter)
+
+  #[test]
+  fn html_export_body_only_file() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
+    let exported = export_resource_html(&db, project, file).expect("body-only file should export");
+    assert!(
+      exported
+        .content
+        .contains("<p>This file has no frontmatter at all.</p>")
+    );
+    assert!(exported.content.contains("<h2"));
+    assert!(exported.schema.is_none());
+    assert!(exported.label.is_none());
+    assert_eq!(exported.header, serde_json::json!({}));
+  }
+
+  #[test]
+  fn markdown_export_body_only_file() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
+    let exported =
+      export_resource_markdown(&db, project, file).expect("body-only file should export");
+    assert!(
+      exported
+        .content
+        .contains("This file has no frontmatter at all.")
+    );
+    assert!(exported.schema.is_none());
+  }
+
+  #[test]
+  fn summary_export_body_only_file() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
+    let exported =
+      export_resource_summary(&db, project, file).expect("body-only file should export");
+    assert!(exported.schema.is_none());
+    assert!(exported.excerpt.is_some());
+  }
+
+  #[test]
+  fn meta_export_body_only_file() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
+    let exported = export_resource_meta(&db, project, file).expect("body-only file should export");
+    assert!(exported.schema.is_none());
   }
 }
