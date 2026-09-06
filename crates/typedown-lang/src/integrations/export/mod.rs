@@ -178,6 +178,12 @@ enum ResourceKind {
 
 fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
   let symbol = file_symbol(db, project, file).value(db)?;
+
+  // Schema files are not resources
+  if symbol.kind(db).is_schema() {
+    return None;
+  }
+
   let metadata = export_metadata(file.handle(db));
 
   // Body-only files (no frontmatter) have no evaluated object
