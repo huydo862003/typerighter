@@ -1,15 +1,19 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::{Arc, OnceLock};
 
 use dashmap::DashMap;
 
-use super::ingredient::{Dependency, IngredientEntry, IngredientFactory, Inventory};
+use super::ingredient::{
+  Dependency, DerivedFieldIngredient, DerivedQueryIngredient, FieldFactory, FieldInventory,
+  InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
+  InternedInventory, QueryFactory, QueryInventory,
+};
 use super::persist::serialized::SerializedQueryStorage;
 use super::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{DeserializeContext, Fingerprint};
+use crate::{DepId, DeserializeContext, IngredientKind};
 
 #[cfg(debug_assertions)]
 pub struct IngredientStats {
@@ -17,28 +21,22 @@ pub struct IngredientStats {
   pub recompute_count: usize,
   pub entry_count: usize,
   pub no_hash: bool,
-  pub is_field: bool,
+  pub kind: IngredientKind,
 }
-
-/// A registry of ingredient factories
-/// This is used in QueryStorage::default() to initialize the internal ingredient vector
-/// TIL: By storing the callbacks (IngredientFactory is a function pointer type), instead of the empty dyn Ingredients (used as templates so default can clone), this avoid requiring the Ingredient to be cloneable... but Ingredient is a supertrait of Any, which is not clonable so cannot be used with dyn!
-static INGREDIENT_REGISTRY: OnceLock<Vec<IngredientFactory>> = OnceLock::new();
 
 /// An entry in the query stack, used for cycle detection
 pub struct QueryStackEntry {
-  pub ingredient_index: usize,
-  pub arg_id: usize,
+  pub dep_id: DepId,
 }
 
 // Type-erased identity map that supports sweeping stale entries
 pub trait IdentityMap: Any + Send + Sync {
   // Remove entries where predicate returns false, return the removed IDs
-  fn retain(&self, predicate: &dyn Fn(usize) -> bool) -> HashSet<usize>;
+  fn retain(&self, predicate: &dyn Fn(u32) -> bool) -> HashSet<u32>;
 }
 
-impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K, usize> {
-  fn retain(&self, predicate: &dyn Fn(usize) -> bool) -> HashSet<usize> {
+impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K, u32> {
+  fn retain(&self, predicate: &dyn Fn(u32) -> bool) -> HashSet<u32> {
     let mut removed = HashSet::new();
     DashMap::retain(self, |_, id| {
       if predicate(*id) {
@@ -53,63 +51,73 @@ impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K,
 }
 
 // (arg_id, start_index) -> identity map
-pub type IdentityMapTable = Arc<DashMap<(usize, usize), Arc<dyn IdentityMap>>>;
+pub type IdentityMapTable = Arc<DashMap<(u32, u32), Arc<dyn IdentityMap>>>;
 
 /// Context passed through derived query execution
 pub struct ExecuteContext {
   pub query_stack: Vec<QueryStackEntry>,
   pub dependencies: Vec<Dependency>,
-  pub disambiguator_map: HashMap<u64, usize>, // map hash(ingredient_index, id_field_values) to counter
+  pub disambiguator_map: HashMap<u64, u32>, // hash(ingredient_index, id_field_values) -> counter
   // (arg_id, start_index) -> identity map, from the creating query
   pub identity_maps: Option<IdentityMapTable>,
-  pub created_ids: HashMap<usize, HashSet<usize>>, // start_index -> IDs created this execution
+  pub created_ids: HashMap<u32, HashSet<u32>>, // start_index -> IDs created this execution
 }
 
 #[derive(Clone)]
 pub struct QueryStorage {
   #[doc(hidden)]
-  pub revision: Arc<AtomicUsize>, // The current version of the query storage
+  pub revision: Arc<AtomicU32>, // The current version of the query storage
   #[doc(hidden)]
   pub cancelled: Arc<AtomicBool>, // Set to true to cancel in-flight derived queries
   #[doc(hidden)]
-  pub ingredients: Arc<Vec<IngredientEntry>>, // All ingredients
+  pub inputs: Arc<Vec<Box<dyn InputIngredient>>>,
+  #[doc(hidden)]
+  pub interned: Arc<Vec<Box<dyn InternedIngredient>>>,
+  #[doc(hidden)]
+  pub queries: Arc<Vec<Box<dyn DerivedQueryIngredient>>>,
+  #[doc(hidden)]
+  pub fields: Arc<Vec<Box<dyn DerivedFieldIngredient>>>,
   #[doc(hidden)]
   pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>, // Previous session's data for lazy deserialization
 }
 
 impl Default for QueryStorage {
   fn default() -> Self {
-    QueryStorage {
-      revision: Arc::new(AtomicUsize::new(0)),
-      cancelled: Arc::new(AtomicBool::new(false)),
-      ingredients: Arc::new(
-        registry()
-          .iter()
-          .enumerate()
-          .map(|(idx, factory)| factory(idx))
-          .collect(),
-      ),
-      deserialize_ctx: Arc::new(OnceLock::new()),
-    }
+    Self::new(0)
   }
 }
 
+fn init_factories<T: ?Sized>(
+  factories: &[fn(u64) -> Box<T>],
+  kind: IngredientKind,
+) -> Arc<Vec<Box<T>>> {
+  Arc::new(
+    factories
+      .iter()
+      .enumerate()
+      .map(|(idx, factory)| factory(DepId::prefix(kind, idx as u32)))
+      .collect(),
+  )
+}
+
 impl QueryStorage {
-  /// Create a QueryStorage from a previous session's serialized data.
-  pub fn from_serialized(serialized: SerializedQueryStorage) -> Arc<Self> {
-    let revision = serialized.dep_graph.header.revision as usize;
-    let storage = Arc::new(QueryStorage {
-      revision: Arc::new(AtomicUsize::new(revision)),
+  fn new(revision: u32) -> Self {
+    let (inputs, interned, queries, fields) = registries();
+    QueryStorage {
+      revision: Arc::new(AtomicU32::new(revision)),
       cancelled: Arc::new(AtomicBool::new(false)),
-      ingredients: Arc::new(
-        registry()
-          .iter()
-          .enumerate()
-          .map(|(idx, factory)| factory(idx))
-          .collect(),
-      ),
+      inputs: init_factories(inputs, IngredientKind::Input),
+      interned: init_factories(interned, IngredientKind::Interned),
+      queries: init_factories(queries, IngredientKind::Query),
+      fields: init_factories(fields, IngredientKind::Field),
       deserialize_ctx: Arc::new(OnceLock::new()),
-    });
+    }
+  }
+
+  /// Create a QueryStorage from a previous session's serialized data
+  pub fn from_serialized(serialized: SerializedQueryStorage) -> Arc<Self> {
+    let revision = serialized.dep_graph.header.revision as u32;
+    let storage = Arc::new(Self::new(revision));
     let _ = storage.deserialize_ctx.set(DeserializeContext::new(
       serialized,
       Arc::downgrade(&storage),
@@ -121,76 +129,179 @@ impl QueryStorage {
   /// Eagerly deserialize all input and interned nodes.
   /// Must run before any derived query deserialization, because derived query
   /// blobs contain DepNodeIndex references to inputs/interned that need to be
-  /// in the decoder's dep_id_table before decoding.
+  /// in the decoder's dep_id_table before decoding
   fn load_leaf_nodes(self: &Arc<Self>) {
     let Some(ctx) = self.deserialize_ctx.get() else {
       return;
     };
-    // Collect node indices to avoid borrowing ctx during iteration
-    let leaf_nodes: Vec<(DepNodeIndex, Fingerprint)> = ctx
-      .serialized
-      .dep_graph
-      .nodes
-      .iter()
-      .enumerate()
-      .filter_map(|(i, node)| match node {
-        DepNode::InputField { .. } | DepNode::Interned { .. } => {
-          Some((i as DepNodeIndex, node.name()))
+    for (i, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
+      let node_index = i as DepNodeIndex;
+      match node {
+        DepNode::InputField { .. } => {
+          if ctx.decoder.get_dep_node_id(node_index).is_some() {
+            continue;
+          }
+          let name = node.name();
+          let node_field_index = node.field_index();
+          for &idx in ctx.inputs_by_name(&name) {
+            let input = &self.inputs[idx];
+            if Some(input.field_index()) == node_field_index {
+              input.deserialize(ctx, node_index);
+              break;
+            }
+          }
         }
-        _ => None,
-      })
-      .collect();
-
-    for (node_index, name) in &leaf_nodes {
-      if ctx.decoder.get_dep_node_id(*node_index).is_some() {
-        continue;
-      }
-      let node = &ctx.serialized.dep_graph.nodes[*node_index as usize];
-      let node_field_index = node.field_index();
-      for &idx in ctx.ingredients_by_name(name) {
-        if self.ingredients[idx].field_index == node_field_index {
-          self.ingredients[idx]
-            .ingredient
-            .deserialize(ctx, *node_index);
-          break;
+        DepNode::Interned { .. } => {
+          if ctx.decoder.get_dep_node_id(node_index).is_some() {
+            continue;
+          }
+          let name = node.name();
+          if let Some(&idx) = ctx.interned_by_name(&name).first() {
+            self.interned[idx].deserialize(ctx, node_index);
+          }
         }
+        _ => {}
       }
     }
   }
 
   pub fn reset_for_new_revision(&self) {
-    for entry in self.ingredients.iter() {
-      entry.ingredient.reset_for_new_revision();
+    // Only query ingredients have non-trivial reset (LRU eviction)
+    for entry in self.queries.iter() {
+      entry.reset_for_new_revision();
     }
+  }
+
+  /// Green check a dependency by dispatching to the correct ingredient array
+  pub fn green_check_dep(&self, db: &dyn crate::QueryDatabase, dep: &Dependency) -> bool {
+    let idx = dep.dep_id.ingredient_index() as usize;
+    let entry_id = dep.dep_id.entry_id();
+    match dep.dep_id.kind() {
+      IngredientKind::Input => self.inputs[idx].green_check(entry_id, dep.changed_at),
+      IngredientKind::Interned => true, // always green
+      IngredientKind::Query => self.queries[idx].green_check(db, entry_id, dep.changed_at),
+      IngredientKind::Field => self.fields[idx].green_check(entry_id, dep.changed_at),
+    }
+  }
+
+  /// Re-execute a dependency
+  pub fn re_execute_dep(&self, db: &dyn crate::QueryDatabase, dep: &Dependency) {
+    let idx = dep.dep_id.ingredient_index() as usize;
+    let entry_id = dep.dep_id.entry_id();
+    match dep.dep_id.kind() {
+      IngredientKind::Input => {}    // nothing to recompute
+      IngredientKind::Interned => {} // nothing to recompute
+      IngredientKind::Query => self.queries[idx].re_execute(db, entry_id),
+      IngredientKind::Field => {} // fields are set by their parent query
+    }
+  }
+
+  /// Remove field entries for a given field start_index
+  pub fn remove_field_entries(&self, start_index: u32, removed: &HashSet<u32>) {
+    let start = start_index as usize;
+    for (i, field) in self.fields[start..].iter().enumerate() {
+      if field.field_index() != i as u8 {
+        break;
+      }
+      for &id in removed {
+        field.remove_entry(id);
+      }
+    }
+  }
+
+  /// Check if a dep node's (name, value_fingerprint) exists in the current session
+  pub fn has_fingerprint(
+    &self,
+    ctx: &DeserializeContext,
+    node: &DepNode,
+    db: &dyn crate::QueryDatabase,
+  ) -> bool {
+    let name = node.name();
+    let expected_fp = node.value_fingerprint();
+    // Scan entries of the matching ingredient kind for a fingerprint match
+    macro_rules! scan {
+      ($indices:expr, $arr:expr) => {
+        for &idx in $indices {
+          for entry_id in $arr[idx].entry_ids() {
+            if $arr[idx].value_fingerprint(db, entry_id) == Some(expected_fp) {
+              return true;
+            }
+          }
+        }
+      };
+    }
+    match node {
+      DepNode::InputField { .. } => scan!(ctx.inputs_by_name(&name), self.inputs),
+      DepNode::Interned { .. } => scan!(ctx.interned_by_name(&name), self.interned),
+      DepNode::DerivedQuery { .. } => scan!(ctx.queries_by_name(&name), self.queries),
+      DepNode::DerivedField { .. } => scan!(ctx.fields_by_name(&name), self.fields),
+      DepNode::Evicted => {}
+    }
+    false
   }
 
   /// Total number of query function invocations across all derived ingredients
   #[cfg(debug_assertions)]
   pub fn total_recompute_count(&self) -> usize {
-    self
-      .ingredients
-      .iter()
-      .map(|entry| entry.ingredient.recompute_count())
-      .sum()
+    let mut total = 0;
+    for entry in self.inputs.iter() {
+      total += entry.recompute_count();
+    }
+    for entry in self.interned.iter() {
+      total += entry.recompute_count();
+    }
+    for entry in self.queries.iter() {
+      total += entry.recompute_count();
+    }
+    for entry in self.fields.iter() {
+      total += entry.recompute_count();
+    }
+    total
   }
 
-  /// Stats for each ingredient, indexed by ingredient position
+  /// Stats for each ingredient
   #[cfg(debug_assertions)]
   pub fn ingredient_stats(&self) -> Vec<IngredientStats> {
-    self
-      .ingredients
-      .iter()
-      .map(|entry| IngredientStats {
-        name: entry.ingredient.readable_name(),
-        recompute_count: entry.ingredient.recompute_count(),
-        entry_count: entry.ingredient.entry_ids().count(),
-        no_hash: entry.ingredient.no_hash(),
-        is_field: entry.field_index.is_some(),
-      })
-      .collect()
+    let mut stats = Vec::new();
+    for entry in self.inputs.iter() {
+      stats.push(IngredientStats {
+        name: entry.readable_name(),
+        recompute_count: entry.recompute_count(),
+        entry_count: entry.entry_ids().count(),
+        no_hash: false,
+        kind: IngredientKind::Input,
+      });
+    }
+    for entry in self.interned.iter() {
+      stats.push(IngredientStats {
+        name: entry.readable_name(),
+        recompute_count: entry.recompute_count(),
+        entry_count: entry.entry_ids().count(),
+        no_hash: false,
+        kind: IngredientKind::Interned,
+      });
+    }
+    for entry in self.queries.iter() {
+      stats.push(IngredientStats {
+        name: entry.readable_name(),
+        recompute_count: entry.recompute_count(),
+        entry_count: entry.entry_ids().count(),
+        no_hash: entry.no_hash(),
+        kind: IngredientKind::Query,
+      });
+    }
+    for entry in self.fields.iter() {
+      stats.push(IngredientStats {
+        name: entry.readable_name(),
+        recompute_count: entry.recompute_count(),
+        entry_count: entry.entry_ids().count(),
+        no_hash: entry.no_hash(),
+        kind: IngredientKind::Field,
+      });
+    }
+    stats
   }
 
-  /// Marker used by the `query_db` macro to verify the storage field type at compile time.
   #[cfg(debug_assertions)]
   #[doc(hidden)]
   pub const __TYPEDOWN_QUERY_STORAGE: () = ();
@@ -213,7 +324,7 @@ impl QueryStorage {
   /// Get the next disambiguator for a given identity hash within the current query execution
   /// Returns 0 if not inside a query execution
   #[doc(hidden)]
-  pub fn next_disambiguator(&self, identity_hash: u64) -> usize {
+  pub fn next_disambiguator(&self, identity_hash: u64) -> u32 {
     self.with_context(|ctx| {
       if let Some(ctx) = ctx {
         let counter = ctx.disambiguator_map.entry(identity_hash).or_insert(0);
@@ -226,32 +337,58 @@ impl QueryStorage {
     })
   }
 
-  /// Get the current query's identity (ingredient_index, arg_id) from the top of the query stack.
-  /// Returns (0, 0) if not inside a query execution.
+  /// Get the current query's DepId from the top of the query stack
   #[doc(hidden)]
-  pub fn current_query_identity(&self) -> (usize, usize) {
+  pub fn current_query_dep_id(&self) -> Option<DepId> {
     self.with_context(|ctx| {
-      if let Some(ctx) = ctx {
-        ctx
-          .query_stack
-          .last()
-          .map(|entry| (entry.ingredient_index, entry.arg_id))
-          .unwrap_or((0, 0))
-      } else {
-        (0, 0)
-      }
+      ctx
+        .as_ref()
+        .and_then(|ctx| ctx.query_stack.last().map(|entry| entry.dep_id))
     })
   }
 }
 
-pub(crate) fn registry() -> &'static Vec<IngredientFactory> {
-  INGREDIENT_REGISTRY.get_or_init(|| {
-    let mut factories = Vec::new();
+type Registries = (
+  &'static Vec<InputFactory>,
+  &'static Vec<InternedFactory>,
+  &'static Vec<QueryFactory>,
+  &'static Vec<FieldFactory>,
+);
 
-    for entry in inventory::iter::<Inventory> {
+fn registries() -> Registries {
+  static INPUT_REGISTRY: OnceLock<Vec<InputFactory>> = OnceLock::new();
+  static INTERNED_REGISTRY: OnceLock<Vec<InternedFactory>> = OnceLock::new();
+  static QUERY_REGISTRY: OnceLock<Vec<QueryFactory>> = OnceLock::new();
+  static FIELD_REGISTRY: OnceLock<Vec<FieldFactory>> = OnceLock::new();
+
+  let inputs = INPUT_REGISTRY.get_or_init(|| {
+    let mut factories = Vec::new();
+    for entry in inventory::iter::<InputInventory> {
       (entry.register)(&mut factories);
     }
-
     factories
-  })
+  });
+  let interned = INTERNED_REGISTRY.get_or_init(|| {
+    let mut factories = Vec::new();
+    for entry in inventory::iter::<InternedInventory> {
+      (entry.register)(&mut factories);
+    }
+    factories
+  });
+  let queries = QUERY_REGISTRY.get_or_init(|| {
+    let mut factories = Vec::new();
+    for entry in inventory::iter::<QueryInventory> {
+      (entry.register)(&mut factories);
+    }
+    factories
+  });
+  let fields = FIELD_REGISTRY.get_or_init(|| {
+    let mut factories = Vec::new();
+    for entry in inventory::iter::<FieldInventory> {
+      (entry.register)(&mut factories);
+    }
+    factories
+  });
+
+  (inputs, interned, queries, fields)
 }

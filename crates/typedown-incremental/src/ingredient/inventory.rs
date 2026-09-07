@@ -1,17 +1,28 @@
-use super::Ingredient;
+use super::{DerivedFieldIngredient, DerivedQueryIngredient, InputIngredient, InternedIngredient};
 
-/// An ingredient with its dep graph metadata
-pub struct IngredientEntry {
-  pub ingredient: Box<dyn Ingredient>,
-  /// Field index within the parent struct, None for queries
-  pub field_index: Option<u8>,
+/// Factory callbacks for each ingredient kind
+pub type InputFactory = fn(u64) -> Box<dyn InputIngredient>;
+pub type InternedFactory = fn(u64) -> Box<dyn InternedIngredient>;
+pub type QueryFactory = fn(u64) -> Box<dyn DerivedQueryIngredient>;
+pub type FieldFactory = fn(u64) -> Box<dyn DerivedFieldIngredient>;
+
+pub struct InputInventory {
+  pub register: fn(&mut Vec<InputFactory>),
 }
 
-/// A callback that creates an IngredientEntry, receiving its index
-pub type IngredientFactory = fn(usize) -> IngredientEntry;
-
-pub struct Inventory {
-  pub register: fn(&mut Vec<IngredientFactory>),
+pub struct InternedInventory {
+  pub register: fn(&mut Vec<InternedFactory>),
 }
 
-inventory::collect!(Inventory);
+pub struct QueryInventory {
+  pub register: fn(&mut Vec<QueryFactory>),
+}
+
+pub struct FieldInventory {
+  pub register: fn(&mut Vec<FieldFactory>),
+}
+
+inventory::collect!(InputInventory);
+inventory::collect!(InternedInventory);
+inventory::collect!(QueryInventory);
+inventory::collect!(FieldInventory);

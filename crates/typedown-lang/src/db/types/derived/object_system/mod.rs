@@ -59,7 +59,7 @@ use typedown_macros::StableCompare;
 use crate::db::TypedownDatabase;
 use crate::db::types::{FuncSignature, InstResult, LazyType, TypeParams};
 use crate::syntax::diagnostic::Diagnostic;
-use typedown_incremental::Id;
+use typedown_incremental::{DepId, Id};
 
 // Use this instead of dyn
 // The primitive types are fixed anyways
@@ -158,7 +158,7 @@ impl_from_type_for_obj_enum!(
 );
 
 impl Id for TdTypeEnum<'_> {
-  fn as_id(&self) -> (usize, usize) {
+  fn as_id(&self) -> DepId {
     match self {
       TdTypeEnum::TdTypeType(v) => v.as_id(),
       TdTypeEnum::TdBoolType(v) => v.as_id(),
@@ -188,7 +188,7 @@ impl Id for TdTypeEnum<'_> {
 }
 
 impl Id for TdObjectEnum<'_> {
-  fn as_id(&self) -> (usize, usize) {
+  fn as_id(&self) -> DepId {
     match self {
       TdObjectEnum::TdTypeObj(v) => v.as_id(),
       TdObjectEnum::TdBoolObj(v) => v.as_id(),

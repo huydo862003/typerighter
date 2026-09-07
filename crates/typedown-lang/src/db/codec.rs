@@ -15,7 +15,7 @@ use typedown_incremental::{
 
 // GreenNode (interned)
 fn encode_green_node(node: &GreenNode, encoder: &mut Encoder) -> u32 {
-  let hint = Some(node.as_ptr());
+  let hint = Some(node.as_ptr() as u32);
   if node.is_node() {
     let syntax_node = node.as_node().unwrap();
     let children = syntax_node.children();

@@ -8,31 +8,31 @@ use super::fixtures::identity::*;
 fn drain_evicts_oldest_when_over_capacity() {
   let lru = Lru::default();
   for i in 0..=LRU_CAPACITY {
-    lru.touch(i);
+    lru.touch(i as u32);
   }
   let evicted = lru.drain_evicted();
-  assert_eq!(evicted, vec![0]);
+  assert_eq!(evicted, vec![0u32]);
 }
 
 #[test]
 fn drain_respects_touch_order() {
   let lru = Lru::default();
   for i in 0..LRU_CAPACITY {
-    lru.touch(i);
+    lru.touch(i as u32);
   }
   // Touch 0 again to move it to back
   lru.touch(0);
   // Add one more to overflow
-  lru.touch(LRU_CAPACITY);
+  lru.touch(LRU_CAPACITY as u32);
   let evicted = lru.drain_evicted();
-  assert_eq!(evicted, vec![1]);
+  assert_eq!(evicted, vec![1u32]);
 }
 
 #[test]
 fn drain_returns_empty_under_capacity() {
   let lru = Lru::default();
   for i in 0..100 {
-    lru.touch(i);
+    lru.touch(i as u32);
   }
   assert!(lru.drain_evicted().is_empty());
 }

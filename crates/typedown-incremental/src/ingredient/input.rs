@@ -1,55 +1,54 @@
-// TIL: We use DashMap to support high-performance concrruent reads, which fits the workload of IDEs
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use dashmap::DashMap;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
-  Decodable, DepId, DeserializeContext, Encodable, Fingerprint, QueryDatabase, SerializeContext,
-  StableHash, StableHasher, UnresolvedDepNode,
+  Decodable, DepId, DeserializeContext, Encodable, EntryId, Fingerprint, QueryDatabase, Revision,
+  SerializeContext, StableHash, StableHasher, UnresolvedDepNode,
 };
 
-use super::Ingredient;
+use super::{Ingredient, InputIngredient};
 
 pub struct StampedInputField<T> {
   pub value: T,
-  pub changed_at: usize, // The last revision number this one changed
+  pub changed_at: Revision, // The last revision number this one changed
 }
 
 /// A field of an input ingredient, containing data for that input type
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct InputFieldIngredient<T> {
-  ingredient_index: usize,
+pub struct InputIngredientStore<T> {
+  dep_id_prefix: u64,
   field_index: u8,
   name: &'static str,
-  pub id_counter: &'static AtomicUsize,
+  pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
-  pub data: Arc<DashMap<usize, StampedInputField<T>>>,
+  pub data: Arc<DashMap<EntryId, StampedInputField<T>>>,
 }
 
-impl<T> std::fmt::Debug for InputFieldIngredient<T> {
+impl<T> std::fmt::Debug for InputIngredientStore<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("InputFieldIngredient")
+    f.debug_struct("InputIngredientStore")
       .field("name", &self.name)
       .finish_non_exhaustive()
   }
 }
 
-impl<T> InputFieldIngredient<T> {
+impl<T> InputIngredientStore<T> {
   #[cfg(debug_assertions)]
   #[doc(hidden)]
   pub const __TYPEDOWN_INPUT_FIELD_INGREDIENT: () = ();
 
   pub fn new(
-    ingredient_index: usize,
+    dep_id_prefix: u64,
     name: &'static str,
     field_index: u8,
-    id_counter: &'static AtomicUsize,
+    id_counter: &'static AtomicU32,
   ) -> Self {
     Self {
-      ingredient_index,
+      dep_id_prefix,
       field_index,
       name,
       id_counter,
@@ -59,7 +58,7 @@ impl<T> InputFieldIngredient<T> {
 }
 
 impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static> Ingredient
-  for InputFieldIngredient<T>
+  for InputIngredientStore<T>
 {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
@@ -70,7 +69,21 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     Fingerprint::from_name(self.name)
   }
 
-  fn green_check(&self, _db: &dyn QueryDatabase, arg_id: usize, last_changed_at: usize) -> bool {
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
+    Box::new(self.data.iter().map(|entry| *entry.key()))
+  }
+
+  // Input fields are ground truth, they are never recomputed
+  #[cfg(debug_assertions)]
+  fn recompute_count(&self) -> usize {
+    0
+  }
+}
+
+impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static>
+  InputIngredient for InputIngredientStore<T>
+{
+  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool {
     self
       .data
       .get(&arg_id)
@@ -78,22 +91,16 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       .unwrap_or(false)
   }
 
-  fn re_execute(&self, _db: &dyn QueryDatabase, _arg_id: usize) {
-    // Inputs are ground truth, nothing to recompute
+  fn field_index(&self) -> u8 {
+    self.field_index
   }
 
-  fn reset_for_new_revision(&self) {}
-
-  fn remove_entry(&self, entry_id: usize) {
-    self.data.remove(&entry_id);
-  }
-
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = usize> + '_> {
-    Box::new(self.data.iter().map(|entry| *entry.key()))
-  }
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: usize) -> Option<Fingerprint> {
-    InputFieldIngredient::value_fingerprint(self, db, entry_id)
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher: StableHasher = StableHasher::new();
+      entry.value.stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
@@ -115,11 +122,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     let entry_id = *ctx
       .entry_id_map
       .entry((*name, *serialized_entry_id))
-      .or_insert_with(|| {
-        self
-          .id_counter
-          .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-      });
+      .or_insert_with(|| self.id_counter.fetch_add(1, Ordering::Relaxed));
 
     let blob = ctx.serialized.query_cache.get(node_index)?;
     let mut data = blob;
@@ -128,15 +131,15 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       entry_id,
       StampedInputField {
         value,
-        changed_at: *changed_at as usize,
+        changed_at: *changed_at as u32,
       },
     );
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: usize) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId) {
     let entry = self.data.get(&entry_id);
     if entry.is_none() {
       return;
@@ -145,7 +148,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     let entry = entry.expect("Entry must contain a value after the none check pass");
 
     // Add the dep node
-    let dep_id = (self.ingredient_index, entry_id);
+    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,
@@ -164,21 +167,5 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     let mut buf = vec![];
     entry.value.encode(&mut buf, &mut ctx.encoder);
     ctx.query_cache.set(node_index, &buf);
-  }
-
-  // Input fields are ground truth, they are never recomputed
-  #[cfg(debug_assertions)]
-  fn recompute_count(&self) -> usize {
-    0
-  }
-}
-
-impl<T: StableHash + Send + Sync + 'static> InputFieldIngredient<T> {
-  pub fn value_fingerprint(&self, db: &dyn QueryDatabase, arg_id: usize) -> Option<Fingerprint> {
-    self.data.get(&arg_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
   }
 }

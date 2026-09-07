@@ -24,16 +24,21 @@ pub trait SerializableQueryDatabase: QueryDatabase {
     let storage = unsafe { self.storage() };
     let mut ctx = SerializeContext::new(self);
 
-    // Serialize all ingredients, respecting no_hash
-    // NOTE: If we're intending to lazily load the deps
-    // instead of eagerly loading the deps like we're doing
-    // We must perform cache promotion here
-    for entry in storage.ingredients.iter() {
-      let ingredient = &entry.ingredient;
-      for entry_id in ingredient.entry_ids().collect::<Vec<_>>() {
-        ingredient.serialize(&mut ctx, entry_id);
-      }
+    // Serialize all ingredients: inputs -> interned -> queries -> fields
+    // Leaf nodes (inputs, interned) first so their DepNodeIndices exist when derived edges reference them
+    macro_rules! serialize_all {
+      ($ingredients:expr) => {
+        for ingredient in $ingredients.iter() {
+          for entry_id in ingredient.entry_ids() {
+            ingredient.serialize(&mut ctx, entry_id);
+          }
+        }
+      };
     }
+    serialize_all!(storage.inputs);
+    serialize_all!(storage.interned);
+    serialize_all!(storage.queries);
+    serialize_all!(storage.fields);
 
     // Finalize
     let (nodes, query_cache_mmap, query_cache_file, intern_blobs) = ctx.finalize();
