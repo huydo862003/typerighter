@@ -325,17 +325,17 @@ impl<K: StableHash + StableCompare> StableHash for HashSet<K> {
 }
 
 impl StableHash for SystemTime {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
     match self.duration_since(std::time::UNIX_EPOCH) {
       Ok(dur) => {
-        0u8.stable_hash(db, hasher);
-        dur.as_secs().stable_hash(db, hasher);
-        dur.subsec_nanos().stable_hash(db, hasher);
+        hasher.write_u8(0);
+        hasher.write_u64(dur.as_secs());
+        hasher.write_u32(dur.subsec_nanos());
       }
       Err(err) => {
-        1u8.stable_hash(db, hasher);
-        err.duration().as_secs().stable_hash(db, hasher);
-        err.duration().subsec_nanos().stable_hash(db, hasher);
+        hasher.write_u8(1);
+        hasher.write_u64(err.duration().as_secs());
+        hasher.write_u32(err.duration().subsec_nanos());
       }
     }
   }
