@@ -25,7 +25,7 @@ impl<'db> TdStaticType<'db> for TdObjectType<'db> {
 
   fn runtime_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdFuncObj<'db>> {
     let mut result = BTreeMap::new();
-    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let sig = FuncSignature::new(db, vec![], vec![], get_str_type(db).into());
     let to_string_fn = TdFuncObj::new(
       db,
       BUILTIN_TO_STRING.to_string(),
@@ -38,7 +38,7 @@ impl<'db> TdStaticType<'db> for TdObjectType<'db> {
 
   fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'db>> {
     let mut result = BTreeMap::new();
-    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let sig = FuncSignature::new(db, vec![], vec![], get_str_type(db).into());
     let func_type = get_func_type(db, sig).into();
     result.insert(BUILTIN_TO_STRING.to_string(), func_type);
     result
@@ -78,7 +78,7 @@ mod tests {
     let obj_type = get_object_type(&db);
 
     let to_string_type = obj_type.lookup_field_type(&db, "to_string").unwrap();
-    let expected_sig = FuncSignature::new(&db, vec![], get_str_type(&db).into());
+    let expected_sig = FuncSignature::new(&db, vec![], vec![], get_str_type(&db).into());
     let expected_func_type: TdTypeEnum = get_func_type(&db, expected_sig).into();
 
     assert_eq!(to_string_type, expected_func_type);

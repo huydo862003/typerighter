@@ -215,7 +215,10 @@ pub fn get_never_type<'db>(db: &'db TypedownDatabase) -> TdNeverType<'db> {
 }
 
 #[query_derived]
-pub fn get_literal_type<'db>(db: &'db TypedownDatabase, value: LiteralValue) -> TdLiteralType<'db> {
+pub fn get_literal_type<'db>(
+  db: &'db TypedownDatabase,
+  value: LiteralValue<'db>,
+) -> TdLiteralType<'db> {
   TdLiteralType::new(db, value)
 }
 
@@ -341,7 +344,7 @@ mod tests {
   use super::{get_bool_type, get_sum_type};
   use crate::db::typecheck::utils::validate_type_params;
   use crate::db::types::derived::object_system::TdStaticType;
-  use crate::db::types::{LazyType, TdTypeEnum, TypeParams, TypeVariable};
+  use crate::db::types::{LazyType, TdTypeEnum, TdVariableType, TypeParams};
   use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{
@@ -492,7 +495,7 @@ mod tests {
 
     let params = TypeParams::new(
       &db,
-      vec![TypeVariable::get(&db, Some(LazyType::eager(num_type)))],
+      vec![TdVariableType::new(&db, 0, LazyType::eager(num_type))],
       vec![],
     );
     let diagnostics = validate_type_params(&db, Some(&params), &[LazyType::eager(str_type)]);

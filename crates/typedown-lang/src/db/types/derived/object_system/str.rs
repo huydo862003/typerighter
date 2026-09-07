@@ -49,7 +49,12 @@ impl<'db> TdStaticType<'db> for TdStrType<'db> {
     _key_type: &TdTypeEnum<'db>,
   ) -> Option<FuncSignature<'db>> {
     let key_type: TdTypeEnum = get_num_type(db).into();
-    Some(FuncSignature::new(db, vec![key_type], (*self).into()))
+    Some(FuncSignature::new(
+      db,
+      vec![],
+      vec![key_type],
+      (*self).into(),
+    ))
   }
 }
 

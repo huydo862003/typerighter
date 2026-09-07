@@ -439,7 +439,7 @@ fn get_closure_type<'db>(
     None => return TypeResult::new(db, None, body_result.diagnostics(db).clone()),
   };
 
-  let sig = FuncSignature::new(db, param_types, ret);
+  let sig = FuncSignature::new(db, vec![], param_types, ret);
   let func_type = get_func_type(db, sig);
   TypeResult::new(
     db,
@@ -698,7 +698,7 @@ mod tests {
     let field_type = num_lit
       .lookup_field_type(&db, "to_string")
       .expect("should have to_string method");
-    let expected_sig = FuncSignature::new(&db, vec![], get_str_type(&db).into());
+    let expected_sig = FuncSignature::new(&db, vec![], vec![], get_str_type(&db).into());
     let expected_func_type: TdTypeEnum = get_func_type(&db, expected_sig).into();
 
     assert_eq!(field_type, expected_func_type);

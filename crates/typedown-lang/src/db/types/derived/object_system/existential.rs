@@ -167,7 +167,7 @@ mod tests {
     let str_type: TdTypeEnum = get_str_type(&db).into();
     let num_type: TdTypeEnum = get_num_type(&db).into();
 
-    let sig = FuncSignature::new(&db, vec![str_type.clone()], num_type.clone());
+    let sig = FuncSignature::new(&db, vec![], vec![str_type.clone()], num_type.clone());
     let func_type: TdTypeEnum = get_func_type(&db, sig).into();
 
     let ex_params = TypeParams::new(&db, vec![], vec![]);

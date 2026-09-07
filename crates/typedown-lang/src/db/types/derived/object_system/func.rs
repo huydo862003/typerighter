@@ -63,7 +63,7 @@ impl<'db> TdFuncType<'db> {
     params: Vec<TdTypeEnum<'db>>,
     ret: TdTypeEnum<'db>,
   ) -> TdFuncType<'db> {
-    get_func_type(db, FuncSignature::new(db, params, ret))
+    get_func_type(db, FuncSignature::new(db, vec![], params, ret))
   }
 }
 

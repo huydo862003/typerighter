@@ -4,21 +4,20 @@ use typedown_macros::query_derived;
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
-use crate::db::types::{FuncSignature, LazyType, TypeVariable};
+use crate::db::types::{FuncSignature, LazyType};
 
-/// A type variable reference within a type expression
+/// A type variable within a type expression (e.g. T in List<T>)
 #[query_derived]
 pub struct TdVariableType<'db> {
   #[id]
   pub index: usize,
   #[id]
-  pub variable: TypeVariable<'db>,
+  pub upper_bound: LazyType<'db>,
 }
 
 impl<'db> TdStaticType<'db> for TdVariableType<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
-    let var = Self::variable(*self, db);
-    if let Some(b) = var.upper_bound(db).resolve(db) {
+    if let Some(b) = self.upper_bound(db).resolve(db) {
       if b.as_td_object_type().is_some() {
         format!("T{}", Self::index(*self, db))
       } else {
@@ -31,7 +30,6 @@ impl<'db> TdStaticType<'db> for TdVariableType<'db> {
 
   fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypeEnum<'db>> {
     self
-      .variable(db)
       .upper_bound(db)
       .resolve(db)
       .map(|upper| upper.static_vtable(db))
@@ -40,7 +38,6 @@ impl<'db> TdStaticType<'db> for TdVariableType<'db> {
 
   fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
     self
-      .variable(db)
       .upper_bound(db)
       .resolve(db)
       .map(|upper| upper.get_fields(db))
@@ -49,7 +46,6 @@ impl<'db> TdStaticType<'db> for TdVariableType<'db> {
 
   fn lookup_field_type(&self, db: &'db TypedownDatabase, name: &str) -> Option<TdTypeEnum<'db>> {
     self
-      .variable(db)
       .upper_bound(db)
       .resolve(db)?
       .lookup_field_type(db, name)
@@ -60,11 +56,7 @@ impl<'db> TdStaticType<'db> for TdVariableType<'db> {
     db: &'db TypedownDatabase,
     key_type: &TdTypeEnum<'db>,
   ) -> Option<FuncSignature<'db>> {
-    self
-      .variable(db)
-      .upper_bound(db)
-      .resolve(db)?
-      .index_type(db, key_type)
+    self.upper_bound(db).resolve(db)?.index_type(db, key_type)
   }
 
   fn call_type(
@@ -72,11 +64,7 @@ impl<'db> TdStaticType<'db> for TdVariableType<'db> {
     db: &'db TypedownDatabase,
     arg_types: Vec<TdTypeEnum<'db>>,
   ) -> Option<FuncSignature<'db>> {
-    self
-      .variable(db)
-      .upper_bound(db)
-      .resolve(db)?
-      .call_type(db, arg_types)
+    self.upper_bound(db).resolve(db)?.call_type(db, arg_types)
   }
 }
 
@@ -117,10 +105,8 @@ mod tests {
     fields.insert("name".to_string(), LazyType::eager(str_type.clone()));
     let struct_type: TdTypeEnum = TdProductType::new(&db, None, fields).into();
 
-    let var = TypeVariable::get(&db, Some(LazyType::eager(struct_type)));
-    let var_type = TdVariableType::new(&db, 0, var);
+    let var_type = TdVariableType::new(&db, 0, LazyType::eager(struct_type));
 
-    // field lookup delegates to Upper
     assert_eq!(var_type.lookup_field_type(&db, "name"), Some(str_type));
     assert_eq!(var_type.lookup_field_type(&db, "nonexistent"), None);
   }

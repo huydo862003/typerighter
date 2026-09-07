@@ -387,6 +387,7 @@ fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<C
       LiteralValue::Str(s) => (format!("\"{s}\""), "string".to_string()),
       LiteralValue::Num(n) => (n.clone(), "number".to_string()),
       LiteralValue::Bool(b) => (b.to_string(), "boolean".to_string()),
+      LiteralValue::Type(t) => (t.display_name(db), "type".to_string()),
     };
     items.push(CompletionItem {
       label,

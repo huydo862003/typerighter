@@ -9,73 +9,114 @@ use typedown_incremental::{
 
 use typedown_types::either::Either;
 
-use super::TdTypeEnum;
+use super::derived::object_system::{TdDictType, TdListType};
+use super::{TdTypeEnum, TdVariableType};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
-use crate::db::derived::get_builtin_types::get_object_type;
+use crate::db::derived::get_builtin_types::{
+  get_func_type, get_literal_type, get_sum_type,
+};
 use crate::db::types::Symbol;
+use typedown_incremental::Id;
 
 #[query_interned]
 pub struct FuncSignature<'db> {
+  pub type_params: Vec<TdVariableType<'db>>,
   pub params: Vec<TdTypeEnum<'db>>,
   pub ret: TdTypeEnum<'db>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
-#[repr(u8)]
-#[derive(Default)]
-pub enum Variance {
-  #[default]
-  Covariant = 0,
-  Contravariant = 1,
-  Invariant = 2,
-}
-
-impl StableHash for Variance {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
-    (*self as u8).hash(hasher);
-  }
-}
-
-impl Encodable for Variance {
-  fn encode(&self, buf: &mut Vec<u8>, _encoder: &mut Encoder) {
-    buf.push(*self as u8);
-  }
-}
-
-impl Decodable for Variance {
-  fn decode(data: &mut &[u8], _decoder: &Decoder) -> Self {
-    let tag = data[0];
-    *data = &data[1..];
-    Variance::from_repr(tag).unwrap_or(Variance::Covariant)
-  }
-}
-
-#[query_interned]
-pub struct TypeVariable<'db> {
-  pub upper_bound: LazyType<'db>,
-  pub variance: Variance, // Existential type variables always have INVARIANCE because variance is irrelevant
-}
-
-impl<'db> TypeVariable<'db> {
-  pub fn get(db: &'db TypedownDatabase, upper_bound: Option<LazyType<'db>>) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
-    TypeVariable::new(db, upper_bound, Variance::Covariant)
-  }
-
-  pub fn get_with_variance(
+impl<'db> FuncSignature<'db> {
+  pub fn instantiate(
+    &self,
     db: &'db TypedownDatabase,
-    upper_bound: Option<LazyType<'db>>,
-    variance: Variance,
-  ) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
-    TypeVariable::new(db, upper_bound, variance)
+    arg: TdTypeEnum<'db>,
+  ) -> Option<FuncSignature<'db>> {
+    let mut type_params = self.type_params(db);
+    if type_params.is_empty() {
+      return None;
+    }
+    let variable = type_params.remove(0);
+    let params = self
+      .params(db)
+      .into_iter()
+      .map(|p| substitute_variable(db, &p, variable, &arg))
+      .collect();
+    let ret = substitute_variable(db, &self.ret(db), variable, &arg);
+    Some(FuncSignature::new(db, type_params, params, ret))
+  }
+}
+
+/// Replace all occurrences of a type variable in a type with a concrete type
+pub fn substitute_variable<'db>(
+  db: &'db TypedownDatabase,
+  typ: &TdTypeEnum<'db>,
+  variable: TdVariableType<'db>,
+  replacement: &TdTypeEnum<'db>,
+) -> TdTypeEnum<'db> {
+  let substitute = |lazy: LazyType<'db>| -> LazyType<'db> {
+    lazy
+      .resolve(db)
+      .map(|t| LazyType::eager(substitute_variable(db, &t, variable, replacement)))
+      .unwrap_or(lazy)
+  };
+
+  match typ {
+    TdTypeEnum::TdVariableType(v) if v.as_id() == variable.as_id() => replacement.clone(),
+    TdTypeEnum::TdListType(list) => TdListType::new(db, list.elem(db).map(substitute)).into(),
+    TdTypeEnum::TdDictType(dict) => TdDictType::new(
+      db,
+      dict.key(db).map(substitute),
+      dict.value(db).map(substitute),
+    )
+    .into(),
+    TdTypeEnum::TdSumType(sum) => {
+      let members: Vec<LazyType> = sum.members(db).into_iter().map(substitute).collect();
+      get_sum_type(db, members).into()
+    }
+    TdTypeEnum::TdFuncType(func) => {
+      let sig = func.signature(db);
+      let params = sig
+        .params(db)
+        .into_iter()
+        .map(|p| substitute_variable(db, &p, variable, replacement))
+        .collect();
+      let ret = substitute_variable(db, &sig.ret(db), variable, replacement);
+      let type_params = sig.type_params(db);
+      get_func_type(db, FuncSignature::new(db, type_params, params, ret)).into()
+    }
+    TdTypeEnum::TdLiteralType(lit) => match lit.value(db) {
+      LiteralValue::Type(t) => {
+        let subst = substitute_variable(db, &t, variable, replacement);
+        get_literal_type(db, LiteralValue::Type(subst)).into()
+      }
+      LiteralValue::Str(_) | LiteralValue::Bool(_) | LiteralValue::Num(_) => typ.clone(),
+    },
+    // Leaf types: no nested type to substitute
+    TdTypeEnum::TdVariableType(_)
+    | TdTypeEnum::TdTypeType(_)
+    | TdTypeEnum::TdBoolType(_)
+    | TdTypeEnum::TdStrType(_)
+    | TdTypeEnum::TdNumType(_)
+    | TdTypeEnum::TdMathType(_)
+    | TdTypeEnum::TdDateTimeType(_)
+    | TdTypeEnum::TdDateType(_)
+    | TdTypeEnum::TdTimeType(_)
+    | TdTypeEnum::TdBlobType(_)
+    | TdTypeEnum::TdNullType(_)
+    | TdTypeEnum::TdNeverType(_)
+    | TdTypeEnum::TdObjectType(_)
+    | TdTypeEnum::TdIconType(_)
+    | TdTypeEnum::TdProductType(_)
+    | TdTypeEnum::TdSchemaType(_)
+    | TdTypeEnum::TdSchemaMetaType(_)
+    | TdTypeEnum::TdExistentialType(_) => typ.clone(),
   }
 }
 
 #[query_interned]
 pub struct TypeParams<'db> {
-  pub params: Vec<TypeVariable<'db>>,
+  pub params: Vec<TdVariableType<'db>>,
   pub bindings: Vec<LazyType<'db>>,
 }
 
@@ -110,16 +151,12 @@ impl<'db> TypeParams<'db> {
     Some(TypeParams::new(db, params, bindings))
   }
 
-  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TdVariableType<'_>> {
     self.params(db).get(index).copied()
   }
 
   pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType<'_>> {
     self.bindings(db).get(index).cloned()
-  }
-
-  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
-    self.params(db).get(index).copied()
   }
 
   pub fn is_instantiated(&self, db: &TypedownDatabase) -> bool {
@@ -189,13 +226,15 @@ impl<'db> StableHash for LazyType<'db> {
   }
 }
 
-/// A concrete literal value used in literal constraints
+/// A concrete literal value used in literal type constraints
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum LiteralValue {
+pub enum LiteralValue<'db> {
   Str(String),
   Bool(bool),
   // f64 cannot be hashed so we store in string
   Num(String),
+  // A type used as a value (e.g. Task in vault.query(Task))
+  Type(super::derived::object_system::TdTypeEnum<'db>),
 }
 
 #[derive(FromRepr)]
@@ -204,9 +243,10 @@ enum LiteralValueTag {
   Str = 0,
   Bool = 1,
   Num = 2,
+  Type = 3,
 }
 
-impl Encodable for LiteralValue {
+impl Encodable for LiteralValue<'_> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       LiteralValue::Str(val) => {
@@ -221,28 +261,36 @@ impl Encodable for LiteralValue {
         encoder.emit_u8(buf, LiteralValueTag::Num as u8);
         val.encode(buf, encoder);
       }
+      LiteralValue::Type(val) => {
+        encoder.emit_u8(buf, LiteralValueTag::Type as u8);
+        val.encode(buf, encoder);
+      }
     }
   }
 }
 
-impl Decodable for LiteralValue {
+impl Decodable for LiteralValue<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match LiteralValueTag::from_repr(tag).expect("unknown LiteralValue tag") {
       LiteralValueTag::Str => LiteralValue::Str(String::decode(data, decoder)),
       LiteralValueTag::Bool => LiteralValue::Bool(bool::decode(data, decoder)),
       LiteralValueTag::Num => LiteralValue::Num(String::decode(data, decoder)),
+      LiteralValueTag::Type => LiteralValue::Type(
+        super::derived::object_system::TdTypeEnum::decode(data, decoder),
+      ),
     }
   }
 }
 
-impl StableHash for LiteralValue {
+impl StableHash for LiteralValue<'_> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
       LiteralValue::Str(value) => value.stable_hash(db, hasher),
       LiteralValue::Bool(value) => value.stable_hash(db, hasher),
       LiteralValue::Num(value) => value.stable_hash(db, hasher),
+      LiteralValue::Type(value) => value.stable_hash(db, hasher),
     }
   }
 }

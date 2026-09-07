@@ -9,7 +9,7 @@ use crate::db::derived::get_builtin_types::{get_list_type, get_num_type, get_obj
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::typecheck::utils::validate_type_params;
 use crate::db::types::Project;
-use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams, TypeVariable};
+use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TdVariableType, TypeParams};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
@@ -108,7 +108,7 @@ impl<'db> TdStaticType<'db> for TdListType<'db> {
   }
 
   fn type_params(&self, db: &'db TypedownDatabase) -> Option<TypeParams<'db>> {
-    let param = TypeVariable::get(db, Some(LazyType::eager(get_object_type(db).into())));
+    let param = TdVariableType::new(db, 0, LazyType::eager(get_object_type(db).into()));
     let bindings = self.elem(db).into_iter().collect();
     Some(TypeParams::new(db, vec![param], bindings))
   }
@@ -120,7 +120,7 @@ impl<'db> TdStaticType<'db> for TdListType<'db> {
   ) -> Option<FuncSignature<'db>> {
     let elem = self.elem(db).and_then(|e| e.resolve(db))?;
     let key_type: TdTypeEnum = get_num_type(db).into();
-    Some(FuncSignature::new(db, vec![key_type], elem))
+    Some(FuncSignature::new(db, vec![], vec![key_type], elem))
   }
 }
 

@@ -10,7 +10,7 @@ use crate::db::types::{FuncSignature, LazyType, LiteralValue};
 
 #[query_derived]
 pub struct TdLiteralType<'db> {
-  pub value: LiteralValue,
+  pub value: LiteralValue<'db>,
 }
 
 impl<'db> TdRuntimeObject<'db> for TdLiteralType<'db> {
@@ -34,6 +34,7 @@ impl<'db> TdStaticType<'db> for TdLiteralType<'db> {
       LiteralValue::Str(s) => format!("\"{}\"", s),
       LiteralValue::Num(n) => n,
       LiteralValue::Bool(b) => b.to_string(),
+      LiteralValue::Type(t) => t.display_name(db),
     }
   }
 
@@ -76,6 +77,7 @@ impl<'db> TdLiteralType<'db> {
       LiteralValue::Str(_) => get_str_type(db).into(),
       LiteralValue::Num(_) => get_num_type(db).into(),
       LiteralValue::Bool(_) => get_bool_type(db).into(),
+      LiteralValue::Type(t) => t.get_type(db),
     }
   }
 }

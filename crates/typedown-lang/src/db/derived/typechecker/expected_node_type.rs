@@ -191,7 +191,7 @@ fn get_expected_call_callee_type<'db>(
     }
   }
 
-  let sig = FuncSignature::new(db, param_types, ret);
+  let sig = FuncSignature::new(db, vec![], param_types, ret);
   let func_type = get_func_type(db, sig);
   TypeResult::new(db, Some(func_type.into()), vec![])
 }

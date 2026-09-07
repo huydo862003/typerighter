@@ -10,7 +10,7 @@ use crate::db::derived::get_builtin_types::{get_dict_type, get_object_type, get_
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::typecheck::utils::validate_type_params;
 use crate::db::types::Project;
-use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams, TypeVariable};
+use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TdVariableType, TypeParams};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
@@ -148,8 +148,8 @@ impl<'db> TdStaticType<'db> for TdDictType<'db> {
     Some(TypeParams::new(
       db,
       vec![
-        TypeVariable::get(db, Some(obj_type.clone())),
-        TypeVariable::get(db, Some(obj_type)),
+        TdVariableType::new(db, 0, obj_type.clone()),
+        TdVariableType::new(db, 1, obj_type),
       ],
       bindings,
     ))
@@ -165,7 +165,7 @@ impl<'db> TdStaticType<'db> for TdDictType<'db> {
       .key(db)
       .and_then(|k| k.resolve(db))
       .unwrap_or_else(|| get_str_type(db).into());
-    Some(FuncSignature::new(db, vec![key], value))
+    Some(FuncSignature::new(db, vec![], vec![key], value))
   }
 }
 

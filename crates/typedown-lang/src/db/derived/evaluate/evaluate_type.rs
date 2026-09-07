@@ -547,7 +547,7 @@ fn resolve_type_lazy<'db>(
 mod tests {
   use super::*;
   use crate::db::typecheck::utils::{is_subtype_of, validate_type_params};
-  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
+  use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TdVariableType, TypeParams};
   use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::BTreeMap;
@@ -1052,7 +1052,7 @@ mod tests {
 
     let params = TypeParams::new(
       &db,
-      vec![TypeVariable::get(&db, Some(LazyType::eager(num_type)))],
+      vec![TdVariableType::new(&db, 0, LazyType::eager(num_type))],
       vec![],
     );
     let diagnostics = validate_type_params(&db, Some(&params), &[LazyType::eager(str_type)]);

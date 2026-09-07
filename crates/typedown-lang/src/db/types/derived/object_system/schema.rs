@@ -128,7 +128,7 @@ impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
       .parent_type(db)
       .map(|p| p.runtime_vtable(db))
       .unwrap_or_default();
-    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let sig = FuncSignature::new(db, vec![], vec![], get_str_type(db).into());
     let to_string_fn = TdFuncObj::new(
       db,
       BUILTIN_TO_STRING.to_string(),
@@ -146,7 +146,7 @@ impl<'db> TdStaticType<'db> for TdSchemaType<'db> {
       .parent_type(db)
       .map(|p| p.static_vtable(db))
       .unwrap_or_default();
-    let sig = FuncSignature::new(db, vec![], get_str_type(db).into());
+    let sig = FuncSignature::new(db, vec![], vec![], get_str_type(db).into());
     let func_type = get_func_type(db, sig).into();
     result
       .entry(BUILTIN_TO_STRING.to_string())
