@@ -59,11 +59,12 @@ pub struct Dependency {
 }
 
 /// A memoized derived query result
+// TIL: verified_at is AtomicU32 so green_check can bump it via get() instead of get_mut()
 pub struct StampedDerivedQuery<K, V: DerivedId> {
   pub key: K,                        // The original key, for re-execution
   pub value: V,                      // The derived struct ID
   pub changed_at: Revision,          // Revision when the value last actually changed
-  pub verified_at: Revision,         // Revision when last confirmed valid
+  pub verified_at: AtomicU32,        // Revision when last confirmed valid
   pub dependencies: Vec<Dependency>, // What this query read during execution
 }
 
@@ -272,7 +273,7 @@ impl<
         key,
         value: value.clone(),
         changed_at,
-        verified_at: current_revision,
+        verified_at: AtomicU32::new(current_revision),
         dependencies,
       }),
     );
@@ -327,7 +328,7 @@ impl<
     // Check cache
     if let Some(entry) = self.data.get(&entry_id) {
       match &*entry {
-        QueryState::Computed(memo) if memo.verified_at >= current_revision => {
+        QueryState::Computed(memo) if memo.verified_at.load(Ordering::Acquire) >= current_revision => {
           return (memo.value.clone(), memo.changed_at);
         }
         QueryState::Computing => {
@@ -390,7 +391,7 @@ impl<
       .entry(entry_id)
       .and_modify(|state| {
         if let QueryState::Computed(memo) = state {
-          if memo.verified_at >= current_revision {
+          if memo.verified_at.load(Ordering::Acquire) >= current_revision {
             cached = Some((memo.value.clone(), memo.changed_at));
             return;
           }
@@ -479,7 +480,7 @@ impl<
         key,
         value: value.clone(),
         changed_at,
-        verified_at: current_revision,
+        verified_at: AtomicU32::new(current_revision),
         dependencies,
       }),
     );
@@ -577,7 +578,7 @@ impl<
     match self.data.get(&entry_id) {
       Some(entry) => match &*entry {
         QueryState::Computed(memo) => {
-          if memo.verified_at >= current_revision {
+          if memo.verified_at.load(Ordering::Acquire) >= current_revision {
             return memo.changed_at <= last_changed_at;
           }
           // Stale: re-execute deps so they can backdate, then re-check
@@ -596,10 +597,10 @@ impl<
 
           if all_green {
             // Bump verified_at
-            if let Some(mut entry) = self.data.get_mut(&entry_id)
-              && let QueryState::Computed(memo) = &mut *entry
+            if let Some(entry) = self.data.get(&entry_id)
+              && let QueryState::Computed(memo) = &*entry
             {
-              memo.verified_at = current_revision;
+              memo.verified_at.store(current_revision, Ordering::Release);
               return memo.changed_at <= last_changed_at;
             }
           }
@@ -688,7 +689,7 @@ impl<
         key,
         value,
         changed_at: *changed_at as u32,
-        verified_at: *verified_at as u32,
+        verified_at: AtomicU32::new(*verified_at as u32),
         dependencies,
       }),
     );
@@ -726,7 +727,7 @@ impl<
         entry_id: entry_id as u64,
         value_entry_id: <V as Into<u32>>::into(memo.value.clone()) as u64,
         changed_at: memo.changed_at as u64,
-        verified_at: memo.verified_at as u64,
+        verified_at: memo.verified_at.load(Ordering::Relaxed) as u64,
         edges,
       },
     );
