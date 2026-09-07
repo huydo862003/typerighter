@@ -328,7 +328,9 @@ impl<
     // Check cache
     if let Some(entry) = self.data.get(&entry_id) {
       match &*entry {
-        QueryState::Computed(memo) if memo.verified_at.load(Ordering::Acquire) >= current_revision => {
+        QueryState::Computed(memo)
+          if memo.verified_at.load(Ordering::Acquire) >= current_revision =>
+        {
           return (memo.value.clone(), memo.changed_at);
         }
         QueryState::Computing => {
@@ -507,7 +509,6 @@ impl<
       storage.remove_field_entries(*start_index, &removed);
     }
   }
-
 }
 
 impl<
