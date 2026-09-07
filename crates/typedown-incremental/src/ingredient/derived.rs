@@ -21,6 +21,7 @@ use crate::{
 use crate::{DerivedId, QueryDatabase, SerializeContext, UnresolvedDepNode};
 use dashmap::DashMap;
 
+use super::IdDashMap;
 use super::Ingredient;
 
 pub const LRU_CAPACITY: usize = 1024;
@@ -85,7 +86,7 @@ pub struct StampedDerivedField<T> {
 #[derive(Clone)]
 #[doc(hidden)]
 pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
-  ingredient_id: DepId,                 // DepId with entry_id=0, identifies this ingredient
+  ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
   name_fingerprint: Fingerprint,
   return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
   next_entry_id: Arc<AtomicU32>,
@@ -93,7 +94,7 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   query_fn: fn(&DB, K) -> V,
   intern_map: Arc<DashMap<K, EntryId>>, // key -> stable entry_id
   #[doc(hidden)]
-  pub data: Arc<DashMap<EntryId, QueryState<K, V>>>, // entry_id -> state
+  pub data: Arc<IdDashMap<QueryState<K, V>>>, // entry_id -> state
   identity_maps: IdentityMapTable,
   lru: Arc<Lru>, // For stale entry eviction
   pub no_hash_flag: bool,
@@ -175,7 +176,7 @@ impl<
       value_id_counter,
       query_fn,
       intern_map: Arc::new(DashMap::new()),
-      data: Arc::new(DashMap::new()),
+      data: Arc::new(IdDashMap::default()),
       identity_maps: Arc::new(DashMap::new()),
       lru: Arc::new(Lru::default()),
       no_hash_flag: false,
@@ -286,7 +287,11 @@ impl<
       return *entry.value();
     }
     let entry_id = self.next_entry_id.fetch_add(1, Ordering::Relaxed);
-    *self.intern_map.entry(arg.clone()).or_insert(entry_id).value()
+    *self
+      .intern_map
+      .entry(arg.clone())
+      .or_insert(entry_id)
+      .value()
   }
 
   /// Execute a derived query: returns cached result if valid, otherwise runs the query function
@@ -295,7 +300,8 @@ impl<
     let current_revision = storage.revision.load(Ordering::Acquire);
     let entry_id = self.get_or_create_entry_id(&arg);
 
-    let (value, changed_at) = self.execute_query_inner(db, storage, current_revision, entry_id, arg);
+    let (value, changed_at) =
+      self.execute_query_inner(db, storage, current_revision, entry_id, arg);
 
     // Record dependency for the caller
     let dep_id = self.ingredient_id.with_entry(entry_id);
@@ -755,7 +761,7 @@ pub struct DerivedFieldIngredientStore<T> {
   name: &'static str,
   pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
-  pub data: Arc<DashMap<EntryId, StampedDerivedField<T>>>,
+  pub data: Arc<IdDashMap<StampedDerivedField<T>>>,
   pub no_hash_flag: bool,
 }
 
@@ -783,7 +789,7 @@ impl<T> DerivedFieldIngredientStore<T> {
       field_index,
       name,
       id_counter,
-      data: Arc::new(DashMap::new()),
+      data: Arc::new(IdDashMap::default()),
       no_hash_flag: false,
     }
   }

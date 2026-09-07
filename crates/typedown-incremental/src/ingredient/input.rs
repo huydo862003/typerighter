@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use dashmap::DashMap;
+use super::IdDashMap;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
@@ -25,7 +25,7 @@ pub struct InputIngredientStore<T> {
   name: &'static str,
   pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
-  pub data: Arc<DashMap<EntryId, StampedInputField<T>>>,
+  pub data: Arc<IdDashMap<StampedInputField<T>>>,
 }
 
 impl<T> std::fmt::Debug for InputIngredientStore<T> {
@@ -52,7 +52,7 @@ impl<T> InputIngredientStore<T> {
       field_index,
       name,
       id_counter,
-      data: Arc::new(DashMap::new()),
+      data: Arc::new(IdDashMap::default()),
     }
   }
 }

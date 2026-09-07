@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use super::IdDashMap;
 use dashmap::DashMap;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
@@ -22,7 +23,7 @@ pub struct InternedIngredientStore<T: 'static> {
   pub(crate) id_counter: &'static AtomicU32,
   pub(crate) intern_map: &'static DashMap<T, EntryId>,
   #[doc(hidden)]
-  pub data: Arc<DashMap<EntryId, T>>,
+  pub data: Arc<IdDashMap<T>>,
 }
 
 impl<T: 'static> std::fmt::Debug for InternedIngredientStore<T> {
@@ -49,7 +50,7 @@ impl<T: 'static> InternedIngredientStore<T> {
       name,
       id_counter,
       intern_map,
-      data: Arc::new(DashMap::new()),
+      data: Arc::new(IdDashMap::default()),
     }
   }
 }

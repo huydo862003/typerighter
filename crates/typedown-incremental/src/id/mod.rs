@@ -56,7 +56,10 @@ impl DepId {
 
   /// Construct a DepId that identifies an ingredient (entry_id=0)
   pub const fn ingredient(kind: IngredientKind, ingredient_id: u32) -> Self {
-    Self(((kind as u64) << Self::INGREDIENT_KIND_SHIFT) | ((ingredient_id as u64) << Self::INGREDIENT_ID_SHIFT))
+    Self(
+      ((kind as u64) << Self::INGREDIENT_KIND_SHIFT)
+        | ((ingredient_id as u64) << Self::INGREDIENT_ID_SHIFT),
+    )
   }
 
   /// Derive a full DepId by combining this ingredient identity with an entry_id
