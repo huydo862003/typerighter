@@ -68,7 +68,7 @@ impl DeserializeContext {
     let fields_by_name = build_name_index(storage.fields.iter().map(|i| i.name_fingerprint()));
 
     Self {
-      decoder: Decoder::new(storage, intern_blobs),
+      decoder: Decoder::new(storage, intern_blobs, serialized.dep_graph.nodes.len()),
       serialized,
       fingerprint_map: OnceLock::new(),
       derived_groups,

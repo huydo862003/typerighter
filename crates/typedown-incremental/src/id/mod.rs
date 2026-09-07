@@ -69,6 +69,14 @@ impl DepId {
   pub const fn prefix(kind: IngredientKind, ingredient_index: u32) -> u64 {
     ((kind as u64) << Self::KIND_SHIFT) | ((ingredient_index as u64) << Self::INDEX_SHIFT)
   }
+
+  pub const fn as_u64(self) -> u64 {
+    self.0
+  }
+
+  pub const fn from_u64(v: u64) -> Self {
+    Self(v)
+  }
 }
 
 pub type EntryId = u32;

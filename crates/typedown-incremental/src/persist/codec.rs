@@ -2,8 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
-
-use dashmap::DashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use typedown_types::either::Either;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
@@ -134,18 +133,26 @@ impl<'a> Encoder<'a> {
   }
 }
 
+/// Empty sentinel for dep_id_table slots
+const DEP_ID_EMPTY: u64 = u64::MAX;
+
 pub struct Decoder {
   storage: Arc<QueryStorage>,
   intern_blobs: Arc<Vec<Vec<u8>>>,
-  dep_id_table: DashMap<DepNodeIndex, DepId>,
+  // DepNodeIndex -> DepId, pre-sized to node count, direct indexed
+  dep_id_table: Vec<AtomicU64>,
 }
 
 impl Decoder {
-  pub fn new(storage: Arc<QueryStorage>, intern_blobs: Arc<Vec<Vec<u8>>>) -> Self {
+  pub fn new(storage: Arc<QueryStorage>, intern_blobs: Arc<Vec<Vec<u8>>>, node_count: usize) -> Self {
+    let mut table = Vec::with_capacity(node_count);
+    for _ in 0..node_count {
+      table.push(AtomicU64::new(DEP_ID_EMPTY));
+    }
     Self {
       storage,
       intern_blobs,
-      dep_id_table: DashMap::new(),
+      dep_id_table: table,
     }
   }
 
@@ -155,11 +162,22 @@ impl Decoder {
 
   /// Map a DepNodeIndex to a DepId. No-op if already set.
   pub fn set_dep_node_id(&self, index: DepNodeIndex, dep_id: DepId) {
-    self.dep_id_table.entry(index).or_insert(dep_id);
+    // First write wins (compare_exchange from EMPTY)
+    let _ = self.dep_id_table[index as usize].compare_exchange(
+      DEP_ID_EMPTY,
+      dep_id.as_u64(),
+      Ordering::Release,
+      Ordering::Relaxed,
+    );
   }
 
   pub fn get_dep_node_id(&self, index: DepNodeIndex) -> Option<DepId> {
-    self.dep_id_table.get(&index).map(|e| *e.value())
+    let val = self.dep_id_table[index as usize].load(Ordering::Acquire);
+    if val == DEP_ID_EMPTY {
+      None
+    } else {
+      Some(DepId::from_u64(val))
+    }
   }
 
   /// Get the DepId for a node, triggering deserialization if not yet loaded.
