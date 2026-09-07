@@ -30,44 +30,50 @@ impl IngredientKind {
   }
 }
 
-/// Composite dependency ID: 2-bit kind + 30-bit ingredient index + 32-bit entry id
-///
-/// Layout: [kind: 2] [ingredient_index: 30] [entry_id: 32]
+/// Composite dependency ID packing three concepts:
+/// - `ingredient_kind` (2 bits): Input, Interned, Query, or Field
+/// - `ingredient_id` (30 bits): index within the kind's array
+/// - `entry_id` (32 bits): entry within the ingredient
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DepId(u64);
 
 impl DepId {
-  const KIND_SHIFT: u32 = 62;
-  const INDEX_SHIFT: u32 = 32;
-  const INDEX_MASK: u64 = 0x3FFF_FFFF; // 30 bits
-  const ENTRY_MASK: u64 = 0xFFFF_FFFF; // 32 bits
+  const INGREDIENT_ID_BITS: u32 = 30;
+  const ENTRY_ID_BITS: u32 = 32;
 
-  pub const fn new(kind: IngredientKind, ingredient_index: u32, entry_id: u32) -> Self {
+  const INGREDIENT_KIND_SHIFT: u32 = Self::INGREDIENT_ID_BITS + Self::ENTRY_ID_BITS;
+  const INGREDIENT_ID_SHIFT: u32 = Self::ENTRY_ID_BITS;
+  const INGREDIENT_ID_MASK: u64 = (1 << Self::INGREDIENT_ID_BITS) - 1;
+  const ENTRY_ID_MASK: u64 = (1 << Self::ENTRY_ID_BITS) - 1;
+
+  pub const fn new(kind: IngredientKind, ingredient_id: u32, entry_id: u32) -> Self {
     Self(
-      ((kind as u64) << Self::KIND_SHIFT)
-        | ((ingredient_index as u64) << Self::INDEX_SHIFT)
+      ((kind as u64) << Self::INGREDIENT_KIND_SHIFT)
+        | ((ingredient_id as u64) << Self::INGREDIENT_ID_SHIFT)
         | entry_id as u64,
     )
   }
 
-  pub const fn from_prefix(prefix: u64, entry_id: u32) -> Self {
-    Self(prefix | entry_id as u64)
+  /// Construct a DepId that identifies an ingredient (entry_id=0)
+  pub const fn ingredient(kind: IngredientKind, ingredient_id: u32) -> Self {
+    Self(((kind as u64) << Self::INGREDIENT_KIND_SHIFT) | ((ingredient_id as u64) << Self::INGREDIENT_ID_SHIFT))
+  }
+
+  /// Derive a full DepId by combining this ingredient identity with an entry_id
+  pub const fn with_entry(self, entry_id: u32) -> Self {
+    Self((self.0 & !Self::ENTRY_ID_MASK) | entry_id as u64)
   }
 
   pub const fn kind(self) -> IngredientKind {
-    IngredientKind::from_u8((self.0 >> Self::KIND_SHIFT) as u8)
+    IngredientKind::from_u8((self.0 >> Self::INGREDIENT_KIND_SHIFT) as u8)
   }
 
-  pub const fn ingredient_index(self) -> u32 {
-    ((self.0 >> Self::INDEX_SHIFT) & Self::INDEX_MASK) as u32
+  pub const fn ingredient_id(self) -> u32 {
+    ((self.0 >> Self::INGREDIENT_ID_SHIFT) & Self::INGREDIENT_ID_MASK) as u32
   }
 
   pub const fn entry_id(self) -> u32 {
-    (self.0 & Self::ENTRY_MASK) as u32
-  }
-
-  pub const fn prefix(kind: IngredientKind, ingredient_index: u32) -> u64 {
-    ((kind as u64) << Self::KIND_SHIFT) | ((ingredient_index as u64) << Self::INDEX_SHIFT)
+    (self.0 & Self::ENTRY_ID_MASK) as u32
   }
 
   pub const fn as_u64(self) -> u64 {

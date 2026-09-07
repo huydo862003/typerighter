@@ -119,9 +119,9 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           register: |factories| {
             let start_index = factories.len() as u32;
             #(
-              factories.push(|dep_id_prefix| {
+              factories.push(|ingredient_id| {
                 Box::new(::typedown_incremental::InputIngredientStore::<#field_types>::new(
-                  dep_id_prefix,
+                  ingredient_id,
                   #struct_name_str,
                   #field_indices as u8,
                   #struct_name::id_counter(),
@@ -147,15 +147,15 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     getter_setter_tokens.extend(quote! {
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
         let storage = unsafe { db.storage() };
-        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.inputs[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&self.0).expect("invalid input id");
 
         // Record dependency if inside a derived query
         let dep_id = ::typedown_incremental::DepId::new(
           ::typedown_incremental::IngredientKind::Input,
-          ingredient_index as u32,
+          ingredient_id as u32,
           self.0,
         );
         storage.with_context(|ctx| {
@@ -172,16 +172,16 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
       pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
         let storage = unsafe { db.storage() };
-        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.inputs[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         Some(ingredient.data.get(&self.0)?.value.clone())
       }
 
       pub fn #setter_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &mut DB, value: #field_ty) {
         let storage = unsafe { db.storage() };
-        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.inputs[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         let mut entry = ingredient.data.get_mut(&self.0).expect("invalid input id");
         if entry.value.eq(&value) {
@@ -479,19 +479,19 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
 
       #[allow(clippy::useless_transmute)]
       impl #fn_name {
-        fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<u32> {
+        fn ingredient_id_lock() -> &'static ::std::sync::OnceLock<u32> {
           static INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &INDEX
         }
 
-        fn ingredient_index() -> u32 {
-          *Self::ingredient_index_lock().get()
+        fn ingredient_id() -> u32 {
+          *Self::ingredient_id_lock().get()
             .expect("derived query ingredient not registered; was QueryStorage initialized?")
         }
 
         #[doc(hidden)]
-        pub fn set_ingredient_index(index: u32) {
-          let _ = Self::ingredient_index_lock().set(index);
+        pub fn set_ingredient_id(index: u32) {
+          let _ = Self::ingredient_id_lock().set(index);
         }
 
         fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty_static) -> #return_type_without_lifetime<'static> {
@@ -515,13 +515,13 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
         ::typedown_incremental::QueryInventory {
           register: |factories| {
             let index = factories.len() as u32;
-            factories.push(|dep_id_prefix| {
+            factories.push(|ingredient_id| {
               let mut ingredient = ::typedown_incremental::DerivedQueryIngredientStore::<
                 #db_type,
                 #key_tuple_ty_static,
                 #return_type_without_lifetime<'static>,
               >::new(
-                dep_id_prefix,
+                ingredient_id,
                 stringify!(#fn_name),
                 stringify!(#return_type_without_lifetime),
                 #return_type_without_lifetime::id_counter(),
@@ -530,7 +530,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
               ingredient.no_hash_flag = #no_hash;
               Box::new(ingredient)
             });
-            #fn_name::set_ingredient_index(index);
+            #fn_name::set_ingredient_id(index);
           },
         }
       }
@@ -544,7 +544,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
       #[allow(clippy::useless_transmute)]
       #visibility fn #fn_name<'db>(#db_arg, #(#key_names: #key_types),*) -> #return_type {
         let storage = unsafe { db.storage() };
-        let ingredient = (&*storage.queries[#fn_name::ingredient_index() as usize] as &dyn ::std::any::Any)
+        let ingredient = (&*storage.queries[#fn_name::ingredient_id() as usize] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::DerivedQueryIngredientStore<
             #db_type,
             #key_tuple_ty_static,
@@ -654,9 +654,9 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let mut register_tokens = quote! {};
   for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
     register_tokens.extend(quote! {
-      factories.push(|dep_id_prefix| {
+      factories.push(|ingredient_id| {
         let mut ingredient = ::typedown_incremental::DerivedFieldIngredientStore::<#field_ty>::new(
-          dep_id_prefix,
+          ingredient_id,
           #struct_name_str,
           #idx as u8,
           #struct_name::id_counter(),
@@ -694,15 +694,15 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         let id = self.0;
         debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
         let storage = unsafe { db.storage() };
-        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.fields[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id).expect("invalid derived id");
 
         // Record dependency if inside a derived query
         let dep_id = ::typedown_incremental::DepId::new(
           ::typedown_incremental::IngredientKind::Field,
-          ingredient_index as u32,
+          ingredient_id as u32,
           id,
         );
         storage.with_context(|ctx| {
@@ -725,8 +725,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
           return None;
         }
         let storage = unsafe { db.storage() };
-        let ingredient_index = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.fields[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id)?;
 
@@ -741,9 +741,9 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     let id = storage.with_context(|ctx| {
       let ctx = ctx.as_mut()?;
       let store = ctx.identity_maps.as_ref()?;
-      let arg_id = ctx.query_stack.last().map(|e| e.dep_id.entry_id())?;
+      let parent_entry_id = ctx.query_stack.last().map(|e| e.dep_id.entry_id())?;
       let map_arc = store
-        .entry((arg_id, start_index))
+        .entry((parent_entry_id, start_index))
         .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, u32>::new()))
         .clone();
       let map = (&*map_arc as &dyn ::std::any::Any)
@@ -1031,15 +1031,15 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         ::typedown_incremental::InternedInventory {
           register: |factories| {
             let index = factories.len() as u32;
-            factories.push(|dep_id_prefix| {
+            factories.push(|ingredient_id| {
               Box::new(::typedown_incremental::InternedIngredientStore::<#intern_key_ty>::new(
-                dep_id_prefix,
+                ingredient_id,
                 stringify!(#struct_name),
                 #struct_name::id_counter(),
                 #struct_name::intern_map(),
               ))
             });
-            #struct_name::set_ingredient_index(index);
+            #struct_name::set_ingredient_id(index);
           },
         }
       }
@@ -1059,8 +1059,8 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
         let id = self.0;
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_index() as usize;
-        let ingredient = (&*storage.interned[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = Self::ingredient_id() as usize;
+        let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id).expect("invalid interned id");
 
@@ -1071,8 +1071,8 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
         let id = self.0;
         let storage = unsafe { db.storage() };
-        let ingredient_index = Self::ingredient_index() as usize;
-        let ingredient = (&*storage.interned[ingredient_index] as &dyn ::std::any::Any)
+        let ingredient_id = Self::ingredient_id() as usize;
+        let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
         let entry = ingredient.data.get(&id)?;
 
@@ -1112,19 +1112,19 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
       #[allow(clippy::useless_transmute)]
       #impl_header {
-        fn ingredient_index_lock() -> &'static ::std::sync::OnceLock<u32> {
+        fn ingredient_id_lock() -> &'static ::std::sync::OnceLock<u32> {
           static INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &INDEX
         }
 
-        fn ingredient_index() -> u32 {
-          *Self::ingredient_index_lock().get()
+        fn ingredient_id() -> u32 {
+          *Self::ingredient_id_lock().get()
             .expect("ingredient not registered; was QueryStorage initialized?")
         }
 
         #[doc(hidden)]
-        pub fn set_ingredient_index(index: u32) {
-          let _ = Self::ingredient_index_lock().set(index);
+        pub fn set_ingredient_id(index: u32) {
+          let _ = Self::ingredient_id_lock().set(index);
         }
 
         fn id_counter() -> &'static ::std::sync::atomic::AtomicU32 {
@@ -1157,7 +1157,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           };
 
           let storage = unsafe { db.storage() };
-          let ingredient = (&*storage.interned[Self::ingredient_index() as usize] as &dyn ::std::any::Any)
+          let ingredient = (&*storage.interned[Self::ingredient_id() as usize] as &dyn ::std::any::Any)
             .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
           ingredient.data.entry(id).or_insert(intern_key);
 
@@ -1211,7 +1211,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         fn as_id(&self) -> ::typedown_incremental::DepId {
           ::typedown_incremental::DepId::new(
             ::typedown_incremental::IngredientKind::Interned,
-            Self::ingredient_index(),
+            Self::ingredient_id(),
             self.0,
           )
         }
@@ -1226,7 +1226,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       #impl_trait_prefix ::typedown_incremental::InternedId for #impl_trait_for {
         fn iter<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB) -> Vec<Self> {
           let storage = unsafe { db.storage() };
-          let ingredient = &storage.interned[Self::ingredient_index() as usize];
+          let ingredient = &storage.interned[Self::ingredient_id() as usize];
           #iter_map
         }
       }
