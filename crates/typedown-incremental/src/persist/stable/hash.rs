@@ -147,8 +147,9 @@ impl<T: StableHash> StableHash for Vec<T> {
 }
 
 impl StableHash for str {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.as_bytes().stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    self.len().stable_hash(_db, hasher);
+    hasher.write(self.as_bytes());
   }
 }
 impl StableHash for &str {
@@ -162,8 +163,10 @@ impl StableHash for String {
   }
 }
 impl StableHash for OsStr {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.as_encoded_bytes().stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    let bytes = self.as_encoded_bytes();
+    bytes.len().stable_hash(_db, hasher);
+    hasher.write(bytes);
   }
 }
 impl StableHash for Path {
