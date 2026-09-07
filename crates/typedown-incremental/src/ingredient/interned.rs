@@ -17,7 +17,7 @@ use super::{Ingredient, InternedIngredient};
 #[derive(Clone)]
 #[doc(hidden)]
 pub struct InternedIngredientStore<T: 'static> {
-  dep_id_prefix: u64,
+  ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
   name: &'static str,
   pub(crate) id_counter: &'static AtomicU32,
   pub(crate) intern_map: &'static DashMap<T, EntryId>,
@@ -39,13 +39,13 @@ impl<T: 'static> InternedIngredientStore<T> {
   pub const __TYPEDOWN_INTERNED_INGREDIENT: () = ();
 
   pub fn new(
-    dep_id_prefix: u64,
+    ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
     name: &'static str,
     id_counter: &'static AtomicU32,
     intern_map: &'static DashMap<T, u32>,
   ) -> Self {
     Self {
-      dep_id_prefix,
+      ingredient_id,
       name,
       id_counter,
       intern_map,
@@ -106,7 +106,7 @@ impl<
       .entry(value.clone())
       .or_insert_with(|| id_counter.fetch_add(1, Ordering::Relaxed));
     self.data.entry(entry_id).or_insert(value);
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
     Some(dep_id)
   }
@@ -121,7 +121,7 @@ impl<
     entry.value().encode(&mut buf, &mut ctx.encoder);
     let blob_index = ctx.encoder.intern_blob::<T>(buf, Some(entry_id));
 
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,

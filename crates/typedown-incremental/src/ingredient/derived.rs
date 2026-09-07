@@ -85,9 +85,9 @@ pub struct StampedDerivedField<T> {
 #[derive(Clone)]
 #[doc(hidden)]
 pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
-  dep_id_prefix: u64,
+  ingredient_id: DepId,                 // DepId with entry_id=0, identifies this ingredient
   name_fingerprint: Fingerprint,
-  return_type_fingerprint: Fingerprint,
+  return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
   next_arg_id: Arc<AtomicU32>,
   value_id_counter: &'static AtomicU32,
   query_fn: fn(&DB, K) -> V,
@@ -161,14 +161,14 @@ impl<
   }
 
   pub fn new(
-    dep_id_prefix: u64,
+    ingredient_id: DepId,
     name_fingerprint: &'static str,
     return_type_name: &'static str,
     value_id_counter: &'static AtomicU32,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
-      dep_id_prefix,
+      ingredient_id,
       name_fingerprint: Fingerprint::from_name(name_fingerprint),
       return_type_fingerprint: Fingerprint::from_name(return_type_name),
       next_arg_id: Arc::new(AtomicU32::new(0)),
@@ -298,7 +298,7 @@ impl<
     let (value, changed_at) = self.execute_query_inner(db, storage, current_revision, arg_id, arg);
 
     // Record dependency for the caller
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
+    let dep_id = self.ingredient_id.with_entry(arg_id);
     storage.with_context(|ctx| {
       if let Some(ctx) = ctx {
         ctx.dependencies.push(Dependency { dep_id, changed_at });
@@ -327,7 +327,7 @@ impl<
         }
         QueryState::Computing => {
           // Cycle detection: Check if this entry is in our call stack
-          let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
+          let dep_id = self.ingredient_id.with_entry(arg_id);
           let is_cycle = storage.with_context(|ctx| {
             ctx
               .as_ref()
@@ -401,7 +401,7 @@ impl<
     }
 
     // Save parent context and push to query stack
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
+    let dep_id = self.ingredient_id.with_entry(arg_id);
     let (parent_deps, parent_disambiguators, parent_identity_maps, parent_created_ids) = storage
       .with_context(|ctx| {
         let ctx = ctx.get_or_insert_with(|| ExecuteContext {
@@ -662,7 +662,7 @@ impl<
     };
     // Register dep_id BEFORE decoding to prevent recursion via get_or_deserialize_dep_node_id (idempotency guard)
     let arg_id = self.next_arg_id.fetch_add(1, Ordering::Relaxed);
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
+    let dep_id = self.ingredient_id.with_entry(arg_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Deserialize all sibling DerivedField nodes, which populates field data
@@ -711,7 +711,7 @@ impl<
     // Collect dependency edges as DepIds
     let edges = memo.dependencies.iter().map(|dep| dep.dep_id).collect();
 
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,
@@ -750,7 +750,7 @@ impl<
 #[derive(Clone)]
 #[doc(hidden)]
 pub struct DerivedFieldIngredientStore<T> {
-  dep_id_prefix: u64,
+  ingredient_id: DepId,
   field_index: u8,
   name: &'static str,
   pub id_counter: &'static AtomicU32,
@@ -773,13 +773,13 @@ impl<T> DerivedFieldIngredientStore<T> {
   pub const __TYPEDOWN_DERIVED_FIELD_INGREDIENT: () = ();
 
   pub fn new(
-    dep_id_prefix: u64,
+    ingredient_id: DepId,
     name: &'static str,
     field_index: u8,
     id_counter: &'static AtomicU32,
   ) -> Self {
     Self {
-      dep_id_prefix,
+      ingredient_id,
       field_index,
       name,
       id_counter,
@@ -871,7 +871,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       },
     );
 
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Trigger deserialization of sibling fields so the whole struct is populated
@@ -892,7 +892,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       return;
     };
 
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,

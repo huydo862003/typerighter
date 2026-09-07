@@ -88,14 +88,14 @@ impl Default for QueryStorage {
 }
 
 fn init_factories<T: ?Sized>(
-  factories: &[fn(u64) -> Box<T>],
+  factories: &[fn(DepId) -> Box<T>],
   kind: IngredientKind,
 ) -> Arc<Vec<Box<T>>> {
   Arc::new(
     factories
       .iter()
       .enumerate()
-      .map(|(idx, factory)| factory(DepId::prefix(kind, idx as u32)))
+      .map(|(idx, factory)| factory(DepId::ingredient(kind, idx as u32)))
       .collect(),
   )
 }

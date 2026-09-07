@@ -50,8 +50,14 @@ impl DepId {
     )
   }
 
-  pub const fn from_prefix(prefix: u64, entry_id: u32) -> Self {
-    Self(prefix | entry_id as u64)
+  /// Construct a DepId that identifies an ingredient (entry_id = 0)
+  pub const fn ingredient(kind: IngredientKind, ingredient_index: u32) -> Self {
+    Self(((kind as u64) << Self::KIND_SHIFT) | ((ingredient_index as u64) << Self::INDEX_SHIFT))
+  }
+
+  /// Derive a full DepId by combining this ingredient identity with an entry_id
+  pub const fn with_entry(self, entry_id: u32) -> Self {
+    Self((self.0 & !Self::ENTRY_MASK) | entry_id as u64)
   }
 
   pub const fn kind(self) -> IngredientKind {
@@ -64,10 +70,6 @@ impl DepId {
 
   pub const fn entry_id(self) -> u32 {
     (self.0 & Self::ENTRY_MASK) as u32
-  }
-
-  pub const fn prefix(kind: IngredientKind, ingredient_index: u32) -> u64 {
-    ((kind as u64) << Self::KIND_SHIFT) | ((ingredient_index as u64) << Self::INDEX_SHIFT)
   }
 }
 

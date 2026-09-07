@@ -20,7 +20,7 @@ pub struct StampedInputField<T> {
 #[derive(Clone)]
 #[doc(hidden)]
 pub struct InputIngredientStore<T> {
-  dep_id_prefix: u64,
+  ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
   field_index: u8,
   name: &'static str,
   pub id_counter: &'static AtomicU32,
@@ -42,13 +42,13 @@ impl<T> InputIngredientStore<T> {
   pub const __TYPEDOWN_INPUT_FIELD_INGREDIENT: () = ();
 
   pub fn new(
-    dep_id_prefix: u64,
+    ingredient_id: DepId,
     name: &'static str,
     field_index: u8,
     id_counter: &'static AtomicU32,
   ) -> Self {
     Self {
-      dep_id_prefix,
+      ingredient_id,
       field_index,
       name,
       id_counter,
@@ -134,7 +134,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
         changed_at: *changed_at as u32,
       },
     );
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
     Some(dep_id)
   }
@@ -148,7 +148,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     let entry = entry.expect("Entry must contain a value after the none check pass");
 
     // Add the dep node
-    let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
       node_index,

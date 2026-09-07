@@ -119,9 +119,9 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
           register: |factories| {
             let start_index = factories.len() as u32;
             #(
-              factories.push(|dep_id_prefix| {
+              factories.push(|ingredient_id| {
                 Box::new(::typedown_incremental::InputIngredientStore::<#field_types>::new(
-                  dep_id_prefix,
+                  ingredient_id,
                   #struct_name_str,
                   #field_indices as u8,
                   #struct_name::id_counter(),
@@ -515,13 +515,13 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
         ::typedown_incremental::QueryInventory {
           register: |factories| {
             let index = factories.len() as u32;
-            factories.push(|dep_id_prefix| {
+            factories.push(|ingredient_id| {
               let mut ingredient = ::typedown_incremental::DerivedQueryIngredientStore::<
                 #db_type,
                 #key_tuple_ty_static,
                 #return_type_without_lifetime<'static>,
               >::new(
-                dep_id_prefix,
+                ingredient_id,
                 stringify!(#fn_name),
                 stringify!(#return_type_without_lifetime),
                 #return_type_without_lifetime::id_counter(),
@@ -654,9 +654,9 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let mut register_tokens = quote! {};
   for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
     register_tokens.extend(quote! {
-      factories.push(|dep_id_prefix| {
+      factories.push(|ingredient_id| {
         let mut ingredient = ::typedown_incremental::DerivedFieldIngredientStore::<#field_ty>::new(
-          dep_id_prefix,
+          ingredient_id,
           #struct_name_str,
           #idx as u8,
           #struct_name::id_counter(),
@@ -1031,9 +1031,9 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         ::typedown_incremental::InternedInventory {
           register: |factories| {
             let index = factories.len() as u32;
-            factories.push(|dep_id_prefix| {
+            factories.push(|ingredient_id| {
               Box::new(::typedown_incremental::InternedIngredientStore::<#intern_key_ty>::new(
-                dep_id_prefix,
+                ingredient_id,
                 stringify!(#struct_name),
                 #struct_name::id_counter(),
                 #struct_name::intern_map(),
