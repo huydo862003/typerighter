@@ -1,3 +1,22 @@
+## [0.26.0] - 2026-09-07
+
+### Perf
+
+* crates/typedown-incremental
+  - Split ingredient storage into typed arrays with composite DepId
+  - Replace decoder DashMap with Vec<AtomicU64> for lock-free deserialization
+  - Bulk-write StableHash for str/OsStr instead of byte-by-byte
+  - Identity hasher for integer-keyed DashMaps
+  - AtomicU32 verified_at to avoid write locks in green check
+  - Point-lookup green check instead of set collection
+  - Enable thin LTO for release builds
+
+### Fixes
+
+* crates/typedown-lang
+  - Fix schema export including internal fields
+  - Remove unused Set<T> wrapper
+
 ## [0.25.0] - 2026-09-06
 
 ### Fixes
