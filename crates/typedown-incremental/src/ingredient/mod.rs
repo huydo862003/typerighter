@@ -31,7 +31,7 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 
 /// Input field ingredient (leaf node, ground truth)
 pub trait InputIngredient: Ingredient {
-  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool;
+  fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool;
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
@@ -57,10 +57,10 @@ pub trait InternedIngredient: Ingredient {
 pub trait DerivedQueryIngredient: Ingredient {
   fn reset_for_new_revision(&self);
 
-  fn green_check(&self, db: &dyn QueryDatabase, arg_id: EntryId, last_changed_at: Revision)
+  fn green_check(&self, db: &dyn QueryDatabase, entry_id: EntryId, last_changed_at: Revision)
   -> bool;
 
-  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: EntryId);
+  fn re_execute(&self, db: &dyn QueryDatabase, entry_id: EntryId);
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
@@ -79,7 +79,7 @@ pub trait DerivedQueryIngredient: Ingredient {
 pub trait DerivedFieldIngredient: Ingredient {
   fn remove_entry(&self, entry_id: EntryId);
 
-  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool;
+  fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool;
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 

@@ -33,10 +33,10 @@ pub struct Lru {
 
 impl Lru {
   // Record access, no eviction
-  pub fn touch(&self, arg_id: u32) {
+  pub fn touch(&self, entry_id: u32) {
     let mut order = self.access_order.lock().unwrap();
-    order.shift_remove(&arg_id);
-    order.insert(arg_id);
+    order.shift_remove(&entry_id);
+    order.insert(entry_id);
   }
 
   pub fn drain_evicted(&self) -> Vec<u32> {
@@ -88,12 +88,12 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   ingredient_id: DepId,                 // DepId with entry_id=0, identifies this ingredient
   name_fingerprint: Fingerprint,
   return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
-  next_arg_id: Arc<AtomicU32>,
+  next_entry_id: Arc<AtomicU32>,
   value_id_counter: &'static AtomicU32,
   query_fn: fn(&DB, K) -> V,
-  intern_map: Arc<DashMap<K, EntryId>>, // key -> stable arg_id
+  intern_map: Arc<DashMap<K, EntryId>>, // key -> stable entry_id
   #[doc(hidden)]
-  pub data: Arc<DashMap<EntryId, QueryState<K, V>>>, // arg_id -> state
+  pub data: Arc<DashMap<EntryId, QueryState<K, V>>>, // entry_id -> state
   identity_maps: IdentityMapTable,
   lru: Arc<Lru>, // For stale entry eviction
   pub no_hash_flag: bool,
@@ -171,7 +171,7 @@ impl<
       ingredient_id,
       name_fingerprint: Fingerprint::from_name(name_fingerprint),
       return_type_fingerprint: Fingerprint::from_name(return_type_name),
-      next_arg_id: Arc::new(AtomicU32::new(0)),
+      next_entry_id: Arc::new(AtomicU32::new(0)),
       value_id_counter,
       query_fn,
       intern_map: Arc::new(DashMap::new()),
@@ -186,14 +186,14 @@ impl<
     }
   }
 
-  pub fn key_fingerprint(&self, db: &dyn QueryDatabase, arg_id: EntryId) -> Option<Fingerprint>
+  pub fn key_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>
   where
     K: StableHash,
   {
     let db = (db as &dyn Any)
       .downcast_ref::<DB>()
       .expect("database type mismatch in key_fingerprint");
-    if let Some(entry) = self.data.get(&arg_id)
+    if let Some(entry) = self.data.get(&entry_id)
       && let QueryState::Computed(memo) = &*entry
     {
       let mut hasher: StableHasher = StableHasher::new();
@@ -261,13 +261,13 @@ impl<
     let blob = ctx.serialized.query_cache.get(node_index)?;
     let mut data: &[u8] = blob;
     let key = K::decode(&mut data, decoder);
-    let arg_id = self.get_or_intern_arg(&key);
+    let entry_id = self.get_or_create_entry_id(&key);
     let value = V::from(value_entry_id);
     let changed_at = *changed_at as u32;
     let dependencies = Self::deserialize_deps(edges, ctx);
     let current_revision = storage.revision.load(Ordering::Acquire);
     self.data.insert(
-      arg_id,
+      entry_id,
       QueryState::Computed(StampedDerivedQuery {
         key,
         value: value.clone(),
@@ -281,31 +281,31 @@ impl<
   }
 
   /// Get or create a stable entry ID for a key
-  fn get_or_intern_arg(&self, arg: &K) -> EntryId {
+  fn get_or_create_entry_id(&self, arg: &K) -> EntryId {
     if let Some(entry) = self.intern_map.get(arg) {
       return *entry.value();
     }
-    let arg_id = self.next_arg_id.fetch_add(1, Ordering::Relaxed);
-    *self.intern_map.entry(arg.clone()).or_insert(arg_id).value()
+    let entry_id = self.next_entry_id.fetch_add(1, Ordering::Relaxed);
+    *self.intern_map.entry(arg.clone()).or_insert(entry_id).value()
   }
 
   /// Execute a derived query: returns cached result if valid, otherwise runs the query function
   pub fn execute_query(&self, db: &DB, arg: K) -> V {
     let storage = unsafe { db.storage() };
     let current_revision = storage.revision.load(Ordering::Acquire);
-    let arg_id = self.get_or_intern_arg(&arg);
+    let entry_id = self.get_or_create_entry_id(&arg);
 
-    let (value, changed_at) = self.execute_query_inner(db, storage, current_revision, arg_id, arg);
+    let (value, changed_at) = self.execute_query_inner(db, storage, current_revision, entry_id, arg);
 
     // Record dependency for the caller
-    let dep_id = self.ingredient_id.with_entry(arg_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     storage.with_context(|ctx| {
       if let Some(ctx) = ctx {
         ctx.dependencies.push(Dependency { dep_id, changed_at });
       }
     });
 
-    self.lru.touch(arg_id);
+    self.lru.touch(entry_id);
 
     value
   }
@@ -316,18 +316,18 @@ impl<
     db: &DB,
     storage: &QueryStorage,
     current_revision: Revision,
-    arg_id: EntryId,
+    entry_id: EntryId,
     arg: K,
   ) -> (V, Revision) {
     // Check cache
-    if let Some(entry) = self.data.get(&arg_id) {
+    if let Some(entry) = self.data.get(&entry_id) {
       match &*entry {
         QueryState::Computed(memo) if memo.verified_at >= current_revision => {
           return (memo.value.clone(), memo.changed_at);
         }
         QueryState::Computing => {
           // Cycle detection: Check if this entry is in our call stack
-          let dep_id = self.ingredient_id.with_entry(arg_id);
+          let dep_id = self.ingredient_id.with_entry(entry_id);
           let is_cycle = storage.with_context(|ctx| {
             ctx
               .as_ref()
@@ -345,9 +345,9 @@ impl<
           let changed_at = memo.changed_at;
           drop(entry); // Release the read lock
 
-          if self.green_check_inner(db, storage, arg_id, changed_at) {
+          if self.green_check_inner(db, storage, entry_id, changed_at) {
             // The green check has verified or recomputed + backdated so the entry must now be fresh
-            if let Some(entry) = self.data.get(&arg_id)
+            if let Some(entry) = self.data.get(&entry_id)
               && let QueryState::Computed(memo) = &*entry
             {
               return (memo.value.clone(), memo.changed_at);
@@ -382,7 +382,7 @@ impl<
     let mut old_memo = None;
     self
       .data
-      .entry(arg_id)
+      .entry(entry_id)
       .and_modify(|state| {
         if let QueryState::Computed(memo) = state {
           if memo.verified_at >= current_revision {
@@ -401,7 +401,7 @@ impl<
     }
 
     // Save parent context and push to query stack
-    let dep_id = self.ingredient_id.with_entry(arg_id);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     let (parent_deps, parent_disambiguators, parent_identity_maps, parent_created_ids) = storage
       .with_context(|ctx| {
         let ctx = ctx.get_or_insert_with(|| ExecuteContext {
@@ -452,13 +452,13 @@ impl<
       Ok(v) => v,
       Err(payload) => {
         // Remove stale Computing state so other threads don't see it
-        self.data.remove(&arg_id);
+        self.data.remove(&entry_id);
         resume_unwind(payload);
       }
     };
 
     // Remove identity map entries for structs not recreated
-    self.cleanup_identity_maps(storage, arg_id, &created_ids);
+    self.cleanup_identity_maps(storage, entry_id, &created_ids);
 
     // Backdating: if the new value equals the old, keep the old changed_at
     // This prevents unnecessary invalidation of downstream queries
@@ -469,7 +469,7 @@ impl<
 
     // Store the result
     self.data.insert(
-      arg_id,
+      entry_id,
       QueryState::Computed(StampedDerivedQuery {
         key,
         value: value.clone(),
@@ -486,11 +486,11 @@ impl<
   fn cleanup_identity_maps(
     &self,
     storage: &QueryStorage,
-    arg_id: EntryId,
+    entry_id: EntryId,
     created_ids: &HashMap<EntryId, HashSet<EntryId>>,
   ) {
     for (start_index, active_ids) in created_ids {
-      let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) else {
+      let Some(map) = self.identity_maps.get(&(entry_id, *start_index)) else {
         continue;
       };
       let removed = map.retain(&|id| active_ids.contains(&id));
@@ -507,12 +507,12 @@ impl<
     &self,
     db: &dyn QueryDatabase,
     storage: &QueryStorage,
-    arg_id: EntryId,
+    entry_id: EntryId,
     last_changed_at: Revision,
   ) -> bool {
     let current_revision = storage.revision.load(Ordering::Acquire);
 
-    match self.data.get(&arg_id) {
+    match self.data.get(&entry_id) {
       Some(entry) => match &*entry {
         QueryState::Computed(memo) => {
           if memo.verified_at >= current_revision {
@@ -534,7 +534,7 @@ impl<
 
           if all_green {
             // Bump verified_at
-            if let Some(mut entry) = self.data.get_mut(&arg_id)
+            if let Some(mut entry) = self.data.get_mut(&entry_id)
               && let QueryState::Computed(memo) = &mut *entry
             {
               memo.verified_at = current_revision;
@@ -600,26 +600,26 @@ impl<
 > super::DerivedQueryIngredient for DerivedQueryIngredientStore<DB, K, V>
 {
   fn reset_for_new_revision(&self) {
-    for arg_id in self.lru.drain_evicted() {
-      self.data.remove(&arg_id);
+    for entry_id in self.lru.drain_evicted() {
+      self.data.remove(&entry_id);
     }
   }
 
   fn green_check(
     &self,
     db: &dyn QueryDatabase,
-    arg_id: EntryId,
+    entry_id: EntryId,
     last_changed_at: Revision,
   ) -> bool {
     let storage = unsafe { db.storage() };
-    self.green_check_inner(db, storage, arg_id, last_changed_at)
+    self.green_check_inner(db, storage, entry_id, last_changed_at)
   }
 
-  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: EntryId) {
+  fn re_execute(&self, db: &dyn QueryDatabase, entry_id: EntryId) {
     let db: &DB = (db as &dyn Any)
       .downcast_ref::<DB>()
       .expect("database type mismatch in re_execute");
-    let key = match self.data.get(&arg_id) {
+    let key = match self.data.get(&entry_id) {
       Some(entry) => match &*entry {
         QueryState::Computed(memo) => Some(memo.key.clone()),
         QueryState::Computing => None,
@@ -661,8 +661,8 @@ impl<
       return None;
     };
     // Register dep_id BEFORE decoding to prevent recursion via get_or_deserialize_dep_node_id (idempotency guard)
-    let arg_id = self.next_arg_id.fetch_add(1, Ordering::Relaxed);
-    let dep_id = self.ingredient_id.with_entry(arg_id);
+    let entry_id = self.next_entry_id.fetch_add(1, Ordering::Relaxed);
+    let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Deserialize all sibling DerivedField nodes, which populates field data
@@ -685,9 +685,9 @@ impl<
     // If we do, must perform cache promotion
     let dependencies = Self::deserialize_deps(edges, ctx);
 
-    self.intern_map.entry(key.clone()).or_insert(arg_id);
+    self.intern_map.entry(key.clone()).or_insert(entry_id);
     self.data.insert(
-      arg_id,
+      entry_id,
       QueryState::Computed(StampedDerivedQuery {
         key,
         value,
@@ -819,10 +819,10 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     self.data.remove(&entry_id);
   }
 
-  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool {
+  fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool {
     self
       .data
-      .get(&arg_id)
+      .get(&entry_id)
       .map(|entry| entry.changed_at <= last_changed_at)
       .unwrap_or(false)
   }

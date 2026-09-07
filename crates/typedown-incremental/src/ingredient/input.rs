@@ -83,10 +83,10 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
 impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static>
   InputIngredient for InputIngredientStore<T>
 {
-  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool {
+  fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool {
     self
       .data
-      .get(&arg_id)
+      .get(&entry_id)
       .map(|entry| entry.changed_at <= last_changed_at)
       .unwrap_or(false)
   }

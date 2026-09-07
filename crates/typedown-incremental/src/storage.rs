@@ -50,7 +50,7 @@ impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K,
   }
 }
 
-// (arg_id, start_index) -> identity map
+// (entry_id, start_index) -> identity map
 pub type IdentityMapTable = Arc<DashMap<(u32, u32), Arc<dyn IdentityMap>>>;
 
 /// Context passed through derived query execution
@@ -58,7 +58,7 @@ pub struct ExecuteContext {
   pub query_stack: Vec<QueryStackEntry>,
   pub dependencies: Vec<Dependency>,
   pub disambiguator_map: HashMap<u64, u32>, // hash(ingredient_index, id_field_values) -> counter
-  // (arg_id, start_index) -> identity map, from the creating query
+  // (entry_id, start_index) -> identity map, from the creating query
   pub identity_maps: Option<IdentityMapTable>,
   pub created_ids: HashMap<u32, HashSet<u32>>, // start_index -> IDs created this execution
 }
@@ -174,7 +174,7 @@ impl QueryStorage {
 
   /// Green check a dependency by dispatching to the correct ingredient array
   pub fn green_check_dep(&self, db: &dyn crate::QueryDatabase, dep: &Dependency) -> bool {
-    let idx = dep.dep_id.ingredient_index() as usize;
+    let idx = dep.dep_id.ingredient_id() as usize;
     let entry_id = dep.dep_id.entry_id();
     match dep.dep_id.kind() {
       IngredientKind::Input => self.inputs[idx].green_check(entry_id, dep.changed_at),
@@ -186,7 +186,7 @@ impl QueryStorage {
 
   /// Re-execute a dependency
   pub fn re_execute_dep(&self, db: &dyn crate::QueryDatabase, dep: &Dependency) {
-    let idx = dep.dep_id.ingredient_index() as usize;
+    let idx = dep.dep_id.ingredient_id() as usize;
     let entry_id = dep.dep_id.entry_id();
     match dep.dep_id.kind() {
       IngredientKind::Input => {}    // nothing to recompute
