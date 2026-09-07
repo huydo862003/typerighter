@@ -13,7 +13,7 @@ use super::ingredient::{
 };
 use super::persist::serialized::SerializedQueryStorage;
 use super::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{DeserializeContext, DepId, Fingerprint, IngredientKind};
+use crate::{DepId, DeserializeContext, IngredientKind};
 
 #[cfg(debug_assertions)]
 pub struct IngredientStats {
@@ -66,7 +66,7 @@ pub struct ExecuteContext {
 #[derive(Clone)]
 pub struct QueryStorage {
   #[doc(hidden)]
-  pub revision: Arc<AtomicU32>,  // The current version of the query storage
+  pub revision: Arc<AtomicU32>, // The current version of the query storage
   #[doc(hidden)]
   pub cancelled: Arc<AtomicBool>, // Set to true to cancel in-flight derived queries
   #[doc(hidden)]
@@ -156,9 +156,8 @@ impl QueryStorage {
             continue;
           }
           let name = node.name();
-          for &idx in ctx.interned_by_name(&name) {
+          if let Some(&idx) = ctx.interned_by_name(&name).first() {
             self.interned[idx].deserialize(ctx, node_index);
-            break;
           }
         }
         _ => {}
@@ -190,7 +189,7 @@ impl QueryStorage {
     let idx = dep.dep_id.ingredient_index() as usize;
     let entry_id = dep.dep_id.entry_id();
     match dep.dep_id.kind() {
-      IngredientKind::Input => {} // nothing to recompute
+      IngredientKind::Input => {}    // nothing to recompute
       IngredientKind::Interned => {} // nothing to recompute
       IngredientKind::Query => self.queries[idx].re_execute(db, entry_id),
       IngredientKind::Field => {} // fields are set by their parent query

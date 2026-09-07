@@ -92,19 +92,35 @@ impl DeserializeContext {
   }
 
   pub fn inputs_by_name(&self, name: &Fingerprint) -> &[usize] {
-    self.inputs_by_name.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+    self
+      .inputs_by_name
+      .get(name)
+      .map(|v| v.as_slice())
+      .unwrap_or(&[])
   }
 
   pub fn interned_by_name(&self, name: &Fingerprint) -> &[usize] {
-    self.interned_by_name.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+    self
+      .interned_by_name
+      .get(name)
+      .map(|v| v.as_slice())
+      .unwrap_or(&[])
   }
 
   pub fn queries_by_name(&self, name: &Fingerprint) -> &[usize] {
-    self.queries_by_name.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+    self
+      .queries_by_name
+      .get(name)
+      .map(|v| v.as_slice())
+      .unwrap_or(&[])
   }
 
   pub fn fields_by_name(&self, name: &Fingerprint) -> &[usize] {
-    self.fields_by_name.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+    self
+      .fields_by_name
+      .get(name)
+      .map(|v| v.as_slice())
+      .unwrap_or(&[])
   }
 
   /// Find a DerivedQuery node by name + key fingerprint

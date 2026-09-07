@@ -11,7 +11,9 @@ pub use interned::*;
 pub use inventory::*;
 
 use crate::persist::serialized::dep_graph::DepNodeIndex;
-use crate::{DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext};
+use crate::{
+  DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext,
+};
 
 /// Shared base trait for all ingredient kinds
 pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
@@ -55,7 +57,8 @@ pub trait InternedIngredient: Ingredient {
 pub trait DerivedQueryIngredient: Ingredient {
   fn reset_for_new_revision(&self);
 
-  fn green_check(&self, db: &dyn QueryDatabase, arg_id: EntryId, last_changed_at: Revision) -> bool;
+  fn green_check(&self, db: &dyn QueryDatabase, arg_id: EntryId, last_changed_at: Revision)
+  -> bool;
 
   fn re_execute(&self, db: &dyn QueryDatabase, arg_id: EntryId);
 

@@ -182,12 +182,12 @@ impl Decoder {
         }
       }
       DepNode::Interned { .. } => {
-        for &idx in ctx.interned_by_name(&name) {
+        if let Some(&idx) = ctx.interned_by_name(&name).iter().next() {
           return self.storage.interned[idx].deserialize(ctx, index);
         }
       }
       DepNode::DerivedQuery { .. } => {
-        for &idx in ctx.queries_by_name(&name) {
+        if let Some(&idx) = ctx.queries_by_name(&name).iter().next() {
           return self.storage.queries[idx].deserialize(ctx, index);
         }
       }

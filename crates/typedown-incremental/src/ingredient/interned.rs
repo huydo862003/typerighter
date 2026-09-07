@@ -54,18 +54,8 @@ impl<T: 'static> InternedIngredientStore<T> {
   }
 }
 
-
 impl<
-  T: StableHash
-    + std::fmt::Debug
-    + Encodable
-    + Decodable
-    + Eq
-    + Hash
-    + Clone
-    + Send
-    + Sync
-    + 'static,
+  T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
 > Ingredient for InternedIngredientStore<T>
 {
   #[cfg(debug_assertions)]
@@ -76,7 +66,6 @@ impl<
   fn name_fingerprint(&self) -> Fingerprint {
     Fingerprint::from_name(self.name)
   }
-
 
   fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
@@ -89,16 +78,7 @@ impl<
 }
 
 impl<
-  T: StableHash
-    + std::fmt::Debug
-    + Encodable
-    + Decodable
-    + Eq
-    + Hash
-    + Clone
-    + Send
-    + Sync
-    + 'static,
+  T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
 > InternedIngredient for InternedIngredientStore<T>
 {
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {

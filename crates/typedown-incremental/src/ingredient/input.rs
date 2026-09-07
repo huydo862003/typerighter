@@ -69,7 +69,6 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     Fingerprint::from_name(self.name)
   }
 
-
   fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
@@ -157,7 +156,8 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
         name: self.name_fingerprint(),
         field_index: self.field_index,
         entry_id: entry_id as u64,
-        value: self.value_fingerprint(ctx.db(), entry_id)
+        value: self
+          .value_fingerprint(ctx.db(), entry_id)
           .expect("Entry is available so there must be a fingerprint"),
         changed_at: entry.changed_at as u64,
       },
@@ -169,4 +169,3 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     ctx.query_cache.set(node_index, &buf);
   }
 }
-

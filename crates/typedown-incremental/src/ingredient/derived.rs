@@ -12,7 +12,9 @@ use std::{
 use indexmap::IndexSet;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{Cancelled, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage, Revision};
+use crate::{
+  Cancelled, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage, Revision,
+};
 use crate::{
   Decodable, DepId, DeserializeContext, Encodable, Fingerprint, StableHash, StableHasher,
 };
@@ -201,7 +203,6 @@ impl<
     None
   }
 
-
   /// Try to load a cached result from the serialized cache.
   fn try_load_from_serialized(
     &self,
@@ -294,17 +295,13 @@ impl<
     let current_revision = storage.revision.load(Ordering::Acquire);
     let arg_id = self.get_or_intern_arg(&arg);
 
-    let (value, changed_at) =
-      self.execute_query_inner(db, storage, current_revision, arg_id, arg);
+    let (value, changed_at) = self.execute_query_inner(db, storage, current_revision, arg_id, arg);
 
     // Record dependency for the caller
     let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
     storage.with_context(|ctx| {
       if let Some(ctx) = ctx {
-        ctx.dependencies.push(Dependency {
-          dep_id,
-          changed_at,
-        });
+        ctx.dependencies.push(Dependency { dep_id, changed_at });
       }
     });
 
@@ -332,12 +329,9 @@ impl<
           // Cycle detection: Check if this entry is in our call stack
           let dep_id = DepId::from_prefix(self.dep_id_prefix, arg_id);
           let is_cycle = storage.with_context(|ctx| {
-            ctx.as_ref().is_some_and(|ctx| {
-              ctx
-                .query_stack
-                .iter()
-                .any(|e| e.dep_id == dep_id)
-            })
+            ctx
+              .as_ref()
+              .is_some_and(|ctx| ctx.query_stack.iter().any(|e| e.dep_id == dep_id))
           });
           if is_cycle {
             panic!("cycle detected in derived query");
@@ -417,9 +411,7 @@ impl<
           identity_maps: None,
           created_ids: HashMap::new(),
         });
-        ctx.query_stack.push(QueryStackEntry {
-          dep_id,
-        });
+        ctx.query_stack.push(QueryStackEntry { dep_id });
         let parent_store = ctx.identity_maps.replace(self.identity_maps.clone());
         (
           std::mem::take(&mut ctx.dependencies),
@@ -613,7 +605,12 @@ impl<
     }
   }
 
-  fn green_check(&self, db: &dyn QueryDatabase, arg_id: EntryId, last_changed_at: Revision) -> bool {
+  fn green_check(
+    &self,
+    db: &dyn QueryDatabase,
+    arg_id: EntryId,
+    last_changed_at: Revision,
+  ) -> bool {
     let storage = unsafe { db.storage() };
     self.green_check_inner(db, storage, arg_id, last_changed_at)
   }
@@ -712,11 +709,7 @@ impl<
     };
 
     // Collect dependency edges as DepIds
-    let edges = memo
-      .dependencies
-      .iter()
-      .map(|dep| dep.dep_id)
-      .collect();
+    let edges = memo.dependencies.iter().map(|dep| dep.dep_id).collect();
 
     let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
@@ -730,7 +723,8 @@ impl<
         value: if self.no_hash_flag {
           Fingerprint::SKIPPED
         } else {
-          self.value_fingerprint(ctx.db(), entry_id)
+          self
+            .value_fingerprint(ctx.db(), entry_id)
             .expect("Computed entry must have a value fingerprint")
         },
         entry_id: entry_id as u64,
@@ -833,7 +827,6 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       .unwrap_or(false)
   }
 
-
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
       let mut hasher: StableHasher = StableHasher::new();
@@ -910,7 +903,8 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
         value: if self.no_hash_flag {
           Fingerprint::SKIPPED
         } else {
-          self.value_fingerprint(ctx.db(), entry_id)
+          self
+            .value_fingerprint(ctx.db(), entry_id)
             .expect("Entry is available so there must be a fingerprint")
         },
         changed_at: entry.changed_at as u64,
