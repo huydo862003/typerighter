@@ -70,13 +70,13 @@ impl DepId {
     ((kind as u64) << Self::KIND_SHIFT) | ((ingredient_index as u64) << Self::INDEX_SHIFT)
   }
 
-  pub const fn raw(self) -> u64 {
-    self.0
-  }
 }
 
+pub type EntryId = u32;
+pub type Revision = u32;
+
 // Entry ID for evicted or deleted derived structs
-pub const TOMBSTONE_ENTRY_ID: u32 = u32::MAX;
+pub const TOMBSTONE_ENTRY_ID: EntryId = EntryId::MAX;
 
 pub trait Id {
   fn as_id(&self) -> DepId;

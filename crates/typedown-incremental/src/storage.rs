@@ -31,6 +31,7 @@ pub struct QueryStackEntry {
 
 // Type-erased identity map that supports sweeping stale entries
 pub trait IdentityMap: Any + Send + Sync {
+  // Remove entries where predicate returns false, return the removed IDs
   fn retain(&self, predicate: &dyn Fn(u32) -> bool) -> HashSet<u32>;
 }
 
@@ -56,18 +57,18 @@ pub type IdentityMapTable = Arc<DashMap<(u32, u32), Arc<dyn IdentityMap>>>;
 pub struct ExecuteContext {
   pub query_stack: Vec<QueryStackEntry>,
   pub dependencies: Vec<Dependency>,
-  pub disambiguator_map: HashMap<u64, u32>,
+  pub disambiguator_map: HashMap<u64, u32>, // hash(ingredient_index, id_field_values) -> counter
   // (arg_id, start_index) -> identity map, from the creating query
   pub identity_maps: Option<IdentityMapTable>,
-  pub created_ids: HashMap<u32, HashSet<u32>>,
+  pub created_ids: HashMap<u32, HashSet<u32>>, // start_index -> IDs created this execution
 }
 
 #[derive(Clone)]
 pub struct QueryStorage {
   #[doc(hidden)]
-  pub revision: Arc<AtomicU32>,
+  pub revision: Arc<AtomicU32>,  // The current version of the query storage
   #[doc(hidden)]
-  pub cancelled: Arc<AtomicBool>,
+  pub cancelled: Arc<AtomicBool>, // Set to true to cancel in-flight derived queries
   #[doc(hidden)]
   pub inputs: Arc<Vec<Box<dyn InputIngredient>>>,
   #[doc(hidden)]
@@ -77,7 +78,7 @@ pub struct QueryStorage {
   #[doc(hidden)]
   pub fields: Arc<Vec<Box<dyn DerivedFieldIngredient>>>,
   #[doc(hidden)]
-  pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>,
+  pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>, // Previous session's data for lazy deserialization
 }
 
 impl Default for QueryStorage {
@@ -125,7 +126,10 @@ impl QueryStorage {
     storage
   }
 
-  /// Eagerly deserialize all input and interned nodes
+  /// Eagerly deserialize all input and interned nodes.
+  /// Must run before any derived query deserialization, because derived query
+  /// blobs contain DepNodeIndex references to inputs/interned that need to be
+  /// in the decoder's dep_id_table before decoding
   fn load_leaf_nodes(self: &Arc<Self>) {
     let Some(ctx) = self.deserialize_ctx.get() else {
       return;
@@ -237,6 +241,7 @@ impl QueryStorage {
     false
   }
 
+  /// Total number of query function invocations across all derived ingredients
   #[cfg(debug_assertions)]
   pub fn total_recompute_count(&self) -> usize {
     let mut total = 0;
@@ -255,6 +260,7 @@ impl QueryStorage {
     total
   }
 
+  /// Stats for each ingredient
   #[cfg(debug_assertions)]
   pub fn ingredient_stats(&self) -> Vec<IngredientStats> {
     let mut stats = Vec::new();
@@ -301,6 +307,7 @@ impl QueryStorage {
   #[doc(hidden)]
   pub const __TYPEDOWN_QUERY_STORAGE: () = ();
 
+  /// Access the current thread's ExecuteContext
   #[doc(hidden)]
   pub fn with_context<R>(&self, f: impl FnOnce(&mut Option<ExecuteContext>) -> R) -> R {
     thread_local! {
@@ -309,11 +316,14 @@ impl QueryStorage {
     CTX.with(|c| f(&mut c.borrow_mut()))
   }
 
+  // Whether the current thread is inside a query execution
   #[doc(hidden)]
   pub fn is_in_query(&self) -> bool {
     self.with_context(|ctx| ctx.is_some())
   }
 
+  /// Get the next disambiguator for a given identity hash within the current query execution
+  /// Returns 0 if not inside a query execution
   #[doc(hidden)]
   pub fn next_disambiguator(&self, identity_hash: u64) -> u32 {
     self.with_context(|ctx| {

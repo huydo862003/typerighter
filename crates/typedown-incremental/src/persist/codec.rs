@@ -15,7 +15,7 @@ pub struct Encoder<'a> {
   intern_hints: HashMap<(std::any::TypeId, usize), u32>,
   intern_blobs: Vec<Vec<u8>>,
   intern_table: HashMap<Vec<u8>, u32>,
-  dep_id_table: HashMap<u64, DepNodeIndex>,
+  dep_id_table: HashMap<DepId, DepNodeIndex>,
   next_dep_node_index: DepNodeIndex,
 }
 
@@ -33,13 +33,12 @@ impl<'a> Encoder<'a> {
 
   /// Register a DepId and get a stable DepNodeIndex for it.
   pub fn add_dep_id(&mut self, dep_id: DepId) -> DepNodeIndex {
-    let key = dep_id.raw();
-    if let Some(&index) = self.dep_id_table.get(&key) {
+    if let Some(&index) = self.dep_id_table.get(&dep_id) {
       return index;
     }
     let index = self.next_dep_node_index;
     self.next_dep_node_index += 1;
-    self.dep_id_table.insert(key, index);
+    self.dep_id_table.insert(dep_id, index);
     index
   }
 
@@ -47,7 +46,7 @@ impl<'a> Encoder<'a> {
     self.db
   }
 
-  pub fn dep_id_table(&self) -> &HashMap<u64, DepNodeIndex> {
+  pub fn dep_id_table(&self) -> &HashMap<DepId, DepNodeIndex> {
     &self.dep_id_table
   }
 

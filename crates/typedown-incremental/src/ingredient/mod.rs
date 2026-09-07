@@ -11,7 +11,7 @@ pub use interned::*;
 pub use inventory::*;
 
 use crate::persist::serialized::dep_graph::DepNodeIndex;
-use crate::{DepId, DeserializeContext, Fingerprint, QueryDatabase, SerializeContext};
+use crate::{DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext};
 
 /// Shared base trait for all ingredient kinds
 pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
@@ -20,20 +20,22 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 
   fn name_fingerprint(&self) -> Fingerprint;
 
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_>;
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_>;
 
+  /// Number of times the query function was actually invoked (not served from cache)
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize;
 }
 
 /// Input field ingredient (leaf node, ground truth)
 pub trait InputIngredient: Ingredient {
-  fn green_check(&self, arg_id: u32, last_changed_at: u32) -> bool;
+  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool;
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint>;
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32);
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
+  /// Load a dep node into this ingredient's storage
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
   fn field_index(&self) -> u8;
@@ -41,10 +43,11 @@ pub trait InputIngredient: Ingredient {
 
 /// Interned ingredient (leaf node, never changes)
 pub trait InternedIngredient: Ingredient {
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint>;
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32);
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
+  /// Load a dep node into this ingredient's storage
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 }
 
@@ -52,16 +55,18 @@ pub trait InternedIngredient: Ingredient {
 pub trait DerivedQueryIngredient: Ingredient {
   fn reset_for_new_revision(&self);
 
-  fn green_check(&self, db: &dyn QueryDatabase, arg_id: u32, last_changed_at: u32) -> bool;
+  fn green_check(&self, db: &dyn QueryDatabase, arg_id: EntryId, last_changed_at: Revision) -> bool;
 
-  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: u32);
+  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: EntryId);
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint>;
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32);
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
+  /// Load a dep node into this ingredient's storage
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
+  /// Skip fingerprint computation, always mark dirty on reload
   fn no_hash(&self) -> bool {
     false
   }
@@ -69,18 +74,20 @@ pub trait DerivedQueryIngredient: Ingredient {
 
 /// Derived field ingredient (set by parent query, not independently recomputed)
 pub trait DerivedFieldIngredient: Ingredient {
-  fn remove_entry(&self, entry_id: u32);
+  fn remove_entry(&self, entry_id: EntryId);
 
-  fn green_check(&self, arg_id: u32, last_changed_at: u32) -> bool;
+  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool;
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint>;
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32);
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
+  /// Load a dep node into this ingredient's storage
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
   fn field_index(&self) -> u8;
 
+  /// Skip fingerprint computation, always mark dirty on reload
   fn no_hash(&self) -> bool {
     false
   }

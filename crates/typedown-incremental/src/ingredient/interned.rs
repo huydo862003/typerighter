@@ -1,3 +1,4 @@
+// TIL: We use DashMap to support high-performance concurrent reads, which fits the workload of IDEs
 use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -6,8 +7,8 @@ use dashmap::DashMap;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
-  Decodable, DepId, DeserializeContext, Encodable, Fingerprint, QueryDatabase, SerializeContext,
-  StableHash, StableHasher, UnresolvedDepNode,
+  Decodable, DepId, DeserializeContext, Encodable, EntryId, Fingerprint, QueryDatabase,
+  SerializeContext, StableHash, StableHasher, UnresolvedDepNode,
 };
 
 use super::{Ingredient, InternedIngredient};
@@ -19,9 +20,9 @@ pub struct InternedIngredientStore<T: 'static> {
   dep_id_prefix: u64,
   name: &'static str,
   pub(crate) id_counter: &'static AtomicU32,
-  pub(crate) intern_map: &'static DashMap<T, u32>,
+  pub(crate) intern_map: &'static DashMap<T, EntryId>,
   #[doc(hidden)]
-  pub data: Arc<DashMap<u32, T>>,
+  pub data: Arc<DashMap<EntryId, T>>,
 }
 
 impl<T: 'static> std::fmt::Debug for InternedIngredientStore<T> {
@@ -135,6 +136,7 @@ impl<
       return;
     };
 
+    // Encode the value to register it in the encoder's intern table
     let mut buf = vec![];
     entry.value().encode(&mut buf, &mut ctx.encoder);
     let blob_index = ctx.encoder.intern_blob::<T>(buf, Some(entry_id));

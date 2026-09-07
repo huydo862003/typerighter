@@ -87,7 +87,7 @@ impl DepGraphBuilder {
   }
 
   /// Resolve edges and return the final dep graph nodes, using the Encoder's dep_id_table
-  pub fn finalize(self, dep_id_table: &HashMap<u64, DepNodeIndex>) -> Vec<DepNode> {
+  pub fn finalize(self, dep_id_table: &HashMap<DepId, DepNodeIndex>) -> Vec<DepNode> {
     let total = self
       .nodes
       .iter()
@@ -111,13 +111,13 @@ impl DepGraphBuilder {
           // Skip memos with evicted deps
           let has_missing = edges
             .iter()
-            .any(|dep_id| !dep_id_table.contains_key(&dep_id.raw()));
+            .any(|dep_id| !dep_id_table.contains_key(&dep_id));
           if has_missing {
             continue;
           }
           let resolved_edges: Vec<u32> = edges
             .iter()
-            .map(|dep_id| *dep_id_table.get(&dep_id.raw()).expect("unresolved dep edge"))
+            .map(|dep_id| *dep_id_table.get(&dep_id).expect("unresolved dep edge"))
             .collect();
           DepNode::DerivedQuery {
             name,

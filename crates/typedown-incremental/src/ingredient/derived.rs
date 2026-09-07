@@ -12,7 +12,7 @@ use std::{
 use indexmap::IndexSet;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{Cancelled, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage};
+use crate::{Cancelled, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage, Revision};
 use crate::{
   Decodable, DepId, DeserializeContext, Encodable, Fingerprint, StableHash, StableHasher,
 };
@@ -53,16 +53,16 @@ impl Lru {
 #[derive(Clone)]
 pub struct Dependency {
   pub dep_id: DepId,
-  pub changed_at: u32,
+  pub changed_at: Revision,
 }
 
 /// A memoized derived query result
 pub struct StampedDerivedQuery<K, V: DerivedId> {
-  pub key: K,
-  pub value: V,
-  pub changed_at: u32,
-  pub verified_at: u32,
-  pub dependencies: Vec<Dependency>,
+  pub key: K,                        // The original key, for re-execution
+  pub value: V,                      // The derived struct ID
+  pub changed_at: Revision,          // Revision when the value last actually changed
+  pub verified_at: Revision,         // Revision when last confirmed valid
+  pub dependencies: Vec<Dependency>, // What this query read during execution
 }
 
 /// The state of a query entry in the cache
@@ -76,7 +76,7 @@ pub enum QueryState<K, V: DerivedId> {
 /// A stamped field value for a derived struct
 pub struct StampedDerivedField<T> {
   pub value: T,
-  pub changed_at: u32,
+  pub changed_at: Revision,
 }
 
 /// Ingredient for a derived query function: maps key tuple to memoized result
@@ -89,11 +89,11 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   next_arg_id: Arc<AtomicU32>,
   value_id_counter: &'static AtomicU32,
   query_fn: fn(&DB, K) -> V,
-  intern_map: Arc<DashMap<K, u32>>,
+  intern_map: Arc<DashMap<K, EntryId>>, // key -> stable arg_id
   #[doc(hidden)]
-  pub data: Arc<DashMap<u32, QueryState<K, V>>>,
+  pub data: Arc<DashMap<EntryId, QueryState<K, V>>>, // arg_id -> state
   identity_maps: IdentityMapTable,
-  lru: Arc<Lru>,
+  lru: Arc<Lru>, // For stale entry eviction
   pub no_hash_flag: bool,
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicU32>,
@@ -184,7 +184,7 @@ impl<
     }
   }
 
-  pub fn key_fingerprint(&self, db: &dyn QueryDatabase, arg_id: u32) -> Option<Fingerprint>
+  pub fn key_fingerprint(&self, db: &dyn QueryDatabase, arg_id: EntryId) -> Option<Fingerprint>
   where
     K: StableHash,
   {
@@ -208,7 +208,7 @@ impl<
     db: &DB,
     storage: &QueryStorage,
     arg: &K,
-  ) -> Option<(V, u32)> {
+  ) -> Option<(V, Revision)> {
     let ctx = storage.deserialize_ctx.get()?;
 
     // Compute key fingerprint to find the matching node
@@ -280,7 +280,7 @@ impl<
   }
 
   /// Get or create a stable entry ID for a key
-  fn get_or_intern_arg(&self, arg: &K) -> u32 {
+  fn get_or_intern_arg(&self, arg: &K) -> EntryId {
     if let Some(entry) = self.intern_map.get(arg) {
       return *entry.value();
     }
@@ -318,10 +318,10 @@ impl<
     &self,
     db: &DB,
     storage: &QueryStorage,
-    current_revision: u32,
-    arg_id: u32,
+    current_revision: Revision,
+    arg_id: EntryId,
     arg: K,
-  ) -> (V, u32) {
+  ) -> (V, Revision) {
     // Check cache
     if let Some(entry) = self.data.get(&arg_id) {
       match &*entry {
@@ -494,8 +494,8 @@ impl<
   fn cleanup_identity_maps(
     &self,
     storage: &QueryStorage,
-    arg_id: u32,
-    created_ids: &HashMap<u32, HashSet<u32>>,
+    arg_id: EntryId,
+    created_ids: &HashMap<EntryId, HashSet<EntryId>>,
   ) {
     for (start_index, active_ids) in created_ids {
       let Some(map) = self.identity_maps.get(&(arg_id, *start_index)) else {
@@ -515,8 +515,8 @@ impl<
     &self,
     db: &dyn QueryDatabase,
     storage: &QueryStorage,
-    arg_id: u32,
-    last_changed_at: u32,
+    arg_id: EntryId,
+    last_changed_at: Revision,
   ) -> bool {
     let current_revision = storage.revision.load(Ordering::Acquire);
 
@@ -582,7 +582,7 @@ impl<
     self.name_fingerprint
   }
 
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
@@ -613,12 +613,12 @@ impl<
     }
   }
 
-  fn green_check(&self, db: &dyn QueryDatabase, arg_id: u32, last_changed_at: u32) -> bool {
+  fn green_check(&self, db: &dyn QueryDatabase, arg_id: EntryId, last_changed_at: Revision) -> bool {
     let storage = unsafe { db.storage() };
     self.green_check_inner(db, storage, arg_id, last_changed_at)
   }
 
-  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: u32) {
+  fn re_execute(&self, db: &dyn QueryDatabase, arg_id: EntryId) {
     let db: &DB = (db as &dyn Any)
       .downcast_ref::<DB>()
       .expect("database type mismatch in re_execute");
@@ -634,7 +634,7 @@ impl<
     }
   }
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     let db = (db as &dyn Any)
       .downcast_ref::<DB>()
       .expect("database type mismatch in value_fingerprint");
@@ -703,7 +703,7 @@ impl<
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId) {
     let Some(entry) = self.data.get(&entry_id) else {
       return;
     };
@@ -761,7 +761,7 @@ pub struct DerivedFieldIngredientStore<T> {
   name: &'static str,
   pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
-  pub data: Arc<DashMap<u32, StampedDerivedField<T>>>,
+  pub data: Arc<DashMap<EntryId, StampedDerivedField<T>>>,
   pub no_hash_flag: bool,
 }
 
@@ -807,7 +807,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     Fingerprint::from_name(self.name)
   }
 
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
@@ -821,11 +821,11 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static>
   super::DerivedFieldIngredient for DerivedFieldIngredientStore<T>
 {
-  fn remove_entry(&self, entry_id: u32) {
+  fn remove_entry(&self, entry_id: EntryId) {
     self.data.remove(&entry_id);
   }
 
-  fn green_check(&self, arg_id: u32, last_changed_at: u32) -> bool {
+  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool {
     self
       .data
       .get(&arg_id)
@@ -834,7 +834,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
   }
 
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
       let mut hasher: StableHasher = StableHasher::new();
       entry.value.stable_hash(db, &mut hasher);
@@ -894,7 +894,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId) {
     let Some(entry) = self.data.get(&entry_id) else {
       return;
     };

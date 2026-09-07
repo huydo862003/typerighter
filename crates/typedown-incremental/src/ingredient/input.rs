@@ -5,15 +5,15 @@ use dashmap::DashMap;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
-  Decodable, DepId, DeserializeContext, Encodable, Fingerprint, QueryDatabase, SerializeContext,
-  StableHash, StableHasher, UnresolvedDepNode,
+  Decodable, DepId, DeserializeContext, Encodable, EntryId, Fingerprint, QueryDatabase, Revision,
+  SerializeContext, StableHash, StableHasher, UnresolvedDepNode,
 };
 
 use super::{Ingredient, InputIngredient};
 
 pub struct StampedInputField<T> {
   pub value: T,
-  pub changed_at: u32,
+  pub changed_at: Revision, // The last revision number this one changed
 }
 
 /// A field of an input ingredient, containing data for that input type
@@ -25,7 +25,7 @@ pub struct InputIngredientStore<T> {
   name: &'static str,
   pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
-  pub data: Arc<DashMap<u32, StampedInputField<T>>>,
+  pub data: Arc<DashMap<EntryId, StampedInputField<T>>>,
 }
 
 impl<T> std::fmt::Debug for InputIngredientStore<T> {
@@ -70,7 +70,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
   }
 
 
-  fn entry_ids(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+  fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
@@ -84,7 +84,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
 impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static>
   InputIngredient for InputIngredientStore<T>
 {
-  fn green_check(&self, arg_id: u32, last_changed_at: u32) -> bool {
+  fn green_check(&self, arg_id: EntryId, last_changed_at: Revision) -> bool {
     self
       .data
       .get(&arg_id)
@@ -96,7 +96,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     self.field_index
   }
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
       let mut hasher: StableHasher = StableHasher::new();
       entry.value.stable_hash(db, &mut hasher);
@@ -140,7 +140,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     Some(dep_id)
   }
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: u32) {
+  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId) {
     let entry = self.data.get(&entry_id);
     if entry.is_none() {
       return;
@@ -148,6 +148,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
 
     let entry = entry.expect("Entry must contain a value after the none check pass");
 
+    // Add the dep node
     let dep_id = DepId::from_prefix(self.dep_id_prefix, entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);
     ctx.dep_graph.set(
@@ -162,6 +163,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       },
     );
 
+    // Encode and write to query cache
     let mut buf = vec![];
     entry.value.encode(&mut buf, &mut ctx.encoder);
     ctx.query_cache.set(node_index, &buf);
