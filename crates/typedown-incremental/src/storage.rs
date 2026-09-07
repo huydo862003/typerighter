@@ -210,20 +210,20 @@ impl QueryStorage {
   }
 
   /// Check if a dep node's (name, value_fingerprint) exists in the current session
-  pub fn has_fingerprint(
+  pub fn has_dep_node(
     &self,
     ctx: &DeserializeContext,
     node: &DepNode,
     db: &dyn crate::QueryDatabase,
   ) -> bool {
     let name = node.name();
-    let expected_fp = node.value_fingerprint();
+    let expected_fingerprint = node.value_fingerprint();
     // Scan entries of the matching ingredient kind for a fingerprint match
     macro_rules! scan {
       ($indices:expr, $arr:expr) => {
         for &idx in $indices {
           for entry_id in $arr[idx].entry_ids() {
-            if $arr[idx].value_fingerprint(db, entry_id) == Some(expected_fp) {
+            if $arr[idx].value_fingerprint(db, entry_id) == Some(expected_fingerprint) {
               return true;
             }
           }

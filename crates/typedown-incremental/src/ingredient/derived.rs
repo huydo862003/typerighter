@@ -21,8 +21,7 @@ use crate::{
 use crate::{DerivedId, QueryDatabase, SerializeContext, UnresolvedDepNode};
 use dashmap::DashMap;
 
-use super::IdDashMap;
-use super::Ingredient;
+use super::{DerivedQueryIngredient, IdDashMap, Ingredient};
 
 pub const LRU_CAPACITY: usize = 1024;
 
@@ -246,7 +245,7 @@ impl<
       if edge_node.value_fingerprint() == Fingerprint::SKIPPED {
         continue;
       }
-      if !storage.has_fingerprint(ctx, edge_node, db) {
+      if !storage.has_dep_node(ctx, edge_node, db) {
         return None;
       }
     }
@@ -351,7 +350,7 @@ impl<
           let changed_at = memo.changed_at;
           drop(entry); // Release the read lock
 
-          if self.green_check_inner(db, storage, entry_id, changed_at) {
+          if DerivedQueryIngredient::green_check(self, db, entry_id, changed_at) {
             // The green check has verified or recomputed + backdated so the entry must now be fresh
             if let Some(entry) = self.data.get(&entry_id)
               && let QueryState::Computed(memo) = &*entry
@@ -508,52 +507,6 @@ impl<
     }
   }
 
-  /// Red-green algorithm: https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html#improving-accuracy-the-red-green-algorithm
-  fn green_check_inner(
-    &self,
-    db: &dyn QueryDatabase,
-    storage: &QueryStorage,
-    entry_id: EntryId,
-    last_changed_at: Revision,
-  ) -> bool {
-    let current_revision = storage.revision.load(Ordering::Acquire);
-
-    match self.data.get(&entry_id) {
-      Some(entry) => match &*entry {
-        QueryState::Computed(memo) => {
-          if memo.verified_at >= current_revision {
-            return memo.changed_at <= last_changed_at;
-          }
-          // Stale: re-execute deps so they can backdate, then re-check
-          let deps = memo.dependencies.clone();
-          drop(entry);
-
-          for dep in &deps {
-            if !storage.green_check_dep(db, dep) {
-              // Dep reports changed, force it to re-execute
-              storage.re_execute_dep(db, dep);
-            }
-          }
-
-          // Re-check whether all deps are green
-          let all_green = deps.iter().all(|dep| storage.green_check_dep(db, dep));
-
-          if all_green {
-            // Bump verified_at
-            if let Some(mut entry) = self.data.get_mut(&entry_id)
-              && let QueryState::Computed(memo) = &mut *entry
-            {
-              memo.verified_at = current_revision;
-              return memo.changed_at <= last_changed_at;
-            }
-          }
-          false
-        }
-        QueryState::Computing => false, // conservatively assume changed
-      },
-      None => false,
-    }
-  }
 }
 
 impl<
@@ -611,6 +564,7 @@ impl<
     }
   }
 
+  /// Red-green algorithm: https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html#improving-accuracy-the-red-green-algorithm
   fn green_check(
     &self,
     db: &dyn QueryDatabase,
@@ -618,7 +572,43 @@ impl<
     last_changed_at: Revision,
   ) -> bool {
     let storage = unsafe { db.storage() };
-    self.green_check_inner(db, storage, entry_id, last_changed_at)
+    let current_revision = storage.revision.load(Ordering::Acquire);
+
+    match self.data.get(&entry_id) {
+      Some(entry) => match &*entry {
+        QueryState::Computed(memo) => {
+          if memo.verified_at >= current_revision {
+            return memo.changed_at <= last_changed_at;
+          }
+          // Stale: re-execute deps so they can backdate, then re-check
+          let deps = memo.dependencies.clone();
+          drop(entry);
+
+          for dep in &deps {
+            if !storage.green_check_dep(db, dep) {
+              // Dep reports changed, force it to re-execute
+              storage.re_execute_dep(db, dep);
+            }
+          }
+
+          // Re-check whether all deps are green
+          let all_green = deps.iter().all(|dep| storage.green_check_dep(db, dep));
+
+          if all_green {
+            // Bump verified_at
+            if let Some(mut entry) = self.data.get_mut(&entry_id)
+              && let QueryState::Computed(memo) = &mut *entry
+            {
+              memo.verified_at = current_revision;
+              return memo.changed_at <= last_changed_at;
+            }
+          }
+          false
+        }
+        QueryState::Computing => false, // conservatively assume changed
+      },
+      None => false,
+    }
   }
 
   fn re_execute(&self, db: &dyn QueryDatabase, entry_id: EntryId) {
