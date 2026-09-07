@@ -38,7 +38,6 @@ impl IngredientKind {
 pub struct DepId(u64);
 
 impl DepId {
-  const INGREDIENT_KIND_BITS: u32 = 2;
   const INGREDIENT_ID_BITS: u32 = 30;
   const ENTRY_ID_BITS: u32 = 32;
 
