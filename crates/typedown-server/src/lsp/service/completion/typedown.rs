@@ -38,7 +38,7 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
   let offset = lsp_position_to_text_offset(&rope, params.text_document_position.position)?;
 
   let file = *project.files(db).get(&path)?;
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   // Use offset-1 so the cursor position (between characters) resolves to the token just typed
   let lookup = offset.saturating_sub(1);
   let node = node_at_offset(root, lookup)?;

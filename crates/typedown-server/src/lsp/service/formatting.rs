@@ -15,7 +15,7 @@ pub fn formatting(analysis: &Analysis, params: DocumentFormattingParams) -> Opti
   let file = *project.files(db).get(&path)?;
   let rope = analysis.file_rope(&path)?;
 
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
 

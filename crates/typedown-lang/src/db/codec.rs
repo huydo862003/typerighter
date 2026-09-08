@@ -106,38 +106,14 @@ impl Decodable for RedNode {
   }
 }
 
-// StableHash impls for syntax types
-
-impl StableHash for SyntaxToken {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.kind().stable_hash(db, hasher);
-    self.bytes().stable_hash(db, hasher);
-  }
-}
-
-impl StableHash for SyntaxNode {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.kind().stable_hash(db, hasher);
-    self.children().stable_hash(db, hasher);
-  }
-}
-
-impl StableHash for GreenNode {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    if self.is_node() {
-      std::hash::Hasher::write_u8(hasher, 0);
-      self.as_node().unwrap().stable_hash(db, hasher);
-    } else {
-      std::hash::Hasher::write_u8(hasher, 1);
-      self.as_token().unwrap().stable_hash(db, hasher);
-    }
-  }
-}
+// StableHash impls
 
 impl StableHash for RedNode {
+  // O(1) identity within a file: offset + kind + text length
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     (self.offset() as u64).stable_hash(db, hasher);
-    (**self).stable_hash(db, hasher);
+    self.kind().stable_hash(db, hasher);
+    (self.text_len() as u64).stable_hash(db, hasher);
   }
 }
 

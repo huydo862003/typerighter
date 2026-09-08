@@ -9,7 +9,7 @@ use crate::syntax::{
 };
 
 use crate::db::TypedownDatabase;
-use crate::db::types::{File, FileAstResult, Project};
+use crate::db::types::{File, FileAstResult, FileRedNode, Project};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -26,7 +26,14 @@ pub fn parse_file<'db>(
   let ParseResult { diagnostics, ast } = ctx.parse();
 
   let root = RedNode::new_root(ast.as_node().expect("AST root must be a node").clone());
-  FileAstResult::new(db, file.handle(db), project, file, root, diagnostics)
+  FileAstResult::new(
+    db,
+    file.handle(db),
+    project,
+    file,
+    FileRedNode::new(file, root),
+    diagnostics,
+  )
 }
 
 #[cfg(test)]
@@ -65,7 +72,7 @@ mod tests {
     let result = parse_file(&db, project, file);
 
     assert!(
-      SourceFile::cast(result.ast(&db)).is_some(),
+      SourceFile::cast(result.ast(&db).node.clone()).is_some(),
       "AST root should be a SourceFile"
     );
 
@@ -94,7 +101,7 @@ mod tests {
     let result = parse_file(&db, project, file);
 
     assert!(
-      SourceFile::cast(result.ast(&db)).is_some(),
+      SourceFile::cast(result.ast(&db).node.clone()).is_some(),
       "AST root should be a SourceFile"
     );
 
@@ -129,7 +136,7 @@ mod tests {
     let result = parse_file(&db, project, file);
 
     assert!(
-      SourceFile::cast(result.ast(&db)).is_some(),
+      SourceFile::cast(result.ast(&db).node.clone()).is_some(),
       "AST should be a SourceFile for file without frontmatter"
     );
 
@@ -160,7 +167,7 @@ mod tests {
     let result = parse_file(&db, project, file);
 
     assert!(
-      SourceFile::cast(result.ast(&db)).is_some(),
+      SourceFile::cast(result.ast(&db).node.clone()).is_some(),
       "AST should be a SourceFile for file without frontmatter"
     );
 

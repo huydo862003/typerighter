@@ -202,7 +202,7 @@ fn check_mapping_fields<'db>(
       }
     } else if expected_type.as_td_schema_type().is_some() && !key.starts_with('_') {
       // Excess property: key not declared on the schema
-      let (start_offset, end_offset) = YamlMapping::cast(mapping_hir.node(db))
+      let (start_offset, end_offset) = YamlMapping::cast(mapping_hir.node(db).node.clone())
         .and_then(|m| m.find_entry(key))
         .and_then(|e| e.key_node())
         .map(|n| n.trimmed_range())

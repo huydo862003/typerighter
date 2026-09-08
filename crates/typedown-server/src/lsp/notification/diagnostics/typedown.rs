@@ -112,7 +112,7 @@ fn get_diagnostics_for_file(
   let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
   // Typecheck errors
-  let root = parse_result.ast(db);
+  let root = parse_result.ast(db).node.clone();
   let hir = lower_node(db, project, file, root);
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
@@ -134,7 +134,7 @@ fn get_diagnostics_for_file(
     .collect();
 
   // Lint warnings (markdown body only)
-  if let Some(body) = SourceFile::cast(parse_result.ast(db)).and_then(|sf| sf.body()) {
+  if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
     for lint in lint_markdown(&body) {
       let start = lint.start_offset.min(rope.len_chars());
       let end = lint.end_offset.min(rope.len_chars());

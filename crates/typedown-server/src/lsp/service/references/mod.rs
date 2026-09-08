@@ -40,7 +40,7 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
   let mut locations: Vec<Location> = refs
     .into_iter()
     .filter_map(|reference| {
-      let ref_path = reference.hir.file(db).handle(db).path()?.clone();
+      let ref_path = reference.hir.node(db).owner_file.handle(db).path()?.clone();
       let ref_rope = analysis.file_rope(&ref_path)?;
       let node = reference.hir.node(db);
 

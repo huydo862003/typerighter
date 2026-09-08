@@ -2,6 +2,7 @@
 
 use typedown_macros::query_derived;
 
+use crate::db::types::FileRedNode;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, CodeLit, DictEntry, DictLit, Expr,
   IdentLit, IndexExpr, InlineCode, InlineMath, InterpFragment, ListItem, ListLit, MathBlock,
@@ -38,7 +39,7 @@ pub fn lower_node<'db>(
     Expr::cast(node.clone()).expect("node must be an Expr, MdBody, YamlFrontmatter, or SourceFile");
   let mut diagnostics = vec![];
   let kind = lower_expr_kind(db, project, file, &expr, &mut diagnostics);
-  HirValue::new(db, project, file, node, kind, diagnostics)
+  HirValue::new(db, project, FileRedNode::new(file, node), kind, diagnostics)
 }
 
 fn lower_markdown<'db>(
@@ -95,8 +96,7 @@ fn lower_markdown<'db>(
   HirValue::new(
     db,
     project,
-    file,
-    node,
+    FileRedNode::new(file, node),
     HirValueKind::Markdown(parts),
     vec![],
   )
@@ -233,7 +233,13 @@ fn lower_expr_kind<'db>(
           SyntaxKind::MathLit => {
             let math = MathLit::cast(child.clone())?;
             let val = math.value()?;
-            let hir = HirValue::new(db, project, file, child, HirValueKind::Math(val), vec![]);
+            let hir = HirValue::new(
+              db,
+              project,
+              FileRedNode::new(file, child),
+              HirValueKind::Math(val),
+              vec![],
+            );
             Some(InterpolatedPart::Expr(hir))
           }
           _ => None,
@@ -304,8 +310,7 @@ fn lower_expr_kind<'db>(
       let tag_hir = HirValue::new(
         db,
         project,
-        file,
-        op_node,
+        FileRedNode::new(file, op_node),
         HirValueKind::Ident(tag_name),
         vec![],
       );
@@ -415,8 +420,7 @@ fn lower_expr_kind<'db>(
         HirValue::new(
           db,
           project,
-          file,
-          inner.syntax().clone(),
+          FileRedNode::new(file, inner.syntax().clone()),
           HirValueKind::Null,
           vec![],
         )
@@ -453,8 +457,7 @@ fn lower_frontmatter<'db>(
     None => HirValue::new(
       db,
       project,
-      file,
-      node,
+      FileRedNode::new(file, node),
       HirValueKind::Mapping(vec![]),
       vec![],
     ),
@@ -470,7 +473,15 @@ fn lower_source_file<'db>(
   let source_file = SourceFile::cast(node.clone()).expect("node must be a SourceFile");
   let fm_node = match source_file.frontmatter() {
     Some(fm) => fm,
-    None => return HirValue::new(db, project, file, node, HirValueKind::Null, vec![]),
+    None => {
+      return HirValue::new(
+        db,
+        project,
+        FileRedNode::new(file, node),
+        HirValueKind::Null,
+        vec![],
+      );
+    }
   };
   let mapping_hir = lower_node(db, project, file, fm_node.syntax().clone());
   let Some(body) = source_file.body() else {
@@ -486,8 +497,7 @@ fn lower_source_file<'db>(
   HirValue::new(
     db,
     project,
-    file,
-    node,
+    FileRedNode::new(file, node),
     HirValueKind::Mapping(entries),
     mapping_diagnostics,
   )
@@ -497,6 +507,7 @@ fn lower_source_file<'db>(
 mod tests {
   use super::lower_node;
   use crate::db::fixtures::load_vault_fixture;
+  use crate::db::types::FileRedNode;
   use crate::db::types::{HirValueKind, InterpolatedPart};
   use crate::db::utils::lower_file;
   use crate::syntax::diagnostic::Diagnostic;

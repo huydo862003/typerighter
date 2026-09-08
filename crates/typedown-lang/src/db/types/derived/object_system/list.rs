@@ -167,7 +167,7 @@ impl<'db> TdListObj<'db> {
   pub fn get(self, db: &'db TypedownDatabase, idx: usize) -> Option<TdObjectEnum<'db>> {
     match self.items(db).into_iter().nth(idx)? {
       Either::Left(hir) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
         evaluate_node(db, hir, file_scope).value(db)
       }
       Either::Right(obj) => Some(obj),

@@ -728,7 +728,7 @@ fn format_file(analysis: &Analysis, file_path: &str) -> RpcResult<TdFormatResult
     .get(&path)
     .ok_or_else(|| RpcError::invalid_params(format!("File not found: {file_path}")))?;
 
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let source_file = SourceFile::cast(root.clone())
     .ok_or_else(|| RpcError::invalid_params("Failed to parse file"))?;
 
@@ -764,7 +764,7 @@ fn collect_file_diagnostics(
   let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
   // Typecheck and name resolution errors
-  let root = parse_result.ast(db);
+  let root = parse_result.ast(db).node.clone();
   let hir = lower_node(db, project, file, root);
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
@@ -811,7 +811,7 @@ fn collect_file_diagnostics(
   }
 
   // Lint warnings
-  if let Some(body) = SourceFile::cast(parse_result.ast(db)).and_then(|sf| sf.body()) {
+  if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
     for lint in lint_markdown(&body) {
       let start = lint.start_offset.min(rope.len_chars());
       let l = rope.char_to_line(start);

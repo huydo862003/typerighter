@@ -36,7 +36,7 @@ pub fn definition(
   let offset = lsp_position_to_text_offset(&rope, params.text_document_position_params.position)?;
 
   let file = *project.files(db).get(&path)?;
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let lookup = offset.saturating_sub(1);
   let node = node_at_offset(root, lookup)?;
 
@@ -157,7 +157,7 @@ fn find_field_in_schema_chain(
   };
 
   // Check if this schema file directly defines the field
-  let root = parse_file(db, project, schema_file).ast(db);
+  let root = parse_file(db, project, schema_file).ast(db).node.clone();
   if let Some(offset) = find_property_key_offset(&root, field_name) {
     return Some((schema_file, offset));
   }
