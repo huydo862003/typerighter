@@ -37,6 +37,7 @@ lsp-server = "0.7"
 ropey = "1.6.1"
 dashmap = "6.2.1"
 threadpool = "1"
+ctrlc = "3"
 
 [dev-dependencies]
 tempfile = "3"

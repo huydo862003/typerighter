@@ -10,14 +10,6 @@ export interface VirtualModule {
   invalidate (server: ViteDevServer): void;
 }
 
-// PITFALL: \0 virtual modules are /@id/__x00__ in browser, HMR paths must match
-// Ref: https://vite.dev/guide/api-plugin.html#virtual-modules-convention
-function encodeVirtualUrl (url: string): string {
-  return url.startsWith('\0')
-    ? '/@id/__x00__' + url.slice(1)
-    : url;
-}
-
 // Invalidate a virtual module and push an HMR update to the client
 export function invalidateVirtualModule (server: ViteDevServer, resolvedId: string): void {
   const module_ = server.moduleGraph.getModuleById(resolvedId);
@@ -40,4 +32,12 @@ export function invalidateVirtualModule (server: ViteDevServer, resolvedId: stri
       ],
     });
   }
+}
+
+// PITFALL: \0 virtual modules are /@id/__x00__ in browser, HMR paths must match
+// Ref: https://vite.dev/guide/api-plugin.html#virtual-modules-convention
+function encodeVirtualUrl (url: string): string {
+  return url.startsWith('\0')
+    ? '/@id/__x00__' + url.slice(1)
+    : url;
 }

@@ -180,8 +180,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const config = await tdContext.getConfig();
       const rootDirectory = resolve(config.rootDir);
 
-      // Populate search index and fetch site data in background
+      // Seed sidebar from disk (instant), then upgrade via RPC in background
       virtualSearchIndex.index(rootDirectory);
+      virtualSiteData.scan(rootDirectory);
       virtualSiteData.fetch(tdContext, server);
 
       // Print vault diagnostics after the server URL is shown

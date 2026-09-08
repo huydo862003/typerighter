@@ -1,3 +1,6 @@
+import {
+  globSync,
+} from 'node:fs';
 import type {
   ViteDevServer,
 } from 'vite';
@@ -12,6 +15,7 @@ import {
   type ContentTree,
   buildContentTree,
   buildDirectoryListingMap,
+  getTdResourceTitle,
   type ContentSummary,
 } from '@/shared';
 
@@ -35,6 +39,26 @@ const EMPTY = {
 export class VirtualSiteData implements VirtualModule {
   private data: SiteData | undefined;
 
+  // Seed the sidebar from disk so it renders instantly
+  scan (rootDirectory: string): void {
+    const files = globSync('**/*.td', {
+      cwd: rootDirectory,
+      exclude: (name: string) => name.startsWith('_'),
+    });
+    const contentItems: ContentSummary[] = files.map((filepath) => ({
+      filepath,
+      label: getTdResourceTitle(filepath),
+      header: {},
+    }));
+    const contentTree = buildContentTree(contentItems);
+
+    this.data = {
+      contentTree,
+      schemas: {},
+      directoryListings: {},
+    };
+  }
+
   load (_context: TypedownContext): string {
     const payload = this.data
       ? {
@@ -50,7 +74,7 @@ export class VirtualSiteData implements VirtualModule {
     this.data = undefined;
   }
 
-  // Fetch in background, push to client via HMR when ready
+  // Fetch full data from RPC in background, push to client via HMR when ready
   fetch (context: TypedownContext, server?: ViteDevServer): void {
     fetchFromRpc(context)
       .then((result) => {

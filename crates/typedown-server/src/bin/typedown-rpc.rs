@@ -1,4 +1,6 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use typedown_incremental::Cancelled;
 use typedown_server::core::transport;
@@ -26,13 +28,28 @@ pub fn main() -> anyhow::Result<()> {
     .ok()
     .and_then(|port_str| port_str.parse::<u16>().ok())
     .unwrap_or(0);
-  let (connection, io_handle) = transport::connect_tcp(&addr, port)?;
+  let (connection, io_handle, shutdown_socket) = transport::connect_tcp(&addr, port)?;
+
+  // On SIGINT, shut down the TCP socket so the reader thread unblocks and the server exits cleanly
+  let interrupted = Arc::new(AtomicBool::new(false));
+  {
+    let interrupted = Arc::clone(&interrupted);
+    ctrlc::set_handler(move || {
+      interrupted.store(true, Ordering::Relaxed);
+      if let Some(socket) = shutdown_socket.lock().unwrap().take() {
+        let _ = socket.shutdown(std::net::Shutdown::Both);
+      }
+    })
+    .ok();
+  }
 
   let server = RpcServer::new(connection, root_dir)?;
   server.run()?;
   server.shutdown();
 
-  io_handle.join();
+  if !interrupted.load(Ordering::Relaxed) {
+    io_handle.join();
+  }
 
   Ok(())
 }

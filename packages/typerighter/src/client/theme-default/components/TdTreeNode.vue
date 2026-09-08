@@ -175,7 +175,10 @@ function toggle () {
             class="td-tree-link-text"
             :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
           ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
-          <span class="td-tree-time">{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+          <span
+            v-if="entry.item.metadata"
+            class="td-tree-time"
+          >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
         </a>
       </template>
       <button

@@ -53,7 +53,7 @@ function isCurrent (href: string): boolean {
       <span
         v-if="indexItem"
         class="td-root-link-time"
-      >{{ formatRelativeTime(indexItem.metadata.mtime) }}</span>
+      >{{ indexItem.metadata ? formatRelativeTime(indexItem.metadata.mtime) : '' }}</span>
     </a>
     <template
       v-for="entry in regularEntries"
@@ -76,7 +76,10 @@ function isCurrent (href: string): boolean {
           class="td-root-link-icon"
         />
         <span class="td-root-link-text">{{ getTdResourceTitle(entry.item.filepath, entry.item.label) }}</span>
-        <span class="td-root-link-time">{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+        <span
+          v-if="entry.item.metadata"
+          class="td-root-link-time"
+        >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
       </a>
     </template>
   </nav>

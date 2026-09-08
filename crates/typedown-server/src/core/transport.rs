@@ -1,5 +1,6 @@
 use std::io::BufReader;
 use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
 
 use crossbeam_channel::bounded;
 use lsp_server::{Connection, Message};
@@ -31,8 +32,14 @@ pub fn connect_stdio() -> (Connection, IoHandle) {
   (conn, IoHandle::Stdio(io))
 }
 
+pub type ShutdownSocket = Arc<Mutex<Option<std::net::TcpStream>>>;
+
 /// Bind a TCP listener & print addr:port to stdout
-pub fn connect_tcp(addr: &str, port: u16) -> anyhow::Result<(Connection, IoHandle)> {
+/// Returns a shutdown socket handle that can be used to close the connection from a signal handler
+pub fn connect_tcp(
+  addr: &str,
+  port: u16,
+) -> anyhow::Result<(Connection, IoHandle, ShutdownSocket)> {
   let listener = TcpListener::bind(format!("{addr}:{port}"))?;
   let bound_addr = listener.local_addr()?;
   // Clients (editors, rpc-server package) parse this to know where to connect
@@ -40,6 +47,7 @@ pub fn connect_tcp(addr: &str, port: u16) -> anyhow::Result<(Connection, IoHandl
 
   // Clone the stream so reader and writer threads each own a handle to the same socket
   let (stream, _) = listener.accept()?;
+  let shutdown_socket: ShutdownSocket = Arc::new(Mutex::new(Some(stream.try_clone()?)));
   let reader_stream = stream.try_clone()?;
   let mut writer_stream = stream;
 
@@ -69,5 +77,5 @@ pub fn connect_tcp(addr: &str, port: u16) -> anyhow::Result<(Connection, IoHandl
     sender: writer_sender,
     receiver: reader_receiver,
   };
-  Ok((connection, IoHandle::Tcp { reader, writer }))
+  Ok((connection, IoHandle::Tcp { reader, writer }, shutdown_socket))
 }

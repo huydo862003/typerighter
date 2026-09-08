@@ -18,8 +18,8 @@ export interface ContentSummary {
   header: Record<string, unknown>;
   /** First paragraph of the body content */
   excerpt?: string;
-  /** File metadata */
-  metadata: FileMetadata;
+  /** File metadata (absent during initial disk scan, populated after RPC) */
+  metadata?: FileMetadata;
 }
 
 export interface ContentTree {
