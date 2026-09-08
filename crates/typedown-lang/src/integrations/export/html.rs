@@ -539,19 +539,38 @@ impl<'a> HtmlEmitter<'a> {
     let Some(link) = crate::syntax::ast::MdLink::cast(node.clone()) else {
       return;
     };
-    let alt = link.alt().map(|t| t.value()).unwrap_or_default();
     let url = link.url().map(|t| t.value()).unwrap_or_default();
 
-    if is_external_url(&url) {
+    // Check for an embedded image (linked image / badge syntax)
+    let has_media = node
+      .children()
+      .any(|child| child.kind() == SyntaxKind::MdMedia);
+
+    if is_external_url(&url) && !url.starts_with("mailto:") && !has_media {
       self.write("<LucideIcon name=\"arrow-up-right\" />");
       self.write(&format!(
-        "<a href=\"{}\" class=\"td-external-link\" target=\"_blank\" rel=\"noreferrer\">",
+        "<a href=\"{}\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">",
+        html_escape(&url)
+      ));
+    } else if is_external_url(&url) {
+      self.write(&format!(
+        "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">",
         html_escape(&url)
       ));
     } else {
       self.write(&format!("<a href=\"{}\">", html_escape(&url)));
     }
-    self.write_escaped(&alt);
+
+    if has_media {
+      for child in node.children() {
+        if child.kind() == SyntaxKind::MdMedia {
+          self.emit_media(&child);
+        }
+      }
+    } else {
+      let alt = link.alt().map(|t| t.value()).unwrap_or_default();
+      self.write_escaped(&alt);
+    }
     self.write("</a>");
   }
 

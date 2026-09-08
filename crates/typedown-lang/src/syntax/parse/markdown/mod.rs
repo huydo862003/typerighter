@@ -1518,11 +1518,28 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.expr_ctx_stack.enter(ExprCtx::MdLinkText);
 
     // Collect alt text tokens until `]`, Newline, or EOF
+    // Recognizes `![` as an embedded image (linked image / badge syntax)
     let mut alt_children = vec![];
     loop {
       let peek = self.lex_ctx.peek_md(SKIP_NONE);
       match peek.token.kind() {
         SyntaxKind::RBracket | SyntaxKind::Newline | SyntaxKind::Eof => break,
+        SyntaxKind::MdSymbol
+          if peek.token.chars().collect::<String>() == "!"
+            && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::LBracket =>
+        {
+          // Flush accumulated text before the embedded image
+          if !alt_children.is_empty() {
+            children.push(self.emit(SyntaxKind::MdText, &alt_children));
+            alt_children = vec![];
+          }
+          let (media, handler) = self.parse_media();
+          children.push(media);
+          if let Some(ctx) = handler {
+            self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
+            return (self.emit(SyntaxKind::MdLink, &children), Some(ctx));
+          }
+        }
         _ => {
           if let Some(ctx) = self.consume_or_delegate_md(ExprCtx::MdLinkText, &mut alt_children) {
             children.push(self.emit(SyntaxKind::MdText, &alt_children));
@@ -1536,7 +1553,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.lex_ctx.peek_md(SKIP_NONE).token.kind(),
       SyntaxKind::RBracket
     );
-    children.push(self.emit(SyntaxKind::MdText, &alt_children));
+    if !alt_children.is_empty() {
+      children.push(self.emit(SyntaxKind::MdText, &alt_children));
+    }
 
     // Hit newline or EOF before ]: treat the whole thing as plain text
     if is_unclosed {

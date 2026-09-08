@@ -455,8 +455,20 @@ impl MdLink {
     self.0.children().find_map(MdText::cast)
   }
 
+  // URL is the MdText after the `(` delimiter
+  // For normal links: [alt](url) -> second MdText
+  // For linked images: [![alt](img)](url) -> first (and only) MdText
   pub fn url(&self) -> Option<MdText> {
-    self.0.children().filter_map(MdText::cast).nth(1)
+    let mut found_lparen = false;
+
+    for child in self.0.children() {
+      if child.kind() == SyntaxKind::LParen {
+        found_lparen = true;
+      } else if found_lparen && let Some(text) = MdText::cast(child) {
+        return Some(text);
+      }
+    }
+    None
   }
 }
 
