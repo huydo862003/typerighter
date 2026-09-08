@@ -1,7 +1,5 @@
 use crate::syntax::diagnostic::{Diagnostic, DiagnosticCode};
 use crate::syntax::green::cache::with_green_cache;
-use crate::syntax::green::node::SyntaxNode;
-use crate::syntax::green::token::SyntaxToken;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use crate::{

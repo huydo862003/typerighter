@@ -3,7 +3,7 @@ use crate::syntax::diagnostic::Diagnostic;
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived};
 
-use crate::db::types::{File, Project};
+use crate::db::types::Project;
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };

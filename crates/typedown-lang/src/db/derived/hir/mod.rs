@@ -507,7 +507,7 @@ fn lower_source_file<'db>(
 mod tests {
   use super::lower_node;
   use crate::db::fixtures::load_vault_fixture;
-  use crate::db::types::FileRedNode;
+
   use crate::db::types::{HirValueKind, InterpolatedPart};
   use crate::db::utils::lower_file;
   use crate::syntax::diagnostic::Diagnostic;
