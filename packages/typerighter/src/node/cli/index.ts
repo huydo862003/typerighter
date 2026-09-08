@@ -109,17 +109,29 @@ export function cli () {
     .action(async (root: string | undefined, options: {
       port?: number;
     }) => {
-      const {
-        preview,
-      } = await import('vite');
-      const server = await preview({
-        root: resolveRoot(root),
-        preview: {
-          port: options.port,
-        },
-      });
+      const resolvedRoot = resolveRoot(root);
+      const context = createAppContext(resolvedRoot);
 
-      server.printUrls();
+      try {
+        const tdContext = await context.getTdContext();
+        const config = await tdContext.getConfig();
+        const basePath = config.basePath;
+
+        const {
+          preview,
+        } = await import('vite');
+        const server = await preview({
+          root: resolvedRoot,
+          base: basePath,
+          preview: {
+            port: options.port,
+          },
+        });
+
+        server.printUrls();
+      } finally {
+        context.dispose();
+      }
     });
 
   program

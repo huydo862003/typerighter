@@ -12,3 +12,4 @@ output/
 
 # tree-sitter
 editors/tree-sitter/src
+perf.data
