@@ -58,9 +58,11 @@ pub fn connect_tcp(addr: &str, port: u16) -> anyhow::Result<(Connection, IoHandl
   });
 
   let writer = std::thread::spawn(move || {
-    writer_receiver.into_iter().for_each(|msg| {
-      msg.write(&mut writer_stream).unwrap();
-    });
+    for msg in writer_receiver {
+      if msg.write(&mut writer_stream).is_err() {
+        break;
+      }
+    }
   });
 
   let connection = Connection {
