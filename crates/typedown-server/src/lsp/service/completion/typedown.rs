@@ -1,4 +1,5 @@
 use typedown_incremental::StableCompare;
+use typedown_lang::db::derived::name_resolver::scope::get_project_scope;
 use typedown_lang::db::utils::{is_content_file, is_type_file};
 
 use crate::lsp::service::utils::symbol::get_resource_label;
@@ -17,7 +18,7 @@ use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_t
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
-  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdStaticType, TdTypeEnum,
+  File, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::{AstNode, Expr};
@@ -302,7 +303,7 @@ fn enclosing_mapping_type<'db>(
 
   // Explicit _type in this mapping
   if let Some(schema_name) = get_mapping_schema_name(&mapping) {
-    let scope = Scope::project_scope(db, project);
+    let scope = get_project_scope(db, project);
     let symbol = *members(db, scope).members(db).get(&schema_name)?;
     let typ = evaluate_type(db, symbol).typ(db)?;
     return Some((typ, mapping));
@@ -437,7 +438,7 @@ fn resolve_field_type_from_schema<'db>(
   key: &str,
 ) -> Option<TdTypeEnum<'db>> {
   let schema_name = get_mapping_schema_name(mapping)?;
-  let scope = Scope::project_scope(db, project);
+  let scope = get_project_scope(db, project);
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let typ = evaluate_type(db, symbol).typ(db)?;
   let schema = typ.as_td_schema_type()?;
@@ -456,7 +457,7 @@ fn keyword_item(label: &str) -> CompletionItem {
 
 // Suggest all user-defined schema names visible in the project scope
 fn schema_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
-  let scope = Scope::project_scope(db, project);
+  let scope = get_project_scope(db, project);
   members(db, scope)
     .members(db)
     .iter()

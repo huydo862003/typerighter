@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use typedown_lang::db::derived::name_resolver::scope::get_project_scope;
 
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Range};
 
@@ -115,7 +116,7 @@ fn field_key_definition(
   let schema_name = get_mapping_schema_name(&mapping)?;
 
   // Resolve the schema and walk the _extends chain to find the file that defines the field
-  let scope = Scope::project_scope(db, project);
+  let scope = get_project_scope(db, project);
   let sym = *members(db, scope).members(db).get(&schema_name)?;
   let (schema_file, field_offset) =
     find_field_in_schema_chain(db, project, sym, &key_text, &scope)?;
