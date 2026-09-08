@@ -255,6 +255,31 @@ let val = some_expression();
 let witness = phantom(&val);  // Wrapper<TypeOfVal> without naming the type
 ```
 
+### Incremental Cache: Identity Map Dedup
+
+The identity map only deduplicates derived structs within a single parent query execution. If `Scope::new(db, ScopeKind::Project(project))` is called from two different `#[query_derived]` functions (e.g. `parent_scope(file_1)` and `parent_scope(file_2)`), each creates a separate entry because the identity map is keyed by `(parent_entry_id, id_fields)`.
+
+For singleton-like structs (e.g. builtin scope, project scope), always create them through a dedicated `#[query_derived]` function so the identity map lives in one place:
+
+```rust
+// Good: always returns the same entry
+#[query_derived]
+fn get_project_scope(db, project) -> Scope { Scope::new(db, ScopeKind::Project(project)) }
+
+// Bad: each caller creates a duplicate
+fn some_query(db, scope) -> Foo {
+  let parent = Scope::new(db, ScopeKind::Project(project)); // duplicate per caller
+}
+```
+
+### Incremental Cache: StableHash on Derived Structs
+
+Macro-generated `StableHash` for derived structs reads every field via `try_<field>(db)`, then recursively hashes nested derived struct fields. This can be expensive (deep tree walks through DashMap reads) and can deadlock under concurrent execution if fingerprints are computed eagerly.
+
+Known mitigations:
+- `HirValueKind`: discriminant-only hash since `(project, file_red_node)` key already captures identity
+- `FileRedNode`: O(1) hash via `(offset, kind, text_len)` instead of recursive tree walk
+
 ### LSP: Dynamic vs Static Registration
 
 When a client advertises `dynamicRegistration: true` for `workspace.fileOperations` (as VSCode does), some clients **ignore** static capabilities declared in `InitializeResult`. The server must use `client/registerCapability` to dynamically register for `workspace/willRenameFiles` and `workspace/didRenameFiles` at runtime.
