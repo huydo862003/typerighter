@@ -47,7 +47,7 @@ export class JsonRpcClient implements MessageConnection {
   // Request/response matching
   private sequenceNumber = 1;
   private responsePromises = new Map<number, PendingRequest>();
-  private notificationHandlers = new Map<string, (params: unknown) => void>();
+  private notificationHandlers = new Map<string, Array<(params: unknown) => void>>();
 
   // Inbound buffer, raw chunks to avoid corrupting multi-byte UTF-8
   private chunks: Buffer[] = [];
@@ -121,9 +121,17 @@ export class JsonRpcClient implements MessageConnection {
 
   // https://github.com/microsoft/vscode-languageserver-node/blob/5010cdf9822e1038a30ee7eb6ee5d7aaa79acc4a/jsonrpc/src/common/connection.ts#L557
   onNotification (method: string, handler: (params: any) => void): Disposable {
-    this.notificationHandlers.set(method, handler);
+    const handlers = this.notificationHandlers.get(method) ?? [];
+    handlers.push(handler);
+    this.notificationHandlers.set(method, handlers);
     return {
-      dispose: () => this.notificationHandlers.delete(method),
+      dispose: () => {
+        const list = this.notificationHandlers.get(method);
+        if (list) {
+          const idx = list.indexOf(handler);
+          if (idx !== -1) list.splice(idx, 1);
+        }
+      },
     };
   }
 
@@ -193,14 +201,16 @@ export class JsonRpcClient implements MessageConnection {
   }
 
   private handleNotification (notification: NotificationMessage): void {
-    const handler = this.notificationHandlers.get(notification.method);
+    const handlers = this.notificationHandlers.get(notification.method);
 
-    if (!handler) return;
+    if (!handlers?.length) return;
 
-    try {
-      handler(notification.params);
-    } catch (error) {
-      console.error(`[jsonrpc] Notification handler for '${notification.method}' threw:`, error);
+    for (const handler of handlers) {
+      try {
+        handler(notification.params);
+      } catch (error) {
+        console.error(`[jsonrpc] Notification handler for '${notification.method}' threw:`, error);
+      }
     }
   }
 
