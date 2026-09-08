@@ -1681,7 +1681,7 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
-      "<LucideIcon name=\"arrow-up-right\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noreferrer\">link text</a>"
+      "<LucideIcon name=\"arrow-up-right\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">link text</a>"
     ));
   }
 
@@ -1826,5 +1826,42 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
     let exported = export_resource_meta(&db, project, file).expect("body-only file should export");
     assert!(exported.schema.is_none());
+  }
+
+  #[test]
+  fn html_linked_image_badge() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "linked_image.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("<a href=\"mailto:huydo862003@gmail.com\""),
+      "should contain mailto link: {content}",
+    );
+    assert!(
+      content.contains(
+        "<img src=\"https://img.shields.io/badge/Email-blue\" alt=\"Email badge\" loading=\"lazy\">"
+      ),
+      "should contain image inside link: {content}",
+    );
+    assert!(
+      !content.contains("LucideIcon"),
+      "mailto links should not have arrow icon: {content}",
+    );
+  }
+
+  #[test]
+  fn html_export_body_only_nested_vault() {
+    let (db, project, file) = load_vault_fixture("evaluate/nested_vault", "vault/body_only.td");
+    let exported = export_resource_html(&db, project, file);
+    assert!(
+      exported.is_some(),
+      "body-only file in nested vault should export"
+    );
+    let exported = exported.unwrap();
+    assert!(
+      exported
+        .content
+        .contains("<p>This file has no frontmatter.</p>")
+    );
   }
 }

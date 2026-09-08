@@ -22,7 +22,7 @@ pub fn main() -> anyhow::Result<()> {
       .ok()
       .and_then(|port_str| port_str.parse::<u16>().ok())
       .unwrap_or(0);
-    transport::connect_tcp(&addr, port)
+    transport::connect_tcp(&addr, port).map(|(conn, io, _)| (conn, io))
   }?;
 
   // File logger available immediately, before handshake

@@ -77,5 +77,9 @@ pub fn connect_tcp(
     sender: writer_sender,
     receiver: reader_receiver,
   };
-  Ok((connection, IoHandle::Tcp { reader, writer }, shutdown_socket))
+  Ok((
+    connection,
+    IoHandle::Tcp { reader, writer },
+    shutdown_socket,
+  ))
 }

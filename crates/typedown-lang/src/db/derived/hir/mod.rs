@@ -449,7 +449,15 @@ fn lower_frontmatter<'db>(
   let fm = YamlFrontmatter::cast(node.clone()).expect("node must be a YamlFrontmatter");
   match fm.mapping() {
     Some(mapping) => lower_node(db, project, file, mapping.syntax().clone()),
-    None => HirValue::new(db, project, file, node, HirValueKind::Null, vec![]),
+    // Empty frontmatter (or no frontmatter) produces an empty mapping
+    None => HirValue::new(
+      db,
+      project,
+      file,
+      node,
+      HirValueKind::Mapping(vec![]),
+      vec![],
+    ),
   }
 }
 
