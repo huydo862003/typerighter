@@ -86,6 +86,11 @@ export class VirtualSiteData implements VirtualModule {
       });
   }
 
+  // Fetch and block until data is ready (for production builds)
+  async fetchSync (context: TypedownContext): Promise<void> {
+    this.data = await fetchFromRpc(context);
+  }
+
   invalidate (server: ViteDevServer): void {
     invalidateVirtualModule(server, RESOLVED_ID);
   }

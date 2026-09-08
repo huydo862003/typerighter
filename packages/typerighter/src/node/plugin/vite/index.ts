@@ -110,6 +110,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const tdConfig = await tdContext.getConfig();
 
       return {
+        base: userConfig.base ?? tdConfig.basePath,
         publicDir: tdConfig.publicDir,
         server: {
           port: 8686,
@@ -134,6 +135,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       if (server) return;
 
       const tdContext = await resolveTdContext();
+      const config = await tdContext.getConfig();
+      const rootDirectory = resolve(config.rootDir);
+
+      // Eagerly populate site data and search index for the client bundle
+      virtualSearchIndex.index(rootDirectory);
+      await virtualSiteData.fetchSync(tdContext);
+
       const report = await tdContext.checkVault();
 
       printDiagnostics(report.diagnostics);
