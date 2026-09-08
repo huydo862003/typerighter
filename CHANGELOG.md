@@ -1,3 +1,40 @@
+## [0.27.0] - 2026-09-08
+
+### Features
+
+* crates/typedown-lang
+  - Support linked images / badge syntax: `[![alt](img-url)](link-url)`
+  - Body-only files (no frontmatter) now produce a proper empty product instead of null
+
+### Perf
+
+* crates/typedown-lang
+  - O(1) `StableHash` for `RedNode` via `FileRedNode` wrapper (offset + kind + text_len instead of recursive tree walk)
+
+* crates/typedown-server
+  - Timeout cache dump to prevent hanging on large vaults (10s limit)
+  - Graceful SIGINT handling via `ctrlc` for cache persistence
+
+* packages/typerighter
+  - Instant sidebar via disk scan (bypass RPC for initial load)
+  - Lazy site data loading (app mounts immediately, sidebar fills via HMR)
+  - Disk-based search indexing (1251 RPC calls replaced with `globSync`)
+  - Eagerly populate site data and search index in production builds
+
+### Fixes
+
+* crates/typedown-lang
+  - Add `noopener` to all external link `rel` attributes
+
+* crates/typedown-server
+  - Gracefully handle write stream failure in TCP transport
+
+* packages/typerighter
+  - Auto-detect `basePath` from `typedown.yaml` for preview and dev commands
+  - Fix HMR issues for sidebar virtual module
+  - Support multiple notification handlers in RPC client
+  - Eagerly fetch site data and search index during production builds
+
 ## [0.26.0] - 2026-09-07
 
 ### Perf
