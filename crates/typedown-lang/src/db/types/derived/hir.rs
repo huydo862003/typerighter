@@ -62,47 +62,10 @@ pub enum HirValueKind<'db> {
   },
 }
 
+// Discriminant-only: the key already captures (project, file_red_node) so HIR kind is deterministic
 impl<'db> StableHash for HirValueKind<'db> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    std::mem::discriminant(self).stable_hash(db, hasher);
-    match self {
-      HirValueKind::Str(v)
-      | HirValueKind::Num(v)
-      | HirValueKind::Math(v)
-      | HirValueKind::Ident(v) => v.stable_hash(db, hasher),
-      HirValueKind::Bool(v) => v.stable_hash(db, hasher),
-      HirValueKind::Null => {}
-      HirValueKind::Mapping(entries) => entries.stable_hash(db, hasher),
-      HirValueKind::Sequence(items) => items.stable_hash(db, hasher),
-      HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
-        parts.stable_hash(db, hasher)
-      }
-      HirValueKind::Tag { tag, inner } => {
-        tag.stable_hash(db, hasher);
-        inner.stable_hash(db, hasher);
-      }
-      HirValueKind::Prefix { op, operand } | HirValueKind::Postfix { op, operand } => {
-        op.stable_hash(db, hasher);
-        operand.stable_hash(db, hasher);
-      }
-      HirValueKind::Binary { op, left, right } => {
-        op.stable_hash(db, hasher);
-        left.stable_hash(db, hasher);
-        right.stable_hash(db, hasher);
-      }
-      HirValueKind::Call { callee, args } => {
-        callee.stable_hash(db, hasher);
-        args.stable_hash(db, hasher);
-      }
-      HirValueKind::Index { expr, indices } => {
-        expr.stable_hash(db, hasher);
-        indices.stable_hash(db, hasher);
-      }
-      HirValueKind::Closure { params, body } => {
-        params.stable_hash(db, hasher);
-        body.stable_hash(db, hasher);
-      }
-    }
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    std::mem::discriminant(self).stable_hash(_db, hasher);
   }
 }
 
