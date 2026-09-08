@@ -343,12 +343,16 @@ pub(crate) fn resolve_property_descriptor<'db>(
   }
 
   let default_obj = default_val.and_then(|def_hir| {
-    let file_scope = get_file_runtime_scope(db, def_hir.project(db), def_hir.file(db));
+    let file_scope = get_file_runtime_scope(db, def_hir.project(db), def_hir.node(db).owner_file);
     evaluate_node(db, def_hir, file_scope).value(db)
   });
 
   let computed_fn = computed_fn_val.and_then(|computed_hir| {
-    let scope = get_file_runtime_scope(db, computed_hir.project(db), computed_hir.file(db));
+    let scope = get_file_runtime_scope(
+      db,
+      computed_hir.project(db),
+      computed_hir.node(db).owner_file,
+    );
     let res = evaluate_node(db, computed_hir, scope);
     diagnostics.extend(res.diagnostics(db).iter().cloned());
     let val = res.value(db)?;
@@ -1210,7 +1214,7 @@ mod tests {
     let db = make_db();
     let hir = make_hir(&db, "---\nname: \"Alice\"\nage: 42\n---");
     let val_hir = get_field_hir(&db, hir, "name");
-    let scope = get_file_runtime_scope(&db, val_hir.project(&db), val_hir.file(&db));
+    let scope = get_file_runtime_scope(&db, val_hir.project(&db), val_hir.node(&db).owner_file);
     let obj = construct_from_hir(&db, val_hir, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "Alice");
   }
@@ -1388,7 +1392,7 @@ result: ((x) -> x + 1)(3)
 ---"#,
     );
     let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 4.0);
   }
@@ -1403,7 +1407,7 @@ result: ((x, y) -> x + y)(10, 20)
 ---"#,
     );
     let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 30.0);
   }
@@ -1418,7 +1422,7 @@ result: ((x) -> x)("hello")
 ---"#,
     );
     let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_str_obj().unwrap().value(&db), "hello");
   }
@@ -1440,7 +1444,7 @@ result: ((x) -> (y) -> x + y)(10)(20)
 ---"#,
         );
         let field = get_field_hir(&db, hir, "result");
-        let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+        let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
         let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
         assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 30.0);
       })
@@ -1459,7 +1463,7 @@ f: (x) -> x + 1
 ---"#,
     );
     let field = get_field_hir(&db, hir, "f");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert!(obj.as_td_func_obj().is_some());
   }
@@ -1475,7 +1479,7 @@ result: ((x, y) -> x && y)(true, false)
 ---"#,
     );
     let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert!(!obj.as_td_bool_obj().unwrap().value(&db));
   }
@@ -1491,7 +1495,7 @@ result: ((f, x) -> f(x))((x) -> x + 10, 5)
 ---"#,
     );
     let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_num_obj().unwrap().value(&db), 15.0);
   }
@@ -1507,7 +1511,7 @@ result: ((x) -> x > 5)(10)
 ---"#,
     );
     let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.file(&db));
+    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
     let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
     assert!(obj.as_td_bool_obj().unwrap().value(&db));
   }

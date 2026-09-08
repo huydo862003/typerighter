@@ -51,7 +51,7 @@ pub fn lower_file(
 ) -> (Option<HirValue<'_>>, Vec<Diagnostic>) {
   let parse_result = parse_file(db, project, file);
   let diagnostics = parse_result.diagnostics(db).to_vec();
-  let root = parse_result.ast(db);
+  let root = parse_result.ast(db).node.clone();
   if SourceFile::cast(root.clone()).is_none() {
     return (None, diagnostics);
   }
@@ -62,7 +62,7 @@ pub fn lower_file(
 /// Check if a file has no frontmatter (schemaless)
 pub fn is_schemaless_file(db: &TypedownDatabase, project: Project, file: File) -> bool {
   let result = parse_file(db, project, file);
-  let root = result.ast(db);
+  let root = result.ast(db).node.clone();
   let source_file = match SourceFile::cast(root) {
     Some(source_file) => source_file,
     None => return false,

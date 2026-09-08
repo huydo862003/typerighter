@@ -33,7 +33,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
 
   // Parse the current file
   let file = *project.files(db).get(&path)?;
-  let root_node = parse_file(db, project, file).ast(db);
+  let root_node = parse_file(db, project, file).ast(db).node.clone();
   let rope = analysis.file_rope(&path)?;
 
   // Get the hovered node

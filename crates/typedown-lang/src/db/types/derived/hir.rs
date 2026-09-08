@@ -1,22 +1,20 @@
+use super::FileRedNode;
 use crate::syntax::diagnostic::Diagnostic;
-use crate::syntax::red::RedNode;
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived};
 
-use crate::db::types::{File, Project};
+use crate::db::types::Project;
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
-/// A lowered YAML value, source-tracked via its originating project, file, and red node.
+/// A lowered YAML value, source-tracked via its originating project and file red node
 #[query_derived]
 pub struct HirValue<'db> {
   #[id]
   pub project: Project,
   #[id]
-  pub file: File,
-  #[id]
-  pub node: RedNode,
+  pub node: FileRedNode,
   pub kind: HirValueKind<'db>,
   pub diagnostics: Vec<Diagnostic>,
 }

@@ -48,7 +48,7 @@ pub fn find_symbol_at_cursor(
   file: File,
   offset: usize,
 ) -> Option<CursorSymbol> {
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let node = node_at_offset(root, offset)?;
 
   if let Some(call_expr) = containing_fref_expr(&node) {

@@ -234,7 +234,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
   };
 
   let parse_result = parse_file(db, project, file);
-  let root = parse_result.ast(db);
+  let root = parse_result.ast(db).node.clone();
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
 
@@ -1064,7 +1064,7 @@ pub(super) fn evaluate_lazy_field<'db>(
   match field {
     Either::Right(obj) => Some(obj),
     Either::Left(hir) => {
-      let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+      let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
       evaluate_node(db, hir, file_scope).value(db)
     }
   }

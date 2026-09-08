@@ -90,7 +90,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
       MembersResult::new(db, members)
     }
     ScopeKind::Fn(project, file, value) => {
-      let func = value.node(db);
+      let func = value.node(db).node.clone();
       let closure = ClosureExpr::cast(func).expect("expected ClosureExpr");
       let mut members = BTreeMap::new();
 

@@ -39,8 +39,8 @@ struct AnchorResult<'db> {
 #[query_derived(no_hash)]
 pub fn expected_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
   let project = hir.project(db);
-  let file = hir.file(db);
-  let node = hir.node(db);
+  let file = hir.node(db).owner_file;
+  let node = hir.node(db).node.clone();
 
   // Expression nodes propagate expected types through expression structure
   if !is_top_level(&node) {
@@ -84,9 +84,9 @@ pub fn expected_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) ->
 
 // Propagate expected type through expression structure
 fn get_expected_expr_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypeResult<'db> {
-  let node = hir.node(db);
+  let node = hir.node(db).node.clone();
   let project = hir.project(db);
-  let file = hir.file(db);
+  let file = hir.node(db).owner_file;
 
   let parent = match node.parent() {
     Some(p) => p,

@@ -166,7 +166,6 @@ impl RpcServer {
 
   pub fn shutdown(self) {
     self.thread_pool.join();
-    // Drop the watcher to close the FS event channel, unblocking the FS thread
     drop(self._watcher);
     let _ = self.fs_thread.join();
 
@@ -182,9 +181,25 @@ impl RpcServer {
           .storage
           .revision
           .load(std::sync::atomic::Ordering::Acquire) as u64;
-        let serialized = db.dump();
-        if let Err(err) = self.cache_session.finalize(&serialized, revision) {
-          log::error!("Failed to save incremental cache: {err}");
+
+        // Run db.dump() with a timeout to prevent hanging on large vaults
+        let dump_timeout = std::time::Duration::from_secs(10);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let dump_thread = std::thread::spawn(move || {
+          let serialized = db.dump();
+          let _ = tx.send(serialized);
+        });
+
+        match rx.recv_timeout(dump_timeout) {
+          Ok(serialized) => {
+            if let Err(err) = self.cache_session.finalize(&serialized, revision) {
+              log::error!("Failed to save incremental cache: {err}");
+            }
+          }
+          Err(_) => {
+            log::warn!("Cache dump timed out after {dump_timeout:?}, skipping save");
+            drop(dump_thread);
+          }
         }
       }
     }
@@ -713,7 +728,7 @@ fn format_file(analysis: &Analysis, file_path: &str) -> RpcResult<TdFormatResult
     .get(&path)
     .ok_or_else(|| RpcError::invalid_params(format!("File not found: {file_path}")))?;
 
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let source_file = SourceFile::cast(root.clone())
     .ok_or_else(|| RpcError::invalid_params("Failed to parse file"))?;
 
@@ -749,7 +764,7 @@ fn collect_file_diagnostics(
   let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
   // Typecheck and name resolution errors
-  let root = parse_result.ast(db);
+  let root = parse_result.ast(db).node.clone();
   let hir = lower_node(db, project, file, root);
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
@@ -796,7 +811,7 @@ fn collect_file_diagnostics(
   }
 
   // Lint warnings
-  if let Some(body) = SourceFile::cast(parse_result.ast(db)).and_then(|sf| sf.body()) {
+  if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
     for lint in lint_markdown(&body) {
       let start = lint.start_offset.min(rope.len_chars());
       let l = rope.char_to_line(start);

@@ -88,7 +88,7 @@ mod tests {
   use crate::db::derived::hir::lower_node;
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
-  use crate::db::types::{HirValue, HirValueKind, SymbolKind};
+  use crate::db::types::{FileRedNode, HirValue, HirValueKind, SymbolKind};
   use crate::db::utils::lower_file;
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
@@ -124,28 +124,25 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
 
     // Construct a fref("nonexistent.td") HIR node manually
-    let node = parse_file(&db, project, file).ast(&db);
+    let node = parse_file(&db, project, file).ast(&db).node.clone();
     let callee = HirValue::new(
       &db,
       project,
-      file,
-      node.clone(),
+      FileRedNode::new(file, node.clone()),
       HirValueKind::Ident("fref".to_string()),
       vec![],
     );
     let arg = HirValue::new(
       &db,
       project,
-      file,
-      node.clone(),
+      FileRedNode::new(file, node.clone()),
       HirValueKind::Str("nonexistent.td".to_string()),
       vec![],
     );
     let call_hir = HirValue::new(
       &db,
       project,
-      file,
-      node,
+      FileRedNode::new(file, node),
       HirValueKind::Call {
         callee: callee.into(),
         args: vec![arg],

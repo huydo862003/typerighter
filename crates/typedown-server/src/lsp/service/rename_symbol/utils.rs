@@ -27,7 +27,7 @@ pub fn collect_reference_edits(
   let mut edits: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
 
   for r in refs {
-    let ref_path = r.hir.file(db).handle(db).path()?.clone();
+    let ref_path = r.hir.node(db).owner_file.handle(db).path()?.clone();
     let ref_rope = analysis.file_rope(&ref_path)?;
     let node = r.hir.node(db);
 

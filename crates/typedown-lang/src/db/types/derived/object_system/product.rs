@@ -108,7 +108,7 @@ impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     match self.fields(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
         evaluate_node(db, hir, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),
@@ -118,7 +118,7 @@ impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {
   fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjectEnum<'db>> {
     match self.builtins(db).get(key).cloned() {
       Some(Either::Left(hir)) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.file(db));
+        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
         evaluate_node(db, hir, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),

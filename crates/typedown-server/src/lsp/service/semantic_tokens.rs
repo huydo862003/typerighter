@@ -42,7 +42,7 @@ pub fn semantic_tokens_full(
   let file = *project.files(db).get(&path)?;
 
   // Collect tokens from the AST
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let mut raw: Vec<(usize, usize, SemanticTokenType, u32)> = Vec::new();
   collect_tokens(root, &mut raw);
 
@@ -152,7 +152,7 @@ mod tests {
       PathBuf::from("/"),
       BTreeMap::from([(path.clone(), file)]),
     );
-    let ast = parse_file(&db, project, file).ast(&db);
+    let ast = parse_file(&db, project, file).ast(&db).node.clone();
     let mut raw = Vec::new();
     collect_tokens(ast, &mut raw);
     raw

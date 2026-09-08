@@ -31,7 +31,7 @@ pub fn code_action(analysis: &Analysis, params: CodeActionParams) -> Option<Code
 
   let path = uri_to_path(&params.text_document.uri)?;
   let file = *project.files(db).get(&path)?;
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
   let source = SourceFile::cast(root.clone())?;
 
   let mut actions: Vec<lsp_types::CodeActionOrCommand> = Vec::new();

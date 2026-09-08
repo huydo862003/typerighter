@@ -14,7 +14,7 @@ pub struct MaybeScope<'db> {
 #[query_derived]
 pub fn scope<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Scope<'db> {
   let project = hir.project(db);
-  let file = hir.file(db);
+  let file = hir.node(db).owner_file;
   let node = hir.node(db);
 
   // Walk successively up to find the closest closure and return file symbol once reaching root

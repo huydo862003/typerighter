@@ -22,7 +22,7 @@ pub fn inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Option<Vec<I
   let path = uri_to_path(&params.text_document.uri)?;
   let file = *project.files(db).get(&path)?;
   let rope = analysis.file_rope(&path)?;
-  let root = parse_file(db, project, file).ast(db);
+  let root = parse_file(db, project, file).ast(db).node.clone();
 
   let mut hints = Vec::new();
   collect_fref_hints(db, project, file, &root, &rope, &mut hints);
