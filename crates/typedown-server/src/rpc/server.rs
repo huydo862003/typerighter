@@ -166,7 +166,6 @@ impl RpcServer {
 
   pub fn shutdown(self) {
     self.thread_pool.join();
-    // Drop the watcher to close the FS event channel, unblocking the FS thread
     drop(self._watcher);
     let _ = self.fs_thread.join();
 
@@ -182,9 +181,25 @@ impl RpcServer {
           .storage
           .revision
           .load(std::sync::atomic::Ordering::Acquire) as u64;
-        let serialized = db.dump();
-        if let Err(err) = self.cache_session.finalize(&serialized, revision) {
-          log::error!("Failed to save incremental cache: {err}");
+
+        // Run db.dump() with a timeout to prevent hanging on large vaults
+        let dump_timeout = std::time::Duration::from_secs(10);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let dump_thread = std::thread::spawn(move || {
+          let serialized = db.dump();
+          let _ = tx.send(serialized);
+        });
+
+        match rx.recv_timeout(dump_timeout) {
+          Ok(serialized) => {
+            if let Err(err) = self.cache_session.finalize(&serialized, revision) {
+              log::error!("Failed to save incremental cache: {err}");
+            }
+          }
+          Err(_) => {
+            log::warn!("Cache dump timed out after {dump_timeout:?}, skipping save");
+            drop(dump_thread);
+          }
         }
       }
     }
