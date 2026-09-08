@@ -4,12 +4,10 @@ use std::{
   hash::Hash,
   panic::{AssertUnwindSafe, catch_unwind, panic_any, resume_unwind},
   sync::{
-    Arc, Mutex,
+    Arc,
     atomic::{AtomicU32, Ordering},
   },
 };
-
-use indexmap::IndexSet;
 
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
@@ -24,32 +22,6 @@ use dashmap::DashMap;
 use super::{DerivedQueryIngredient, IdDashMap, Ingredient};
 
 pub const LRU_CAPACITY: usize = 1024;
-
-// LRU tracker for derived query memos
-#[derive(Default)]
-pub struct Lru {
-  access_order: Mutex<IndexSet<u32>>, // oldest first
-}
-
-impl Lru {
-  // Record access, no eviction
-  pub fn touch(&self, entry_id: u32) {
-    let mut order = self.access_order.lock().unwrap();
-    order.shift_remove(&entry_id);
-    order.insert(entry_id);
-  }
-
-  pub fn drain_evicted(&self) -> Vec<u32> {
-    let mut order = self.access_order.lock().unwrap();
-    let mut evicted = Vec::new();
-    while order.len() > LRU_CAPACITY {
-      if let Some(id) = order.shift_remove_index(0) {
-        evicted.push(id);
-      }
-    }
-    evicted
-  }
-}
 
 /// A dependency recorded during a derived query execution
 #[derive(Clone)]
@@ -96,7 +68,6 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   #[doc(hidden)]
   pub data: Arc<IdDashMap<QueryState<K, V>>>, // entry_id -> state
   identity_maps: IdentityMapTable,
-  lru: Arc<Lru>, // For stale entry eviction
   pub no_hash_flag: bool,
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicU32>,
@@ -178,7 +149,6 @@ impl<
       intern_map: Arc::new(DashMap::new()),
       data: Arc::new(IdDashMap::default()),
       identity_maps: Arc::new(DashMap::new()),
-      lru: Arc::new(Lru::default()),
       no_hash_flag: false,
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicU32::new(0)),
@@ -310,8 +280,6 @@ impl<
         ctx.dependencies.push(Dependency { dep_id, changed_at });
       }
     });
-
-    self.lru.touch(entry_id);
 
     value
   }
@@ -561,7 +529,28 @@ impl<
 > super::DerivedQueryIngredient for DerivedQueryIngredientStore<DB, K, V>
 {
   fn reset_for_new_revision(&self) {
-    for entry_id in self.lru.drain_evicted() {
+    // Evict entries not verified in recent revisions
+    if self.data.len() <= LRU_CAPACITY {
+      return;
+    }
+    let mut entries: Vec<(u32, u32)> = self
+      .data
+      .iter()
+      .filter_map(|entry| {
+        if let QueryState::Computed(memo) = &*entry {
+          Some((*entry.key(), memo.verified_at.load(Ordering::Relaxed)))
+        } else {
+          None
+        }
+      })
+      .collect();
+    if entries.len() <= LRU_CAPACITY {
+      return;
+    }
+    // Sort by verified_at ascending (oldest first)
+    entries.sort_unstable_by_key(|&(_, rev)| rev);
+    let evict_count = entries.len() - LRU_CAPACITY;
+    for &(entry_id, _) in entries.iter().take(evict_count) {
       self.data.remove(&entry_id);
     }
   }

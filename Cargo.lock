@@ -1389,7 +1389,6 @@ version = "0.27.0"
 dependencies = [
  "dashmap",
  "fs2",
- "indexmap",
  "inventory",
  "memmap2",
  "rand",
