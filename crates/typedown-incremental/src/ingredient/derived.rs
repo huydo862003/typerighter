@@ -743,7 +743,8 @@ impl<
 pub struct DerivedFieldIngredientStore<T> {
   ingredient_id: DepId,
   field_index: u8,
-  name: &'static str,
+  // Parent struct name, shared across sibling fields so they map to the same entry ID
+  struct_name: &'static str,
   pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
   pub data: Arc<IdDashMap<StampedDerivedField<T>>>,
@@ -753,7 +754,7 @@ pub struct DerivedFieldIngredientStore<T> {
 impl<T> std::fmt::Debug for DerivedFieldIngredientStore<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("DerivedFieldIngredientStore")
-      .field("name", &self.name)
+      .field("struct_name", &self.struct_name)
       .finish_non_exhaustive()
   }
 }
@@ -765,14 +766,14 @@ impl<T> DerivedFieldIngredientStore<T> {
 
   pub fn new(
     ingredient_id: DepId,
-    name: &'static str,
+    struct_name: &'static str,
     field_index: u8,
     id_counter: &'static AtomicU32,
   ) -> Self {
     Self {
       ingredient_id,
       field_index,
-      name,
+      struct_name,
       id_counter,
       data: Arc::new(IdDashMap::default()),
       no_hash_flag: false,
@@ -785,11 +786,11 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
-    self.name.to_string()
+    self.struct_name.to_string()
   }
 
   fn name_fingerprint(&self) -> Fingerprint {
-    Fingerprint::from_name(self.name)
+    Fingerprint::from_name(self.struct_name)
   }
 
   fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
