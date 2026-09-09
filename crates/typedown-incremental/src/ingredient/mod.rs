@@ -71,6 +71,8 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 
   fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_>;
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
+
   /// Number of times the query function was actually invoked (not served from cache)
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize;
@@ -79,8 +81,6 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 /// Input field ingredient (leaf node, ground truth)
 pub trait InputIngredient: Ingredient {
   fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool;
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
   fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
@@ -92,8 +92,6 @@ pub trait InputIngredient: Ingredient {
 
 /// Interned ingredient (leaf node, never changes)
 pub trait InternedIngredient: Ingredient {
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
-
   fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
   /// Load a dep node into this ingredient's storage
@@ -113,8 +111,6 @@ pub trait DerivedQueryIngredient: Ingredient {
 
   fn re_execute(&self, db: &dyn QueryDatabase, entry_id: EntryId);
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
-
   fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 
   /// Load a dep node into this ingredient's storage
@@ -131,8 +127,6 @@ pub trait DerivedFieldIngredient: Ingredient {
   fn remove_entry(&self, entry_id: EntryId);
 
   fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool;
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint>;
 
   fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
 

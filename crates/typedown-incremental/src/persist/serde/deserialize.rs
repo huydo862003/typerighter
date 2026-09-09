@@ -9,7 +9,7 @@ use crate::{Decoder, Fingerprint, QueryStorage};
 
 /// A group of field dep nodes that belong to the same struct entry
 pub struct FieldGroup {
-  pub fields: Vec<(u8, DepNodeIndex)>,
+  pub fields: Vec<(u8 /* field index within the struct */, DepNodeIndex)>,
 }
 
 /// All state needed for lazy deserialization from a previous session
@@ -17,10 +17,10 @@ pub struct DeserializeContext {
   pub serialized: SerializedQueryStorage,
   pub decoder: Decoder,
   fingerprint_map: OnceLock<HashMap<Fingerprint, Vec<DepNodeIndex>>>,
-  /// DerivedField nodes grouped by (name, serialized entry_id) for atomic deserialization
-  pub derived_groups: HashMap<(Fingerprint, u64), FieldGroup>,
-  /// (name, serialized entry_id) -> current session entry_id
-  pub entry_id_map: DashMap<(Fingerprint, u64), u32>,
+  /// DerivedField nodes grouped by (struct_name, serialized entry_id) for atomic deserialization
+  pub derived_groups: HashMap<(Fingerprint, u32), FieldGroup>,
+  /// (struct_name, serialized entry_id) -> current session entry_id
+  pub entry_id_map: DashMap<(Fingerprint, u32), u32>,
   /// Per-kind name -> ingredient indices
   inputs_by_name: HashMap<Fingerprint, Vec<usize>>,
   interned_by_name: HashMap<Fingerprint, Vec<usize>>,
@@ -45,7 +45,7 @@ impl DeserializeContext {
       .expect("QueryStorage must be alive during DeserializeContext creation");
     let intern_blobs = Arc::new(serialized.interned_blobs.records.clone());
 
-    let mut derived_groups: HashMap<(Fingerprint, u64), FieldGroup> = HashMap::new();
+    let mut derived_groups: HashMap<(Fingerprint, u32), FieldGroup> = HashMap::new();
     for (i, node) in serialized.dep_graph.nodes.iter().enumerate() {
       if let DepNode::DerivedField {
         name,

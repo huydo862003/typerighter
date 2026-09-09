@@ -9,14 +9,17 @@ use std::{
   },
 };
 
-use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
   Cancelled, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage, Revision,
 };
 use crate::{
   Decodable, DepId, DeserializeContext, Encodable, Fingerprint, StableHash, StableHasher,
 };
-use crate::{DerivedId, QueryDatabase, SerializeContext, UnresolvedDepNode};
+use crate::{
+  DerivedFieldIngredient,
+  persist::serialized::dep_graph::{DepNode, DepNodeIndex},
+};
+use crate::{Id, QueryDatabase, SerializeContext, UnresolvedDepNode};
 use dashmap::DashMap;
 
 use super::{DerivedQueryIngredient, IdDashMap, Ingredient};
@@ -32,7 +35,7 @@ pub struct Dependency {
 
 /// A memoized derived query result
 // TIL: verified_at is AtomicU32 so green_check can bump it via get() instead of get_mut()
-pub struct StampedDerivedQuery<K, V: DerivedId> {
+pub struct StampedDerivedQuery<K, V: Id + From<u32> + Into<u32>> {
   pub key: K,                        // The original key, for re-execution
   pub value: V,                      // The derived struct ID
   pub changed_at: Revision,          // Revision when the value last actually changed
@@ -41,7 +44,7 @@ pub struct StampedDerivedQuery<K, V: DerivedId> {
 }
 
 /// The state of a query entry in the cache
-pub enum QueryState<K, V: DerivedId> {
+pub enum QueryState<K, V: Id + From<u32> + Into<u32>> {
   /// The query is currently being computed
   Computing,
   /// The query has a cached result
@@ -57,12 +60,11 @@ pub struct StampedDerivedField<T> {
 /// Ingredient for a derived query function: maps key tuple to memoized result
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
+pub struct DerivedQueryIngredientStore<DB, K, V: Id + From<u32> + Into<u32>> {
   ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
   name_fingerprint: Fingerprint,
   return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
   next_entry_id: Arc<AtomicU32>,
-  value_id_counter: &'static AtomicU32,
   query_fn: fn(&DB, K) -> V,
   intern_map: Arc<DashMap<K, EntryId>>, // key -> stable entry_id
   #[doc(hidden)]
@@ -75,7 +77,9 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   readable_name: &'static str,
 }
 
-impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredientStore<DB, K, V> {
+impl<DB, K, V: Id + From<u32> + Into<u32>> std::fmt::Debug
+  for DerivedQueryIngredientStore<DB, K, V>
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let name = {
       #[cfg(debug_assertions)]
@@ -98,7 +102,9 @@ impl<
     + std::fmt::Debug
     + Encodable
     + Decodable
-    + DerivedId
+    + Id
+    + From<u32>
+    + Into<u32>
     + Clone
     + PartialEq
     + Send
@@ -106,27 +112,34 @@ impl<
     + 'static,
 > DerivedQueryIngredientStore<DB, K, V>
 {
-  /// Deserialize all sibling DerivedField nodes for a value struct.
-  fn deserialize_field_group(&self, ctx: &DeserializeContext, serialized_entry_id: u64) {
+  // Resolve the return value's session-local entry ID from the serialized cache
+  // For derived return types, triggers field group deserialization
+  // For input and interned return types, entry_id_map is pre-populated by load_leaf_nodes
+  fn deserialize_return_value(
+    &self,
+    ctx: &DeserializeContext,
+    serialized_entry_id: u32,
+  ) -> Option<u32> {
     let group_key = (self.return_type_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
       for &(_, field_node_index) in &field_group.fields {
         ctx.decoder.get_or_deserialize_dep_node_id(field_node_index);
       }
     }
+    ctx.entry_id_map.get(&group_key).map(|entry| *entry.value())
   }
 
-  /// Deserialize edge DepNodeIndices into session-local Dependencies
-  /// Edges that fail to deserialize are silently dropped
-  fn deserialize_deps(edges: &[u32], ctx: &DeserializeContext) -> Vec<Dependency> {
+  // Deserialize edge DepNodeIndices into session-local Dependencies
+  // Returns None if any edge fails to deserialize, forcing recomputation
+  fn deserialize_deps(edges: &[u32], ctx: &DeserializeContext) -> Option<Vec<Dependency>> {
     edges
       .iter()
-      .filter_map(|&edge_idx| {
+      .map(|&edge_idx| {
         let dep_id = ctx.decoder.get_or_deserialize_dep_node_id(edge_idx)?;
         let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
         Some(Dependency {
           dep_id,
-          changed_at: edge_node.changed_at() as u32,
+          changed_at: edge_node.changed_at(),
         })
       })
       .collect()
@@ -136,7 +149,6 @@ impl<
     ingredient_id: DepId,
     name_fingerprint: &'static str,
     return_type_name: &'static str,
-    value_id_counter: &'static AtomicU32,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
@@ -144,7 +156,6 @@ impl<
       name_fingerprint: Fingerprint::from_name(name_fingerprint),
       return_type_fingerprint: Fingerprint::from_name(return_type_name),
       next_entry_id: Arc::new(AtomicU32::new(0)),
-      value_id_counter,
       query_fn,
       intern_map: Arc::new(DashMap::new()),
       data: Arc::new(IdDashMap::default()),
@@ -174,8 +185,9 @@ impl<
     None
   }
 
-  /// Try to load a cached result from the serialized cache.
-  fn try_load_from_serialized(
+  // Try to load a serialized derived query node from the previous session's cache
+  // Validates that all dependencies still have matching fingerprints (cross-session green check)
+  fn try_load_serialized_derived_query_node(
     &self,
     db: &DB,
     storage: &QueryStorage,
@@ -186,11 +198,12 @@ impl<
     // Compute key fingerprint to find the matching node
     let mut hasher = StableHasher::new();
     arg.stable_hash(db, &mut hasher);
-    let key_fp = Fingerprint::from_hasher(hasher);
+    let key_fingerprint = Fingerprint::from_hasher(hasher);
 
-    let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fp)?;
+    let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)?;
 
     let DepNode::DerivedQuery {
+      // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
       edges,
@@ -200,33 +213,28 @@ impl<
       return None;
     };
 
-    // Ensure all edge deps are deserialized before green checking
+    // Cross-session green check: deserialize and validate each dependency's fingerprint
     let decoder = &ctx.decoder;
     for &edge_idx in edges {
-      decoder.get_or_deserialize_dep_node_id(edge_idx);
-    }
-
-    // Green check: verify each dep edge exists with a matching fingerprint
-    for edge_idx in edges {
-      let edge_node = &ctx.serialized.dep_graph.nodes[*edge_idx as usize];
+      let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
       if matches!(edge_node, DepNode::Evicted) {
         return None;
       }
+      let dep_id = decoder.get_or_deserialize_dep_node_id(edge_idx)?;
       // no_hash deps: skip fingerprint check, handled by runtime green_check
-      if edge_node.value_fingerprint() == Fingerprint::SKIPPED {
+      let expected_fingerprint = edge_node.value_fingerprint();
+      if expected_fingerprint == Fingerprint::SKIPPED {
         continue;
       }
-      if !storage.has_dep_node(ctx, edge_node, db) {
+      let ingredient = storage.get_ingredient_of_id(dep_id);
+      let actual_fingerprint = ingredient.value_fingerprint(db, dep_id.entry_id());
+      if actual_fingerprint != Some(expected_fingerprint) {
         return None;
       }
     }
 
-    // Deserialize field data
-    self.deserialize_field_group(ctx, *serialized_value_entry_id);
-    let value_entry_id = *ctx
-      .entry_id_map
-      .entry((self.return_type_fingerprint, *serialized_value_entry_id))
-      .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
+    // Load returned value's field data and get its session-local entry ID
+    let value_entry_id = self.deserialize_return_value(ctx, *serialized_value_entry_id)?;
 
     // Decode key
     let blob = ctx.serialized.query_cache.get(node_index)?;
@@ -234,8 +242,8 @@ impl<
     let key = K::decode(&mut data, decoder);
     let entry_id = self.get_or_create_entry_id(&key);
     let value = V::from(value_entry_id);
-    let changed_at = *changed_at as u32;
-    let dependencies = Self::deserialize_deps(edges, ctx);
+    let changed_at = *changed_at;
+    let dependencies = Self::deserialize_deps(edges, ctx)?;
     let current_revision = storage.revision.load(Ordering::Acquire);
     self.data.insert(
       entry_id,
@@ -335,7 +343,9 @@ impl<
     }
 
     // Try loading from previous session before recomputing
-    if let Some((value, changed_at)) = self.try_load_from_serialized(db, storage, &arg) {
+    if let Some((value, changed_at)) =
+      self.try_load_serialized_derived_query_node(db, storage, &arg)
+    {
       return (value, changed_at);
     }
 
@@ -486,7 +496,9 @@ impl<
     + std::fmt::Debug
     + Encodable
     + Decodable
-    + DerivedId
+    + Id
+    + From<u32>
+    + Into<u32>
     + Clone
     + PartialEq
     + Send
@@ -507,6 +519,20 @@ impl<
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
+    let db = (db as &dyn Any)
+      .downcast_ref::<DB>()
+      .expect("database type mismatch in value_fingerprint");
+    if let Some(entry) = self.data.get(&entry_id)
+      && let QueryState::Computed(memo) = &*entry
+    {
+      let mut hasher: StableHasher = StableHasher::new();
+      memo.value.stable_hash(db, &mut hasher);
+      return Some(Fingerprint::from_hasher(hasher));
+    }
+    None
+  }
+
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize {
     self.recompute_count.load(Ordering::Relaxed) as usize
@@ -520,7 +546,9 @@ impl<
     + std::fmt::Debug
     + Encodable
     + Decodable
-    + DerivedId
+    + Id
+    + From<u32>
+    + Into<u32>
     + Clone
     + PartialEq
     + Send
@@ -618,26 +646,13 @@ impl<
     }
   }
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
-    let db = (db as &dyn Any)
-      .downcast_ref::<DB>()
-      .expect("database type mismatch in value_fingerprint");
-    if let Some(entry) = self.data.get(&entry_id)
-      && let QueryState::Computed(memo) = &*entry
-    {
-      let mut hasher: StableHasher = StableHasher::new();
-      memo.value.stable_hash(db, &mut hasher);
-      return Some(Fingerprint::from_hasher(hasher));
-    }
-    None
-  }
-
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
     if let Some(dep_id) = ctx.decoder.get_dep_node_id(node_index) {
       return Some(dep_id);
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedQuery {
+      // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
       verified_at,
@@ -652,14 +667,8 @@ impl<
     let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
-    // Deserialize all sibling DerivedField nodes, which populates field data
-    self.deserialize_field_group(ctx, *serialized_value_entry_id);
-
-    // Get the session-local entry_id allocated by field deserialization
-    let value_entry_id = *ctx
-      .entry_id_map
-      .entry((self.return_type_fingerprint, *serialized_value_entry_id))
-      .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
+    // Deserialize all sibling DerivedField nodes and get the session-local entry ID
+    let value_entry_id = self.deserialize_return_value(ctx, *serialized_value_entry_id)?;
 
     // Decode key
     let blob = ctx.serialized.query_cache.get(node_index)?;
@@ -670,7 +679,7 @@ impl<
     // FIXME: This can be optimized
     // We should only lazily load the dependencies
     // If we do, must perform cache promotion
-    let dependencies = Self::deserialize_deps(edges, ctx);
+    let dependencies = Self::deserialize_deps(edges, ctx)?;
 
     self.intern_map.entry(key.clone()).or_insert(entry_id);
     self.data.insert(
@@ -678,8 +687,8 @@ impl<
       QueryState::Computed(StampedDerivedQuery {
         key,
         value,
-        changed_at: *changed_at as u32,
-        verified_at: AtomicU32::new(*verified_at as u32),
+        changed_at: *changed_at,
+        verified_at: AtomicU32::new(*verified_at),
         dependencies,
       }),
     );
@@ -714,10 +723,9 @@ impl<
             .value_fingerprint(ctx.db(), entry_id)
             .expect("Computed entry must have a value fingerprint")
         },
-        entry_id: entry_id as u64,
-        value_entry_id: <V as Into<u32>>::into(memo.value.clone()) as u64,
-        changed_at: memo.changed_at as u64,
-        verified_at: memo.verified_at.load(Ordering::Relaxed) as u64,
+        value_entry_id: <V as Into<u32>>::into(memo.value.clone()),
+        changed_at: memo.changed_at,
+        verified_at: memo.verified_at.load(Ordering::Relaxed),
         edges,
       },
     );
@@ -739,7 +747,8 @@ impl<
 pub struct DerivedFieldIngredientStore<T> {
   ingredient_id: DepId,
   field_index: u8,
-  name: &'static str,
+  // Parent struct name, shared across sibling fields so they map to the same entry ID
+  struct_name: &'static str,
   pub id_counter: &'static AtomicU32,
   #[doc(hidden)]
   pub data: Arc<IdDashMap<StampedDerivedField<T>>>,
@@ -749,7 +758,7 @@ pub struct DerivedFieldIngredientStore<T> {
 impl<T> std::fmt::Debug for DerivedFieldIngredientStore<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("DerivedFieldIngredientStore")
-      .field("name", &self.name)
+      .field("struct_name", &self.struct_name)
       .finish_non_exhaustive()
   }
 }
@@ -761,14 +770,14 @@ impl<T> DerivedFieldIngredientStore<T> {
 
   pub fn new(
     ingredient_id: DepId,
-    name: &'static str,
+    struct_name: &'static str,
     field_index: u8,
     id_counter: &'static AtomicU32,
   ) -> Self {
     Self {
       ingredient_id,
       field_index,
-      name,
+      struct_name,
       id_counter,
       data: Arc::new(IdDashMap::default()),
       no_hash_flag: false,
@@ -781,15 +790,23 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 {
   #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
-    self.name.to_string()
+    self.struct_name.to_string()
   }
 
   fn name_fingerprint(&self) -> Fingerprint {
-    Fingerprint::from_name(self.name)
+    Fingerprint::from_name(self.struct_name)
   }
 
   fn entry_ids(&self) -> Box<dyn Iterator<Item = EntryId> + '_> {
     Box::new(self.data.iter().map(|entry| *entry.key()))
+  }
+
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher: StableHasher = StableHasher::new();
+      entry.value.stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
   }
 
   // Derived fields are set by their parent query, not independently recomputed
@@ -800,7 +817,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 }
 
 impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static>
-  super::DerivedFieldIngredient for DerivedFieldIngredientStore<T>
+  DerivedFieldIngredient for DerivedFieldIngredientStore<T>
 {
   fn remove_entry(&self, entry_id: EntryId) {
     self.data.remove(&entry_id);
@@ -814,14 +831,6 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       .unwrap_or(false)
   }
 
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
-    self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
-  }
-
   fn field_index(&self) -> u8 {
     self.field_index
   }
@@ -832,6 +841,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedField {
+      // Parent struct name, matches value_entry_id in the parent DerivedQuery node
       name,
       entry_id: serialized_entry_id,
       changed_at,
@@ -854,7 +864,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       entry_id,
       StampedDerivedField {
         value,
-        changed_at: *changed_at as u32,
+        changed_at: *changed_at,
       },
     );
 
@@ -886,7 +896,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       UnresolvedDepNode::DerivedField {
         name: self.name_fingerprint(),
         field_index: self.field_index,
-        entry_id: entry_id as u64,
+        entry_id,
         value: if self.no_hash_flag {
           Fingerprint::SKIPPED
         } else {
@@ -894,7 +904,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
             .value_fingerprint(ctx.db(), entry_id)
             .expect("Entry is available so there must be a fingerprint")
         },
-        changed_at: entry.changed_at as u64,
+        changed_at: entry.changed_at,
       },
     );
 

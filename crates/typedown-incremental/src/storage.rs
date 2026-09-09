@@ -8,7 +8,7 @@ use dashmap::DashMap;
 
 use super::ingredient::{
   Dependency, DerivedFieldIngredient, DerivedQueryIngredient, FieldFactory, FieldInventory,
-  InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
+  Ingredient, InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
   InternedInventory, QueryFactory, QueryInventory,
 };
 use super::persist::serialized::SerializedQueryStorage;
@@ -127,9 +127,8 @@ impl QueryStorage {
   }
 
   /// Eagerly deserialize all input and interned nodes.
-  /// Must run before any derived query deserialization, because derived query
-  /// blobs contain DepNodeIndex references to inputs/interned that need to be
-  /// in the decoder's dep_id_table before decoding
+  // Must run before any derived query deserialization, because derived query blobs contain DepNodeIndex references to inputs/interned that need to be in the decoder's dep_id_table before decoding
+  // WARNING: this also populates entry_id_map for input and interned types, which deserialize_return_value relies on for non-derived return types
   fn load_leaf_nodes(self: &Arc<Self>) {
     let Some(ctx) = self.deserialize_ctx.get() else {
       return;
@@ -209,35 +208,16 @@ impl QueryStorage {
     }
   }
 
-  /// Check if a dep node's (name, value_fingerprint) exists in the current session
-  pub fn has_dep_node(
-    &self,
-    ctx: &DeserializeContext,
-    node: &DepNode,
-    db: &dyn crate::QueryDatabase,
-  ) -> bool {
-    let name = node.name();
-    let expected_fingerprint = node.value_fingerprint();
-    // Scan entries of the matching ingredient kind for a fingerprint match
-    macro_rules! scan {
-      ($indices:expr, $arr:expr) => {
-        for &idx in $indices {
-          for entry_id in $arr[idx].entry_ids() {
-            if $arr[idx].value_fingerprint(db, entry_id) == Some(expected_fingerprint) {
-              return true;
-            }
-          }
-        }
-      };
+  // Get the current session's fingerprint for a dependency, for cross-session validation
+  // Look up the ingredient store that owns a given DepId
+  pub fn get_ingredient_of_id(&self, dep_id: DepId) -> &dyn Ingredient {
+    let idx = dep_id.ingredient_id() as usize;
+    match dep_id.kind() {
+      IngredientKind::Input => &*self.inputs[idx],
+      IngredientKind::Interned => &*self.interned[idx],
+      IngredientKind::Query => &*self.queries[idx],
+      IngredientKind::Field => &*self.fields[idx],
     }
-    match node {
-      DepNode::InputField { .. } => scan!(ctx.inputs_by_name(&name), self.inputs),
-      DepNode::Interned { .. } => scan!(ctx.interned_by_name(&name), self.interned),
-      DepNode::DerivedQuery { .. } => scan!(ctx.queries_by_name(&name), self.queries),
-      DepNode::DerivedField { .. } => scan!(ctx.fields_by_name(&name), self.fields),
-      DepNode::Evicted => {}
-    }
-    false
   }
 
   /// Total number of query function invocations across all derived ingredients

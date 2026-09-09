@@ -72,6 +72,14 @@ impl<
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher = StableHasher::new();
+      entry.value().stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
+  }
+
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize {
     0
@@ -82,20 +90,17 @@ impl<
   T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
 > InternedIngredient for InternedIngredientStore<T>
 {
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
-    self.data.get(&entry_id).map(|entry| {
-      let mut hasher = StableHasher::new();
-      entry.value().stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
-  }
-
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
     if let Some(dep_id) = ctx.decoder.get_dep_node_id(node_index) {
       return Some(dep_id);
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
-    let DepNode::Interned { blob_index, .. } = node else {
+    let DepNode::Interned {
+      entry_id: serialized_entry_id,
+      blob_index,
+      ..
+    } = node
+    else {
       return None;
     };
     let blob = ctx.decoder.get_intern_blob(*blob_index);
@@ -109,6 +114,12 @@ impl<
     self.data.entry(entry_id).or_insert(value);
     let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
+    // Map serialized entry ID to session-local ID for derived query return value resolution
+    let name = Fingerprint::from_name(self.name);
+    ctx
+      .entry_id_map
+      .entry((name, *serialized_entry_id))
+      .or_insert(entry_id);
     Some(dep_id)
   }
 
@@ -128,6 +139,7 @@ impl<
       node_index,
       UnresolvedDepNode::Interned {
         name: self.name_fingerprint(),
+        entry_id,
         blob_index,
       },
     );
