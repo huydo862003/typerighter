@@ -187,9 +187,9 @@ impl<
     // Compute key fingerprint to find the matching node
     let mut hasher = StableHasher::new();
     arg.stable_hash(db, &mut hasher);
-    let key_fp = Fingerprint::from_hasher(hasher);
+    let key_fingerprint = Fingerprint::from_hasher(hasher);
 
-    let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fp)?;
+    let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)?;
 
     let DepNode::DerivedQuery {
       value_entry_id: serialized_value_entry_id,
@@ -213,12 +213,13 @@ impl<
         return None;
       };
       // no_hash deps: skip fingerprint check, handled by runtime green_check
-      let expected_fp = edge_node.value_fingerprint();
-      if expected_fp == Fingerprint::SKIPPED {
+      let expected_fingerprint = edge_node.value_fingerprint();
+      if expected_fingerprint == Fingerprint::SKIPPED {
         continue;
       }
-      let actual_fp = storage.value_fingerprint_by_dep_id(db, dep_id);
-      if actual_fp != Some(expected_fp) {
+      let ingredient = storage.get_ingredient_of_id(dep_id);
+      let actual_fingerprint = ingredient.value_fingerprint(db, dep_id.entry_id());
+      if actual_fingerprint != Some(expected_fingerprint) {
         return None;
       }
     }
@@ -511,6 +512,20 @@ impl<
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
+    let db = (db as &dyn Any)
+      .downcast_ref::<DB>()
+      .expect("database type mismatch in value_fingerprint");
+    if let Some(entry) = self.data.get(&entry_id)
+      && let QueryState::Computed(memo) = &*entry
+    {
+      let mut hasher: StableHasher = StableHasher::new();
+      memo.value.stable_hash(db, &mut hasher);
+      return Some(Fingerprint::from_hasher(hasher));
+    }
+    None
+  }
+
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize {
     self.recompute_count.load(Ordering::Relaxed) as usize
@@ -620,20 +635,6 @@ impl<
     if let Some(key) = key {
       self.execute_query(db, key);
     }
-  }
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
-    let db = (db as &dyn Any)
-      .downcast_ref::<DB>()
-      .expect("database type mismatch in value_fingerprint");
-    if let Some(entry) = self.data.get(&entry_id)
-      && let QueryState::Computed(memo) = &*entry
-    {
-      let mut hasher: StableHasher = StableHasher::new();
-      memo.value.stable_hash(db, &mut hasher);
-      return Some(Fingerprint::from_hasher(hasher));
-    }
-    None
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
@@ -797,6 +798,14 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher: StableHasher = StableHasher::new();
+      entry.value.stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
+  }
+
   // Derived fields are set by their parent query, not independently recomputed
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize {
@@ -817,14 +826,6 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       .get(&entry_id)
       .map(|entry| entry.changed_at <= last_changed_at)
       .unwrap_or(false)
-  }
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
-    self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
   }
 
   fn field_index(&self) -> u8 {

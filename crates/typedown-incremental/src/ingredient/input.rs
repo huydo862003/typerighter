@@ -73,6 +73,14 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher: StableHasher = StableHasher::new();
+      entry.value.stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
+  }
+
   // Input fields are ground truth, they are never recomputed
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize {
@@ -93,14 +101,6 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
 
   fn field_index(&self) -> u8 {
     self.field_index
-  }
-
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
-    self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {

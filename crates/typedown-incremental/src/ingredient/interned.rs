@@ -72,6 +72,14 @@ impl<
     Box::new(self.data.iter().map(|entry| *entry.key()))
   }
 
+  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
+    self.data.get(&entry_id).map(|entry| {
+      let mut hasher = StableHasher::new();
+      entry.value().stable_hash(db, &mut hasher);
+      Fingerprint::from_hasher(hasher)
+    })
+  }
+
   #[cfg(debug_assertions)]
   fn recompute_count(&self) -> usize {
     0
@@ -82,14 +90,6 @@ impl<
   T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
 > InternedIngredient for InternedIngredientStore<T>
 {
-  fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
-    self.data.get(&entry_id).map(|entry| {
-      let mut hasher = StableHasher::new();
-      entry.value().stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
-    })
-  }
-
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {
     if let Some(dep_id) = ctx.decoder.get_dep_node_id(node_index) {
       return Some(dep_id);

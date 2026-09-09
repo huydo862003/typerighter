@@ -8,12 +8,12 @@ use dashmap::DashMap;
 
 use super::ingredient::{
   Dependency, DerivedFieldIngredient, DerivedQueryIngredient, FieldFactory, FieldInventory,
-  InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
+  Ingredient, InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
   InternedInventory, QueryFactory, QueryInventory,
 };
 use super::persist::serialized::SerializedQueryStorage;
 use super::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{DepId, DeserializeContext, Fingerprint, IngredientKind};
+use crate::{DepId, DeserializeContext, IngredientKind};
 
 #[cfg(debug_assertions)]
 pub struct IngredientStats {
@@ -210,18 +210,14 @@ impl QueryStorage {
   }
 
   // Get the current session's fingerprint for a dependency, for cross-session validation
-  pub fn value_fingerprint_by_dep_id(
-    &self,
-    db: &dyn crate::QueryDatabase,
-    dep_id: DepId,
-  ) -> Option<Fingerprint> {
+  // Look up the ingredient store that owns a given DepId
+  pub fn get_ingredient_of_id(&self, dep_id: DepId) -> &dyn Ingredient {
     let idx = dep_id.ingredient_id() as usize;
-    let entry_id = dep_id.entry_id();
     match dep_id.kind() {
-      IngredientKind::Input => self.inputs[idx].value_fingerprint(db, entry_id),
-      IngredientKind::Interned => self.interned[idx].value_fingerprint(db, entry_id),
-      IngredientKind::Query => self.queries[idx].value_fingerprint(db, entry_id),
-      IngredientKind::Field => self.fields[idx].value_fingerprint(db, entry_id),
+      IngredientKind::Input => &*self.inputs[idx],
+      IngredientKind::Interned => &*self.interned[idx],
+      IngredientKind::Query => &*self.queries[idx],
+      IngredientKind::Field => &*self.fields[idx],
     }
   }
 
