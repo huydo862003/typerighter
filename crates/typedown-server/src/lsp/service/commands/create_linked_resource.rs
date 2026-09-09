@@ -14,9 +14,10 @@ use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
+use typedown_lang::db::derived::name_resolver::scope::get_project_scope;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::types::derived::object_system::TdStaticType;
-use typedown_lang::db::types::{Project, Scope, SymbolKind};
+use typedown_lang::db::types::{Project, SymbolKind};
 
 use typedown_types::path::normalize_path;
 
@@ -231,7 +232,7 @@ fn common_prefix_len(a: &Path, b: &Path) -> usize {
 fn build_template(db: &TypedownDatabase, project: Project, schema_name: &str) -> String {
   let mut template = format!("---\n_type: {schema_name}\n");
 
-  let typ = members(db, Scope::project_scope(db, project))
+  let typ = members(db, get_project_scope(db, project))
     .members(db)
     .get(schema_name)
     .copied()

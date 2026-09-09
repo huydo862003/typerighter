@@ -8,11 +8,12 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::members::members;
+use typedown_lang::db::derived::name_resolver::scope::get_project_scope;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::typecheck::utils::is_nullable;
 use typedown_lang::db::types::{
-  File, LazyType, LiteralValue, Project, Scope, SymbolKind, TdStaticType, TdTypeEnum,
+  File, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
 use typedown_lang::syntax::red::RedNode;
@@ -169,7 +170,7 @@ fn resolve_entry_type<'db>(
     .to_string();
   let mapping = find_ancestor(entry, SyntaxKind::YamlMapping)?;
   let schema_name = typedown_lang::db::utils::get_mapping_schema_name(&mapping)?;
-  let scope = Scope::project_scope(db, project);
+  let scope = get_project_scope(db, project);
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let typ = evaluate_type(db, symbol).typ(db)?;
   let schema = typ.as_td_schema_type()?;
@@ -204,7 +205,7 @@ fn extract_schema_name(db: &TypedownDatabase, typ: &TdTypeEnum) -> Option<String
 
 // Collect all schemas with their field templates
 fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, String)> {
-  let scope = Scope::project_scope(db, project);
+  let scope = get_project_scope(db, project);
 
   members(db, scope)
     .members(db)

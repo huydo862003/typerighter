@@ -424,27 +424,6 @@ pub struct Scope<'db> {
 }
 
 impl<'db> Scope<'db> {
-  pub fn builtin_scope(db: &'db (impl QueryDatabase + ?Sized), project: Project) -> Self {
-    Self::new(db, ScopeKind::Builtin(project))
-  }
-
-  pub fn project_scope(db: &'db (impl QueryDatabase + ?Sized), project: Project) -> Self {
-    Self::new(db, ScopeKind::Project(project))
-  }
-
-  pub fn file_scope(db: &'db (impl QueryDatabase + ?Sized), project: Project, file: File) -> Self {
-    Self::new(db, ScopeKind::File(project, file))
-  }
-
-  pub fn fn_scope(
-    db: &'db (impl QueryDatabase + ?Sized),
-    project: Project,
-    file: File,
-    value: HirValue<'db>,
-  ) -> Self {
-    Self::new(db, ScopeKind::Fn(project, file, value))
-  }
-
   pub fn project(&self, db: &(impl QueryDatabase + ?Sized)) -> Project {
     match self.kind(db) {
       ScopeKind::Builtin(project)

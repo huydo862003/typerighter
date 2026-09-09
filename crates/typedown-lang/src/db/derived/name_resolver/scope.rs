@@ -11,6 +11,23 @@ pub struct MaybeScope<'db> {
   pub value: Option<Scope<'db>>,
 }
 
+// Scope creation queries ensure identity map deduplicates correctly
+// Always create scopes through these queries, never via Scope::new directly
+#[query_derived]
+pub fn get_builtin_scope<'db>(db: &'db TypedownDatabase, project: Project) -> Scope<'db> {
+  Scope::new(db, ScopeKind::Builtin(project))
+}
+
+#[query_derived]
+pub fn get_project_scope<'db>(db: &'db TypedownDatabase, project: Project) -> Scope<'db> {
+  Scope::new(db, ScopeKind::Project(project))
+}
+
+#[query_derived]
+pub fn get_file_scope<'db>(db: &'db TypedownDatabase, project: Project, file: File) -> Scope<'db> {
+  Scope::new(db, ScopeKind::File(project, file))
+}
+
 #[query_derived]
 pub fn scope<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Scope<'db> {
   let project = hir.project(db);
@@ -22,20 +39,20 @@ pub fn scope<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Scope<'db> {
   while let Some(p) = curr {
     if p.kind() == SyntaxKind::ClosureExpr {
       let closure_hir = lower_node(db, project, file, p);
-      return Scope::fn_scope(db, project, file, closure_hir);
+      return Scope::new(db, ScopeKind::Fn(project, file, closure_hir));
     }
     curr = p.parent();
   }
 
-  Scope::file_scope(db, project, file)
+  get_file_scope(db, project, file)
 }
 
 #[query_derived]
 pub fn parent_scope<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MaybeScope<'db> {
   match scope.kind(db) {
     ScopeKind::Builtin(_) => MaybeScope::new(db, None),
-    ScopeKind::Project(project) => MaybeScope::new(db, Some(Scope::builtin_scope(db, project))),
-    ScopeKind::File(project, _) => MaybeScope::new(db, Some(Scope::project_scope(db, project))),
+    ScopeKind::Project(project) => MaybeScope::new(db, Some(get_builtin_scope(db, project))),
+    ScopeKind::File(project, _) => MaybeScope::new(db, Some(get_project_scope(db, project))),
     ScopeKind::Fn(_project, _file, value) => MaybeScope::new(db, Some(self::scope(db, value))),
   }
 }
@@ -45,7 +62,7 @@ pub fn get_builtin_runtime_scope<'db>(
   db: &'db TypedownDatabase,
   project: Project,
 ) -> RuntimeScope<'db> {
-  RuntimeScope::new(db, Scope::builtin_scope(db, project), vec![], None)
+  RuntimeScope::new(db, get_builtin_scope(db, project), vec![], None)
 }
 
 #[query_derived]
@@ -56,7 +73,7 @@ pub fn get_project_runtime_scope<'db>(
   let parent = get_builtin_runtime_scope(db, project);
   RuntimeScope::new(
     db,
-    Scope::project_scope(db, project),
+    get_project_scope(db, project),
     vec![],
     Some(Box::new(parent)),
   )
@@ -71,7 +88,7 @@ pub fn get_file_runtime_scope<'db>(
   let parent = get_project_runtime_scope(db, project);
   RuntimeScope::new(
     db,
-    Scope::file_scope(db, project, file),
+    get_file_scope(db, project, file),
     vec![],
     Some(Box::new(parent)),
   )
