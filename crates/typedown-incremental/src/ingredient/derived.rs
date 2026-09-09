@@ -62,7 +62,6 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   name_fingerprint: Fingerprint,
   return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
   next_entry_id: Arc<AtomicU32>,
-  value_id_counter: &'static AtomicU32,
   query_fn: fn(&DB, K) -> V,
   intern_map: Arc<DashMap<K, EntryId>>, // key -> stable entry_id
   #[doc(hidden)]
@@ -107,13 +106,19 @@ impl<
 > DerivedQueryIngredientStore<DB, K, V>
 {
   /// Deserialize all sibling DerivedField nodes for a value struct.
-  fn deserialize_field_group(&self, ctx: &DeserializeContext, serialized_entry_id: u64) {
+  // Deserialize all sibling field nodes and return the session-local entry ID they allocated
+  fn deserialize_field_group(
+    &self,
+    ctx: &DeserializeContext,
+    serialized_entry_id: u64,
+  ) -> Option<u32> {
     let group_key = (self.return_type_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
       for &(_, field_node_index) in &field_group.fields {
         ctx.decoder.get_or_deserialize_dep_node_id(field_node_index);
       }
     }
+    ctx.entry_id_map.get(&group_key).map(|entry| *entry.value())
   }
 
   /// Deserialize edge DepNodeIndices into session-local Dependencies
@@ -136,7 +141,6 @@ impl<
     ingredient_id: DepId,
     name_fingerprint: &'static str,
     return_type_name: &'static str,
-    value_id_counter: &'static AtomicU32,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
@@ -144,7 +148,6 @@ impl<
       name_fingerprint: Fingerprint::from_name(name_fingerprint),
       return_type_fingerprint: Fingerprint::from_name(return_type_name),
       next_entry_id: Arc::new(AtomicU32::new(0)),
-      value_id_counter,
       query_fn,
       intern_map: Arc::new(DashMap::new()),
       data: Arc::new(IdDashMap::default()),
@@ -224,12 +227,10 @@ impl<
       }
     }
 
-    // Load returned value
-    self.deserialize_field_group(ctx, *serialized_value_entry_id);
-    let value_entry_id = *ctx
-      .entry_id_map
-      .entry((self.return_type_fingerprint, *serialized_value_entry_id))
-      .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
+    // Load returned value's field data and get its session-local entry ID
+    let Some(value_entry_id) = self.deserialize_field_group(ctx, *serialized_value_entry_id) else {
+      return None;
+    };
 
     // Decode key
     let blob = ctx.serialized.query_cache.get(node_index)?;
@@ -657,14 +658,10 @@ impl<
     let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
-    // Deserialize all sibling DerivedField nodes, which populates field data
-    self.deserialize_field_group(ctx, *serialized_value_entry_id);
-
-    // Get the session-local entry_id allocated by field deserialization
-    let value_entry_id = *ctx
-      .entry_id_map
-      .entry((self.return_type_fingerprint, *serialized_value_entry_id))
-      .or_insert_with(|| self.value_id_counter.fetch_add(1, Ordering::Relaxed));
+    // Deserialize all sibling DerivedField nodes and get the session-local entry ID
+    let Some(value_entry_id) = self.deserialize_field_group(ctx, *serialized_value_entry_id) else {
+      return None;
+    };
 
     // Decode key
     let blob = ctx.serialized.query_cache.get(node_index)?;

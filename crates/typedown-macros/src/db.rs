@@ -524,7 +524,6 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
                 ingredient_id,
                 stringify!(#fn_name),
                 stringify!(#return_type_without_lifetime),
-                #return_type_without_lifetime::id_counter(),
                 #fn_name::#fn_name,
               );
               ingredient.no_hash_flag = #no_hash;
