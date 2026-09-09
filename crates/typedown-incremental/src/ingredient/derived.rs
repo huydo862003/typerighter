@@ -58,6 +58,7 @@ pub enum QueryState<K, V: Id + From<u32> + Into<u32>> {
 pub struct StampedDerivedField<T> {
   pub value: T,
   pub changed_at: Revision,
+  pub fingerprint: OnceLock<Fingerprint>,
 }
 
 /// Ingredient for a derived query function: maps key tuple to memoized result
@@ -814,9 +815,11 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
+      *entry.fingerprint.get_or_init(|| {
+        let mut hasher = StableHasher::new();
+        entry.value.stable_hash(db, &mut hasher);
+        Fingerprint::from_hasher(hasher)
+      })
     })
   }
 
@@ -876,6 +879,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       StampedDerivedField {
         value,
         changed_at: *changed_at,
+        fingerprint: OnceLock::new(),
       },
     );
 

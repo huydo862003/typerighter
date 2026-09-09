@@ -793,6 +793,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         ingredient.data.entry(id).or_insert(::typedown_incremental::StampedDerivedField {
           value: (),
           changed_at: current_revision,
+          fingerprint: ::std::sync::OnceLock::new(),
         });
       }
     });
@@ -817,12 +818,14 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
             ingredient.data.insert(id, ::typedown_incremental::StampedDerivedField {
               value: __val,
               changed_at: current_revision,
+              fingerprint: ::std::sync::OnceLock::new(),
             });
           }
         } else {
           ingredient.data.insert(id, ::typedown_incremental::StampedDerivedField {
             value: __val,
             changed_at: current_revision,
+            fingerprint: ::std::sync::OnceLock::new(),
           });
         }
       }
@@ -1086,7 +1089,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         let entry = ingredient.data.get(&id).expect("invalid interned id");
 
         // Safety: transmute 'static stored value to 'db at the boundary
-        unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) }
+        unsafe { ::std::mem::transmute(entry.value.#tuple_index.clone()) }
       }
 
       pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
@@ -1098,7 +1101,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         let entry = ingredient.data.get(&id)?;
 
         // Safety: transmute 'static stored value to 'db at the boundary
-        Some(unsafe { ::std::mem::transmute(entry.#tuple_index.clone()) })
+        Some(unsafe { ::std::mem::transmute(entry.value.#tuple_index.clone()) })
       }
     });
   }
@@ -1180,7 +1183,10 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           let storage = unsafe { db.storage() };
           let ingredient = (&*storage.interned[Self::ingredient_id() as usize] as &dyn ::std::any::Any)
             .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
-          ingredient.data.entry(id).or_insert(intern_key);
+          ingredient.data.entry(id).or_insert(::typedown_incremental::StampedInternedValue {
+            value: intern_key,
+            fingerprint: ::std::sync::OnceLock::new(),
+          });
 
           #self_constructor
         }

@@ -74,7 +74,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
+      let mut hasher = StableHasher::new();
       entry.value.stable_hash(db, &mut hasher);
       Fingerprint::from_hasher(hasher)
     })

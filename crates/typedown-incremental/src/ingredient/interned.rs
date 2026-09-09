@@ -14,6 +14,12 @@ use crate::{
 
 use super::{Ingredient, InternedIngredient};
 
+// Interned value with lazily computed fingerprint
+pub struct StampedInternedValue<T> {
+  pub value: T,
+  pub fingerprint: std::sync::OnceLock<Fingerprint>,
+}
+
 /// An ingredient for an interned struct
 #[derive(Clone)]
 #[doc(hidden)]
@@ -23,7 +29,7 @@ pub struct InternedIngredientStore<T: 'static> {
   pub(crate) id_counter: &'static AtomicU32,
   pub(crate) intern_map: &'static DashMap<T, EntryId>,
   #[doc(hidden)]
-  pub data: Arc<IdDashMap<T>>,
+  pub data: Arc<IdDashMap<StampedInternedValue<T>>>,
 }
 
 impl<T: 'static> std::fmt::Debug for InternedIngredientStore<T> {
@@ -73,9 +79,11 @@ impl<
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: u32) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
-      let mut hasher = StableHasher::new();
-      entry.value().stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
+      *entry.fingerprint.get_or_init(|| {
+        let mut hasher = StableHasher::new();
+        entry.value.stable_hash(db, &mut hasher);
+        Fingerprint::from_hasher(hasher)
+      })
     })
   }
 
@@ -110,7 +118,10 @@ impl<
       .intern_map
       .entry(value.clone())
       .or_insert_with(|| id_counter.fetch_add(1, Ordering::Relaxed));
-    self.data.entry(entry_id).or_insert(value);
+    self.data.entry(entry_id).or_insert(StampedInternedValue {
+      value,
+      fingerprint: std::sync::OnceLock::new(),
+    });
     let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
     // Map serialized entry ID to session-local ID for derived query return value resolution
@@ -129,7 +140,7 @@ impl<
 
     // Encode the value to register it in the encoder's intern table
     let mut buf = vec![];
-    entry.value().encode(&mut buf, &mut ctx.encoder);
+    entry.value.encode(&mut buf, &mut ctx.encoder);
     let blob_index = ctx.encoder.intern_blob::<T>(buf, Some(entry_id));
 
     let dep_id = self.ingredient_id.with_entry(entry_id);
