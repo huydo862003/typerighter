@@ -13,7 +13,7 @@ use super::ingredient::{
 };
 use super::persist::serialized::SerializedQueryStorage;
 use super::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{DepId, DeserializeContext, IngredientKind};
+use crate::{DepId, DeserializeContext, Fingerprint, IngredientKind};
 
 #[cfg(debug_assertions)]
 pub struct IngredientStats {
@@ -209,35 +209,20 @@ impl QueryStorage {
     }
   }
 
-  /// Check if a dep node's (name, value_fingerprint) exists in the current session
-  pub fn has_dep_node(
+  // Get the current session's fingerprint for a dependency, for cross-session validation
+  pub fn value_fingerprint_by_dep_id(
     &self,
-    ctx: &DeserializeContext,
-    node: &DepNode,
     db: &dyn crate::QueryDatabase,
-  ) -> bool {
-    let name = node.name();
-    let expected_fingerprint = node.value_fingerprint();
-    // Scan entries of the matching ingredient kind for a fingerprint match
-    macro_rules! scan {
-      ($indices:expr, $arr:expr) => {
-        for &idx in $indices {
-          for entry_id in $arr[idx].entry_ids() {
-            if $arr[idx].value_fingerprint(db, entry_id) == Some(expected_fingerprint) {
-              return true;
-            }
-          }
-        }
-      };
+    dep_id: DepId,
+  ) -> Option<Fingerprint> {
+    let idx = dep_id.ingredient_id() as usize;
+    let entry_id = dep_id.entry_id();
+    match dep_id.kind() {
+      IngredientKind::Input => self.inputs[idx].value_fingerprint(db, entry_id),
+      IngredientKind::Interned => self.interned[idx].value_fingerprint(db, entry_id),
+      IngredientKind::Query => self.queries[idx].value_fingerprint(db, entry_id),
+      IngredientKind::Field => self.fields[idx].value_fingerprint(db, entry_id),
     }
-    match node {
-      DepNode::InputField { .. } => scan!(ctx.inputs_by_name(&name), self.inputs),
-      DepNode::Interned { .. } => scan!(ctx.interned_by_name(&name), self.interned),
-      DepNode::DerivedQuery { .. } => scan!(ctx.queries_by_name(&name), self.queries),
-      DepNode::DerivedField { .. } => scan!(ctx.fields_by_name(&name), self.fields),
-      DepNode::Evicted => {}
-    }
-    false
   }
 
   /// Total number of query function invocations across all derived ingredients

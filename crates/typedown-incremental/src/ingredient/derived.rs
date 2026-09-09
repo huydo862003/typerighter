@@ -174,8 +174,9 @@ impl<
     None
   }
 
-  /// Try to load a cached result from the serialized cache.
-  fn try_load_from_serialized(
+  // Try to load a serialized derived query node from the previous session's cache
+  // Validates that all dependencies still have matching fingerprints (cross-session green check)
+  fn try_load_serialized_derived_query_node(
     &self,
     db: &DB,
     storage: &QueryStorage,
@@ -200,28 +201,29 @@ impl<
       return None;
     };
 
-    // Ensure all edge deps are deserialized before green checking
+    // Load all dep nodes first then perform
+    // cross-session green check: verify each dependency's fingerprint still matches
     let decoder = &ctx.decoder;
     for &edge_idx in edges {
-      decoder.get_or_deserialize_dep_node_id(edge_idx);
-    }
-
-    // Green check: verify each dep edge exists with a matching fingerprint
-    for edge_idx in edges {
-      let edge_node = &ctx.serialized.dep_graph.nodes[*edge_idx as usize];
+      let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
       if matches!(edge_node, DepNode::Evicted) {
         return None;
       }
+      let Some(dep_id) = decoder.get_or_deserialize_dep_node_id(edge_idx) else {
+        return None;
+      };
       // no_hash deps: skip fingerprint check, handled by runtime green_check
-      if edge_node.value_fingerprint() == Fingerprint::SKIPPED {
+      let expected_fp = edge_node.value_fingerprint();
+      if expected_fp == Fingerprint::SKIPPED {
         continue;
       }
-      if !storage.has_dep_node(ctx, edge_node, db) {
+      let actual_fp = storage.value_fingerprint_by_dep_id(db, dep_id);
+      if actual_fp != Some(expected_fp) {
         return None;
       }
     }
 
-    // Deserialize field data
+    // Load returned value
     self.deserialize_field_group(ctx, *serialized_value_entry_id);
     let value_entry_id = *ctx
       .entry_id_map
@@ -335,7 +337,9 @@ impl<
     }
 
     // Try loading from previous session before recomputing
-    if let Some((value, changed_at)) = self.try_load_from_serialized(db, storage, &arg) {
+    if let Some((value, changed_at)) =
+      self.try_load_serialized_derived_query_node(db, storage, &arg)
+    {
       return (value, changed_at);
     }
 
