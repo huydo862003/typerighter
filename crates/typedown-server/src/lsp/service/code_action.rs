@@ -14,7 +14,7 @@ use typedown_lang::db::typecheck::utils::is_nullable;
 use typedown_lang::db::types::{
   File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };
-use typedown_lang::db::types::{FileRedNode, Scope, ScopeKind};
+use typedown_lang::db::types::{Scope, ScopeKind};
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;

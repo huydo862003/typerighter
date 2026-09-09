@@ -5,7 +5,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::name_resolver::resolution_index::references;
-use typedown_lang::db::types::SymbolKind;
+use typedown_lang::db::types::{FileRedNode, SymbolKind};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::syntax::ast::AstNode;
 
