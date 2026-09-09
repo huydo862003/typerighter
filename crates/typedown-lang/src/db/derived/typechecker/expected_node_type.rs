@@ -15,8 +15,8 @@ use crate::db::typecheck::utils::is_subtype_of;
 use crate::db::types::TdSchemaType;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
-  File, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol, TdProductType,
-  TdTypeEnum, TypeResult,
+  File, FileRedNode, FuncSignature, HirValue, LazyType, Project, StaticAccessPath, Symbol,
+  TdProductType, TdTypeEnum, TypeResult,
 };
 use crate::db::utils::is_schemaless_file;
 use crate::syntax::ast::{
@@ -62,7 +62,7 @@ pub fn expected_node_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) ->
   let mut current_type = LazyType::eager(anchor.typ);
 
   for (step, step_node) in &anchor.path {
-    let step_hir = lower_node(db, project, file, step_node.clone());
+    let step_hir = lower_node(db, project, FileRedNode::new(file, step_node.clone()));
 
     // Resolve Sum ambiguity using actual_node_type
     let resolved_type = resolve_lazy_type(db, &current_type, step_hir);
@@ -121,7 +121,7 @@ fn get_expected_expr_type<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) ->
 
   // ParenExpr: transparent, forward expected type from parent
   if ParenExpr::cast(parent.clone()).is_some() {
-    let paren_hir = lower_node(db, project, file, parent);
+    let paren_hir = lower_node(db, project, FileRedNode::new(file, parent));
     return expected_node_type(db, paren_hir);
   }
 
@@ -156,7 +156,11 @@ fn get_expected_call_arg_type<'db>(
     Some(c) => c,
     None => return TypeResult::new(db, None, vec![]),
   };
-  let callee_hir = lower_node(db, project, file, callee_node.syntax().clone());
+  let callee_hir = lower_node(
+    db,
+    project,
+    FileRedNode::new(file, callee_node.syntax().clone()),
+  );
   let callee_type = actual_node_type(db, callee_hir).typ(db);
 
   if let Some(TdTypeEnum::TdFuncType(func)) = callee_type {
@@ -176,7 +180,7 @@ fn get_expected_call_callee_type<'db>(
   file: File,
   call: &CallExpr,
 ) -> TypeResult<'db> {
-  let call_hir = lower_node(db, project, file, call.syntax().clone());
+  let call_hir = lower_node(db, project, FileRedNode::new(file, call.syntax().clone()));
   let ret = match expected_node_type(db, call_hir).typ(db) {
     Some(t) => t,
     None => return TypeResult::new(db, None, vec![]),
@@ -184,7 +188,7 @@ fn get_expected_call_callee_type<'db>(
 
   let mut param_types = vec![];
   for arg in call.args() {
-    let arg_hir = lower_node(db, project, file, arg.syntax().clone());
+    let arg_hir = lower_node(db, project, FileRedNode::new(file, arg.syntax().clone()));
     match actual_node_type(db, arg_hir).typ(db) {
       Some(t) => param_types.push(t),
       None => return TypeResult::new(db, None, vec![]),
@@ -203,7 +207,11 @@ fn get_expected_closure_body_type<'db>(
   file: File,
   closure: &ClosureExpr,
 ) -> TypeResult<'db> {
-  let closure_hir = lower_node(db, project, file, closure.syntax().clone());
+  let closure_hir = lower_node(
+    db,
+    project,
+    FileRedNode::new(file, closure.syntax().clone()),
+  );
   let expected = expected_node_type(db, closure_hir).typ(db);
   match expected {
     Some(TdTypeEnum::TdFuncType(f)) => {
@@ -429,7 +437,11 @@ fn resolve_type_anchor<'db>(
     }
     let entry_value = entry.children().find(|child| child.kind() == value_kind)?;
     let value_expr = entry_value.children().find_map(Expr::cast)?;
-    let value_hir = lower_node(db, project, file, value_expr.syntax().clone());
+    let value_hir = lower_node(
+      db,
+      project,
+      FileRedNode::new(file, value_expr.syntax().clone()),
+    );
     let symbol = referee(db, value_hir).value(db)?;
     let typ = evaluate_type(db, symbol).typ(db)?;
     return Some((symbol, typ));

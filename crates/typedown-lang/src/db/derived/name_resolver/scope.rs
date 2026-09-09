@@ -2,7 +2,7 @@ use typedown_macros::{query_derived, query_interned};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::hir::lower_node;
-use crate::db::types::{File, HirValue, Project, RuntimeScope, Scope, ScopeKind};
+use crate::db::types::{File, FileRedNode, HirValue, Project, RuntimeScope, Scope, ScopeKind};
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 
@@ -21,7 +21,7 @@ pub fn scope<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Scope<'db> {
   let mut curr = node.parent();
   while let Some(p) = curr {
     if p.kind() == SyntaxKind::ClosureExpr {
-      let closure_hir = lower_node(db, project, file, p);
+      let closure_hir = lower_node(db, project, FileRedNode::new(file, p));
       return Scope::new(db, ScopeKind::Fn(project, file, closure_hir));
     }
     curr = p.parent();
@@ -118,7 +118,7 @@ fn: (a, b) -> a + b
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -147,7 +147,7 @@ fn: (x) -> (y) -> x + y
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -177,7 +177,7 @@ age: 30
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -203,7 +203,7 @@ Hello world ${(a, b) -> a + b}
 "#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -249,7 +249,7 @@ outer: (a) -> (b) -> a + b
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -300,7 +300,7 @@ ${(a) -> (b) -> a + b}
 "#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,

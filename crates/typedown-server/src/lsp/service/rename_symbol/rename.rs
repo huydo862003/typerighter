@@ -34,7 +34,7 @@ pub fn rename(analysis: &Analysis, params: RenameParams) -> Option<WorkspaceEdit
     CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
     CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
   };
-  let symbol = referee(db, lower_node(db, project, file, syntax)).value(db)?;
+  let symbol = referee(db, lower_node(db, project, FileRedNode::new(file, syntax))).value(db)?;
 
   // Builtins cannot be renamed
   if matches!(
@@ -127,7 +127,7 @@ mod tests {
     TextDocumentIdentifier, TextDocumentPositionParams,
   };
   use ropey::Rope;
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
   use super::rename;

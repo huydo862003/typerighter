@@ -210,7 +210,7 @@ fn: (a, b) -> a + b
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let a_hir = find_ident(&db, hir, "a").expect("should find Ident('a')");
     let resolved_a = referee(&db, a_hir).value(&db).expect("a should resolve");
@@ -232,7 +232,7 @@ fn: (a) -> (b) -> a + b
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let a_hir = find_ident(&db, hir, "a").expect("should find Ident('a')");
     let resolved_a = referee(&db, a_hir).value(&db).expect("a should resolve");
@@ -254,7 +254,7 @@ fn: (a) -> a + unknown_var
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let unknown_hir =
       find_ident(&db, hir, "unknown_var").expect("should find Ident('unknown_var')");

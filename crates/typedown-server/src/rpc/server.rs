@@ -20,7 +20,7 @@ use typedown_lang::db::derived::name_resolver::members::schema_members;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, Project, SymbolKind};
+use typedown_lang::db::types::{File, FileRedNode, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
 use typedown_lang::integrations::export::{
   export_property_descriptors, export_resource_html, export_resource_meta, export_resource_summary,
@@ -765,7 +765,7 @@ fn collect_file_diagnostics(
 
   // Typecheck and name resolution errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, file, root);
+  let hir = lower_node(db, project, FileRedNode::new(file, root));
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
   let resolve_result = resolve(db, hir);

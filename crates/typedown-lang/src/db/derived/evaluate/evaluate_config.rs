@@ -7,7 +7,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node_with_expected;
 use crate::db::derived::get_builtin_types::get_config_type;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::scope::get_builtin_runtime_scope;
-use crate::db::types::{Project, ResourceResult, TdTypeEnum};
+use crate::db::types::{FileRedNode, Project, ResourceResult, TdTypeEnum};
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::green::cache::green_cache;
 use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
@@ -65,7 +65,7 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
   let root = RedNode::new_root(ast.as_node().expect("AST root must be a node").clone());
 
   // Lower, typecheck against built-in config type, and evaluate
-  let hir = lower_node(db, project, config_file, root);
+  let hir = lower_node(db, project, FileRedNode::new(config_file, root));
   let config_type: TdTypeEnum = get_config_type(db).into();
   let scope = get_builtin_runtime_scope(db, project);
   let result = evaluate_node_with_expected(db, hir, &config_type, scope);

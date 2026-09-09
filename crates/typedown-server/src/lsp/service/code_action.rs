@@ -12,9 +12,9 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::typecheck::utils::is_nullable;
 use typedown_lang::db::types::{
-  File, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
+  File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };
-use typedown_lang::db::types::{Scope, ScopeKind};
+use typedown_lang::db::types::{FileRedNode, Scope, ScopeKind};
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -154,7 +154,11 @@ fn resolve_entry_type<'db>(
   if is_in_mapping_value_position(node) {
     let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
     if let Some(value_expr) = entry_value.children().find_map(Expr::cast) {
-      let hir = lower_node(db, project, file, value_expr.syntax().clone());
+      let hir = lower_node(
+        db,
+        project,
+        FileRedNode::new(file, value_expr.syntax().clone()),
+      );
       if let Some(typ) = expected_node_type(db, hir).typ(db) {
         return Some(typ);
       }
@@ -293,7 +297,7 @@ mod tests {
   use std::sync::{Arc, Condvar, Mutex};
 
   use lsp_types::{CodeActionContext, CodeActionParams, Position, Range, TextDocumentIdentifier};
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
   use crate::core::analysis::Analysis;

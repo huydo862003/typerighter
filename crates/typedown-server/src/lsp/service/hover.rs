@@ -9,7 +9,7 @@ use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::types::derived::object_system::TdStaticType;
-use typedown_lang::db::types::{File, HirValueKind, Project, TdTypeEnum};
+use typedown_lang::db::types::{File, FileRedNode, HirValueKind, Project, TdTypeEnum};
 use typedown_lang::syntax::ast::{AstNode, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -56,7 +56,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
   let text = if is_in_mapping_value_position(&hovered_node) {
     // Value position: show the resolved type of the expression
     let expr_node = nearest_expr_ancestor(&hovered_node)?;
-    let hir = lower_node(db, project, file, expr_node);
+    let hir = lower_node(db, project, FileRedNode::new(file, expr_node));
 
     let typ = actual_node_type(db, hir).typ(db)?;
     typ.display_name(db)
@@ -68,7 +68,11 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
       .children()
       .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
     let value_expr = entry_value.children().find_map(Expr::cast)?;
-    let hir = lower_node(db, project, file, value_expr.syntax().clone());
+    let hir = lower_node(
+      db,
+      project,
+      FileRedNode::new(file, value_expr.syntax().clone()),
+    );
     let typ = expected_node_type(db, hir).typ(db)?;
     let key_text = entry_key.text().trim().to_string();
 
@@ -94,7 +98,7 @@ fn fref_hover_text(
   node: &RedNode,
 ) -> Option<String> {
   let call = containing_fref_expr(node)?;
-  let hir = lower_node(db, project, file, call.syntax().clone());
+  let hir = lower_node(db, project, FileRedNode::new(file, call.syntax().clone()));
   let HirValueKind::Call { args, .. } = hir.kind(db) else {
     return None;
   };
@@ -154,7 +158,7 @@ mod tests {
     WorkDoneProgressParams,
   };
   use ropey::Rope;
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
   use crate::core::analysis::Analysis;

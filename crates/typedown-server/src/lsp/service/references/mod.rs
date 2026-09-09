@@ -10,7 +10,9 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::name_resolver::resolution_index::{ReferenceKind, references};
-use typedown_lang::db::types::{File, HirValue, HirValueKind, Project, Symbol, SymbolKind};
+use typedown_lang::db::types::{
+  File, FileRedNode, HirValue, HirValueKind, Project, Symbol, SymbolKind,
+};
 use typedown_lang::syntax::ast::AstNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -91,7 +93,7 @@ fn resolve_symbol(
     CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
     CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
   };
-  referee(db, lower_node(db, project, file, syntax)).value(db)
+  referee(db, lower_node(db, project, FileRedNode::new(file, syntax))).value(db)
 }
 
 /// Build the declaration Location for a symbol, pointing to the top of its backing file
@@ -141,7 +143,7 @@ mod tests {
   use std::collections::BTreeMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

@@ -10,7 +10,7 @@ use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{
-  File, FileHandle, HirValueKind, Project, Scope, Symbol, SymbolKind,
+  File, FileHandle, FileRedNode, HirValueKind, Project, Scope, Symbol, SymbolKind,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::AstNode;
@@ -63,7 +63,7 @@ pub fn definition(
 
   // Identifier or type reference: resolve via referee
   let expr_node = nearest_expr_ancestor(&node)?;
-  let hir = lower_node(db, project, file, expr_node);
+  let hir = lower_node(db, project, FileRedNode::new(file, expr_node));
   let symbol = referee(db, hir).value(db)?;
 
   let target_file = match symbol.kind(db) {
@@ -218,7 +218,11 @@ fn fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Optio
 
   // Any file works as context since fref args don't depend on the enclosing file
   let context_file = *project.files(db).values().next()?;
-  let hir = lower_node(db, project, context_file, call_expr.syntax().clone());
+  let hir = lower_node(
+    db,
+    project,
+    FileRedNode::new(context_file, call_expr.syntax().clone()),
+  );
   if let HirValueKind::Call { args, .. } = hir.kind(db)
     && let Some(arg) = args.first()
     && let HirValueKind::Str(path_str) = arg.kind(db)
@@ -241,7 +245,7 @@ mod tests {
     TextDocumentIdentifier, TextDocumentPositionParams, Uri, WorkDoneProgressParams,
   };
   use ropey::Rope;
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
   use crate::core::analysis::Analysis;

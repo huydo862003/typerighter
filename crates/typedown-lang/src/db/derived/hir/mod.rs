@@ -23,9 +23,10 @@ use typedown_incremental::QueryDatabase;
 pub fn lower_node<'db>(
   db: &'db TypedownDatabase,
   project: Project,
-  file: File,
-  node: RedNode,
+  file_red_node: FileRedNode,
 ) -> HirValue<'db> {
+  let file = file_red_node.owner_file;
+  let node = file_red_node.node.clone();
   if SourceFile::cast(node.clone()).is_some() {
     return lower_source_file(db, project, file, node);
   }
@@ -59,7 +60,7 @@ fn lower_markdown<'db>(
     if node.kind() == SyntaxKind::InterpFragment
       && let Some(expr) = InterpFragment::cast(node.clone()).and_then(|f| f.expr())
     {
-      let hir = lower_node(db, project, file, expr.syntax().clone());
+      let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
       parts.push(InterpolatedPart::Expr(hir));
       return;
     }
@@ -127,7 +128,11 @@ fn lower_expr_kind<'db>(
             end_offset: tr_offset + tr_len,
           });
         }
-        let child = lower_node(db, project, file, val_expr.syntax().clone());
+        let child = lower_node(
+          db,
+          project,
+          FileRedNode::new(file, val_expr.syntax().clone()),
+        );
         (key, child)
       })
       .collect();
@@ -153,7 +158,11 @@ fn lower_expr_kind<'db>(
             end_offset: tr_offset + tr_len,
           });
         }
-        let child = lower_node(db, project, file, val_expr.syntax().clone());
+        let child = lower_node(
+          db,
+          project,
+          FileRedNode::new(file, val_expr.syntax().clone()),
+        );
         (key, child)
       })
       .collect();
@@ -165,7 +174,13 @@ fn lower_expr_kind<'db>(
     let items = seq.values().collect::<Vec<_>>();
     let hir_items = items
       .into_iter()
-      .map(|item_expr| lower_node(db, project, file, item_expr.syntax().clone()))
+      .map(|item_expr| {
+        lower_node(
+          db,
+          project,
+          FileRedNode::new(file, item_expr.syntax().clone()),
+        )
+      })
       .collect();
     return HirValueKind::Sequence(hir_items);
   }
@@ -178,7 +193,13 @@ fn lower_expr_kind<'db>(
       .collect::<Vec<_>>();
     let hir_items = items
       .into_iter()
-      .map(|item_expr| lower_node(db, project, file, item_expr.syntax().clone()))
+      .map(|item_expr| {
+        lower_node(
+          db,
+          project,
+          FileRedNode::new(file, item_expr.syntax().clone()),
+        )
+      })
       .collect();
     return HirValueKind::Sequence(hir_items);
   }
@@ -226,8 +247,7 @@ fn lower_expr_kind<'db>(
             Some(InterpolatedPart::Expr(lower_node(
               db,
               project,
-              file,
-              child_expr.syntax().clone(),
+              FileRedNode::new(file, child_expr.syntax().clone()),
             )))
           }
           SyntaxKind::MathLit => {
@@ -302,7 +322,11 @@ fn lower_expr_kind<'db>(
       .and_then(|o| o.syntax().as_token())
       .and_then(|t| t.text().map(|s| s.to_string()))
       .unwrap_or_default();
-    let operand = lower_node(db, project, file, operand.syntax().clone());
+    let operand = lower_node(
+      db,
+      project,
+      FileRedNode::new(file, operand.syntax().clone()),
+    );
     // This is a tag expression
     if op.starts_with('!') && op.len() > 1 {
       let tag_name = op[1..].to_string();
@@ -334,7 +358,11 @@ fn lower_expr_kind<'db>(
       .and_then(|o| o.syntax().as_token())
       .and_then(|t| t.text().map(|s| s.to_string()))
       .unwrap_or_default();
-    let operand = lower_node(db, project, file, operand.syntax().clone());
+    let operand = lower_node(
+      db,
+      project,
+      FileRedNode::new(file, operand.syntax().clone()),
+    );
     return HirValueKind::Postfix {
       op,
       operand: operand.into(),
@@ -350,8 +378,8 @@ fn lower_expr_kind<'db>(
       .and_then(|o| o.syntax().as_token())
       .and_then(|t| t.text().map(|s| s.to_string()))
       .unwrap_or_default();
-    let left = lower_node(db, project, file, lhs.syntax().clone());
-    let right = lower_node(db, project, file, rhs.syntax().clone());
+    let left = lower_node(db, project, FileRedNode::new(file, lhs.syntax().clone()));
+    let right = lower_node(db, project, FileRedNode::new(file, rhs.syntax().clone()));
     return HirValueKind::Binary {
       op,
       left: left.into(),
@@ -363,11 +391,11 @@ fn lower_expr_kind<'db>(
   if let Some(call) = CallExpr::cast(inner.syntax().clone())
     && let Some(callee) = call.callee()
   {
-    let callee = lower_node(db, project, file, callee.syntax().clone());
+    let callee = lower_node(db, project, FileRedNode::new(file, callee.syntax().clone()));
     let args = call
       .args()
       .into_iter()
-      .map(|arg| lower_node(db, project, file, arg.syntax().clone()))
+      .map(|arg| lower_node(db, project, FileRedNode::new(file, arg.syntax().clone())))
       .collect();
     return HirValueKind::Call {
       callee: callee.into(),
@@ -379,11 +407,11 @@ fn lower_expr_kind<'db>(
   if let Some(index) = IndexExpr::cast(inner.syntax().clone())
     && let Some(expr) = index.expr()
   {
-    let expr = lower_node(db, project, file, expr.syntax().clone());
+    let expr = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
     let indices = index
       .indices()
       .into_iter()
-      .map(|idx| lower_node(db, project, file, idx.syntax().clone()))
+      .map(|idx| lower_node(db, project, FileRedNode::new(file, idx.syntax().clone())))
       .collect();
     return HirValueKind::Index {
       expr: expr.into(),
@@ -415,7 +443,7 @@ fn lower_expr_kind<'db>(
     }
     let body = closure
       .body()
-      .map(|b| lower_node(db, project, file, b.syntax().clone()))
+      .map(|b| lower_node(db, project, FileRedNode::new(file, b.syntax().clone())))
       .unwrap_or_else(|| {
         HirValue::new(
           db,
@@ -452,7 +480,11 @@ fn lower_frontmatter<'db>(
 ) -> HirValue<'db> {
   let fm = YamlFrontmatter::cast(node.clone()).expect("node must be a YamlFrontmatter");
   match fm.mapping() {
-    Some(mapping) => lower_node(db, project, file, mapping.syntax().clone()),
+    Some(mapping) => lower_node(
+      db,
+      project,
+      FileRedNode::new(file, mapping.syntax().clone()),
+    ),
     // Empty frontmatter (or no frontmatter) produces an empty mapping
     None => HirValue::new(
       db,
@@ -483,11 +515,15 @@ fn lower_source_file<'db>(
       );
     }
   };
-  let mapping_hir = lower_node(db, project, file, fm_node.syntax().clone());
+  let mapping_hir = lower_node(
+    db,
+    project,
+    FileRedNode::new(file, fm_node.syntax().clone()),
+  );
   let Some(body) = source_file.body() else {
     return mapping_hir;
   };
-  let content_hir = lower_node(db, project, file, body.syntax().clone());
+  let content_hir = lower_node(db, project, FileRedNode::new(file, body.syntax().clone()));
   let mut entries = match mapping_hir.kind(db) {
     HirValueKind::Mapping(entries) => entries,
     _ => vec![],
@@ -508,7 +544,7 @@ mod tests {
   use super::lower_node;
   use crate::db::fixtures::load_vault_fixture;
 
-  use crate::db::types::{HirValueKind, InterpolatedPart};
+  use crate::db::types::{FileRedNode, HirValueKind, InterpolatedPart};
   use crate::db::utils::lower_file;
   use crate::syntax::diagnostic::Diagnostic;
   use crate::syntax::parse::tests::helpers::parse;
@@ -667,7 +703,7 @@ fn: (a, b) -> a + b
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -695,7 +731,7 @@ fn: x -> x + 1
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,
@@ -723,7 +759,7 @@ fn: (self, x) -> self + x
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let entries = match hir.kind(&db) {
       HirValueKind::Mapping(e) => e,

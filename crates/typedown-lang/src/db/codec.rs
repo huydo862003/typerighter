@@ -106,15 +106,6 @@ impl Decodable for RedNode {
 
 // StableHash impls
 
-impl StableHash for RedNode {
-  // O(1) identity within a file: offset + kind + text length
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    (self.offset() as u64).stable_hash(db, hasher);
-    self.kind().stable_hash(db, hasher);
-    (self.text_len() as u64).stable_hash(db, hasher);
-  }
-}
-
 impl StableHash for FileMetadata {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.mtime.stable_hash(db, hasher);
