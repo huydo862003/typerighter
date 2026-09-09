@@ -108,8 +108,8 @@ impl<
     + 'static,
 > DerivedQueryIngredientStore<DB, K, V>
 {
-  // Deserialize all sibling field nodes and return the session-local entry ID they allocated
-  fn deserialize_field_group(
+  // Deserialize the return value's data and return its session-local entry ID
+  fn deserialize_return_value(
     &self,
     ctx: &DeserializeContext,
     serialized_entry_id: u64,
@@ -230,7 +230,8 @@ impl<
     }
 
     // Load returned value's field data and get its session-local entry ID
-    let Some(value_entry_id) = self.deserialize_field_group(ctx, *serialized_value_entry_id) else {
+    let Some(value_entry_id) = self.deserialize_return_value(ctx, *serialized_value_entry_id)
+    else {
       return None;
     };
 
@@ -661,7 +662,8 @@ impl<
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Deserialize all sibling DerivedField nodes and get the session-local entry ID
-    let Some(value_entry_id) = self.deserialize_field_group(ctx, *serialized_value_entry_id) else {
+    let Some(value_entry_id) = self.deserialize_return_value(ctx, *serialized_value_entry_id)
+    else {
       return None;
     };
 
