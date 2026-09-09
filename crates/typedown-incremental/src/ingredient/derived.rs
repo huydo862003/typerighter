@@ -4,7 +4,7 @@ use std::{
   hash::Hash,
   panic::{AssertUnwindSafe, catch_unwind, panic_any, resume_unwind},
   sync::{
-    Arc,
+    Arc, OnceLock,
     atomic::{AtomicU32, Ordering},
   },
 };
@@ -41,6 +41,9 @@ pub struct StampedDerivedQuery<K, V: Id + From<u32> + Into<u32>> {
   pub changed_at: Revision,          // Revision when the value last actually changed
   pub verified_at: AtomicU32,        // Revision when last confirmed valid
   pub dependencies: Vec<Dependency>, // What this query read during execution
+  // Lazily computed and cached on first access (during dump)
+  pub key_fingerprint: OnceLock<Fingerprint>,
+  pub value_fingerprint: OnceLock<Fingerprint>,
 }
 
 /// The state of a query entry in the cache
@@ -203,6 +206,8 @@ impl<
     let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)?;
 
     let DepNode::DerivedQuery {
+      key: cached_key_fingerprint,
+      value: cached_value_fingerprint,
       // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
@@ -253,6 +258,8 @@ impl<
         changed_at,
         verified_at: AtomicU32::new(current_revision),
         dependencies,
+        key_fingerprint: OnceLock::from(*cached_key_fingerprint),
+        value_fingerprint: OnceLock::from(*cached_value_fingerprint),
       }),
     );
 
@@ -453,7 +460,7 @@ impl<
       _ => current_revision,
     };
 
-    // Store the result
+    // Store the result (fingerprints computed lazily on first access during dump)
     self.data.insert(
       entry_id,
       QueryState::Computed(StampedDerivedQuery {
@@ -462,6 +469,12 @@ impl<
         changed_at,
         verified_at: AtomicU32::new(current_revision),
         dependencies,
+        key_fingerprint: OnceLock::new(),
+        value_fingerprint: if self.no_hash_flag {
+          OnceLock::from(Fingerprint::SKIPPED)
+        } else {
+          OnceLock::new()
+        },
       }),
     );
 
@@ -526,9 +539,11 @@ impl<
     if let Some(entry) = self.data.get(&entry_id)
       && let QueryState::Computed(memo) = &*entry
     {
-      let mut hasher: StableHasher = StableHasher::new();
-      memo.value.stable_hash(db, &mut hasher);
-      return Some(Fingerprint::from_hasher(hasher));
+      return Some(*memo.value_fingerprint.get_or_init(|| {
+        let mut hasher = StableHasher::new();
+        memo.value.stable_hash(db, &mut hasher);
+        Fingerprint::from_hasher(hasher)
+      }));
     }
     None
   }
@@ -652,6 +667,8 @@ impl<
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedQuery {
+      key: cached_key_fingerprint,
+      value: cached_value_fingerprint,
       // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
@@ -690,6 +707,8 @@ impl<
         changed_at: *changed_at,
         verified_at: AtomicU32::new(*verified_at),
         dependencies,
+        key_fingerprint: OnceLock::from(*cached_key_fingerprint),
+        value_fingerprint: OnceLock::from(*cached_value_fingerprint),
       }),
     );
 
@@ -713,16 +732,22 @@ impl<
       node_index,
       UnresolvedDepNode::DerivedQuery {
         name: self.name_fingerprint,
-        key: self
-          .key_fingerprint(ctx.db(), entry_id)
-          .expect("Computed entry must have a key fingerprint"),
-        value: if self.no_hash_flag {
-          Fingerprint::SKIPPED
-        } else {
-          self
-            .value_fingerprint(ctx.db(), entry_id)
-            .expect("Computed entry must have a value fingerprint")
-        },
+        key: *memo.key_fingerprint.get_or_init(|| {
+          let db = (ctx.db() as &dyn Any)
+            .downcast_ref::<DB>()
+            .expect("database type mismatch in key_fingerprint");
+          let mut hasher = StableHasher::new();
+          memo.key.stable_hash(db, &mut hasher);
+          Fingerprint::from_hasher(hasher)
+        }),
+        value: *memo.value_fingerprint.get_or_init(|| {
+          let db = (ctx.db() as &dyn Any)
+            .downcast_ref::<DB>()
+            .expect("database type mismatch in value_fingerprint");
+          let mut hasher = StableHasher::new();
+          memo.value.stable_hash(db, &mut hasher);
+          Fingerprint::from_hasher(hasher)
+        }),
         value_entry_id: <V as Into<u32>>::into(memo.value.clone()),
         changed_at: memo.changed_at,
         verified_at: memo.verified_at.load(Ordering::Relaxed),
