@@ -9,12 +9,15 @@ use std::{
   },
 };
 
-use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::{
   Cancelled, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage, Revision,
 };
 use crate::{
   Decodable, DepId, DeserializeContext, Encodable, Fingerprint, StableHash, StableHasher,
+};
+use crate::{
+  DerivedFieldIngredient,
+  persist::serialized::dep_graph::{DepNode, DepNodeIndex},
 };
 use crate::{DerivedId, QueryDatabase, SerializeContext, UnresolvedDepNode};
 use dashmap::DashMap;
@@ -105,7 +108,6 @@ impl<
     + 'static,
 > DerivedQueryIngredientStore<DB, K, V>
 {
-  /// Deserialize all sibling DerivedField nodes for a value struct.
   // Deserialize all sibling field nodes and return the session-local entry ID they allocated
   fn deserialize_field_group(
     &self,
@@ -121,12 +123,12 @@ impl<
     ctx.entry_id_map.get(&group_key).map(|entry| *entry.value())
   }
 
-  /// Deserialize edge DepNodeIndices into session-local Dependencies
-  /// Edges that fail to deserialize are silently dropped
-  fn deserialize_deps(edges: &[u32], ctx: &DeserializeContext) -> Vec<Dependency> {
+  // Deserialize edge DepNodeIndices into session-local Dependencies
+  // Returns None if any edge fails to deserialize, forcing recomputation
+  fn deserialize_deps(edges: &[u32], ctx: &DeserializeContext) -> Option<Vec<Dependency>> {
     edges
       .iter()
-      .filter_map(|&edge_idx| {
+      .map(|&edge_idx| {
         let dep_id = ctx.decoder.get_or_deserialize_dep_node_id(edge_idx)?;
         let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
         Some(Dependency {
@@ -239,7 +241,7 @@ impl<
     let entry_id = self.get_or_create_entry_id(&key);
     let value = V::from(value_entry_id);
     let changed_at = *changed_at as u32;
-    let dependencies = Self::deserialize_deps(edges, ctx);
+    let dependencies = Self::deserialize_deps(edges, ctx)?;
     let current_revision = storage.revision.load(Ordering::Acquire);
     self.data.insert(
       entry_id,
@@ -672,7 +674,7 @@ impl<
     // FIXME: This can be optimized
     // We should only lazily load the dependencies
     // If we do, must perform cache promotion
-    let dependencies = Self::deserialize_deps(edges, ctx);
+    let dependencies = Self::deserialize_deps(edges, ctx)?;
 
     self.intern_map.entry(key.clone()).or_insert(entry_id);
     self.data.insert(
@@ -811,7 +813,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 }
 
 impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static>
-  super::DerivedFieldIngredient for DerivedFieldIngredientStore<T>
+  DerivedFieldIngredient for DerivedFieldIngredientStore<T>
 {
   fn remove_entry(&self, entry_id: EntryId) {
     self.data.remove(&entry_id);
