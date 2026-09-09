@@ -381,18 +381,29 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     }
   };
 
-  let return_type_without_lifetime = if let syn::Type::Path(type_path) = return_type {
-    type_path.path.segments.last().map(|seg| &seg.ident)
+  let return_type_segment = if let syn::Type::Path(type_path) = return_type {
+    type_path.path.segments.last()
   } else {
     None
   };
-  let return_type_without_lifetime = match return_type_without_lifetime {
-    Some(ident) => ident,
-    None => {
-      return syn::Error::new_spanned(return_type, "return type must be a named type")
-        .to_compile_error()
-        .into();
-    }
+  let Some(return_type_segment) = return_type_segment else {
+    return syn::Error::new_spanned(return_type, "return type must be a named type")
+      .to_compile_error()
+      .into();
+  };
+  let return_type_without_lifetime = &return_type_segment.ident;
+  // Check if the return type has a 'db lifetime (e.g. IdResult<'db> vs IdInput)
+  let return_type_has_lifetime = matches!(
+    &return_type_segment.arguments,
+    syn::PathArguments::AngleBracketed(args) if args.args.iter().any(|arg| {
+      matches!(arg, syn::GenericArgument::Lifetime(lt) if lt.ident == "db")
+    })
+  );
+  // Static version of return type for storage (either Type<'static> or Type)
+  let return_type_static = if return_type_has_lifetime {
+    quote! { #return_type_without_lifetime<'static> }
+  } else {
+    quote! { #return_type_without_lifetime }
   };
 
   let has_db_lifetime = func
@@ -494,7 +505,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
           let _ = Self::ingredient_id_lock().set(index);
         }
 
-        fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty_static) -> #return_type_without_lifetime<'static> {
+        fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty_static) -> #return_type_static {
           fn __inner<'db>(db: &'db #db_type, #(#key_names: #key_types),*) -> #return_type
             #fn_block
 
@@ -519,7 +530,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
               let mut ingredient = ::typedown_incremental::DerivedQueryIngredientStore::<
                 #db_type,
                 #key_tuple_ty_static,
-                #return_type_without_lifetime<'static>,
+                #return_type_static,
               >::new(
                 ingredient_id,
                 stringify!(#fn_name),
@@ -547,7 +558,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
           .downcast_ref::<::typedown_incremental::DerivedQueryIngredientStore<
             #db_type,
             #key_tuple_ty_static,
-            #return_type_without_lifetime<'static>,
+            #return_type_static,
           >>()
           .expect("derived ingredient type mismatch");
         // Safety: transmute key 'db -> 'static, then result 'static -> 'db

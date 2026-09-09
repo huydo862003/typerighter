@@ -200,3 +200,32 @@ fn interned_return_type_roundtrip() {
     log
   );
 }
+
+// Derived query returning an interned type without lifetime roundtrips correctly
+#[test]
+fn interned_no_lifetime_return_type_roundtrip() {
+  let db1 = IdDatabase {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 3);
+  let result = identity::double_input(&db1, input);
+  assert_eq!(result.n(&db1), 6);
+
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDatabase { storage });
+  let input3 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 3,
+    "IdInput(n=3)",
+  );
+
+  identity::take_log();
+  let result2 = identity::double_input(&db2, input3);
+  let log = identity::take_log();
+
+  assert_eq!(result2.n(&db2), 6);
+  assert!(
+    log.is_empty(),
+    "interned no-lifetime return should be cached, got: {:?}",
+    log
+  );
+}

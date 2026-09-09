@@ -49,7 +49,15 @@ pub struct Pair<'db> {
   b: IdResult<'db>,
 }
 
-// Returns an interned type from a derived query
+// Returns an interned type without lifetime from a derived query
+#[query_derived]
+pub fn double_input<'db>(db: &'db Database, input: IdInput) -> IdInput {
+  let n = input.n(db);
+  LOG.with(|log| log.borrow_mut().push(n));
+  IdInput::new(db, n * 2)
+}
+
+// Returns an interned type with lifetime from a derived query
 #[query_derived]
 pub fn make_pair<'db>(db: &'db Database, input: IdInput) -> Pair<'db> {
   let n = input.n(db);
