@@ -9,7 +9,7 @@ use crate::{Decoder, Fingerprint, QueryStorage};
 
 /// A group of field dep nodes that belong to the same struct entry
 pub struct FieldGroup {
-  pub fields: Vec<(u8, DepNodeIndex)>,
+  pub fields: Vec<(u8 /* field index within the struct */, DepNodeIndex)>,
 }
 
 /// All state needed for lazy deserialization from a previous session
