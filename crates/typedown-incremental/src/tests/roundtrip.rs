@@ -1,4 +1,6 @@
 use super::fixtures::fibonacci::*;
+use super::fixtures::identity;
+use identity::Database as IdDatabase;
 
 // Interned entries can:
 // 1. Survive a dump
@@ -164,6 +166,37 @@ fn base_cases() {
   assert!(
     log.is_empty(),
     "base cases should be cached, got: {:?}",
+    log
+  );
+}
+
+// Derived query returning an interned type roundtrips correctly
+#[test]
+fn interned_return_type_roundtrip() {
+  let db1 = IdDatabase {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 5);
+  let pair = identity::make_pair(&db1, input);
+  assert_eq!(pair.a(&db1).value(&db1), 5);
+  assert_eq!(pair.b(&db1).value(&db1), 6);
+
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDatabase { storage });
+  let input5 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(n=5)",
+  );
+
+  identity::take_log();
+  let pair2 = identity::make_pair(&db2, input5);
+  let log = identity::take_log();
+
+  assert_eq!(pair2.a(&db2).value(&db2), 5);
+  assert_eq!(pair2.b(&db2).value(&db2), 6);
+  assert!(
+    log.is_empty(),
+    "interned return should be cached, got: {:?}",
     log
   );
 }

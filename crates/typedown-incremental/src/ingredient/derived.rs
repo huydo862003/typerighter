@@ -213,8 +213,7 @@ impl<
       return None;
     };
 
-    // Load all dep nodes first then perform
-    // cross-session green check: verify each dependency's fingerprint still matches
+    // Cross-session green check: deserialize and validate each dependency's fingerprint
     let decoder = &ctx.decoder;
     for &edge_idx in edges {
       let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];

@@ -42,6 +42,23 @@ pub fn identity<'db>(db: &'db Database, input: IdInput) -> IdResult<'db> {
   IdResult::new(db, n, n)
 }
 
+// Interned type with a lifetime, for testing interned return values
+#[query_interned]
+pub struct Pair<'db> {
+  a: IdResult<'db>,
+  b: IdResult<'db>,
+}
+
+// Returns an interned type from a derived query
+#[query_derived]
+pub fn make_pair<'db>(db: &'db Database, input: IdInput) -> Pair<'db> {
+  let n = input.n(db);
+  LOG.with(|log| log.borrow_mut().push(n));
+  let a = IdResult::new(db, n, n);
+  let b = IdResult::new(db, n + 1, n + 1);
+  Pair::new(db, a, b)
+}
+
 // Creates `count` derived structs, used to test identity map cleanup
 #[query_derived]
 pub fn make_range<'db>(db: &'db Database, config: RangeConfig) -> IdResult<'db> {
