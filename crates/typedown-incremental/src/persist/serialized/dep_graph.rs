@@ -76,11 +76,10 @@ pub enum DepNode {
     name: Fingerprint,
     key: Fingerprint,
     value: Fingerprint,
-    entry_id: u64,
     // Links to DerivedField nodes with matching entry_id
-    value_entry_id: u64,
-    changed_at: u64,
-    verified_at: u64,
+    value_entry_id: u32,
+    changed_at: u32,
+    verified_at: u32,
     // Indices into the dep graph nodes array
     edges: Vec<u32>,
   },
@@ -90,17 +89,17 @@ pub enum DepNode {
     name: Fingerprint,
     field_index: u8,
     // Matches value_entry_id in the parent DerivedQuery node
-    entry_id: u64,
+    entry_id: u32,
     value: Fingerprint,
-    changed_at: u64,
+    changed_at: u32,
   },
-  /// An input field (e.g. `File::handle`). Leaf node.
+  // An input field (e.g. `File::handle`). Leaf node
   InputField {
     name: Fingerprint,
     field_index: u8,
-    entry_id: u64,
+    entry_id: u32,
     value: Fingerprint,
-    changed_at: u64,
+    changed_at: u32,
   },
   /// An interned value (e.g. `LiteralValue`). Leaf node.
   Interned { name: Fingerprint, blob_index: u32 },
@@ -120,7 +119,8 @@ const TAG_EVICTED: u8 = 4;
 const TAG_SIZE: usize = std::mem::size_of::<u8>();
 const FINGERPRINT_SIZE: usize = std::mem::size_of::<Fingerprint>();
 const FIELD_INDEX_SIZE: usize = std::mem::size_of::<u8>();
-const REVISION_SIZE: usize = std::mem::size_of::<u64>();
+const ENTRY_ID_SIZE: usize = std::mem::size_of::<u32>();
+const REVISION_SIZE: usize = std::mem::size_of::<u32>();
 const EDGE_COUNT_SIZE: usize = std::mem::size_of::<u32>();
 const EDGE_SIZE: usize = std::mem::size_of::<u32>();
 
@@ -155,7 +155,7 @@ impl DepNode {
     }
   }
 
-  pub fn changed_at(&self) -> u64 {
+  pub fn changed_at(&self) -> u32 {
     match self {
       DepNode::DerivedQuery { changed_at, .. }
       | DepNode::DerivedField { changed_at, .. }
@@ -180,7 +180,8 @@ impl DepNode {
       DepNode::DerivedQuery { edges, .. } => {
         TAG_SIZE +
         FINGERPRINT_SIZE * 3 + // name + key + value
-        REVISION_SIZE * 4 + // entry_id + value_entry_id + changed_at + verified_at
+        ENTRY_ID_SIZE + // value_entry_id
+        REVISION_SIZE * 2 + // changed_at + verified_at
         EDGE_COUNT_SIZE +
         edges.len() * EDGE_SIZE
       }
@@ -188,14 +189,14 @@ impl DepNode {
         TAG_SIZE +
         FINGERPRINT_SIZE * 2 + // name + value
         FIELD_INDEX_SIZE +
-        REVISION_SIZE + // entry_id
+        ENTRY_ID_SIZE +
         REVISION_SIZE // changed_at
       }
       DepNode::InputField { .. } => {
         TAG_SIZE +
         FINGERPRINT_SIZE * 2 + // name + value
         FIELD_INDEX_SIZE +
-        REVISION_SIZE + // entry_id
+        ENTRY_ID_SIZE +
         REVISION_SIZE // changed_at
       }
       DepNode::Interned { .. } => {
@@ -211,7 +212,6 @@ impl DepNode {
         name,
         key,
         value,
-        entry_id,
         value_entry_id,
         changed_at,
         verified_at,
@@ -221,7 +221,6 @@ impl DepNode {
         bytes.extend_from_slice(&name.0);
         bytes.extend_from_slice(&key.0);
         bytes.extend_from_slice(&value.0);
-        bytes.extend_from_slice(&entry_id.to_le_bytes());
         bytes.extend_from_slice(&value_entry_id.to_le_bytes());
         bytes.extend_from_slice(&changed_at.to_le_bytes());
         bytes.extend_from_slice(&verified_at.to_le_bytes());
@@ -289,19 +288,16 @@ impl DepNode {
         let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
         pos += FINGERPRINT_SIZE;
 
-        let entry_id = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
-
         let value_entry_id =
-          u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
+          u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
 
         // the revision when the value last changed
-        let changed_at = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
         pos += REVISION_SIZE;
 
         // the revision when last confirmed valid
-        let verified_at = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        let verified_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
         pos += REVISION_SIZE;
 
         // the number of edges connecting this dep node
@@ -323,7 +319,6 @@ impl DepNode {
             name,
             key,
             value,
-            entry_id,
             value_entry_id,
             changed_at,
             verified_at,
@@ -340,13 +335,13 @@ impl DepNode {
         let field_index = bytes[pos];
         pos += FIELD_INDEX_SIZE;
 
-        let entry_id = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
+        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
 
         let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
         pos += FINGERPRINT_SIZE;
 
-        let changed_at = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
         pos += REVISION_SIZE;
 
         (
@@ -368,13 +363,13 @@ impl DepNode {
         let field_index = bytes[pos];
         pos += FIELD_INDEX_SIZE;
 
-        let entry_id = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
+        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
 
         let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
         pos += FINGERPRINT_SIZE;
 
-        let changed_at = u64::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
         pos += REVISION_SIZE;
 
         (
@@ -392,8 +387,8 @@ impl DepNode {
         let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
         pos += FINGERPRINT_SIZE;
 
-        let blob_index = u32::from_le_bytes(bytes[pos..pos + 4].try_into().unwrap());
-        pos += 4;
+        let blob_index = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
 
         (DepNode::Interned { name, blob_index }, pos)
       }

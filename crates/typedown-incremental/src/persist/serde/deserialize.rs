@@ -18,9 +18,9 @@ pub struct DeserializeContext {
   pub decoder: Decoder,
   fingerprint_map: OnceLock<HashMap<Fingerprint, Vec<DepNodeIndex>>>,
   /// DerivedField nodes grouped by (struct_name, serialized entry_id) for atomic deserialization
-  pub derived_groups: HashMap<(Fingerprint, u64), FieldGroup>,
+  pub derived_groups: HashMap<(Fingerprint, u32), FieldGroup>,
   /// (struct_name, serialized entry_id) -> current session entry_id
-  pub entry_id_map: DashMap<(Fingerprint, u64), u32>,
+  pub entry_id_map: DashMap<(Fingerprint, u32), u32>,
   /// Per-kind name -> ingredient indices
   inputs_by_name: HashMap<Fingerprint, Vec<usize>>,
   interned_by_name: HashMap<Fingerprint, Vec<usize>>,
@@ -45,7 +45,7 @@ impl DeserializeContext {
       .expect("QueryStorage must be alive during DeserializeContext creation");
     let intern_blobs = Arc::new(serialized.interned_blobs.records.clone());
 
-    let mut derived_groups: HashMap<(Fingerprint, u64), FieldGroup> = HashMap::new();
+    let mut derived_groups: HashMap<(Fingerprint, u32), FieldGroup> = HashMap::new();
     for (i, node) in serialized.dep_graph.nodes.iter().enumerate() {
       if let DepNode::DerivedField {
         name,

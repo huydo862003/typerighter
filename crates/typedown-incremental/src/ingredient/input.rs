@@ -131,7 +131,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       entry_id,
       StampedInputField {
         value,
-        changed_at: *changed_at as u32,
+        changed_at: *changed_at,
       },
     );
     let dep_id = self.ingredient_id.with_entry(entry_id);
@@ -155,11 +155,11 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       UnresolvedDepNode::InputField {
         name: self.name_fingerprint(),
         field_index: self.field_index,
-        entry_id: entry_id as u64,
+        entry_id,
         value: self
           .value_fingerprint(ctx.db(), entry_id)
           .expect("Entry is available so there must be a fingerprint"),
-        changed_at: entry.changed_at as u64,
+        changed_at: entry.changed_at,
       },
     );
 

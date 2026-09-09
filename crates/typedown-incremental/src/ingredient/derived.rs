@@ -112,7 +112,7 @@ impl<
   fn deserialize_return_value(
     &self,
     ctx: &DeserializeContext,
-    serialized_entry_id: u64,
+    serialized_entry_id: u32,
   ) -> Option<u32> {
     let group_key = (self.return_type_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
@@ -133,7 +133,7 @@ impl<
         let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
         Some(Dependency {
           dep_id,
-          changed_at: edge_node.changed_at() as u32,
+          changed_at: edge_node.changed_at(),
         })
       })
       .collect()
@@ -197,6 +197,7 @@ impl<
     let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)?;
 
     let DepNode::DerivedQuery {
+      // Links to DerivedField nodes with matching entry_id
       value_entry_id: serialized_value_entry_id,
       changed_at,
       edges,
@@ -241,7 +242,7 @@ impl<
     let key = K::decode(&mut data, decoder);
     let entry_id = self.get_or_create_entry_id(&key);
     let value = V::from(value_entry_id);
-    let changed_at = *changed_at as u32;
+    let changed_at = *changed_at;
     let dependencies = Self::deserialize_deps(edges, ctx)?;
     let current_revision = storage.revision.load(Ordering::Acquire);
     self.data.insert(
@@ -647,6 +648,7 @@ impl<
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedQuery {
+      // Links to DerivedField nodes with matching entry_id
       value_entry_id: serialized_value_entry_id,
       changed_at,
       verified_at,
@@ -684,8 +686,8 @@ impl<
       QueryState::Computed(StampedDerivedQuery {
         key,
         value,
-        changed_at: *changed_at as u32,
-        verified_at: AtomicU32::new(*verified_at as u32),
+        changed_at: *changed_at,
+        verified_at: AtomicU32::new(*verified_at),
         dependencies,
       }),
     );
@@ -720,10 +722,9 @@ impl<
             .value_fingerprint(ctx.db(), entry_id)
             .expect("Computed entry must have a value fingerprint")
         },
-        entry_id: entry_id as u64,
-        value_entry_id: <V as Into<u32>>::into(memo.value.clone()) as u64,
-        changed_at: memo.changed_at as u64,
-        verified_at: memo.verified_at.load(Ordering::Relaxed) as u64,
+        value_entry_id: <V as Into<u32>>::into(memo.value.clone()),
+        changed_at: memo.changed_at,
+        verified_at: memo.verified_at.load(Ordering::Relaxed),
         edges,
       },
     );
@@ -839,6 +840,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedField {
+      // Parent struct name, matches value_entry_id in the parent DerivedQuery node
       name,
       entry_id: serialized_entry_id,
       changed_at,
@@ -861,7 +863,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       entry_id,
       StampedDerivedField {
         value,
-        changed_at: *changed_at as u32,
+        changed_at: *changed_at,
       },
     );
 
@@ -893,7 +895,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       UnresolvedDepNode::DerivedField {
         name: self.name_fingerprint(),
         field_index: self.field_index,
-        entry_id: entry_id as u64,
+        entry_id,
         value: if self.no_hash_flag {
           Fingerprint::SKIPPED
         } else {
@@ -901,7 +903,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
             .value_fingerprint(ctx.db(), entry_id)
             .expect("Entry is available so there must be a fingerprint")
         },
-        changed_at: entry.changed_at as u64,
+        changed_at: entry.changed_at,
       },
     );
 
