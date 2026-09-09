@@ -9,7 +9,7 @@ use typedown_incremental::{
 };
 
 /// A lowered YAML value, source-tracked via its originating project and file red node
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct HirValue<'db> {
   #[id]
   pub project: Project,
@@ -17,6 +17,14 @@ pub struct HirValue<'db> {
   pub node: FileRedNode,
   pub kind: HirValueKind<'db>,
   pub diagnostics: Vec<Diagnostic>,
+}
+
+// Only hash the #[id] fields since kind and diagnostics are deterministic from (project, node)
+impl<'db> StableHash for HirValue<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    Self::try_project(*self, db).stable_hash(db, hasher);
+    Self::try_node(*self, db).stable_hash(db, hasher);
+  }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, StableCompare)]
