@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 
 use super::base::{
@@ -69,13 +70,20 @@ impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
 
 // Named opaque type with methods, construction, and nominal subtyping
 // Analogous to a class in JS
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdSchemaType<'db> {
   pub name: String,
   pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: BTreeMap<String, PropertyDescriptor<'db>>,
   pub vtable: BTreeMap<String, TdFuncObj<'db>>,
   pub parent: Option<TdTypeEnum<'db>>,
+}
+
+// Schema types are uniquely identified by name
+impl<'db> StableHash for TdSchemaType<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    Self::try_name(*self, db).stable_hash(db, hasher);
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdSchemaType<'db> {
@@ -215,12 +223,8 @@ pub struct TdSchemaObj<'db> {
 
 // If file_symbol is present, hash only (schema, file_symbol) for O(1)
 // Otherwise fall back to hashing all fields
-impl<'db> typedown_incremental::StableHash for TdSchemaObj<'db> {
-  fn stable_hash<DB: typedown_incremental::QueryDatabase + ?Sized>(
-    &self,
-    db: &DB,
-    hasher: &mut typedown_incremental::StableHasher,
-  ) {
+impl<'db> StableHash for TdSchemaObj<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     let file_symbol = Self::try_file_symbol(*self, db);
     if let Some(Some(symbol)) = &file_symbol {
       Self::try_schema(*self, db).stable_hash(db, hasher);

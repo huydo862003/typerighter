@@ -53,10 +53,23 @@ impl<'db> Decodable for PropertyDescriptor<'db> {
 }
 
 // Structural data bag with optional display name
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdProductType<'db> {
   pub name: Option<String>,
   pub fields: BTreeMap<String, LazyType<'db>>,
+}
+
+// Hash name + field keys (not field type values)
+impl<'db> StableHash for TdProductType<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    Self::try_name(*self, db).stable_hash(db, hasher);
+    if let Some(fields) = Self::try_fields(*self, db) {
+      fields.len().stable_hash(db, hasher);
+      for key in fields.keys() {
+        key.stable_hash(db, hasher);
+      }
+    }
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdProductType<'db> {
@@ -93,12 +106,28 @@ impl<'db> TdStaticType<'db> for TdProductType<'db> {
 }
 
 // Runtime instance of a product type, plain data bag
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdProductObj<'db> {
   pub product_type: TdTypeEnum<'db>,
   pub file_symbol: Option<Symbol<'db>>,
   pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+}
+
+// If file_symbol is present, hash only (product_type, file_symbol) for O(1)
+// Otherwise fall back to hashing all fields
+impl<'db> StableHash for TdProductObj<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    let file_symbol = Self::try_file_symbol(*self, db);
+    if let Some(Some(symbol)) = &file_symbol {
+      Self::try_product_type(*self, db).stable_hash(db, hasher);
+      symbol.stable_hash(db, hasher);
+    } else {
+      Self::try_product_type(*self, db).stable_hash(db, hasher);
+      Self::try_builtins(*self, db).stable_hash(db, hasher);
+      Self::try_fields(*self, db).stable_hash(db, hasher);
+    }
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
@@ -175,9 +176,21 @@ impl<'db> TdDictType<'db> {
   }
 }
 
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdDictObj<'db> {
   pub entries: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+}
+
+// Hash entry count + keys only, skip values to avoid deep recursion
+impl<'db> StableHash for TdDictObj<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    if let Some(entries) = Self::try_entries(*self, db) {
+      entries.len().stable_hash(db, hasher);
+      for key in entries.keys() {
+        key.stable_hash(db, hasher);
+      }
+    }
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdDictObj<'db> {

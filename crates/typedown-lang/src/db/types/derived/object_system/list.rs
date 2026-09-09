@@ -1,3 +1,4 @@
+use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
@@ -130,9 +131,18 @@ impl<'db> TdListType<'db> {
   }
 }
 
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdListObj<'db> {
   pub items: Vec<Either<HirValue<'db>, TdObjectEnum<'db>>>,
+}
+
+// Hash item count only to avoid walking the full list
+impl<'db> StableHash for TdListObj<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    if let Some(items) = Self::try_items(*self, db) {
+      items.len().stable_hash(db, hasher);
+    }
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdListObj<'db> {
