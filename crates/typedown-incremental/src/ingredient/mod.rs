@@ -64,7 +64,6 @@ use crate::{
 
 /// Shared base trait for all ingredient kinds
 pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String;
 
   fn name_fingerprint(&self) -> Fingerprint;

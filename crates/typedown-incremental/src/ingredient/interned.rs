@@ -59,7 +59,6 @@ impl<
   T: StableHash + std::fmt::Debug + Encodable + Decodable + Eq + Hash + Clone + Send + Sync + 'static,
 > Ingredient for InternedIngredientStore<T>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.name.to_string()
   }

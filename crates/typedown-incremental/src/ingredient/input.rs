@@ -60,7 +60,6 @@ impl<T> InputIngredientStore<T> {
 impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static> Ingredient
   for InputIngredientStore<T>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.name.to_string()
   }

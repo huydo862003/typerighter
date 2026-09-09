@@ -76,7 +76,6 @@ pub struct DerivedQueryIngredientStore<DB, K, V: Id + From<u32> + Into<u32>> {
   pub no_hash_flag: bool,
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicU32>,
-  #[cfg(debug_assertions)]
   readable_name: &'static str,
 }
 
@@ -84,17 +83,7 @@ impl<DB, K, V: Id + From<u32> + Into<u32>> std::fmt::Debug
   for DerivedQueryIngredientStore<DB, K, V>
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let name = {
-      #[cfg(debug_assertions)]
-      {
-        self.readable_name
-      }
-      #[cfg(not(debug_assertions))]
-      {
-        "DerivedQueryIngredientStore"
-      }
-    };
-    f.debug_struct(name).finish_non_exhaustive()
+    f.debug_struct(self.readable_name).finish_non_exhaustive()
   }
 }
 
@@ -166,7 +155,6 @@ impl<
       no_hash_flag: false,
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicU32::new(0)),
-      #[cfg(debug_assertions)]
       readable_name: name_fingerprint,
     }
   }
@@ -519,7 +507,6 @@ impl<
     + 'static,
 > Ingredient for DerivedQueryIngredientStore<DB, K, V>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.readable_name.to_string()
   }
@@ -813,7 +800,6 @@ impl<T> DerivedFieldIngredientStore<T> {
 impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static> Ingredient
   for DerivedFieldIngredientStore<T>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.struct_name.to_string()
   }
