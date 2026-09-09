@@ -338,15 +338,17 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   output
 }
 
-/// Cache modifiers parsed from #[query_derived(no_hash)]
+// Modifiers parsed from #[query_derived(no_hash, custom_hash)]
 struct CacheModifiers {
   no_hash: bool,
+  custom_hash: bool,
 }
 
 fn parse_cache_modifiers(attr: TokenStream) -> CacheModifiers {
   let attr_str = attr.to_string();
   CacheModifiers {
     no_hash: attr_str.contains("no_hash"),
+    custom_hash: attr_str.contains("custom_hash"),
   }
 }
 
@@ -827,6 +829,21 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     });
   }
 
+  // Skip generating StableHash for custom_hash structs (user provides their own)
+  let stable_hash_impl = if modifiers.custom_hash {
+    quote! {}
+  } else {
+    quote! {
+      impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
+        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
+          #(
+            Self::#try_field_names(*self, db).stable_hash(db, hasher);
+          )*
+        }
+      }
+    }
+  };
+
   output.extend::<TokenStream>(
     quote! {
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -895,13 +912,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         #getter_tokens
       }
 
-      impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
-        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
-          #(
-            Self::#try_field_names(*self, db).stable_hash(db, hasher);
-          )*
-        }
-      }
+      #stable_hash_impl
 
       impl<'db> ::typedown_incremental::StableCompare for #struct_name<'db> {
         fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {

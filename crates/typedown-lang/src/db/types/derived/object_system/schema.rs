@@ -204,13 +204,34 @@ impl<'db> TdSchemaType<'db> {
 }
 
 // Runtime instance of a schema type, with computed fields, defaults, and methods
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdSchemaObj<'db> {
   pub schema: TdTypeEnum<'db>,
   pub project: Project,
   pub file_symbol: Option<Symbol<'db>>,
   pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+}
+
+// If file_symbol is present, hash only (schema, file_symbol) for O(1)
+// Otherwise fall back to hashing all fields
+impl<'db> typedown_incremental::StableHash for TdSchemaObj<'db> {
+  fn stable_hash<DB: typedown_incremental::QueryDatabase + ?Sized>(
+    &self,
+    db: &DB,
+    hasher: &mut typedown_incremental::StableHasher,
+  ) {
+    let file_symbol = Self::try_file_symbol(*self, db);
+    if let Some(Some(symbol)) = &file_symbol {
+      Self::try_schema(*self, db).stable_hash(db, hasher);
+      symbol.stable_hash(db, hasher);
+    } else {
+      Self::try_schema(*self, db).stable_hash(db, hasher);
+      Self::try_project(*self, db).stable_hash(db, hasher);
+      Self::try_builtins(*self, db).stable_hash(db, hasher);
+      Self::try_fields(*self, db).stable_hash(db, hasher);
+    }
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdSchemaObj<'db> {
