@@ -19,7 +19,7 @@ use crate::{
   DerivedFieldIngredient,
   persist::serialized::dep_graph::{DepNode, DepNodeIndex},
 };
-use crate::{DerivedId, QueryDatabase, SerializeContext, UnresolvedDepNode};
+use crate::{Id, QueryDatabase, SerializeContext, UnresolvedDepNode};
 use dashmap::DashMap;
 
 use super::{DerivedQueryIngredient, IdDashMap, Ingredient};
@@ -35,7 +35,7 @@ pub struct Dependency {
 
 /// A memoized derived query result
 // TIL: verified_at is AtomicU32 so green_check can bump it via get() instead of get_mut()
-pub struct StampedDerivedQuery<K, V: DerivedId> {
+pub struct StampedDerivedQuery<K, V: Id + From<u32> + Into<u32>> {
   pub key: K,                        // The original key, for re-execution
   pub value: V,                      // The derived struct ID
   pub changed_at: Revision,          // Revision when the value last actually changed
@@ -44,7 +44,7 @@ pub struct StampedDerivedQuery<K, V: DerivedId> {
 }
 
 /// The state of a query entry in the cache
-pub enum QueryState<K, V: DerivedId> {
+pub enum QueryState<K, V: Id + From<u32> + Into<u32>> {
   /// The query is currently being computed
   Computing,
   /// The query has a cached result
@@ -60,7 +60,7 @@ pub struct StampedDerivedField<T> {
 /// Ingredient for a derived query function: maps key tuple to memoized result
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
+pub struct DerivedQueryIngredientStore<DB, K, V: Id + From<u32> + Into<u32>> {
   ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
   name_fingerprint: Fingerprint,
   return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
@@ -77,7 +77,9 @@ pub struct DerivedQueryIngredientStore<DB, K, V: DerivedId> {
   readable_name: &'static str,
 }
 
-impl<DB, K, V: DerivedId> std::fmt::Debug for DerivedQueryIngredientStore<DB, K, V> {
+impl<DB, K, V: Id + From<u32> + Into<u32>> std::fmt::Debug
+  for DerivedQueryIngredientStore<DB, K, V>
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let name = {
       #[cfg(debug_assertions)]
@@ -100,7 +102,9 @@ impl<
     + std::fmt::Debug
     + Encodable
     + Decodable
-    + DerivedId
+    + Id
+    + From<u32>
+    + Into<u32>
     + Clone
     + PartialEq
     + Send
@@ -108,7 +112,9 @@ impl<
     + 'static,
 > DerivedQueryIngredientStore<DB, K, V>
 {
-  // Deserialize the return value's data and return its session-local entry ID
+  // Resolve the return value's session-local entry ID from the serialized cache
+  // For derived return types, triggers field group deserialization
+  // For input and interned return types, entry_id_map is pre-populated by load_leaf_nodes
   fn deserialize_return_value(
     &self,
     ctx: &DeserializeContext,
@@ -197,7 +203,7 @@ impl<
     let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)?;
 
     let DepNode::DerivedQuery {
-      // Links to DerivedField nodes with matching entry_id
+      // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
       edges,
@@ -496,7 +502,9 @@ impl<
     + std::fmt::Debug
     + Encodable
     + Decodable
-    + DerivedId
+    + Id
+    + From<u32>
+    + Into<u32>
     + Clone
     + PartialEq
     + Send
@@ -544,7 +552,9 @@ impl<
     + std::fmt::Debug
     + Encodable
     + Decodable
-    + DerivedId
+    + Id
+    + From<u32>
+    + Into<u32>
     + Clone
     + PartialEq
     + Send
@@ -648,7 +658,7 @@ impl<
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedQuery {
-      // Links to DerivedField nodes with matching entry_id
+      // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
       verified_at,

@@ -76,7 +76,7 @@ pub enum DepNode {
     name: Fingerprint,
     key: Fingerprint,
     value: Fingerprint,
-    // Links to DerivedField nodes with matching entry_id
+    // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
     value_entry_id: u32,
     changed_at: u32,
     verified_at: u32,
@@ -101,8 +101,13 @@ pub enum DepNode {
     value: Fingerprint,
     changed_at: u32,
   },
-  /// An interned value (e.g. `LiteralValue`). Leaf node.
-  Interned { name: Fingerprint, blob_index: u32 },
+  // An interned value (e.g. `LiteralValue`). Leaf node
+  Interned {
+    name: Fingerprint,
+    // Links to value_entry_id in DerivedQuery when used as a return type
+    entry_id: u32,
+    blob_index: u32,
+  },
   /// Evicted by LRU, forces recomputation on next load
   Evicted,
 }
@@ -200,9 +205,10 @@ impl DepNode {
         REVISION_SIZE // changed_at
       }
       DepNode::Interned { .. } => {
-        TAG_SIZE + // discriminant
-        FINGERPRINT_SIZE + // name fingerprint
-        4 // blob_index: u32
+        TAG_SIZE +
+        FINGERPRINT_SIZE + // name
+        ENTRY_ID_SIZE +
+        ENTRY_ID_SIZE // blob_index
       }
       DepNode::Evicted => TAG_SIZE,
     };
@@ -257,9 +263,14 @@ impl DepNode {
         bytes.extend_from_slice(&value.0);
         bytes.extend_from_slice(&changed_at.to_le_bytes());
       }
-      DepNode::Interned { name, blob_index } => {
+      DepNode::Interned {
+        name,
+        entry_id,
+        blob_index,
+      } => {
         bytes.push(TAG_INTERNED);
         bytes.extend_from_slice(&name.0);
+        bytes.extend_from_slice(&entry_id.to_le_bytes());
         bytes.extend_from_slice(&blob_index.to_le_bytes());
       }
       DepNode::Evicted => {
@@ -387,10 +398,20 @@ impl DepNode {
         let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
         pos += FINGERPRINT_SIZE;
 
+        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
+
         let blob_index = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
         pos += ENTRY_ID_SIZE;
 
-        (DepNode::Interned { name, blob_index }, pos)
+        (
+          DepNode::Interned {
+            name,
+            entry_id,
+            blob_index,
+          },
+          pos,
+        )
       }
       TAG_EVICTED => (DepNode::Evicted, pos),
       _ => panic!("unknown DepNode tag {tag}"),

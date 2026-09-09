@@ -95,7 +95,12 @@ impl<
       return Some(dep_id);
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
-    let DepNode::Interned { blob_index, .. } = node else {
+    let DepNode::Interned {
+      entry_id: serialized_entry_id,
+      blob_index,
+      ..
+    } = node
+    else {
       return None;
     };
     let blob = ctx.decoder.get_intern_blob(*blob_index);
@@ -109,6 +114,12 @@ impl<
     self.data.entry(entry_id).or_insert(value);
     let dep_id = self.ingredient_id.with_entry(entry_id);
     ctx.decoder.set_dep_node_id(node_index, dep_id);
+    // Map serialized entry ID to session-local ID for derived query return value resolution
+    let name = Fingerprint::from_name(self.name);
+    ctx
+      .entry_id_map
+      .entry((name, *serialized_entry_id))
+      .or_insert(entry_id);
     Some(dep_id)
   }
 
@@ -128,6 +139,7 @@ impl<
       node_index,
       UnresolvedDepNode::Interned {
         name: self.name_fingerprint(),
+        entry_id,
         blob_index,
       },
     );

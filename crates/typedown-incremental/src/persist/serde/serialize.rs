@@ -65,6 +65,7 @@ pub enum UnresolvedDepNode {
   },
   Interned {
     name: Fingerprint,
+    entry_id: u32,
     blob_index: u32,
   },
 }
@@ -153,7 +154,15 @@ impl DepGraphBuilder {
           value,
           changed_at,
         },
-        UnresolvedDepNode::Interned { name, blob_index } => DepNode::Interned { name, blob_index },
+        UnresolvedDepNode::Interned {
+          name,
+          entry_id,
+          blob_index,
+        } => DepNode::Interned {
+          name,
+          entry_id,
+          blob_index,
+        },
       };
     }
 

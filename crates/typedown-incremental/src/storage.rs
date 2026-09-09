@@ -127,9 +127,8 @@ impl QueryStorage {
   }
 
   /// Eagerly deserialize all input and interned nodes.
-  /// Must run before any derived query deserialization, because derived query
-  /// blobs contain DepNodeIndex references to inputs/interned that need to be
-  /// in the decoder's dep_id_table before decoding
+  // Must run before any derived query deserialization, because derived query blobs contain DepNodeIndex references to inputs/interned that need to be in the decoder's dep_id_table before decoding
+  // WARNING: this also populates entry_id_map for input and interned types, which deserialize_return_value relies on for non-derived return types
   fn load_leaf_nodes(self: &Arc<Self>) {
     let Some(ctx) = self.deserialize_ctx.get() else {
       return;
