@@ -1,3 +1,12 @@
+## [0.27.1] - 2026-09-09
+
+### Perf
+
+* crates/typedown-lang
+  - Deduplicate singleton scopes to reduce cache bloat
+  - Optimize stable hash of HIR
+  - Use revision-based counter to perform more optimized LRU eviction
+
 ## [0.27.0] - 2026-09-08
 
 ### Features
