@@ -220,9 +220,7 @@ impl<
       if matches!(edge_node, DepNode::Evicted) {
         return None;
       }
-      let Some(dep_id) = decoder.get_or_deserialize_dep_node_id(edge_idx) else {
-        return None;
-      };
+      let dep_id = decoder.get_or_deserialize_dep_node_id(edge_idx)?;
       // no_hash deps: skip fingerprint check, handled by runtime green_check
       let expected_fingerprint = edge_node.value_fingerprint();
       if expected_fingerprint == Fingerprint::SKIPPED {
@@ -236,10 +234,7 @@ impl<
     }
 
     // Load returned value's field data and get its session-local entry ID
-    let Some(value_entry_id) = self.deserialize_return_value(ctx, *serialized_value_entry_id)
-    else {
-      return None;
-    };
+    let value_entry_id = self.deserialize_return_value(ctx, *serialized_value_entry_id)?;
 
     // Decode key
     let blob = ctx.serialized.query_cache.get(node_index)?;
@@ -673,10 +668,7 @@ impl<
     ctx.decoder.set_dep_node_id(node_index, dep_id);
 
     // Deserialize all sibling DerivedField nodes and get the session-local entry ID
-    let Some(value_entry_id) = self.deserialize_return_value(ctx, *serialized_value_entry_id)
-    else {
-      return None;
-    };
+    let value_entry_id = self.deserialize_return_value(ctx, *serialized_value_entry_id)?;
 
     // Decode key
     let blob = ctx.serialized.query_cache.get(node_index)?;
