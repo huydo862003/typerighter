@@ -71,21 +71,25 @@ impl FileHeader {
 /// A node in the dep graph
 #[derive(Debug, Clone)]
 pub enum DepNode {
-  /// A derived query invocation (e.g. `vault_config(project)`)
+  // A derived query invocation (e.g. `vault_config(project)`)
   DerivedQuery {
     name: Fingerprint,
     key: Fingerprint,
     value: Fingerprint,
     entry_id: u64,
+    // Links to DerivedField nodes with matching entry_id
     value_entry_id: u64,
     changed_at: u64,
     verified_at: u64,
+    // Indices into the dep graph nodes array
     edges: Vec<u32>,
   },
-  /// A derived struct field (e.g. `VaultConfigResult::version`)
+  // A derived struct field (e.g. `VaultConfigResult::version`)
   DerivedField {
+    // Parent struct name, shared across sibling fields
     name: Fingerprint,
     field_index: u8,
+    // Matches value_entry_id in the parent DerivedQuery node
     entry_id: u64,
     value: Fingerprint,
     changed_at: u64,
