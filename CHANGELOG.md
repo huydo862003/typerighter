@@ -1,3 +1,8 @@
+## [0.28.1] - 2026-09-11
+
+* crates/typedown-incremental
+  - Temporarily disable cache dumping to investigate broken cache loading
+
 ## [0.28.0] - 2026-09-10
 
 ### Features
