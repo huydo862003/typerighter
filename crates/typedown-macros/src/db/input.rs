@@ -2,9 +2,10 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::ItemStruct;
 
-use super::has_return_ref;
+use super::{has_return_ref, parse_cache_modifiers};
 
-pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
+  let modifiers = parse_cache_modifiers(attr);
   let struct_ast = match syn::parse::<ItemStruct>(item) {
     Ok(ast) => ast,
     Err(err) => return err.to_compile_error().into(),
@@ -211,6 +212,30 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     })
     .collect();
 
+  let stable_hash_impl = if modifiers.custom_hash {
+    quote! {}
+  } else {
+    quote! {
+      impl ::typedown_incremental::StableHash for #struct_name {
+        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
+          let storage = unsafe { db.storage() };
+          let cache_key = (Self::ingredient_start_index(), self.0);
+          if let Some(cached) = storage.struct_fingerprints.get(&cache_key) {
+            ::std::hash::Hasher::write(hasher, &cached.0);
+            return;
+          }
+          let mut inner_hasher = ::typedown_incremental::StableHasher::new();
+          #(
+            self.#try_field_names(db).stable_hash(db, &mut inner_hasher);
+          )*
+          let fingerprint = ::typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+          storage.struct_fingerprints.insert(cache_key, fingerprint);
+          ::std::hash::Hasher::write(hasher, &fingerprint.0);
+        }
+      }
+    }
+  };
+
   output.extend::<TokenStream>(
     quote! {
       #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -265,13 +290,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #getter_setter_tokens
       }
 
-      impl ::typedown_incremental::StableHash for #struct_name {
-        fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
-          #(
-            self.#try_field_names(db).stable_hash(db, hasher);
-          )*
-        }
-      }
+      #stable_hash_impl
 
       impl ::typedown_incremental::StableCompare for #struct_name {
         fn stable_cmp<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> ::std::cmp::Ordering {

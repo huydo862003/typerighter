@@ -550,9 +550,19 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     quote! {
       impl<'db> ::typedown_incremental::StableHash for #struct_name<'db> {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
+          let storage = unsafe { db.storage() };
+          let cache_key = (Self::ingredient_start_index(), self.0);
+          if let Some(cached) = storage.struct_fingerprints.get(&cache_key) {
+            ::std::hash::Hasher::write(hasher, &cached.0);
+            return;
+          }
+          let mut inner_hasher = ::typedown_incremental::StableHasher::new();
           #(
-            Self::#try_field_names(*self, db).stable_hash(db, hasher);
+            Self::#try_field_names(*self, db).stable_hash(db, &mut inner_hasher);
           )*
+          let fingerprint = ::typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+          storage.struct_fingerprints.insert(cache_key, fingerprint);
+          ::std::hash::Hasher::write(hasher, &fingerprint.0);
         }
       }
     }

@@ -183,7 +183,7 @@ impl RpcServer {
           .load(std::sync::atomic::Ordering::Acquire) as u64;
 
         // Run db.dump() with a timeout to prevent hanging on large vaults
-        let dump_timeout = std::time::Duration::from_secs(10);
+        let dump_timeout = std::time::Duration::from_secs(120);
         let (tx, rx) = std::sync::mpsc::channel();
         let dump_thread = std::thread::spawn(move || {
           let serialized = db.dump();

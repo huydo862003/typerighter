@@ -6,6 +6,7 @@ use std::sync::{Arc, OnceLock};
 
 use dashmap::DashMap;
 
+use super::Fingerprint;
 use super::ingredient::{
   Dependency, DerivedFieldIngredient, DerivedQueryIngredient, FieldFactory, FieldInventory,
   Ingredient, InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
@@ -79,6 +80,9 @@ pub struct QueryStorage {
   pub fields: Arc<Vec<Box<dyn DerivedFieldIngredient>>>,
   #[doc(hidden)]
   pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>, // Previous session's data for lazy deserialization
+  #[doc(hidden)]
+  // FIXME: Implement more fine-grained cleanup, instead of cleaning up whole between revisions
+  pub struct_fingerprints: Arc<DashMap<(u32, u32), Fingerprint>>, // (start_index representing the ingredient group, entry_id) -> cached fingerprint
 }
 
 impl Default for QueryStorage {
@@ -111,6 +115,7 @@ impl QueryStorage {
       queries: init_factories(queries, IngredientKind::Query),
       fields: init_factories(fields, IngredientKind::Field),
       deserialize_ctx: Arc::new(OnceLock::new()),
+      struct_fingerprints: Arc::new(DashMap::new()),
     }
   }
 
@@ -169,6 +174,7 @@ impl QueryStorage {
     for entry in self.queries.iter() {
       entry.reset_for_new_revision();
     }
+    self.struct_fingerprints.clear();
   }
 
   /// Green check a dependency by dispatching to the correct ingredient array
