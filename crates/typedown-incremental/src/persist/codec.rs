@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
-use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -520,12 +519,13 @@ impl Decodable for String {
 // PathBuf
 impl Encodable for PathBuf {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_bytes(buf, self.as_os_str().as_encoded_bytes());
+    let s = self.to_str().expect("non-UTF-8 path in cache encode");
+    encoder.emit_str(buf, s);
   }
 }
 impl Decodable for PathBuf {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    PathBuf::from(std::ffi::OsString::from_vec(decoder.read_bytes_owned(data)))
+    PathBuf::from(decoder.read_str(data))
   }
 }
 
