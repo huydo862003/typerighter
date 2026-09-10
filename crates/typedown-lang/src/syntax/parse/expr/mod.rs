@@ -296,6 +296,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
     let (arg, early_exit) = self.parse_formula_expr(vec![], block_indent);
     children.push(arg);
     if early_exit.is_some_and(|ctx| ctx != ExprCtx::Call) {
+      self.diagnostics.push(Diagnostic::MissingSyntaxNode {
+        expected: SyntaxKind::RParen,
+        start_offset: self.offset(),
+        end_offset: self.offset(),
+      });
       self.expr_ctx_stack.exit(ExprCtx::Call);
       return (self.emit(SyntaxKind::CallExpr, &children), early_exit);
     }
@@ -321,6 +326,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
           let (arg, early_exit) = self.parse_formula_expr(vec![], block_indent);
           children.push(arg);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::Call) {
+            self.diagnostics.push(Diagnostic::MissingSyntaxNode {
+              expected: SyntaxKind::RParen,
+              start_offset: self.offset(),
+              end_offset: self.offset(),
+            });
             self.expr_ctx_stack.exit(ExprCtx::Call);
             return (self.emit(SyntaxKind::CallExpr, &children), early_exit);
           }
@@ -336,6 +346,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
         _ => {
           let handler = self.expr_ctx_stack.find_handler(&peek.token);
           if handler.is_some_and(|ctx| ctx != ExprCtx::Call) {
+            self.diagnostics.push(Diagnostic::MissingSyntaxNode {
+              expected: SyntaxKind::RParen,
+              start_offset: self.offset(),
+              end_offset: self.offset(),
+            });
             self.expr_ctx_stack.exit(ExprCtx::Call);
             return (self.emit(SyntaxKind::CallExpr, &children), handler);
           }
