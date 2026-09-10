@@ -423,6 +423,30 @@ pub struct Scope<'db> {
 }
 
 impl<'db> Scope<'db> {
+  pub fn display_name(&self, db: &(impl QueryDatabase + ?Sized)) -> String {
+    match self.kind(db) {
+      ScopeKind::Builtin(_) => "builtin".to_string(),
+      ScopeKind::Project(_) => "project".to_string(),
+      ScopeKind::File(_, file) => {
+        let path = file
+          .handle(db)
+          .path()
+          .map(|p| p.display().to_string())
+          .unwrap_or_default();
+        format!("file:{path}")
+      }
+      ScopeKind::Fn(_, file, hir) => {
+        let path = file
+          .handle(db)
+          .path()
+          .map(|p| p.display().to_string())
+          .unwrap_or_default();
+        let offset = hir.node(db).offset();
+        format!("fn:{path}:{offset}")
+      }
+    }
+  }
+
   pub fn project(&self, db: &(impl QueryDatabase + ?Sized)) -> Project {
     match self.kind(db) {
       ScopeKind::Builtin(project)
@@ -485,6 +509,12 @@ pub struct Symbol<'db> {
   kind: SymbolKind<'db>,
   name: String,
   def_id: String,
+}
+
+impl<'db> Symbol<'db> {
+  pub fn display_name(&self, db: &(impl QueryDatabase + ?Sized)) -> String {
+    format!("{}:{}", self.name(db), self.def_id(db))
+  }
 }
 
 #[query_derived]
