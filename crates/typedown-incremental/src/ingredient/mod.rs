@@ -6,6 +6,16 @@ mod inventory;
 use std::any::Any;
 use std::hash::{BuildHasher, Hasher};
 
+pub use derived::*;
+pub use input::*;
+pub use interned::*;
+pub use inventory::*;
+
+use crate::persist::serialized::dep_graph::DepNodeIndex;
+use crate::{
+  DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext,
+};
+
 // Identity hasher for u32 keys, passes the value through as-is
 #[derive(Default)]
 pub struct IdHasher(u64);
@@ -52,15 +62,26 @@ impl<V> Default for IdDashMap<V> {
   }
 }
 
-pub use derived::*;
-pub use input::*;
-pub use interned::*;
-pub use inventory::*;
+// A mapped reference into a DashMap entry, derefs to a projected field
+pub struct MappedRef<'a, V, T> {
+  _guard: dashmap::mapref::one::Ref<'a, u32, V>,
+  ptr: *const T,
+}
 
-use crate::persist::serialized::dep_graph::DepNodeIndex;
-use crate::{
-  DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext,
-};
+impl<V, T> std::ops::Deref for MappedRef<'_, V, T> {
+  type Target = T;
+  fn deref(&self) -> &T {
+    // Safety: ptr points into _guard which is alive
+    unsafe { &*self.ptr }
+  }
+}
+
+impl<'a, V, T> MappedRef<'a, V, T> {
+  pub fn new(guard: dashmap::mapref::one::Ref<'a, u32, V>, f: impl FnOnce(&V) -> &T) -> Self {
+    let ptr = f(&*guard) as *const T;
+    Self { _guard: guard, ptr }
+  }
+}
 
 /// Shared base trait for all ingredient kinds
 pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
