@@ -22,4 +22,3 @@ Editor integrations for Typedown. All editors use the same LSP server, so featur
 - [Neovim](01-neovim) for installation, commands, and tips
 - [VS Code](02-vscode) for installation and features
 - [Zed](03-zed) for installation
-- [Contributing](04-contributing) for developing the editor plugins
