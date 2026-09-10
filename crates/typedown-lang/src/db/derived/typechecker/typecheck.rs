@@ -352,6 +352,12 @@ fn check_index<'db>(
     None => return diagnostics,
   };
 
+  // Unwrap literal types to their underlying type
+  let expr_type = match &expr_type {
+    TdTypeEnum::TdLiteralType(lit) => lit.underlying_type(db),
+    _ => expr_type,
+  };
+
   // Type instantiation: no checking is needed because we do not support type bound, only check arity
   if expr_type.arity(db) > 0 {
     return diagnostics;
@@ -1554,6 +1560,22 @@ mod tests {
         .iter()
         .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { .. })),
       "should have FieldTypeMismatch for string assigned to number field: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // String literal indexing should not produce NotIndexable
+  #[test]
+  fn typecheck_str_literal_index_no_errors() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "str_literal_index.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let result = typecheck(&db, hir.unwrap());
+    assert!(
+      !result
+        .diagnostics(&db)
+        .iter()
+        .any(|d| matches!(d, Diagnostic::NotIndexable { .. })),
+      "string literal indexing should not be flagged as not indexable: {:?}",
       result.diagnostics(&db)
     );
   }
