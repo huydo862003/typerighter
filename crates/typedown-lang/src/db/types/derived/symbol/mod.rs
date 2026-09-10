@@ -7,7 +7,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::scope::{
   get_builtin_runtime_scope, get_file_runtime_scope, get_project_runtime_scope, parent_scope,
 };
-use crate::db::types::{File, HirValue, Project, TdObjectEnum};
+use crate::db::types::{File, HirValue, Project, TdObjectEnum, TdRuntimeObject};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
@@ -423,30 +423,6 @@ pub struct Scope<'db> {
 }
 
 impl<'db> Scope<'db> {
-  pub fn display_name(&self, db: &(impl QueryDatabase + ?Sized)) -> String {
-    match self.kind(db) {
-      ScopeKind::Builtin(_) => "builtin".to_string(),
-      ScopeKind::Project(_) => "project".to_string(),
-      ScopeKind::File(_, file) => {
-        let path = file
-          .handle(db)
-          .path()
-          .map(|p| p.display().to_string())
-          .unwrap_or_default();
-        format!("file:{path}")
-      }
-      ScopeKind::Fn(_, file, hir) => {
-        let path = file
-          .handle(db)
-          .path()
-          .map(|p| p.display().to_string())
-          .unwrap_or_default();
-        let offset = hir.node(db).offset();
-        format!("fn:{path}:{offset}")
-      }
-    }
-  }
-
   pub fn project(&self, db: &(impl QueryDatabase + ?Sized)) -> Project {
     match self.kind(db) {
       ScopeKind::Builtin(project)
@@ -479,11 +455,57 @@ impl<'db> Scope<'db> {
 }
 
 // Runtime scope for closure evaluation
-#[query_derived(no_hash)]
+#[query_derived(no_hash, custom_hash)]
 pub struct RuntimeScope<'db> {
   scope: Scope<'db>,
   bindings: Vec<(String, TdObjectEnum<'db>)>,
   parent: Option<Box<RuntimeScope<'db>>>,
+}
+
+impl<'db> StableHash for RuntimeScope<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    // Safety: DB is always TypedownDatabase at runtime
+    let td_db = unsafe { &*(db as *const DB as *const TypedownDatabase) };
+    runtime_scope_display_string(*self, td_db).stable_hash(db, hasher);
+  }
+}
+
+fn runtime_scope_display_string<'db>(
+  runtime_scope: RuntimeScope<'db>,
+  db: &'db TypedownDatabase,
+) -> String {
+  let scope_name = match runtime_scope.scope(db).kind(db) {
+    ScopeKind::Builtin(_) => "builtin".to_string(),
+    ScopeKind::Project(_) => "project".to_string(),
+    ScopeKind::File(_, file) => {
+      let path = file
+        .handle(db)
+        .path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+      format!("file:{path}")
+    }
+    ScopeKind::Fn(_, file, hir) => {
+      let path = file
+        .handle(db)
+        .path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+      let offset = hir.node(db).offset();
+      format!("fn:{path}:{offset}")
+    }
+  };
+  let bindings_str: Vec<String> = runtime_scope
+    .bindings(db)
+    .iter()
+    .map(|(name, obj)| format!("{}={}", name, obj.to_display_string(db)))
+    .collect();
+  let parent_str = runtime_scope
+    .parent(db)
+    .as_ref()
+    .map(|p| runtime_scope_display_string(**p, db))
+    .unwrap_or_default();
+  format!("{scope_name}({})>{parent_str}", bindings_str.join(","))
 }
 
 impl<'db> RuntimeScope<'db> {
@@ -509,12 +531,6 @@ pub struct Symbol<'db> {
   kind: SymbolKind<'db>,
   name: String,
   def_id: String,
-}
-
-impl<'db> Symbol<'db> {
-  pub fn display_name(&self, db: &(impl QueryDatabase + ?Sized)) -> String {
-    format!("{}:{}", self.name(db), self.def_id(db))
-  }
 }
 
 #[query_derived]
