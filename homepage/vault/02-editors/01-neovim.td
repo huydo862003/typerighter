@@ -58,7 +58,7 @@ This puts both `typedown-lsp` and `typedown-rpc` on your PATH. The plugin picks 
 | --- | --- |
 | `TypedownFormat` | Format the current file via the LSP |
 | `TypedownLint` | Show diagnostics in the location list |
-| `TypedownPaste` | Paste clipboard image as an asset and insert `fref` |
+| `TypedownPasteAsset` | Paste clipboard image as an asset and insert `fref` |
 
 ## Tips
 

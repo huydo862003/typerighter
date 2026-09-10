@@ -1,8 +1,8 @@
 -- Paste interception for Typedown files
 -- Hooks into vim.paste to detect binary/image data on the clipboard
 -- and save it to the _assets directory instead of pasting raw text
-if vim.g.typedown_paste_loaded then return end
-vim.g.typedown_paste_loaded = true
+if vim.g.typedown_paste_asset_loaded then return end
+vim.g.typedown_paste_asset_loaded = true
 
 local sysname = vim.uv.os_uname().sysname
 
@@ -122,6 +122,7 @@ local function handle_binary_paste()
 
   local mime_type = detect_clipboard_mime()
   if not mime_type then
+    vim.notify("[typedown] No supported image found in clipboard", vim.log.levels.WARN)
     return false
   end
 
@@ -147,7 +148,7 @@ local function handle_binary_paste()
     return false
   end
 
-  local relative_path = "_assets/" .. filename
+  local relative_path = "./_assets/" .. filename
   local fref_text = string.format('${fref("%s")}', relative_path)
 
   vim.schedule(function()
@@ -168,7 +169,7 @@ end
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "typedown",
   callback = function(event)
-    vim.api.nvim_buf_create_user_command(event.buf, "TypedownPaste", function()
+    vim.api.nvim_buf_create_user_command(event.buf, "TypedownPasteAsset", function()
       handle_binary_paste()
     end, { desc = "Paste clipboard image as typedown asset" })
   end,
