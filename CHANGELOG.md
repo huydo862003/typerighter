@@ -3,7 +3,7 @@
 * crates/typedown-incremental
   - Temporarily disable cache dumping to investigate broken cache loading
 
-## [0.28.0] - 2026-09-10
+## [0.28.0] - 2026-09-10 (retracted)
 
 ### Features
 
@@ -29,7 +29,7 @@
   - Use relative fref path (`./_assets/...`) in pasted asset references
   - Show warning when no supported image is found in clipboard
 
-## [0.27.1] - 2026-09-09
+## [0.27.1] - 2026-09-09 (retracted)
 
 ### Perf
 
@@ -38,7 +38,7 @@
   - Optimize stable hash of HIR
   - Use revision-based counter to perform more optimized LRU eviction
 
-## [0.27.0] - 2026-09-08
+## [0.27.0] - 2026-09-08 (retracted)
 
 ### Features
 
@@ -75,7 +75,7 @@
   - Support multiple notification handlers in RPC client
   - Eagerly fetch site data and search index during production builds
 
-## [0.26.0] - 2026-09-07
+## [0.26.0] - 2026-09-07 (retracted)
 
 ### Perf
 
@@ -94,7 +94,7 @@
   - Fix schema export including internal fields
   - Remove unused Set<T> wrapper
 
-## [0.25.0] - 2026-09-06
+## [0.25.0] - 2026-09-06 (retracted)
 
 ### Fixes
 
@@ -109,21 +109,14 @@
 * crates/typedown-server
   - Drop jsonrpsee and uses multithreading instead of tokio
 
-## [0.24.1] - 2026-09-05
+## [0.24.1] - 2026-09-05 (retracted)
 
 ### Fixes
 
 * crates/typedown-lang
   - Exported html for custom container contains unclosed templates
 
-## [0.24.1] - 2026-09-05
-
-### Fixes
-
-* crates/typedown-lang
-  - Export html for custom container contain unclosed templates
-
-## [0.24.0] - 2026-09-05
+## [0.24.0] - 2026-09-05 (retracted)
 
 ### Perf
 
@@ -136,7 +129,7 @@
 * packages/typerighter
   - Search bar styling
 
-## [0.23.0] - 2026-09-05
+## [0.23.0] - 2026-09-05 (retracted)
 
 ### Features
 
@@ -166,7 +159,7 @@
   - Fix search toggle focus on `Ctrl+K` / `Cmd+K`
   - Use template refs for search toggle instead of DOM class query
 
-## [0.22.2] - 2026-09-03
+## [0.22.2] - 2026-09-03 (retracted)
 
 ### Perf
 
@@ -178,14 +171,14 @@
 * packages/typerighter
   - `index.html` is no longer required and is ignored
 
-## [0.22.1] - 2026-09-03
+## [0.22.1] - 2026-09-03 (retracted)
 
 ### Chore
 
 * crates/typedown-server
   - Switch Linux release binary to static linking (musl) for NixOS/Alpine compatibility
 
-## [0.22.0] - 2026-09-03
+## [0.22.0] - 2026-09-03 (retracted)
 
 ### Chore
 
@@ -194,7 +187,7 @@
   - Add missing metadata
   - Unify the vscode extension to use 1 vsix variant to bypass vscode marketplace hassels
 
-## [0.21.1] - 2026-09-02
+## [0.21.1] - 2026-09-02 (retracted)
 
 ### Perf
 
@@ -206,7 +199,7 @@
 * packages/typerighter
   - Bump packages to resolve vulnerabilities
 
-## [0.21.0] - 2026-09-02
+## [0.21.0] - 2026-09-02 (retracted)
 
 ### Feat
 
@@ -220,14 +213,14 @@
 * crates/typedown-lang
   - Inline code blocks (`` `{ a: b }` ``) no longer emit invalid code range indicator diagnostics
 
-## [0.20.4] - 2026-09-02
+## [0.20.4] - 2026-09-02 (retracted)
 
 ### Fixes
 
 * crates/typedown-lang
   - Icon handling in markdown body
 
-## [0.20.3] - 2026-09-01
+## [0.20.3] - 2026-09-01 (retracted)
 
 ### Perf
 
@@ -240,7 +233,7 @@
 * packages/typerighter
   - `fetchSiteData` uses `listSidebar` for content tree instead of `listFilesGroupedBySchema`
 
-## [0.20.2] - 2026-09-01
+## [0.20.2] - 2026-09-01 (retracted)
 
 ### Feat
 
@@ -258,14 +251,14 @@
   - Folder label inherits from index file's `_label`
   - Sidebar interleaves files and folders sorted by numeric prefix
 
-## [0.20.1] - 2026-09-01
+## [0.20.1] - 2026-09-01 (retracted)
 
 ### Fixes
 
 * crates/typedown-incremental
   - **Fix false cycle panics during concurrent query execution**: cancelled queries left stale `Computing` state in the query cache, causing other threads to detect false dependency cycles and panic. Wrap query execution in `catch_unwind` to ensure `Computing` entries are always cleaned up on cancellation.
 
-## [0.20.0] - 2026-09-01
+## [0.20.0] - 2026-09-01 (retracted)
 
 ### Feat
 
@@ -273,14 +266,14 @@
   - Support schema label and icon
   - Enhance consistencies of type system regarding internal fields
 
-## [0.19.0] - 2026-08-31
+## [0.19.0] - 2026-08-31 (retracted)
 
 ### Feat
 
 * crates/typedown-lang
   - Support `|` operator for enum
 
-## [0.18.0] - 2026-08-31
+## [0.18.0] - 2026-08-31 (retracted)
 
 ### Feat
 
@@ -297,42 +290,42 @@
 * crates/typedown-lang
   - **Formatter deleting `$$` and code blocks**: `MathBlock` and `CodeBlock` were missing from `MdBlockElement` AST wrapper, causing the formatter to silently drop them when nested inside list items
 
-## [0.17.5] - 2026-08-31
+## [0.17.5] - 2026-08-31 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - FOUD issues when accessing the website
 
-## [0.17.4] - 2026-08-31
+## [0.17.4] - 2026-08-31 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - Broken font imports
 
-## [0.17.3] - 2026-08-31
+## [0.17.3] - 2026-08-31 (retracted)
 
 ### Perf
 
 * packages/typerighter
   - Optimize css loading by splitting fonts out of main.css
 
-## [0.17.2] - 2026-08-31
+## [0.17.2] - 2026-08-31 (retracted)
 
 ### Fixes
 
 * crates/typedown-lang
   - Don't strip _label when export header
 
-## [0.17.1] - 2026-08-31
+## [0.17.1] - 2026-08-31 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - Properly copy public dir to output
 
-## [0.17.0] - 2026-08-31
+## [0.17.0] - 2026-08-31 (retracted)
 
 ### Feat
 
@@ -362,7 +355,7 @@
   - Search results wrapped in `withBase` for correct navigation
   - CLI `--base` no longer defaults to `/`, allowing `site.base_path` from config to take effect
 
-## [0.16.0] - 2026-08-27
+## [0.16.0] - 2026-08-27 (retracted)
 
 ### Feat
 
@@ -390,7 +383,7 @@
 * homepage
   - New documentation site with guides and references
 
-## [0.15.1] - 2026-08-26
+## [0.15.1] - 2026-08-26 (retracted)
 
 ### Fixes
 
@@ -406,7 +399,7 @@
 * editors/vscode
   - Fixed paste handler: `SnippetString` escaping so `${fref("...")}` is inserted as literal text
 
-## [0.15.0] - 2026-08-26
+## [0.15.0] - 2026-08-26 (retracted)
 
 ### Breaking changes
 
@@ -443,29 +436,29 @@
   - `siteData` provided as `shallowRef` for Vue reactivity
   - Added HMR architecture documentation and pitfalls to README
 
-## [0.14.1] - 2026-08-25
+## [0.14.1] - 2026-08-25 (retracted)
 
 * packages/typerighter
   - Generate description for glossary
 
-## [0.14.0] - 2026-08-25
+## [0.14.0] - 2026-08-25 (retracted)
 
 * packages/typerighter
   - Improve type system
   - Improve layout, frontmatter
   - Add glossary view
 
-## [0.13.0] - 2026-08-24
+## [0.13.0] - 2026-08-24 (retracted)
 
 * packages/typerighter
   - Add github corner icon if there's a repo config
 
-## [0.12.2] - 2026-08-24
+## [0.12.2] - 2026-08-24 (retracted)
 
 * packages/typerighter
   - Properly track active toc item highlighting
 
-## [0.12.1] - 2026-08-24
+## [0.12.1] - 2026-08-24 (retracted)
 
 * packages/typerighter
   - Fix build failure: type schema files in `_types/` now correctly serve the not-found page instead of crashing the bundler
@@ -473,51 +466,51 @@
   - Vault check runs async after server starts, no longer blocking startup
   - Improve transform error logging: errors now include file path and message
 
-## [0.12.0] - 2026-08-24
+## [0.12.0] - 2026-08-24 (retracted)
 
 BREAKING CHANGE: Retouch vault configuration and organization
 - Remove `assets_dir` config
 - Remove `content_dir` and `schema_dir` config
 - Unify to 1 `root_dir` config
 
-## [0.11.5] - 2026-08-23
+## [0.11.5] - 2026-08-23 (retracted)
 
 * packages/typerighter
   - Properly layout the show more button in a frontmatter list
 
-## [0.11.4] - 2026-08-22
+## [0.11.4] - 2026-08-22 (retracted)
 
 * packages/tree-sitter
   - Add syntax highlighting for ? postfix operator
 
-## [0.11.3] - 2026-08-22
+## [0.11.3] - 2026-08-22 (retracted)
 
 * packages/typerighter
   - Style frontmatter widget list as list of bullet point instead of inline list
 
-## [0.11.2] - 2026-08-22
+## [0.11.2] - 2026-08-22 (retracted)
 
 * packages/typerighter
   - Fix broken static asset serving in vite dev server
 
-## [0.11.1] - 2026-08-22
+## [0.11.1] - 2026-08-22 (retracted)
 
 * packages/typerighter
   - Fix broken ssg
 
-## [0.11.0] - 2026-08-22
+## [0.11.0] - 2026-08-22 (retracted)
 
 * crates/typedown-lang
   - Support existential type
   - Support default and computed in schema definition
   - Support ? operator for optional, remove optional property in schema definition
 
-## [0.10.2] - 2026-08-14
+## [0.10.2] - 2026-08-14 (retracted)
 
 * crates/typedown-lang
   - Container block incorrectly consuming ::: when parsing
 
-## [0.10.1] - 2026-08-14
+## [0.10.1] - 2026-08-14 (retracted)
 
 * crates/typedown-lang
   - Allow tables in markdown to indent
@@ -528,13 +521,13 @@ BREAKING CHANGE: Retouch vault configuration and organization
 * editors/nvim
   - Fix local plugin loader to prioritize our dev version for easy dev testing
 
-## [0.10.0] - 2026-08-14
+## [0.10.0] - 2026-08-14 (retracted)
 
 * crates/typedown-lang
   - Allow blank lines in lists before indented blocks
   - No longer require trailing space between blockquote and content
 
-## [0.9.0] - 2026-08-13
+## [0.9.0] - 2026-08-13 (retracted)
 
 * crates/typedown-lang
   - Add `public_dir` to vault config under `site`, defaults to `public`
@@ -557,7 +550,7 @@ BREAKING CHANGE: Retouch vault configuration and organization
   - Increase sidebar tree MAX_VISIBLE from 4 to 20
   - Use `_label` as canonical display name, remove `title` from example schemas
 
-## [0.8.0] - 2026-08-13
+## [0.8.0] - 2026-08-13 (retracted)
 
 * packages/typerighter
   - Collapse too long breadcrumbs
@@ -568,7 +561,7 @@ BREAKING CHANGE: Retouch vault configuration and organization
   - Hide empty and builtin-prefixed frontmatter fields
   - Include virtual index pages in prev/next navigation
 
-## [0.7.0] - 2026-08-13
+## [0.7.0] - 2026-08-13 (retracted)
 
 * crates/typedown-lang
   - Rewrite markdown exporter to strip source indentation from nested blocks
@@ -584,7 +577,7 @@ BREAKING CHANGE: Retouch vault configuration and organization
   - Fix folder label overflow in sidebar tree
   - Fix frontmatter row alignment for multiline values
 
-## [0.6.0] - 2026-08-12
+## [0.6.0] - 2026-08-12 (retracted)
 
 * crates/typedown-lang
   - Add container shorthand syntax `[[identifier {props}]]`
@@ -611,14 +604,14 @@ BREAKING CHANGE: Retouch vault configuration and organization
   - Extract TOC into standalone `TdToc` component
   - Move `TdDirectoryIndex` to custom components directory
 
-## [0.5.1] - 2026-08-12
+## [0.5.1] - 2026-08-12 (retracted)
 
 * packages/typerighter
   - Improve sidebar nested item stylings
   - Improve index file styling
   - No longer strip index from path
 
-## [0.5.0] - 2026-08-11
+## [0.5.0] - 2026-08-11 (retracted)
 
 * crates/typedown-lang
   - Fix infinite loop when a container block is nested inside a list item
@@ -643,27 +636,27 @@ BREAKING CHANGE: Retouch vault configuration and organization
 * editors/nvim
   - Remove conflicting C-v keymap
 
-## [0.4.4] - 2026-08-09
+## [0.4.4] - 2026-08-09 (retracted)
 
 * crates/typedown-types
   - Wrong exhaustion check of filestream
 
-## [0.4.3] - 2026-08-09
+## [0.4.3] - 2026-08-09 (retracted)
 
 * packages/rpc-server
   - Make install.js more robust on nixos
 
-## [0.4.2] - 2026-08-09
+## [0.4.2] - 2026-08-09 (retracted)
 
 * packages/rpc-server
   - Detect NixOS and install properly for rpc-server
 
-## [0.4.1] - 2026-08-09
+## [0.4.1] - 2026-08-09 (retracted)
 
 * packages/typerighter
   - Fix the index listing to correctly link to children dir
 
-## [0.4.0] - 2026-08-09
+## [0.4.0] - 2026-08-09 (retracted)
 
 * crates/typedown-lang
   - Support custom components `::: name {prop="value" flag}`
@@ -688,16 +681,16 @@ BREAKING CHANGE: Retouch vault configuration and organization
 * editors
   - Update Neovim highlight queries and the VS Code TextMate grammar for container syntax
 
-## [0.3.1] - 2026-08-04
+## [0.3.1] - 2026-08-04 (retracted)
 
 * packages/typerighter
   - Use Vite manifest to resolve client entry (fixes broken hydration)
   - Pre-render virtual index page in SSG build
   - Clear output directory before building to prevent stale assets
 
-## [0.3.0] - 2026-08-04
+## [0.3.0] - 2026-08-04 (retracted)
 
-[0.2.3] - 2026-08-04
+[0.2.3] - 2026-08-04 (retracted)
 
 * crates/typedown-server
   - Add close() to WASM RPC client for safe cleanup
@@ -709,33 +702,33 @@ BREAKING CHANGE: Retouch vault configuration and organization
   - Introduce AppContext for resource lifecycle management
   - Drop consola, use picocolors directly
 
-## [0.2.2] - 2026-08-04
+## [0.2.2] - 2026-08-04 (retracted)
 
 * packages/typerighter
   - Avoid the server hanging after build
   - Improve the server logging for phases
 
-## [0.2.1] - 2026-08-04
+## [0.2.1] - 2026-08-04 (retracted)
 
 * packages/typerighter
   - Bundle typerighter into ssr build to avoid dual vue instances
 
-## [0.2.0] - 2026-08-03
+## [0.2.0] - 2026-08-03 (retracted)
 
 * packages/typerighter
   - Fix build and dev command failure for cli
 
-## [0.1.6] - 2026-08-02 (Deprecated)
+## [0.1.6] - 2026-08-02 (retracted)
 
 * packages/typerighter
   - No longer inject html
 
-## [0.1.5] - 2026-08-02 (Deprecated)
+## [0.1.5] - 2026-08-02 (retracted)
 
 * packages/typerighter
   - Split cli to a vite endtrypoint and properly import it
 
-## [0.1.4] - 2026-08-02 (Deprecated)
+## [0.1.4] - 2026-08-02 (retracted)
 
 * packages/rpc-server
   - Support unref() to avoid keeping the event loop alive
@@ -748,12 +741,12 @@ BREAKING CHANGE: Retouch vault configuration and organization
 * crates/typedown-lang
   - Support exporting assets to markdown
 
-## [0.1.3] - 2026-08-02 (Deprecated)
+## [0.1.3] - 2026-08-02 (retracted)
 
 * packages/rpc-server
   - Prioritize binary on PATH
 
-## [0.1.2] - 2026-08-02 (Deprecated)
+## [0.1.2] - 2026-08-02 (retracted)
 
 * packages/rpc-server
   - Fall back to system PATH when typedown-rpc binary is not in node_modules
@@ -768,7 +761,7 @@ BREAKING CHANGE: Retouch vault configuration and organization
 * editors/vscode
   - Add list[T] and dict[K,V] syntax highlighting via tmLanguage pattern
 
-## [0.1.1] - 2026-08-01 (Deprecated)
+## [0.1.1] - 2026-08-01 (retracted)
 
 * crates/\*, packages/\*, editors/\*
   - Report unresolved identifiers as errors when used as field values
@@ -776,6 +769,6 @@ BREAKING CHANGE: Retouch vault configuration and organization
   - Add Nix flake build for typedown-lsp and typedown-rpc
   - Fix repo URLs in npm packages
 
-## [0.1.0] - 2026-08-01 (Deprecated)
+## [0.1.0] - 2026-08-01 (retracted)
 
 First major version with core compiler + language services and static site generator
