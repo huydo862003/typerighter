@@ -11,7 +11,7 @@ use crate::persist::stable::StableCompare;
 use crate::{DepId, QueryDatabase, QueryStorage};
 
 pub struct Encoder<'a> {
-  db: &'a dyn QueryDatabase,
+  pub db: &'a dyn QueryDatabase,
   intern_hints: HashMap<(std::any::TypeId, usize), u32>,
   intern_blobs: Vec<Vec<u8>>,
   intern_table: HashMap<Vec<u8>, u32>,

@@ -195,16 +195,15 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
   }
 
-  // Per-field Encodable tokens: return_ref fields must clone to avoid borrow conflict with encoder
+  // Per-field Encodable tokens: return_ref fields access encoder.db directly to avoid borrow conflict
   let encode_field_tokens: Vec<_> = fields
     .iter()
     .map(|field| {
       let name = field.ident.as_ref().unwrap();
       if has_return_ref(field) {
-        // Clone to drop the MappedRef guard before passing encoder as &mut
         quote! {
-          let __val = self.#name(encoder.db()).clone();
-          ::typedown_incremental::Encodable::field_encode(&__val, buf, encoder);
+          let __ref = self.#name(encoder.db);
+          ::typedown_incremental::Encodable::field_encode(&*__ref, buf, encoder);
         }
       } else {
         quote! { ::typedown_incremental::Encodable::field_encode(&self.#name(encoder.db()), buf, encoder); }
