@@ -1,3 +1,5 @@
+use std::path::{Component, Path, PathBuf};
+
 use typedown_macros::query_derived;
 
 use crate::syntax::red::RedNode;
@@ -56,7 +58,18 @@ fn resolve_call<'db>(
   {
     let project = hir.project(db);
     let root_dir = get_vault_config(db, project).root_dir(db);
-    let target_path = root_dir.join(&path);
+    // Resolve relative paths (./ or ../) from the current file's directory
+    let target_path = if path.starts_with("./") || path.starts_with("../") {
+      let file = hir.node(db).owner_file;
+      let file_path = match file.handle(db).path() {
+        Some(p) => p.clone(),
+        None => return MaybeSymbol::new(db, None),
+      };
+      let file_dir = file_path.parent().unwrap_or(&root_dir).to_path_buf();
+      normalize_join(&file_dir, &path)
+    } else {
+      root_dir.join(&path)
+    };
     if let Some(&target_file) = project.files(db).get(&target_path) {
       return file_symbol(db, project, target_file);
     }
@@ -80,6 +93,22 @@ fn is_dot_rhs(node: &RedNode) -> bool {
     Some(op) => node.offset() > op.offset(),
     None => false,
   }
+}
+
+// Join base and relative path, collapsing . and .. components
+fn normalize_join(base: &Path, relative: &str) -> PathBuf {
+  let joined = base.join(relative);
+  let mut result = PathBuf::new();
+  for component in joined.components() {
+    match component {
+      Component::CurDir => {}
+      Component::ParentDir => {
+        result.pop();
+      }
+      other => result.push(other),
+    }
+  }
+  result
 }
 
 #[cfg(test)]

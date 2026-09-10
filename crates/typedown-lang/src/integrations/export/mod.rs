@@ -1759,6 +1759,18 @@ properties:
     );
   }
 
+  // Relative fref (./_assets/test.svg) resolves from the file's directory
+  #[test]
+  fn html_export_relative_fref_image() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "subdir/relative_fref.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("<img src=") && exported.content.contains("test.svg"),
+      "relative fref should render as img tag: {}",
+      exported.content
+    );
+  }
+
   #[test]
   fn html_export_no_raw_markdown() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
