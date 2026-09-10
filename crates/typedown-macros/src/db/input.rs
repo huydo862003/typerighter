@@ -2,6 +2,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::ItemStruct;
 
+use super::has_return_ref;
+
 pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   let struct_ast = match syn::parse::<ItemStruct>(item) {
     Ok(ast) => ast,
@@ -89,41 +91,91 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let field_ty = &field.ty;
     let setter_name = quote::format_ident!("set_{}", field_name);
     let try_field_name = quote::format_ident!("try_{}", field_name);
+    let is_return_ref = has_return_ref(field);
+
+    // Getter: returns MappedRef (deref to &T) for return_ref fields, T otherwise
+    let getter = if is_return_ref {
+      quote! {
+        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInputField<#field_ty>, #field_ty> {
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&self.0).expect("invalid input id");
+
+          // Record dependency if inside a derived query
+          let dep_id = ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Input,
+            ingredient_id as u32,
+            self.0,
+          );
+          storage.with_context(|ctx| {
+            if let Some(ctx) = ctx {
+              ctx.dependencies.push(::typedown_incremental::Dependency {
+                dep_id,
+                changed_at: entry.changed_at,
+              });
+            }
+          });
+
+          ::typedown_incremental::MappedRef::new(entry, |stamped| &stamped.value)
+        }
+      }
+    } else {
+      quote! {
+        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&self.0).expect("invalid input id");
+
+          // Record dependency if inside a derived query
+          let dep_id = ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Input,
+            ingredient_id as u32,
+            self.0,
+          );
+          storage.with_context(|ctx| {
+            if let Some(ctx) = ctx {
+              ctx.dependencies.push(::typedown_incremental::Dependency {
+                dep_id,
+                changed_at: entry.changed_at,
+              });
+            }
+          });
+
+          entry.value.clone()
+        }
+      }
+    };
+
+    getter_setter_tokens.extend(getter);
+
+    let try_getter = if is_return_ref {
+      quote! {
+        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInputField<#field_ty>, #field_ty>> {
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
+          Some(::typedown_incremental::MappedRef::new(ingredient.data.get(&self.0)?, |stamped| &stamped.value))
+        }
+      }
+    } else {
+      quote! {
+        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
+          Some(ingredient.data.get(&self.0)?.value.clone())
+        }
+      }
+    };
+    getter_setter_tokens.extend(try_getter);
 
     getter_setter_tokens.extend(quote! {
-      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
-        let storage = unsafe { db.storage() };
-        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&self.0).expect("invalid input id");
-
-        // Record dependency if inside a derived query
-        let dep_id = ::typedown_incremental::DepId::new(
-          ::typedown_incremental::IngredientKind::Input,
-          ingredient_id as u32,
-          self.0,
-        );
-        storage.with_context(|ctx| {
-          if let Some(ctx) = ctx {
-            ctx.dependencies.push(::typedown_incremental::Dependency {
-              dep_id,
-              changed_at: entry.changed_at,
-            });
-          }
-        });
-
-        entry.value.clone()
-      }
-
-      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
-        let storage = unsafe { db.storage() };
-        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
-        Some(ingredient.data.get(&self.0)?.value.clone())
-      }
-
       pub fn #setter_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &mut DB, value: #field_ty) {
         let storage = unsafe { db.storage() };
         let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
@@ -142,6 +194,23 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
       }
     });
   }
+
+  // Per-field Encodable tokens: return_ref fields must clone to avoid borrow conflict with encoder
+  let encode_field_tokens: Vec<_> = fields
+    .iter()
+    .map(|field| {
+      let name = field.ident.as_ref().unwrap();
+      if has_return_ref(field) {
+        // Clone to drop the MappedRef guard before passing encoder as &mut
+        quote! {
+          let __val = self.#name(encoder.db()).clone();
+          ::typedown_incremental::Encodable::field_encode(&__val, buf, encoder);
+        }
+      } else {
+        quote! { ::typedown_incremental::Encodable::field_encode(&self.#name(encoder.db()), buf, encoder); }
+      }
+    })
+    .collect();
 
   output.extend::<TokenStream>(
     quote! {
@@ -219,9 +288,7 @@ pub fn query_input_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
           encoder.emit_u32(buf, index);
-          #(
-            ::typedown_incremental::Encodable::field_encode(&self.#field_names(encoder.db()), buf, encoder);
-          )*
+          #( #encode_field_tokens )*
         }
 
         fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {

@@ -88,6 +88,7 @@ impl FileHandle {
 /// A file input struct
 #[query_input]
 pub struct File {
+  #[return_ref]
   handle: FileHandle,
 }
 
@@ -169,6 +170,8 @@ impl Decodable for FileHandle {
 /// It only changes when files are added or removed, not when their content changes.
 #[query_input]
 pub struct Project {
+  #[return_ref]
   root_dir: PathBuf,
+  #[return_ref]
   files: BTreeMap<PathBuf, File>,
 }

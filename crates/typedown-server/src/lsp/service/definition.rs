@@ -72,8 +72,8 @@ pub fn definition(
     _ => return None,
   };
 
-  let target_path = match target_file.handle(db) {
-    FileHandle::Path(path, _) => path,
+  let target_path = match &*target_file.handle(db) {
+    FileHandle::Path(path, _) => path.clone(),
     FileHandle::Content(_, _, _) => project
       .files(db)
       .iter()
@@ -121,10 +121,7 @@ fn field_key_definition(
   let (schema_file, field_offset) =
     find_field_in_schema_chain(db, project, sym, &key_text, &scope)?;
 
-  let schema_path = match schema_file.handle(db) {
-    FileHandle::Path(path, _) => path,
-    FileHandle::Content(path, _, _) => path,
-  };
+  let schema_path = schema_file.handle(db).path().cloned()?;
 
   let scheme = analysis
     .scheme_map

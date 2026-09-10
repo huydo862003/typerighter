@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::ItemStruct;
 
-use super::erase_db_lifetime_tokens;
+use super::{erase_db_lifetime_tokens, has_return_ref};
 
 pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   let struct_ast = match syn::parse::<ItemStruct>(item) {
@@ -90,32 +90,70 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     let field_ty = &field.ty;
     let tuple_index = syn::Index::from(idx);
     let try_field_name = quote::format_ident!("try_{}", field_name);
+    let is_return_ref = has_return_ref(field);
 
-    getter_tokens.extend(quote! {
-      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
-        let id = self.0;
-        let storage = unsafe { db.storage() };
-        let ingredient_id = Self::ingredient_id() as usize;
-        let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&id).expect("invalid interned id");
+    let getter = if is_return_ref {
+      quote! {
+        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInternedValue<#intern_key_ty>, #field_ty> {
+          let id = self.0;
+          let storage = unsafe { db.storage() };
+          let ingredient_id = Self::ingredient_id() as usize;
+          let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id).expect("invalid interned id");
 
-        // Safety: transmute 'static stored value to 'db at the boundary
-        unsafe { ::std::mem::transmute(entry.value.#tuple_index.clone()) }
+          // Safety: transmute 'static to 'db on the projected type (same as the clone path)
+          unsafe { ::std::mem::transmute(::typedown_incremental::MappedRef::new(entry, |stamped| &stamped.value.#tuple_index)) }
+        }
       }
+    } else {
+      quote! {
+        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
+          let id = self.0;
+          let storage = unsafe { db.storage() };
+          let ingredient_id = Self::ingredient_id() as usize;
+          let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id).expect("invalid interned id");
 
-      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
-        let id = self.0;
-        let storage = unsafe { db.storage() };
-        let ingredient_id = Self::ingredient_id() as usize;
-        let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&id)?;
-
-        // Safety: transmute 'static stored value to 'db at the boundary
-        Some(unsafe { ::std::mem::transmute(entry.value.#tuple_index.clone()) })
+          // Safety: transmute 'static stored value to 'db at the boundary
+          unsafe { ::std::mem::transmute(entry.value.#tuple_index.clone()) }
+        }
       }
-    });
+    };
+
+    getter_tokens.extend(getter);
+
+    let try_getter = if is_return_ref {
+      quote! {
+        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInternedValue<#intern_key_ty>, #field_ty>> {
+          let id = self.0;
+          let storage = unsafe { db.storage() };
+          let ingredient_id = Self::ingredient_id() as usize;
+          let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id)?;
+
+          // Safety: transmute 'static to 'db on the projected type (same as the clone path)
+          Some(unsafe { ::std::mem::transmute(::typedown_incremental::MappedRef::new(entry, |stamped| &stamped.value.#tuple_index)) })
+        }
+      }
+    } else {
+      quote! {
+        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+          let id = self.0;
+          let storage = unsafe { db.storage() };
+          let ingredient_id = Self::ingredient_id() as usize;
+          let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id)?;
+
+          // Safety: transmute 'static stored value to 'db at the boundary
+          Some(unsafe { ::std::mem::transmute(entry.value.#tuple_index.clone()) })
+        }
+      }
+    };
+    getter_tokens.extend(try_getter);
   }
 
   // Conditionally generate struct and impls with or without 'db

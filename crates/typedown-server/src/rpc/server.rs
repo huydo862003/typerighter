@@ -72,7 +72,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   let root_dir = config.root_dir(db);
   let base_path = config.base_path(db);
 
-  let root_dir_rel = normalize_path(root_dir.strip_prefix(&root).unwrap_or(&root_dir));
+  let root_dir_rel = normalize_path(root_dir.strip_prefix(&*root).unwrap_or(&root_dir));
 
   TdSiteConfig {
     version: config.version(db).to_string(),
@@ -612,8 +612,8 @@ fn list_schemas(analysis: &Analysis) -> RpcResult<Vec<String>> {
   let files = project.files(db);
 
   let mut schemas = Vec::new();
-  for (path, file) in &files {
-    if !path.starts_with(&root_dir) || !is_type_file(path) {
+  for (path, file) in &*files {
+    if !path.starts_with(&*root_dir) || !is_type_file(path) {
       continue;
     }
     let Some(symbol) = file_symbol(db, project, *file).value(db) else {
@@ -664,8 +664,8 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let mut all_diagnostics = Vec::new();
   let mut file_count: u32 = 0;
 
-  for (path, &file) in &files {
-    if !path.starts_with(&root_dir) || !is_content_file(path) || is_type_file(path) {
+  for (path, &file) in &*files {
+    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_type_file(path) {
       continue;
     }
     file_count += 1;

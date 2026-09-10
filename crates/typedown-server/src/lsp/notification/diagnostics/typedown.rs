@@ -31,7 +31,7 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
   let files = project.files(db);
 
   let mut notifications = Vec::new();
-  for (path, file) in &files {
+  for (path, file) in &*files {
     if !is_content_file(path) {
       continue;
     }

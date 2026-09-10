@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{ItemFn, ItemStruct};
 
-use super::{CacheModifiers, erase_db_lifetime_tokens, parse_cache_modifiers};
+use super::{CacheModifiers, erase_db_lifetime_tokens, has_return_ref, parse_cache_modifiers};
 
 pub fn query_derived_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
   let modifiers = parse_cache_modifiers(attr);
@@ -352,52 +352,110 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     let field_ty = &field.ty;
     let field_ty_static = &field_types_static[idx];
     let try_field_name = quote::format_ident!("try_{}", field_name);
+    let is_return_ref = has_return_ref(field);
 
-    getter_tokens.extend(quote! {
-      pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
-        let id = self.0;
-        debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
-        let storage = unsafe { db.storage() };
-        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&id).expect("invalid derived id");
+    let getter = if is_return_ref {
+      quote! {
+        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_ty_static>, #field_ty> {
+          let id = self.0;
+          debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id).expect("invalid derived id");
 
-        // Record dependency if inside a derived query
-        let dep_id = ::typedown_incremental::DepId::new(
-          ::typedown_incremental::IngredientKind::Field,
-          ingredient_id as u32,
-          id,
-        );
-        storage.with_context(|ctx| {
-          if let Some(ctx) = ctx {
-            ctx.dependencies.push(::typedown_incremental::Dependency {
-              dep_id,
-              changed_at: entry.changed_at,
-            });
-          }
-        });
+          // Record dependency if inside a derived query
+          let dep_id = ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Field,
+            ingredient_id as u32,
+            id,
+          );
+          storage.with_context(|ctx| {
+            if let Some(ctx) = ctx {
+              ctx.dependencies.push(::typedown_incremental::Dependency {
+                dep_id,
+                changed_at: entry.changed_at,
+              });
+            }
+          });
 
-        // Safety: transmute 'static stored value to 'db at the boundary
-        unsafe { ::std::mem::transmute(entry.value.clone()) }
-      }
-
-      // Fallible getter for serialization paths where field data may have been cleaned up
-      pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
-        let id = self.0;
-        if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
-          return None;
+          // Safety: transmute 'static to 'db on the projected type (same as the clone path)
+          unsafe { ::std::mem::transmute(::typedown_incremental::MappedRef::new(entry, |stamped| &stamped.value)) }
         }
-        let storage = unsafe { db.storage() };
-        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
-        let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
-        let entry = ingredient.data.get(&id)?;
-
-        // Safety: transmute 'static stored value to 'db at the boundary
-        Some(unsafe { ::std::mem::transmute(entry.value.clone()) })
       }
-    });
+    } else {
+      quote! {
+        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
+          let id = self.0;
+          debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id).expect("invalid derived id");
+
+          // Record dependency if inside a derived query
+          let dep_id = ::typedown_incremental::DepId::new(
+            ::typedown_incremental::IngredientKind::Field,
+            ingredient_id as u32,
+            id,
+          );
+          storage.with_context(|ctx| {
+            if let Some(ctx) = ctx {
+              ctx.dependencies.push(::typedown_incremental::Dependency {
+                dep_id,
+                changed_at: entry.changed_at,
+              });
+            }
+          });
+
+          // Safety: transmute 'static stored value to 'db at the boundary
+          unsafe { ::std::mem::transmute(entry.value.clone()) }
+        }
+      }
+    };
+
+    getter_tokens.extend(getter);
+
+    let try_getter = if is_return_ref {
+      quote! {
+        // Fallible getter for serialization paths where field data may have been cleaned up
+        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_ty_static>, #field_ty>> {
+          let id = self.0;
+          if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
+            return None;
+          }
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id)?;
+
+          // Safety: transmute 'static to 'db on the projected type (same as the clone path)
+          Some(unsafe { ::std::mem::transmute(::typedown_incremental::MappedRef::new(entry, |stamped| &stamped.value)) })
+        }
+      }
+    } else {
+      quote! {
+        // Fallible getter for serialization paths where field data may have been cleaned up
+        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+          let id = self.0;
+          if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
+            return None;
+          }
+          let storage = unsafe { db.storage() };
+          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+          let entry = ingredient.data.get(&id)?;
+
+          // Safety: transmute 'static stored value to 'db at the boundary
+          Some(unsafe { ::std::mem::transmute(entry.value.clone()) })
+        }
+      }
+    };
+    getter_tokens.extend(try_getter);
   }
 
   // Identity map lookup
@@ -485,6 +543,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   }
 
   // Skip generating StableHash for custom_hash structs (user provides their own)
+  // Always use try_ for stable hash in case the value is evicted
   let stable_hash_impl = if modifiers.custom_hash {
     quote! {}
   } else {

@@ -152,7 +152,7 @@ pub fn export_resource_meta(
     schema,
     label,
     icon,
-    metadata: export_metadata(file.handle(db)),
+    metadata: export_metadata(&file.handle(db)),
   })
 }
 
@@ -184,7 +184,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     return None;
   }
 
-  let metadata = export_metadata(file.handle(db));
+  let metadata = export_metadata(&file.handle(db));
 
   // Body-only files (no frontmatter) have no evaluated object
   let obj = evaluate_resource(db, symbol).value(db);
@@ -487,7 +487,7 @@ fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
   None
 }
 
-fn export_metadata(handle: FileHandle) -> ExportedMetadata {
+fn export_metadata(handle: &FileHandle) -> ExportedMetadata {
   let meta = handle.metadata();
   ExportedMetadata {
     mtime: meta.mtime_epoch_secs(),

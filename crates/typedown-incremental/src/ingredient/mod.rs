@@ -13,7 +13,8 @@ pub use inventory::*;
 
 use crate::persist::serialized::dep_graph::DepNodeIndex;
 use crate::{
-  DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext,
+  DepId, DeserializeContext, Encodable, Encoder, EntryId, Fingerprint, QueryDatabase, Revision,
+  SerializeContext, StableCompare, StableHash, StableHasher,
 };
 
 // Identity hasher for u32 keys, passes the value through as-is
@@ -80,6 +81,30 @@ impl<'a, V, T> MappedRef<'a, V, T> {
   pub fn new(guard: dashmap::mapref::one::Ref<'a, u32, V>, f: impl FnOnce(&V) -> &T) -> Self {
     let ptr = f(&*guard) as *const T;
     Self { _guard: guard, ptr }
+  }
+}
+
+// Delegate trait impls through Deref so MappedRef is transparent in trait contexts
+
+impl<V, T: StableHash> StableHash for MappedRef<'_, V, T> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    (**self).stable_hash(db, hasher);
+  }
+}
+
+impl<V, T: StableCompare> StableCompare for MappedRef<'_, V, T> {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    (**self).stable_cmp(db, &**other)
+  }
+}
+
+impl<V, T: Encodable> Encodable for MappedRef<'_, V, T> {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).encode(buf, encoder);
+  }
+
+  fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).field_encode(buf, encoder);
   }
 }
 
