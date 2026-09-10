@@ -4,7 +4,7 @@ use std::{
   hash::Hash,
   panic::{AssertUnwindSafe, catch_unwind, panic_any, resume_unwind},
   sync::{
-    Arc,
+    Arc, OnceLock,
     atomic::{AtomicU32, Ordering},
   },
 };
@@ -41,6 +41,8 @@ pub struct StampedDerivedQuery<K, V: Id + From<u32> + Into<u32>> {
   pub changed_at: Revision,          // Revision when the value last actually changed
   pub verified_at: AtomicU32,        // Revision when last confirmed valid
   pub dependencies: Vec<Dependency>, // What this query read during execution
+  pub key_fingerprint: OnceLock<Fingerprint>,
+  pub value_fingerprint: OnceLock<Fingerprint>,
 }
 
 /// The state of a query entry in the cache
@@ -55,6 +57,7 @@ pub enum QueryState<K, V: Id + From<u32> + Into<u32>> {
 pub struct StampedDerivedField<T> {
   pub value: T,
   pub changed_at: Revision,
+  pub fingerprint: OnceLock<Fingerprint>,
 }
 
 /// Ingredient for a derived query function: maps key tuple to memoized result
@@ -73,7 +76,6 @@ pub struct DerivedQueryIngredientStore<DB, K, V: Id + From<u32> + Into<u32>> {
   pub no_hash_flag: bool,
   #[cfg(debug_assertions)]
   recompute_count: Arc<AtomicU32>,
-  #[cfg(debug_assertions)]
   readable_name: &'static str,
 }
 
@@ -81,17 +83,7 @@ impl<DB, K, V: Id + From<u32> + Into<u32>> std::fmt::Debug
   for DerivedQueryIngredientStore<DB, K, V>
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let name = {
-      #[cfg(debug_assertions)]
-      {
-        self.readable_name
-      }
-      #[cfg(not(debug_assertions))]
-      {
-        "DerivedQueryIngredientStore"
-      }
-    };
-    f.debug_struct(name).finish_non_exhaustive()
+    f.debug_struct(self.readable_name).finish_non_exhaustive()
   }
 }
 
@@ -163,7 +155,6 @@ impl<
       no_hash_flag: false,
       #[cfg(debug_assertions)]
       recompute_count: Arc::new(AtomicU32::new(0)),
-      #[cfg(debug_assertions)]
       readable_name: name_fingerprint,
     }
   }
@@ -203,6 +194,8 @@ impl<
     let (node_index, node) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)?;
 
     let DepNode::DerivedQuery {
+      key: cached_key_fingerprint,
+      value: cached_value_fingerprint,
       // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
@@ -253,6 +246,8 @@ impl<
         changed_at,
         verified_at: AtomicU32::new(current_revision),
         dependencies,
+        key_fingerprint: OnceLock::from(*cached_key_fingerprint),
+        value_fingerprint: OnceLock::from(*cached_value_fingerprint),
       }),
     );
 
@@ -462,6 +457,12 @@ impl<
         changed_at,
         verified_at: AtomicU32::new(current_revision),
         dependencies,
+        key_fingerprint: OnceLock::new(),
+        value_fingerprint: if self.no_hash_flag {
+          OnceLock::from(Fingerprint::SKIPPED)
+        } else {
+          OnceLock::new()
+        },
       }),
     );
 
@@ -506,7 +507,6 @@ impl<
     + 'static,
 > Ingredient for DerivedQueryIngredientStore<DB, K, V>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.readable_name.to_string()
   }
@@ -526,9 +526,11 @@ impl<
     if let Some(entry) = self.data.get(&entry_id)
       && let QueryState::Computed(memo) = &*entry
     {
-      let mut hasher: StableHasher = StableHasher::new();
-      memo.value.stable_hash(db, &mut hasher);
-      return Some(Fingerprint::from_hasher(hasher));
+      return Some(*memo.value_fingerprint.get_or_init(|| {
+        let mut hasher = StableHasher::new();
+        memo.value.stable_hash(db, &mut hasher);
+        Fingerprint::from_hasher(hasher)
+      }));
     }
     None
   }
@@ -652,6 +654,8 @@ impl<
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
     let DepNode::DerivedQuery {
+      key: cached_key_fingerprint,
+      value: cached_value_fingerprint,
       // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
       value_entry_id: serialized_value_entry_id,
       changed_at,
@@ -690,6 +694,8 @@ impl<
         changed_at: *changed_at,
         verified_at: AtomicU32::new(*verified_at),
         dependencies,
+        key_fingerprint: OnceLock::from(*cached_key_fingerprint),
+        value_fingerprint: OnceLock::from(*cached_value_fingerprint),
       }),
     );
 
@@ -713,16 +719,22 @@ impl<
       node_index,
       UnresolvedDepNode::DerivedQuery {
         name: self.name_fingerprint,
-        key: self
-          .key_fingerprint(ctx.db(), entry_id)
-          .expect("Computed entry must have a key fingerprint"),
-        value: if self.no_hash_flag {
-          Fingerprint::SKIPPED
-        } else {
-          self
-            .value_fingerprint(ctx.db(), entry_id)
-            .expect("Computed entry must have a value fingerprint")
-        },
+        key: *memo.key_fingerprint.get_or_init(|| {
+          let db = (ctx.db() as &dyn Any)
+            .downcast_ref::<DB>()
+            .expect("database type mismatch in key_fingerprint");
+          let mut hasher = StableHasher::new();
+          memo.key.stable_hash(db, &mut hasher);
+          Fingerprint::from_hasher(hasher)
+        }),
+        value: *memo.value_fingerprint.get_or_init(|| {
+          let db = (ctx.db() as &dyn Any)
+            .downcast_ref::<DB>()
+            .expect("database type mismatch in value_fingerprint");
+          let mut hasher = StableHasher::new();
+          memo.value.stable_hash(db, &mut hasher);
+          Fingerprint::from_hasher(hasher)
+        }),
         value_entry_id: <V as Into<u32>>::into(memo.value.clone()),
         changed_at: memo.changed_at,
         verified_at: memo.verified_at.load(Ordering::Relaxed),
@@ -788,7 +800,6 @@ impl<T> DerivedFieldIngredientStore<T> {
 impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'static> Ingredient
   for DerivedFieldIngredientStore<T>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.struct_name.to_string()
   }
@@ -803,9 +814,11 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
-      entry.value.stable_hash(db, &mut hasher);
-      Fingerprint::from_hasher(hasher)
+      *entry.fingerprint.get_or_init(|| {
+        let mut hasher = StableHasher::new();
+        entry.value.stable_hash(db, &mut hasher);
+        Fingerprint::from_hasher(hasher)
+      })
     })
   }
 
@@ -865,6 +878,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
       StampedDerivedField {
         value,
         changed_at: *changed_at,
+        fingerprint: OnceLock::new(),
       },
     );
 

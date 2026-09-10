@@ -59,7 +59,7 @@ impl AnalysisHost {
 
     let cached_project = Project::iter(&db)
       .into_iter()
-      .find(|proj| proj.root_dir(&db) == project_dir);
+      .find(|proj| *proj.root_dir(&db) == project_dir);
     let project = if let Some(proj) = cached_project {
       proj.set_files(&mut db, files);
       proj
@@ -243,9 +243,9 @@ impl AnalysisHost {
       return;
     };
 
-    let content = match file.handle(&self.db) {
+    let content = match &*file.handle(&self.db) {
       FileHandle::Content(_, content, _) => content.clone(),
-      FileHandle::Path(path, _) => fs::read_to_string(&path).unwrap_or_default(),
+      FileHandle::Path(path, _) => fs::read_to_string(path).unwrap_or_default(),
     };
 
     let handle = FileHandle::Content(

@@ -148,41 +148,49 @@ impl<T: StableHash> StableHash for Vec<T> {
 
 impl StableHash for str {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
-    self.len().stable_hash(_db, hasher);
+    hasher.write_usize(self.len());
     hasher.write(self.as_bytes());
   }
 }
 impl StableHash for &str {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    (*self).stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    hasher.write_usize(self.len());
+    hasher.write(self.as_bytes());
   }
 }
 impl StableHash for String {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self[..].stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    hasher.write_usize(self.len());
+    hasher.write(self.as_bytes());
   }
 }
 impl StableHash for OsStr {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
     let bytes = self.as_encoded_bytes();
-    bytes.len().stable_hash(_db, hasher);
+    hasher.write_usize(bytes.len());
     hasher.write(bytes);
   }
 }
 impl StableHash for Path {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.as_os_str().stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    let bytes = self.as_os_str().as_encoded_bytes();
+    hasher.write_usize(bytes.len());
+    hasher.write(bytes);
   }
 }
 impl StableHash for PathBuf {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.as_path().stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    let bytes = self.as_os_str().as_encoded_bytes();
+    hasher.write_usize(bytes.len());
+    hasher.write(bytes);
   }
 }
 
 impl StableHash for &Path {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    (*self).stable_hash(db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
+    let bytes = self.as_os_str().as_encoded_bytes();
+    hasher.write_usize(bytes.len());
+    hasher.write(bytes);
   }
 }
 impl StableHash for f32 {

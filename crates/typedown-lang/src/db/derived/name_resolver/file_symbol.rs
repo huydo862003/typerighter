@@ -40,7 +40,7 @@ pub fn file_symbol<'db>(
   };
 
   let root = project.root_dir(db);
-  let relative = path.strip_prefix(&root).unwrap_or(&path);
+  let relative = path.strip_prefix(&*root).unwrap_or(&path);
   let def_id = format!("@vault::{}", normalize_path(relative));
 
   MaybeSymbol::new(db, Some(Symbol::new(db, kind, name, def_id)))

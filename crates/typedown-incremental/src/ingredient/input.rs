@@ -60,7 +60,6 @@ impl<T> InputIngredientStore<T> {
 impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'static> Ingredient
   for InputIngredientStore<T>
 {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String {
     self.name.to_string()
   }
@@ -75,7 +74,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
 
   fn value_fingerprint(&self, db: &dyn QueryDatabase, entry_id: EntryId) -> Option<Fingerprint> {
     self.data.get(&entry_id).map(|entry| {
-      let mut hasher: StableHasher = StableHasher::new();
+      let mut hasher = StableHasher::new();
       entry.value.stable_hash(db, &mut hasher);
       Fingerprint::from_hasher(hasher)
     })

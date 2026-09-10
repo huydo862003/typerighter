@@ -22,7 +22,7 @@ pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> Membe
   let proj_files = project.files(db);
 
   let mut members = BTreeMap::new();
-  for (path, file) in &proj_files {
+  for (path, file) in &*proj_files {
     if !path.starts_with(&root_dir) || !is_type_file(path) {
       continue;
     }
@@ -73,7 +73,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
 
       let mut members = BTreeMap::new();
 
-      for (path, file) in &proj_files {
+      for (path, file) in &*proj_files {
         if !is_content_file(path) {
           continue;
         }

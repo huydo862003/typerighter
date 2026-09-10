@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use typedown_lang::db::derived::name_resolver::scope::get_project_scope;
+use typedown_lang::db::types::ScopeKind;
 
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Range};
 
@@ -10,7 +10,7 @@ use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{
-  File, FileHandle, HirValueKind, Project, Scope, Symbol, SymbolKind,
+  File, FileHandle, FileRedNode, HirValueKind, Project, Scope, Symbol, SymbolKind,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::AstNode;
@@ -63,7 +63,7 @@ pub fn definition(
 
   // Identifier or type reference: resolve via referee
   let expr_node = nearest_expr_ancestor(&node)?;
-  let hir = lower_node(db, project, file, expr_node);
+  let hir = lower_node(db, project, FileRedNode::new(file, expr_node));
   let symbol = referee(db, hir).value(db)?;
 
   let target_file = match symbol.kind(db) {
@@ -72,8 +72,8 @@ pub fn definition(
     _ => return None,
   };
 
-  let target_path = match target_file.handle(db) {
-    FileHandle::Path(path, _) => path,
+  let target_path = match &*target_file.handle(db) {
+    FileHandle::Path(path, _) => path.clone(),
     FileHandle::Content(_, _, _) => project
       .files(db)
       .iter()
@@ -116,15 +116,12 @@ fn field_key_definition(
   let schema_name = get_mapping_schema_name(&mapping)?;
 
   // Resolve the schema and walk the _extends chain to find the file that defines the field
-  let scope = get_project_scope(db, project);
+  let scope = Scope::new(db, ScopeKind::Project(project));
   let sym = *members(db, scope).members(db).get(&schema_name)?;
   let (schema_file, field_offset) =
     find_field_in_schema_chain(db, project, sym, &key_text, &scope)?;
 
-  let schema_path = match schema_file.handle(db) {
-    FileHandle::Path(path, _) => path,
-    FileHandle::Content(path, _, _) => path,
-  };
+  let schema_path = schema_file.handle(db).path().cloned()?;
 
   let scheme = analysis
     .scheme_map
@@ -218,7 +215,11 @@ fn fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Optio
 
   // Any file works as context since fref args don't depend on the enclosing file
   let context_file = *project.files(db).values().next()?;
-  let hir = lower_node(db, project, context_file, call_expr.syntax().clone());
+  let hir = lower_node(
+    db,
+    project,
+    FileRedNode::new(context_file, call_expr.syntax().clone()),
+  );
   if let HirValueKind::Call { args, .. } = hir.kind(db)
     && let Some(arg) = args.first()
     && let HirValueKind::Str(path_str) = arg.kind(db)

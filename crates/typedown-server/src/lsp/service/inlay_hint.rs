@@ -6,7 +6,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::{File, HirValueKind, Project};
+use typedown_lang::db::types::{File, FileRedNode, HirValueKind, Project};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -61,7 +61,7 @@ fn fref_hint(
     return None;
   }
 
-  let hir = lower_node(db, project, file, call_node.clone());
+  let hir = lower_node(db, project, FileRedNode::new(file, call_node.clone()));
   let HirValueKind::Call { args, .. } = hir.kind(db) else {
     return None;
   };

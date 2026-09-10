@@ -6,7 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{File, Project, TdRuntimeObject};
+use crate::db::types::{File, FileRedNode, Project, TdRuntimeObject};
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdHeading,
   MdTable, MdTableCell,
@@ -644,7 +644,11 @@ impl<'a> HtmlEmitter<'a> {
     }
 
     // Fall back to expression evaluation
-    let hir = lower_node(self.db, self.project, self.file, expr_node);
+    let hir = lower_node(
+      self.db,
+      self.project,
+      FileRedNode::new(self.file, expr_node),
+    );
     let scope = get_file_runtime_scope(self.db, self.project, self.file);
     let eval = evaluate_node(self.db, hir, scope);
     if let Some(obj) = eval.value(self.db)

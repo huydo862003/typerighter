@@ -137,6 +137,7 @@ mod tests {
   use super::*;
   use crate::db::derived::hir::lower_node;
   use crate::db::fixtures::load_vault_fixture;
+  use crate::db::types::FileRedNode;
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
 
@@ -149,7 +150,7 @@ fn: (a, b) -> a + b
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let res = resolve(&db, hir);
     let diags = res.diagnostics(&db);
@@ -169,7 +170,7 @@ fn: (a) -> a + missing_variable
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let res = resolve(&db, hir);
     let diags = res.diagnostics(&db);
@@ -193,7 +194,7 @@ name: missing.foo
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());
-    let hir = lower_node(&db, project, file, red_root);
+    let hir = lower_node(&db, project, FileRedNode::new(file, red_root));
 
     let res = resolve(&db, hir);
     let diags = res.diagnostics(&db);

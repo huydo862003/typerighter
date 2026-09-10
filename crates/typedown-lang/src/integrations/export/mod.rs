@@ -19,8 +19,8 @@ use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::derived::object_system::TdStaticType;
 use crate::db::types::{
-  File, FileHandle, HirValue, LazyType, LiteralValue, Project, Symbol, SymbolKind, TdBlobType,
-  TdObjectEnum, TdRuntimeObject, TdTypeEnum,
+  File, FileHandle, FileRedNode, HirValue, LazyType, LiteralValue, Project, Symbol, SymbolKind,
+  TdBlobType, TdObjectEnum, TdRuntimeObject, TdTypeEnum,
 };
 use crate::db::utils::strip_content_extension;
 
@@ -152,7 +152,7 @@ pub fn export_resource_meta(
     schema,
     label,
     icon,
-    metadata: export_metadata(file.handle(db)),
+    metadata: export_metadata(&file.handle(db)),
   })
 }
 
@@ -184,7 +184,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     return None;
   }
 
-  let metadata = export_metadata(file.handle(db));
+  let metadata = export_metadata(&file.handle(db));
 
   // Body-only files (no frontmatter) have no evaluated object
   let obj = evaluate_resource(db, symbol).value(db);
@@ -487,7 +487,7 @@ fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
   None
 }
 
-fn export_metadata(handle: FileHandle) -> ExportedMetadata {
+fn export_metadata(handle: &FileHandle) -> ExportedMetadata {
   let meta = handle.metadata();
   ExportedMetadata {
     mtime: meta.mtime_epoch_secs(),
@@ -838,7 +838,11 @@ impl<'a> MarkdownExporter<'a> {
         self.write(&link);
         return;
       }
-      let hir = lower_node(self.db, self.project, self.file, expr_node);
+      let hir = lower_node(
+        self.db,
+        self.project,
+        FileRedNode::new(self.file, expr_node),
+      );
       let scope = get_file_runtime_scope(self.db, self.project, self.file);
       let eval = evaluate_node(self.db, hir, scope);
       let obj = eval.value(self.db);
@@ -923,7 +927,7 @@ pub(super) fn resolve_fref_target(
   file: File,
   node: &RedNode,
 ) -> Option<FrefTarget> {
-  let hir = lower_node(db, project, file, node.clone());
+  let hir = lower_node(db, project, FileRedNode::new(file, node.clone()));
   let referee_result = referee(db, hir);
   let target_symbol = referee_result.value(db)?;
   let resolved = resolve_ref(db, project, &target_symbol)?;

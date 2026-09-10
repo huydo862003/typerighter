@@ -1,5 +1,5 @@
 use typedown_incremental::StableCompare;
-use typedown_lang::db::derived::name_resolver::scope::get_project_scope;
+use typedown_lang::db::types::{Scope, ScopeKind};
 use typedown_lang::db::utils::{is_content_file, is_type_file};
 
 use crate::lsp::service::utils::symbol::get_resource_label;
@@ -18,7 +18,7 @@ use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_t
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
-  File, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
+  File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::{AstNode, Expr};
@@ -303,7 +303,7 @@ fn enclosing_mapping_type<'db>(
 
   // Explicit _type in this mapping
   if let Some(schema_name) = get_mapping_schema_name(&mapping) {
-    let scope = get_project_scope(db, project);
+    let scope = Scope::new(db, ScopeKind::Project(project));
     let symbol = *members(db, scope).members(db).get(&schema_name)?;
     let typ = evaluate_type(db, symbol).typ(db)?;
     return Some((typ, mapping));
@@ -311,7 +311,11 @@ fn enclosing_mapping_type<'db>(
 
   // No explicit _type, resolve via the parent field's declared type
   let mapping_expr = Expr::cast(mapping.clone())?;
-  let hir = lower_node(db, project, file, mapping_expr.syntax().clone());
+  let hir = lower_node(
+    db,
+    project,
+    FileRedNode::new(file, mapping_expr.syntax().clone()),
+  );
   let typ = expected_node_type(db, hir).typ(db)?;
   if typ.is_td_product_type() || typ.is_td_schema_type() {
     return Some((typ, mapping));
@@ -409,7 +413,11 @@ fn declared_field<'db>(
 
   // Try the value expression first
   if let Some(value_expr) = entry_value.children().find_map(Expr::cast) {
-    let hir = lower_node(db, project, file, value_expr.syntax().clone());
+    let hir = lower_node(
+      db,
+      project,
+      FileRedNode::new(file, value_expr.syntax().clone()),
+    );
     if let Some(typ) = expected_node_type(db, hir).typ(db) {
       return Some(typ);
     }
@@ -438,7 +446,7 @@ fn resolve_field_type_from_schema<'db>(
   key: &str,
 ) -> Option<TdTypeEnum<'db>> {
   let schema_name = get_mapping_schema_name(mapping)?;
-  let scope = get_project_scope(db, project);
+  let scope = Scope::new(db, ScopeKind::Project(project));
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let typ = evaluate_type(db, symbol).typ(db)?;
   let schema = typ.as_td_schema_type()?;
@@ -457,7 +465,7 @@ fn keyword_item(label: &str) -> CompletionItem {
 
 // Suggest all user-defined schema names visible in the project scope
 fn schema_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
-  let scope = get_project_scope(db, project);
+  let scope = Scope::new(db, ScopeKind::Project(project));
   members(db, scope)
     .members(db)
     .iter()

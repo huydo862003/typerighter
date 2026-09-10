@@ -12,7 +12,7 @@ use std::path::Path;
 use crate::db::TypedownDatabase;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::parse_file::parse_file;
-use crate::db::types::{File, HirValue, Project};
+use crate::db::types::{File, FileRedNode, HirValue, Project};
 
 /// Whether a path has a content file extension (.td or .md)
 pub fn is_content_file(path: &Path) -> bool {
@@ -55,7 +55,7 @@ pub fn lower_file(
   if SourceFile::cast(root.clone()).is_none() {
     return (None, diagnostics);
   }
-  let hir = lower_node(db, project, file, root);
+  let hir = lower_node(db, project, FileRedNode::new(file, root));
   (Some(hir), diagnostics)
 }
 

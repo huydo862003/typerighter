@@ -20,7 +20,7 @@ use typedown_lang::db::derived::name_resolver::members::schema_members;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, Project, SymbolKind};
+use typedown_lang::db::types::{File, FileRedNode, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
 use typedown_lang::integrations::export::{
   export_property_descriptors, export_resource_html, export_resource_meta, export_resource_summary,
@@ -72,7 +72,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   let root_dir = config.root_dir(db);
   let base_path = config.base_path(db);
 
-  let root_dir_rel = normalize_path(root_dir.strip_prefix(&root).unwrap_or(&root_dir));
+  let root_dir_rel = normalize_path(root_dir.strip_prefix(&*root).unwrap_or(&root_dir));
 
   TdSiteConfig {
     version: config.version(db).to_string(),
@@ -183,7 +183,7 @@ impl RpcServer {
           .load(std::sync::atomic::Ordering::Acquire) as u64;
 
         // Run db.dump() with a timeout to prevent hanging on large vaults
-        let dump_timeout = std::time::Duration::from_secs(10);
+        let dump_timeout = std::time::Duration::from_secs(120);
         let (tx, rx) = std::sync::mpsc::channel();
         let dump_thread = std::thread::spawn(move || {
           let serialized = db.dump();
@@ -612,8 +612,8 @@ fn list_schemas(analysis: &Analysis) -> RpcResult<Vec<String>> {
   let files = project.files(db);
 
   let mut schemas = Vec::new();
-  for (path, file) in &files {
-    if !path.starts_with(&root_dir) || !is_type_file(path) {
+  for (path, file) in &*files {
+    if !path.starts_with(&*root_dir) || !is_type_file(path) {
       continue;
     }
     let Some(symbol) = file_symbol(db, project, *file).value(db) else {
@@ -664,8 +664,8 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let mut all_diagnostics = Vec::new();
   let mut file_count: u32 = 0;
 
-  for (path, &file) in &files {
-    if !path.starts_with(&root_dir) || !is_content_file(path) || is_type_file(path) {
+  for (path, &file) in &*files {
+    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_type_file(path) {
       continue;
     }
     file_count += 1;
@@ -765,7 +765,7 @@ fn collect_file_diagnostics(
 
   // Typecheck and name resolution errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, file, root);
+  let hir = lower_node(db, project, FileRedNode::new(file, root));
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
   let resolve_result = resolve(db, hir);

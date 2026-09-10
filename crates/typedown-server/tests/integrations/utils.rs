@@ -112,7 +112,7 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
 
   let cached_project = Project::iter(db)
     .into_iter()
-    .find(|proj| proj.root_dir(db) == project_dir);
+    .find(|proj| *proj.root_dir(db) == project_dir);
   if let Some(proj) = cached_project {
     proj.set_files(db, files);
   } else {

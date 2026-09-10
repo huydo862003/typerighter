@@ -7,7 +7,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::scope::{
   get_builtin_runtime_scope, get_file_runtime_scope, get_project_runtime_scope, parent_scope,
 };
-use crate::db::types::{File, HirValue, Project, TdObjectEnum};
+use crate::db::types::{File, HirValue, Project, TdObjectEnum, TdRuntimeObject};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
@@ -417,9 +417,8 @@ impl<'db> Decodable for ScopeKind<'db> {
   }
 }
 
-#[query_derived]
+#[query_interned]
 pub struct Scope<'db> {
-  #[id]
   kind: ScopeKind<'db>,
 }
 
@@ -456,12 +455,67 @@ impl<'db> Scope<'db> {
 }
 
 // Runtime scope for closure evaluation
-// Carries param bindings and a reference to the syntactic scope
-#[query_derived]
+#[query_derived(no_hash, custom_hash)]
 pub struct RuntimeScope<'db> {
   scope: Scope<'db>,
   bindings: Vec<(String, TdObjectEnum<'db>)>,
   parent: Option<Box<RuntimeScope<'db>>>,
+}
+
+impl<'db> StableHash for RuntimeScope<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    let storage = unsafe { db.storage() };
+    let cache_key = (Self::ingredient_start_index(), self.0);
+    if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
+      ::std::hash::Hasher::write(hasher, &cached.0);
+      return;
+    }
+    let mut inner_hasher = StableHasher::new();
+    // Safety: DB is always TypedownDatabase at runtime
+    let td_db = unsafe { &*(db as *const DB as *const TypedownDatabase) };
+    runtime_scope_display_string(*self, td_db).stable_hash(db, &mut inner_hasher);
+    let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+    storage.derived_fingerprints.insert(cache_key, fingerprint);
+    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+  }
+}
+
+fn runtime_scope_display_string<'db>(
+  runtime_scope: RuntimeScope<'db>,
+  db: &'db TypedownDatabase,
+) -> String {
+  let scope_name = match runtime_scope.scope(db).kind(db) {
+    ScopeKind::Builtin(_) => "builtin".to_string(),
+    ScopeKind::Project(_) => "project".to_string(),
+    ScopeKind::File(_, file) => {
+      let path = file
+        .handle(db)
+        .path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+      format!("file:{path}")
+    }
+    ScopeKind::Fn(_, file, hir) => {
+      let path = file
+        .handle(db)
+        .path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+      let offset = hir.node(db).offset();
+      format!("fn:{path}:{offset}")
+    }
+  };
+  let bindings_str: Vec<String> = runtime_scope
+    .bindings(db)
+    .iter()
+    .map(|(name, obj)| format!("{}={}", name, obj.to_display_string(db)))
+    .collect();
+  let parent_str = runtime_scope
+    .parent(db)
+    .as_ref()
+    .map(|p| runtime_scope_display_string(**p, db))
+    .unwrap_or_default();
+  format!("{scope_name}({})>{parent_str}", bindings_str.join(","))
 }
 
 impl<'db> RuntimeScope<'db> {

@@ -13,7 +13,7 @@ use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, Project};
+use typedown_lang::db::types::{File, FileRedNode, Project};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
@@ -31,7 +31,7 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
   let files = project.files(db);
 
   let mut notifications = Vec::new();
-  for (path, file) in &files {
+  for (path, file) in &*files {
     if !is_content_file(path) {
       continue;
     }
@@ -113,7 +113,7 @@ fn get_diagnostics_for_file(
 
   // Typecheck errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, file, root);
+  let hir = lower_node(db, project, FileRedNode::new(file, root));
   let typecheck_result = typecheck(db, hir);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
 

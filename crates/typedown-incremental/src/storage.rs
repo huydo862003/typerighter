@@ -6,6 +6,7 @@ use std::sync::{Arc, OnceLock};
 
 use dashmap::DashMap;
 
+use super::Fingerprint;
 use super::ingredient::{
   Dependency, DerivedFieldIngredient, DerivedQueryIngredient, FieldFactory, FieldInventory,
   Ingredient, InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
@@ -72,11 +73,15 @@ pub struct QueryStorage {
   #[doc(hidden)]
   pub inputs: Arc<Vec<Box<dyn InputIngredient>>>,
   #[doc(hidden)]
+  pub input_fingerprints: Arc<DashMap<(u32, u32), Fingerprint>>, // (start_index representing the input group, entry_id) -> cached input struct fingerprint
+  #[doc(hidden)]
   pub interned: Arc<Vec<Box<dyn InternedIngredient>>>,
   #[doc(hidden)]
   pub queries: Arc<Vec<Box<dyn DerivedQueryIngredient>>>,
   #[doc(hidden)]
   pub fields: Arc<Vec<Box<dyn DerivedFieldIngredient>>>,
+  #[doc(hidden)]
+  pub derived_fingerprints: Arc<DashMap<(u32, u32), Fingerprint>>, // (start_index representing the derived group, entry_id) -> cached derived struct fingerprint
   #[doc(hidden)]
   pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>, // Previous session's data for lazy deserialization
 }
@@ -111,6 +116,8 @@ impl QueryStorage {
       queries: init_factories(queries, IngredientKind::Query),
       fields: init_factories(fields, IngredientKind::Field),
       deserialize_ctx: Arc::new(OnceLock::new()),
+      input_fingerprints: Arc::new(DashMap::new()),
+      derived_fingerprints: Arc::new(DashMap::new()),
     }
   }
 
@@ -205,6 +212,9 @@ impl QueryStorage {
       for &id in removed {
         field.remove_entry(id);
       }
+    }
+    for &id in removed {
+      self.derived_fingerprints.remove(&(start_index, id));
     }
   }
 

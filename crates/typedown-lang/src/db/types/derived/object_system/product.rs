@@ -53,10 +53,33 @@ impl<'db> Decodable for PropertyDescriptor<'db> {
 }
 
 // Structural data bag with optional display name
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdProductType<'db> {
   pub name: Option<String>,
   pub fields: BTreeMap<String, LazyType<'db>>,
+}
+
+// Hash name + field keys (not field type values)
+impl<'db> StableHash for TdProductType<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    let storage = unsafe { db.storage() };
+    let cache_key = (Self::ingredient_start_index(), self.0);
+    if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
+      ::std::hash::Hasher::write(hasher, &cached.0);
+      return;
+    }
+    let mut inner_hasher = StableHasher::new();
+    Self::try_name(*self, db).stable_hash(db, &mut inner_hasher);
+    if let Some(fields) = Self::try_fields(*self, db) {
+      fields.len().stable_hash(db, &mut inner_hasher);
+      for key in fields.keys() {
+        key.stable_hash(db, &mut inner_hasher);
+      }
+    }
+    let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+    storage.derived_fingerprints.insert(cache_key, fingerprint);
+    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdProductType<'db> {
@@ -93,12 +116,38 @@ impl<'db> TdStaticType<'db> for TdProductType<'db> {
 }
 
 // Runtime instance of a product type, plain data bag
-#[query_derived]
+#[query_derived(custom_hash)]
 pub struct TdProductObj<'db> {
   pub product_type: TdTypeEnum<'db>,
   pub file_symbol: Option<Symbol<'db>>,
   pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
   pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjectEnum<'db>>>,
+}
+
+// If file_symbol is present, hash only (product_type, file_symbol) for O(1)
+// Otherwise fall back to hashing all fields
+impl<'db> StableHash for TdProductObj<'db> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    let storage = unsafe { db.storage() };
+    let cache_key = (Self::ingredient_start_index(), self.0);
+    if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
+      ::std::hash::Hasher::write(hasher, &cached.0);
+      return;
+    }
+    let mut inner_hasher = StableHasher::new();
+    let file_symbol = Self::try_file_symbol(*self, db);
+    if let Some(Some(symbol)) = &file_symbol {
+      Self::try_product_type(*self, db).stable_hash(db, &mut inner_hasher);
+      symbol.stable_hash(db, &mut inner_hasher);
+    } else {
+      Self::try_product_type(*self, db).stable_hash(db, &mut inner_hasher);
+      Self::try_builtins(*self, db).stable_hash(db, &mut inner_hasher);
+      Self::try_fields(*self, db).stable_hash(db, &mut inner_hasher);
+    }
+    let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+    storage.derived_fingerprints.insert(cache_key, fingerprint);
+    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+  }
 }
 
 impl<'db> TdRuntimeObject<'db> for TdProductObj<'db> {

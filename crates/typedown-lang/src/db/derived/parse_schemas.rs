@@ -20,7 +20,7 @@ pub fn parse_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> Schema
 
   let mut schema_asts = BTreeMap::new();
 
-  for (path, file) in &proj_files {
+  for (path, file) in &*proj_files {
     if path.starts_with(&root_dir) && is_type_file(path) {
       let ast = parse_file(db, project, *file);
       schema_asts.insert(path.clone(), ast);

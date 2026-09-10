@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
+use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -11,7 +12,7 @@ use crate::persist::stable::StableCompare;
 use crate::{DepId, QueryDatabase, QueryStorage};
 
 pub struct Encoder<'a> {
-  db: &'a dyn QueryDatabase,
+  pub db: &'a dyn QueryDatabase,
   intern_hints: HashMap<(std::any::TypeId, usize), u32>,
   intern_blobs: Vec<Vec<u8>>,
   intern_table: HashMap<Vec<u8>, u32>,
@@ -519,12 +520,12 @@ impl Decodable for String {
 // PathBuf
 impl Encodable for PathBuf {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_str(buf, &self.to_string_lossy());
+    encoder.emit_bytes(buf, self.as_os_str().as_encoded_bytes());
   }
 }
 impl Decodable for PathBuf {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    PathBuf::from(decoder.read_str(data))
+    PathBuf::from(std::ffi::OsString::from_vec(decoder.read_bytes_owned(data)))
   }
 }
 

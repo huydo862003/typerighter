@@ -6,6 +6,17 @@ mod inventory;
 use std::any::Any;
 use std::hash::{BuildHasher, Hasher};
 
+pub use derived::*;
+pub use input::*;
+pub use interned::*;
+pub use inventory::*;
+
+use crate::persist::serialized::dep_graph::DepNodeIndex;
+use crate::{
+  DepId, DeserializeContext, Encodable, Encoder, EntryId, Fingerprint, QueryDatabase, Revision,
+  SerializeContext, StableCompare, StableHash, StableHasher,
+};
+
 // Identity hasher for u32 keys, passes the value through as-is
 #[derive(Default)]
 pub struct IdHasher(u64);
@@ -52,19 +63,53 @@ impl<V> Default for IdDashMap<V> {
   }
 }
 
-pub use derived::*;
-pub use input::*;
-pub use interned::*;
-pub use inventory::*;
+// A mapped reference into a DashMap entry, derefs to a projected field
+pub struct MappedRef<'a, V, T> {
+  _guard: dashmap::mapref::one::Ref<'a, u32, V>,
+  ptr: *const T,
+}
 
-use crate::persist::serialized::dep_graph::DepNodeIndex;
-use crate::{
-  DepId, DeserializeContext, EntryId, Fingerprint, QueryDatabase, Revision, SerializeContext,
-};
+impl<V, T> std::ops::Deref for MappedRef<'_, V, T> {
+  type Target = T;
+  fn deref(&self) -> &T {
+    // Safety: ptr points into _guard which is alive
+    unsafe { &*self.ptr }
+  }
+}
+
+impl<'a, V, T> MappedRef<'a, V, T> {
+  pub fn new(guard: dashmap::mapref::one::Ref<'a, u32, V>, f: impl FnOnce(&V) -> &T) -> Self {
+    let ptr = f(&*guard) as *const T;
+    Self { _guard: guard, ptr }
+  }
+}
+
+// Delegate trait impls through Deref so MappedRef is transparent in trait contexts
+
+impl<V, T: StableHash> StableHash for MappedRef<'_, V, T> {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    (**self).stable_hash(db, hasher);
+  }
+}
+
+impl<V, T: StableCompare> StableCompare for MappedRef<'_, V, T> {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+    (**self).stable_cmp(db, &**other)
+  }
+}
+
+impl<V, T: Encodable> Encodable for MappedRef<'_, V, T> {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).encode(buf, encoder);
+  }
+
+  fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).field_encode(buf, encoder);
+  }
+}
 
 /// Shared base trait for all ingredient kinds
 pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
-  #[cfg(debug_assertions)]
   fn readable_name(&self) -> String;
 
   fn name_fingerprint(&self) -> Fingerprint;

@@ -28,7 +28,7 @@ pub fn parse_file<'db>(
   let root = RedNode::new_root(ast.as_node().expect("AST root must be a node").clone());
   FileAstResult::new(
     db,
-    file.handle(db),
+    file.handle(db).clone(),
     project,
     file,
     FileRedNode::new(file, root),
