@@ -455,8 +455,7 @@ impl<'db> Scope<'db> {
 }
 
 // Runtime scope for closure evaluation
-// Carries param bindings and a reference to the syntactic scope
-#[query_derived]
+#[query_derived(no_hash)]
 pub struct RuntimeScope<'db> {
   scope: Scope<'db>,
   bindings: Vec<(String, TdObjectEnum<'db>)>,
