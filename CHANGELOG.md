@@ -1,3 +1,29 @@
+## [0.28.0] - 2026-09-10
+
+### Features
+
+* crates/typedown-lang
+  - Support relative fref paths (`./` and `../`) resolved from the current file's directory
+
+### Perf
+
+* crates/typedown-incremental
+  - Lax return type constraint on derived queries (accept any Id type, not just DerivedId)
+
+* crates/typedown-lang
+  - Optimize scope and runtime: interned scopes, streamlined symbol/HIR accessors, reduced overhead in ingredient storage (10min+ -> 3sec on large vaults)
+
+### Fixes
+
+* crates/typedown-lang
+  - Allow indexing on string literal types (`"abc"[0]` no longer reports "not indexable")
+  - Report missing `)` diagnostic when a call expression is interrupted by an outer context (e.g. `${fref('./...')}` with misplaced quote)
+
+* editors/nvim
+  - Rename `:TypedownPaste` to `:TypedownPasteAsset`
+  - Use relative fref path (`./_assets/...`) in pasted asset references
+  - Show warning when no supported image is found in clipboard
+
 ## [0.27.1] - 2026-09-09
 
 ### Perf

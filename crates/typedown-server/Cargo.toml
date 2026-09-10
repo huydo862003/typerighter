@@ -29,9 +29,9 @@ serde_json = "1"
 serde = "1"
 notify = "8.2.0"
 crossbeam-channel = "0.5"
-typedown-incremental = { version = "0.27.1", path = "../typedown-incremental" }
-typedown-lang = { version = "0.27.1", path = "../typedown-lang", features = ["export"] }
-typedown-types = { version = "0.27.1", path = "../typedown-types" }
+typedown-incremental = { version = "0.28.0", path = "../typedown-incremental" }
+typedown-lang = { version = "0.28.0", path = "../typedown-lang", features = ["export"] }
+typedown-types = { version = "0.28.0", path = "../typedown-types" }
 lsp-types = "0.97"
 lsp-server = "0.7"
 ropey = "1.6.1"
