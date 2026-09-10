@@ -95,14 +95,16 @@ impl Multiproject {
         .expect("RwLock should not be poisoned at shutdown")
         .into_db();
 
-      let revision = db.storage.revision.load(Ordering::Acquire) as u64;
-      let serialized = db.dump();
-      if let Err(err) = session.finalize(&serialized, revision) {
-        log::error!(
-          "Failed to save incremental cache for {}: {err}",
-          root_dir.display()
-        );
-      }
+      // TODO: Cache dump temporarily disabled while investigating cache corruption bug
+      // let revision = db.storage.revision.load(Ordering::Acquire) as u64;
+      // let serialized = db.dump();
+      // if let Err(err) = session.finalize(&serialized, revision) {
+      //   log::error!(
+      //     "Failed to save incremental cache for {}: {err}",
+      //     root_dir.display()
+      //   );
+      // }
+      let _ = (db, session);
     }
   }
 }
