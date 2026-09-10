@@ -143,7 +143,7 @@ mod tests {
   use std::collections::BTreeMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

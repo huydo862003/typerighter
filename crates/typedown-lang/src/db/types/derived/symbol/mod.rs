@@ -464,9 +464,19 @@ pub struct RuntimeScope<'db> {
 
 impl<'db> StableHash for RuntimeScope<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    let storage = unsafe { db.storage() };
+    let cache_key = (Self::ingredient_start_index(), self.0);
+    if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
+      ::std::hash::Hasher::write(hasher, &cached.0);
+      return;
+    }
+    let mut inner_hasher = StableHasher::new();
     // Safety: DB is always TypedownDatabase at runtime
     let td_db = unsafe { &*(db as *const DB as *const TypedownDatabase) };
-    runtime_scope_display_string(*self, td_db).stable_hash(db, hasher);
+    runtime_scope_display_string(*self, td_db).stable_hash(db, &mut inner_hasher);
+    let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+    storage.derived_fingerprints.insert(cache_key, fingerprint);
+    ::std::hash::Hasher::write(hasher, &fingerprint.0);
   }
 }
 

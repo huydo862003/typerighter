@@ -73,16 +73,17 @@ pub struct QueryStorage {
   #[doc(hidden)]
   pub inputs: Arc<Vec<Box<dyn InputIngredient>>>,
   #[doc(hidden)]
+  pub input_fingerprints: Arc<DashMap<(u32, u32), Fingerprint>>, // (start_index representing the input group, entry_id) -> cached input struct fingerprint
+  #[doc(hidden)]
   pub interned: Arc<Vec<Box<dyn InternedIngredient>>>,
   #[doc(hidden)]
   pub queries: Arc<Vec<Box<dyn DerivedQueryIngredient>>>,
   #[doc(hidden)]
   pub fields: Arc<Vec<Box<dyn DerivedFieldIngredient>>>,
   #[doc(hidden)]
-  pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>, // Previous session's data for lazy deserialization
+  pub derived_fingerprints: Arc<DashMap<(u32, u32), Fingerprint>>, // (start_index representing the derived group, entry_id) -> cached derived struct fingerprint
   #[doc(hidden)]
-  // FIXME: Implement more fine-grained cleanup, instead of cleaning up whole between revisions
-  pub struct_fingerprints: Arc<DashMap<(u32, u32), Fingerprint>>, // (start_index representing the ingredient group, entry_id) -> cached fingerprint
+  pub deserialize_ctx: Arc<OnceLock<DeserializeContext>>, // Previous session's data for lazy deserialization
 }
 
 impl Default for QueryStorage {
@@ -115,7 +116,8 @@ impl QueryStorage {
       queries: init_factories(queries, IngredientKind::Query),
       fields: init_factories(fields, IngredientKind::Field),
       deserialize_ctx: Arc::new(OnceLock::new()),
-      struct_fingerprints: Arc::new(DashMap::new()),
+      input_fingerprints: Arc::new(DashMap::new()),
+      derived_fingerprints: Arc::new(DashMap::new()),
     }
   }
 
@@ -174,7 +176,6 @@ impl QueryStorage {
     for entry in self.queries.iter() {
       entry.reset_for_new_revision();
     }
-    self.struct_fingerprints.clear();
   }
 
   /// Green check a dependency by dispatching to the correct ingredient array
@@ -211,6 +212,9 @@ impl QueryStorage {
       for &id in removed {
         field.remove_entry(id);
       }
+    }
+    for &id in removed {
+      self.derived_fingerprints.remove(&(start_index, id));
     }
   }
 

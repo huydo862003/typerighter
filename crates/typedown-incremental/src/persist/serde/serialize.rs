@@ -8,7 +8,7 @@ use crate::persist::serialized::query_cache::FileHeader;
 use crate::persist::serialized::query_cache::FooterCacheEntry;
 use crate::{DepId, Encoder, Fingerprint, QueryDatabase};
 
-/// Context for serializing ingredients during dump.
+/// Context for serializing ingredients during dump
 /// Accumulates dep graph nodes and streams query result blobs.
 pub struct SerializeContext<'a> {
   pub dep_graph: DepGraphBuilder,

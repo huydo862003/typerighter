@@ -297,7 +297,7 @@ mod tests {
   use std::sync::{Arc, Condvar, Mutex};
 
   use lsp_types::{CodeActionContext, CodeActionParams, Position, Range, TextDocumentIdentifier};
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, FileRedNode, Project};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
   use crate::core::analysis::Analysis;

@@ -184,12 +184,22 @@ pub struct TdDictObj<'db> {
 // Hash entry count + keys only, skip values to avoid deep recursion
 impl<'db> StableHash for TdDictObj<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    let storage = unsafe { db.storage() };
+    let cache_key = (Self::ingredient_start_index(), self.0);
+    if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
+      ::std::hash::Hasher::write(hasher, &cached.0);
+      return;
+    }
+    let mut inner_hasher = StableHasher::new();
     if let Some(entries) = Self::try_entries(*self, db) {
-      entries.len().stable_hash(db, hasher);
+      entries.len().stable_hash(db, &mut inner_hasher);
       for key in entries.keys() {
-        key.stable_hash(db, hasher);
+        key.stable_hash(db, &mut inner_hasher);
       }
     }
+    let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+    storage.derived_fingerprints.insert(cache_key, fingerprint);
+    ::std::hash::Hasher::write(hasher, &fingerprint.0);
   }
 }
 

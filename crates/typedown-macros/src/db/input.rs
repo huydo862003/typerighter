@@ -189,6 +189,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         let new_revision = storage.revision.fetch_add(1, ::std::sync::atomic::Ordering::Release) + 1;
         storage.reset_for_new_revision();
+        storage.input_fingerprints.remove(&(Self::ingredient_start_index(), self.0));
         let stamped = entry.value_mut();
         stamped.value = value;
         stamped.changed_at = new_revision as u32;
@@ -220,7 +221,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           let storage = unsafe { db.storage() };
           let cache_key = (Self::ingredient_start_index(), self.0);
-          if let Some(cached) = storage.struct_fingerprints.get(&cache_key) {
+          if let Some(cached) = storage.input_fingerprints.get(&cache_key) {
             ::std::hash::Hasher::write(hasher, &cached.0);
             return;
           }
@@ -229,7 +230,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
             self.#try_field_names(db).stable_hash(db, &mut inner_hasher);
           )*
           let fingerprint = ::typedown_incremental::Fingerprint::from_hasher(inner_hasher);
-          storage.struct_fingerprints.insert(cache_key, fingerprint);
+          storage.input_fingerprints.insert(cache_key, fingerprint);
           ::std::hash::Hasher::write(hasher, &fingerprint.0);
         }
       }

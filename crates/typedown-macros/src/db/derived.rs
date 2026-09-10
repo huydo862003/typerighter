@@ -542,8 +542,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     });
   }
 
-  // Skip generating StableHash for custom_hash structs (user provides their own)
-  // Always use try_ for stable hash in case the value is evicted
+  // Skip generating StableHash for custom_hash structs
   let stable_hash_impl = if modifiers.custom_hash {
     quote! {}
   } else {
@@ -552,7 +551,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         fn stable_hash<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut ::typedown_incremental::StableHasher) {
           let storage = unsafe { db.storage() };
           let cache_key = (Self::ingredient_start_index(), self.0);
-          if let Some(cached) = storage.struct_fingerprints.get(&cache_key) {
+          if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
             ::std::hash::Hasher::write(hasher, &cached.0);
             return;
           }
@@ -561,7 +560,8 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
             Self::#try_field_names(*self, db).stable_hash(db, &mut inner_hasher);
           )*
           let fingerprint = ::typedown_incremental::Fingerprint::from_hasher(inner_hasher);
-          storage.struct_fingerprints.insert(cache_key, fingerprint);
+          storage.derived_fingerprints.insert(cache_key, fingerprint);
+
           ::std::hash::Hasher::write(hasher, &fingerprint.0);
         }
       }

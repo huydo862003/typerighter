@@ -41,7 +41,6 @@ pub struct StampedDerivedQuery<K, V: Id + From<u32> + Into<u32>> {
   pub changed_at: Revision,          // Revision when the value last actually changed
   pub verified_at: AtomicU32,        // Revision when last confirmed valid
   pub dependencies: Vec<Dependency>, // What this query read during execution
-  // Lazily computed and cached on first access (during dump)
   pub key_fingerprint: OnceLock<Fingerprint>,
   pub value_fingerprint: OnceLock<Fingerprint>,
 }
@@ -449,7 +448,7 @@ impl<
       _ => current_revision,
     };
 
-    // Store the result (fingerprints computed lazily on first access during dump)
+    // Store the result
     self.data.insert(
       entry_id,
       QueryState::Computed(StampedDerivedQuery {
