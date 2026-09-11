@@ -63,8 +63,8 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
 
   // Cursor inside ${} interpolation in markdown: suggest fref("path") completions
   if is_interp_position(&node) {
-    return Some(CompletionResponse::Array(interp_fref_completions(
-      db, project,
+    return Some(CompletionResponse::Array(fref_wrapped_completions(
+      db, project, None,
     )));
   }
 
@@ -72,7 +72,8 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
   if let Some(typ) = declared_field_type_at_value(db, project, file, &node)
     && (typ.is_td_schema_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_schema_type))
   {
-    let items = fref_snippet_completions(db, project, file, &node);
+    let expected = declared_field(db, project, file, &node);
+    let items = fref_wrapped_completions(db, project, expected.as_ref());
     if !items.is_empty() {
       return Some(CompletionResponse::Array(items));
     }
@@ -293,24 +294,13 @@ fn has_nullable_member<'db>(
   })
 }
 
-// Suggest fref("path") completions for frontmatter schema-typed value positions
-fn fref_snippet_completions(
+// Suggest fref("path") completions, optionally filtered by an expected type
+fn fref_wrapped_completions(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
-  node: &RedNode,
+  expected_type: Option<&TdTypeEnum>,
 ) -> Vec<CompletionItem> {
-  let expected_type = declared_field(db, project, file, node);
-  let candidates = collect_fref_candidates(db, project, expected_type.as_ref());
-  candidates
-    .iter()
-    .map(|c| candidate_to_completion(c, |path| format!("fref(\"{path}\")")))
-    .collect()
-}
-
-// Suggest fref("path") completions inside ${} interpolation in markdown body
-fn interp_fref_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
-  let candidates = collect_fref_candidates(db, project, None);
+  let candidates = collect_fref_candidates(db, project, expected_type);
   candidates
     .iter()
     .map(|c| candidate_to_completion(c, |path| format!("fref(\"{path}\")")))

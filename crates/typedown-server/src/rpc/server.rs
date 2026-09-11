@@ -456,6 +456,8 @@ fn dispatch_request(
   }
 }
 
+const MAX_AFFECTED_DEPTH: usize = 5;
+
 // Collect vault-relative paths of files that transitively reference the given file
 fn collect_affected_files(
   db: &TypedownDatabase,
@@ -473,24 +475,31 @@ fn collect_affected_files(
   };
 
   let mut affected = HashSet::new();
-  let mut queue = vec![symbol];
+  let mut current_level = vec![symbol];
 
-  while let Some(sym) = queue.pop() {
-    for reference in references(db, project, sym) {
-      let ref_file = reference.hir.node(db).owner_file;
-      let ref_path = match ref_file.handle(db).path() {
-        Some(p) => p.clone(),
-        None => continue,
-      };
-      if ref_path == changed_path {
-        continue;
-      }
-      if affected.insert(ref_path.clone()) {
-        if let Some(ref_sym) = file_symbol(db, project, ref_file).value(db) {
-          queue.push(ref_sym);
+  for _ in 0..MAX_AFFECTED_DEPTH {
+    let mut next_level = vec![];
+    for sym in &current_level {
+      for reference in references(db, project, *sym) {
+        let ref_file = reference.hir.node(db).owner_file;
+        let ref_path = match ref_file.handle(db).path() {
+          Some(p) => p.clone(),
+          None => continue,
+        };
+        if ref_path == changed_path {
+          continue;
+        }
+        if affected.insert(ref_path.clone()) {
+          if let Some(ref_sym) = file_symbol(db, project, ref_file).value(db) {
+            next_level.push(ref_sym);
+          }
         }
       }
     }
+    if next_level.is_empty() {
+      break;
+    }
+    current_level = next_level;
   }
 
   affected

@@ -122,12 +122,17 @@ impl<'a> HtmlEmitter<'a> {
       return;
     }
 
-    // Extract text from inline content only, skipping the heading marker (##)
+    // Extract text from inline content, skipping the leading heading marker (# through ######)
     let plain_text = {
       let mut text = String::new();
-      for child in node.children().skip(1) {
-        let part = extract_plain_text(&child);
-        text.push_str(&part);
+      for child in node.children() {
+        if child
+          .as_token()
+          .is_some_and(|t| t.text().unwrap_or("").chars().all(|c| c == '#'))
+        {
+          continue;
+        }
+        text.push_str(&extract_plain_text(&child));
       }
       text.trim().to_string()
     };
