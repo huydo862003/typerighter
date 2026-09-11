@@ -185,6 +185,10 @@ function onResizeStart (event: PointerEvent) {
 
 <template>
   <div>
+    <a
+      href="#td-content"
+      class="td-skip-link"
+    >Skip to content</a>
     <header class="td-header">
       <div class="td-header-left">
         <TdMenuButton />
@@ -302,13 +306,22 @@ function onResizeStart (event: PointerEvent) {
         </div>
         <div
           class="td-sidebar-resize"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          tabindex="0"
           @pointerdown.prevent="onResizeStart"
+          @keydown.left.prevent="sidebarWidth = Math.max(200, sidebarWidth - 20)"
+          @keydown.right.prevent="sidebarWidth = Math.min(500, sidebarWidth + 20)"
         />
       </nav>
 
       <div class="td-main-and-rail">
         <main class="td-main">
-          <article class="td-content">
+          <article
+            id="td-content"
+            class="td-content"
+          >
             <div
               v-if="page.schema"
               class="td-page-eyebrow"
@@ -364,6 +377,25 @@ function onResizeStart (event: PointerEvent) {
 </template>
 
 <style scoped>
+/* Skip link */
+
+.td-skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 50;
+  padding: 8px 16px;
+  background: var(--color-td-primary-solid);
+  color: white;
+  border-radius: 4px;
+  font-size: var(--font-size-td-sm);
+  text-decoration: none;
+}
+
+.td-skip-link:focus {
+  top: 8px;
+}
+
 /* Header */
 
 .td-header {
@@ -505,6 +537,7 @@ function onResizeStart (event: PointerEvent) {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: 22px 0 60px;
 }
 

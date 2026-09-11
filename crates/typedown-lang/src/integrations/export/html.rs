@@ -686,11 +686,11 @@ impl<'a> HtmlEmitter<'a> {
 
     let icon_html = target
       .icon
-      .map(|name| format!("<LucideIcon name=\"{name}\" />"))
+      .map(|name| format!("<LucideIcon name=\"{name}\" class=\"td-inline-icon\" />"))
       .unwrap_or_default();
 
     Some(format!(
-      "{icon_html}<a href=\"{}\">{}</a>",
+      "<a href=\"{}\" class=\"td-fref-link\">{icon_html}{}</a>",
       html_escape(&target.url),
       html_escape(&target.name)
     ))

@@ -20,7 +20,7 @@ fn affected_paths(
     .into_iter()
     .filter_map(|f| {
       let path = f.handle(db).path()?.clone();
-      path.strip_prefix(root_dir).ok().map(|r| normalize_path(r))
+      path.strip_prefix(root_dir).ok().map(normalize_path)
     })
     .collect()
 }

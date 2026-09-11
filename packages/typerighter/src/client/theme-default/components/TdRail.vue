@@ -29,6 +29,7 @@ const {
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px 18px 40px;
   min-width: 0;
   border-left: 1px solid var(--color-td-neutral-border-subtle);

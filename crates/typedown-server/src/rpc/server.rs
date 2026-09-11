@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -471,7 +471,7 @@ fn collect_affected_files(
     .into_iter()
     .filter_map(|f| {
       let path = f.handle(db).path()?.clone();
-      path.strip_prefix(root_dir).ok().map(|r| normalize_path(r))
+      path.strip_prefix(root_dir).ok().map(normalize_path)
     })
     .collect()
 }

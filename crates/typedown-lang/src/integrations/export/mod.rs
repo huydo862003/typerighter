@@ -1768,7 +1768,7 @@ properties:
     assert!(
       exported
         .content
-        .contains("<a href=\"/blog/alice\">Alice</a>")
+        .contains("<a href=\"/blog/alice\" class=\"td-fref-link\">Alice</a>")
     );
   }
 

@@ -222,11 +222,7 @@ pub fn references<'db>(
 const MAX_AFFECTED_DEPTH: usize = 5;
 
 // Collect files that transitively reference the given file, up to MAX_AFFECTED_DEPTH levels
-pub fn find_transitive_referrers<'db>(
-  db: &'db TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Vec<File> {
+pub fn find_transitive_referrers(db: &TypedownDatabase, project: Project, file: File) -> Vec<File> {
   let symbol = match file_symbol(db, project, file).value(db) {
     Some(s) => s,
     None => return vec![],
@@ -243,10 +239,10 @@ pub fn find_transitive_referrers<'db>(
         if ref_file == file {
           continue;
         }
-        if affected.insert(ref_file) {
-          if let Some(ref_sym) = file_symbol(db, project, ref_file).value(db) {
-            next_level.push(ref_sym);
-          }
+        if affected.insert(ref_file)
+          && let Some(ref_sym) = file_symbol(db, project, ref_file).value(db)
+        {
+          next_level.push(ref_sym);
         }
       }
     }
