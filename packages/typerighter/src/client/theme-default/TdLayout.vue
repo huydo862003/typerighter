@@ -373,7 +373,7 @@ function onResizeStart (event: PointerEvent) {
   justify-content: space-between;
   padding: 0 24px;
   border-bottom: 1px solid var(--color-td-neutral-border);
-  background: var(--color-td-neutral-bg);
+  background: var(--color-td-neutral-bg-subtle);
   position: sticky;
   top: 0;
   z-index: 40;
@@ -453,8 +453,6 @@ function onResizeStart (event: PointerEvent) {
 }
 
 .td-content {
-  max-width: var(--td-content-max);
-  margin: 0 auto;
   padding: 44px 56px 120px;
 }
 

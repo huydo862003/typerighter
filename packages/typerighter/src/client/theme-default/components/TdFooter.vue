@@ -35,7 +35,7 @@ const year = new Date().getFullYear();
   flex-wrap: wrap;
   padding: 1.5rem 24px;
   border-top: 1px solid var(--color-td-neutral-border);
-  background: var(--color-td-neutral-bg);
+  background: var(--color-td-neutral-bg-subtle);
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
   color: var(--color-td-neutral-fg-muted);
