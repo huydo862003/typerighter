@@ -122,7 +122,15 @@ impl<'a> HtmlEmitter<'a> {
       return;
     }
 
-    let plain_text = extract_plain_text(node);
+    // Extract text from inline content only, skipping the heading marker (##)
+    let plain_text = {
+      let mut text = String::new();
+      for child in node.children().skip(1) {
+        let part = extract_plain_text(&child);
+        text.push_str(&part);
+      }
+      text.trim().to_string()
+    };
     let slug = self.make_unique_slug(&plain_text);
 
     if self.title.is_none() && level == 1 {

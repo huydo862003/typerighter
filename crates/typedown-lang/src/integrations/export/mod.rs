@@ -1559,6 +1559,30 @@ properties:
     assert_eq!(exported.title.as_deref(), Some("Heading 1"));
   }
 
+  // Heading titles preserve special characters like dots, colons, plus signs, hash
+  #[test]
+  fn html_export_heading_titles_preserve_special_chars() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let titles: Vec<&str> = exported.headings.iter().map(|h| h.title.as_str()).collect();
+    assert!(
+      titles.contains(&"Version v1.2.3"),
+      "dots preserved: {titles:?}"
+    );
+    assert!(
+      titles.contains(&"Key: Value Pairs"),
+      "colon preserved: {titles:?}"
+    );
+    assert!(
+      titles.contains(&"C++ and C#"),
+      "plus and hash preserved: {titles:?}"
+    );
+    assert!(
+      titles.contains(&"node.js vs Deno"),
+      "dots preserved: {titles:?}"
+    );
+  }
+
   #[test]
   fn html_export_inline_markup() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");

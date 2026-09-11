@@ -219,11 +219,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSiteData.fetch(tdContext, server);
       });
 
-      // Content changed: re-index file + invalidate .td modules
+      // Content changed: re-index file + invalidate .td modules and affected files
       tdContext.rpc.onContentChanged(({
         content,
+        affectedFiles = [],
       }: {
         content: string;
+        affectedFiles?: string[];
       }) => {
         if (!server) return;
 
@@ -234,28 +236,31 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           .then((config) => {
             if (!server) return;
 
-            const absolute = normalizePath(
-              resolve(server.config.root, config.rootDir, content),
-            );
+            const filesToInvalidate = [content, ...affectedFiles];
+            const allUpdates: ReturnType<typeof makeHmrUpdate>[] = [];
 
-            // A single file can back several modules (`?vue&type=template`, `&type=style`)
-            const modules = server.moduleGraph.getModulesByFile(absolute);
+            for (const filepath of filesToInvalidate) {
+              const absolute = normalizePath(
+                resolve(server.config.root, config.rootDir, filepath),
+              );
 
-            if (!modules?.size) return; // not transformed yet, nothing to invalidate
+              const modules = server.moduleGraph.getModulesByFile(absolute);
+              if (!modules?.size) continue;
 
-            const updates = [...modules].map((module_) => {
-              server?.moduleGraph.invalidateModule(module_);
+              for (const module_ of modules) {
+                server?.moduleGraph.invalidateModule(module_);
+                allUpdates.push(makeHmrUpdate(module_));
+              }
 
-              return makeHmrUpdate(module_);
-            });
+              virtualPages.invalidatePageData(server, filepath);
+            }
 
-            server.hot.send({
-              type: 'update',
-              updates,
-            });
-
-            // Invalidate per-resource page data so the SFC picks up fresh headings, frontmatter, etc
-            virtualPages.invalidatePageData(server, content);
+            if (allUpdates.length > 0) {
+              server.hot.send({
+                type: 'update',
+                updates: allUpdates,
+              });
+            }
           })
           .catch(() => {});
 

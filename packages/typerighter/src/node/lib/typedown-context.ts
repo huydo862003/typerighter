@@ -28,10 +28,15 @@ export class TypedownContext {
 
     client.onContentChanged(({
       content,
+      affectedFiles = [],
     }: {
       content: string;
+      affectedFiles?: string[];
     }) => {
       this.cachedFileMap.delete(content);
+      for (const filepath of affectedFiles) {
+        this.cachedFileMap.delete(filepath);
+      }
     });
 
     client.onContentCreated(() => {
