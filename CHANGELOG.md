@@ -1,3 +1,10 @@
+## [0.30.1] - 2026-09-12
+
+### Fixes
+
+* packages/typerighter
+  - Dev server middleware now passes through Vite internal requests (`/@vite/client`, `/@id/...`) when `base_path` is set
+
 ## [0.30.0] - 2026-09-11
 
 ### Features
