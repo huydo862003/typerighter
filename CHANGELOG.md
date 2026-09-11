@@ -1,4 +1,9 @@
-## [0.28.1] - 2026-09-11
+## [0.28.2] - 2026-09-11
+
+* packages/typerighter
+  - Broken assets transform
+
+## [0.28.1] - 2026-09-11 (retracted)
 
 * crates/typedown-incremental
   - Temporarily disable cache dumping to investigate broken cache loading
