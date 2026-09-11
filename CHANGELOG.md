@@ -1,3 +1,10 @@
+## [0.30.2] - 2026-09-12
+
+### Fixes
+
+* crates/typedown-lang
+  - Preserve inline code, math, and interpolation i>
+
 ## [0.30.1] - 2026-09-12
 
 ### Fixes
