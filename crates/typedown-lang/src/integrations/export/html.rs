@@ -314,9 +314,7 @@ impl<'a> HtmlEmitter<'a> {
     } else {
       self.write(&format!("<{tag}>"));
     }
-    for elem in cell.inline_elements() {
-      self.emit_inline(elem.syntax());
-    }
+    self.emit_inline_children(cell.syntax());
     self.write(&format!("</{tag}>\n"));
   }
 

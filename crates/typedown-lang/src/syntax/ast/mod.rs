@@ -174,7 +174,10 @@ pub struct MdBlockElement(RedNode);
 #[wrapper_ast_node(SyntaxKind = [
   MdLink, MdMedia,
   MdBold, MdItalic, MdBoldItalic, MdStrikethrough,
-  MdText,
+  MdText, MdHtmlEntity,
+  InlineCode, InlineMath,
+  CodeLit, MathLit,
+  InterpFragment,
 ])]
 pub struct MdInlineElement(RedNode);
 

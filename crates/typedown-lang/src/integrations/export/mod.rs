@@ -1665,6 +1665,33 @@ properties:
     assert_eq!(td_count, 2, "should have 2 data cells");
   }
 
+  // Table cells preserve inline code, math, and interpolation
+  #[test]
+  fn html_export_table_inline_code() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_table_inline_code.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("<code>_type</code>"),
+      "inline code _type should be preserved in table cell: {}",
+      exported.content
+    );
+    assert!(
+      exported.content.contains("<code>_label</code>"),
+      "inline code _label should be preserved: {}",
+      exported.content
+    );
+    assert!(
+      exported.content.contains("<code>_content</code>"),
+      "inline code _content should be preserved: {}",
+      exported.content
+    );
+    assert!(
+      exported.content.contains("<code>icon.rocket</code>"),
+      "inline code icon.rocket should be preserved: {}",
+      exported.content
+    );
+  }
+
   #[test]
   fn html_export_bullet_list() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
