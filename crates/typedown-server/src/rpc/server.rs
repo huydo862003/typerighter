@@ -17,7 +17,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::schema_members;
-use typedown_lang::db::derived::name_resolver::resolution_index::references;
+use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
@@ -456,8 +456,6 @@ fn dispatch_request(
   }
 }
 
-const MAX_AFFECTED_DEPTH: usize = 5;
-
 // Collect vault-relative paths of files that transitively reference the given file
 fn collect_affected_files(
   db: &TypedownDatabase,
@@ -469,42 +467,12 @@ fn collect_affected_files(
     Some(f) => *f,
     None => return vec![],
   };
-  let symbol = match file_symbol(db, project, changed_file).value(db) {
-    Some(s) => s,
-    None => return vec![],
-  };
-
-  let mut affected = HashSet::new();
-  let mut current_level = vec![symbol];
-
-  for _ in 0..MAX_AFFECTED_DEPTH {
-    let mut next_level = vec![];
-    for sym in &current_level {
-      for reference in references(db, project, *sym) {
-        let ref_file = reference.hir.node(db).owner_file;
-        let ref_path = match ref_file.handle(db).path() {
-          Some(p) => p.clone(),
-          None => continue,
-        };
-        if ref_path == changed_path {
-          continue;
-        }
-        if affected.insert(ref_path.clone()) {
-          if let Some(ref_sym) = file_symbol(db, project, ref_file).value(db) {
-            next_level.push(ref_sym);
-          }
-        }
-      }
-    }
-    if next_level.is_empty() {
-      break;
-    }
-    current_level = next_level;
-  }
-
-  affected
+  find_transitive_referrers(db, project, changed_file)
     .into_iter()
-    .filter_map(|p| p.strip_prefix(root_dir).ok().map(|r| normalize_path(r)))
+    .filter_map(|f| {
+      let path = f.handle(db).path()?.clone();
+      path.strip_prefix(root_dir).ok().map(|r| normalize_path(r))
+    })
     .collect()
 }
 

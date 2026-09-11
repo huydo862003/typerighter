@@ -10,6 +10,7 @@ use typedown_incremental::{
 use typedown_macros::{StableCompare, query_derived};
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{
   File, HirValue, HirValueKind, InterpolatedPart, Project, Symbol, SymbolKind,
@@ -216,6 +217,46 @@ pub fn references<'db>(
     refs.extend(idx.get_references(db, symbol));
   }
   refs
+}
+
+const MAX_AFFECTED_DEPTH: usize = 5;
+
+// Collect files that transitively reference the given file, up to MAX_AFFECTED_DEPTH levels
+pub fn find_transitive_referrers<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Vec<File> {
+  let symbol = match file_symbol(db, project, file).value(db) {
+    Some(s) => s,
+    None => return vec![],
+  };
+
+  let mut affected = std::collections::HashSet::new();
+  let mut current_level = vec![symbol];
+
+  for _ in 0..MAX_AFFECTED_DEPTH {
+    let mut next_level = vec![];
+    for sym in &current_level {
+      for reference in references(db, project, *sym) {
+        let ref_file = reference.hir.node(db).owner_file;
+        if ref_file == file {
+          continue;
+        }
+        if affected.insert(ref_file) {
+          if let Some(ref_sym) = file_symbol(db, project, ref_file).value(db) {
+            next_level.push(ref_sym);
+          }
+        }
+      }
+    }
+    if next_level.is_empty() {
+      break;
+    }
+    current_level = next_level;
+  }
+
+  affected.into_iter().collect()
 }
 
 #[cfg(test)]

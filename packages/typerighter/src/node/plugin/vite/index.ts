@@ -244,8 +244,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
                 resolve(server.config.root, config.rootDir, filepath),
               );
 
+              // A single file can back several modules (`?vue&type=template`, `&type=style`)
               const modules = server.moduleGraph.getModulesByFile(absolute);
-              if (!modules?.size) continue;
+              if (!modules?.size) continue; // not transformed yet, nothing to invalidate
 
               for (const module_ of modules) {
                 server?.moduleGraph.invalidateModule(module_);
