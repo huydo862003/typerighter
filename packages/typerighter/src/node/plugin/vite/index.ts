@@ -368,6 +368,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     include: options.root
       ? new RegExp(`${options.root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/.*\\.(?:vue|td)$`)
       : /\.(?:vue|td)$/,
+    template: {
+      transformAssetUrls: false,
+    },
   });
 
   return [
