@@ -1,9 +1,23 @@
-## [0.28.2] - 2026-09-11
+## [0.29.0] - 2026-09-11
+
+### Fixes
+
+* crates/typedown-lang
+  - Restore HirValueKind to non-discriminantly-only stable hashing to avoid broken cache
+
+* crates/typedown-incremental
+  - Enable cache dumping again
+
+## [0.28.2] - 2026-09-11 (retracted)
+
+### Fixes
 
 * packages/typerighter
   - Broken assets transform
 
 ## [0.28.1] - 2026-09-11 (retracted)
+
+### Fixes
 
 * crates/typedown-incremental
   - Temporarily disable cache dumping to investigate broken cache loading
