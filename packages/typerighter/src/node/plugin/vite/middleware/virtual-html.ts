@@ -40,6 +40,10 @@ export function virtualHtml (
     if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules')) return next();
     if (!urlPath.startsWith(base)) return next();
 
+    // After base prefix, pass through Vite internal and node_modules requests
+    const pathAfterBase = urlPath.slice(base.length);
+    if (pathAfterBase.startsWith('/@') || pathAfterBase.startsWith('/node_modules')) return next();
+
     // Skip static file requests (has extension), except index.html
     if (urlPath.includes('.') && !urlPath.endsWith('/index.html')) return next();
 
