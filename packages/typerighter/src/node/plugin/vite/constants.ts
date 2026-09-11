@@ -3,6 +3,8 @@ export const RESOLVED_VIRTUAL_APP_ID = '\0' + VIRTUAL_APP_ID;
 
 export const PAGES_ID = '@typedown/pages';
 export const RESOLVED_PAGES_ID = '\0' + PAGES_ID;
+export const PAGE_DATA_PREFIX = PAGES_ID + '?resource=';
+export const RESOLVED_PAGE_DATA_PREFIX = '\0' + PAGE_DATA_PREFIX;
 
 export const SITE_DATA_ID = '@typedown/site-data';
 export const RESOLVED_SITE_DATA_ID = '\0' + SITE_DATA_ID;

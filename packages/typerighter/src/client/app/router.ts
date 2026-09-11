@@ -87,14 +87,14 @@ export function createRouter (
       if (latestPendingPath === pendingPath) {
         latestPendingPath = undefined;
         const {
-          default: comp, __pageData,
+          default: component, pageData,
         } = page;
 
         route.path = pendingPath;
-        route.contentSfc = markRaw(comp);
+        route.contentSfc = markRaw(component);
         route.data = import.meta.env.PROD
-          ? markRaw(__pageData)
-          : (readonly(__pageData) as PageData);
+          ? markRaw(pageData)
+          : (readonly(pageData) as PageData);
 
         syncRouteQueryAndHash(targetLocation);
 

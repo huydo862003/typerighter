@@ -22,7 +22,7 @@ import {
 } from '../../lib/typedown-context';
 import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
-  PAGES_ID, RESOLVED_PAGES_ID,
+  PAGES_ID, RESOLVED_PAGES_ID, PAGE_DATA_PREFIX,
   SITE_DATA_ID, RESOLVED_SITE_DATA_ID,
   SEARCH_INDEX_ID, RESOLVED_SEARCH_INDEX_ID,
 } from './constants';
@@ -161,12 +161,17 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     resolveId (id) {
       if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID) return RESOLVED_VIRTUAL_APP_ID;
       if (id === PAGES_ID) return RESOLVED_PAGES_ID;
+      if (id.startsWith(PAGE_DATA_PREFIX)) return virtualPages.resolvePageData(id);
       if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
       if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
     },
 
     // Serve virtual modules
     async load (id) {
+      if (virtualPages.isPageDataModule(id)) {
+        return virtualPages.loadPageData(id, await resolveTdContext());
+      }
+
       if (
         id !== RESOLVED_SEARCH_INDEX_ID
         && id !== RESOLVED_SITE_DATA_ID
@@ -248,6 +253,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
               type: 'update',
               updates,
             });
+
+            // Invalidate per-resource page data so the SFC picks up fresh headings, frontmatter, etc
+            virtualPages.invalidatePageData(server, content);
           })
           .catch(() => {});
 
@@ -303,7 +311,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       if (path.isTypeFile(cleanId)) {
         return {
-          code: '<script>import { TdNotFound } from \'typerighter/client/theme-default\'; export default TdNotFound; export const __pageData = { frontmatter: {}, headings: [], title: \'\' };</script>',
+          code: '<script>import { TdNotFound } from \'typerighter/client/theme-default\'; export default TdNotFound; export const pageData = { frontmatter: {}, headings: [], title: \'\' };</script>',
           map: null,
         };
       }

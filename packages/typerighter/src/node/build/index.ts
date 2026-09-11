@@ -251,7 +251,7 @@ function loadPageModule(pagePath) {
     const dir = siteData.directoryListings[dirPath];
     if (dir) return Promise.resolve({
       default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-      __pageData: { frontmatter: {}, headings: [], title: dir.title },
+      pageData: { frontmatter: {}, headings: [], title: dir.title },
     });
   }
 
