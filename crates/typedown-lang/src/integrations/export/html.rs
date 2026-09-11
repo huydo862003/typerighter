@@ -122,7 +122,20 @@ impl<'a> HtmlEmitter<'a> {
       return;
     }
 
-    let plain_text = extract_plain_text(node);
+    // Extract text from inline content, skipping the leading heading marker (# through ######)
+    let plain_text = {
+      let mut text = String::new();
+      for child in node.children() {
+        if child
+          .as_token()
+          .is_some_and(|t| t.text().unwrap_or("").chars().all(|c| c == '#'))
+        {
+          continue;
+        }
+        text.push_str(&extract_plain_text(&child));
+      }
+      text.trim().to_string()
+    };
     let slug = self.make_unique_slug(&plain_text);
 
     if self.title.is_none() && level == 1 {
@@ -673,11 +686,11 @@ impl<'a> HtmlEmitter<'a> {
 
     let icon_html = target
       .icon
-      .map(|name| format!("<LucideIcon name=\"{name}\" />"))
+      .map(|name| format!("<LucideIcon name=\"{name}\" class=\"td-inline-icon\" />"))
       .unwrap_or_default();
 
     Some(format!(
-      "{icon_html}<a href=\"{}\">{}</a>",
+      "<a href=\"{}\" class=\"td-fref-link\">{icon_html}{}</a>",
       html_escape(&target.url),
       html_escape(&target.name)
     ))

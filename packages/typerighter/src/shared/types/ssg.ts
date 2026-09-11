@@ -28,7 +28,7 @@ export interface PageData {
 }
 
 export interface PageModule {
-  __pageData: PageData;
+  pageData: PageData;
   default: Component;
 }
 

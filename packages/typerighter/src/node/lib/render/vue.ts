@@ -12,7 +12,7 @@ import type {
   PageData,
 } from '@/shared';
 import {
-  getTdIndexTitle, getTdResourceTitle, INDEX_FILENAME, path,
+  getTdIndexTitle, getTdResourceTitle, isIndexFile,
 } from '@/shared';
 
 export interface VueRenderResult {
@@ -22,19 +22,17 @@ export interface VueRenderResult {
   pageData: PageData;
 }
 
-// Render a built resource to a Vue SFC string
-export async function renderToVueSfc (
+// Build page metadata from a resource and filepath
+export async function buildPageData (
   context: TypedownContext,
   resource: TdBuiltResource,
   filepath: string,
-): Promise<VueRenderResult> {
-  const html = await postprocessHtml(resource.content);
-  const isIndex = path.filestem(filepath) === INDEX_FILENAME;
-  const title = resource.title || (isIndex
+): Promise<PageData> {
+  const title = resource.title || (isIndexFile(filepath)
     ? getTdIndexTitle(filepath, (await context.getConfig()).siteTitle)
     : getTdResourceTitle(filepath, resource.label));
 
-  const pageData: PageData = {
+  return {
     schema: resource.schema,
     schemaLabel: resource.schemaLabel,
     label: resource.label,
@@ -44,12 +42,27 @@ export async function renderToVueSfc (
     title,
     metadata: resource.metadata,
   };
-  const pageDataJson = JSON.stringify(JSON.stringify(pageData));
+}
+
+// Render a built resource to a Vue SFC string
+export async function renderToVueSfc (
+  context: TypedownContext,
+  resource: TdBuiltResource,
+  filepath: string,
+): Promise<VueRenderResult> {
+  const html = await postprocessHtml(resource.content);
+  const pageData = await buildPageData(context, resource, filepath);
+  const pageDataImport = JSON.stringify(`@typedown/pages?resource=${encodeURIComponent(filepath)}`);
 
   const vueSrc = [
     '<script>',
-    `export const __pageData = JSON.parse(${pageDataJson})`,
+    `export { pageData } from ${pageDataImport}`,
     `export default { name: ${JSON.stringify(filepath)} }`,
+    '</script>',
+    '<script setup>',
+    'import { useRouter } from \'typerighter/client\'',
+    `import { pageData } from ${pageDataImport}`,
+    'useRouter().route.data = pageData',
     '</script>',
     // Inlined rather than bound with `v-html`: the content has to pass through the Vue compiler for custom components and their slots to resolve
     `<template><div class="typedown-content">\n${escapeVueInterpolation(html)}\n</div></template>`,

@@ -59,7 +59,7 @@ pub fn extract_plain_text(node: &RedNode) -> String {
 fn collect_plain_text(node: &RedNode, buf: &mut String) {
   if let Some(token) = node.as_token() {
     let text = token.text().unwrap_or("");
-    if !is_delimiter(text) && node.kind() != SyntaxKind::MdSymbol {
+    if !is_delimiter(text) {
       buf.push_str(text);
     }
   } else {
@@ -72,22 +72,7 @@ fn collect_plain_text(node: &RedNode, buf: &mut String) {
 pub fn is_delimiter(text: &str) -> bool {
   matches!(
     text,
-    "**"
-      | "*"
-      | "_"
-      | "~~"
-      | "***"
-      | "["
-      | "]"
-      | "("
-      | ")"
-      | "!"
-      | "#"
-      | "##"
-      | "###"
-      | "####"
-      | "#####"
-      | "######"
+    "**" | "*" | "_" | "~~" | "***" | "[" | "]" | "(" | ")" | "!"
   )
 }
 

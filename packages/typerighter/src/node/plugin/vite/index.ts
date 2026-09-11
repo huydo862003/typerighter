@@ -22,7 +22,7 @@ import {
 } from '../../lib/typedown-context';
 import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
-  PAGES_ID, RESOLVED_PAGES_ID,
+  PAGES_ID, RESOLVED_PAGES_ID, PAGE_DATA_PREFIX,
   SITE_DATA_ID, RESOLVED_SITE_DATA_ID,
   SEARCH_INDEX_ID, RESOLVED_SEARCH_INDEX_ID,
 } from './constants';
@@ -161,12 +161,17 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
     resolveId (id) {
       if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID) return RESOLVED_VIRTUAL_APP_ID;
       if (id === PAGES_ID) return RESOLVED_PAGES_ID;
+      if (id.startsWith(PAGE_DATA_PREFIX)) return virtualPages.resolvePageData(id);
       if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
       if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
     },
 
     // Serve virtual modules
     async load (id) {
+      if (virtualPages.isPageDataModule(id)) {
+        return virtualPages.loadPageData(id, await resolveTdContext());
+      }
+
       if (
         id !== RESOLVED_SEARCH_INDEX_ID
         && id !== RESOLVED_SITE_DATA_ID
@@ -214,11 +219,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSiteData.fetch(tdContext, server);
       });
 
-      // Content changed: re-index file + invalidate .td modules
+      // Content changed: re-index file + invalidate .td modules and affected files
       tdContext.rpc.onContentChanged(({
         content,
+        affectedFiles = [],
       }: {
         content: string;
+        affectedFiles?: string[];
       }) => {
         if (!server) return;
 
@@ -229,25 +236,32 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           .then((config) => {
             if (!server) return;
 
-            const absolute = normalizePath(
-              resolve(server.config.root, config.rootDir, content),
-            );
+            const filesToInvalidate = [content, ...affectedFiles];
+            const allUpdates: ReturnType<typeof makeHmrUpdate>[] = [];
 
-            // A single file can back several modules (`?vue&type=template`, `&type=style`)
-            const modules = server.moduleGraph.getModulesByFile(absolute);
+            for (const filepath of filesToInvalidate) {
+              const absolute = normalizePath(
+                resolve(server.config.root, config.rootDir, filepath),
+              );
 
-            if (!modules?.size) return; // not transformed yet, nothing to invalidate
+              // A single file can back several modules (`?vue&type=template`, `&type=style`)
+              const modules = server.moduleGraph.getModulesByFile(absolute);
+              if (!modules?.size) continue; // not transformed yet, nothing to invalidate
 
-            const updates = [...modules].map((module_) => {
-              server?.moduleGraph.invalidateModule(module_);
+              for (const module_ of modules) {
+                server?.moduleGraph.invalidateModule(module_);
+                allUpdates.push(makeHmrUpdate(module_));
+              }
 
-              return makeHmrUpdate(module_);
-            });
+              virtualPages.invalidatePageData(server, filepath);
+            }
 
-            server.hot.send({
-              type: 'update',
-              updates,
-            });
+            if (allUpdates.length > 0) {
+              server.hot.send({
+                type: 'update',
+                updates: allUpdates,
+              });
+            }
           })
           .catch(() => {});
 
@@ -303,7 +317,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       if (path.isTypeFile(cleanId)) {
         return {
-          code: '<script>import { TdNotFound } from \'typerighter/client/theme-default\'; export default TdNotFound; export const __pageData = { frontmatter: {}, headings: [], title: \'\' };</script>',
+          code: '<script>import { TdNotFound } from \'typerighter/client/theme-default\'; export default TdNotFound; export const pageData = { frontmatter: {}, headings: [], title: \'\' };</script>',
           map: null,
         };
       }

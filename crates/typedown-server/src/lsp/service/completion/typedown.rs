@@ -54,18 +54,26 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     return Some(CompletionResponse::Array(icon_completions()));
   }
 
-  // Cursor inside a fref() string argument, suggest .td files matching the field's declared type
+  // Cursor inside a fref() string argument: suggest file paths
   if is_fref_arg_position(&node) {
     return Some(CompletionResponse::Array(fref_completions(
       db, project, file, &node,
     )));
   }
 
-  // Cursor in a field value whose type is a schema: suggest fref completions with snippet
+  // Cursor inside ${} interpolation in markdown: suggest fref("path") completions
+  if is_interp_position(&node) {
+    return Some(CompletionResponse::Array(fref_wrapped_completions(
+      db, project, None,
+    )));
+  }
+
+  // Cursor in a field value whose type is a schema: suggest fref("path") completions
   if let Some(typ) = declared_field_type_at_value(db, project, file, &node)
     && (typ.is_td_schema_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_schema_type))
   {
-    let items = fref_snippet_completions(db, project, file, &node);
+    let expected = declared_field(db, project, file, &node);
+    let items = fref_wrapped_completions(db, project, expected.as_ref());
     if !items.is_empty() {
       return Some(CompletionResponse::Array(items));
     }
@@ -129,6 +137,11 @@ fn icon_completions() -> Vec<CompletionItem> {
     .collect()
 }
 
+// Returns true if the cursor is inside a ${} interpolation
+fn is_interp_position(node: &RedNode) -> bool {
+  find_ancestor(node, SyntaxKind::InterpFragment).is_some()
+}
+
 // Returns true if the cursor is inside the string argument of a fref() call
 fn is_fref_arg_position(node: &RedNode) -> bool {
   // Walk up to find an enclosing StrLit, then a CallExpr above it
@@ -147,75 +160,103 @@ fn is_fref_arg_position(node: &RedNode) -> bool {
     .is_some_and(|callee| callee.text().trim() == "fref")
 }
 
-// Suggest .td file paths compatible with the declared field type
-fn fref_completions(
+// A resolved fref candidate with display info
+struct FrefCandidate {
+  // Vault-relative path (e.g. "people/alice.td")
+  path: String,
+  // Human-readable label from _label field
+  label: Option<String>,
+  // Schema type name
+  schema: Option<String>,
+  // File basename without extension
+  basename: String,
+}
+
+// Collect fref candidates compatible with an optional expected type
+fn collect_fref_candidates(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
-  node: &RedNode,
-) -> Vec<CompletionItem> {
-  // Resolve the expected type for the field containing this fref() call
-  let expected_type = declared_field(db, project, file, node);
-
+  expected_type: Option<&TdTypeEnum>,
+) -> Vec<FrefCandidate> {
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
   project
     .files(db)
     .iter()
     .filter(|(path, _)| path.starts_with(&root_dir) && is_content_file(path) && !is_type_file(path))
-    .filter(|(_, target_file)| {
-      // If we have an expected type, only include files whose type is compatible
-      let Some(ref expected_typ) = expected_type else {
-        return true;
-      };
-      let sym = match file_symbol(db, project, **target_file).value(db) {
-        Some(sym) => sym,
-        None => return false,
-      };
-      let file_type = match get_symbol_type(db, sym).typ(db) {
-        Some(typ) => typ,
-        None => return false,
-      };
-      is_subtype_of(db, &file_type, expected_typ)
-    })
     .filter_map(|(path, target_file)| {
+      let sym = file_symbol(db, project, *target_file).value(db)?;
+
+      // Filter by expected type if provided
+      if let Some(expected_typ) = expected_type {
+        let file_type = get_symbol_type(db, sym).typ(db)?;
+        if !is_subtype_of(db, &file_type, expected_typ) {
+          return None;
+        }
+      }
+
       let rel = path.strip_prefix(&root_dir).ok()?;
       let rel_str = rel.to_string_lossy().into_owned();
-
-      let label_text = file_symbol(db, project, *target_file)
-        .value(db)
-        .and_then(|sym| get_resource_label(db, sym));
-
-      let schema_name = file_symbol(db, project, *target_file)
-        .value(db)
-        .and_then(|sym| get_symbol_type(db, sym).typ(db))
-        .map(|t| t.display_name(db));
-
+      let label = get_resource_label(db, sym);
+      let schema = get_symbol_type(db, sym).typ(db).map(|t| t.display_name(db));
       let basename = rel
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .to_string();
 
-      // filterText includes path, basename, and label for fuzzy matching
-      let mut filter_parts = vec![rel_str.clone(), basename];
-      if let Some(ref label) = label_text {
-        filter_parts.push(label.clone());
-      }
-      let filter_text = filter_parts.join(" ");
-
-      Some(CompletionItem {
-        label: rel_str,
-        detail: label_text,
-        label_details: schema_name.map(|s| lsp_types::CompletionItemLabelDetails {
-          detail: Some(s),
-          description: None,
-        }),
-        filter_text: Some(filter_text),
-        kind: Some(CompletionItemKind::FILE),
-        ..Default::default()
+      Some(FrefCandidate {
+        path: rel_str,
+        label,
+        schema,
+        basename,
       })
     })
+    .collect()
+}
+
+// Build a CompletionItem from a candidate, wrapping the path with the given template
+fn candidate_to_completion(
+  candidate: &FrefCandidate,
+  insert_template: impl Fn(&str) -> String,
+) -> CompletionItem {
+  let display = candidate.label.as_deref().unwrap_or(&candidate.basename);
+
+  // filterText includes path, basename, and label for fuzzy matching
+  let mut filter_parts = vec![candidate.path.clone(), candidate.basename.clone()];
+  if let Some(ref label) = candidate.label {
+    filter_parts.push(label.clone());
+  }
+
+  CompletionItem {
+    label: display.to_string(),
+    insert_text: Some(insert_template(&candidate.path)),
+    detail: Some(candidate.path.clone()),
+    label_details: candidate
+      .schema
+      .as_ref()
+      .map(|s| lsp_types::CompletionItemLabelDetails {
+        detail: Some(s.clone()),
+        description: None,
+      }),
+    filter_text: Some(filter_parts.join(" ")),
+    kind: Some(CompletionItemKind::REFERENCE),
+    ..Default::default()
+  }
+}
+
+// Suggest file paths inside fref("") argument
+fn fref_completions(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Vec<CompletionItem> {
+  let expected_type = declared_field(db, project, file, node);
+  let candidates = collect_fref_candidates(db, project, expected_type.as_ref());
+  candidates
+    .iter()
+    .map(|c| candidate_to_completion(c, |path| path.to_string()))
     .collect()
 }
 
@@ -253,41 +294,17 @@ fn has_nullable_member<'db>(
   })
 }
 
-// Suggest fref("path") completions as snippets for schema-typed value positions
-fn fref_snippet_completions(
+// Suggest fref("path") completions, optionally filtered by an expected type
+fn fref_wrapped_completions(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
-  node: &RedNode,
+  expected_type: Option<&TdTypeEnum>,
 ) -> Vec<CompletionItem> {
-  let mut items: Vec<CompletionItem> = fref_completions(db, project, file, node)
-    .into_iter()
-    .map(|item| {
-      let path = &item.label;
-      CompletionItem {
-        label: item.detail.clone().unwrap_or_else(|| item.label.clone()),
-        insert_text: Some(format!("fref(\"{path}\")")),
-        filter_text: item.filter_text.clone(),
-        detail: Some(path.clone()),
-        label_details: item.label_details.clone(),
-        kind: Some(CompletionItemKind::REFERENCE),
-        ..Default::default()
-      }
-    })
-    .collect();
-
-  // Add a generic fref snippet so the user can type a path manually
-  items.push(CompletionItem {
-    label: "fref(...)".to_string(),
-    insert_text: Some("fref(\"$1\")".to_string()),
-    insert_text_format: Some(InsertTextFormat::SNIPPET),
-    detail: Some("File reference".to_string()),
-    kind: Some(CompletionItemKind::SNIPPET),
-    sort_text: Some("zzz".to_string()),
-    ..Default::default()
-  });
-
-  items
+  let candidates = collect_fref_candidates(db, project, expected_type);
+  candidates
+    .iter()
+    .map(|c| candidate_to_completion(c, |path| format!("fref(\"{path}\")")))
+    .collect()
 }
 
 fn enclosing_mapping_type<'db>(
@@ -1100,7 +1117,7 @@ ver|:
   }
 
   #[test]
-  fn no_completion_in_markdown_body() {
+  fn no_completion_in_plain_markdown_body() {
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -1116,7 +1133,71 @@ Some bod|y text.
     let response = completion(&analysis, params);
     let is_empty = response.is_none()
       || matches!(response, Some(CompletionResponse::Array(ref items)) if items.is_empty());
-    assert!(is_empty, "should not suggest anything in the markdown body");
+    assert!(
+      is_empty,
+      "should not suggest anything in plain markdown body"
+    );
+  }
+
+  // Inside ${} interpolation, suggest fref("path") completions
+  #[test]
+  fn fref_completion_in_interpolation() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: Alice
+---
+
+Reference: ${|}
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected fref completions inside interpolation");
+    };
+
+    assert!(
+      !items.is_empty(),
+      "should suggest fref completions inside ${{}}"
+    );
+
+    // Should have fref("path") as insert text
+    let has_fref_insert = items.iter().any(|item| {
+      item
+        .insert_text
+        .as_deref()
+        .is_some_and(|t| t.starts_with("fref(\"") && t.ends_with("\")"))
+    });
+    assert!(
+      has_fref_insert,
+      "should wrap path in fref(): {:?}",
+      items
+        .iter()
+        .map(|i| (&i.label, &i.insert_text))
+        .collect::<Vec<_>>()
+    );
+
+    // Label should be the display name, not the path
+    let alice_item = items
+      .iter()
+      .find(|item| item.label == "Alice Chen")
+      .or_else(|| items.iter().find(|item| item.label.contains("alice")));
+    assert!(
+      alice_item.is_some(),
+      "should have alice completion with human-readable label: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+
+    // Detail should be the path
+    let alice = alice_item.unwrap();
+    assert!(
+      alice.detail.as_deref().is_some_and(|d| d.contains("alice")),
+      "detail should contain the file path: {:?}",
+      alice.detail
+    );
   }
 
   #[test]
@@ -1328,16 +1409,20 @@ featured: fref("|")
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected fref completions");
     };
-    let labels: Vec<String> = items.iter().map(|item| item.label.clone()).collect();
+    // Detail contains the path, label is the display name
+    let details: Vec<String> = items
+      .iter()
+      .filter_map(|item| item.detail.clone())
+      .collect();
     assert!(
-      labels.iter().any(|label| label.contains("alice")),
+      details.iter().any(|d| d.contains("alice")),
       "should suggest alice.td (Person type), got: {:?}",
-      labels
+      details
     );
     assert!(
-      !labels.iter().any(|label| label.contains("birthday")),
+      !details.iter().any(|d| d.contains("birthday")),
       "should not suggest birthday.td (Event type), got: {:?}",
-      labels
+      details
     );
   }
 
@@ -1441,18 +1526,22 @@ vault:
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected fref completions");
     };
-    let labels: Vec<String> = items.iter().map(|item| item.label.clone()).collect();
+    // Detail contains the path, should be vault-relative
+    let details: Vec<String> = items
+      .iter()
+      .filter_map(|item| item.detail.clone())
+      .collect();
 
     // Should suggest "alice.td", not "vault/alice.td"
     assert!(
-      labels.iter().any(|l| l == "alice.td"),
+      details.iter().any(|d| d == "alice.td"),
       "should suggest vault-relative path 'alice.td', got: {:?}",
-      labels
+      details
     );
     assert!(
-      !labels.iter().any(|l| l.contains("vault/")),
+      !details.iter().any(|d| d.contains("vault/")),
       "should not include vault dir prefix in path, got: {:?}",
-      labels
+      details
     );
   }
 
@@ -1476,17 +1565,17 @@ featured: fref("|")
 
     let alice_item = items
       .iter()
-      .find(|item| item.label.contains("alice"))
-      .expect("should have alice completion");
+      .find(|item| item.label == "Alice Chen")
+      .expect("should have alice completion with display name as label");
 
-    // detail should contain the _label
+    // detail should contain the vault-relative path
     assert_eq!(
       alice_item.detail.as_deref(),
-      Some("Alice Chen"),
-      "detail should be the _label value"
+      Some("alice.td"),
+      "detail should be the vault-relative path"
     );
 
-    // filterText should include basename and label for fuzzy matching
+    // filterText should include path, basename, and label for fuzzy matching
     let filter = alice_item.filter_text.as_deref().unwrap_or("");
     assert!(
       filter.contains("alice") && filter.contains("Alice Chen"),
@@ -1512,15 +1601,7 @@ featured: |
       panic!("expected completions for empty schema-typed field");
     };
 
-    // Should have the generic fref(...) snippet
-    let has_fref_snippet = items.iter().any(|item| item.label == "fref(...)");
-    assert!(
-      has_fref_snippet,
-      "empty schema field should suggest fref(...) snippet: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
-    );
-
-    // Should also have specific file suggestions
+    // Should have specific file suggestions with fref("path") insert text
     let has_alice = items.iter().any(|item| {
       item
         .insert_text

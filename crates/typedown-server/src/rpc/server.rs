@@ -17,6 +17,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::schema_members;
+use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
@@ -39,6 +40,7 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::*;
 
+#[derive(PartialEq)]
 enum FsEventKind {
   Created,
   Modified,
@@ -341,11 +343,21 @@ impl RpcServer {
           if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
             let relative =
               normalize_path(event.path.strip_prefix(&root_dir).unwrap_or(&event.path));
-            let notification = TdContentNotification { content: relative };
             let method = match event.kind {
               FsEventKind::Created => NOTIF_CONTENT_CREATED,
               FsEventKind::Modified => NOTIF_CONTENT_CHANGED,
               FsEventKind::Removed => NOTIF_CONTENT_DELETED,
+            };
+
+            let affected_files = if event.kind == FsEventKind::Modified {
+              collect_affected_files(db, project, &event.path, &root_dir)
+            } else {
+              vec![]
+            };
+
+            let notification = TdContentNotification {
+              content: relative,
+              affected_files,
             };
             send_notification(&sender, method, &notification);
           } else if is_type_file(&event.path) {
@@ -442,6 +454,26 @@ fn dispatch_request(
       message: format!("Method not found: {method}"),
     }),
   }
+}
+
+// Collect vault-relative paths of files that transitively reference the given file
+fn collect_affected_files(
+  db: &TypedownDatabase,
+  project: Project,
+  changed_path: &Path,
+  root_dir: &Path,
+) -> Vec<String> {
+  let changed_file = match project.files(db).get(changed_path) {
+    Some(f) => *f,
+    None => return vec![],
+  };
+  find_transitive_referrers(db, project, changed_file)
+    .into_iter()
+    .filter_map(|f| {
+      let path = f.handle(db).path()?.clone();
+      path.strip_prefix(root_dir).ok().map(normalize_path)
+    })
+    .collect()
 }
 
 /* Request implementations */

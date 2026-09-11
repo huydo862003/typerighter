@@ -38,3 +38,15 @@ A sample vault that tracks **people**, **projects**, and **tasks** across a deve
   | Alice | Backend |
   | Bob | Frontend |
 - Another item
+
+## TOC: Special Characters
+
+### Version v1.2.3
+
+### Using `git push --force`
+
+### Key: Value Pairs
+
+### C++ and C#
+
+### node.js vs Deno
