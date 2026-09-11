@@ -169,39 +169,38 @@ impl RpcServer {
     drop(self._watcher);
     let _ = self.fs_thread.join();
 
-    // TODO: Cache dump temporarily disabled while investigating cache corruption bug
-    // match Arc::try_unwrap(self.host) {
-    //   Err(_) => log::warn!("Skipping cache save: host still referenced"),
-    //   Ok(host) => {
-    //     let db = host
-    //       .into_inner()
-    //       .expect("RwLock should not be poisoned at shutdown")
-    //       .into_db();
-    //     let revision = db
-    //       .storage
-    //       .revision
-    //       .load(std::sync::atomic::Ordering::Acquire) as u64;
-    //
-    //     let dump_timeout = std::time::Duration::from_secs(120);
-    //     let (tx, rx) = std::sync::mpsc::channel();
-    //     let dump_thread = std::thread::spawn(move || {
-    //       let serialized = db.dump();
-    //       let _ = tx.send(serialized);
-    //     });
-    //
-    //     match rx.recv_timeout(dump_timeout) {
-    //       Ok(serialized) => {
-    //         if let Err(err) = self.cache_session.finalize(&serialized, revision) {
-    //           log::error!("Failed to save incremental cache: {err}");
-    //         }
-    //       }
-    //       Err(_) => {
-    //         log::warn!("Cache dump timed out after {dump_timeout:?}, skipping save");
-    //         drop(dump_thread);
-    //       }
-    //     }
-    //   }
-    // }
+    match Arc::try_unwrap(self.host) {
+      Err(_) => log::warn!("Skipping cache save: host still referenced"),
+      Ok(host) => {
+        let db = host
+          .into_inner()
+          .expect("RwLock should not be poisoned at shutdown")
+          .into_db();
+        let revision = db
+          .storage
+          .revision
+          .load(std::sync::atomic::Ordering::Acquire) as u64;
+
+        let dump_timeout = std::time::Duration::from_secs(120);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let dump_thread = std::thread::spawn(move || {
+          let serialized = db.dump();
+          let _ = tx.send(serialized);
+        });
+
+        match rx.recv_timeout(dump_timeout) {
+          Ok(serialized) => {
+            if let Err(err) = self.cache_session.finalize(&serialized, revision) {
+              log::error!("Failed to save incremental cache: {err}");
+            }
+          }
+          Err(_) => {
+            log::warn!("Cache dump timed out after {dump_timeout:?}, skipping save");
+            drop(dump_thread);
+          }
+        }
+      }
+    }
   }
 
   pub fn run(&self) -> anyhow::Result<()> {

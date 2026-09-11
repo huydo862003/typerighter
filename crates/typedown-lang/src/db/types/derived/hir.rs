@@ -31,6 +31,7 @@ impl<'db> StableHash for HirValue<'db> {
     let mut inner_hasher = StableHasher::new();
     Self::try_project(*self, db).stable_hash(db, &mut inner_hasher);
     Self::try_node(*self, db).stable_hash(db, &mut inner_hasher);
+    Self::try_kind(*self, db).stable_hash(db, &mut inner_hasher);
     let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
     storage.derived_fingerprints.insert(cache_key, fingerprint);
     ::std::hash::Hasher::write(hasher, &fingerprint.0);
@@ -80,10 +81,70 @@ pub enum HirValueKind<'db> {
   },
 }
 
-// Discriminant-only: the key already captures (project, file_red_node) so HIR kind is deterministic
 impl<'db> StableHash for HirValueKind<'db> {
-  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
-    std::mem::discriminant(self).stable_hash(_db, hasher);
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    std::mem::discriminant(self).stable_hash(db, hasher);
+    match self {
+      HirValueKind::Str(s) => s.stable_hash(db, hasher),
+      HirValueKind::Num(s) => s.stable_hash(db, hasher),
+      HirValueKind::Math(s) => s.stable_hash(db, hasher),
+      HirValueKind::Bool(b) => b.stable_hash(db, hasher),
+      HirValueKind::Null => {}
+      HirValueKind::Ident(s) => s.stable_hash(db, hasher),
+      HirValueKind::Mapping(entries) => {
+        entries.len().stable_hash(db, hasher);
+        for (k, v) in entries {
+          k.stable_hash(db, hasher);
+          v.stable_hash(db, hasher);
+        }
+      }
+      HirValueKind::Sequence(items) => {
+        items.len().stable_hash(db, hasher);
+        for item in items {
+          item.stable_hash(db, hasher);
+        }
+      }
+      HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
+        parts.len().stable_hash(db, hasher);
+        for part in parts {
+          part.stable_hash(db, hasher);
+        }
+      }
+      HirValueKind::Tag { tag, inner } => {
+        tag.stable_hash(db, hasher);
+        inner.stable_hash(db, hasher);
+      }
+      HirValueKind::Prefix { op, operand } | HirValueKind::Postfix { op, operand } => {
+        op.stable_hash(db, hasher);
+        operand.stable_hash(db, hasher);
+      }
+      HirValueKind::Binary { op, left, right } => {
+        op.stable_hash(db, hasher);
+        left.stable_hash(db, hasher);
+        right.stable_hash(db, hasher);
+      }
+      HirValueKind::Call { callee, args } => {
+        callee.stable_hash(db, hasher);
+        args.len().stable_hash(db, hasher);
+        for arg in args {
+          arg.stable_hash(db, hasher);
+        }
+      }
+      HirValueKind::Index { expr, indices } => {
+        expr.stable_hash(db, hasher);
+        indices.len().stable_hash(db, hasher);
+        for idx in indices {
+          idx.stable_hash(db, hasher);
+        }
+      }
+      HirValueKind::Closure { params, body } => {
+        params.len().stable_hash(db, hasher);
+        for p in params {
+          p.stable_hash(db, hasher);
+        }
+        body.stable_hash(db, hasher);
+      }
+    }
   }
 }
 
