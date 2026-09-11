@@ -14,7 +14,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{
   File, HirValue, HirValueKind, InterpolatedPart, Project, Symbol, SymbolKind,
 };
-use crate::db::utils::lower_file;
+use crate::db::utils::{is_content_file, lower_file};
 
 /// How a symbol is referenced at a particular site
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, FromRepr, StableCompare)]
@@ -208,7 +208,10 @@ pub fn references<'db>(
   symbol: Symbol<'db>,
 ) -> Vec<Reference<'db>> {
   let mut refs = vec![];
-  for file in project.files(db).values() {
+  for (path, file) in project.files(db).iter() {
+    if !is_content_file(path) {
+      continue;
+    }
     let idx = resolution_index(db, project, *file);
     refs.extend(idx.get_references(db, symbol));
   }
@@ -335,5 +338,20 @@ mod tests {
       "should find summary reference via fref"
     );
     assert_eq!(summary_refs[0].kind, ReferenceKind::Fref);
+  }
+
+  // references() on an asset symbol finds content files that fref it without panicking
+  #[test]
+  fn references_finds_asset_referrers() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("asset should have a symbol");
+    let refs = references(&db, project, symbol);
+    assert!(
+      !refs.is_empty(),
+      "icon.svg is referenced by with_asset_fref.td"
+    );
+    assert_eq!(refs[0].kind, ReferenceKind::Fref);
   }
 }

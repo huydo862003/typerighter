@@ -231,8 +231,11 @@ pub struct TdDiagnosticReport {
 
 /// Content file event: A resource file was created, changed, or deleted
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TdContentNotification {
   pub content: String,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub affected_files: Vec<String>,
 }
 
 /// Schema file event: A schema file was created, changed, or deleted
