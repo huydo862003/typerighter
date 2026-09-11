@@ -1,12 +1,12 @@
 use std::{
   fmt::Debug,
   path::{Path, PathBuf},
-  sync::{Arc, RwLock, atomic::Ordering},
+  sync::{Arc, RwLock},
 };
 
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
-use typedown_incremental::{CacheSession, QueryStorage, SerializableQueryDatabase};
+use typedown_incremental::{CacheSession, QueryStorage};
 use typedown_lang::db::TypedownDatabase;
 
 use crate::core::analysis_host::AnalysisHost;
