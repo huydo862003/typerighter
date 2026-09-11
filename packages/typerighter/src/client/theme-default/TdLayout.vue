@@ -288,16 +288,18 @@ function onResizeStart (event: PointerEvent) {
           width: `${sidebarWidth}px`,
         }"
       >
-        <TdSiteSearch
-          ref="sidebarSearch"
-          v-model:query="searchQuery"
-          v-model:active="sidebarSearchActive"
-        />
-        <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
-        <TdContentNav
-          v-else-if="!sidebarSearchActive"
-          :tree="siteData.contentTree"
-        />
+        <div class="td-sidebar-scroll">
+          <TdSiteSearch
+            ref="sidebarSearch"
+            v-model:query="searchQuery"
+            v-model:active="sidebarSearchActive"
+          />
+          <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
+          <TdContentNav
+            v-else-if="!sidebarSearchActive"
+            :tree="siteData.contentTree"
+          />
+        </div>
         <div
           class="td-sidebar-resize"
           @pointerdown.prevent="onResizeStart"
@@ -447,7 +449,6 @@ function onResizeStart (event: PointerEvent) {
 /* Main content */
 
 .td-main {
-  overflow-y: auto;
   min-width: 0;
 }
 
@@ -499,10 +500,14 @@ function onResizeStart (event: PointerEvent) {
   position: sticky;
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
+  flex-shrink: 0;
+}
+
+.td-sidebar-scroll {
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 22px 0 60px;
-  flex-shrink: 0;
 }
 
 .td-sidebar-resize {
