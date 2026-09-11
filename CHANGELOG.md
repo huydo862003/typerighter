@@ -1,3 +1,37 @@
+## [0.30.0] - 2026-09-11
+
+### Features
+
+* crates/typedown-lang
+  - `find_transitive_referrers`: find all files that transitively reference a given file via fref
+  - Per-resource page data virtual module (`@typedown/pages?resource=<path>`) for granular HMR
+
+* crates/typedown-server
+  - `affectedFiles` field in content change notification for transitive fref invalidation
+  - fref completions inside `${}` interpolation in markdown body
+  - fref completion labels now show human-readable `_label` instead of file paths
+
+* packages/typerighter
+  - TOC hot reload via per-resource virtual module
+  - Transitive HMR: changing a file invalidates all files that reference it
+  - Sidebar scroll container with `overscroll-behavior: contain`
+  - Skip-to-content link and keyboard-accessible sidebar resize
+  - Header and footer use subtle background color for visual separation
+
+### Fixes
+
+* crates/typedown-lang
+  - Preserve special characters (`.`, `:`, `#`, `+`) in TOC heading titles
+  - Skip non-content files (SVGs, assets) in `references()` to avoid lexer panics
+  - Move fref icon inside `<a>` tag to fix rendering inside `<p>` elements
+
+* packages/typerighter
+  - Remove `max-width` centering on content area
+  - Heading scroll-margin-top accounts for sticky header offset
+
+* editors/nvim
+  - Better error messages in `TypedownPasteAsset` for clipboard and file write failures
+
 ## [0.29.0] - 2026-09-11
 
 ### Fixes
