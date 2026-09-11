@@ -99,11 +99,13 @@ local function save_clipboard_binary(mime_type, dest_path)
   handle:close()
 
   if not data or #data == 0 then
+    vim.notify("[typedown] Clipboard read returned empty data", vim.log.levels.ERROR)
     return false
   end
 
   local file = io.open(dest_path, "wb")
   if not file then
+    vim.notify("[typedown] Failed to open " .. dest_path .. " for writing", vim.log.levels.ERROR)
     return false
   end
 
