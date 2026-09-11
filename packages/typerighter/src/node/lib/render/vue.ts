@@ -39,7 +39,7 @@ export async function renderToVueSfc (
     schemaLabel: resource.schemaLabel,
     label: resource.label,
     icon: resource.icon,
-    frontmatter: resource.header,
+    frontmatter: resource.header ?? {},
     headings: buildHeadingTree(resource.headings),
     title,
     metadata: resource.metadata,
