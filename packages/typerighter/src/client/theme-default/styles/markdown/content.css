@@ -11,6 +11,7 @@
   line-height: var(--leading-td-tight);
   letter-spacing: var(--tracking-td-tight);
   overflow-wrap: break-word;
+  scroll-margin-top: calc(var(--td-header-height) + 24px);
 }
 
 .td-content h1 {
