@@ -20,7 +20,7 @@
     "theme": "dark"
   },
   "author": "Huy-DNA <huydo862003@gmail.com>",
-  "version": "0.30.5",
+  "version": "0.30.6",
   "icon": "icons/typedown.png",
   "engines": {
     "vscode": "^1.125.0"
