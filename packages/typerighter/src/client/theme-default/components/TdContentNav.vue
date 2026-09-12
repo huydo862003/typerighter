@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import {
+  computed,
+} from 'vue';
+import {
   File, House,
 } from '@lucide/vue';
 import {
@@ -23,13 +26,13 @@ const {
   withBase,
 } = useSiteConfig();
 
-const indexItem = tree.entries
+const indexItem = computed(() => tree.entries
   .find((entry): entry is Extract<typeof entry, {
     kind: 'file';
   }> => entry.kind === 'file' && isIndexFile(entry.item.filepath))
-  ?.item;
-const regularEntries = tree.entries.filter((entry) =>
-  entry.kind === 'dir' || !isIndexFile(entry.item.filepath));
+  ?.item);
+const regularEntries = computed(() => tree.entries.filter((entry) =>
+  entry.kind === 'dir' || !isIndexFile(entry.item.filepath)));
 
 function isCurrent (href: string): boolean {
   return route.path === href;

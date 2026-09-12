@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import {
+  computed,
+} from 'vue';
+import {
   getPageIcon,
 } from '../utils/pageIcon';
 
@@ -10,7 +13,7 @@ const {
   name: string;
 }>();
 
-const icon = getPageIcon(name);
+const icon = computed(() => getPageIcon(name));
 </script>
 
 <template>

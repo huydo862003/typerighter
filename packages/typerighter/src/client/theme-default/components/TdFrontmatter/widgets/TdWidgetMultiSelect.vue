@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref,
+  computed, ref,
 } from 'vue';
 import {
   getPillColor,
@@ -16,9 +16,9 @@ const {
 const MAX_VISIBLE = 5;
 const expanded = ref(false);
 
-const items = Array.isArray(value) ? value : [];
-const visible = () => expanded.value ? items : items.slice(0, MAX_VISIBLE);
-const hiddenCount = Math.max(0, items.length - MAX_VISIBLE);
+const items = computed(() => Array.isArray(value) ? value as unknown[] : []);
+const visible = computed(() => expanded.value ? items.value : items.value.slice(0, MAX_VISIBLE));
+const hiddenCount = computed(() => Math.max(0, items.value.length - MAX_VISIBLE));
 
 function toggle () {
   expanded.value = !expanded.value;
@@ -27,7 +27,7 @@ function toggle () {
 
 <template>
   <span
-    v-for="(item, idx) in visible()"
+    v-for="(item, idx) in visible"
     :key="idx"
     class="td-widget-pill"
     :style="getPillColor(item)"

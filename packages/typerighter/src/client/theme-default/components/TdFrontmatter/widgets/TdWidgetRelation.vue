@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import {
+  computed,
+} from 'vue';
+import {
   ArrowUpRight,
   LucideFileText,
 } from '@lucide/vue';
@@ -29,9 +32,9 @@ const {
 const {
   withBase,
 } = useSiteConfig();
-const resolved = extractRef(value);
-const refIcon = resolved?.icon ? getPageIcon(resolved.icon.name) : undefined;
-const isExternal = resolved && isUrlExternal(resolved.url);
+const resolved = computed(() => extractRef(value));
+const refIcon = computed(() => resolved.value?.icon ? getPageIcon(resolved.value.icon.name) : undefined);
+const isExternal = computed(() => resolved.value !== undefined && isUrlExternal(resolved.value.url));
 </script>
 
 <template>

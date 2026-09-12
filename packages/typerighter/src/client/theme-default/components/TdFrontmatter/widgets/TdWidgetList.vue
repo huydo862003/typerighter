@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  ref,
+  computed, ref,
 } from 'vue';
 import {
   File,
@@ -29,16 +29,16 @@ const {
 const MAX_VISIBLE = 5;
 const expanded = ref(false);
 
-const items = Array.isArray(value) ? value : [];
-const isRelationList = definition.items?.widget === 'relation';
+const items = computed(() => Array.isArray(value) ? value as unknown[] : []);
+const isRelationList = computed(() => definition.items?.widget === 'relation');
 
-const resolvedRefs = isRelationList
-  ? items.map((item) => extractRef(item)).filter((ref_): ref_ is ResolvedRef => ref_ !== undefined)
-  : [];
+const resolvedRefs = computed(() => isRelationList.value
+  ? items.value.map((item) => extractRef(item)).filter((ref_): ref_ is ResolvedRef => ref_ !== undefined)
+  : []);
 
-const hiddenCount = isRelationList
-  ? Math.max(0, resolvedRefs.length - MAX_VISIBLE)
-  : Math.max(0, items.length - MAX_VISIBLE);
+const hiddenCount = computed(() => isRelationList.value
+  ? Math.max(0, resolvedRefs.value.length - MAX_VISIBLE)
+  : Math.max(0, items.value.length - MAX_VISIBLE));
 
 function toggle () {
   expanded.value = !expanded.value;

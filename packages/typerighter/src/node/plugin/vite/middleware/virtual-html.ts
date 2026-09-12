@@ -42,6 +42,7 @@ export function virtualHtml (
 
     // After base prefix, pass through Vite internal and node_modules requests
     const pathAfterBase = urlPath.slice(base.length);
+
     if (pathAfterBase.startsWith('/@') || pathAfterBase.startsWith('/node_modules')) return next();
 
     // Skip static file requests (has extension), except index.html

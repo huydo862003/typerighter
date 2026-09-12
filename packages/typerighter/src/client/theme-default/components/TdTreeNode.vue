@@ -34,16 +34,16 @@ const route = useRoute();
 const {
   withBase,
 } = useSiteConfig();
-const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
-const indexItem = getNodeIndexItem(node);
-const folderPath = indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl);
-const folderHref = withBase(folderPath);
-const folderLabel = indexItem?.label ?? unslugify(node.name);
-const folderIcon = indexItem?.icon ? getPageIcon(indexItem.icon.name) : undefined;
-const regularEntries = node.entries.filter((entry) =>
-  entry.kind === 'dir' || !isIndexFile(entry.item.filepath));
+const directoryUrl = computed(() => getDirectoryUrl(urlPrefix, node.name));
+const indexItem = computed(() => getNodeIndexItem(node));
+const folderPath = computed(() => indexItem.value ? getTdContentUrl(indexItem.value.filepath) : getIndexUrl(directoryUrl.value));
+const folderHref = computed(() => withBase(folderPath.value));
+const folderLabel = computed(() => indexItem.value?.label ?? unslugify(node.name));
+const folderIcon = computed(() => indexItem.value?.icon ? getPageIcon(indexItem.value.icon.name) : undefined);
+const regularEntries = computed(() => node.entries.filter((entry) =>
+  entry.kind === 'dir' || !isIndexFile(entry.item.filepath)));
 
-const hasContent = 0 < node.entries.length;
+const hasContent = computed(() => 0 < node.entries.length);
 
 const totalCount = computed(() => countItems(node));
 
@@ -61,17 +61,18 @@ function countItems (n: ContentTreeNode): number {
   return count;
 }
 
-const collapsed = ref(!isUrlAncestorOf(directoryUrl, route.path));
+// eslint-disable-next-line vue/no-ref-object-reactivity-loss
+const collapsed = ref(!isUrlAncestorOf(directoryUrl.value, route.path));
 const showAll = ref(false);
 const MAX_VISIBLE_FILES = 5;
-const fileCount = regularEntries.filter((entry) => entry.kind === 'file').length;
-const hiddenCount = computed(() => showAll.value ? 0 : Math.max(0, fileCount - MAX_VISIBLE_FILES));
+const fileCount = computed(() => regularEntries.value.filter((entry) => entry.kind === 'file').length);
+const hiddenCount = computed(() => showAll.value ? 0 : Math.max(0, fileCount.value - MAX_VISIBLE_FILES));
 const visibleEntries = computed(() => {
-  if (showAll.value) return regularEntries;
+  if (showAll.value) return regularEntries.value;
 
   let filesShown = 0;
 
-  return regularEntries.filter((entry) => {
+  return regularEntries.value.filter((entry) => {
     if (entry.kind === 'dir') return true;
 
     return ++filesShown <= MAX_VISIBLE_FILES;
@@ -79,7 +80,7 @@ const visibleEntries = computed(() => {
 });
 
 watch(() => route.path, (currentPath) => {
-  if (isUrlAncestorOf(directoryUrl, currentPath)) collapsed.value = false;
+  if (isUrlAncestorOf(directoryUrl.value, currentPath)) collapsed.value = false;
 });
 
 function expandAll () {

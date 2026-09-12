@@ -236,7 +236,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           .then((config) => {
             if (!server) return;
 
-            const filesToInvalidate = [content, ...affectedFiles];
+            const filesToInvalidate = [
+              content,
+              ...affectedFiles,
+            ];
             const allUpdates: ReturnType<typeof makeHmrUpdate>[] = [];
 
             for (const filepath of filesToInvalidate) {
@@ -246,6 +249,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
               // A single file can back several modules (`?vue&type=template`, `&type=style`)
               const modules = server.moduleGraph.getModulesByFile(absolute);
+
               if (!modules?.size) continue; // not transformed yet, nothing to invalidate
 
               for (const module_ of modules) {
@@ -256,7 +260,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
               virtualPages.invalidatePageData(server, filepath);
             }
 
-            if (allUpdates.length > 0) {
+            if (0 < allUpdates.length) {
               server.hot.send({
                 type: 'update',
                 updates: allUpdates,

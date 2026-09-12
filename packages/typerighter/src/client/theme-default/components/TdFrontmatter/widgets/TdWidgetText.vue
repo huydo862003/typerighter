@@ -31,24 +31,24 @@ const {
   withBase,
 } = useSiteConfig();
 
-const stringValue = typeof value === 'string' ? value.trim() : '';
-const refObject = extractRef(value);
-const isImage = refObject
-  ? refObject.isImage
-  : (0 < stringValue.length && isImageRef({
-    url: stringValue,
-  }));
+const stringValue = computed(() => typeof value === 'string' ? value.trim() : '');
+const refObject = computed(() => extractRef(value));
+const isImage = computed(() => refObject.value
+  ? refObject.value.isImage
+  : (0 < stringValue.value.length && isImageRef({
+    url: stringValue.value,
+  })));
 
-const rawUrl = refObject ? refObject.url : stringValue;
-const targetUrl = withBase(rawUrl);
+const rawUrl = computed(() => refObject.value ? refObject.value.url : stringValue.value);
+const targetUrl = computed(() => withBase(rawUrl.value));
 
 const isFileDownload = computed(() => {
-  if (!stringValue || !stringValue.includes('.') || stringValue.includes(' ')) return false;
+  if (!stringValue.value || !stringValue.value.includes('.') || stringValue.value.includes(' ')) return false;
 
-  return stringValue.endsWith('.pdf')
-    || stringValue.endsWith('.zip')
-    || stringValue.endsWith('.doc')
-    || stringValue.endsWith('.docx');
+  return stringValue.value.endsWith('.pdf')
+    || stringValue.value.endsWith('.zip')
+    || stringValue.value.endsWith('.doc')
+    || stringValue.value.endsWith('.docx');
 });
 
 function format (value_: unknown): string {

@@ -154,6 +154,10 @@ const sidebarWidth = ref(
     : SIDEBAR_DEFAULT,
 );
 
+function growSidebar () {
+  sidebarWidth.value = Math.min(SIDEBAR_MAX, sidebarWidth.value + 20);
+}
+
 function onResizeStart (event: PointerEvent) {
   const startX = event.clientX;
   const startWidth = sidebarWidth.value;
@@ -180,6 +184,10 @@ function onResizeStart (event: PointerEvent) {
   document.body.style.cursor = 'col-resize';
   target.addEventListener('pointermove', onMove);
   target.addEventListener('pointerup', onUp);
+}
+
+function shrinkSidebar () {
+  sidebarWidth.value = Math.max(SIDEBAR_MIN, sidebarWidth.value - 20);
 }
 </script>
 
@@ -311,8 +319,8 @@ function onResizeStart (event: PointerEvent) {
           aria-label="Resize sidebar"
           tabindex="0"
           @pointerdown.prevent="onResizeStart"
-          @keydown.left.prevent="sidebarWidth = Math.max(200, sidebarWidth - 20)"
-          @keydown.right.prevent="sidebarWidth = Math.min(500, sidebarWidth + 20)"
+          @keydown.left.prevent="shrinkSidebar"
+          @keydown.right.prevent="growSidebar"
         />
       </nav>
 

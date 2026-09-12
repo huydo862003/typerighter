@@ -3,10 +3,12 @@ import {
   defineComponent,
   h,
   inject,
+  ref,
   shallowRef,
   type App,
   type Component,
   type InjectionKey,
+  type Ref,
   type ShallowRef,
 } from 'vue';
 import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
@@ -77,7 +79,7 @@ export interface TypedownSiteData {
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
 
 const siteConfigSymbol: InjectionKey<TypedownSiteConfig> = Symbol('typedown-site-config');
-const siteDataSymbol: InjectionKey<ShallowRef<TypedownSiteData>> = Symbol('typedown-site-data');
+const siteDataSymbol: InjectionKey<Ref<TypedownSiteData>> = Symbol('typedown-site-data');
 const pageLoaderSymbol: InjectionKey<PageLoader> = Symbol('typedown-page-loader');
 const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol('typedown-search-index');
 
@@ -90,7 +92,7 @@ export async function createTypedownApp (
   app: App;
   router: Router;
   searchIndex: ShallowRef<string | undefined>;
-  siteData: ShallowRef<TypedownSiteData>;
+  siteData: Ref<TypedownSiteData>;
 }> {
   const siteConfig: TypedownSiteConfig = {
     title: config.title ?? '',
@@ -102,7 +104,7 @@ export async function createTypedownApp (
     nav: config.nav,
   };
 
-  const siteData = shallowRef<TypedownSiteData>({
+  const siteData = ref<TypedownSiteData>({
     ready: data.ready ?? false,
     contentTree: data.contentTree ?? {
       entries: [],
@@ -187,7 +189,7 @@ export function useSiteConfig () {
   };
 }
 
-const defaultSiteData = shallowRef<TypedownSiteData>({
+const defaultSiteData = ref<TypedownSiteData>({
   ready: false,
   contentTree: {
     entries: [],
@@ -196,6 +198,6 @@ const defaultSiteData = shallowRef<TypedownSiteData>({
   directoryListings: {},
 });
 
-export function useSiteData (): ShallowRef<TypedownSiteData> {
+export function useSiteData (): Ref<TypedownSiteData> {
   return inject(siteDataSymbol, defaultSiteData);
 }
