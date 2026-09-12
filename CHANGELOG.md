@@ -1,7 +1,22 @@
+## [0.30.6] - 2026-09-12
+
+### Features
+
+* crates/typedown-lang
+  - Add 55+ new icon entries across 7 categories:
+    - Arrows and direction: `arrow_left`, `arrow_right`, `arrow_up`, `arrow_down`, `arrow_left_right`, `arrow_up_down`, `chevron_left`, `chevron_right`, `chevron_up`, `chevron_down`, `external_link`, `move`, `refresh`, `rotate`
+    - Actions: `plus`, `minus`, `x`, `edit`, `save`, `download`, `upload`, `share`, `copy`, `print`, `filter`, `sort`, `undo`, `redo`, `log_in`, `log_out`
+    - Media: `play`, `pause`, `stop`, `volume`
+    - Layout: `list`, `grid`, `sidebar`, `menu`, `more`, `maximize`, `minimize`
+    - Status: `success`, `warning`, `error`, `help`, `loading`
+    - Combat and gaming: `sword`, `swords`, `crosshair`, `skull`
+    - Connectivity: `wifi`, `bluetooth`, `power`
+
 ## [0.30.5] - 2026-09-12
 
 * crates/typedown-server
-  - Improve LSP suggestions for top-level expressions and access expressions
+  - Generic dot-access completion: `icon.` suggests icon names, works for any expression with fields
+  - Expression completion: suggests variables in scope (builtins, file names, imports, closure params) in value positions
 
 ## [0.30.4] - 2026-09-12
 
