@@ -1,3 +1,12 @@
+## [0.30.4] - 2026-09-12
+
+### Fixes
+
+* packages/typerighter
+  - Prev and next navigation should prioritize index on top
+  - Make TOC items preserve formatting
+  - In prev and next cards, format index as folder title
+
 ## [0.30.3] - 2026-09-12
 
 ### Fixes
