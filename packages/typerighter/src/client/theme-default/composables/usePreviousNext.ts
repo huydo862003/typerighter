@@ -6,7 +6,7 @@ import {
 } from '../../app';
 import {
   getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdResourceTitle, isIndexFile, unslugify,
-  type ContentTree, type ContentTreeEntry, type ContentTreeNode, type ContentSummary,
+  type ContentTree, type ContentTreeNode, type ContentSummary,
 } from '@/shared';
 
 export interface PreviousNextLink {
@@ -66,20 +66,6 @@ export function usePreviousNext (): {
 interface SiblingGroup {
   pages: PreviousNextLink[];
   groupName: string;
-}
-
-function entriesToLinks (entries: ContentTreeEntry[], urlPrefix: string): PreviousNextLink[] {
-  const pages: PreviousNextLink[] = [];
-
-  for (const entry of entries) {
-    if (entry.kind === 'file') {
-      pages.push(getItemLink(entry.item));
-    } else {
-      pages.push(getNodeIndexLink(entry.node, urlPrefix));
-    }
-  }
-
-  return pages;
 }
 
 // Find all sibling pages in the same directory as the current route
