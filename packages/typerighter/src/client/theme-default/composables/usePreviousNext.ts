@@ -85,7 +85,22 @@ function entriesToLinks (entries: ContentTreeEntry[], urlPrefix: string): Previo
 // Find all sibling pages in the same directory as the current route
 function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | undefined {
   if (tree.entries.some((entry) => entry.kind === 'file' && getTdContentUrl(entry.item.filepath) === currentUrl)) {
-    const pages = entriesToLinks(tree.entries, '');
+    const pages: PreviousNextLink[] = [];
+    const rootIndexEntry = tree.entries.find(
+      (entry) => entry.kind === 'file' && isIndexFile(entry.item.filepath),
+    );
+
+    if (rootIndexEntry && rootIndexEntry.kind === 'file') {
+      pages.push(getItemLink(rootIndexEntry.item));
+    }
+
+    for (const entry of tree.entries) {
+      if (entry.kind === 'file') {
+        if (!isIndexFile(entry.item.filepath)) pages.push(getItemLink(entry.item));
+      } else {
+        pages.push(getNodeIndexLink(entry.node, ''));
+      }
+    }
 
     return {
       pages,
@@ -156,12 +171,8 @@ function getNodeIndexLink (node: ContentTreeNode, urlPrefix: string): PreviousNe
   const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
   const indexItem = getNodeIndexItem(node);
 
-  if (indexItem) {
-    return getItemLink(indexItem);
-  }
-
   return {
-    url: getIndexUrl(directoryUrl),
+    url: indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl),
     title: unslugify(node.name),
   };
 }
