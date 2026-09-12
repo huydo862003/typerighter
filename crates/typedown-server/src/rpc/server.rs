@@ -516,6 +516,7 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         .map(|h| TdHeading {
           level: h.level,
           title: h.title,
+          title_html: h.title_html,
           slug: h.slug,
         })
         .collect(),

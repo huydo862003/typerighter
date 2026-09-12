@@ -84,6 +84,7 @@ function buildHeadingTree (flat: TdHeading[]): MarkdownHeading[] {
     const node: MarkdownHeading = {
       level: heading.level,
       title: heading.title,
+      titleHtml: heading.titleHtml ?? heading.title,
       slug: heading.slug,
       link: `#${heading.slug}`,
       children: [],

@@ -8,7 +8,10 @@ import type {
 export interface MarkdownHeading {
   /** 1 to 6 for h1 to h6 */
   level: number;
+  /** Plain text title, used for slugs and search */
   title: string;
+  /** HTML title with inline code/math, sanitize before v-html */
+  titleHtml: string;
   /** The id attr of the header anchor */
   slug: string;
   /** Anchor link, typically #slug */

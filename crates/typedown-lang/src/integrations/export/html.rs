@@ -25,6 +25,7 @@ use super::utils::{
 pub struct ExportedHeading {
   pub level: u32,
   pub title: String,
+  pub title_html: String,
   pub slug: String,
 }
 
@@ -142,15 +143,18 @@ impl<'a> HtmlEmitter<'a> {
       self.title = Some(plain_text.clone());
     }
 
+    let escaped_slug = html_escape(&slug);
+    self.write(&format!("<h{level} id=\"{escaped_slug}\">"));
+    let title_html_start = self.out.len();
+    self.emit_inline_children(node);
+    let title_html = self.out[title_html_start..].to_string();
+
     self.headings.push(ExportedHeading {
       level: level as u32,
       title: plain_text.clone(),
+      title_html,
       slug: slug.clone(),
     });
-
-    let escaped_slug = html_escape(&slug);
-    self.write(&format!("<h{level} id=\"{escaped_slug}\">"));
-    self.emit_inline_children(node);
     self.write(&format!(
       " <a class=\"td-header-anchor\" href=\"#{escaped_slug}\" aria-label=\"Permalink to &quot;{}&quot;\">&#8203;</a>",
       html_escape(&plain_text)
@@ -578,9 +582,8 @@ impl<'a> HtmlEmitter<'a> {
           self.emit_media(&child);
         }
       }
-    } else {
-      let alt = link.alt().map(|t| t.value()).unwrap_or_default();
-      self.write_escaped(&alt);
+    } else if let Some(alt_node) = link.alt() {
+      self.emit_inline_children(alt_node.syntax());
     }
     self.write("</a>");
   }

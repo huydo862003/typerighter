@@ -5,8 +5,9 @@ import {
 import {
   useActiveTocHeading,
 } from '../composables/useActiveTocHeading';
-import type {
-  MarkdownHeading,
+import {
+  sanitizeInlineHtml,
+  type MarkdownHeading,
 } from '@/shared';
 
 const {
@@ -48,7 +49,8 @@ const activeTocId = isStatic
           :class="{
             'is-active': activeTocId === heading.slug,
           }"
-        >{{ heading.title }}</a>
+          v-html="sanitizeInlineHtml(heading.titleHtml)"
+        />
       </li>
     </ul>
   </div>

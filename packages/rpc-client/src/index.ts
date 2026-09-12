@@ -38,6 +38,7 @@ export interface TdFileMetadata {
 export interface TdHeading {
   level: number;
   title: string;
+  titleHtml: string;
   slug: string;
 }
 

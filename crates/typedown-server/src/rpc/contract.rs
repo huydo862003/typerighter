@@ -157,6 +157,7 @@ pub struct TdBuiltResource {
 pub struct TdHeading {
   pub level: u32,
   pub title: String,
+  pub title_html: String,
   pub slug: String,
 }
 
