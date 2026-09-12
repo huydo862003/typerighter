@@ -1,3 +1,8 @@
+## [0.30.5] - 2026-09-12
+
+* crates/typedown-server
+  - Improve LSP suggestions for top-level expressions and access expressions
+
 ## [0.30.4] - 2026-09-12
 
 ### Fixes
