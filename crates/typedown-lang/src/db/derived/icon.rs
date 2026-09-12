@@ -529,6 +529,225 @@ pub static ICON_ENTRIES: &[IconEntry] = &[
     name: "settings",
     lucide_name: "settings",
   },
+  // Arrows & Direction
+  IconEntry {
+    name: "arrow_left",
+    lucide_name: "arrow-left",
+  },
+  IconEntry {
+    name: "arrow_right",
+    lucide_name: "arrow-right",
+  },
+  IconEntry {
+    name: "arrow_up",
+    lucide_name: "arrow-up",
+  },
+  IconEntry {
+    name: "arrow_down",
+    lucide_name: "arrow-down",
+  },
+  IconEntry {
+    name: "arrow_left_right",
+    lucide_name: "arrow-left-right",
+  },
+  IconEntry {
+    name: "arrow_up_down",
+    lucide_name: "arrow-up-down",
+  },
+  IconEntry {
+    name: "chevron_left",
+    lucide_name: "chevron-left",
+  },
+  IconEntry {
+    name: "chevron_right",
+    lucide_name: "chevron-right",
+  },
+  IconEntry {
+    name: "chevron_up",
+    lucide_name: "chevron-up",
+  },
+  IconEntry {
+    name: "chevron_down",
+    lucide_name: "chevron-down",
+  },
+  IconEntry {
+    name: "external_link",
+    lucide_name: "external-link",
+  },
+  IconEntry {
+    name: "move",
+    lucide_name: "move",
+  },
+  IconEntry {
+    name: "refresh",
+    lucide_name: "refresh-cw",
+  },
+  IconEntry {
+    name: "rotate",
+    lucide_name: "rotate-cw",
+  },
+  // Actions
+  IconEntry {
+    name: "plus",
+    lucide_name: "plus",
+  },
+  IconEntry {
+    name: "minus",
+    lucide_name: "minus",
+  },
+  IconEntry {
+    name: "x",
+    lucide_name: "x",
+  },
+  IconEntry {
+    name: "edit",
+    lucide_name: "pencil-line",
+  },
+  IconEntry {
+    name: "save",
+    lucide_name: "save",
+  },
+  IconEntry {
+    name: "download",
+    lucide_name: "download",
+  },
+  IconEntry {
+    name: "upload",
+    lucide_name: "upload",
+  },
+  IconEntry {
+    name: "share",
+    lucide_name: "share-2",
+  },
+  IconEntry {
+    name: "copy",
+    lucide_name: "copy",
+  },
+  IconEntry {
+    name: "print",
+    lucide_name: "printer",
+  },
+  IconEntry {
+    name: "filter",
+    lucide_name: "filter",
+  },
+  IconEntry {
+    name: "sort",
+    lucide_name: "arrow-up-down",
+  },
+  IconEntry {
+    name: "undo",
+    lucide_name: "undo-2",
+  },
+  IconEntry {
+    name: "redo",
+    lucide_name: "redo-2",
+  },
+  IconEntry {
+    name: "log_in",
+    lucide_name: "log-in",
+  },
+  IconEntry {
+    name: "log_out",
+    lucide_name: "log-out",
+  },
+  // Media
+  IconEntry {
+    name: "play",
+    lucide_name: "play",
+  },
+  IconEntry {
+    name: "pause",
+    lucide_name: "pause",
+  },
+  IconEntry {
+    name: "stop",
+    lucide_name: "square",
+  },
+  IconEntry {
+    name: "volume",
+    lucide_name: "volume-2",
+  },
+  // Layout
+  IconEntry {
+    name: "list",
+    lucide_name: "list",
+  },
+  IconEntry {
+    name: "grid",
+    lucide_name: "layout-grid",
+  },
+  IconEntry {
+    name: "sidebar",
+    lucide_name: "panel-left",
+  },
+  IconEntry {
+    name: "menu",
+    lucide_name: "menu",
+  },
+  IconEntry {
+    name: "more",
+    lucide_name: "more-horizontal",
+  },
+  IconEntry {
+    name: "maximize",
+    lucide_name: "maximize-2",
+  },
+  IconEntry {
+    name: "minimize",
+    lucide_name: "minimize-2",
+  },
+  // Status (semantic)
+  IconEntry {
+    name: "success",
+    lucide_name: "circle-check",
+  },
+  IconEntry {
+    name: "warning",
+    lucide_name: "triangle-alert",
+  },
+  IconEntry {
+    name: "error",
+    lucide_name: "x-circle",
+  },
+  IconEntry {
+    name: "help",
+    lucide_name: "circle-help",
+  },
+  IconEntry {
+    name: "loading",
+    lucide_name: "loader",
+  },
+  // Combat & Gaming
+  IconEntry {
+    name: "sword",
+    lucide_name: "sword",
+  },
+  IconEntry {
+    name: "swords",
+    lucide_name: "swords",
+  },
+  IconEntry {
+    name: "crosshair",
+    lucide_name: "crosshair",
+  },
+  IconEntry {
+    name: "skull",
+    lucide_name: "skull",
+  },
+  // Connectivity
+  IconEntry {
+    name: "wifi",
+    lucide_name: "wifi",
+  },
+  IconEntry {
+    name: "bluetooth",
+    lucide_name: "bluetooth",
+  },
+  IconEntry {
+    name: "power",
+    lucide_name: "power",
+  },
 ];
 
 #[query_derived]
