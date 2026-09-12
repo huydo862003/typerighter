@@ -1,6 +1,6 @@
 {
   "name": "typedown-nvim",
-  "version": "0.30.2",
+  "version": "0.30.3",
   "private": true,
   "scripts": {
     "build": "pnpm --filter tree-sitter-typedown run build",

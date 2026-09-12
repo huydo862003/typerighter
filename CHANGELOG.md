@@ -1,18 +1,25 @@
-## [0.30.2] - 2026-09-12
+## [0.30.3] - 2026-09-12
+
+### Fixes
+
+* crates/typedown-lang
+  - Fix reactivity problems for sidebar and prev/next navigation
+
+## [0.30.2] - 2026-09-12 (retracted)
 
 ### Fixes
 
 * crates/typedown-lang
   - Preserve inline code, math, and interpolation i>
 
-## [0.30.1] - 2026-09-12
+## [0.30.1] - 2026-09-12 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - Dev server middleware now passes through Vite internal requests (`/@vite/client`, `/@id/...`) when `base_path` is set
 
-## [0.30.0] - 2026-09-11
+## [0.30.0] - 2026-09-11 (retracted)
 
 ### Features
 
@@ -46,7 +53,7 @@
 * editors/nvim
   - Better error messages in `TypedownPasteAsset` for clipboard and file write failures
 
-## [0.29.0] - 2026-09-11
+## [0.29.0] - 2026-09-11 (retracted)
 
 ### Fixes
 
