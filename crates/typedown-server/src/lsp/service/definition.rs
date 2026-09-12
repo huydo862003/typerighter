@@ -19,7 +19,7 @@ use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{
-  containing_fref_expr, find_ancestor, nearest_expr_ancestor, node_at_offset,
+  containing_fref_expr, find_ancestor, get_nearest_expr_ancestor, node_at_offset,
 };
 use crate::core::utils::position::{lsp_position_to_text_offset, text_offset_to_lsp_position};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
@@ -62,8 +62,8 @@ pub fn definition(
   }
 
   // Identifier or type reference: resolve via referee
-  let expr_node = nearest_expr_ancestor(&node)?;
-  let hir = lower_node(db, project, FileRedNode::new(file, expr_node));
+  let expr = get_nearest_expr_ancestor(&node)?;
+  let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
   let symbol = referee(db, hir).value(db)?;
 
   let target_file = match symbol.kind(db) {

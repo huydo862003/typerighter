@@ -120,6 +120,33 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
   }
 }
 
+// Collect all members visible at a scope by walking up the scope chain
+// Inner scopes shadow outer scopes
+pub fn all_visible_members<'db>(
+  db: &'db TypedownDatabase,
+  start: Scope<'db>,
+) -> BTreeMap<String, Symbol<'db>> {
+  use super::scope::parent_scope;
+
+  let mut result = BTreeMap::new();
+  let mut current = Some(start);
+
+  // Walk from outermost to innermost so inner scopes shadow outer
+  let mut chain = Vec::new();
+  while let Some(scope) = current {
+    chain.push(scope);
+    current = parent_scope(db, scope).value(db);
+  }
+
+  for scope in chain.into_iter().rev() {
+    for (name, sym) in members(db, scope).members(db).iter() {
+      result.insert(name.clone(), *sym);
+    }
+  }
+
+  result
+}
+
 // Extract _imports from a file's frontmatter and register each alias as a member
 fn resolve_import_members<'db>(
   db: &'db TypedownDatabase,

@@ -16,7 +16,7 @@ use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{
-  containing_fref_expr, find_ancestor, is_in_mapping_value_position, nearest_expr_ancestor,
+  containing_fref_expr, find_ancestor, get_nearest_expr_ancestor, is_in_mapping_value_position,
   node_at_offset,
 };
 use crate::core::utils::position::lsp_position_to_text_offset;
@@ -55,8 +55,8 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
 
   let text = if is_in_mapping_value_position(&hovered_node) {
     // Value position: show the resolved type of the expression
-    let expr_node = nearest_expr_ancestor(&hovered_node)?;
-    let hir = lower_node(db, project, FileRedNode::new(file, expr_node));
+    let expr = get_nearest_expr_ancestor(&hovered_node)?;
+    let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
 
     let typ = actual_node_type(db, hir).typ(db)?;
     typ.display_name(db)

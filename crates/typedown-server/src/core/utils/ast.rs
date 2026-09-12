@@ -126,12 +126,12 @@ pub fn find_ancestor(node: &RedNode, kind: SyntaxKind) -> Option<RedNode> {
   }
 }
 
-/// Walk up to find the nearest ancestor that can be cast to an Expr.
-pub fn nearest_expr_ancestor(node: &RedNode) -> Option<RedNode> {
+/// Walk up to find the nearest ancestor that can be cast to an Expr
+pub fn get_nearest_expr_ancestor(node: &RedNode) -> Option<Expr> {
   let mut current = node.clone();
   loop {
-    if Expr::cast(current.clone()).is_some() {
-      return Some(current);
+    if let Some(expr) = Expr::cast(current.clone()) {
+      return Some(expr);
     }
     current = current.parent()?;
   }

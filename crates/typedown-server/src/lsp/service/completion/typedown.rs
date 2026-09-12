@@ -10,10 +10,11 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
-use typedown_lang::db::derived::icon::ICON_ENTRIES;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
-use typedown_lang::db::derived::name_resolver::members::members;
+use typedown_lang::db::derived::name_resolver::members::{all_visible_members, members};
+use typedown_lang::db::derived::name_resolver::scope::scope;
 use typedown_lang::db::derived::parse_file::parse_file;
+use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
@@ -21,12 +22,14 @@ use typedown_lang::db::types::{
   File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
-use typedown_lang::syntax::ast::{AstNode, Expr};
+use typedown_lang::syntax::ast::{AstNode, BinaryExpr, Expr, YamlOpKind};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::ast::{find_ancestor, is_in_mapping_value_position, node_at_offset};
+use crate::core::utils::ast::{
+  find_ancestor, get_nearest_expr_ancestor, is_in_mapping_value_position, node_at_offset,
+};
 use crate::core::utils::position::lsp_position_to_text_offset;
 use crate::core::utils::uri::uri_to_path;
 
@@ -49,9 +52,9 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     return Some(CompletionResponse::Array(schema_completions(db, project)));
   }
 
-  // Cursor in a _icon value: suggest icon.X completions
-  if is_icon_value_position(&node) {
-    return Some(CompletionResponse::Array(icon_completions()));
+  // Cursor after "." in a dot expression: suggest members of the LHS type
+  if let Some(items) = dot_access_completions(db, project, file, &node) {
+    return Some(CompletionResponse::Array(items));
   }
 
   // Cursor inside a fref() string argument: suggest file paths
@@ -109,32 +112,43 @@ fn is_type_value_position(node: &RedNode) -> bool {
   key.text().trim() == "_type"
 }
 
-// Returns true if the cursor is inside the value of an _icon mapping entry
-fn is_icon_value_position(node: &RedNode) -> bool {
-  let Some(entry) = find_ancestor(node, SyntaxKind::YamlMappingEntry) else {
-    return false;
-  };
-  let Some(key) = entry
-    .children()
-    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
-  else {
-    return false;
-  };
-  key.text().trim() == "_icon"
-}
+// Suggest members of the LHS type after a "." in a binary expression
+fn dot_access_completions(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<Vec<CompletionItem>> {
+  let bin_node = find_ancestor(node, SyntaxKind::BinaryExpr)?;
+  let bin = BinaryExpr::cast(bin_node)?;
 
-// Suggest icon.X completions for an _icon value position
-fn icon_completions() -> Vec<CompletionItem> {
-  ICON_ENTRIES
-    .iter()
-    .map(|entry| CompletionItem {
-      label: format!("icon.{}", entry.name),
-      insert_text: Some(format!("icon.{}", entry.name)),
-      detail: Some(format!("lucide: {}", entry.lucide_name)),
-      kind: Some(CompletionItemKind::ENUM_MEMBER),
+  if !matches!(bin.op()?.kind()?, YamlOpKind::Dot) {
+    return None;
+  }
+
+  let lhs = bin.left()?;
+  let hir = lower_node(db, project, FileRedNode::new(file, lhs.syntax().clone()));
+  let lhs_type = actual_node_type(db, hir).typ(db)?;
+
+  let mut items = Vec::new();
+
+  for (name, _) in lhs_type.get_fields(db) {
+    items.push(CompletionItem {
+      label: name,
+      kind: Some(CompletionItemKind::FIELD),
       ..Default::default()
-    })
-    .collect()
+    });
+  }
+
+  for (name, _) in lhs_type.static_vtable(db) {
+    items.push(CompletionItem {
+      label: name,
+      kind: Some(CompletionItemKind::METHOD),
+      ..Default::default()
+    });
+  }
+
+  if items.is_empty() { None } else { Some(items) }
 }
 
 // Returns true if the cursor is inside a ${} interpolation
@@ -353,6 +367,33 @@ fn value_completions(
 
   let mut items = vec![keyword_item("true"), keyword_item("false")];
 
+  // Variables in scope (icon, fref, vault, file names, imports, closure params)
+  // Find the nearest Expr ancestor to resolve scope (captures enclosing closures)
+  let current_scope = get_nearest_expr_ancestor(node)
+    .map(|expr| {
+      let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
+      scope(db, hir)
+    })
+    .unwrap_or_else(|| Scope::new(db, ScopeKind::File(project, file)));
+
+  for (name, sym) in all_visible_members(db, current_scope) {
+    if name.starts_with('_') {
+      continue;
+    }
+    let kind = match sym.kind(db) {
+      SymbolKind::BuiltinMacro(_) => CompletionItemKind::FUNCTION,
+      SymbolKind::BuiltinGlobal(_) => CompletionItemKind::VARIABLE,
+      SymbolKind::UserDefinedSchema(..) => CompletionItemKind::CLASS,
+      _ => CompletionItemKind::VARIABLE,
+    };
+    items.push(CompletionItem {
+      label: name,
+      kind: Some(kind),
+      ..Default::default()
+    });
+  }
+
+  // Type-specific completions from declared field type
   let Some(typ) = declared_field(db, project, file, node) else {
     return Some(items);
   };
@@ -1806,6 +1847,324 @@ address:
     assert!(
       labels.contains(&"city"),
       "should suggest 'city' from nested address type, got: {:?}",
+      labels
+    );
+  }
+
+  // --- Expression and dot-access completion tests ---
+
+  #[test]
+  fn value_position_suggests_builtin_variables() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: i|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(labels.contains(&"icon"), "should suggest builtin 'icon'");
+    assert!(labels.contains(&"fref"), "should suggest builtin 'fref'");
+    assert!(labels.contains(&"vault"), "should suggest builtin 'vault'");
+  }
+
+  #[test]
+  fn value_position_suggests_type_names() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: s|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"string"),
+      "should suggest builtin type 'string'"
+    );
+    assert!(
+      labels.contains(&"number"),
+      "should suggest builtin type 'number'"
+    );
+    assert!(
+      labels.contains(&"boolean"),
+      "should suggest builtin type 'boolean'"
+    );
+  }
+
+  #[test]
+  fn value_position_suggests_project_file_names() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: a|
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"alice"),
+      "should suggest project file 'alice'"
+    );
+    assert!(
+      labels.contains(&"birthday"),
+      "should suggest project file 'birthday'"
+    );
+  }
+
+  #[test]
+  fn value_position_excludes_underscore_prefixed() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: x|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      !labels.iter().any(|l| l.starts_with('_')),
+      "should not suggest underscore-prefixed items: {:?}",
+      labels
+    );
+  }
+
+  #[test]
+  fn value_position_includes_keywords_and_variables() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: ic|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    // Keywords
+    assert!(labels.contains(&"true"), "should include keyword 'true'");
+    assert!(labels.contains(&"false"), "should include keyword 'false'");
+    // Variables
+    assert!(labels.contains(&"icon"), "should include variable 'icon'");
+  }
+
+  #[test]
+  fn dot_access_on_icon_suggests_icon_names() {
+    let (content, offset) = cursor(
+      r#"---
+_icon: icon.|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected dot-access completions for icon");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"book"),
+      "should suggest 'book' icon: {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"star"),
+      "should suggest 'star' icon: {:?}",
+      labels
+    );
+    // Should NOT include the "icon." prefix (just the member name)
+    assert!(
+      !labels.iter().any(|l| l.contains('.')),
+      "labels should be bare names, not dotted: {:?}",
+      labels
+    );
+  }
+
+  #[test]
+  fn dot_access_on_icon_with_partial_input() {
+    let (content, offset) = cursor(
+      r#"---
+_icon: icon.bo|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected dot-access completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"book"),
+      "should suggest 'book' with partial 'bo': {:?}",
+      labels
+    );
+  }
+
+  #[test]
+  fn no_dot_access_before_dot_typed() {
+    // Typing just "ic" in _icon should NOT trigger icon member completions
+    let (content, offset) = cursor(
+      r#"---
+_icon: ic|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    if let Some(CompletionResponse::Array(items)) = response {
+      let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+      // Should not have icon member names like "book" without the dot
+      assert!(
+        !labels.contains(&"book"),
+        "should not suggest icon members without dot: {:?}",
+        labels
+      );
+    }
+  }
+
+  #[test]
+  fn dot_access_on_icon_in_regular_field() {
+    // Dot-access should work in any value position, not just _icon
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: icon.|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected dot-access completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"book"),
+      "dot-access should work in any field: {:?}",
+      labels
+    );
+  }
+
+  #[test]
+  fn closure_param_suggested_in_body() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: (x) -> x|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions inside closure body");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"x"),
+      "should suggest closure param 'x': {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"icon"),
+      "should also suggest builtins: {:?}",
+      labels
+    );
+  }
+
+  #[test]
+  fn multi_param_closure_suggests_all_params() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: (a, b) -> a|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions inside closure body");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"a"),
+      "should suggest param 'a': {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"b"),
+      "should suggest param 'b': {:?}",
+      labels
+    );
+  }
+
+  #[test]
+  fn self_suggested_in_value_position() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: s|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"self"),
+      "should suggest 'self': {:?}",
       labels
     );
   }
