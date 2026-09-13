@@ -77,7 +77,9 @@ export function createRouter (
   // Fetch and apply a page module, guarding against stale loads
   async function loadPage (href: string): Promise<void> {
     const targetLocation = new URL(href, 'http://a.com');
-    const pendingPath = (latestPendingPath = targetLocation.pathname);
+
+    latestPendingPath = targetLocation.pathname;
+    const pendingPath = latestPendingPath;
 
     try {
       const page = await loadPageModule(pendingPath);
