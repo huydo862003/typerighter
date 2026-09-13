@@ -280,6 +280,9 @@ jobs:
       - name: Build npm packages
         run: pnpm -r --filter typerighter --filter @typerighter/rpc-client --filter @typerighter/rpc-server run build
 
+      - name: Use npm README for typerighter package
+        run: cp packages/typerighter/README.npm.md packages/typerighter/README.md
+
       - name: Publish to npm
         run: |
           NPM_TAG=${{ needs.validate-tag.outputs.is_staging == 'true' && 'alpha' || 'latest' }}
