@@ -55,7 +55,7 @@ export class VirtualSiteData implements VirtualModule {
     this.data = {
       contentTree,
       schemas: {},
-      directoryListings: {},
+      directoryListings: buildDirectoryListingMap(contentTree.entries, ''),
     };
   }
 

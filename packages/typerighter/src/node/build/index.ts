@@ -14,7 +14,7 @@ import {
 } from '../lib/progress';
 import {
   buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
-  escapeHtml, path as tdpath,
+  escapeHtml, getIndexUrl, getNodeIndexItem, path as tdpath,
 } from '@/shared';
 import type {
   AppContext,
@@ -301,14 +301,18 @@ ${urls}
 `;
 }
 
-// Collect all directory paths from the content tree for pre-rendering
+// Collect directory index paths from the content tree for pre-rendering
+// Only adds dirs without an index.td (those are already covered by files.map)
 function collectDirectoryPaths (entries: ContentTreeEntry[], prefix: string, paths: string[]) {
   for (const entry of entries) {
     if (entry.kind !== 'dir') continue;
 
     const dirPath = `${prefix}/${entry.node.name}`;
 
-    paths.push(dirPath);
+    if (!getNodeIndexItem(entry.node)) {
+      paths.push(getIndexUrl(dirPath));
+    }
+
     collectDirectoryPaths(entry.node.entries, dirPath, paths);
   }
 }
