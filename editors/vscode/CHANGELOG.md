@@ -1,6 +1,23 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.31.0] - 2026-09-14
+
+### Fixed
+
+* packages/typerighter, crates/typedown-lang, crates/typedown-server
+  - File rename now updates sidebar, reroutes if viewing renamed page, and correctly invalidates incremental cache (stale type errors after rename)
+  - File deletion reroutes to parent directory when viewing the deleted page
+  - `index.td` now respects `_label` in page title
+  - Sidebar metadata (`_label`, `_icon`) reactive on content changes
+  - Glossary shows `description` and `summary` fields as excerpt
+  - `${}` interpolation completions include scope variables (`self`, `fref`, etc.) alongside file suggestions
+  - Code block overflow scrolling inside `details` callout
+  - Schema rename properly invalidates client cache (delete old + create new)
+  - macOS file rename events (`RenameMode::Any`) handled correctly
+  - `RedNode::text()` pre-allocates buffer to avoid intermediate string allocations
+  - Sidebar metadata refresh debounced to coalesce rapid saves
+  - Page HMR detects when a real page replaces a directory index (e.g. `index.td` created)
 
 ## [0.30.8] - 2026-09-13
 
