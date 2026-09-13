@@ -1,6 +1,6 @@
 # Change Log
 
-Full changelog: [CHANGELOG.md](../../CHANGELOG.md)
+Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
 
 ## [0.30.8] - 2026-09-13
 
