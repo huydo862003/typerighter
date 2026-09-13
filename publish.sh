@@ -74,6 +74,19 @@ if [[ "$BUMP_TYPE" != pre* ]]; then
     echo "Error: no changelog entry for $VERSION (add content under the ## [$VERSION] header)"
     exit 1
   fi
+
+  # Prepend the new entry to VSCode extension CHANGELOG (same entry as root)
+  VSCODE_CHANGELOG="editors/vscode/CHANGELOG.md"
+  ROOT_ENTRY=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '1d;/^## \[/d')
+  HEADER=$(sed -n "1,/^## \[/p" "$VSCODE_CHANGELOG" | head -n -1)
+  REST=$(sed -n "/^## \[/,\$p" "$VSCODE_CHANGELOG")
+  {
+    printf "%s\n" "$HEADER"
+    printf "## [%s] - %s\n" "$VERSION" "$DATE"
+    printf "%s\n" "$ROOT_ENTRY"
+    printf "%s\n" "$REST"
+  } > "$VSCODE_CHANGELOG.new"
+  mv "$VSCODE_CHANGELOG.new" "$VSCODE_CHANGELOG"
 fi
 
 # Bump versions
@@ -94,7 +107,7 @@ sed -i "s/version = \"[^\"]*\";/version = \"$VERSION\";/" flake.nix
 
 # Commit and push
 git add VERSION Cargo.toml editors/nvim/lua/typedown/version.lua Cargo.lock pnpm-lock.yaml flake.nix
-[[ "$BUMP_TYPE" != pre* ]] && git add CHANGELOG.md
+[[ "$BUMP_TYPE" != pre* ]] && git add CHANGELOG.md editors/vscode/CHANGELOG.md
 find . -name package.json -not -path '*/node_modules/*' -print0 | xargs -0 git add --ignore-errors
 find ./crates ./editors -name Cargo.toml -print0 | xargs -0 git add --ignore-errors
 git commit -m "chore: release $TAG"

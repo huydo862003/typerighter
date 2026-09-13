@@ -1,3 +1,13 @@
+## [0.30.8] - 2026-09-13
+
+### Documentation
+
+* packages/typerighter
+  - Improve typerighter npm README
+
+* editors/vscode
+  - Improve vscode README and CHANGELOG
+
 ## [0.30.7] - 2026-09-13
 
 ### Fixes
