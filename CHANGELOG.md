@@ -1,3 +1,10 @@
+## [0.30.7] - 2026-09-13
+
+### Fixes
+
+* packages/typerighter
+  - Direct accesses to fake directory index pages return 404
+
 ## [0.30.6] - 2026-09-12
 
 ### Features
