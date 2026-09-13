@@ -23,6 +23,7 @@ pub const METHOD_FORMAT_FILE: &str = "typedown_build.format_file";
 pub const NOTIF_CONTENT_CHANGED: &str = "typedown_build.content_changed";
 pub const NOTIF_CONTENT_CREATED: &str = "typedown_build.content_created";
 pub const NOTIF_CONTENT_DELETED: &str = "typedown_build.content_deleted";
+pub const NOTIF_CONTENT_RENAMED: &str = "typedown_build.content_renamed";
 pub const NOTIF_SCHEMA_CHANGED: &str = "typedown_build.schema_changed";
 pub const NOTIF_SCHEMA_CREATED: &str = "typedown_build.schema_created";
 pub const NOTIF_SCHEMA_DELETED: &str = "typedown_build.schema_deleted";
@@ -121,6 +122,8 @@ pub struct TdSidebarItem {
   pub label: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub icon: Option<TdIcon>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub excerpt: Option<String>,
   pub metadata: TdFileMetadata,
 }
 
@@ -230,13 +233,16 @@ pub struct TdDiagnosticReport {
 
 /* Subscription notifications */
 
-/// Content file event: A resource file was created, changed, or deleted
+/// Content file event payload for created, changed, deleted, or renamed
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TdContentNotification {
-  pub content: String,
+  pub filepath: String,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub affected_files: Vec<String>,
+  // Rename destination (only set for NOTIF_CONTENT_RENAMED)
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub renamed_to: Option<String>,
 }
 
 /// Schema file event: A schema file was created, changed, or deleted

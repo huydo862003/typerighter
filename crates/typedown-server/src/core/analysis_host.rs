@@ -226,7 +226,8 @@ impl AnalysisHost {
     }
   }
 
-  /// Moves the old path entry to the new path
+  // Creates a fresh File ID for the new path instead of reusing the old one
+  // Reusing the old ID leaves stale path-dependent derived queries (schema resolution, etc)
   pub fn on_did_rename_file(&mut self, old_path: PathBuf, new_path: PathBuf) {
     self.project_files.remove(&old_path);
     self.project_files.insert(new_path.clone());
@@ -238,33 +239,36 @@ impl AnalysisHost {
       Arc::make_mut(&mut self.scheme_map).insert(new_path.clone(), scheme);
     }
 
-    // Reuse the File ID, just update its handle path
-    let Some(file) = self.file_map.remove(&old_path) else {
-      return;
-    };
+    self.file_map.remove(&old_path);
 
-    let content = match &*file.handle(&self.db) {
-      FileHandle::Content(_, content, _) => content.clone(),
-      FileHandle::Path(path, _) => fs::read_to_string(path).unwrap_or_default(),
+    let handle = if let Some(rope) = self.open_files.get(&new_path) {
+      let ctime = fs::metadata(&new_path)
+        .and_then(|m| m.created())
+        .unwrap_or_else(|_| SystemTime::now());
+      FileHandle::Content(
+        new_path.clone(),
+        rope.to_string(),
+        FileMetadata {
+          mtime: SystemTime::now(),
+          ctime,
+        },
+      )
+    } else {
+      let Some(handle) = disk_handle(&new_path) else {
+        return;
+      };
+      handle
     };
-
-    let handle = FileHandle::Content(
-      new_path.clone(),
-      content,
-      FileMetadata {
-        mtime: SystemTime::now(),
-        ctime: SystemTime::now(),
-      },
-    );
 
     let project = self.project;
 
-    self.write(|db| {
-      file.set_handle(db, handle);
+    let file = self.write(|db| {
+      let file = File::new(db, handle);
       let mut files = project.files(db).clone();
       files.remove(&old_path);
       files.insert(new_path.clone(), file);
       project.set_files(db, files);
+      file
     });
 
     self.file_map.insert(new_path, file);

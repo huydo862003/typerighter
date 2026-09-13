@@ -28,9 +28,9 @@ export async function buildPageData (
   resource: TdBuiltResource,
   filepath: string,
 ): Promise<PageData> {
-  const title = resource.title || (isIndexFile(filepath)
+  const title = resource.title || resource.label || (isIndexFile(filepath)
     ? getTdIndexTitle(filepath, (await context.getConfig()).siteTitle)
-    : getTdResourceTitle(filepath, resource.label));
+    : getTdResourceTitle(filepath));
 
   return {
     schema: resource.schema,

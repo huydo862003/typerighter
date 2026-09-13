@@ -84,8 +84,14 @@
   margin-bottom: 8px;
 }
 
-.td-content details.td-callout > :not(summary) {
+.td-content details.td-callout > :not(summary):not(div[class*="language-"]) {
   padding: 0 16px;
+}
+
+/* Code blocks need margin instead of padding so overflow-x scrolling works correctly */
+.td-content details.td-callout > div[class*="language-"] {
+  margin: 8px 16px;
+  border-radius: 8px;
 }
 
 .td-content .td-callout div[class*="language-"] {

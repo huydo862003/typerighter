@@ -106,9 +106,19 @@ impl RedNode {
 
   /// Collect all token text under this node into a String.
   pub fn text(&self) -> String {
+    let mut out = String::with_capacity(self.text_len());
+    self.write_text(&mut out);
+    out
+  }
+
+  fn write_text(&self, out: &mut String) {
     match self.0.green.as_token() {
-      Some(token) => token.text().unwrap_or("").to_string(),
-      None => self.children().map(|child| child.text()).collect(),
+      Some(token) => out.push_str(token.text().unwrap_or("")),
+      None => {
+        for child in self.children() {
+          child.write_text(out);
+        }
+      }
     }
   }
 

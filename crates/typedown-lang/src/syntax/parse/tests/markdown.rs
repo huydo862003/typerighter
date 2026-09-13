@@ -700,6 +700,34 @@ content
 }
 
 #[test]
+fn parse_container_block_with_code_block() {
+  let tree = parse_body("::: note\n```python\nprint('hi')\n```\n:::\n");
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (CodeBlock
+          "```python\nprint('hi')\n```"))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
 fn parse_container_block_with_number_props() {
   let tree = parse_body(
     r#"::: grid {cols=2 rows=10}

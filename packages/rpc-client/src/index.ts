@@ -27,7 +27,9 @@ export interface TdDiagnosticItem {
 }
 
 export interface TdContentNotification {
-  content: string;
+  filepath: string;
+  affectedFiles?: string[];
+  renamedTo?: string;
 }
 
 export interface TdFileMetadata {
@@ -48,6 +50,7 @@ export interface TdSidebarItem {
   schemaLabel?: string;
   label?: string;
   icon?: TdIcon;
+  excerpt?: string;
   metadata: TdFileMetadata;
 }
 
@@ -140,6 +143,7 @@ const METHOD_FORMAT_FILE = 'typedown_build.format_file';
 const NOTIF_CONTENT_CHANGED = 'typedown_build.content_changed';
 const NOTIF_CONTENT_CREATED = 'typedown_build.content_created';
 const NOTIF_CONTENT_DELETED = 'typedown_build.content_deleted';
+const NOTIF_CONTENT_RENAMED = 'typedown_build.content_renamed';
 const NOTIF_SCHEMA_CHANGED = 'typedown_build.schema_changed';
 const NOTIF_SCHEMA_CREATED = 'typedown_build.schema_created';
 const NOTIF_SCHEMA_DELETED = 'typedown_build.schema_deleted';
@@ -236,6 +240,10 @@ export class RpcClient {
 
   onContentDeleted (callback: (notification: TdContentNotification) => void): void {
     this.rpc.onNotification(NOTIF_CONTENT_DELETED, callback);
+  }
+
+  onContentRenamed (callback: (notification: TdContentNotification) => void): void {
+    this.rpc.onNotification(NOTIF_CONTENT_RENAMED, callback);
   }
 
   onSchemaChanged (callback: (notification: TdSchemaNotification) => void): void {

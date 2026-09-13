@@ -27,15 +27,11 @@ export class TypedownContext {
     });
 
     client.onContentChanged(({
-      content,
-      affectedFiles = [],
-    }: {
-      content: string;
-      affectedFiles?: string[];
+      filepath, affectedFiles = [],
     }) => {
-      this.cachedFileMap.delete(content);
-      for (const filepath of affectedFiles) {
-        this.cachedFileMap.delete(filepath);
+      this.cachedFileMap.delete(filepath);
+      for (const affected of affectedFiles) {
+        this.cachedFileMap.delete(affected);
       }
     });
 
@@ -43,13 +39,19 @@ export class TypedownContext {
       this.cachedFiles = undefined;
     });
 
-    client.onContentDeleted(({
-      content,
-    }: {
-      content: string;
+    client.onContentRenamed(({
+      filepath, renamedTo,
     }) => {
       this.cachedFiles = undefined;
-      this.cachedFileMap.delete(content);
+      this.cachedFileMap.delete(filepath);
+      if (renamedTo !== undefined) this.cachedFileMap.delete(renamedTo);
+    });
+
+    client.onContentDeleted(({
+      filepath,
+    }) => {
+      this.cachedFiles = undefined;
+      this.cachedFileMap.delete(filepath);
     });
 
     client.onSchemaChanged(({

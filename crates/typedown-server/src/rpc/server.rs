@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crossbeam_channel::Sender;
 use lsp_server::{Connection, Message, Notification, Request, Response};
+use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ropey::Rope;
 use threadpool::ThreadPool;
@@ -44,6 +45,7 @@ use super::contract::*;
 enum FsEventKind {
   Created,
   Modified,
+  Renamed(PathBuf), // carries the destination path
   Removed,
 }
 
@@ -265,6 +267,46 @@ impl RpcServer {
     let vault_root = vault_root.to_path_buf();
     let mut watcher = notify::recommended_watcher(move |result: Result<Event, notify::Error>| {
       let Ok(event) = result else { return };
+
+      // Rename with both paths known in a single event
+      if let EventKind::Modify(ModifyKind::Name(RenameMode::Both)) = event.kind {
+        if let [from, to] = event.paths.as_slice() {
+          // Vault config rename: treat as config modified (not a content rename)
+          if is_vault_config(from) || is_vault_config(to) {
+            let _ = fs_tx.send(FsEvent {
+              path: to.clone(),
+              kind: FsEventKind::Modified,
+            });
+            return;
+          }
+
+          let from_relevant =
+            from.starts_with(&vault_root) && (is_content_file(from) || is_asset_file(from));
+          let to_relevant =
+            to.starts_with(&vault_root) && (is_content_file(to) || is_asset_file(to));
+          if from_relevant && to_relevant {
+            let _ = fs_tx.send(FsEvent {
+              path: from.clone(),
+              kind: FsEventKind::Renamed(to.clone()),
+            });
+          } else {
+            if from_relevant {
+              let _ = fs_tx.send(FsEvent {
+                path: from.clone(),
+                kind: FsEventKind::Removed,
+              });
+            }
+            if to_relevant {
+              let _ = fs_tx.send(FsEvent {
+                path: to.clone(),
+                kind: FsEventKind::Created,
+              });
+            }
+          }
+        }
+        return;
+      }
+
       // Only watch vault config at project root and content/assets inside the vault
       for path in &event.paths {
         if is_vault_config(path) {
@@ -276,6 +318,16 @@ impl RpcServer {
         }
         let kind = match event.kind {
           EventKind::Create(_) => FsEventKind::Created,
+          EventKind::Modify(ModifyKind::Name(RenameMode::From)) => FsEventKind::Removed,
+          EventKind::Modify(ModifyKind::Name(RenameMode::To)) => FsEventKind::Created,
+          // macOS emits RenameMode::Any without pairing; infer direction from disk
+          EventKind::Modify(ModifyKind::Name(RenameMode::Any)) => {
+            if path.exists() {
+              FsEventKind::Created
+            } else {
+              FsEventKind::Removed
+            }
+          }
           EventKind::Modify(_) => FsEventKind::Modified,
           EventKind::Remove(_) => FsEventKind::Removed,
           _ => continue,
@@ -316,11 +368,14 @@ impl RpcServer {
       {
         let mut host_guard = host.write().unwrap();
         for event in pending.values() {
-          match event.kind {
+          match &event.kind {
             FsEventKind::Created | FsEventKind::Modified => {
               host_guard.on_disk_change(event.path.clone())
             }
             FsEventKind::Removed => host_guard.on_disk_delete(event.path.clone()),
+            FsEventKind::Renamed(to) => {
+              host_guard.on_did_rename_file(event.path.clone(), to.clone())
+            }
           }
         }
       }
@@ -343,21 +398,27 @@ impl RpcServer {
           if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
             let relative =
               normalize_path(event.path.strip_prefix(&root_dir).unwrap_or(&event.path));
-            let method = match event.kind {
-              FsEventKind::Created => NOTIF_CONTENT_CREATED,
-              FsEventKind::Modified => NOTIF_CONTENT_CHANGED,
-              FsEventKind::Removed => NOTIF_CONTENT_DELETED,
+
+            let (method, renamed_to) = match &event.kind {
+              FsEventKind::Created => (NOTIF_CONTENT_CREATED, None),
+              FsEventKind::Modified => (NOTIF_CONTENT_CHANGED, None),
+              FsEventKind::Removed => (NOTIF_CONTENT_DELETED, None),
+              FsEventKind::Renamed(to) => {
+                let to_relative = normalize_path(to.strip_prefix(&root_dir).unwrap_or(to));
+                (NOTIF_CONTENT_RENAMED, Some(to_relative))
+              }
             };
 
-            let affected_files = if event.kind == FsEventKind::Modified {
+            let affected_files = if matches!(event.kind, FsEventKind::Modified) {
               collect_affected_files(db, project, &event.path, &root_dir)
             } else {
               vec![]
             };
 
             let notification = TdContentNotification {
-              content: relative,
+              filepath: relative,
               affected_files,
+              renamed_to,
             };
             send_notification(&sender, method, &notification);
           } else if is_type_file(&event.path) {
@@ -369,13 +430,30 @@ impl RpcServer {
             else {
               continue;
             };
-            let notification = TdSchemaNotification { schema: name };
-            let method = match event.kind {
-              FsEventKind::Created => NOTIF_SCHEMA_CREATED,
-              FsEventKind::Modified => NOTIF_SCHEMA_CHANGED,
-              FsEventKind::Removed => NOTIF_SCHEMA_DELETED,
-            };
-            send_notification(&sender, method, &notification);
+            if let FsEventKind::Renamed(to) = &event.kind {
+              // Schema rename: notify as delete old + create new
+              send_notification(
+                &sender,
+                NOTIF_SCHEMA_DELETED,
+                &TdSchemaNotification { schema: name },
+              );
+              if let Some(new_name) = to.file_stem().and_then(|s| s.to_str()).map(str::to_string) {
+                send_notification(
+                  &sender,
+                  NOTIF_SCHEMA_CREATED,
+                  &TdSchemaNotification { schema: new_name },
+                );
+              }
+            } else {
+              let notification = TdSchemaNotification { schema: name };
+              let method = match event.kind {
+                FsEventKind::Created => NOTIF_SCHEMA_CREATED,
+                FsEventKind::Modified => NOTIF_SCHEMA_CHANGED,
+                FsEventKind::Removed => NOTIF_SCHEMA_DELETED,
+                FsEventKind::Renamed(_) => unreachable!(),
+              };
+              send_notification(&sender, method, &notification);
+            }
           }
         }
       }) else {
@@ -617,6 +695,7 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
         schema_label,
         label: meta.label,
         icon: meta.icon.map(|icon| TdIcon { name: icon.name }),
+        excerpt: meta.excerpt,
         metadata: TdFileMetadata {
           mtime: meta.metadata.mtime,
           ctime: meta.metadata.ctime,

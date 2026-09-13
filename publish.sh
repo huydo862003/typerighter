@@ -83,7 +83,7 @@ if [[ "$BUMP_TYPE" != pre* ]]; then
   {
     printf "%s\n" "$HEADER"
     printf "## [%s] - %s\n" "$VERSION" "$DATE"
-    printf "%s\n" "$ROOT_ENTRY"
+    printf "%s\n\n" "$ROOT_ENTRY"
     printf "%s\n" "$REST"
   } > "$VSCODE_CHANGELOG.new"
   mv "$VSCODE_CHANGELOG.new" "$VSCODE_CHANGELOG"

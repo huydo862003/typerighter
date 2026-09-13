@@ -40,6 +40,10 @@ $$
 
 ::: note
 callout content
+
+```python
+print("in callout")
+```
 :::
 
 ::: details Click to expand

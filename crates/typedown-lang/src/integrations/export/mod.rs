@@ -111,12 +111,14 @@ pub fn export_resource_summary(
 }
 
 /// Lightweight metadata for sidebar/navigation
-/// Skips json::to_json and markdown export
+/// Skips json::to_json and body parsing
 pub struct ExportedResourceMeta {
   pub schema: Option<String>,
   pub label: Option<String>,
   pub icon: Option<ExportedIcon>,
   pub metadata: ExportedMetadata,
+  // From description or summary field only (no body parse)
+  pub excerpt: Option<String>,
 }
 
 pub fn export_resource_meta(
@@ -148,11 +150,23 @@ pub fn export_resource_meta(
     })
   });
 
+  // Only check header fields; body parsing is too expensive for sidebar metadata
+  let excerpt = obj
+    .get_owned_field(db, "description")
+    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
+    .or_else(|| {
+      obj
+        .get_owned_field(db, "summary")
+        .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
+    })
+    .filter(|s| !s.is_empty());
+
   Some(ExportedResourceMeta {
     schema,
     label,
     icon,
     metadata: export_metadata(&file.handle(db)),
+    excerpt,
   })
 }
 
@@ -238,10 +252,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
 
-  // Extract plain text from the first paragraph (at any depth) for search excerpts
-  let excerpt = find_first_paragraph(body.syntax())
-    .map(|p| utils::extract_plain_text(&p))
-    .filter(|s| !s.is_empty());
+  let excerpt = extract_body_excerpt(body.syntax());
 
   Some(ResourceKind::Content(ResourcePreamble {
     schema,
@@ -472,6 +483,13 @@ pub fn export_property_descriptors(
       _ => serde_json::json!({ "widget": Widget::Text }),
     }
   }
+}
+
+// Extract plain text from the first paragraph in the AST for excerpts
+fn extract_body_excerpt(node: &RedNode) -> Option<String> {
+  find_first_paragraph(node)
+    .map(|p| utils::extract_plain_text(&p))
+    .filter(|s| !s.is_empty())
 }
 
 // Depth-first search for the first MdParagraph in the AST
@@ -1717,6 +1735,17 @@ properties:
       "<div class=\"note td-callout\"><p class=\"td-callout-title td-callout-title-default\">NOTE</p>"
     ));
     assert!(exported.content.contains("<p>callout content</p>"));
+  }
+
+  #[test]
+  fn html_export_code_block_in_callout() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported
+        .content
+        .contains("<pre class=\"td-code-placeholder\" data-lang=\"python\" data-meta=\"python\"><code>print(&quot;in callout&quot;)")
+    );
   }
 
   #[test]

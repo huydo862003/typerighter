@@ -45,6 +45,7 @@ import {
   vaultAssets, virtualHtml,
 } from './middleware';
 import {
+  debounce,
   path,
 } from '@/shared';
 
@@ -193,6 +194,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const config = await tdContext.getConfig();
       const rootDirectory = resolve(config.rootDir);
 
+      // Debounced sidebar refresh for metadata changes (coalesces rapid saves)
+      const debouncedSidebarFetch = debounce(() => {
+        if (server) virtualSiteData.fetch(tdContext, server);
+      }, 200);
+
       // Seed sidebar from disk (instant), then upgrade via RPC in background
       virtualSearchIndex.index(rootDirectory);
       virtualSiteData.scan(rootDirectory);
@@ -221,15 +227,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       // Content changed: re-index file + invalidate .td modules and affected files
       tdContext.rpc.onContentChanged(({
-        content,
-        affectedFiles = [],
-      }: {
-        content: string;
-        affectedFiles?: string[];
+        filepath, affectedFiles = [],
       }) => {
         if (!server) return;
 
-        virtualSearchIndex.reindex(rootDirectory, content);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
 
         tdContext.getConfig()
@@ -237,14 +239,14 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
             if (!server) return;
 
             const filesToInvalidate = [
-              content,
+              filepath,
               ...affectedFiles,
             ];
             const allUpdates: ReturnType<typeof makeHmrUpdate>[] = [];
 
-            for (const filepath of filesToInvalidate) {
+            for (const file of filesToInvalidate) {
               const absolute = normalizePath(
-                resolve(server.config.root, config.rootDir, filepath),
+                resolve(server.config.root, config.rootDir, file),
               );
 
               // A single file can back several modules (`?vue&type=template`, `&type=style`)
@@ -257,7 +259,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
                 allUpdates.push(makeHmrUpdate(module_));
               }
 
-              virtualPages.invalidatePageData(server, filepath);
+              virtualPages.invalidatePageData(server, file);
             }
 
             if (0 < allUpdates.length) {
@@ -269,6 +271,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           })
           .catch(() => {});
 
+        // Metadata fields (_label, _icon, schema) may have changed, refresh sidebar
+        debouncedSidebarFetch();
       });
 
       // Files added or removed: full re-index
@@ -283,6 +287,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       tdContext.rpc.onContentCreated(handleContentListChange);
       tdContext.rpc.onContentDeleted(handleContentListChange);
+      tdContext.rpc.onContentRenamed(handleContentListChange);
 
       // Schema changes affect all pages and sidebar data
       function handleSchemaChange () {

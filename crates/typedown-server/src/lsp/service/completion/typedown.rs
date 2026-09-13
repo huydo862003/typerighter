@@ -64,11 +64,27 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     )));
   }
 
-  // Cursor inside ${} interpolation in markdown: suggest fref("path") completions
+  // Cursor inside ${} interpolation: suggest scope variables and fref("path") completions
   if is_interp_position(&node) {
-    return Some(CompletionResponse::Array(fref_wrapped_completions(
-      db, project, None,
-    )));
+    let mut items = fref_wrapped_completions(db, project, None);
+    let scope = Scope::new(db, ScopeKind::File(project, file));
+    for (name, sym) in all_visible_members(db, scope) {
+      if name.starts_with('_') {
+        continue;
+      }
+      let kind = match sym.kind(db) {
+        SymbolKind::BuiltinMacro(_) => CompletionItemKind::FUNCTION,
+        SymbolKind::BuiltinGlobal(_) => CompletionItemKind::VARIABLE,
+        SymbolKind::UserDefinedSchema(..) => CompletionItemKind::CLASS,
+        _ => CompletionItemKind::VARIABLE,
+      };
+      items.push(CompletionItem {
+        label: name,
+        kind: Some(kind),
+        ..Default::default()
+      });
+    }
+    return Some(CompletionResponse::Array(items));
   }
 
   // Cursor in a field value whose type is a schema: suggest fref("path") completions
@@ -1180,7 +1196,7 @@ Some bod|y text.
     );
   }
 
-  // Inside ${} interpolation, suggest fref("path") completions
+  // Inside ${} interpolation, suggest fref("path") completions and scope variables
   #[test]
   fn fref_completion_in_interpolation() {
     let (content, offset) = cursor(
@@ -1238,6 +1254,17 @@ Reference: ${|}
       alice.detail.as_deref().is_some_and(|d| d.contains("alice")),
       "detail should contain the file path: {:?}",
       alice.detail
+    );
+
+    // Should also have scope variables like `self`, `fref`, `icon`
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+      labels.contains(&"self"),
+      "should suggest 'self' variable inside ${{}}:\n{labels:?}"
+    );
+    assert!(
+      labels.contains(&"fref"),
+      "should suggest 'fref' builtin inside ${{}}:\n{labels:?}"
     );
   }
 

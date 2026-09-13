@@ -70,7 +70,7 @@ import 'typerighter/fonts.css';
 import('typerighter/math.css');
 import { createTypedownApp } from 'typerighter/client';
 import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
-import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
+import { isIndexUrl, getDirectoryFromPageUrl, getParentUrl, path } from 'typerighter/shared';
 import { h } from 'vue';
 import theme from 'typerighter/client/theme-default';
 import { pages as initialPages } from '${PAGES_ID}';
@@ -86,8 +86,7 @@ function findPage(base) {
 }
 
 async function loadPageModule(pagePath) {
-  const base = ('/${rootDirectory}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
-  const loader = findPage(base);
+  const loader = findPage(path.join('/', '${rootDirectory}', pagePath));
   if (loader) return loader();
 
   if (isIndexUrl(pagePath)) {
@@ -102,7 +101,7 @@ async function loadPageModule(pagePath) {
   return undefined;
 }
 
-const { app, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, initialSiteData);
+const { app, router, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, initialSiteData);
 app.mount('#app');
 
 // Load search index in the background after the app is mounted
@@ -111,7 +110,15 @@ import('${SEARCH_INDEX_ID}').then((m) => { searchIndexRef.value = m.default; });
 // Accept HMR so modules update without a full page reload
 if (import.meta.hot) {
   import.meta.hot.accept('${PAGES_ID}', (m) => {
-    if (m) pages = m.pages;
+    if (!m) return;
+    const base = path.join('/', '${rootDirectory}', router.route.path);
+    const hadPage = !!findPage(base);
+    pages = m.pages;
+    const hasPage = !!findPage(base);
+    // Current page was removed (deleted or renamed away)
+    if (hadPage && !hasPage) router.go(getParentUrl(router.route.path));
+    // A real page appeared where a directory index was shown
+    if (!hadPage && hasPage) router.go(router.route.path);
   });
 
   import.meta.hot.accept('${SEARCH_INDEX_ID}', (m) => {
