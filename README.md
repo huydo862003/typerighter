@@ -29,7 +29,7 @@ npm install typerighter
 
 ## Design Documentation
 
-The compiler design is researched and documented in the [dboxide](https://github.com/Huy-DNA/dboxide) repo. See the [design docs](https://github.com/Huy-DNA/dboxide/tree/main/doc/src/design) for details on the syntax, type system, and incremental compilation engine.
+The compiler design is researched and documented in the [dboxide](https://github.com/huydo862003/dboxide) repo. See the [design docs](https://github.com/huydo862003/dboxide/tree/main/doc/src/design) for details on the syntax, type system, and incremental compilation engine.
 
 The tree-sitter grammar research is documented in the [loupe](https://github.com/huydo862003/loupe) repo.
 
