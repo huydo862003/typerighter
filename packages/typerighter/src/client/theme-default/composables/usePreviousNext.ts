@@ -5,7 +5,7 @@ import {
   useSiteData, useRoute, useSiteConfig,
 } from '../../app';
 import {
-  getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdResourceTitle, isIndexFile, unslugify,
+  getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdIndexTitle, getTdResourceTitle, isIndexFile, unslugify,
   type ContentTree, type ContentTreeNode, type ContentSummary,
 } from '@/shared';
 
@@ -22,11 +22,11 @@ export function usePreviousNext (): {
   const siteData = useSiteData();
   const route = useRoute();
   const {
-    withBase,
+    withBase, title: siteTitle,
   } = useSiteConfig();
 
   const result = computed(() => {
-    const siblings = findSiblings(siteData.value.contentTree, route.path);
+    const siblings = findSiblings(siteData.value.contentTree, route.path, siteTitle);
 
     if (siblings === undefined) return {};
 
@@ -69,7 +69,7 @@ interface SiblingGroup {
 }
 
 // Find all sibling pages in the same directory as the current route
-function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | undefined {
+function findSiblings (tree: ContentTree, currentUrl: string, siteTitle: string): SiblingGroup | undefined {
   if (tree.entries.some((entry) => entry.kind === 'file' && getTdContentUrl(entry.item.filepath) === currentUrl)) {
     const pages: PreviousNextLink[] = [];
     const rootIndexEntry = tree.entries.find(
@@ -77,7 +77,7 @@ function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | un
     );
 
     if (rootIndexEntry && rootIndexEntry.kind === 'file') {
-      pages.push(getItemLink(rootIndexEntry.item));
+      pages.push(getItemLink(rootIndexEntry.item, siteTitle));
     }
 
     for (const entry of tree.entries) {
@@ -97,7 +97,7 @@ function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | un
   for (const entry of tree.entries) {
     if (entry.kind !== 'dir') continue;
 
-    const found = findSiblingsInNode(entry.node, currentUrl, '');
+    const found = findSiblingsInNode(entry.node, currentUrl, '', siteTitle);
 
     if (found !== undefined) return found;
   }
@@ -105,7 +105,7 @@ function findSiblings (tree: ContentTree, currentUrl: string): SiblingGroup | un
   return undefined;
 }
 
-function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefix: string): SiblingGroup | undefined {
+function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefix: string, siteTitle: string): SiblingGroup | undefined {
   const directoryUrl = getDirectoryUrl(urlPrefix, node.name);
   const isDirectChild = node.entries.some(
     (entry) => entry.kind === 'file' && getTdContentUrl(entry.item.filepath) === currentUrl,
@@ -138,7 +138,7 @@ function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefi
   for (const entry of node.entries) {
     if (entry.kind !== 'dir') continue;
 
-    const found = findSiblingsInNode(entry.node, currentUrl, directoryUrl);
+    const found = findSiblingsInNode(entry.node, currentUrl, directoryUrl, siteTitle);
 
     if (found !== undefined) return found;
   }
@@ -146,10 +146,16 @@ function findSiblingsInNode (node: ContentTreeNode, currentUrl: string, urlPrefi
   return undefined;
 }
 
-function getItemLink (item: ContentSummary): PreviousNextLink {
+function getItemLink (item: ContentSummary, siteTitle?: string): PreviousNextLink {
+  const title = item.label !== undefined
+    ? item.label
+    : siteTitle !== undefined
+      ? getTdIndexTitle(item.filepath, siteTitle)
+      : getTdResourceTitle(item.filepath);
+
   return {
     url: getTdContentUrl(item.filepath),
-    title: getTdResourceTitle(item.filepath, item.label),
+    title,
   };
 }
 
@@ -159,6 +165,6 @@ function getNodeIndexLink (node: ContentTreeNode, urlPrefix: string): PreviousNe
 
   return {
     url: indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl(directoryUrl),
-    title: unslugify(node.name),
+    title: indexItem ? getTdResourceTitle(indexItem.filepath, indexItem.label) : unslugify(node.name),
   };
 }
