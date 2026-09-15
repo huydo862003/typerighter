@@ -1,3 +1,10 @@
+## [0.32.6] - 2026-09-15
+
+### Fixes
+
+* crates/typedown-lang
+  -  Hash enum discriminant in StableHash for TdTypeEnum and TdObjectEnum
+
 ## [0.32.5] - 2026-09-15
 
 ### Fixes
