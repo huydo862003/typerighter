@@ -1,3 +1,13 @@
+## [0.32.7] - 2026-09-15
+
+### Fixed
+
+* packages/typerighter
+  - Resizable mobile drawer with shared sidebar width
+  - Wider default sidebar (272px to 300px)
+  - Overscroll padding on sidebar for scrolling past last item
+  - Resize handle clamped to 85vw on small screens
+
 ## [0.32.6] - 2026-09-15
 
 ### Fixes
