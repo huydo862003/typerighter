@@ -41,7 +41,6 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     emitCssAssets({
-      'fonts.css': 'src/client/theme-default/styles/fonts.css',
       'math.css': 'src/client/theme-default/styles/math.css',
     }),
   ],

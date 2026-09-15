@@ -66,7 +66,6 @@ export function generate (options: AppEntryOptions): string {
 
   return `
 import 'typerighter/style.css';
-import 'typerighter/fonts.css';
 import('typerighter/math.css');
 import { createTypedownApp } from 'typerighter/client';
 import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';

@@ -18,6 +18,8 @@ export function formatAbsoluteTime (epochSecs: number): string {
 }
 
 export function formatEditTime (epochSecs: number, prefix: string): string {
+  if (typeof window === 'undefined') return '';
+
   const delta = Math.floor(Date.now() / 1000) - epochSecs;
 
   if (delta < TWO_WEEKS) return `${prefix} ${formatRelativeTime(epochSecs)}`;
@@ -26,6 +28,9 @@ export function formatEditTime (epochSecs: number, prefix: string): string {
 }
 
 export function formatRelativeTime (epochSecs: number): string {
+  // Skip during SSR to avoid stale pre-rendered timestamps
+  if (typeof window === 'undefined') return '';
+
   const delta = Math.floor(Date.now() / 1000) - epochSecs;
 
   if (delta < MINUTE) return 'just now';
