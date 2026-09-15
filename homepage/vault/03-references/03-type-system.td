@@ -1,3 +1,6 @@
+---
+---
+
 Type expressions appear in schema property definitions under the `type` key. Types are inferred for resource files, so explicit type annotations are only needed in schemas.
 
 ## Primitive types

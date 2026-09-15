@@ -1,3 +1,6 @@
+---
+---
+
 The markdown body is everything after the closing `---`. It supports standard markdown with Typedown extensions.
 
 ## Headings

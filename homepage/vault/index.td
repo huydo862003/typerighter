@@ -27,6 +27,8 @@ Typedown draws from Notion's relational databases, Obsidian's linked vault model
 
 ## What it looks like
 
+Every document starts with a schema that declares its shape, and a content file that fills in the data.
+
 A schema defines the shape of a node:
 
 ```yaml
@@ -77,6 +79,8 @@ Assigned to ${self.assignee.name}.
 
 ## What you get
 
+Here is what Typedown gives you across the language, editor, and build pipeline.
+
 **Language**
 
 - Typed frontmatter with schemas, inheritance, and nullable fields
@@ -119,7 +123,6 @@ typerighter build
 
 ## Learn more
 
-- [Getting started](01-getting-started): install Typedown, create a project, and write your first file
-- [Editors](02-editors): set up Neovim, VS Code, or Zed
-- [Concepts](03-concepts/index): understand the vault, documents, schemas, expressions, and references
-- [Reference](04-references/index): look up exact syntax for frontmatter, markdown, types, and the CLI
+- [Getting started](01-getting-started): install Typedown, create a project, set up your editor, and write your first file
+- [Guide](02-guide/index): understand vaults, documents, schemas, expressions, and references
+- [Reference](03-references/index): look up exact syntax for frontmatter, markdown, types, icons, and the CLI
