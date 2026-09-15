@@ -78,6 +78,9 @@
   /* Letter spacing */
   --tracking-td-tight: -0.02em;
   --tracking-td-wide: 0.1em;
+
+  /* Easing */
+  --ease-td-snappy: cubic-bezier(.25, 1, .30, 1);
 }
 
 :root {
@@ -125,6 +128,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
+}
+
+/* Collapsible container using CSS grid rows trick */
+.td-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 150ms var(--ease-td-snappy);
+}
+
+.td-collapse.is-collapsed {
+  grid-template-rows: 0fr;
+}
+
+.td-collapse > * {
+  overflow: hidden;
 }
 
 ::selection {

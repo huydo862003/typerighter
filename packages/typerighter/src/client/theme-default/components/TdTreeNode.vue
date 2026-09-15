@@ -141,55 +141,59 @@ function toggle () {
       <span class="td-tree-count">{{ totalCount }}</span>
     </div>
     <div
-      v-if="!collapsed"
-      class="td-tree-children"
+      class="td-collapse td-tree-children"
+      :class="{
+        'is-collapsed': collapsed,
+      }"
     >
-      <template
-        v-for="entry in visibleEntries"
-        :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
-      >
-        <TdTreeNode
-          v-if="entry.kind === 'dir'"
-          :node="entry.node"
-          :url-prefix="directoryUrl"
-        />
-        <a
-          v-else
-          :href="withBase(getTdContentUrl(entry.item.filepath))"
-          class="td-tree-link"
-          :class="{
-            'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
-          }"
+      <div>
+        <template
+          v-for="entry in visibleEntries"
+          :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
         >
-          <component
-            :is="getPageIcon(entry.item.icon.name)!"
-            v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
-            :size="14"
-            class="td-tree-file-icon"
+          <TdTreeNode
+            v-if="entry.kind === 'dir'"
+            :node="entry.node"
+            :url-prefix="directoryUrl"
           />
-          <File
+          <a
             v-else
-            :size="14"
-            class="td-tree-file-icon"
-          />
-          <TdTooltip
-            class="td-tree-link-text"
-            :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
-          ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
-          <span
-            v-if="entry.item.metadata"
-            class="td-tree-time"
-          >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
-        </a>
-      </template>
-      <button
-        v-if="hiddenCount > 0 && !showAll"
-        class="td-tree-more"
-        type="button"
-        @click="expandAll"
-      >
-        {{ hiddenCount }} more...
-      </button>
+            :href="withBase(getTdContentUrl(entry.item.filepath))"
+            class="td-tree-link"
+            :class="{
+              'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
+            }"
+          >
+            <component
+              :is="getPageIcon(entry.item.icon.name)!"
+              v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+              :size="14"
+              class="td-tree-file-icon"
+            />
+            <File
+              v-else
+              :size="14"
+              class="td-tree-file-icon"
+            />
+            <TdTooltip
+              class="td-tree-link-text"
+              :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
+            ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
+            <span
+              v-if="entry.item.metadata"
+              class="td-tree-time"
+            >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+          </a>
+        </template>
+        <button
+          v-if="hiddenCount > 0 && !showAll"
+          class="td-tree-more"
+          type="button"
+          @click="expandAll"
+        >
+          {{ hiddenCount }} more...
+        </button>
+      </div>
     </div>
   </div>
 </template>

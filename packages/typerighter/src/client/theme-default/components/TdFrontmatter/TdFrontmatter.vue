@@ -115,29 +115,36 @@ function toggleRail () {
         }"
       />
     </button>
-    <div v-if="!railCollapsed">
-      <div
-        v-for="[
-          key,
-          definition,
-        ] in entries"
-        :key="key"
-        class="td-fm-rail-row"
-      >
-        <span class="td-fm-rail-key">
-          <component
-            :is="getWidgetIcon(definition.widget)"
-            :size="12"
-            class="td-fm-icon"
-          />
-          {{ unslugify(key) }}
-        </span>
-        <span class="td-fm-rail-value">
-          <TdFrontmatterValue
-            :definition="definition"
-            :value="frontmatter[key]"
-          />
-        </span>
+    <div
+      class="td-collapse"
+      :class="{
+        'is-collapsed': railCollapsed,
+      }"
+    >
+      <div>
+        <div
+          v-for="[
+            key,
+            definition,
+          ] in entries"
+          :key="key"
+          class="td-fm-rail-row"
+        >
+          <span class="td-fm-rail-key">
+            <component
+              :is="getWidgetIcon(definition.widget)"
+              :size="12"
+              class="td-fm-icon"
+            />
+            {{ unslugify(key) }}
+          </span>
+          <span class="td-fm-rail-value">
+            <TdFrontmatterValue
+              :definition="definition"
+              :value="frontmatter[key]"
+            />
+          </span>
+        </div>
       </div>
     </div>
   </div>
@@ -166,31 +173,35 @@ function toggleRail () {
       </span>
     </button>
     <div
-      v-if="!collapsed"
-      class="td-fm-box-body"
+      class="td-collapse"
+      :class="{
+        'is-collapsed': collapsed,
+      }"
     >
-      <template
-        v-for="[
-          key,
-          definition,
-        ] in entries"
-        :key="key"
-      >
-        <span class="td-fm-box-key">
-          <component
-            :is="getWidgetIcon(definition.widget)"
-            :size="12"
-            class="td-fm-icon"
-          />
-          {{ unslugify(key) }}
-        </span>
-        <span class="td-fm-box-value">
-          <TdFrontmatterValue
-            :definition="definition"
-            :value="frontmatter[key]"
-          />
-        </span>
-      </template>
+      <div class="td-fm-box-body">
+        <template
+          v-for="[
+            key,
+            definition,
+          ] in entries"
+          :key="key"
+        >
+          <span class="td-fm-box-key">
+            <component
+              :is="getWidgetIcon(definition.widget)"
+              :size="12"
+              class="td-fm-icon"
+            />
+            {{ unslugify(key) }}
+          </span>
+          <span class="td-fm-box-value">
+            <TdFrontmatterValue
+              :definition="definition"
+              :value="frontmatter[key]"
+            />
+          </span>
+        </template>
+      </div>
     </div>
   </div>
 </template>
