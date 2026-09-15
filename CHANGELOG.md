@@ -1,3 +1,13 @@
+## [0.32.1] - 2026-09-15
+
+### Fixes
+
+* crates/typedown-server
+  - Invalidate diagnostics for typedown.yaml when it changes
+
+* packages/typerighter
+  - Allows scrolling into and cycling through search results
+
 ## [0.32.0] - 2026-09-15
 
 ### Feat
