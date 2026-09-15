@@ -87,10 +87,10 @@
   --td-header-height: 56px;
 
   /* Motion durations */
-  --t-hover: 150ms;
-  --t-move: 200ms;
-  --t-open: 240ms;
-  --t-drawer: 260ms;
+  --duration-td-fast: 150ms;
+  --duration-td-move: 200ms;
+  --duration-td-open: 240ms;
+  --duration-td-drawer: 260ms;
 }
 
 .dark {
@@ -136,7 +136,7 @@ body {
 .td-collapse {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  transition: grid-template-rows var(--t-open) var(--ease-td-out-quart);
+  transition: grid-template-rows var(--duration-td-open) var(--ease-td-out-quart);
 }
 
 .td-collapse.is-collapsed {

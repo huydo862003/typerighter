@@ -289,15 +289,20 @@ function toggle () {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 5px 10px 5px 10px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
   text-decoration: none;
-  transition: background-color 0.1s, border-left-color 0.1s, color 0.1s;
+  transition:
+    background-color var(--duration-td-fast) var(--ease-td-out-quart),
+    padding var(--duration-td-fast) var(--ease-td-out-quart),
+    color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-link:hover {
   background-color: var(--color-td-hov);
+  color: var(--color-td-ink);
+  padding-left: 13px;
 }
 
 .td-tree-link-text {
@@ -309,7 +314,7 @@ function toggle () {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-line);
+  color: var(--color-td-ink-4);
 }
 
 .td-tree-link.is-active {

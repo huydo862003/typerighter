@@ -262,14 +262,26 @@ defineExpose({
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--color-td-accent) 12%, transparent);
+  border: 1px solid var(--color-td-line);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--color-td-accent) 5%, transparent);
-  transition: border-color 0.15s;
+  background: var(--color-td-pg);
+  transition:
+    border-color var(--duration-td-fast) var(--ease-td-out-quart),
+    background var(--duration-td-fast) var(--ease-td-out-quart),
+    transform var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
+.td-search-input-wrap:hover {
+  border-color: var(--color-td-ink-4);
+  background: var(--color-td-hov);
+}
+
+.td-search-input-wrap:active {
+  transform: scale(0.985);
 }
 
 .td-search-input-wrap:focus-within {
-  border-color: color-mix(in srgb, var(--color-td-accent) 30%, transparent);
+  border-color: var(--color-td-accent);
 }
 
 .td-search-input-wrap:focus-within .td-search-kbd {

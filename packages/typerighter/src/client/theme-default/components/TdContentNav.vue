@@ -103,16 +103,21 @@ function isCurrent (href: string): boolean {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 20px;
+  padding: 5px 17px 5px 17px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
   text-decoration: none;
   border-left: 3px solid transparent;
-  transition: background-color 0.1s;
+  transition:
+    background-color var(--duration-td-fast) var(--ease-td-out-quart),
+    padding var(--duration-td-fast) var(--ease-td-out-quart),
+    color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-root-link:hover {
   background-color: var(--color-td-hov);
+  color: var(--color-td-ink);
+  padding-left: 20px;
 }
 
 .td-root-link.is-active {
@@ -133,7 +138,7 @@ function isCurrent (href: string): boolean {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-line);
+  color: var(--color-td-ink-4);
 }
 
 .td-root-link-icon {

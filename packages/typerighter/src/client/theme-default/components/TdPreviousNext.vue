@@ -17,98 +17,94 @@ const {
     class="td-prevnext"
     aria-label="Page navigation"
   >
-    <div class="td-prevnext-row">
-      <a
-        v-if="previous"
-        :href="previous.url"
-        class="td-prevnext-link is-previous"
-      >
-        <span class="td-prevnext-label">
-          <ChevronLeft
-            :size="16"
-            class="td-prevnext-chevron"
-          />
-          {{ groupName ? `Previous in ${groupName}` : 'Previous' }}
-        </span>
-        <span class="td-prevnext-title">{{ previous.title }}</span>
-      </a>
-      <span
-        v-else
-        class="td-prevnext-spacer"
-      />
-      <a
-        v-if="next"
-        :href="next.url"
-        class="td-prevnext-link is-next"
-      >
-        <span class="td-prevnext-label">
-          {{ groupName ? `Next in ${groupName}` : 'Next' }}
-          <ChevronRight
-            :size="16"
-            class="td-prevnext-chevron"
-          />
-        </span>
-        <span class="td-prevnext-title">{{ next.title }}</span>
-      </a>
-      <span
-        v-else
-        class="td-prevnext-spacer"
-      />
-    </div>
+    <a
+      v-if="previous"
+      :href="previous.url"
+      class="td-prevnext-link is-previous"
+    >
+      <span class="td-prevnext-label">
+        <ChevronLeft
+          :size="14"
+          class="td-prevnext-chevron"
+        />
+        {{ groupName ? `Previous in ${groupName}` : 'Previous' }}
+      </span>
+      <span class="td-prevnext-title">{{ previous.title }}</span>
+    </a>
+    <span
+      v-else
+      class="td-prevnext-spacer"
+    />
+    <a
+      v-if="next"
+      :href="next.url"
+      class="td-prevnext-link is-next"
+    >
+      <span class="td-prevnext-label">
+        {{ groupName ? `Next in ${groupName}` : 'Next' }}
+        <ChevronRight
+          :size="14"
+          class="td-prevnext-chevron"
+        />
+      </span>
+      <span class="td-prevnext-title">{{ next.title }}</span>
+    </a>
+    <span
+      v-else
+      class="td-prevnext-spacer"
+    />
   </nav>
 </template>
 
 <style scoped>
-.td-prevnext {
-  margin-top: 38px;
-  border-top: 1px solid var(--color-td-line-soft);
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+@reference "tailwindcss";
 
-.td-prevnext-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 28px;
+.td-prevnext {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 64px;
+  padding-top: 28px;
+  border-top: 1px solid var(--color-td-line);
 }
 
 .td-prevnext-link {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-td-line);
+  border-radius: theme(--radius-td-lg);
   text-decoration: none;
-  max-width: 46%;
+  transition:
+    border-color var(--duration-td-move) var(--ease-td-out-quart),
+    background var(--duration-td-move) var(--ease-td-out-quart),
+    transform var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-prevnext-link:hover {
-  text-decoration: none;
+  border-color: var(--color-td-accent);
+  background: var(--color-td-sel);
+  transform: translateY(-1px);
 }
 
 .td-prevnext-link.is-next {
   text-align: right;
-  margin-left: auto;
 }
 
 .td-prevnext-spacer {
-  flex: 1;
+  /* Empty cell keeps grid columns even */
 }
 
 .td-prevnext-label {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-td-2xs);
-  font-weight: 500;
+  font-size: 10.5px;
+  font-weight: 600;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-ink-4);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .td-prevnext-link.is-next .td-prevnext-label {
@@ -120,33 +116,15 @@ const {
 }
 
 .td-prevnext-title {
-  font-size: var(--font-size-td-base);
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--color-td-accent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.td-prevnext-link:hover .td-prevnext-title {
-  color: var(--color-td-accent-hi);
-  text-decoration: underline;
-}
-
-/* Mobile: stacked full-width cards */
+/* Mobile: stacked full-width */
 @media (width < 56.25rem) {
-  .td-prevnext-row {
-    flex-direction: column;
-    gap: 13px;
-  }
-
-  .td-prevnext-link {
-    max-width: 100%;
-    width: 100%;
-    padding: 13px 14px;
-    border: 1px solid var(--color-td-line-soft);
-    border-radius: 6px;
-    background: var(--color-td-pg);
+  .td-prevnext {
+    grid-template-columns: 1fr;
   }
 
   .td-prevnext-link.is-next {

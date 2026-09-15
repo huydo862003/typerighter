@@ -82,21 +82,24 @@ const activeTocId = isStatic
   display: block;
   padding: 5px 0 5px 12px;
   margin-left: -2px;
-  font-size: var(--font-size-td-xs);
+  font-size: 13px;
   color: var(--color-td-ink-3);
   text-decoration: none;
-  border-left: 2px solid transparent;
-  transition: color 0.15s;
+  border-left: 2px solid var(--color-td-line);
+  transition:
+    color var(--duration-td-fast) var(--ease-td-out-quart),
+    border-left-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-toc-link:hover {
-  color: var(--color-td-accent);
+  color: var(--color-td-ink);
+  border-left-color: var(--color-td-ink-4);
 }
 
 .td-toc-link.is-active {
   color: var(--color-td-accent);
   border-left-color: var(--color-td-accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .td-toc-indent-1 {

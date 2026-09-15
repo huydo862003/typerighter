@@ -248,12 +248,16 @@ function shrinkSidebar () {
 
     <div
       class="td-drawer-scrim"
-      :class="{ 'is-open': isOpen }"
+      :class="{
+        'is-open': isOpen,
+      }"
       @click="closeMenu"
     />
     <aside
       class="td-drawer"
-      :class="{ 'is-open': isOpen }"
+      :class="{
+        'is-open': isOpen,
+      }"
     >
       <header class="td-drawer-header">
         <a
@@ -266,7 +270,6 @@ function shrinkSidebar () {
           }}</span>
         </a>
         <TdButton
-          class="td-drawer-close"
           label="Close menu"
           @click="closeMenu"
         >
@@ -600,7 +603,7 @@ function shrinkSidebar () {
   overflow-y: auto;
   overscroll-behavior: contain;
   transform: translateX(-100%);
-  transition: transform var(--t-drawer) var(--ease-td-out-quart);
+  transition: transform var(--duration-td-drawer) var(--ease-td-out-quart);
 }
 
 .td-drawer.is-open {
@@ -616,12 +619,6 @@ function shrinkSidebar () {
   border-bottom: 1px solid var(--color-td-line);
   background: var(--color-td-surf);
   flex-shrink: 0;
-}
-
-.td-drawer-close {
-  width: 36px;
-  height: 36px;
-  color: var(--color-td-ink-4);
 }
 
 /* Inline frontmatter and TOC hidden at desktop */
