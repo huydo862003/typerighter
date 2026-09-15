@@ -7,6 +7,8 @@ use threadpool::ThreadPool;
 use typedown_incremental::Cancelled;
 use typedown_lang::db::utils::is_type_file;
 
+use crate::core::utils::fs::is_vault_config;
+
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
   DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
@@ -291,9 +293,9 @@ impl Server {
       // didOpen: Full project diagnostics so cross-file errors show immediately
       self.send_diagnostics_with_snapshot(analysis, None);
     } else if method == DidChangeTextDocument::METHOD {
-      // didChange: Full diagnostics for schema files (affects all referencing content files), single-file diagnostics for content files for responsiveness
-      let is_schema = is_type_file(&path);
-      self.send_diagnostics_with_snapshot(analysis, if is_schema { None } else { Some(path) });
+      // didChange: Full diagnostics for schema and config files (affect the whole project), single-file for content files
+      let needs_full = is_type_file(&path) || is_vault_config(&path);
+      self.send_diagnostics_with_snapshot(analysis, if needs_full { None } else { Some(path) });
     }
     // didClose: No diagnostics needed
 
