@@ -105,20 +105,20 @@ function isCurrent (href: string): boolean {
   gap: 6px;
   padding: 5px 20px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   border-left: 3px solid transparent;
   transition: background-color 0.1s;
 }
 
 .td-root-link:hover {
-  background-color: var(--color-td-neutral-bg-hover);
+  background-color: var(--color-td-hov);
 }
 
 .td-root-link.is-active {
-  background-color: var(--color-td-primary-bg-hover);
-  border-left-color: var(--color-td-primary-solid);
-  color: var(--color-td-primary-solid);
+  background-color: var(--color-td-sel);
+  border-left-color: var(--color-td-accent);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 
@@ -133,11 +133,11 @@ function isCurrent (href: string): boolean {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border);
+  color: var(--color-td-line);
 }
 
 .td-root-link-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 </style>

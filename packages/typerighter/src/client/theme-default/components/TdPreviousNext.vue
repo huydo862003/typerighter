@@ -61,7 +61,7 @@ const {
 <style scoped>
 .td-prevnext {
   margin-top: 38px;
-  border-top: 1px solid var(--color-td-neutral-border-subtle);
+  border-top: 1px solid var(--color-td-line-soft);
   padding-top: 16px;
   display: flex;
   flex-direction: column;
@@ -105,7 +105,7 @@ const {
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -122,14 +122,14 @@ const {
 .td-prevnext-title {
   font-size: var(--font-size-td-base);
   font-weight: 800;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .td-prevnext-link:hover .td-prevnext-title {
-  color: var(--color-td-primary-solid-hover);
+  color: var(--color-td-accent-hi);
   text-decoration: underline;
 }
 
@@ -144,9 +144,9 @@ const {
     max-width: 100%;
     width: 100%;
     padding: 13px 14px;
-    border: 1px solid var(--color-td-neutral-border-subtle);
+    border: 1px solid var(--color-td-line-soft);
     border-radius: 6px;
-    background: var(--color-td-neutral-bg);
+    background: var(--color-td-pg);
   }
 
   .td-prevnext-link.is-next {

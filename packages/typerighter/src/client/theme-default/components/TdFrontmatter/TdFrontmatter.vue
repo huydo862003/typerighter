@@ -232,11 +232,11 @@ function toggleRail () {
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-rail-caret {
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   transition: transform 0.15s;
 }
 
@@ -256,7 +256,7 @@ function toggleRail () {
   align-items: center;
   gap: 4px;
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-rail-value {
@@ -271,9 +271,9 @@ function toggleRail () {
 
 .td-fm-box {
   margin: 14px 0 0;
-  border: 1px solid var(--color-td-neutral-border-subtle);
+  border: 1px solid var(--color-td-line-soft);
   border-radius: 6px;
-  background: var(--color-td-neutral-bg);
+  background: var(--color-td-pg);
   overflow: hidden;
 }
 
@@ -294,11 +294,11 @@ function toggleRail () {
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-box-count {
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-box-toggle {
@@ -307,7 +307,7 @@ function toggleRail () {
   gap: 2px;
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-fm-box-body {
@@ -317,7 +317,7 @@ function toggleRail () {
   column-gap: 24px;
   align-items: start;
   padding: 14px;
-  border-top: 1px solid var(--color-td-neutral-border-subtle);
+  border-top: 1px solid var(--color-td-line-soft);
   font-size: var(--font-size-td-xs);
 }
 
@@ -325,12 +325,12 @@ function toggleRail () {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-box-value {

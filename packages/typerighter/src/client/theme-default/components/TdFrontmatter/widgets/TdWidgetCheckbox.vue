@@ -33,10 +33,10 @@ const {
 }
 
 .td-widget-checkbox-icon {
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-widget-checkbox-icon.is-checked {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 </style>

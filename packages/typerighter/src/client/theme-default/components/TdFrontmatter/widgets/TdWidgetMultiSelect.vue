@@ -55,11 +55,11 @@ function toggle () {
   border: none;
   cursor: pointer;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   padding: 2px 0;
 }
 
 .td-widget-more:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 </style>

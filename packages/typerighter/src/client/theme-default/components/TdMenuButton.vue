@@ -14,7 +14,7 @@ const {
 
 <template>
   <TdButton
-    class="td-menu-button w-9 h-9 text-td-neutral-fg-muted group"
+    class="td-menu-button w-9 h-9 text-td-ink-4 group"
     :label="isOpen ? 'Close menu' : 'Open menu'"
     :aria-expanded="isOpen"
     @click="toggle"
@@ -22,12 +22,12 @@ const {
     <X
       v-if="isOpen"
       :size="20"
-      class="group-hover:text-td-primary-solid transition-colors"
+      class="group-hover:text-td-accent transition-colors"
     />
     <Menu
       v-else
       :size="20"
-      class="group-hover:text-td-primary-solid transition-colors"
+      class="group-hover:text-td-accent transition-colors"
     />
   </TdButton>
 </template>

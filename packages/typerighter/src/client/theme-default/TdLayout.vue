@@ -247,30 +247,31 @@ function shrinkSidebar () {
     </header>
 
     <div
-      class="td-menu-overlay"
-      :class="{
-        'is-open': isOpen,
-      }"
+      class="td-drawer-scrim"
+      :class="{ 'is-open': isOpen }"
+      @click="closeMenu"
+    />
+    <aside
+      class="td-drawer"
+      :class="{ 'is-open': isOpen }"
     >
-      <header class="td-menu-header">
-        <div class="td-header-left">
-          <TdButton
-            class="w-9 h-9 text-td-neutral-fg-muted hover:text-td-primary-solid"
-            label="Close menu"
-            @click="closeMenu"
-          >
-            <X :size="20" />
-          </TdButton>
-          <a
-            :href="withBase(getIndexUrl('/'))"
-            class="td-brand"
-          >
-            <TdBrandIcon />
-            <span class="td-brand-name">{{
-              siteConfig.title || "Typedown"
-            }}</span>
-          </a>
-        </div>
+      <header class="td-drawer-header">
+        <a
+          :href="withBase(getIndexUrl('/'))"
+          class="td-brand"
+        >
+          <TdBrandIcon />
+          <span class="td-brand-name">{{
+            siteConfig.title || "Typedown"
+          }}</span>
+        </a>
+        <TdButton
+          class="td-drawer-close"
+          label="Close menu"
+          @click="closeMenu"
+        >
+          <X :size="20" />
+        </TdButton>
       </header>
       <TdHeaderNavMenu />
       <TdSiteSearch
@@ -290,7 +291,7 @@ function shrinkSidebar () {
           :tree="siteData.contentTree"
         />
       </nav>
-    </div>
+    </aside>
 
     <div class="td-page">
       <nav
@@ -393,7 +394,7 @@ function shrinkSidebar () {
   left: 16px;
   z-index: 50;
   padding: 8px 16px;
-  background: var(--color-td-primary-solid);
+  background: var(--color-td-accent);
   color: white;
   border-radius: 4px;
   font-size: var(--font-size-td-sm);
@@ -412,8 +413,8 @@ function shrinkSidebar () {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid var(--color-td-neutral-border);
-  background: var(--color-td-neutral-bg-subtle);
+  border-bottom: 1px solid var(--color-td-line);
+  background: var(--color-td-surf);
   position: sticky;
   top: 0;
   z-index: 40;
@@ -438,12 +439,12 @@ function shrinkSidebar () {
   width: 36px;
   height: 36px;
   border-radius: 6px;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   transition: color 0.2s;
 }
 
 .td-header-icon-link:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-header-breadcrumb {
@@ -456,13 +457,13 @@ function shrinkSidebar () {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .td-brand:hover {
-  color: var(--color-td-primary-solid-hover);
+  color: var(--color-td-accent-hi);
 }
 
 .td-brand-name {
@@ -502,27 +503,29 @@ function shrinkSidebar () {
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   margin-bottom: 6px;
 }
 
 .td-page-icon {
   margin-bottom: 8px;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-page-title {
   font-family: var(--font-sans);
-  font-weight: 800;
-  font-size: var(--font-size-td-3xl);
+  font-weight: 600;
+  font-size: var(--font-size-td-lg);
   line-height: var(--leading-td-tight);
   letter-spacing: var(--tracking-td-tight);
+  font-variation-settings: "opsz" 28;
+  color: var(--color-td-ink);
   margin: 0 0 8px 0;
 }
 
 .td-page-meta {
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
   margin-bottom: 8px;
 }
 
@@ -561,36 +564,64 @@ function shrinkSidebar () {
 
 .td-sidebar-resize:hover,
 .td-sidebar-resize:active {
-  background: var(--color-td-primary-solid);
+  background: var(--color-td-accent);
   opacity: 0.3;
 }
 
-/* Menu overlay: full-screen with own header */
+/* Drawer: sliding sidebar panel with backdrop scrim */
 
-.td-menu-overlay {
-  display: none;
+.td-drawer-scrim {
   position: fixed;
   inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-td-out-quart);
+}
+
+.td-drawer-scrim.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.td-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
   z-index: 50;
-  background: var(--color-td-neutral-bg);
+  width: var(--td-sidebar-width);
+  max-width: 85vw;
+  background: var(--color-td-pg);
+  border-right: 1px solid var(--color-td-line);
+  display: flex;
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
+  transform: translateX(-100%);
+  transition: transform var(--t-drawer) var(--ease-td-out-quart);
 }
 
-.td-menu-overlay.is-open {
-  display: flex;
+.td-drawer.is-open {
+  transform: translateX(0);
 }
 
-.td-menu-header {
+.td-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--td-header-height);
   padding: 0 16px;
-  border-bottom: 1px solid var(--color-td-neutral-border);
-  background: var(--color-td-neutral-bg-subtle);
+  border-bottom: 1px solid var(--color-td-line);
+  background: var(--color-td-surf);
   flex-shrink: 0;
+}
+
+.td-drawer-close {
+  width: 36px;
+  height: 36px;
+  color: var(--color-td-ink-4);
 }
 
 /* Inline frontmatter and TOC hidden at desktop */

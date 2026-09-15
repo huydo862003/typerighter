@@ -101,12 +101,12 @@ const keyMetas = computed((): KeyMeta[] =>
   min-width: 20px;
   height: 20px;
   padding: 0 4px;
-  border: 1px solid var(--color-td-neutral-border-subtle);
+  border: 1px solid var(--color-td-line-soft);
   border-radius: 4px;
-  background: var(--color-td-neutral-bg-subtle);
+  background: var(--color-td-surf);
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
   line-height: 1;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 </style>

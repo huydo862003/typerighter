@@ -79,25 +79,25 @@ const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value
   align-items: center;
   gap: 12px;
   padding: 11px 4px;
-  border-bottom: 1px solid var(--color-td-neutral-border-subtle);
+  border-bottom: 1px solid var(--color-td-line-soft);
   text-decoration: none;
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
   transition: background-color 0.1s;
 }
 
 .td-dir-row:hover {
-  background: var(--color-td-primary-bg-subtle);
+  background: var(--color-td-sel);
 }
 
 .td-dir-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-dir-parent {
   font-weight: 600;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-dir-name {
@@ -108,6 +108,6 @@ const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value
 .td-dir-count {
   margin-left: auto;
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 </style>

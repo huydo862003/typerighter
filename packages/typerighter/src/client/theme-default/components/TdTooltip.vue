@@ -145,7 +145,7 @@ function hide () {
   line-height: 1.4;
   color: var(--color-td-tooltip-fg);
   background: var(--color-td-tooltip-bg);
-  border: 1px solid var(--color-td-border);
+  border: 1px solid var(--color-td-line);
   border-radius: 6px;
   pointer-events: auto;
   word-break: break-word;

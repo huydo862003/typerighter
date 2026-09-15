@@ -63,7 +63,7 @@ const activeTocId = isStatic
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   margin-bottom: 9px;
 }
 
@@ -71,7 +71,7 @@ const activeTocId = isStatic
   list-style: none;
   padding: 0;
   margin: 0;
-  border-left: 2px solid var(--color-td-neutral-border-subtle);
+  border-left: 2px solid var(--color-td-line-soft);
 }
 
 .td-toc-list li {
@@ -83,19 +83,19 @@ const activeTocId = isStatic
   padding: 5px 0 5px 12px;
   margin-left: -2px;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   border-left: 2px solid transparent;
   transition: color 0.15s;
 }
 
 .td-toc-link:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-toc-link.is-active {
-  color: var(--color-td-primary-solid);
-  border-left-color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
+  border-left-color: var(--color-td-accent);
   font-weight: 600;
 }
 

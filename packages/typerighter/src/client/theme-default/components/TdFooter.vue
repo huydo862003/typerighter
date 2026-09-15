@@ -34,16 +34,16 @@ const year = new Date().getFullYear();
   gap: 1.25rem;
   flex-wrap: wrap;
   padding: 1.5rem 24px;
-  border-top: 1px solid var(--color-td-neutral-border);
-  background: var(--color-td-neutral-bg-subtle);
+  border-top: 1px solid var(--color-td-line);
+  background: var(--color-td-surf);
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-footer-link {
   font-weight: 500;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-footer-link:hover {

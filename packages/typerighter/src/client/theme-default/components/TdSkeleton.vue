@@ -46,7 +46,7 @@ const widths = [
 .td-skeleton-line {
   height: 12px;
   border-radius: 4px;
-  background: var(--color-td-neutral-bg-subtle);
+  background: var(--color-td-surf);
   animation: td-skeleton-pulse 1.5s ease-in-out infinite;
 }
 

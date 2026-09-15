@@ -23,7 +23,7 @@ const {
       The page you are looking for does not exist.
     </p>
     <a
-      class="inline-flex items-center mt-6 text-td-primary-solid text-td-sm font-extrabold tracking-td-tight hover:text-td-primary-solid-hover"
+      class="inline-flex items-center mt-6 text-td-accent text-td-sm font-extrabold tracking-td-tight hover:text-td-accent-hi"
       :href="withBase(getIndexUrl('/'))"
     >Go Home</a>
   </div>

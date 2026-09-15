@@ -207,7 +207,7 @@ function toggle () {
   font-size: var(--font-size-td-2xs);
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-tree-toggle {
@@ -227,7 +227,7 @@ function toggle () {
 }
 
 .td-tree-label:hover {
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
 }
 
 .td-tree-label-text {
@@ -244,24 +244,24 @@ function toggle () {
   justify-content: center;
   padding: 2px;
   border-radius: 4px;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   text-decoration: none;
   transition: color 0.1s;
 }
 
 .td-tree-index-btn:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-tree-index-btn.is-active {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-tree-count {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
   letter-spacing: normal;
   text-transform: none;
 }
@@ -277,12 +277,12 @@ function toggle () {
 
 .td-tree-children {
   margin-left: 22px;
-  border-left: 1px solid var(--color-td-neutral-border-subtle);
+  border-left: 1px solid var(--color-td-line-soft);
 }
 
 .td-tree-file-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-tree-link {
@@ -291,13 +291,13 @@ function toggle () {
   gap: 6px;
   padding: 5px 12px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   transition: background-color 0.1s, border-left-color 0.1s, color 0.1s;
 }
 
 .td-tree-link:hover {
-  background-color: var(--color-td-neutral-bg-hover);
+  background-color: var(--color-td-hov);
 }
 
 .td-tree-link-text {
@@ -309,13 +309,13 @@ function toggle () {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border);
+  color: var(--color-td-line);
 }
 
 .td-tree-link.is-active {
-  background-color: var(--color-td-primary-bg-hover);
-  border-left-color: var(--color-td-primary-solid);
-  color: var(--color-td-primary-solid);
+  background-color: var(--color-td-sel);
+  border-left-color: var(--color-td-accent);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 
@@ -325,12 +325,12 @@ function toggle () {
   border: none;
   cursor: pointer;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   padding: 5px 12px;
   transition: color 0.15s;
 }
 
 .td-tree-more:hover {
-  color: var(--color-td-primary-solid-hover);
+  color: var(--color-td-accent-hi);
 }
 </style>
