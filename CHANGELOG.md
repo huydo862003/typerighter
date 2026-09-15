@@ -1,3 +1,10 @@
+## [0.32.3] - 2026-09-15
+
+### Documentation
+
+* packages/typerighter
+  - Broken link in README
+
 ## [0.32.2] - 2026-09-15
 
 ### Perf
