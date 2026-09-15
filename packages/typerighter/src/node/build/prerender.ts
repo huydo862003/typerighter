@@ -31,48 +31,52 @@ export async function prerenderHtmlPages (context: PrerenderContext): Promise<vo
   const ssrModule = await import(context.ssrEntryPath);
   const { clientEntry, cssFiles, jsFiles } = await resolveClientAssets(context.clientOutDir);
 
-  // 2. Render all pages concurrently and write to disk
+  // 2. Render pages in batches to balance speed and memory
+  const BATCH_SIZE = 32;
   const totalPages = context.pagePaths.length;
   let renderedPages = 0;
 
-  await Promise.all(context.pagePaths.map(async (pagePath) => {
-    const result = await ssrModule.render(pagePath);
+  const cssLinks = cssFiles
+    .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
+    .join('\n');
 
-    const cssLinks = cssFiles
-      .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
-      .join('\n');
+  const modulePreloads = jsFiles
+    .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
+    .join('\n');
 
-    const modulePreloads = jsFiles
-      .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
-      .join('\n');
+  const headExtra = [cssLinks, modulePreloads].filter(Boolean).join('\n') || undefined;
 
-    const html = generateHtmlTemplate({
-      title: result.pageData.title,
-      description: result.pageData.frontmatter.description !== undefined
-        ? String(result.pageData.frontmatter.description)
-        : '',
-      siteTitle: context.siteTitle,
-      base: context.base,
-      entryScript: clientEntry,
-      canonicalUrl: context.base + pagePath.replace(/^\//, ''),
-      headExtra: [
-        cssLinks,
-        modulePreloads,
-      ].filter(Boolean).join('\n') || undefined,
-      appContent: result.html,
-    });
+  for (let i = 0; i < totalPages; i += BATCH_SIZE) {
+    const batch = context.pagePaths.slice(i, i + BATCH_SIZE);
 
-    const fileName = pagePath === '/'
-      ? 'index.html'
-      : `${pagePath.replace(/^\//, '')}.html`;
-    const filepath = path.join(context.outDir, fileName);
+    await Promise.all(batch.map(async (pagePath) => {
+      const result = await ssrModule.render(pagePath);
 
-    await fs.mkdir(path.dirname(filepath), { recursive: true });
-    await fs.writeFile(filepath, html);
+      const html = generateHtmlTemplate({
+        title: result.pageData.title,
+        description: result.pageData.frontmatter.description !== undefined
+          ? String(result.pageData.frontmatter.description)
+          : '',
+        siteTitle: context.siteTitle,
+        base: context.base,
+        entryScript: clientEntry,
+        canonicalUrl: context.base + pagePath.replace(/^\//, ''),
+        headExtra,
+        appContent: result.html,
+      });
 
-    renderedPages++;
-    context.progress?.update(renderedPages, totalPages);
-  }));
+      const fileName = pagePath === '/'
+        ? 'index.html'
+        : `${pagePath.replace(/^\//, '')}.html`;
+      const filepath = path.join(context.outDir, fileName);
+
+      await fs.mkdir(path.dirname(filepath), { recursive: true });
+      await fs.writeFile(filepath, html);
+
+      renderedPages++;
+      context.progress?.update(renderedPages, totalPages);
+    }));
+  }
 }
 
 // Read the Vite manifest to find the client entry and asset files
