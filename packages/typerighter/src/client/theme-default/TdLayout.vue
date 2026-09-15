@@ -145,7 +145,7 @@ useResizableTable();
 
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 500;
-const SIDEBAR_DEFAULT = 272;
+const SIDEBAR_DEFAULT = 300;
 const SIDEBAR_STORAGE_KEY = 'td-sidebar-width';
 
 const sidebarWidth = ref(
@@ -166,8 +166,9 @@ function onResizeStart (event: PointerEvent) {
   target.setPointerCapture(event.pointerId);
 
   function onMove (event: PointerEvent) {
+    const maxWidth = Math.min(SIDEBAR_MAX, window.innerWidth * 0.85);
     const width = Math.min(
-      SIDEBAR_MAX,
+      maxWidth,
       Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX),
     );
 
@@ -258,7 +259,12 @@ function shrinkSidebar () {
       :class="{
         'is-open': isOpen,
       }"
+      :style="{ width: `${sidebarWidth}px` }"
     >
+      <div
+        class="td-resize-handle"
+        @pointerdown.prevent="onResizeStart"
+      />
       <header class="td-drawer-header">
         <a
           :href="withBase(getIndexUrl('/'))"
@@ -317,7 +323,7 @@ function shrinkSidebar () {
           />
         </div>
         <div
-          class="td-sidebar-resize"
+          class="td-resize-handle"
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize sidebar"
@@ -555,10 +561,10 @@ function shrinkSidebar () {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding: 22px 0 60px;
+  padding: 22px 0 min(40vh, 300px);
 }
 
-.td-sidebar-resize {
+.td-resize-handle {
   position: absolute;
   top: 0;
   right: -2px;
@@ -568,8 +574,8 @@ function shrinkSidebar () {
   z-index: 10;
 }
 
-.td-sidebar-resize:hover,
-.td-sidebar-resize:active {
+.td-resize-handle:hover,
+.td-resize-handle:active {
   background: var(--color-td-accent);
   opacity: 0.3;
 }
@@ -597,8 +603,8 @@ function shrinkSidebar () {
   left: 0;
   bottom: 0;
   z-index: 50;
-  width: var(--td-sidebar-width);
-  max-width: 85vw;
+  width: 300px;
+  max-width: min(85vw, 500px);
   background: var(--color-td-pg);
   border-right: 1px solid var(--color-td-line);
   display: flex;
