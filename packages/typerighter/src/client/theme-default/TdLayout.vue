@@ -589,6 +589,7 @@ function shrinkSidebar () {
   height: var(--td-header-height);
   padding: 0 16px;
   border-bottom: 1px solid var(--color-td-neutral-border);
+  background: var(--color-td-neutral-bg-subtle);
   flex-shrink: 0;
 }
 
