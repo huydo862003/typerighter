@@ -243,6 +243,7 @@ impl typedown_incremental::StableHash for TdTypeEnum<'_> {
     db: &DB,
     hasher: &mut typedown_incremental::StableHasher,
   ) {
+    std::mem::discriminant(self).hash(hasher);
     match self {
       TdTypeEnum::TdTypeType(v) => v.stable_hash(db, hasher),
       TdTypeEnum::TdBoolType(v) => v.stable_hash(db, hasher),
@@ -277,6 +278,7 @@ impl typedown_incremental::StableHash for TdObjectEnum<'_> {
     db: &DB,
     hasher: &mut typedown_incremental::StableHasher,
   ) {
+    std::mem::discriminant(self).hash(hasher);
     match self {
       TdObjectEnum::TdTypeObj(v) => v.stable_hash(db, hasher),
       TdObjectEnum::TdBoolObj(v) => v.stable_hash(db, hasher),
