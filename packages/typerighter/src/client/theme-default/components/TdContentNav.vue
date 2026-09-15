@@ -8,6 +8,9 @@ import {
 import {
   useRoute, useSiteConfig,
 } from '../../app';
+import {
+  getPageIcon,
+} from '../utils/pageIcon';
 import TdTreeNode from './TdTreeNode.vue';
 import {
   formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, isIndexFile,
@@ -74,7 +77,14 @@ function isCurrent (href: string): boolean {
           'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
         }"
       >
+        <component
+          :is="getPageIcon(entry.item.icon.name)!"
+          v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+          :size="14"
+          class="td-root-link-icon"
+        />
         <File
+          v-else
           :size="14"
           class="td-root-link-icon"
         />
