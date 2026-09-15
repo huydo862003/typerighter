@@ -1,3 +1,10 @@
+## [0.32.4] - 2026-09-15
+
+### Fixes
+
+* packages/typerighter
+  - Nested checkbox formatting
+
 ## [0.32.3] - 2026-09-15
 
 ### Documentation
