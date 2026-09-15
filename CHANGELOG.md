@@ -1,3 +1,10 @@
+## [0.32.2] - 2026-09-15
+
+### Perf
+
+* packages/typerighter
+  - Avoid prerendering in parallel to prevent OOM on large vaults
+
 ## [0.32.1] - 2026-09-15
 
 ### Fixes
