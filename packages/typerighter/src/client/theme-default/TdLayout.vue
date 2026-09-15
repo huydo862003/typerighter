@@ -474,6 +474,9 @@ function shrinkSidebar () {
   font-weight: 800;
   font-size: var(--font-size-td-base);
   letter-spacing: var(--tracking-td-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Page grid */
