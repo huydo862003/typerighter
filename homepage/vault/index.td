@@ -142,11 +142,9 @@ typerighter build
 
 Typedown is under active development. Here is what is planned next.
 
-- **Dark mode for the generated site** with automatic system preference detection
-- **Search improvements** with fuzzy matching and field-scoped filters
-- **Computed collections** to query and filter across the vault (like Dataview)
+- **Graph queries and computed collections** to filter, sort, and aggregate across the vault
+- **Graph analysis** for knowledge notes: backlinks, orphan detection, cluster visualization
 - **Publish to VS Code Marketplace** and Zed extension registry
-- **Image optimization** with automatic resizing and format conversion
 - **Incremental builds** for faster production builds on large vaults
 
 See the [changelog](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md) for what shipped recently.
