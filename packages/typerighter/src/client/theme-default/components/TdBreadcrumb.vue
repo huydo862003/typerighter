@@ -167,7 +167,7 @@ watch(() => route.path, () => {
 .td-breadcrumb-link {
   color: var(--color-td-ink-4);
   text-decoration: none;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-breadcrumb-home {
@@ -193,7 +193,7 @@ watch(() => route.path, () => {
   color: var(--color-td-ink-4);
   padding: 2px 4px;
   border-radius: 4px;
-  transition: color 0.15s, background-color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart), background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-breadcrumb-ellipsis:hover {
@@ -208,7 +208,7 @@ watch(() => route.path, () => {
   color: var(--color-td-ink-3);
   text-decoration: none;
   border-radius: 4px;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-breadcrumb-dropdown-item:hover {

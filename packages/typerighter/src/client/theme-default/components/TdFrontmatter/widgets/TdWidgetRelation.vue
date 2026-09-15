@@ -134,7 +134,7 @@ const isExternal = computed(() => resolved.value !== undefined && isUrlExternal(
   overflow: hidden;
   border: 1px solid var(--color-td-line-soft);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-td-ink) 8%, transparent);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform var(--duration-td-fast) var(--ease-td-out-quart), box-shadow var(--duration-td-fast) var(--ease-td-out-quart);
   vertical-align: middle;
   background-color: var(--color-td-surf);
 }
@@ -163,7 +163,7 @@ const isExternal = computed(() => resolved.value !== undefined && isUrlExternal(
   border-radius: 4px;
   background-color: var(--color-td-surf);
   border: 1px solid var(--color-td-line-soft);
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart), border-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-widget-file-link:hover {

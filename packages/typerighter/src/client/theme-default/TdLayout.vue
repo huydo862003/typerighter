@@ -443,7 +443,7 @@ function shrinkSidebar () {
   height: 36px;
   border-radius: 6px;
   color: var(--color-td-ink-4);
-  transition: color 0.2s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-header-icon-link:hover {
@@ -462,7 +462,7 @@ function shrinkSidebar () {
   gap: 8px;
   color: var(--color-td-accent);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-brand:hover {

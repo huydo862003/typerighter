@@ -84,7 +84,7 @@
   color: var(--color-td-link);
   text-decoration: none;
   text-underline-offset: 3px;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-content a:hover {
@@ -106,7 +106,7 @@
   color: var(--color-td-link);
   opacity: 0;
   text-decoration: none;
-  transition: opacity 0.2s;
+  transition: opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content .td-header-anchor::before {

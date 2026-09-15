@@ -68,7 +68,7 @@ function isActive (link: string): boolean {
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-4);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-header-nav-link:hover {

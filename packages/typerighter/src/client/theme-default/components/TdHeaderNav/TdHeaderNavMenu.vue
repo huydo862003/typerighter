@@ -77,7 +77,7 @@ function isActive (link: string): boolean {
   color: var(--color-td-ink-3);
   text-decoration: none;
   border-left: 3px solid transparent;
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-menu-nav-item:hover {

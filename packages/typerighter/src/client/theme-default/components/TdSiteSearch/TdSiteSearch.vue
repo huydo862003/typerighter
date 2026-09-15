@@ -338,7 +338,7 @@ defineExpose({
   cursor: pointer;
   color: var(--color-td-ink-4);
   padding: 2px;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-clear:hover {
@@ -371,7 +371,7 @@ defineExpose({
   padding: 5px 12px 5px 20px;
   border-left: 2px solid var(--color-td-line-soft);
   text-decoration: none;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-result:hover,

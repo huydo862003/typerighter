@@ -93,7 +93,7 @@
   color: rgba(255, 255, 255, 0.4);
   font-family: var(--font-mono);
   user-select: none;
-  transition: color 0.4s, opacity 0.4s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart), opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content div[class*="language-"]:hover > button.copy + span.lang,
@@ -115,7 +115,7 @@
   background-color: var(--color-td-code-bg);
   cursor: pointer;
   opacity: 0;
-  transition: border-color 0.25s, background-color 0.25s, opacity 0.25s;
+  transition: border-color var(--duration-td-move) var(--ease-td-out-quart), background-color var(--duration-td-move) var(--ease-td-out-quart), opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content div[class*="language-"]:hover .copy,
@@ -202,7 +202,7 @@
 
 .td-content div[class*="language-"] .has-focused-lines .line:not(.has-focus) {
   opacity: 0.4;
-  transition: opacity 0.3s;
+  transition: opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content div[class*="language-"] .has-focused-lines:hover .line:not(.has-focus) {

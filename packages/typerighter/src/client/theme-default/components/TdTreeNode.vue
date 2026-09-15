@@ -246,7 +246,7 @@ function toggle () {
   border-radius: 4px;
   color: var(--color-td-accent);
   text-decoration: none;
-  transition: color 0.1s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-index-btn:hover {
@@ -268,7 +268,7 @@ function toggle () {
 
 .td-tree-caret {
   flex-shrink: 0;
-  transition: transform 0.15s;
+  transition: transform var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-caret.is-collapsed {
@@ -332,7 +332,7 @@ function toggle () {
   font-size: var(--font-size-td-xs);
   color: var(--color-td-accent);
   padding: 5px 12px;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-more:hover {

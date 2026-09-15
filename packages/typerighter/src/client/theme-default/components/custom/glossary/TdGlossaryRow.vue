@@ -59,7 +59,7 @@ const {
   border-bottom: 1px solid var(--color-td-line-soft);
   text-decoration: none;
   color: inherit;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-glossary-row:last-child {

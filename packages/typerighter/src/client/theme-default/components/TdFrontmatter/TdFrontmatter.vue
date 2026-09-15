@@ -237,7 +237,7 @@ function toggleRail () {
 
 .td-fm-rail-caret {
   color: var(--color-td-ink-4);
-  transition: transform 0.15s;
+  transition: transform var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-fm-rail-caret.is-collapsed {
