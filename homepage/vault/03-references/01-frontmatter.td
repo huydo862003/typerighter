@@ -1,4 +1,10 @@
-The frontmatter is the YAML block between `---` markers at the top of a `.td` file. It holds the structured data for the resource.
+---
+_label: "Frontmatter"
+_icon: icon.document
+description: "YAML frontmatter syntax, reserved keys, type declarations, and built-in fields."
+---
+
+The frontmatter is the YAML block between `---` markers at the top of a `.td` file. It holds the structured data for the resource. This page covers every key and directive you can use.
 
 ## Structure
 

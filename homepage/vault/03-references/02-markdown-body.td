@@ -1,7 +1,10 @@
 ---
+_label: "Markdown body"
+_icon: icon.edit
+description: "Headings, text formatting, code blocks, math, callouts, tables, and custom components."
 ---
 
-The markdown body is everything after the closing `---`. It supports standard markdown with Typedown extensions.
+The markdown body is everything after the closing `---`. It supports standard markdown with Typedown extensions. This page covers every supported syntax element.
 
 ## Headings
 

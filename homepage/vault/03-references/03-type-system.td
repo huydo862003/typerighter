@@ -1,7 +1,10 @@
 ---
+_label: "Type system"
+_icon: icon.code
+description: "Type expressions, primitives, unions, nullable types, lists, and schema references."
 ---
 
-Type expressions appear in schema property definitions under the `type` key. Types are inferred for resource files, so explicit type annotations are only needed in schemas.
+Type expressions appear in schema property definitions under the `type` key. Types are inferred for resource files, so explicit type annotations are only needed in schemas. This page covers every type constructor and how they compose.
 
 ## Primitive types
 
