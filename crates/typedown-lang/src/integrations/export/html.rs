@@ -259,8 +259,11 @@ impl<'a> HtmlEmitter<'a> {
       self.write("<input type=\"checkbox\" disabled> ");
     }
 
-    // Emit first paragraph inline (no <p> wrap) so text stays next to checkbox
+    // Emit first paragraph in a <span> so it stays next to the checkbox
+    // Block children (nested lists) go after the span
+    self.write("<span>");
     let mut first_paragraph = true;
+    let mut blocks: Vec<RedNode> = Vec::new();
     for child in node.children() {
       let kind = child.kind();
       if kind == SyntaxKind::MdSymbol
@@ -274,11 +277,16 @@ impl<'a> HtmlEmitter<'a> {
         first_paragraph = false;
         self.emit_inline_children(&child);
       } else if kind.is_md_block() {
-        self.write("\n");
-        self.emit_block(&child);
+        blocks.push(child);
       } else {
         self.emit_inline(&child);
       }
+    }
+    self.write("</span>");
+
+    for block in blocks {
+      self.write("\n");
+      self.emit_block(&block);
     }
 
     self.write("</li>\n");

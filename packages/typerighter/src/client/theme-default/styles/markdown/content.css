@@ -155,12 +155,24 @@
 
 .td-content .td-task-list-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 0.5rem;
 }
 
 .td-content .td-task-list-item input[type="checkbox"] {
   margin-top: 0.375rem;
+  flex-shrink: 0;
+}
+
+.td-content .td-task-list-item > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.td-content .td-task-list-item > .td-task-list {
+  flex-basis: 100%;
+  padding-left: 1.5rem;
 }
 
 /* Blockquotes */
