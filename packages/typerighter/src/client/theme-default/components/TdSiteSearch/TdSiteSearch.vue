@@ -92,7 +92,7 @@ watch(isSearchActive, (value) => {
 
 watch(query, (value, _old, onCleanup) => {
   onCleanup(() => cancel());
-  selectedIndex.value = -1;
+  selectedIndex.value = 0;
   search(value);
 });
 
@@ -122,9 +122,11 @@ function onKeydown (event: KeyboardEvent) {
   if (event.key === 'ArrowDown') {
     event.preventDefault();
     selectedIndex.value = (selectedIndex.value + 1) % count;
+    scrollSelectedIntoView();
   } else if (event.key === 'ArrowUp') {
     event.preventDefault();
     selectedIndex.value = (selectedIndex.value - 1 + count) % count;
+    scrollSelectedIntoView();
   } else if (event.key === 'Enter' && 0 <= selectedIndex.value) {
     event.preventDefault();
     const selected = flatResults.value[selectedIndex.value];
@@ -138,6 +140,16 @@ function onKeydown (event: KeyboardEvent) {
 
 function onResultClick () {
   emit('select');
+}
+
+function scrollSelectedIntoView () {
+  requestAnimationFrame(() => {
+    const element = document.querySelector('.td-search-result.is-selected');
+
+    element?.scrollIntoView({
+      block: 'nearest',
+    });
+  });
 }
 
 const searchInput = useTemplateRef<HTMLInputElement>('searchInput');
