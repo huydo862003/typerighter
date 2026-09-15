@@ -1,7 +1,8 @@
 /* Inline code */
 
 .td-content :not(pre, h1, h2, h3, h4, h5, h6) > code {
-  font-size: var(--font-size-td-xs);
+  font-size: var(--font-size-td-sm);
+  font-weight: 500;
   color: var(--color-td-ink);
 }
 
@@ -9,7 +10,7 @@
   padding: 3px 6px;
   font-family: var(--font-mono);
   background-color: var(--color-td-hov);
-  border-radius: 4px;
+  border-radius: var(--radius-td-sm);
 }
 
 .td-content h1 > code,
@@ -65,7 +66,7 @@
   width: fit-content;
   min-width: 100%;
   background: transparent;
-  font-size: var(--font-size-td-xs);
+  font-size: 13px;
   line-height: var(--leading-td-loose);
   color: var(--color-td-code-fg);
 }

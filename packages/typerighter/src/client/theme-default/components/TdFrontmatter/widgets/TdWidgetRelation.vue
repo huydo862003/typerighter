@@ -119,13 +119,11 @@ const isExternal = computed(() => resolved.value !== undefined && isUrlExternal(
 
 .td-widget-ref-icon {
   flex-shrink: 0;
-  opacity: 0.7;
 }
 
 .td-widget-external-icon {
   flex-shrink: 0;
   margin-left: 3px;
-  opacity: 0.5;
 }
 
 .td-widget-image-preview {

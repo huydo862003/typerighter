@@ -227,7 +227,7 @@ function toggleRail () {
 }
 
 .td-fm-rail-label {
-  font-family: var(--font-mono);
+
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
@@ -289,7 +289,7 @@ function toggleRail () {
 }
 
 .td-fm-box-label {
-  font-family: var(--font-mono);
+
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);

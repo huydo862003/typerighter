@@ -58,9 +58,8 @@ const activeTocId = isStatic
 
 <style scoped>
 .td-toc-label {
-  font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-ink-4);
@@ -85,7 +84,7 @@ const activeTocId = isStatic
   font-size: 13px;
   color: var(--color-td-ink-3);
   text-decoration: none;
-  border-left: 2px solid var(--color-td-line);
+  border-left: 2px solid transparent;
   transition:
     color var(--duration-td-fast) var(--ease-td-out-quart),
     border-left-color var(--duration-td-fast) var(--ease-td-out-quart);

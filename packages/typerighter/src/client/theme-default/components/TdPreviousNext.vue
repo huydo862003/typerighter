@@ -74,7 +74,7 @@ const {
   gap: 4px;
   padding: 14px 16px;
   border: 1px solid var(--color-td-line);
-  border-radius: theme(--radius-td-lg);
+  border-radius: var(--radius-td-lg);
   text-decoration: none;
   transition:
     border-color var(--duration-td-move) var(--ease-td-out-quart),
