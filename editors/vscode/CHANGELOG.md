@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.32.0] - 2026-09-15
+
+### Feat
+
+* packages/typerighter
+  - Improve design of SSG
+
 ## [0.31.0] - 2026-09-14
 
 ### Fixed
