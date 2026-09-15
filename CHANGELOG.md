@@ -1,3 +1,10 @@
+## [0.32.5] - 2026-09-15
+
+### Fixes
+
+* packages/typerighter
+  - FOUC for fonts and modified time
+
 ## [0.32.4] - 2026-09-15
 
 ### Fixes
