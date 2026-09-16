@@ -595,3 +595,41 @@ fn file_stream_lookahead_eof() {
   }
   assert_eq!(tokens.last(), Some(&SyntaxKind::Eof));
 }
+
+// Intraword underscore: a_b is text, not italic delimiter
+
+#[test]
+fn intraword_underscore_single() {
+  let tokens = lex_markdown("a_b");
+  assert_eq!(tokens[0], (SyntaxKind::Ident, "a_b".to_string()));
+}
+
+#[test]
+fn intraword_underscore_multiple() {
+  let tokens = lex_markdown("a_b_c");
+  assert_eq!(tokens[0], (SyntaxKind::Ident, "a_b_c".to_string()));
+}
+
+#[test]
+fn underscore_italic_not_intraword() {
+  let tokens = lex_markdown("_italic_");
+  assert_eq!(tokens[0], (SyntaxKind::MdSymbol, "_".to_string()));
+  assert_eq!(tokens[1], (SyntaxKind::Ident, "italic".to_string()));
+  assert_eq!(tokens[2], (SyntaxKind::MdSymbol, "_".to_string()));
+}
+
+#[test]
+fn underscore_at_word_end_is_symbol() {
+  // word_ should leave _ as a symbol (potential closing italic)
+  let tokens = lex_markdown("word_ ");
+  assert_eq!(tokens[0], (SyntaxKind::Ident, "word".to_string()));
+  assert_eq!(tokens[1], (SyntaxKind::MdSymbol, "_".to_string()));
+}
+
+#[test]
+fn underscore_start_of_word_is_symbol() {
+  let tokens = lex_markdown(" _word");
+  assert_eq!(tokens[0], (SyntaxKind::Whitespace, " ".to_string()));
+  assert_eq!(tokens[1], (SyntaxKind::MdSymbol, "_".to_string()));
+  assert_eq!(tokens[2], (SyntaxKind::Ident, "word".to_string()));
+}
