@@ -1,3 +1,10 @@
+## [0.33.0] - 2026-09-16
+
+### Fixed
+
+- File create/delete/rename now triggers sidebar and page updates (OS batching was merging Create+Modify into a single Modified event)
+- Dot access completions appear immediately when typing `.` (registered trigger characters)
+
 ## [0.32.7] - 2026-09-15
 
 ### Fixed
