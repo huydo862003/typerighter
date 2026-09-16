@@ -1,3 +1,11 @@
+## [0.34.1] - 2026-09-16
+
+### Fixed
+
+* crates/typedown-incremental
+  - Skip cache promotion for no_hash queries so they always recompute on reload
+
+
 ## [0.34.0] - 2026-09-16
 
 ### Feat
@@ -7,7 +15,7 @@
 
 ### Fixed
 
-* crates/typedown-server
+* crates/typedown-server, crates/typedown-incremental
   - Cache persistence: eagerly load all derived entries at startup to prevent dangling IDs across sessions
   - Cache dump wrapped in catch_unwind to clear corrupted cache instead of persisting it
   - Centralized cache directory path into `get_cache_dir`

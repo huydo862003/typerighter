@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.34.1] - 2026-09-16
+
+### Fixed
+
+* crates/typedown-incremental
+  - Skip cache promotion for no_hash queries so they always recompute on reload
+
 ## [0.34.0] - 2026-09-16
 
 ### Feat
