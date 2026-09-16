@@ -750,14 +750,18 @@ impl<
 
   // Force-deserialize cached query return values so entry IDs are remapped
   fn promote_cached(&self, ctx: &DeserializeContext) {
+    // no_hash queries always recompute, skip promotion
+    if self.no_hash_flag {
+      return;
+    }
     let name = self.name_fingerprint;
     for (i, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
-      if let DepNode::DerivedQuery { name: n, .. } = node {
-        if *n == name {
-          let node_index = i as DepNodeIndex;
-          if ctx.decoder.get_dep_node_id(node_index).is_none() {
-            self.deserialize(ctx, node_index);
-          }
+      if let DepNode::DerivedQuery { name: n, .. } = node
+        && *n == name
+      {
+        let node_index = i as DepNodeIndex;
+        if ctx.decoder.get_dep_node_id(node_index).is_none() {
+          self.deserialize(ctx, node_index);
         }
       }
     }
@@ -952,12 +956,12 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
         field_index,
         ..
       } = node
+        && *n == name
+        && *field_index == self.field_index
       {
-        if *n == name && *field_index == self.field_index {
-          let node_index = i as DepNodeIndex;
-          if ctx.decoder.get_dep_node_id(node_index).is_none() {
-            self.deserialize(ctx, node_index);
-          }
+        let node_index = i as DepNodeIndex;
+        if ctx.decoder.get_dep_node_id(node_index).is_none() {
+          self.deserialize(ctx, node_index);
         }
       }
     }
