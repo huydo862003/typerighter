@@ -1,3 +1,17 @@
+## [0.34.0] - 2026-09-16
+
+### Feat
+
+* crates/typedown-server, packages/typerighter
+  - Support mermaid rendering with lazy load to avoid excessive bundled size
+
+### Fixed
+
+* crates/typedown-server
+  - Cache persistence: eagerly load all derived entries at startup to prevent dangling IDs across sessions
+  - Cache dump wrapped in catch_unwind to clear corrupted cache instead of persisting it
+  - Centralized cache directory path into `get_cache_dir`
+
 ## [0.33.2] - 2026-09-16
 
 ### Fixed
