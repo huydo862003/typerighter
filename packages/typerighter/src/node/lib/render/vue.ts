@@ -108,6 +108,7 @@ function buildHeadingTree (flat: TdHeading[]): MarkdownHeading[] {
 }
 
 // The rendered HTML becomes a Vue template, so {{ ... }} would be evaluated as an expression
+// Escape curly braces so Vue's template compiler does not interpret them
 function escapeVueInterpolation (html: string): string {
-  return html.replaceAll('{{', '&#123;&#123;');
+  return html.replaceAll('{', '&#123;').replaceAll('}', '&#125;');
 }
