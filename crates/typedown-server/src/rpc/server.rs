@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,7 +42,7 @@ use crate::core::utils::fs::{is_asset_file, is_vault_config};
 
 use super::contract::*;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum FsEventKind {
   Created,
   Modified,
@@ -356,9 +357,17 @@ impl RpcServer {
       let deadline = std::time::Instant::now() + Duration::from_millis(50);
       loop {
         match fs_rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
-          Ok(event) => {
-            pending.insert(event.path.clone(), event);
-          }
+          // Prefer structural events over Modified since the OS emits both for new files
+          Ok(event) => match pending.entry(event.path.clone()) {
+            Entry::Vacant(e) => {
+              e.insert(event);
+            }
+            Entry::Occupied(mut e) => {
+              if event.kind != FsEventKind::Modified {
+                e.insert(event);
+              }
+            }
+          },
           Err(crossbeam_channel::RecvTimeoutError::Timeout) => break,
           Err(crossbeam_channel::RecvTimeoutError::Disconnected) => return,
         }
