@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.33.2] - 2026-09-16
+
+### Fixed
+
+* packages/typerighter
+  - Scale h3-h6 properly
+
 ## [0.33.1] - 2026-09-16
 
 ### Fixed

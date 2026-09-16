@@ -1,15 +1,24 @@
+## [0.33.2] - 2026-09-16
+
+### Fixed
+
+* packages/typerighter
+  - Scale h3-h6 properly
+
 ## [0.33.1] - 2026-09-16
 
 ### Fixed
 
-- Callout titles with quotes no longer split into separate tokens (e.g. `"frontend"` rendered correctly)
+* crates/typedown-lang
+  - Callout titles with quotes no longer split into separate tokens (e.g. `"frontend"` rendered correctly)
 
 ## [0.33.0] - 2026-09-16
 
 ### Fixed
 
-- File create/delete/rename now triggers sidebar and page updates (OS batching was merging Create+Modify into a single Modified event)
-- Dot access completions appear immediately when typing `.` (registered trigger characters)
+* crates/typedown-server
+  - File create/delete/rename now triggers sidebar and page updates (OS batching was merging Create+Modify into a single Modified event)
+  - Dot access completions appear immediately when typing `.` (registered trigger characters)
 
 ## [0.32.7] - 2026-09-15
 
