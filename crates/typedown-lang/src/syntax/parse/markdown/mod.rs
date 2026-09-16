@@ -142,8 +142,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SyntaxKind::MdSymbol => {
         let text: String = next.token.chars().collect();
         match text.as_str() {
-          "***" => self.parse_bold_italic(),
-          "**" => self.parse_bold(),
+          "***" | "___" => self.parse_bold_italic(),
+          "**" | "__" => self.parse_bold(),
           "*" | "_" => self.parse_italic(),
           "~~" => self.parse_strikethrough(),
           "!" => {

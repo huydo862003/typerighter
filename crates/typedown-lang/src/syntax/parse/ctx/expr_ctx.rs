@@ -216,9 +216,11 @@ impl ExprCtx {
         (self, text.as_str()),
         (ExprCtx::YamlFrontmatter, "---")
           | (ExprCtx::MdBold, "**")
+          | (ExprCtx::MdBold, "__")
           | (ExprCtx::MdItalicStar, "*")
           | (ExprCtx::MdItalicUnderscore, "_")
           | (ExprCtx::MdBoldItalic, "***")
+          | (ExprCtx::MdBoldItalic, "___")
           | (ExprCtx::MdStrikethrough, "~~")
           | (ExprCtx::MdContainerBlock(_), ":::")
           | (ExprCtx::MdTableCell, "|")
