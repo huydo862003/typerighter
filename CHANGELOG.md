@@ -6,7 +6,7 @@
   - Skip cache promotion for no_hash queries so they always recompute on reload
 
 
-## [0.34.0] - 2026-09-16
+## [0.34.0] - 2026-09-16 (retracted)
 
 ### Feat
 
@@ -20,21 +20,21 @@
   - Cache dump wrapped in catch_unwind to clear corrupted cache instead of persisting it
   - Centralized cache directory path into `get_cache_dir`
 
-## [0.33.2] - 2026-09-16
+## [0.33.2] - 2026-09-16 (retracted)
 
 ### Fixed
 
 * packages/typerighter
   - Scale h3-h6 properly
 
-## [0.33.1] - 2026-09-16
+## [0.33.1] - 2026-09-16 (retracted)
 
 ### Fixed
 
 * crates/typedown-lang
   - Callout titles with quotes no longer split into separate tokens (e.g. `"frontend"` rendered correctly)
 
-## [0.33.0] - 2026-09-16
+## [0.33.0] - 2026-09-16 (retracted)
 
 ### Fixed
 
@@ -42,7 +42,7 @@
   - File create/delete/rename now triggers sidebar and page updates (OS batching was merging Create+Modify into a single Modified event)
   - Dot access completions appear immediately when typing `.` (registered trigger characters)
 
-## [0.32.7] - 2026-09-15
+## [0.32.7] - 2026-09-15 (retracted)
 
 ### Fixed
 
@@ -52,42 +52,42 @@
   - Overscroll padding on sidebar for scrolling past last item
   - Resize handle clamped to 85vw on small screens
 
-## [0.32.6] - 2026-09-15
+## [0.32.6] - 2026-09-15 (retracted)
 
 ### Fixes
 
 * crates/typedown-lang
   -  Hash enum discriminant in StableHash for TdTypeEnum and TdObjectEnum
 
-## [0.32.5] - 2026-09-15
+## [0.32.5] - 2026-09-15 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - FOUC for fonts and modified time
 
-## [0.32.4] - 2026-09-15
+## [0.32.4] - 2026-09-15 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - Nested checkbox formatting
 
-## [0.32.3] - 2026-09-15
+## [0.32.3] - 2026-09-15 (retracted)
 
 ### Documentation
 
 * packages/typerighter
   - Broken link in README
 
-## [0.32.2] - 2026-09-15
+## [0.32.2] - 2026-09-15 (retracted)
 
 ### Perf
 
 * packages/typerighter
   - Avoid prerendering in parallel to prevent OOM on large vaults
 
-## [0.32.1] - 2026-09-15
+## [0.32.1] - 2026-09-15 (retracted)
 
 ### Fixes
 
@@ -97,14 +97,14 @@
 * packages/typerighter
   - Allows scrolling into and cycling through search results
 
-## [0.32.0] - 2026-09-15
+## [0.32.0] - 2026-09-15 (retracted)
 
 ### Feat
 
 * packages/typerighter
   - Improve design of SSG
 
-## [0.31.0] - 2026-09-14
+## [0.31.0] - 2026-09-14 (retracted)
 
 ### Fixed
 
@@ -122,7 +122,7 @@
   - Sidebar metadata refresh debounced to coalesce rapid saves
   - Page HMR detects when a real page replaces a directory index (e.g. `index.td` created)
 
-## [0.30.8] - 2026-09-13
+## [0.30.8] - 2026-09-13 (retracted)
 
 ### Documentation
 
@@ -132,14 +132,14 @@
 * editors/vscode
   - Improve vscode README and CHANGELOG
 
-## [0.30.7] - 2026-09-13
+## [0.30.7] - 2026-09-13 (retracted)
 
 ### Fixes
 
 * packages/typerighter
   - Direct accesses to fake directory index pages return 404
 
-## [0.30.6] - 2026-09-12
+## [0.30.6] - 2026-09-12 (retracted)
 
 ### Features
 
@@ -153,13 +153,13 @@
     - Combat and gaming: `sword`, `swords`, `crosshair`, `skull`
     - Connectivity: `wifi`, `bluetooth`, `power`
 
-## [0.30.5] - 2026-09-12
+## [0.30.5] - 2026-09-12 (retracted)
 
 * crates/typedown-server
   - Generic dot-access completion: `icon.` suggests icon names, works for any expression with fields
   - Expression completion: suggests variables in scope (builtins, file names, imports, closure params) in value positions
 
-## [0.30.4] - 2026-09-12
+## [0.30.4] - 2026-09-12 (retracted)
 
 ### Fixes
 
@@ -168,7 +168,7 @@
   - Make TOC items preserve formatting
   - In prev and next cards, format index as folder title
 
-## [0.30.3] - 2026-09-12
+## [0.30.3] - 2026-09-12 (retracted)
 
 ### Fixes
 
