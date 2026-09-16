@@ -796,7 +796,11 @@ fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>)
 
   let title = {
     let trimmed = title_raw.trim();
-    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+    if trimmed.is_empty() {
+      None
+    } else {
+      Some(trimmed.to_string())
+    }
   };
 
   (label, title)
