@@ -39,7 +39,15 @@ pub fn main() -> anyhow::Result<()> {
       TextDocumentSyncKind::INCREMENTAL,
     )),
     hover_provider: Some(HoverProviderCapability::Simple(true)),
-    completion_provider: Some(CompletionOptions::default()),
+    completion_provider: Some(CompletionOptions {
+      trigger_characters: Some(
+        [".", "(", ",", "$", "/", "_"]
+          .iter()
+          .map(|s| s.to_string())
+          .collect(),
+      ),
+      ..Default::default()
+    }),
     definition_provider: Some(OneOf::Left(true)),
     references_provider: Some(OneOf::Left(true)),
     code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
