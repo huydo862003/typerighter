@@ -42,6 +42,9 @@ import {
   useResizableTable,
 } from './composables/useResizableTable';
 import {
+  useMermaid,
+} from './composables/useMermaid';
+import {
   useMenu,
 } from './composables/useMenu';
 import {
@@ -87,6 +90,7 @@ watch(
 );
 
 useCopyCode();
+useMermaid();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
@@ -259,7 +263,9 @@ function shrinkSidebar () {
       :class="{
         'is-open': isOpen,
       }"
-      :style="{ width: `${sidebarWidth}px` }"
+      :style="{
+        width: `${sidebarWidth}px`,
+      }"
     >
       <div
         class="td-resize-handle"
@@ -527,7 +533,7 @@ function shrinkSidebar () {
 .td-page-title {
   font-family: var(--font-sans);
   font-weight: 600;
-  font-size: var(--font-size-td-lg);
+  font-size: var(--font-size-td-2xl);
   line-height: var(--leading-td-tight);
   letter-spacing: var(--tracking-td-tight);
   font-variation-settings: "opsz" 28;

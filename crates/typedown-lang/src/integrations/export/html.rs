@@ -338,6 +338,14 @@ impl<'a> HtmlEmitter<'a> {
     let label = block.label().unwrap_or_default();
     let value = block.value().unwrap_or_default();
 
+    // Mermaid blocks use a separate placeholder for client-side rendering
+    if lang == "mermaid" {
+      self.write("<pre class=\"td-mermaid-placeholder\"><code>");
+      self.write_escaped(&value);
+      self.write("</code></pre>\n");
+      return;
+    }
+
     self.write("<pre class=\"td-code-placeholder\"");
     if !lang.is_empty() {
       self.write(" data-lang=\"");
