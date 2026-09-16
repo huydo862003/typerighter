@@ -1,6 +1,22 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.34.2] - 2026-09-16
+
+### Fixed
+
+* crates/typedown-lang
+  - Intraword underscore (`a_b`) lexed as text per CommonMark rules
+
+* packages/typerighter
+  - Curly braces in content no longer eaten by Vue template compiler
+  - Frontmatter link icons align to first line of multiline text
+
+### Added
+
+* crates/typedown-lang
+  - `__` for bold and `___` for bold italic (matching `**`/`***`)
+
 ## [0.34.1] - 2026-09-16
 
 ### Fixed
