@@ -1,3 +1,9 @@
+## [0.33.1] - 2026-09-16
+
+### Fixed
+
+- Callout titles with quotes no longer split into separate tokens (e.g. `"frontend"` rendered correctly)
+
 ## [0.33.0] - 2026-09-16
 
 ### Fixed
