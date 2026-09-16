@@ -130,6 +130,7 @@ impl QueryStorage {
       Arc::downgrade(&storage),
     ));
     storage.load_leaf_nodes();
+    storage.load_derived_nodes();
     storage
   }
 
@@ -168,6 +169,20 @@ impl QueryStorage {
         }
         _ => {}
       }
+    }
+  }
+
+  // FIXME: load on demand instead of eagerly to reduce startup cost
+  // Eagerly deserialize all derived query and field nodes from the previous session
+  fn load_derived_nodes(self: &Arc<Self>) {
+    let Some(ctx) = self.deserialize_ctx.get() else {
+      return;
+    };
+    for query in self.queries.iter() {
+      query.promote_cached(ctx);
+    }
+    for field in self.fields.iter() {
+      field.promote_cached(ctx);
     }
   }
 

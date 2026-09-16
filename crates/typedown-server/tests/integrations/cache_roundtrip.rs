@@ -9,6 +9,7 @@ use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::Project;
 use typedown_lang::integrations::export::{export_resource_html, export_resource_summary};
+use typedown_server::core::utils::fs::get_cache_dir;
 
 use super::utils::{
   copy_dir_recursive, example_vault, run_child_test, setup_db_cached, setup_db_fresh,
@@ -22,7 +23,7 @@ fn session1_dump() -> (TempDir, PathBuf, PathBuf, usize) {
   let project_dir = tmp.path().join("project_tracker");
   copy_dir_recursive(&source, &project_dir);
 
-  let cache_dir = project_dir.join(".typedown/.local/cache");
+  let cache_dir = get_cache_dir(&project_dir);
 
   let db = setup_db_fresh(&project_dir);
   run_diagnostics(&db);
@@ -92,7 +93,7 @@ fn cache_roundtrip_full_export() {
   let _tmp = TempDir::new().unwrap();
   let project_dir = _tmp.path().join("project_tracker");
   copy_dir_recursive(&source, &project_dir);
-  let cache_dir = project_dir.join(".typedown/.local/cache");
+  let cache_dir = get_cache_dir(&project_dir);
 
   // Session 1: run full export pipeline and dump cache
   let db = setup_db_fresh(&project_dir);

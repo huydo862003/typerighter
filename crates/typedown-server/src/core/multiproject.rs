@@ -112,7 +112,7 @@ impl Multiproject {
 /// Create a new project entry for the given directory.
 fn load_project(project_dir: &Path) -> anyhow::Result<Arc<ProjectEntry>> {
   log::info!("Loading project: {}", project_dir.display());
-  let cache_dir = project_dir.join(".typedown/.local/cache");
+  let cache_dir = super::utils::fs::get_cache_dir(project_dir);
 
   let (session, serialized) = CacheSession::open(&cache_dir).unwrap_or_else(|_| {
     // If cache dir is inaccessible, proceed without cache

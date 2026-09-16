@@ -38,7 +38,7 @@ use typedown_types::path::normalize_path;
 
 use crate::core::analysis::Analysis;
 use crate::core::analysis_host::AnalysisHost;
-use crate::core::utils::fs::{is_asset_file, is_vault_config};
+use crate::core::utils::fs::{get_cache_dir, is_asset_file, is_vault_config};
 
 use super::contract::*;
 
@@ -107,6 +107,7 @@ pub struct RpcServer {
   host: Arc<std::sync::RwLock<AnalysisHost>>,
   thread_pool: ThreadPool,
   cache_session: typedown_incremental::CacheSession,
+  cache_dir: PathBuf,
   // Held to keep the watcher alive
   _watcher: RecommendedWatcher,
   fs_thread: std::thread::JoinHandle<()>,
@@ -114,7 +115,7 @@ pub struct RpcServer {
 
 impl RpcServer {
   pub fn new(connection: Connection, root_dir: PathBuf) -> anyhow::Result<Self> {
-    let cache_dir = root_dir.join(".typedown/.local/cache");
+    let cache_dir = get_cache_dir(&root_dir);
     let (cache_session, serialized) = typedown_incremental::CacheSession::open(&cache_dir)
       .unwrap_or_else(|_| (typedown_incremental::CacheSession::empty(), None));
 
@@ -164,6 +165,7 @@ impl RpcServer {
       host,
       thread_pool: ThreadPool::new(num_threads),
       cache_session,
+      cache_dir,
       _watcher: watcher,
       fs_thread,
     })
@@ -189,15 +191,19 @@ impl RpcServer {
         let dump_timeout = std::time::Duration::from_secs(120);
         let (tx, rx) = std::sync::mpsc::channel();
         let dump_thread = std::thread::spawn(move || {
-          let serialized = db.dump();
-          let _ = tx.send(serialized);
+          let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| db.dump()));
+          let _ = tx.send(result);
         });
 
         match rx.recv_timeout(dump_timeout) {
-          Ok(serialized) => {
+          Ok(Ok(serialized)) => {
             if let Err(err) = self.cache_session.finalize(&serialized, revision) {
               log::error!("Failed to save incremental cache: {err}");
             }
+          }
+          Ok(Err(_)) => {
+            eprintln!("[typedown-rpc] Cache dump panicked, clearing stale cache");
+            let _ = std::fs::remove_dir_all(&self.cache_dir);
           }
           Err(_) => {
             log::warn!("Cache dump timed out after {dump_timeout:?}, skipping save");

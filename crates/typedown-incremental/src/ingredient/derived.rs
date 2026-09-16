@@ -748,6 +748,21 @@ impl<
     ctx.query_cache.set(node_index, &buf);
   }
 
+  // Force-deserialize cached query return values so entry IDs are remapped
+  fn promote_cached(&self, ctx: &DeserializeContext) {
+    let name = self.name_fingerprint;
+    for (i, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
+      if let DepNode::DerivedQuery { name: n, .. } = node {
+        if *n == name {
+          let node_index = i as DepNodeIndex;
+          if ctx.decoder.get_dep_node_id(node_index).is_none() {
+            self.deserialize(ctx, node_index);
+          }
+        }
+      }
+    }
+  }
+
   fn no_hash(&self) -> bool {
     self.no_hash_flag
   }
@@ -926,6 +941,26 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
     let mut buf = vec![];
     entry.value.encode(&mut buf, &mut ctx.encoder);
     ctx.query_cache.set(node_index, &buf);
+  }
+
+  // Deserialize unaccessed field entries so they survive the next dump
+  fn promote_cached(&self, ctx: &DeserializeContext) {
+    let name = self.name_fingerprint();
+    for (i, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
+      if let DepNode::DerivedField {
+        name: n,
+        field_index,
+        ..
+      } = node
+      {
+        if *n == name && *field_index == self.field_index {
+          let node_index = i as DepNodeIndex;
+          if ctx.decoder.get_dep_node_id(node_index).is_none() {
+            self.deserialize(ctx, node_index);
+          }
+        }
+      }
+    }
   }
 
   fn no_hash(&self) -> bool {
