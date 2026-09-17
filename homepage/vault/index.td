@@ -7,8 +7,8 @@ A vault is a collection of `.td` files. Each file is a node. Schemas define node
           ┌──────────────┴──────────────┐
           │                             │
      ┌────┴────┐                   ┌────┴────┐
-     │  alice   │───assignee───▶   │  task-1  │
-     │ (Person) │                  │  (Task)  │
+     │  alice  │  ───assignee───▶  │  task-1 │
+     │ (Person)│                   │  (Task) │
      └─────────┘                   └────┬────┘
                                         │
                                    milestone

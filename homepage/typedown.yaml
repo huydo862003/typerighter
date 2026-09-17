@@ -6,3 +6,18 @@ site:
   title: "Typedown"
   description: "A typed markdown language for structured content"
   base_path: "/typerighter"
+  nav:
+    - title: "Getting Started"
+      link: "/01-getting-started"
+      icon: icon.rocket
+    - title: "Guide"
+      link: "/02-guide/index"
+      icon: icon.book
+    - title: "References"
+      link: "/03-references/index"
+      icon: icon.bookmark
+    - title: "Research"
+      link: "/05-research/index"
+      icon: icon.library
+    - title: "GitHub"
+      link: "https://github.com/huydo862003/typerighter"
