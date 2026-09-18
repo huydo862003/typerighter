@@ -1,3 +1,15 @@
+## [0.35.0] - 2026-09-18
+
+### Fixed
+
+* crates/typedown-lang
+  - Escape curly braces in HTML output to prevent Vue template interference
+
+* packages/typerighter
+  - File cache now invalidated on `content_created` events, fixing stale HMR after atomic writes
+  - Reverted aggressive brace escaping that broke HMR
+  - Frontmatter link icons align to first line of multiline text
+
 ## [0.34.3] - 2026-09-18
 
 ### Fixed
