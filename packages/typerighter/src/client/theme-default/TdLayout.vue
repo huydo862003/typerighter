@@ -316,12 +316,13 @@ function shrinkSidebar () {
           width: `${sidebarWidth}px`,
         }"
       >
+        <TdSiteSearch
+          ref="sidebarSearch"
+          class="td-sidebar-search"
+          v-model:query="searchQuery"
+          v-model:active="sidebarSearchActive"
+        />
         <div class="td-sidebar-scroll">
-          <TdSiteSearch
-            ref="sidebarSearch"
-            v-model:query="searchQuery"
-            v-model:active="sidebarSearchActive"
-          />
           <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
           <TdContentNav
             v-else-if="!sidebarSearchActive"
@@ -560,14 +561,24 @@ function shrinkSidebar () {
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   flex-shrink: 0;
+  overflow: clip;
+  display: flex;
+  flex-direction: column;
+}
+
+.td-sidebar-search {
+  flex-shrink: 0;
+  padding: 12px 10px;
 }
 
 .td-sidebar-scroll {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
   overscroll-behavior: contain;
-  padding: 22px 0 min(40vh, 300px);
+  padding: 8px 0 0;
+  scrollbar-gutter: stable;
 }
 
 .td-resize-handle {
@@ -616,6 +627,7 @@ function shrinkSidebar () {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: clip;
   overscroll-behavior: contain;
   transform: translateX(-100%);
   transition: transform var(--duration-td-drawer) var(--ease-td-out-quart);
@@ -634,6 +646,9 @@ function shrinkSidebar () {
   border-bottom: 1px solid var(--color-td-line);
   background: var(--color-td-surf);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 /* Inline frontmatter and TOC hidden at desktop */

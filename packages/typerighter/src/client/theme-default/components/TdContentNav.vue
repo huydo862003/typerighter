@@ -43,7 +43,7 @@ function isCurrent (href: string): boolean {
 </script>
 
 <template>
-  <nav>
+  <nav class="td-nav">
     <a
       :href="withBase(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/'))"
       class="td-root-link"
@@ -99,6 +99,10 @@ function isCurrent (href: string): boolean {
 </template>
 
 <style scoped>
+.td-nav {
+  padding-bottom: min(40vh, 300px);
+}
+
 .td-root-link {
   display: flex;
   align-items: center;

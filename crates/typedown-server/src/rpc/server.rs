@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -383,6 +383,28 @@ impl RpcServer {
         }
       }
 
+      // Collect unique affected paths (including rename destinations)
+      let mut affected_paths: HashSet<PathBuf> = HashSet::new();
+      for event in &all_events {
+        affected_paths.insert(event.path.clone());
+        if let FsEventKind::Renamed(to) = &event.kind {
+          affected_paths.insert(to.clone());
+        }
+      }
+
+      // Scan newly created directories for files that inotify may have missed
+      for event in &all_events {
+        if matches!(event.kind, FsEventKind::Created) && event.path.is_dir()
+          && let Ok(entries) = std::fs::read_dir(&event.path) {
+            for entry in entries.flatten() {
+              let path = entry.path();
+              if path.is_file() {
+                affected_paths.insert(path);
+              }
+            }
+          }
+      }
+
       // If a concurrent write cancels these queries, skip and let the next batch retry
       let Ok(()) = Cancelled::catch(|| {
         let analysis = host.read().unwrap().snapshot();
@@ -392,71 +414,49 @@ impl RpcServer {
         let root_dir = config.root_dir(db);
 
         // Notify subscribers if any pending event is a config file change
-        if all_events.iter().any(|event| is_vault_config(&event.path)) {
+        if affected_paths.iter().any(|p| is_vault_config(p)) {
           let config = build_site_config(db, project);
           send_notification(&sender, NOTIF_CONFIG_CHANGED, &config);
         }
 
-        for event in &all_events {
-          if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
-            let relative =
-              normalize_path(event.path.strip_prefix(&root_dir).unwrap_or(&event.path));
+        // Stat each path and emit normalized notifications
+        for path in &affected_paths {
+          if !path.starts_with(&root_dir) {
+            continue;
+          }
 
-            let (method, renamed_to) = match &event.kind {
-              FsEventKind::Created => (NOTIF_CONTENT_CREATED, None),
-              FsEventKind::Modified => (NOTIF_CONTENT_CHANGED, None),
-              FsEventKind::Removed => (NOTIF_CONTENT_DELETED, None),
-              FsEventKind::Renamed(to) => {
-                let to_relative = normalize_path(to.strip_prefix(&root_dir).unwrap_or(to));
-                (NOTIF_CONTENT_RENAMED, Some(to_relative))
-              }
-            };
+          let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
 
-            let affected_files = if matches!(event.kind, FsEventKind::Modified) {
-              collect_affected_files(db, project, &event.path, &root_dir)
-            } else {
-              vec![]
-            };
-
-            let notification = TdContentNotification {
-              filepath: relative,
-              affected_files,
-              renamed_to,
-            };
-            send_notification(&sender, method, &notification);
-          } else if is_type_file(&event.path) {
-            let Some(name) = event
-              .path
+          if is_type_file(path) {
+            let Some(name) = path
               .file_stem()
               .and_then(|s| s.to_str())
               .map(str::to_string)
             else {
               continue;
             };
-            if let FsEventKind::Renamed(to) = &event.kind {
-              // Schema rename: notify as delete old + create new
-              send_notification(
-                &sender,
-                NOTIF_SCHEMA_DELETED,
-                &TdSchemaNotification { schema: name },
-              );
-              if let Some(new_name) = to.file_stem().and_then(|s| s.to_str()).map(str::to_string) {
-                send_notification(
-                  &sender,
-                  NOTIF_SCHEMA_CREATED,
-                  &TdSchemaNotification { schema: new_name },
-                );
-              }
+            let method = if path.exists() {
+              NOTIF_SCHEMA_UPDATED
             } else {
-              let notification = TdSchemaNotification { schema: name };
-              let method = match event.kind {
-                FsEventKind::Created => NOTIF_SCHEMA_CREATED,
-                FsEventKind::Modified => NOTIF_SCHEMA_CHANGED,
-                FsEventKind::Removed => NOTIF_SCHEMA_DELETED,
-                FsEventKind::Renamed(_) => unreachable!(),
-              };
-              send_notification(&sender, method, &notification);
-            }
+              NOTIF_SCHEMA_DELETED
+            };
+            send_notification(&sender, method, &TdSchemaNotification { schema: name });
+          } else if is_content_file(path) || is_asset_file(path) {
+            let method = if path.exists() {
+              NOTIF_CONTENT_UPDATED
+            } else {
+              NOTIF_CONTENT_DELETED
+            };
+            let affected_files = if path.exists() {
+              collect_affected_files(db, project, path, &root_dir)
+            } else {
+              vec![]
+            };
+            let notification = TdContentNotification {
+              filepath: relative,
+              affected_files,
+            };
+            send_notification(&sender, method, &notification);
           }
         }
       }) else {

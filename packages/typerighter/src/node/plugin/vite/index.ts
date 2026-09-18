@@ -20,9 +20,6 @@ import {
 import {
   isRpcCancelled,
 } from '../../lib/typedown-context';
-import type {
-  TdContentNotification,
-} from '@typerighter/rpc-client';
 import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
   PAGES_ID, RESOLVED_PAGES_ID, PAGE_DATA_PREFIX,
@@ -259,23 +256,23 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           .catch(() => {});
       }
 
-      // Content changed: invalidate file + affected files, refresh sidebar
-      tdContext.rpc.onContentChanged(({
+      // Content updated: file was created, modified, or renamed
+      tdContext.rpc.onContentUpdated(({
         filepath, affectedFiles = [],
       }) => {
-        console.log('[hmr] changed:', filepath);
         if (!server) return;
-        virtualSearchIndex.reindex(rootDirectory, filepath);
+        virtualSearchIndex.index(rootDirectory);
         virtualSearchIndex.invalidate(server);
+        virtualPages.invalidate(server);
+        virtualSiteData.clear();
+        virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath, ...affectedFiles);
-        debouncedSidebarFetch();
       });
 
-      // Content created/deleted/renamed: invalidate file + refresh file list
-      function handleContentListChange ({
+      // Content deleted: file was removed from disk
+      tdContext.rpc.onContentDeleted(({
         filepath,
-      }: TdContentNotification) {
-        console.log('[hmr] list change:', filepath);
+      }) => {
         if (!server) return;
         virtualSearchIndex.index(rootDirectory);
         virtualSearchIndex.invalidate(server);
@@ -283,13 +280,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath);
-      }
+      });
 
-      tdContext.rpc.onContentCreated(handleContentListChange);
-      tdContext.rpc.onContentDeleted(handleContentListChange);
-      tdContext.rpc.onContentRenamed(handleContentListChange);
-
-      // Schema changes affect all pages and sidebar data
+      // Schema updated or deleted: affects all pages and sidebar
       function handleSchemaChange () {
         if (!server) return;
         virtualSiteData.clear();
@@ -297,8 +290,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSiteData.fetch(tdContext, server);
       }
 
-      tdContext.rpc.onSchemaChanged(handleSchemaChange);
-      tdContext.rpc.onSchemaCreated(handleSchemaChange);
+      tdContext.rpc.onSchemaUpdated(handleSchemaChange);
       tdContext.rpc.onSchemaDeleted(handleSchemaChange);
 
       const initialConfig = await tdContext.getConfig();
