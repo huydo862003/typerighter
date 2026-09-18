@@ -8,7 +8,7 @@
 * packages/typerighter
   - All content notifications (created, changed, deleted, renamed) now invalidate the individual file for HMR
 
-## [0.35.0] - 2026-09-18
+## [0.35.0] - 2026-09-18 (retracted)
 
 ### Fixed
 
@@ -20,14 +20,14 @@
   - Reverted aggressive brace escaping that broke HMR
   - Frontmatter link icons align to first line of multiline text
 
-## [0.34.3] - 2026-09-18
+## [0.34.3] - 2026-09-18 (retracted)
 
 ### Fixed
 
 * crates/typedown-lang
   - Improve diagnostic messages
 
-## [0.34.2] - 2026-09-16
+## [0.34.2] - 2026-09-16 (retracted)
 
 ### Fixed
 
@@ -43,7 +43,7 @@
 * crates/typedown-lang
   - `__` for bold and `___` for bold italic (matching `**`/`***`)
 
-## [0.34.1] - 2026-09-16
+## [0.34.1] - 2026-09-16 (retracted)
 
 ### Fixed
 
