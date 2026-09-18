@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.34.3] - 2026-09-18
+
+### Fixed
+
+* crates/typedown-lang
+  - Improve diagnostic messages
+
 ## [0.34.2] - 2026-09-16
 
 ### Fixed
