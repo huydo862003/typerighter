@@ -1,3 +1,13 @@
+## [0.36.0] - 2026-09-18
+
+### Fixed
+
+* crates/typedown-server
+  - Send all FS events in order instead of deduplicating (fixes HMR when OS emits both Create and Modify)
+
+* packages/typerighter
+  - All content notifications (created, changed, deleted, renamed) now invalidate the individual file for HMR
+
 ## [0.35.0] - 2026-09-18
 
 ### Fixed
