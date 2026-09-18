@@ -176,7 +176,7 @@ impl Arbitrary for Diagnostic {
         }
       ),
       arb_offsets().prop_map(|(start_offset, end_offset)| {
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+        Diagnostic::MissingRequiredSpace {
           start_offset,
           end_offset,
         }

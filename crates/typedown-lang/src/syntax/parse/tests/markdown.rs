@@ -4161,12 +4161,7 @@ $$
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| {
-      matches!(
-        d,
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
-      )
-    })
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -4186,12 +4181,7 @@ fn parse_arrow_not_list() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| {
-      matches!(
-        d,
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
-      )
-    })
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -4214,12 +4204,7 @@ fn parse_arrow_inside_list_no_error() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| {
-      matches!(
-        d,
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
-      )
-    })
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
     .collect();
   assert!(
     heading_diags.is_empty(),

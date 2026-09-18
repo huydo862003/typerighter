@@ -25,7 +25,7 @@ pub enum DiagnosticCode {
   UnexpectedTokensOnFrontmatterMarkerLine = 16,
   MissingFrontmatterMarker = 17,
   MissingMarkdownHeadingHash = 18,
-  MissingRequiredSpacesBetweenHashAndHeading = 19,
+  MissingRequiredSpace = 19,
   MissingSyntaxNode = 20,
   UnclosedLink = 21,
   UnclosedBold = 22,
@@ -112,7 +112,7 @@ impl DiagnosticCode {
       DiagnosticCode::UnclosedContainerPropBlock => "unclosed-container-prop-block",
       DiagnosticCode::MissingFrontmatterMarker => "missing-frontmatter-marker",
       DiagnosticCode::MissingMarkdownHeadingHash => "missing-heading-hash",
-      DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading => "missing-heading-space",
+      DiagnosticCode::MissingRequiredSpace => "missing-required-space",
       DiagnosticCode::MissingSyntaxNode => "missing-syntax-node",
       DiagnosticCode::UnclosedLink => "unclosed-link",
       DiagnosticCode::UnclosedBold => "unclosed-bold",
@@ -312,7 +312,7 @@ pub enum Diagnostic {
   },
 
   /// Expected a specific syntax node or token but it was missing.
-  MissingRequiredSpacesBetweenHashAndHeading {
+  MissingRequiredSpace {
     start_offset: usize,
     end_offset: usize,
   },
@@ -725,7 +725,7 @@ impl Diagnostic {
         start_offset,
         end_offset,
       }
-      | Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      | Diagnostic::MissingRequiredSpace {
         start_offset,
         end_offset,
       }
@@ -990,9 +990,7 @@ impl Diagnostic {
       Diagnostic::UnclosedContainerPropBlock { .. } => "unclosed container prop block".into(),
       Diagnostic::MissingFrontmatterMarker { .. } => "missing frontmatter marker '---'".into(),
       Diagnostic::MissingMarkdownHeadingHash { .. } => "missing '#' for markdown heading".into(),
-      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. } => {
-        "missing space between '#' and heading text".into()
-      }
+      Diagnostic::MissingRequiredSpace { .. } => "missing required space after block marker".into(),
       Diagnostic::MissingSyntaxNode { expected, .. } => {
         format!("missing {expected:?}")
       }
@@ -1187,9 +1185,7 @@ impl Diagnostic {
       }
       Diagnostic::MissingFrontmatterMarker { .. } => DiagnosticCode::MissingFrontmatterMarker,
       Diagnostic::MissingMarkdownHeadingHash { .. } => DiagnosticCode::MissingMarkdownHeadingHash,
-      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. } => {
-        DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading
-      }
+      Diagnostic::MissingRequiredSpace { .. } => DiagnosticCode::MissingRequiredSpace,
       Diagnostic::MissingSyntaxNode { .. } => DiagnosticCode::MissingSyntaxNode,
       Diagnostic::UnclosedLink { .. } => DiagnosticCode::UnclosedLink,
       Diagnostic::UnclosedBold { .. } => DiagnosticCode::UnclosedBold,
