@@ -20,6 +20,9 @@ import {
 import {
   isRpcCancelled,
 } from '../../lib/typedown-context';
+import type {
+  TdContentNotification,
+} from '@typerighter/rpc-client';
 import {
   VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
   PAGES_ID, RESOLVED_PAGES_ID, PAGE_DATA_PREFIX,
@@ -225,64 +228,59 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSiteData.fetch(tdContext, server);
       });
 
-      // Content changed: re-index file + invalidate .td modules and affected files
+      // Invalidate a file's modules and send HMR update to the browser
+      function invalidateFileModules (...filepaths: string[]) {
+        if (!server) return;
+        tdContext.getConfig()
+          .then((config) => {
+            if (!server) return;
+            const updates: ReturnType<typeof makeHmrUpdate>[] = [];
+
+            for (const filepath of filepaths) {
+              const absolute = normalizePath(
+                resolve(server.config.root, config.rootDir, filepath),
+              );
+              const modules = server.moduleGraph.getModulesByFile(absolute);
+
+              if (!modules?.size) continue;
+
+              for (const module_ of modules) {
+                server.moduleGraph.invalidateModule(module_);
+                updates.push(makeHmrUpdate(module_));
+              }
+
+              virtualPages.invalidatePageData(server, filepath);
+            }
+
+            if (0 < updates.length) {
+              server.hot.send({ type: 'update', updates });
+            }
+          })
+          .catch(() => {});
+      }
+
+      // Content changed: invalidate file + affected files, refresh sidebar
       tdContext.rpc.onContentChanged(({
         filepath, affectedFiles = [],
       }) => {
         if (!server) return;
-
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
-
-        tdContext.getConfig()
-          .then((config) => {
-            if (!server) return;
-
-            const filesToInvalidate = [
-              filepath,
-              ...affectedFiles,
-            ];
-            const allUpdates: ReturnType<typeof makeHmrUpdate>[] = [];
-
-            for (const file of filesToInvalidate) {
-              const absolute = normalizePath(
-                resolve(server.config.root, config.rootDir, file),
-              );
-
-              // A single file can back several modules (`?vue&type=template`, `&type=style`)
-              const modules = server.moduleGraph.getModulesByFile(absolute);
-
-              if (!modules?.size) continue; // not transformed yet, nothing to invalidate
-
-              for (const module_ of modules) {
-                server?.moduleGraph.invalidateModule(module_);
-                allUpdates.push(makeHmrUpdate(module_));
-              }
-
-              virtualPages.invalidatePageData(server, file);
-            }
-
-            if (0 < allUpdates.length) {
-              server.hot.send({
-                type: 'update',
-                updates: allUpdates,
-              });
-            }
-          })
-          .catch(() => {});
-
-        // Metadata fields (_label, _icon, schema) may have changed, refresh sidebar
+        invalidateFileModules(filepath, ...affectedFiles);
         debouncedSidebarFetch();
       });
 
-      // Files added or removed: full re-index
-      function handleContentListChange () {
+      // Content created/deleted/renamed: invalidate file + refresh file list
+      function handleContentListChange ({
+        filepath,
+      }: TdContentNotification) {
         if (!server) return;
         virtualSearchIndex.index(rootDirectory);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
         virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
+        invalidateFileModules(filepath);
       }
 
       tdContext.rpc.onContentCreated(handleContentListChange);

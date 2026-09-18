@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -356,24 +355,13 @@ impl RpcServer {
     fs_rx: crossbeam_channel::Receiver<FsEvent>,
   ) {
     while let Ok(first) = fs_rx.recv() {
-      let mut pending: BTreeMap<PathBuf, FsEvent> = BTreeMap::new();
-      pending.insert(first.path.clone(), first);
+      let mut all_events = vec![first];
 
       // Drain additional events within 50ms for batching
       let deadline = std::time::Instant::now() + Duration::from_millis(50);
       loop {
         match fs_rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
-          // Prefer structural events over Modified since the OS emits both for new files
-          Ok(event) => match pending.entry(event.path.clone()) {
-            Entry::Vacant(e) => {
-              e.insert(event);
-            }
-            Entry::Occupied(mut e) => {
-              if event.kind != FsEventKind::Modified {
-                e.insert(event);
-              }
-            }
-          },
+          Ok(event) => all_events.push(event),
           Err(crossbeam_channel::RecvTimeoutError::Timeout) => break,
           Err(crossbeam_channel::RecvTimeoutError::Disconnected) => return,
         }
@@ -382,7 +370,7 @@ impl RpcServer {
       // Apply changes to the host
       {
         let mut host_guard = host.write().unwrap();
-        for event in pending.values() {
+        for event in &all_events {
           match &event.kind {
             FsEventKind::Created | FsEventKind::Modified => {
               host_guard.on_disk_change(event.path.clone())
@@ -404,12 +392,12 @@ impl RpcServer {
         let root_dir = config.root_dir(db);
 
         // Notify subscribers if any pending event is a config file change
-        if pending.values().any(|event| is_vault_config(&event.path)) {
+        if all_events.iter().any(|event| is_vault_config(&event.path)) {
           let config = build_site_config(db, project);
           send_notification(&sender, NOTIF_CONFIG_CHANGED, &config);
         }
 
-        for event in pending.into_values() {
+        for event in &all_events {
           if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
             let relative =
               normalize_path(event.path.strip_prefix(&root_dir).unwrap_or(&event.path));
