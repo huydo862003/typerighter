@@ -45,7 +45,6 @@ import {
   vaultAssets, virtualHtml,
 } from './middleware';
 import {
-  debounce,
   path,
 } from '@/shared';
 
@@ -194,11 +193,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const config = await tdContext.getConfig();
       const rootDirectory = resolve(config.rootDir);
 
-      // Debounced sidebar refresh for metadata changes (coalesces rapid saves)
-      const debouncedSidebarFetch = debounce(() => {
-        if (server) virtualSiteData.fetch(tdContext, server);
-      }, 200);
-
       // Seed sidebar from disk (instant), then upgrade via RPC in background
       virtualSearchIndex.index(rootDirectory);
       virtualSiteData.scan(rootDirectory);
@@ -250,7 +244,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
             }
 
             if (0 < updates.length) {
-              server.hot.send({ type: 'update', updates });
+              server.hot.send({
+                type: 'update',
+                updates,
+              });
             }
           })
           .catch(() => {});

@@ -394,15 +394,17 @@ impl RpcServer {
 
       // Scan newly created directories for files that inotify may have missed
       for event in &all_events {
-        if matches!(event.kind, FsEventKind::Created) && event.path.is_dir()
-          && let Ok(entries) = std::fs::read_dir(&event.path) {
-            for entry in entries.flatten() {
-              let path = entry.path();
-              if path.is_file() {
-                affected_paths.insert(path);
-              }
+        if matches!(event.kind, FsEventKind::Created)
+          && event.path.is_dir()
+          && let Ok(entries) = std::fs::read_dir(&event.path)
+        {
+          for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+              affected_paths.insert(path);
             }
           }
+        }
       }
 
       // If a concurrent write cancels these queries, skip and let the next batch retry

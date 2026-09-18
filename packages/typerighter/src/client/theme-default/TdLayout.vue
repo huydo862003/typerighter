@@ -318,9 +318,9 @@ function shrinkSidebar () {
       >
         <TdSiteSearch
           ref="sidebarSearch"
-          class="td-sidebar-search"
           v-model:query="searchQuery"
           v-model:active="sidebarSearchActive"
+          class="td-sidebar-search"
         />
         <div class="td-sidebar-scroll">
           <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
