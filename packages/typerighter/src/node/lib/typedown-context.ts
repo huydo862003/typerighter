@@ -35,8 +35,11 @@ export class TypedownContext {
       }
     });
 
-    client.onContentCreated(() => {
+    client.onContentCreated(({
+      filepath,
+    }) => {
       this.cachedFiles = undefined;
+      this.cachedFileMap.delete(filepath);
     });
 
     client.onContentRenamed(({
