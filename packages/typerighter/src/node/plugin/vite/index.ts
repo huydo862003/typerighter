@@ -263,6 +263,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       tdContext.rpc.onContentChanged(({
         filepath, affectedFiles = [],
       }) => {
+        console.log('[hmr] changed:', filepath);
         if (!server) return;
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
@@ -274,6 +275,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       function handleContentListChange ({
         filepath,
       }: TdContentNotification) {
+        console.log('[hmr] list change:', filepath);
         if (!server) return;
         virtualSearchIndex.index(rootDirectory);
         virtualSearchIndex.invalidate(server);

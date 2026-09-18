@@ -203,7 +203,7 @@ function toggle () {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 20px;
+  padding: 6px 17px 6px 10px;
   font-size: var(--font-size-td-2xs);
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
@@ -276,7 +276,7 @@ function toggle () {
 }
 
 .td-tree-children {
-  margin-left: 22px;
+  margin-left: 16px;
   border-left: 1px solid var(--color-td-line-soft);
 }
 
