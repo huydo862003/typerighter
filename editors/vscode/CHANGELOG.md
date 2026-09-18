@@ -1,6 +1,30 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.37.0] - 2026-09-19
+
+### Refactored
+
+* crates/typedown-server
+  - Unified FS notifications: 4 content events collapsed into `content_updated` / `content_deleted` with post-batch stat verification
+  - Schema notifications collapsed into `schema_updated` / `schema_deleted`
+  - New directories scanned for files to fix inotify race condition
+  - Removed event deduplication in favor of processing all events in order
+
+* packages/typerighter
+  - Single handler per notification type, every handler invalidates the individual file
+  - Removed `renamed_to` field from content notifications
+
+### Fixed
+
+* packages/typerighter
+  - Sidebar folder labels aligned with file icons
+  - Reduced tree nesting indent (22px to 16px)
+  - Hidden horizontal scrollbar on sidebar and drawer (`overflow-x: clip`)
+  - Drawer header sticky on scroll
+  - Sidebar search bar sticky above scrollable tree
+  - Bottom breathing space on sidebar nav tree
+
 ## [0.36.0] - 2026-09-18
 
 ### Fixed
