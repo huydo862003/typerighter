@@ -29,6 +29,8 @@ pub fn html_escape(text: &str) -> String {
       '&' => out.push_str("&amp;"),
       '"' => out.push_str("&quot;"),
       '\'' => out.push_str("&#39;"),
+      '{' => out.push_str("&#123;"),
+      '}' => out.push_str("&#125;"),
       _ => out.push(ch),
     }
   }
