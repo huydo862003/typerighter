@@ -1,3 +1,11 @@
+## [0.37.1] - 2026-09-19
+
+### Fixed
+
+* packages/typerighter
+  - Dev server now serves `fref()` assets correctly when `base_path` is set
+  - Removed unused debounced sidebar fetch
+
 ## [0.37.0] - 2026-09-19
 
 ### Refactored
