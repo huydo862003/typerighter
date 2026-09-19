@@ -130,7 +130,6 @@ impl QueryStorage {
       Arc::downgrade(&storage),
     ));
     storage.load_leaf_nodes();
-    storage.load_derived_nodes();
     storage
   }
 
