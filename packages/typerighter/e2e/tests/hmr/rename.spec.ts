@@ -11,12 +11,14 @@ e2e.describe('HMR file rename', () => {
     page,
     testProject,
   }) => {
-    await page.goto(`http://localhost:${testProject.port}/people/alice`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page, '/people/alice');
 
     const sidebar = page.getByTestId('sidebar');
 
-    await expect(sidebar.locator('text=Bob')).toBeVisible({
+    // Bob's link should point to /people/bob
+    await expect(sidebar.getByRole('link', {
+      name: /Bob/,
+    })).toHaveAttribute('href', /\/people\/bob$/, {
       timeout: 5_000,
     });
 
@@ -26,8 +28,10 @@ e2e.describe('HMR file rename', () => {
       path.join(testProject.dir, 'vault/people/bobby.td'),
     );
 
-    // Bob should disappear, Bobby should appear
-    await expect(sidebar.locator('text=Bobby')).toBeVisible({
+    // The link href should update to /people/bobby
+    await expect(sidebar.getByRole('link', {
+      name: /Bob/,
+    })).toHaveAttribute('href', /\/people\/bobby$/, {
       timeout: 10_000,
     });
   });

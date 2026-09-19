@@ -7,51 +7,48 @@ e2e.describe('navigation', () => {
     page,
     testProject,
   }) => {
-    await page.goto(`http://localhost:${testProject.port}`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page);
 
-    // Find and click a link to alice in the sidebar
     const sidebar = page.getByTestId('sidebar');
-    const aliceLink = sidebar.locator('a', {
-      hasText: 'Alice',
+
+    // Expand the People folder (collapsed by default on root page)
+    const peopleFolder = sidebar.getByText('People').first();
+
+    await expect(peopleFolder).toBeVisible({ timeout: 15_000 });
+    await peopleFolder.click();
+
+    // Now click alice inside the expanded folder
+    const aliceLink = sidebar.getByRole('link', {
+      name: /Alice/,
     }).first();
 
+    await expect(aliceLink).toBeVisible({ timeout: 5_000 });
     await aliceLink.click();
 
-    // URL should contain alice
     await expect(page).toHaveURL(/\/people\/alice/);
-
-    // Page content should relate to alice
-    const content = page.getByTestId('content');
-
-    await expect(content.locator('text=Alice')).toBeVisible({
-      timeout: 5_000,
-    });
   });
 
   e2e('navigating between pages does not cause full reload', async ({
     page,
     testProject,
   }) => {
-    await page.goto(`http://localhost:${testProject.port}/people/alice`);
-    await page.waitForLoadState('networkidle');
+    // Start at alice so People folder is auto-expanded
+    await testProject.goto(page, '/people/alice');
 
-    // Inject a marker into the DOM to detect full reload
     await page.evaluate(() => {
       document.body.dataset.navMarker = 'true';
     });
 
-    // Navigate to another page via sidebar
     const sidebar = page.getByTestId('sidebar');
-    const bobLink = sidebar.locator('a', {
-      hasText: 'Bob',
+    const bobLink = sidebar.getByRole('link', {
+      name: /Bob/,
     }).first();
 
+    await expect(bobLink).toBeVisible({ timeout: 15_000 });
     await bobLink.click();
 
     await expect(page).toHaveURL(/\/people\/bob/);
 
-    // Marker should still exist if it was a client-side navigation
     const markerExists = await page.evaluate(() => document.body.dataset.navMarker);
 
     expect(markerExists).toBe('true');

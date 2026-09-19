@@ -11,8 +11,7 @@ e2e.describe('HMR sidebar update', () => {
     page,
     testProject,
   }) => {
-    await page.goto(`http://localhost:${testProject.port}/people/alice`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page, '/people/alice');
 
     // Verify new person is not in sidebar yet
     const sidebar = page.getByTestId('sidebar');
@@ -34,8 +33,7 @@ e2e.describe('HMR sidebar update', () => {
     page,
     testProject,
   }) => {
-    await page.goto(`http://localhost:${testProject.port}/people/alice`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page, '/people/alice');
 
     // Find bob in sidebar
     const sidebar = page.getByTestId('sidebar');

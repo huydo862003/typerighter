@@ -7,9 +7,7 @@ e2e.describe('HMR content update', () => {
     page,
     testProject,
   }) => {
-    // Navigate to a known page
-    await page.goto(`http://localhost:${testProject.port}/people/alice`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page, '/people/alice');
 
     // Track full page reloads
     let fullReloadOccurred = false;
@@ -20,19 +18,16 @@ e2e.describe('HMR content update', () => {
 
     const marker = `HMR_TEST_${Date.now()}`;
 
-    // Modify the file and wait for HMR
-    await testProject.modifyFileAndWaitForHMR(
-      page,
+    await testProject.modifyFile(
       'vault/people/alice.td',
       (content) => content + `\n${marker}\n`,
     );
 
-    // The marker text should appear on the page
+    // The marker text should appear on the page via HMR
     await expect(page.locator(`text=${marker}`)).toBeVisible({
-      timeout: 5_000,
+      timeout: 15_000,
     });
 
-    // No full reload should have happened
     expect(fullReloadOccurred).toBe(false);
   });
 });

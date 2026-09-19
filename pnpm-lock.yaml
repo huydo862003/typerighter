@@ -193,6 +193,18 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@26.4.1)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
 
+  packages/typerighter/e2e/fixtures/vault-base:
+    devDependencies:
+      typerighter:
+        specifier: workspace:*
+        version: link:../../..
+
+  packages/typerighter/e2e/fixtures/vault-root:
+    devDependencies:
+      typerighter:
+        specifier: workspace:*
+        version: link:../../..
+
 packages:
 
   '@azu/format-text@1.0.2':

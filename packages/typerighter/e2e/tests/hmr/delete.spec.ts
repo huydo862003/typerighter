@@ -11,8 +11,7 @@ e2e.describe('HMR file delete', () => {
     page,
     testProject,
   }) => {
-    await page.goto(`http://localhost:${testProject.port}/people/alice`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page, '/people/alice');
 
     const sidebar = page.getByTestId('sidebar');
 

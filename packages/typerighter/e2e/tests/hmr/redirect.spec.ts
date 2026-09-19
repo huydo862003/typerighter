@@ -12,9 +12,8 @@ e2e.describe('HMR redirect on delete', () => {
     testProject,
   }) => {
     // Navigate to bob's page
-    await page.goto(`http://localhost:${testProject.port}/people/bob`);
-    await page.waitForLoadState('networkidle');
-    await expect(page.locator('text=Bob')).toBeVisible({
+    await testProject.goto(page, '/people/bob');
+    await expect(page.getByTestId('content').getByRole('heading')).toBeVisible({
       timeout: 5_000,
     });
 
@@ -33,11 +32,10 @@ e2e.describe('HMR redirect on delete', () => {
     testProject,
   }) => {
     // Navigate to a milestone page
-    await page.goto(`http://localhost:${testProject.port}/milestones/alpha-preview`);
-    await page.waitForLoadState('networkidle');
+    await testProject.goto(page, '/notes/index');
 
     // Delete the entire milestones folder
-    await rm(path.join(testProject.dir, 'vault/milestones'), {
+    await rm(path.join(testProject.dir, 'vault/notes'), {
       recursive: true,
       force: true,
     });
@@ -46,6 +44,6 @@ e2e.describe('HMR redirect on delete', () => {
     await page.waitForTimeout(3_000);
     const url = page.url();
 
-    expect(url).not.toContain('/milestones/');
+    expect(url).not.toContain('/notes/');
   });
 });

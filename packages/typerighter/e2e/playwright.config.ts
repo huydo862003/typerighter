@@ -11,11 +11,16 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'root',
+      use: {
+        browserName: 'chromium',
+      },
+    },
+    {
+      name: 'base-path',
       use: {
         browserName: 'chromium',
       },
     },
   ],
-  // Each test manages its own dev server via fixtures
 });
