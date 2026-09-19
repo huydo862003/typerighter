@@ -10,7 +10,8 @@ use std::{
 };
 
 use crate::{
-  Cancelled, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry, QueryStorage, Revision,
+  Cancelled, DerivedIdentity, EntryId, ExecuteContext, IdentityMapTable, QueryStackEntry,
+  QueryStorage, Revision,
 };
 use crate::{
   Decodable, DepId, DeserializeContext, Encodable, Fingerprint, StableHash, StableHasher,
@@ -43,6 +44,8 @@ pub struct StampedDerivedQuery<K, V: Id + From<u32> + Into<u32>> {
   pub dependencies: Vec<Dependency>, // What this query read during execution
   pub key_fingerprint: OnceLock<Fingerprint>,
   pub value_fingerprint: OnceLock<Fingerprint>,
+  // (name_fingerprint, identity_hash, disambiguator, entry_id) for derived structs created this execution
+  pub derived_identities: Vec<DerivedIdentity>,
 }
 
 /// The state of a query entry in the cache
@@ -200,6 +203,7 @@ impl<
       value_entry_id: serialized_value_entry_id,
       changed_at,
       edges,
+      derived_identities,
       ..
     } = node
     else {
@@ -214,9 +218,17 @@ impl<
         return None;
       }
       let dep_id = decoder.get_or_deserialize_dep_node_id(edge_idx)?;
-      // no_hash deps: skip fingerprint check, handled by runtime green_check
       let expected_fingerprint = edge_node.value_fingerprint();
       if expected_fingerprint == Fingerprint::SKIPPED {
+        // no_hash deps have no fingerprint, re-execute and check via backdating
+        let dep = Dependency {
+          dep_id,
+          changed_at: edge_node.changed_at(),
+        };
+        storage.re_execute_dep(db, &dep);
+        if !storage.green_check_dep(db, &dep) {
+          return None;
+        }
         continue;
       }
       let ingredient = storage.get_ingredient_of_id(dep_id);
@@ -248,6 +260,10 @@ impl<
         dependencies,
         key_fingerprint: OnceLock::from(*cached_key_fingerprint),
         value_fingerprint: OnceLock::from(*cached_value_fingerprint),
+        derived_identities: derived_identities
+          .iter()
+          .filter_map(|id| ctx.deserialize_derived_identity(id))
+          .collect(),
       }),
     );
 
@@ -370,8 +386,12 @@ impl<
             cached = Some((memo.value.clone(), memo.changed_at));
             return;
           }
-          // Save old value and changed_at for backdating after recompute
-          old_memo = Some((memo.value.clone(), memo.changed_at));
+          // Save old memo state for backdating and identity map seeding
+          old_memo = Some((
+            memo.value.clone(),
+            memo.changed_at,
+            std::mem::take(&mut memo.derived_identities),
+          ));
         }
         *state = QueryState::Computing;
       })
@@ -383,26 +403,55 @@ impl<
 
     // Save parent context and push to query stack
     let dep_id = self.ingredient_id.with_entry(entry_id);
-    let (parent_deps, parent_disambiguators, parent_identity_maps, parent_created_ids) = storage
-      .with_context(|ctx| {
-        let ctx = ctx.get_or_insert_with(|| ExecuteContext {
-          query_stack: Vec::new(),
-          dependencies: Vec::new(),
-          disambiguator_map: HashMap::new(),
-          identity_maps: None,
-          created_ids: HashMap::new(),
-        });
-        ctx.query_stack.push(QueryStackEntry { dep_id });
-        let parent_store = ctx.identity_maps.replace(self.identity_maps.clone());
-        (
-          std::mem::take(&mut ctx.dependencies),
-          std::mem::take(&mut ctx.disambiguator_map),
-          parent_store,
-          std::mem::take(&mut ctx.created_ids),
-        )
+    let (
+      parent_deps,
+      parent_disambiguators,
+      parent_identity_maps,
+      parent_derived_identities,
+      parent_created_ids,
+    ) = storage.with_context(|ctx| {
+      let ctx = ctx.get_or_insert_with(|| ExecuteContext {
+        query_stack: Vec::new(),
+        dependencies: Vec::new(),
+        disambiguator_map: HashMap::new(),
+        identity_maps: None,
+        derived_identities: Vec::new(),
+        created_ids: HashMap::new(),
       });
+      ctx.query_stack.push(QueryStackEntry { dep_id });
+      let parent_store = ctx.identity_maps.replace(self.identity_maps.clone());
+      (
+        std::mem::take(&mut ctx.dependencies),
+        std::mem::take(&mut ctx.disambiguator_map),
+        parent_store,
+        std::mem::take(&mut ctx.derived_identities),
+        std::mem::take(&mut ctx.created_ids),
+      )
+    });
 
     let storage = unsafe { db.storage() };
+
+    // Seed identity maps from previous execution
+    if let Some((_, _, ref old_ids)) = old_memo {
+      let mut name_fingerprint_to_start_index: HashMap<Fingerprint, u32> = HashMap::new();
+      for (index, field) in storage.fields.iter().enumerate() {
+        name_fingerprint_to_start_index
+          .entry(field.name_fingerprint())
+          .or_insert(index as u32);
+      }
+
+      for &(name_fingerprint, identity_hash, disambiguator, struct_id) in old_ids {
+        let Some(&start_index) = name_fingerprint_to_start_index.get(&name_fingerprint) else {
+          continue;
+        };
+        let map = self
+          .identity_maps
+          .entry((entry_id, start_index))
+          .or_insert_with(|| Arc::new(DashMap::new()))
+          .clone();
+        map.insert((identity_hash, disambiguator), struct_id);
+      }
+    }
 
     // Recompute
     #[cfg(debug_assertions)]
@@ -417,16 +466,18 @@ impl<
     }));
 
     // Collect recorded dependencies, restore parent state, and pop stack
-    let (dependencies, created_ids) = storage.with_context(|ctx| {
+    let (dependencies, derived_identities, created_ids) = storage.with_context(|ctx| {
       let ctx = ctx
         .as_mut()
         .expect("context disappeared during query execution");
       let dependencies = std::mem::replace(&mut ctx.dependencies, parent_deps);
       ctx.disambiguator_map = parent_disambiguators;
       ctx.identity_maps = parent_identity_maps;
+      let derived_identities =
+        std::mem::replace(&mut ctx.derived_identities, parent_derived_identities);
       let created_ids = std::mem::replace(&mut ctx.created_ids, parent_created_ids);
       ctx.query_stack.pop();
-      (dependencies, created_ids)
+      (dependencies, derived_identities, created_ids)
     });
 
     let value = match execute_result {
@@ -444,7 +495,7 @@ impl<
     // Backdating: if the new value equals the old, keep the old changed_at
     // This prevents unnecessary invalidation of downstream queries
     let changed_at = match old_memo {
-      Some((old_value, old_changed_at)) if old_value == value => old_changed_at,
+      Some((old_value, old_changed_at, _)) if old_value == value => old_changed_at,
       _ => current_revision,
     };
 
@@ -463,6 +514,7 @@ impl<
         } else {
           OnceLock::new()
         },
+        derived_identities,
       }),
     );
 
@@ -480,7 +532,17 @@ impl<
       let Some(map) = self.identity_maps.get(&(entry_id, *start_index)) else {
         continue;
       };
-      let removed = map.retain(&|id| active_ids.contains(&id));
+
+      let mut removed = HashSet::new();
+      map.retain(|_, id| {
+        if active_ids.contains(id) {
+          true
+        } else {
+          removed.insert(*id);
+          false
+        }
+      });
+
       if removed.is_empty() {
         continue;
       }
@@ -661,6 +723,7 @@ impl<
       changed_at,
       verified_at,
       edges,
+      derived_identities,
       ..
     } = node
     else {
@@ -696,6 +759,10 @@ impl<
         dependencies,
         key_fingerprint: OnceLock::from(*cached_key_fingerprint),
         value_fingerprint: OnceLock::from(*cached_value_fingerprint),
+        derived_identities: derived_identities
+          .iter()
+          .filter_map(|id| ctx.deserialize_derived_identity(id))
+          .collect(),
       }),
     );
 
@@ -739,6 +806,7 @@ impl<
         changed_at: memo.changed_at,
         verified_at: memo.verified_at.load(Ordering::Relaxed),
         edges,
+        derived_identities: memo.derived_identities.clone(),
       },
     );
 
@@ -748,12 +816,8 @@ impl<
     ctx.query_cache.set(node_index, &buf);
   }
 
-  // Force-deserialize cached query return values so entry IDs are remapped
+  // Eagerly deserialize cached query memos so identity maps can be seeded on re-execution
   fn promote_cached(&self, ctx: &DeserializeContext) {
-    // no_hash queries always recompute, skip promotion
-    if self.no_hash_flag {
-      return;
-    }
     let name = self.name_fingerprint;
     for (i, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
       if let DepNode::DerivedQuery { name: n, .. } = node

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU32};
@@ -30,38 +29,23 @@ pub struct QueryStackEntry {
   pub dep_id: DepId,
 }
 
-// Type-erased identity map that supports sweeping stale entries
-pub trait IdentityMap: Any + Send + Sync {
-  // Remove entries where predicate returns false, return the removed IDs
-  fn retain(&self, predicate: &dyn Fn(u32) -> bool) -> HashSet<u32>;
-}
+// (name_fingerprint, identity_hash, disambiguator, entry_id)
+pub type DerivedIdentity = (Fingerprint, u64, u32, u32);
 
-impl<K: Eq + std::hash::Hash + Send + Sync + 'static> IdentityMap for DashMap<K, u32> {
-  fn retain(&self, predicate: &dyn Fn(u32) -> bool) -> HashSet<u32> {
-    let mut removed = HashSet::new();
-    DashMap::retain(self, |_, id| {
-      if predicate(*id) {
-        true
-      } else {
-        removed.insert(*id);
-        false
-      }
-    });
-    removed
-  }
-}
-
-// (entry_id, start_index) -> identity map
-pub type IdentityMapTable = Arc<DashMap<(u32, u32), Arc<dyn IdentityMap>>>;
+// (parent_entry_id, start_index) -> identity map keyed by (identity_hash, disambiguator) -> entry_id
+pub type IdentityMapTable = Arc<DashMap<(u32, u32), Arc<DashMap<(u64, u32), u32>>>>;
 
 /// Context passed through derived query execution
 pub struct ExecuteContext {
   pub query_stack: Vec<QueryStackEntry>,
   pub dependencies: Vec<Dependency>,
-  pub disambiguator_map: HashMap<u64, u32>, // hash(ingredient_index, id_field_values) -> counter
+  pub disambiguator_map: HashMap<u64, u32>, // identity_hash -> counter
   // (entry_id, start_index) -> identity map, from the creating query
   pub identity_maps: Option<IdentityMapTable>,
-  pub created_ids: HashMap<u32, HashSet<u32>>, // start_index -> IDs created this execution
+  // Vec<DerivedIdentity> created in this derived query execution
+  pub derived_identities: Vec<DerivedIdentity>,
+  // start_index -> active entry IDs created this execution
+  pub created_ids: HashMap<u32, HashSet<u32>>,
 }
 
 #[derive(Clone)]
@@ -130,6 +114,7 @@ impl QueryStorage {
       Arc::downgrade(&storage),
     ));
     storage.load_leaf_nodes();
+    storage.load_derived_nodes();
     storage
   }
 
@@ -338,16 +323,6 @@ impl QueryStorage {
       } else {
         0
       }
-    })
-  }
-
-  /// Get the current query's DepId from the top of the query stack
-  #[doc(hidden)]
-  pub fn current_query_dep_id(&self) -> Option<DepId> {
-    self.with_context(|ctx| {
-      ctx
-        .as_ref()
-        .and_then(|ctx| ctx.query_stack.last().map(|entry| entry.dep_id))
     })
   }
 }

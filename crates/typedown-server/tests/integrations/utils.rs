@@ -154,6 +154,10 @@ pub fn copy_dir_recursive(src: &Path, dst: &Path) {
   for entry in std::fs::read_dir(src).unwrap().flatten() {
     let src_path = entry.path();
     let dst_path = dst.join(entry.file_name());
+    // Skip cache directory to avoid loading stale data from previous runs
+    if entry.file_name() == ".typedown" {
+      continue;
+    }
     if src_path.is_dir() {
       copy_dir_recursive(&src_path, &dst_path);
     } else {
