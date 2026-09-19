@@ -1476,9 +1476,9 @@ checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
 
 [[package]]
 name = "unescaper"
-version = "0.1.10"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7285e83a80ce76f5e7bce79fa41f68d78ba62d1003cf27bf748ab24413808cf4"
+checksum = "fb78bc2faba43e0b7f2521c78503ad6c6c05fce65b2c593ab8131c24880d8885"
 dependencies = [
  "thiserror",
 ]
