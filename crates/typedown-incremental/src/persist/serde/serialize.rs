@@ -6,7 +6,7 @@ use tempfile::NamedTempFile;
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
 use crate::persist::serialized::query_cache::FileHeader;
 use crate::persist::serialized::query_cache::FooterCacheEntry;
-use crate::{DepId, Encoder, Fingerprint, QueryDatabase};
+use crate::{DepId, DerivedIdentity, Encoder, Fingerprint, QueryDatabase};
 
 /// Context for serializing ingredients during dump
 /// Accumulates dep graph nodes and streams query result blobs.
@@ -48,6 +48,7 @@ pub enum UnresolvedDepNode {
     changed_at: u32,
     verified_at: u32,
     edges: Vec<DepId>,
+    derived_identities: Vec<DerivedIdentity>,
   },
   DerivedField {
     name: Fingerprint,
@@ -106,6 +107,7 @@ impl DepGraphBuilder {
           changed_at,
           verified_at,
           edges,
+          derived_identities,
         } => {
           // Skip memos with evicted deps
           let has_missing = edges
@@ -126,6 +128,7 @@ impl DepGraphBuilder {
             changed_at,
             verified_at,
             edges: resolved_edges,
+            derived_identities,
           }
         }
         UnresolvedDepNode::DerivedField {

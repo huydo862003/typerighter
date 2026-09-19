@@ -5,9 +5,11 @@ use tempfile::TempDir;
 use typedown_incremental::{CacheSession, InputId, SerializableQueryDatabase};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
+use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::Project;
+use typedown_lang::db::derived::typechecker::typecheck::typecheck;
+use typedown_lang::db::types::{FileRedNode, Project};
 use typedown_lang::integrations::export::{export_resource_html, export_resource_summary};
 use typedown_server::core::utils::fs::get_cache_dir;
 
@@ -533,6 +535,59 @@ fn no_hash_recomputes_with_changed_file() {
       ("NO_HASH_CHANGE_CACHE", cache_dir.to_str().unwrap()),
     ],
   );
+}
+
+// Cache roundtrip must not produce spurious type errors
+// Regression test for the identity map corruption bug where derived structs
+// (like TdSchemaType) got duplicate entry IDs after a cache reload
+#[test]
+fn cache_roundtrip_zero_type_errors() {
+  if std::env::var("ZERO_DIAG_SESSION").as_deref() == Ok("2") {
+    let project_dir = PathBuf::from(std::env::var("ZERO_DIAG_PROJECT").unwrap());
+    let cache_dir = PathBuf::from(std::env::var("ZERO_DIAG_CACHE").unwrap());
+
+    let db = setup_db_cached(&cache_dir, &project_dir);
+    let errors = collect_type_errors(&db);
+    assert!(
+      errors.is_empty(),
+      "cache roundtrip should produce zero type errors, got:\n{}",
+      errors.join("\n"),
+    );
+    return;
+  }
+
+  let (_tmp, project_dir, cache_dir, _) = session1_dump();
+
+  run_child_test(
+    "cache_roundtrip::cache_roundtrip_zero_type_errors",
+    &[
+      ("ZERO_DIAG_SESSION", "2"),
+      ("ZERO_DIAG_PROJECT", project_dir.to_str().unwrap()),
+      ("ZERO_DIAG_CACHE", cache_dir.to_str().unwrap()),
+    ],
+  );
+}
+
+fn collect_type_errors(db: &TypedownDatabase) -> Vec<String> {
+  let project = Project::iter(db)
+    .into_iter()
+    .next()
+    .expect("project should exist");
+
+  let mut errors = Vec::new();
+  for (path, file) in &*project.files(db) {
+    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+      continue;
+    }
+    let parse_result = parse_file(db, project, *file);
+    let root = parse_result.ast(db).node.clone();
+    let hir = lower_node(db, project, FileRedNode::new(*file, root));
+    let typecheck_result = typecheck(db, hir);
+    for diag in typecheck_result.diagnostics(db).iter() {
+      errors.push(format!("{}: {}", path.display(), diag.message()));
+    }
+  }
+  errors
 }
 
 fn run_diagnostics(db: &TypedownDatabase) {
