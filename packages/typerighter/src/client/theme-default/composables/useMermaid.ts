@@ -1,9 +1,6 @@
 import {
-  onMounted, watch,
+  onMounted, onUnmounted,
 } from 'vue';
-import {
-  useRoute,
-} from '../../app';
 
 const CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
@@ -13,7 +10,7 @@ let idCounter = 0;
 
 // Lazy-load mermaid from CDN and render diagram placeholders
 export function useMermaid (): void {
-  const route = useRoute();
+  let observer: MutationObserver | undefined;
 
   async function renderMermaidBlocks () {
     const container = document.getElementById('td-content');
@@ -50,8 +47,24 @@ export function useMermaid (): void {
     }
   }
 
-  onMounted(renderMermaidBlocks);
-  watch(() => route.path, renderMermaidBlocks);
+  onMounted(() => {
+    renderMermaidBlocks();
+
+    // Re-render when content changes (HMR, navigation)
+    const container = document.getElementById('td-content');
+
+    if (container) {
+      observer = new MutationObserver(renderMermaidBlocks);
+      observer.observe(container, {
+        childList: true,
+        subtree: true,
+      });
+    }
+  });
+
+  onUnmounted(() => {
+    observer?.disconnect();
+  });
 }
 
 async function loadMermaid () {
