@@ -14,7 +14,7 @@ e2e.describe('HMR file rename', () => {
     await page.goto(`http://localhost:${testProject.port}/people/alice`);
     await page.waitForLoadState('networkidle');
 
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
 
     await expect(sidebar.locator('text=Bob')).toBeVisible({
       timeout: 5_000,

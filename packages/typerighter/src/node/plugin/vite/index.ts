@@ -113,8 +113,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         base: userConfig.base ?? tdConfig.basePath,
         publicDir: tdConfig.publicDir,
         server: {
-          port: 8686,
-          strictPort: false,
+          port: userConfig.server?.port ?? 8686,
+          strictPort: userConfig.server?.strictPort ?? false,
         },
         resolve: {
           alias: resolveAliases(),

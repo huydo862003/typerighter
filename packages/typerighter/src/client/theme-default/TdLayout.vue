@@ -311,6 +311,7 @@ function shrinkSidebar () {
     <div class="td-page">
       <nav
         class="td-sidebar-left"
+        data-testid="sidebar"
         aria-label="Site navigation"
         :style="{
           width: `${sidebarWidth}px`,
@@ -346,6 +347,7 @@ function shrinkSidebar () {
           <article
             id="td-content"
             class="td-content"
+            data-testid="content"
           >
             <div
               v-if="page.schema"

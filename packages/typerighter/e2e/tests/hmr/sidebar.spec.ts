@@ -15,7 +15,7 @@ e2e.describe('HMR sidebar update', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify new person is not in sidebar yet
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
 
     await expect(sidebar.locator('text=Zara')).not.toBeVisible();
 
@@ -38,7 +38,7 @@ e2e.describe('HMR sidebar update', () => {
     await page.waitForLoadState('networkidle');
 
     // Find bob in sidebar
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
 
     await expect(sidebar.locator('text=Bob')).toBeVisible({
       timeout: 5_000,

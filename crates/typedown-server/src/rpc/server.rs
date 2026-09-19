@@ -9,7 +9,7 @@ use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ropey::Rope;
 use threadpool::ThreadPool;
-use typedown_incremental::{Cancelled, QueryStorage, SerializableQueryDatabase};
+use typedown_incremental::{CacheSession, Cancelled, QueryStorage, SerializableQueryDatabase};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
@@ -105,7 +105,7 @@ pub struct RpcServer {
   connection: Connection,
   host: Arc<std::sync::RwLock<AnalysisHost>>,
   thread_pool: ThreadPool,
-  cache_session: typedown_incremental::CacheSession,
+  cache_session: CacheSession,
   cache_dir: PathBuf,
   // Held to keep the watcher alive
   _watcher: RecommendedWatcher,
@@ -115,8 +115,12 @@ pub struct RpcServer {
 impl RpcServer {
   pub fn new(connection: Connection, root_dir: PathBuf) -> anyhow::Result<Self> {
     let cache_dir = get_cache_dir(&root_dir);
-    let (cache_session, serialized) = typedown_incremental::CacheSession::open(&cache_dir)
-      .unwrap_or_else(|_| (typedown_incremental::CacheSession::empty(), None));
+    let fresh = std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+    let (cache_session, serialized) = if fresh {
+      (CacheSession::empty(), None)
+    } else {
+      CacheSession::open(&cache_dir).unwrap_or_else(|_| (CacheSession::empty(), None))
+    };
 
     let storage = match serialized {
       Some(data) => {

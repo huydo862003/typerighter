@@ -11,7 +11,7 @@ e2e.describe('navigation', () => {
     await page.waitForLoadState('networkidle');
 
     // Find and click a link to alice in the sidebar
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
     const aliceLink = sidebar.locator('a', {
       hasText: 'Alice',
     }).first();
@@ -22,7 +22,7 @@ e2e.describe('navigation', () => {
     await expect(page).toHaveURL(/\/people\/alice/);
 
     // Page content should relate to alice
-    const content = page.locator('main, [class*="content"]');
+    const content = page.getByTestId('content');
 
     await expect(content.locator('text=Alice')).toBeVisible({
       timeout: 5_000,
@@ -42,7 +42,7 @@ e2e.describe('navigation', () => {
     });
 
     // Navigate to another page via sidebar
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
     const bobLink = sidebar.locator('a', {
       hasText: 'Bob',
     }).first();

@@ -14,7 +14,7 @@ e2e.describe('HMR folder operations', () => {
     await page.goto(`http://localhost:${testProject.port}`);
     await page.waitForLoadState('networkidle');
 
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
 
     await expect(sidebar.locator('text=Reports')).not.toBeVisible();
 
@@ -43,7 +43,7 @@ e2e.describe('HMR folder operations', () => {
     await page.goto(`http://localhost:${testProject.port}`);
     await page.waitForLoadState('networkidle');
 
-    const sidebar = page.locator('nav, [class*="sidebar"], aside');
+    const sidebar = page.getByTestId('sidebar');
 
     // Milestones folder should be visible
     await expect(sidebar.locator('text=Alpha Preview')).toBeVisible({
