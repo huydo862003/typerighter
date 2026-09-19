@@ -56,8 +56,9 @@
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "lint": "eslint .",
-    "lint:fix": "eslint ./src --fix",
-    "test": "vitest"
+    "lint:fix": "eslint ./src ./e2e --fix",
+    "test": "vitest",
+    "e2e": "playwright test --config e2e/playwright.config.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
@@ -81,8 +82,10 @@
   },
   "devDependencies": {
     "@hdnax/nuclint": "^0.17.5",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^26.4.1",
     "minisearch": "^7.2.0",
+    "playwright": "^1.61.1",
     "typescript": "^6.0.3",
     "vitest": "^5.0.0"
   }
