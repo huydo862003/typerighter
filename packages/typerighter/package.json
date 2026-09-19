@@ -84,6 +84,6 @@
     "@types/node": "^26.4.1",
     "minisearch": "^7.2.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }
