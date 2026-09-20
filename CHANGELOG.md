@@ -1,3 +1,11 @@
+## [0.38.1] - 2026-09-20
+
+### Fixed
+
+* packages/typerighter
+  - Improve search result for more context and remove unnecessary groupings
+  - Auto focus search box when sidebar opens
+
 ## [0.38.0] - 2026-09-20
 
 ### Fixed
