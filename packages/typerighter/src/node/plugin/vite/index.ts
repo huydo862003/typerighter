@@ -322,10 +322,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       const tdContext = await resolveTdContext();
       const config = await tdContext.getConfig();
-      const rootDirectory = config.rootDir;
-      const relativePath = cleanId.includes(rootDirectory)
-        ? cleanId.slice(cleanId.indexOf(rootDirectory) + rootDirectory.length + 1)
-        : cleanId;
+      const relativePath = path.stripPrefix(cleanId, config.rootDir);
 
       try {
         const resource = await tdContext.getFile(relativePath);

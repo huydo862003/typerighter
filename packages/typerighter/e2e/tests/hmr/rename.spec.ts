@@ -28,11 +28,12 @@ e2e.describe('HMR file rename', () => {
       path.join(testProject.dir, 'vault/people/bobby.td'),
     );
 
-    // The link href should update to /people/bobby
+    // Rename fires as delete + create so the link may briefly disappear
+    // Wait for the new href to appear
     await expect(sidebar.getByRole('link', {
       name: /Bob/,
     })).toHaveAttribute('href', /\/people\/bobby$/, {
-      timeout: 10_000,
+      timeout: 15_000,
     });
   });
 });

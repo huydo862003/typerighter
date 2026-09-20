@@ -14,7 +14,9 @@ e2e.describe('navigation', () => {
     // Expand the People folder (collapsed by default on root page)
     const peopleFolder = sidebar.getByText('People').first();
 
-    await expect(peopleFolder).toBeVisible({ timeout: 15_000 });
+    await expect(peopleFolder).toBeVisible({
+      timeout: 15_000,
+    });
     await peopleFolder.click();
 
     // Now click alice inside the expanded folder
@@ -22,7 +24,9 @@ e2e.describe('navigation', () => {
       name: /Alice/,
     }).first();
 
-    await expect(aliceLink).toBeVisible({ timeout: 5_000 });
+    await expect(aliceLink).toBeVisible({
+      timeout: 5_000,
+    });
     await aliceLink.click();
 
     await expect(page).toHaveURL(/\/people\/alice/);
@@ -44,7 +48,9 @@ e2e.describe('navigation', () => {
       name: /Bob/,
     }).first();
 
-    await expect(bobLink).toBeVisible({ timeout: 15_000 });
+    await expect(bobLink).toBeVisible({
+      timeout: 15_000,
+    });
     await bobLink.click();
 
     await expect(page).toHaveURL(/\/people\/bob/);

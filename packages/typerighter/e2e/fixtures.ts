@@ -41,9 +41,7 @@ function createTestProjectFixture (fixture: FixtureName) {
 
     // Create isolated temp copy
     // Skip .typedown (stale cache) and node_modules (symlinked separately for speed)
-    // Avoid "vault" in directory name: the Vite transform uses indexOf(rootDir)
-    // which can match a parent directory name instead of the actual vault directory
-    const directory = await mkdtemp(path.join(tmpdir(), 'td-e2e-'));
+    const directory = await mkdtemp(path.join(tmpdir(), `typerighter-e2e-${fixture}-`));
 
     await cp(fixtureDirectory, directory, {
       recursive: true,
@@ -68,12 +66,24 @@ function createTestProjectFixture (fixture: FixtureName) {
 
     const serverProcess: ChildProcess = spawn(
       'node',
-      [BIN, 'dev', '--port', String(port)],
+      [
+        BIN,
+        'dev',
+        '--port',
+        String(port),
+      ],
       {
         cwd: directory,
         // Inherit stderr for debug, ignore stdout to avoid pipe buffer blocking
-        stdio: ['ignore', 'ignore', 'inherit'],
-        env: { ...process.env, NODE_ENV: 'development' },
+        stdio: [
+          'ignore',
+          'ignore',
+          'inherit',
+        ],
+        env: {
+          ...process.env,
+          NODE_ENV: 'development',
+        },
       },
     );
 
@@ -84,8 +94,10 @@ function createTestProjectFixture (fixture: FixtureName) {
     const goto = async (page: Page, vaultPath = '') => {
       await page.goto(url(vaultPath));
       await page.waitForFunction(
-        () => (document.querySelector('#app')?.children.length ?? 0) > 0,
-        { timeout: 15_000 },
+        () => 0 < document.querySelector('#app')?.children.length ?? 0,
+        {
+          timeout: 15_000,
+        },
       );
     };
 
@@ -99,16 +111,33 @@ function createTestProjectFixture (fixture: FixtureName) {
       await writeFile(filePath, transform(original), 'utf-8');
     };
 
-    await use({ dir: directory, port, basePath, url, goto, modifyFile });
+    await use({
+      dir: directory,
+      port,
+      basePath,
+      url,
+      goto,
+      modifyFile,
+    });
 
     serverProcess.kill('SIGTERM');
-    await rm(directory, { recursive: true, force: true });
+    // Wait for the server to finish writing cache before removing the temp dir
+    await new Promise<void>((resolve) => {
+      serverProcess.on('exit', resolve);
+      setTimeout(resolve, 5_000);
+    });
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   };
 }
 
 // Find a free port by binding to 0 and releasing
 async function getFreePort (): Promise<number> {
-  const { createServer } = await import('node:net');
+  const {
+    createServer,
+  } = await import('node:net');
 
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -135,14 +164,21 @@ async function readBasePath (directory: string): Promise<string> {
 }
 
 // Picks vault-root or vault-base based on the Playwright project name
-export const e2e = test.extend<{ testProject: TestProject }>({
-  testProject: [async ({ }, use, testInfo) => {
-    const fixture: FixtureName = testInfo.project.name === 'base-path'
-      ? 'vault-base'
-      : 'vault-root';
+export const e2e = test.extend<{
+  testProject: TestProject;
+}>({
+  testProject: [
+    async ({}, use, testInfo) => {
+      const fixture: FixtureName = testInfo.project.name === 'base-path'
+        ? 'vault-base'
+        : 'vault-root';
 
-    await createTestProjectFixture(fixture)({}, use);
-  }, { scope: 'test' }],
+      await createTestProjectFixture(fixture)({}, use);
+    },
+    {
+      scope: 'test',
+    },
+  ],
 });
 
 async function waitForServer (url: string, timeoutMs: number): Promise<void> {
@@ -161,4 +197,6 @@ async function waitForServer (url: string, timeoutMs: number): Promise<void> {
   throw new Error(`Server at ${url} did not start within ${timeoutMs}ms`);
 }
 
-export { expect } from '@playwright/test';
+export {
+  expect,
+} from '@playwright/test';
