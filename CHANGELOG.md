@@ -34,7 +34,7 @@
 * CI
   - E2E workflow with Playwright on GitHub Actions
 
-## [0.37.1] - 2026-09-19
+## [0.37.1] - 2026-09-19 (retracted)
 
 ### Fixed
 
@@ -42,7 +42,7 @@
   - Dev server now serves `fref()` assets correctly when `base_path` is set
   - Removed unused debounced sidebar fetch
 
-## [0.37.0] - 2026-09-19
+## [0.37.0] - 2026-09-19 (retracted)
 
 ### Refactored
 
@@ -66,7 +66,7 @@
   - Sidebar search bar sticky above scrollable tree
   - Bottom breathing space on sidebar nav tree
 
-## [0.36.0] - 2026-09-18
+## [0.36.0] - 2026-09-18 (retracted)
 
 ### Fixed
 
