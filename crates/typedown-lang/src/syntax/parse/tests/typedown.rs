@@ -205,6 +205,10 @@ fn parse_all_project_tracker_files() {
   fn collect_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap().flatten() {
       let p = entry.path();
+      let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+      if name == "node_modules" || name == ".typedown" {
+        continue;
+      }
       if p.is_dir() {
         collect_files(&p, out);
       } else {
