@@ -1,6 +1,42 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.38.0] - 2026-09-20
+
+### Fixed
+
+* crates/typedown-incremental
+  - Identity maps now seeded from previous session's cache, preventing duplicate entry IDs for derived structs (TdSchemaType, etc.) after cache roundtrip
+  - No-hash query memos promoted during cache load so their derived identities survive across sessions
+  - SKIPPED fingerprint deps re-executed during cross-session green check instead of blindly trusted
+  - Dep graph serialization format extended with derived_identities per query memo
+
+* packages/typerighter
+  - Vault path resolution in Vite transform now uses path segment boundaries, fixing false matches when parent directory names contain the vault root name
+  - `--port` flag now correctly passed to Vite dev server (was ignored due to string-to-number conversion and hardcoded default)
+  - `--fresh` flag added to CLI, RPC, and LSP binaries to skip cache loading
+
+* crates/typedown-server
+  - `--root`, `--addr`, `--port`, `--fresh`, `--help` CLI flags added to typedown-rpc and typedown-lsp via pico-args
+  - `TYPEDOWN_NO_CACHE` env var skips cache loading in both RPC and LSP servers
+
+### Added
+
+* packages/typerighter
+  - Playwright e2e test suite: 13 tests across HMR, navigation, and server startup, run against both root and base-path fixtures
+  - `data-testid` attributes on sidebar and content elements for robust test selectors
+  - `path.stripPrefix` shared utility for safe vault-relative path extraction
+
+* crates/typedown-server
+  - 39 integration tests restructured into `cache/` (16 tests) and `multi_session/` (11 tests) modules
+  - Multi-session flow tests: RPC-to-LSP, LSP-to-RPC, 3-session chains, concurrent dumps
+  - `server_simulation` module with `run_rpc_queries`, `run_lsp_queries`, `collect_type_errors` helpers
+  - Zero-type-error regression test for cache corruption bug
+  - Cache roundtrip tests assert export headers are non-null and parse results have content
+
+* CI
+  - E2E workflow with Playwright on GitHub Actions
+
 ## [0.37.1] - 2026-09-19
 
 ### Fixed
