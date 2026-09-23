@@ -23,7 +23,7 @@ pub struct AnalysisHost {
   snapshot_counter: Arc<(Mutex<usize>, Condvar)>,
   open_files: Arc<HashMap<PathBuf, Rope>>, // editor-managed content
   scheme_map: Arc<HashMap<PathBuf, String>>, // URI scheme per path, set when editor opens a file
-  project_files: HashSet<PathBuf>,          // all tracked files known on disk
+  project_files: HashSet<PathBuf>,         // all tracked files known on disk
   file_map: HashMap<PathBuf, File>,        // stable File IDs, one per tracked path
 }
 
