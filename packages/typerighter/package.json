@@ -65,7 +65,7 @@
     "@floating-ui/vue": "^2.0.1",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@lucide/vue": "^1.44.0",
+    "@lucide/vue": "^1.47.0",
     "@shikijs/transformers": "^4.4.3",
     "@tailwindcss/vite": "^4.3.3",
     "@typerighter/rpc-client": "workspace:*",
