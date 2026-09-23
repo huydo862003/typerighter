@@ -141,55 +141,59 @@ function toggle () {
       <span class="td-tree-count">{{ totalCount }}</span>
     </div>
     <div
-      v-if="!collapsed"
-      class="td-tree-children"
+      class="td-collapse td-tree-children"
+      :class="{
+        'is-collapsed': collapsed,
+      }"
     >
-      <template
-        v-for="entry in visibleEntries"
-        :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
-      >
-        <TdTreeNode
-          v-if="entry.kind === 'dir'"
-          :node="entry.node"
-          :url-prefix="directoryUrl"
-        />
-        <a
-          v-else
-          :href="withBase(getTdContentUrl(entry.item.filepath))"
-          class="td-tree-link"
-          :class="{
-            'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
-          }"
+      <div>
+        <template
+          v-for="entry in visibleEntries"
+          :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
         >
-          <component
-            :is="getPageIcon(entry.item.icon.name)!"
-            v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
-            :size="14"
-            class="td-tree-file-icon"
+          <TdTreeNode
+            v-if="entry.kind === 'dir'"
+            :node="entry.node"
+            :url-prefix="directoryUrl"
           />
-          <File
+          <a
             v-else
-            :size="14"
-            class="td-tree-file-icon"
-          />
-          <TdTooltip
-            class="td-tree-link-text"
-            :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
-          ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
-          <span
-            v-if="entry.item.metadata"
-            class="td-tree-time"
-          >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
-        </a>
-      </template>
-      <button
-        v-if="hiddenCount > 0 && !showAll"
-        class="td-tree-more"
-        type="button"
-        @click="expandAll"
-      >
-        {{ hiddenCount }} more...
-      </button>
+            :href="withBase(getTdContentUrl(entry.item.filepath))"
+            class="td-tree-link"
+            :class="{
+              'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
+            }"
+          >
+            <component
+              :is="getPageIcon(entry.item.icon.name)!"
+              v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+              :size="14"
+              class="td-tree-file-icon"
+            />
+            <File
+              v-else
+              :size="14"
+              class="td-tree-file-icon"
+            />
+            <TdTooltip
+              class="td-tree-link-text"
+              :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
+            ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
+            <span
+              v-if="entry.item.metadata"
+              class="td-tree-time"
+            >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+          </a>
+        </template>
+        <button
+          v-if="hiddenCount > 0 && !showAll"
+          class="td-tree-more"
+          type="button"
+          @click="expandAll"
+        >
+          {{ hiddenCount }} more...
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -199,11 +203,11 @@ function toggle () {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 20px;
+  padding: 6px 17px 6px 10px;
   font-size: var(--font-size-td-2xs);
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-tree-toggle {
@@ -223,7 +227,7 @@ function toggle () {
 }
 
 .td-tree-label:hover {
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
 }
 
 .td-tree-label-text {
@@ -240,31 +244,31 @@ function toggle () {
   justify-content: center;
   padding: 2px;
   border-radius: 4px;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   text-decoration: none;
-  transition: color 0.1s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-index-btn:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-tree-index-btn.is-active {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-tree-count {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
   letter-spacing: normal;
   text-transform: none;
 }
 
 .td-tree-caret {
   flex-shrink: 0;
-  transition: transform 0.15s;
+  transition: transform var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-caret.is-collapsed {
@@ -272,28 +276,33 @@ function toggle () {
 }
 
 .td-tree-children {
-  margin-left: 22px;
-  border-left: 1px solid var(--color-td-neutral-border-subtle);
+  margin-left: 16px;
+  border-left: 1px solid var(--color-td-line-soft);
 }
 
 .td-tree-file-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-tree-link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 5px 10px 5px 10px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
-  transition: background-color 0.1s, border-left-color 0.1s, color 0.1s;
+  transition:
+    background-color var(--duration-td-fast) var(--ease-td-out-quart),
+    padding var(--duration-td-fast) var(--ease-td-out-quart),
+    color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-link:hover {
-  background-color: var(--color-td-neutral-bg-hover);
+  background-color: var(--color-td-hov);
+  color: var(--color-td-ink);
+  padding-left: 13px;
 }
 
 .td-tree-link-text {
@@ -305,13 +314,13 @@ function toggle () {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border);
+  color: var(--color-td-ink-4);
 }
 
 .td-tree-link.is-active {
-  background-color: var(--color-td-primary-bg-hover);
-  border-left-color: var(--color-td-primary-solid);
-  color: var(--color-td-primary-solid);
+  background-color: var(--color-td-sel);
+  border-left-color: var(--color-td-accent);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 
@@ -321,12 +330,12 @@ function toggle () {
   border: none;
   cursor: pointer;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   padding: 5px 12px;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-tree-more:hover {
-  color: var(--color-td-primary-solid-hover);
+  color: var(--color-td-accent-hi);
 }
 </style>

@@ -20,7 +20,7 @@
     "theme": "dark"
   },
   "author": "Huy-DNA <huydo862003@gmail.com>",
-  "version": "0.30.8",
+  "version": "0.39.0",
   "icon": "icons/typedown.png",
   "engines": {
     "vscode": "^1.125.0"
@@ -443,6 +443,6 @@
     "serialize-javascript": "^7.0.6"
   },
   "dependencies": {
-    "vscode-languageclient": "^10.1.0"
+    "vscode-languageclient": "^10.1.1"
   }
 }

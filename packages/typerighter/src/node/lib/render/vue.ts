@@ -28,9 +28,9 @@ export async function buildPageData (
   resource: TdBuiltResource,
   filepath: string,
 ): Promise<PageData> {
-  const title = resource.title || (isIndexFile(filepath)
+  const title = resource.title || resource.label || (isIndexFile(filepath)
     ? getTdIndexTitle(filepath, (await context.getConfig()).siteTitle)
-    : getTdResourceTitle(filepath, resource.label));
+    : getTdResourceTitle(filepath));
 
   return {
     schema: resource.schema,
@@ -108,6 +108,8 @@ function buildHeadingTree (flat: TdHeading[]): MarkdownHeading[] {
 }
 
 // The rendered HTML becomes a Vue template, so {{ ... }} would be evaluated as an expression
+// Escape double curly braces so Vue's template compiler does not interpret them
+// Single braces are safe in HTML text content
 function escapeVueInterpolation (html: string): string {
-  return html.replaceAll('{{', '&#123;&#123;');
+  return html.replaceAll('{{', '&#123;&#123;').replaceAll('}}', '&#125;&#125;');
 }

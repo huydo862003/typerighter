@@ -102,16 +102,16 @@ function format (value_: unknown): string {
   height: 260px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--color-td-neutral-border-subtle);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-td-fg) 8%, transparent);
-  transition: transform 0.15s, box-shadow 0.15s;
+  border: 1px solid var(--color-td-line-soft);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-td-ink) 8%, transparent);
+  transition: transform var(--duration-td-fast) var(--ease-td-out-quart), box-shadow var(--duration-td-fast) var(--ease-td-out-quart);
   vertical-align: middle;
-  background-color: var(--color-td-neutral-bg-subtle);
+  background-color: var(--color-td-surf);
 }
 
 .td-widget-image-preview:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-td-fg) 12%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-td-ink) 12%, transparent);
 }
 
 .td-widget-image-img {
@@ -125,19 +125,19 @@ function format (value_: unknown): string {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   font-size: var(--font-size-td-base);
   line-height: 1.4;
   padding: 4px 8px;
   border-radius: 4px;
-  background-color: var(--color-td-neutral-bg-subtle);
-  border: 1px solid var(--color-td-neutral-border-subtle);
-  transition: background-color 0.15s, border-color 0.15s;
+  background-color: var(--color-td-surf);
+  border: 1px solid var(--color-td-line-soft);
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart), border-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-widget-file-link:hover {
-  background-color: var(--color-td-neutral-bg-hover);
+  background-color: var(--color-td-hov);
   text-decoration: none;
 }
 
@@ -145,7 +145,7 @@ function format (value_: unknown): string {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-widget-file-name {

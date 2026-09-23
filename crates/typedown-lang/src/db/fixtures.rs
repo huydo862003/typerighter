@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -163,7 +163,7 @@ pub fn load_vault_fixture(
 }
 
 /// Collect all vault files (`.td` and `typedown.yaml`/`typedown.yml`) recursively.
-fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> BTreeMap<PathBuf, File> {
+fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, File> {
   fn is_vault_file(path: &Path) -> bool {
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let is_asset = path
@@ -174,7 +174,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> BTreeMap<PathBuf, F
     is_content_file(path) || is_asset || name == "typedown.yaml" || name == "typedown.yml"
   }
 
-  fn walk(dir: &Path, db: &TypedownDatabase, files: &mut BTreeMap<PathBuf, File>) {
+  fn walk(dir: &Path, db: &TypedownDatabase, files: &mut HashMap<PathBuf, File>) {
     if let Ok(entries) = std::fs::read_dir(dir) {
       for entry in entries.flatten() {
         let path = entry.path();
@@ -188,7 +188,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> BTreeMap<PathBuf, F
     }
   }
 
-  let mut files = BTreeMap::new();
+  let mut files = HashMap::new();
   walk(dir, db, &mut files);
   files
 }

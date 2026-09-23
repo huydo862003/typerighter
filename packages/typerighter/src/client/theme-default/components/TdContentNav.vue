@@ -8,6 +8,9 @@ import {
 import {
   useRoute, useSiteConfig,
 } from '../../app';
+import {
+  getPageIcon,
+} from '../utils/pageIcon';
 import TdTreeNode from './TdTreeNode.vue';
 import {
   formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, isIndexFile,
@@ -40,7 +43,7 @@ function isCurrent (href: string): boolean {
 </script>
 
 <template>
-  <nav>
+  <nav class="td-nav">
     <a
       :href="withBase(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/'))"
       class="td-root-link"
@@ -74,7 +77,14 @@ function isCurrent (href: string): boolean {
           'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
         }"
       >
+        <component
+          :is="getPageIcon(entry.item.icon.name)!"
+          v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+          :size="14"
+          class="td-root-link-icon"
+        />
         <File
+          v-else
           :size="14"
           class="td-root-link-icon"
         />
@@ -89,26 +99,35 @@ function isCurrent (href: string): boolean {
 </template>
 
 <style scoped>
+.td-nav {
+  padding-bottom: min(40vh, 300px);
+}
+
 .td-root-link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 20px;
+  padding: 5px 17px 5px 10px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   border-left: 3px solid transparent;
-  transition: background-color 0.1s;
+  transition:
+    background-color var(--duration-td-fast) var(--ease-td-out-quart),
+    padding var(--duration-td-fast) var(--ease-td-out-quart),
+    color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-root-link:hover {
-  background-color: var(--color-td-neutral-bg-hover);
+  background-color: var(--color-td-hov);
+  color: var(--color-td-ink);
+  padding-left: 13px;
 }
 
 .td-root-link.is-active {
-  background-color: var(--color-td-primary-bg-hover);
-  border-left-color: var(--color-td-primary-solid);
-  color: var(--color-td-primary-solid);
+  background-color: var(--color-td-sel);
+  border-left-color: var(--color-td-accent);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 
@@ -123,11 +142,11 @@ function isCurrent (href: string): boolean {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border);
+  color: var(--color-td-ink-4);
 }
 
 .td-root-link-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 </style>

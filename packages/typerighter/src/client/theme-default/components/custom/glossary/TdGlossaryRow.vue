@@ -56,10 +56,10 @@ const {
   flex-direction: column;
   gap: 2px;
   padding: 10px 4px;
-  border-bottom: 1px solid var(--color-td-neutral-border-subtle);
+  border-bottom: 1px solid var(--color-td-line-soft);
   text-decoration: none;
   color: inherit;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-glossary-row:last-child {
@@ -67,7 +67,7 @@ const {
 }
 
 .td-glossary-row:hover {
-  background: var(--color-td-primary-bg-subtle);
+  background: var(--color-td-sel);
 }
 
 .td-glossary-row:hover .td-glossary-row-title {
@@ -77,19 +77,19 @@ const {
 .td-glossary-row-title {
   font-size: var(--font-size-td-base);
   font-weight: 800;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-glossary-row-time {
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-glossary-row-desc {
   font-size: var(--font-size-td-xs);
   line-height: var(--leading-td-normal);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -97,7 +97,7 @@ const {
 
 .td-glossary-row-stub {
   font-style: italic;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-glossary-row-tags {
@@ -108,11 +108,11 @@ const {
 }
 
 .td-glossary-row-tag {
-  border: 1px solid var(--color-td-neutral-border-subtle);
-  background: var(--color-td-neutral-bg);
+  border: 1px solid var(--color-td-line-soft);
+  background: var(--color-td-pg);
   padding: 1px 8px;
   border-radius: 999px;
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 </style>

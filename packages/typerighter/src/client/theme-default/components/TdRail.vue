@@ -32,8 +32,8 @@ const {
   overscroll-behavior: contain;
   padding: 24px 18px 40px;
   min-width: 0;
-  border-left: 1px solid var(--color-td-neutral-border-subtle);
-  background: var(--color-td-neutral-bg);
+  border-left: 1px solid var(--color-td-line-soft);
+  background: var(--color-td-pg);
   display: flex;
   flex-direction: column;
   gap: 22px;

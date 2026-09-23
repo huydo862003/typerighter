@@ -115,29 +115,36 @@ function toggleRail () {
         }"
       />
     </button>
-    <div v-if="!railCollapsed">
-      <div
-        v-for="[
-          key,
-          definition,
-        ] in entries"
-        :key="key"
-        class="td-fm-rail-row"
-      >
-        <span class="td-fm-rail-key">
-          <component
-            :is="getWidgetIcon(definition.widget)"
-            :size="12"
-            class="td-fm-icon"
-          />
-          {{ unslugify(key) }}
-        </span>
-        <span class="td-fm-rail-value">
-          <TdFrontmatterValue
-            :definition="definition"
-            :value="frontmatter[key]"
-          />
-        </span>
+    <div
+      class="td-collapse"
+      :class="{
+        'is-collapsed': railCollapsed,
+      }"
+    >
+      <div>
+        <div
+          v-for="[
+            key,
+            definition,
+          ] in entries"
+          :key="key"
+          class="td-fm-rail-row"
+        >
+          <span class="td-fm-rail-key">
+            <component
+              :is="getWidgetIcon(definition.widget)"
+              :size="12"
+              class="td-fm-icon"
+            />
+            {{ unslugify(key) }}
+          </span>
+          <span class="td-fm-rail-value">
+            <TdFrontmatterValue
+              :definition="definition"
+              :value="frontmatter[key]"
+            />
+          </span>
+        </div>
       </div>
     </div>
   </div>
@@ -166,31 +173,35 @@ function toggleRail () {
       </span>
     </button>
     <div
-      v-if="!collapsed"
-      class="td-fm-box-body"
+      class="td-collapse"
+      :class="{
+        'is-collapsed': collapsed,
+      }"
     >
-      <template
-        v-for="[
-          key,
-          definition,
-        ] in entries"
-        :key="key"
-      >
-        <span class="td-fm-box-key">
-          <component
-            :is="getWidgetIcon(definition.widget)"
-            :size="12"
-            class="td-fm-icon"
-          />
-          {{ unslugify(key) }}
-        </span>
-        <span class="td-fm-box-value">
-          <TdFrontmatterValue
-            :definition="definition"
-            :value="frontmatter[key]"
-          />
-        </span>
-      </template>
+      <div class="td-fm-box-body">
+        <template
+          v-for="[
+            key,
+            definition,
+          ] in entries"
+          :key="key"
+        >
+          <span class="td-fm-box-key">
+            <component
+              :is="getWidgetIcon(definition.widget)"
+              :size="12"
+              class="td-fm-icon"
+            />
+            {{ unslugify(key) }}
+          </span>
+          <span class="td-fm-box-value">
+            <TdFrontmatterValue
+              :definition="definition"
+              :value="frontmatter[key]"
+            />
+          </span>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -216,17 +227,17 @@ function toggleRail () {
 }
 
 .td-fm-rail-label {
-  font-family: var(--font-mono);
+
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-rail-caret {
-  color: var(--color-td-neutral-fg-muted);
-  transition: transform 0.15s;
+  color: var(--color-td-ink-4);
+  transition: transform var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-fm-rail-caret.is-collapsed {
@@ -245,7 +256,7 @@ function toggleRail () {
   align-items: center;
   gap: 4px;
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-rail-value {
@@ -260,9 +271,9 @@ function toggleRail () {
 
 .td-fm-box {
   margin: 14px 0 0;
-  border: 1px solid var(--color-td-neutral-border-subtle);
+  border: 1px solid var(--color-td-line-soft);
   border-radius: 6px;
-  background: var(--color-td-neutral-bg);
+  background: var(--color-td-pg);
   overflow: hidden;
 }
 
@@ -278,16 +289,16 @@ function toggleRail () {
 }
 
 .td-fm-box-label {
-  font-family: var(--font-mono);
+
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-box-count {
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-box-toggle {
@@ -296,7 +307,7 @@ function toggleRail () {
   gap: 2px;
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-fm-box-body {
@@ -306,7 +317,7 @@ function toggleRail () {
   column-gap: 24px;
   align-items: start;
   padding: 14px;
-  border-top: 1px solid var(--color-td-neutral-border-subtle);
+  border-top: 1px solid var(--color-td-line-soft);
   font-size: var(--font-size-td-xs);
 }
 
@@ -314,12 +325,12 @@ function toggleRail () {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-fm-box-value {

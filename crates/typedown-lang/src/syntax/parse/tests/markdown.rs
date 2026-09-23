@@ -700,6 +700,34 @@ content
 }
 
 #[test]
+fn parse_container_block_with_code_block() {
+  let tree = parse_body("::: note\n```python\nprint('hi')\n```\n:::\n");
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (CodeBlock
+          "```python\nprint('hi')\n```"))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
 fn parse_container_block_with_number_props() {
   let tree = parse_body(
     r#"::: grid {cols=2 rows=10}
@@ -1633,11 +1661,7 @@ fn parse_link_url_with_special_chars() {
           "."
           "com"
           "/"
-          "path"
-          "_"
-          "with"
-          "_"
-          "underscore?q"
+          "path_with_underscore?q"
           "="
           "a"
           "&"
@@ -4137,12 +4161,7 @@ $$
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| {
-      matches!(
-        d,
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
-      )
-    })
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -4162,12 +4181,7 @@ fn parse_arrow_not_list() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| {
-      matches!(
-        d,
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
-      )
-    })
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -4190,12 +4204,7 @@ fn parse_arrow_inside_list_no_error() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| {
-      matches!(
-        d,
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. }
-      )
-    })
+    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
     .collect();
   assert!(
     heading_diags.is_empty(),

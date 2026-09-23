@@ -42,6 +42,9 @@ import {
   useResizableTable,
 } from './composables/useResizableTable';
 import {
+  useMermaid,
+} from './composables/useMermaid';
+import {
   useMenu,
 } from './composables/useMenu';
 import {
@@ -87,6 +90,7 @@ watch(
 );
 
 useCopyCode();
+useMermaid();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
@@ -145,7 +149,7 @@ useResizableTable();
 
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 500;
-const SIDEBAR_DEFAULT = 272;
+const SIDEBAR_DEFAULT = 300;
 const SIDEBAR_STORAGE_KEY = 'td-sidebar-width';
 
 const sidebarWidth = ref(
@@ -166,8 +170,9 @@ function onResizeStart (event: PointerEvent) {
   target.setPointerCapture(event.pointerId);
 
   function onMove (event: PointerEvent) {
+    const maxWidth = Math.min(SIDEBAR_MAX, window.innerWidth * 0.85);
     const width = Math.min(
-      SIDEBAR_MAX,
+      maxWidth,
       Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX),
     );
 
@@ -199,7 +204,7 @@ function shrinkSidebar () {
     >Skip to content</a>
     <header class="td-header">
       <div class="td-header-left">
-        <TdMenuButton />
+        <TdMenuButton @click="focusSearch" />
         <a
           :href="withBase(getIndexUrl('/'))"
           class="td-brand"
@@ -247,30 +252,41 @@ function shrinkSidebar () {
     </header>
 
     <div
-      class="td-menu-overlay"
+      class="td-drawer-scrim"
       :class="{
         'is-open': isOpen,
       }"
+      @click="closeMenu"
+    />
+    <aside
+      class="td-drawer"
+      :class="{
+        'is-open': isOpen,
+      }"
+      :style="{
+        width: `${sidebarWidth}px`,
+      }"
     >
-      <header class="td-menu-header">
-        <div class="td-header-left">
-          <TdButton
-            class="w-9 h-9 text-td-neutral-fg-muted hover:text-td-primary-solid"
-            label="Close menu"
-            @click="closeMenu"
-          >
-            <X :size="20" />
-          </TdButton>
-          <a
-            :href="withBase(getIndexUrl('/'))"
-            class="td-brand"
-          >
-            <TdBrandIcon />
-            <span class="td-brand-name">{{
-              siteConfig.title || "Typedown"
-            }}</span>
-          </a>
-        </div>
+      <div
+        class="td-resize-handle"
+        @pointerdown.prevent="onResizeStart"
+      />
+      <header class="td-drawer-header">
+        <a
+          :href="withBase(getIndexUrl('/'))"
+          class="td-brand"
+        >
+          <TdBrandIcon />
+          <span class="td-brand-name">{{
+            siteConfig.title || "Typedown"
+          }}</span>
+        </a>
+        <TdButton
+          label="Close menu"
+          @click="closeMenu"
+        >
+          <X :size="20" />
+        </TdButton>
       </header>
       <TdHeaderNavMenu />
       <TdSiteSearch
@@ -290,22 +306,24 @@ function shrinkSidebar () {
           :tree="siteData.contentTree"
         />
       </nav>
-    </div>
+    </aside>
 
     <div class="td-page">
       <nav
         class="td-sidebar-left"
+        data-testid="sidebar"
         aria-label="Site navigation"
         :style="{
           width: `${sidebarWidth}px`,
         }"
       >
+        <TdSiteSearch
+          ref="sidebarSearch"
+          v-model:query="searchQuery"
+          v-model:active="sidebarSearchActive"
+          class="td-sidebar-search"
+        />
         <div class="td-sidebar-scroll">
-          <TdSiteSearch
-            ref="sidebarSearch"
-            v-model:query="searchQuery"
-            v-model:active="sidebarSearchActive"
-          />
           <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
           <TdContentNav
             v-else-if="!sidebarSearchActive"
@@ -313,7 +331,7 @@ function shrinkSidebar () {
           />
         </div>
         <div
-          class="td-sidebar-resize"
+          class="td-resize-handle"
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize sidebar"
@@ -329,6 +347,7 @@ function shrinkSidebar () {
           <article
             id="td-content"
             class="td-content"
+            data-testid="content"
           >
             <div
               v-if="page.schema"
@@ -393,7 +412,7 @@ function shrinkSidebar () {
   left: 16px;
   z-index: 50;
   padding: 8px 16px;
-  background: var(--color-td-primary-solid);
+  background: var(--color-td-accent);
   color: white;
   border-radius: 4px;
   font-size: var(--font-size-td-sm);
@@ -412,8 +431,8 @@ function shrinkSidebar () {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid var(--color-td-neutral-border);
-  background: var(--color-td-neutral-bg-subtle);
+  border-bottom: 1px solid var(--color-td-line);
+  background: var(--color-td-surf);
   position: sticky;
   top: 0;
   z-index: 40;
@@ -438,12 +457,12 @@ function shrinkSidebar () {
   width: 36px;
   height: 36px;
   border-radius: 6px;
-  color: var(--color-td-neutral-fg-muted);
-  transition: color 0.2s;
+  color: var(--color-td-ink-4);
+  transition: color var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-header-icon-link:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-header-breadcrumb {
@@ -456,13 +475,13 @@ function shrinkSidebar () {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-brand:hover {
-  color: var(--color-td-primary-solid-hover);
+  color: var(--color-td-accent-hi);
 }
 
 .td-brand-name {
@@ -470,6 +489,9 @@ function shrinkSidebar () {
   font-weight: 800;
   font-size: var(--font-size-td-base);
   letter-spacing: var(--tracking-td-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Page grid */
@@ -502,27 +524,29 @@ function shrinkSidebar () {
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   margin-bottom: 6px;
 }
 
 .td-page-icon {
   margin-bottom: 8px;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-page-title {
   font-family: var(--font-sans);
-  font-weight: 800;
-  font-size: var(--font-size-td-3xl);
+  font-weight: 600;
+  font-size: var(--font-size-td-2xl);
   line-height: var(--leading-td-tight);
   letter-spacing: var(--tracking-td-tight);
+  font-variation-settings: "opsz" 28;
+  color: var(--color-td-ink);
   margin: 0 0 8px 0;
 }
 
 .td-page-meta {
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
   margin-bottom: 8px;
 }
 
@@ -539,17 +563,27 @@ function shrinkSidebar () {
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   flex-shrink: 0;
+  overflow: clip;
+  display: flex;
+  flex-direction: column;
+}
+
+.td-sidebar-search {
+  flex-shrink: 0;
+  padding: 12px 10px;
 }
 
 .td-sidebar-scroll {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
   overscroll-behavior: contain;
-  padding: 22px 0 60px;
+  padding: 8px 0 0;
+  scrollbar-gutter: stable;
 }
 
-.td-sidebar-resize {
+.td-resize-handle {
   position: absolute;
   top: 0;
   right: -2px;
@@ -559,37 +593,64 @@ function shrinkSidebar () {
   z-index: 10;
 }
 
-.td-sidebar-resize:hover,
-.td-sidebar-resize:active {
-  background: var(--color-td-primary-solid);
+.td-resize-handle:hover,
+.td-resize-handle:active {
+  background: var(--color-td-accent);
   opacity: 0.3;
 }
 
-/* Menu overlay: full-screen with own header */
+/* Drawer: sliding sidebar panel with backdrop scrim */
 
-.td-menu-overlay {
-  display: none;
+.td-drawer-scrim {
   position: fixed;
   inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-td-out-quart);
+}
+
+.td-drawer-scrim.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.td-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
   z-index: 50;
-  background: var(--color-td-neutral-bg);
+  width: 300px;
+  max-width: min(85vw, 500px);
+  background: var(--color-td-pg);
+  border-right: 1px solid var(--color-td-line);
+  display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: clip;
   overscroll-behavior: contain;
+  transform: translateX(-100%);
+  transition: transform var(--duration-td-drawer) var(--ease-td-out-quart);
 }
 
-.td-menu-overlay.is-open {
-  display: flex;
+.td-drawer.is-open {
+  transform: translateX(0);
 }
 
-.td-menu-header {
+.td-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--td-header-height);
   padding: 0 16px;
-  border-bottom: 1px solid var(--color-td-neutral-border);
+  border-bottom: 1px solid var(--color-td-line);
+  background: var(--color-td-surf);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 /* Inline frontmatter and TOC hidden at desktop */

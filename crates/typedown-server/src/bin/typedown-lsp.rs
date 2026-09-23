@@ -13,15 +13,58 @@ use typedown_server::lsp::server::Server;
 use typedown_server::lsp::service::{commands, semantic_tokens};
 
 pub fn main() -> anyhow::Result<()> {
-  let use_stdio = std::env::args().any(|arg| arg == "--stdio");
+  let mut args = pico_args::Arguments::from_env();
+
+  if args.contains("--help") {
+    eprintln!("Usage: typedown-lsp [OPTIONS]");
+    eprintln!();
+    eprintln!("Options:");
+    eprintln!("  --stdio             Use stdio transport (default: TCP)");
+    eprintln!("  --addr <addr>       Listen address (default: 127.0.0.1)");
+    eprintln!("  --port <port>       Listen port (default: 0, auto-assign)");
+    eprintln!("  --fresh          Start fresh, ignore cache from previous session");
+    eprintln!("  --help              Show this help");
+    return Ok(());
+  }
+
+  let use_stdio = args.contains("--stdio");
+
+  let addr: String = args
+    .opt_value_from_str("--addr")?
+    .or_else(|| std::env::var("TYPEDOWN_LSP_ADDR").ok())
+    .unwrap_or_else(|| "127.0.0.1".to_string());
+
+  let port: u16 = args
+    .opt_value_from_str("--port")?
+    .or_else(|| {
+      std::env::var("TYPEDOWN_LSP_PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+    })
+    .unwrap_or(0);
+
+  let fresh = args.contains("--fresh")
+    || std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+
+  let remaining = args.finish();
+  if !remaining.is_empty() {
+    eprintln!(
+      "warning: unknown arguments: {:?}",
+      remaining
+        .iter()
+        .map(|s| s.to_string_lossy())
+        .collect::<Vec<_>>()
+    );
+  }
+
+  if fresh {
+    // SAFETY: single-threaded at this point, before any server threads are spawned
+    unsafe { std::env::set_var("TYPEDOWN_NO_CACHE", "1") };
+  }
+
   let (connection, io_handle) = if use_stdio {
     Ok(transport::connect_stdio())
   } else {
-    let addr = std::env::var("TYPEDOWN_LSP_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let port = std::env::var("TYPEDOWN_LSP_PORT")
-      .ok()
-      .and_then(|port_str| port_str.parse::<u16>().ok())
-      .unwrap_or(0);
     transport::connect_tcp(&addr, port).map(|(conn, io, _)| (conn, io))
   }?;
 
@@ -39,7 +82,15 @@ pub fn main() -> anyhow::Result<()> {
       TextDocumentSyncKind::INCREMENTAL,
     )),
     hover_provider: Some(HoverProviderCapability::Simple(true)),
-    completion_provider: Some(CompletionOptions::default()),
+    completion_provider: Some(CompletionOptions {
+      trigger_characters: Some(
+        [".", "(", ",", "$", "/", "_"]
+          .iter()
+          .map(|s| s.to_string())
+          .collect(),
+      ),
+      ..Default::default()
+    }),
     definition_provider: Some(OneOf::Left(true)),
     references_provider: Some(OneOf::Left(true)),
     code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),

@@ -5,7 +5,7 @@ use dashmap::DashMap;
 
 use crate::persist::serialized::SerializedQueryStorage;
 use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{Decoder, Fingerprint, QueryStorage};
+use crate::{Decoder, DerivedIdentity, Fingerprint, QueryStorage};
 
 /// A group of field dep nodes that belong to the same struct entry
 pub struct FieldGroup {
@@ -121,6 +121,27 @@ impl DeserializeContext {
       .get(name)
       .map(|v| v.as_slice())
       .unwrap_or(&[])
+  }
+
+  // Deserialize a single derived identity, remapping the entry_id to session-local
+  // Lazily triggers field deserialization if not yet loaded
+  pub fn deserialize_derived_identity(
+    &self,
+    identity: &DerivedIdentity,
+  ) -> Option<DerivedIdentity> {
+    let (name_fingerprint, identity_hash, disambiguator, old_entry_id) = *identity;
+    let group_key = (name_fingerprint, old_entry_id);
+    if !self.entry_id_map.contains_key(&group_key)
+      && let Some(field_group) = self.derived_groups.get(&group_key)
+    {
+      for &(_, field_node_index) in &field_group.fields {
+        self
+          .decoder
+          .get_or_deserialize_dep_node_id(field_node_index);
+      }
+    }
+    let new_entry_id = *self.entry_id_map.get(&group_key)?.value();
+    Some((name_fingerprint, identity_hash, disambiguator, new_entry_id))
   }
 
   /// Find a DerivedQuery node by name + key fingerprint

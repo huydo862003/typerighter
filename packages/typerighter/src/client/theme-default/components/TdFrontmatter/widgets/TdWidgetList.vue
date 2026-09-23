@@ -131,7 +131,7 @@ function visible<T> (list: T[]): T[] {
 
 .td-widget-list-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-widget-list li {
@@ -142,7 +142,7 @@ function visible<T> (list: T[]): T[] {
 .td-widget-more {
   border: none;
   background: none;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   font-size: var(--font-size-td-sm);
   cursor: pointer;
   padding: 2px 4px;
@@ -151,7 +151,7 @@ function visible<T> (list: T[]): T[] {
 }
 
 .td-widget-more:hover {
-  background-color: var(--color-td-neutral-muted);
-  color: var(--color-td-neutral-fg);
+  background-color: var(--color-td-ink-4);
+  color: var(--color-td-ink-3);
 }
 </style>

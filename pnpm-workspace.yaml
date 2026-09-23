@@ -4,6 +4,7 @@ packages:
   - "editors/vscode"
   - "editors/zed"
   - "examples/*"
+  - "packages/typerighter/e2e/fixtures/*"
   - "homepage"
 allowBuilds:
   unrs-resolver: true
@@ -20,9 +21,9 @@ overrides:
   brace-expansion@1: "1.1.18"
   brace-expansion@5: "5.0.9"
 minimumReleaseAgeExclude:
-  - '@typerighter/rpc-client@0.1.6'
-  - '@typerighter/rpc-server@0.1.6'
-  - typerighter@0.1.6
+  - '@typerighter/rpc-client@0.32.6'
+  - '@typerighter/rpc-server@0.32.6'
+  - typerighter@0.32.6
   - '@lucide/vue@1.39.0'
   - '@types/node@26.4.1'
   - '@hdnax/nuclint@0.17.5'

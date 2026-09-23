@@ -26,42 +26,32 @@ export class TypedownContext {
       this.cachedConfig = config;
     });
 
-    client.onContentChanged(({
-      content,
-      affectedFiles = [],
-    }: {
-      content: string;
-      affectedFiles?: string[];
+    // Content updated: file was created, modified, or renamed (exists on disk)
+    client.onContentUpdated(({
+      filepath, affectedFiles = [],
     }) => {
-      this.cachedFileMap.delete(content);
-      for (const filepath of affectedFiles) {
-        this.cachedFileMap.delete(filepath);
+      this.cachedFiles = undefined;
+      this.cachedFileMap.delete(filepath);
+      for (const affected of affectedFiles) {
+        this.cachedFileMap.delete(affected);
       }
     });
 
-    client.onContentCreated(() => {
-      this.cachedFiles = undefined;
-    });
-
+    // Content deleted: file was removed from disk
     client.onContentDeleted(({
-      content,
-    }: {
-      content: string;
+      filepath,
     }) => {
       this.cachedFiles = undefined;
-      this.cachedFileMap.delete(content);
+      this.cachedFileMap.delete(filepath);
     });
 
-    client.onSchemaChanged(({
+    client.onSchemaUpdated(({
       schema,
     }: {
       schema: string;
     }) => {
-      this.cachedSchemaMap.delete(schema);
-    });
-
-    client.onSchemaCreated(() => {
       this.cachedSchemas = undefined;
+      this.cachedSchemaMap.delete(schema);
     });
 
     client.onSchemaDeleted(({

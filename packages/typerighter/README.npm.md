@@ -6,7 +6,7 @@
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green)
 
-**[Homepage](https://huydo862003.github.io/typerighter/) · [Getting Started](https://huydo862003.github.io/typerighter/guide/01-getting-started) · [GitHub](https://github.com/huydo862003/typerighter) · [Issues](https://github.com/huydo862003/typerighter/issues)**
+**[Homepage](https://huydo862003.github.io/typerighter/) · [Getting Started](https://huydo862003.github.io/typerighter/) · [GitHub](https://github.com/huydo862003/typerighter) · [Issues](https://github.com/huydo862003/typerighter/issues)**
 
 Vite plugin and static site generator for [Typedown](https://huydo862003.github.io/typerighter/), a typed content framework built on markdown.
 
@@ -23,4 +23,4 @@ Vite plugin and static site generator for [Typedown](https://huydo862003.github.
 npm install typerighter
 ```
 
-See the [getting started guide](https://huydo862003.github.io/typerighter/guide/01-getting-started) for full setup and usage instructions.
+See the [getting started guide](https://huydo862003.github.io/typerighter/) for full setup and usage instructions.

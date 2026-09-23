@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex};
@@ -21,10 +21,10 @@ pub struct AnalysisHost {
   project: Project,
   project_dir: PathBuf,
   snapshot_counter: Arc<(Mutex<usize>, Condvar)>,
-  open_files: Arc<BTreeMap<PathBuf, Rope>>, // editor-managed content
-  scheme_map: Arc<BTreeMap<PathBuf, String>>, // URI scheme per path, set when editor opens a file
-  project_files: HashSet<PathBuf>,          // all tracked files known on disk
-  file_map: BTreeMap<PathBuf, File>,        // stable File IDs, one per tracked path
+  open_files: Arc<HashMap<PathBuf, Rope>>, // editor-managed content
+  scheme_map: Arc<HashMap<PathBuf, String>>, // URI scheme per path, set when editor opens a file
+  project_files: HashSet<PathBuf>,         // all tracked files known on disk
+  file_map: HashMap<PathBuf, File>,        // stable File IDs, one per tracked path
 }
 
 impl AnalysisHost {
@@ -33,7 +33,7 @@ impl AnalysisHost {
     let project_files = scan_project_files(&project_dir)?;
 
     // Derived queries are keyed by File/Project entry ID, so we must reuse the same IDs from the previous session for cache hits
-    let cached_files: BTreeMap<PathBuf, File> = File::iter(&db)
+    let cached_files: HashMap<PathBuf, File> = File::iter(&db)
       .into_iter()
       .filter_map(|file| {
         let handle = file.handle(&db);
@@ -41,8 +41,8 @@ impl AnalysisHost {
       })
       .collect();
 
-    let mut file_map = BTreeMap::new();
-    let mut files = BTreeMap::new();
+    let mut file_map = HashMap::new();
+    let mut files = HashMap::new();
     for path in &project_files {
       let Some(handle) = disk_handle(path) else {
         continue;
@@ -72,8 +72,8 @@ impl AnalysisHost {
       project,
       project_dir,
       snapshot_counter: Arc::new((Mutex::new(1), Condvar::new())),
-      open_files: Arc::new(BTreeMap::new()),
-      scheme_map: Arc::new(BTreeMap::new()),
+      open_files: Arc::new(HashMap::new()),
+      scheme_map: Arc::new(HashMap::new()),
       project_files,
       file_map,
     })
@@ -112,7 +112,7 @@ impl AnalysisHost {
     }
 
     // Build desired handles, pruning files that no longer exist on disk
-    let mut desired: BTreeMap<PathBuf, FileHandle> = BTreeMap::new();
+    let mut desired: HashMap<PathBuf, FileHandle> = HashMap::new();
     self.project_files.retain(|path| {
       if self.open_files.contains_key(path) {
         return true; // editor-owned files handled below
@@ -145,8 +145,8 @@ impl AnalysisHost {
     let old_file_map = std::mem::take(&mut self.file_map);
 
     let new_file_map = self.write(|db| {
-      let mut file_map = BTreeMap::new();
-      let mut files = BTreeMap::new();
+      let mut file_map = HashMap::new();
+      let mut files = HashMap::new();
 
       for (path, handle) in desired {
         let file = if let Some(existing) = old_file_map.get(&path) {
@@ -226,7 +226,8 @@ impl AnalysisHost {
     }
   }
 
-  /// Moves the old path entry to the new path
+  // Creates a fresh File ID for the new path instead of reusing the old one
+  // Reusing the old ID leaves stale path-dependent derived queries (schema resolution, etc)
   pub fn on_did_rename_file(&mut self, old_path: PathBuf, new_path: PathBuf) {
     self.project_files.remove(&old_path);
     self.project_files.insert(new_path.clone());
@@ -238,33 +239,36 @@ impl AnalysisHost {
       Arc::make_mut(&mut self.scheme_map).insert(new_path.clone(), scheme);
     }
 
-    // Reuse the File ID, just update its handle path
-    let Some(file) = self.file_map.remove(&old_path) else {
-      return;
-    };
+    self.file_map.remove(&old_path);
 
-    let content = match &*file.handle(&self.db) {
-      FileHandle::Content(_, content, _) => content.clone(),
-      FileHandle::Path(path, _) => fs::read_to_string(path).unwrap_or_default(),
+    let handle = if let Some(rope) = self.open_files.get(&new_path) {
+      let ctime = fs::metadata(&new_path)
+        .and_then(|m| m.created())
+        .unwrap_or_else(|_| SystemTime::now());
+      FileHandle::Content(
+        new_path.clone(),
+        rope.to_string(),
+        FileMetadata {
+          mtime: SystemTime::now(),
+          ctime,
+        },
+      )
+    } else {
+      let Some(handle) = disk_handle(&new_path) else {
+        return;
+      };
+      handle
     };
-
-    let handle = FileHandle::Content(
-      new_path.clone(),
-      content,
-      FileMetadata {
-        mtime: SystemTime::now(),
-        ctime: SystemTime::now(),
-      },
-    );
 
     let project = self.project;
 
-    self.write(|db| {
-      file.set_handle(db, handle);
+    let file = self.write(|db| {
+      let file = File::new(db, handle);
       let mut files = project.files(db).clone();
       files.remove(&old_path);
       files.insert(new_path.clone(), file);
       project.set_files(db, files);
+      file
     });
 
     self.file_map.insert(new_path, file);

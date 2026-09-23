@@ -259,8 +259,11 @@ impl<'a> HtmlEmitter<'a> {
       self.write("<input type=\"checkbox\" disabled> ");
     }
 
-    // Emit first paragraph inline (no <p> wrap) so text stays next to checkbox
+    // Emit first paragraph in a <span> so it stays next to the checkbox
+    // Block children (nested lists) go after the span
+    self.write("<span>");
     let mut first_paragraph = true;
+    let mut blocks: Vec<RedNode> = Vec::new();
     for child in node.children() {
       let kind = child.kind();
       if kind == SyntaxKind::MdSymbol
@@ -274,11 +277,16 @@ impl<'a> HtmlEmitter<'a> {
         first_paragraph = false;
         self.emit_inline_children(&child);
       } else if kind.is_md_block() {
-        self.write("\n");
-        self.emit_block(&child);
+        blocks.push(child);
       } else {
         self.emit_inline(&child);
       }
+    }
+    self.write("</span>");
+
+    for block in blocks {
+      self.write("\n");
+      self.emit_block(&block);
     }
 
     self.write("</li>\n");
@@ -329,6 +337,14 @@ impl<'a> HtmlEmitter<'a> {
     let lang = block.language().unwrap_or_default();
     let label = block.label().unwrap_or_default();
     let value = block.value().unwrap_or_default();
+
+    // Mermaid blocks use a separate placeholder for client-side rendering
+    if lang == "mermaid" {
+      self.write("<pre class=\"td-mermaid-placeholder\"><code>");
+      self.write_escaped(&value);
+      self.write("</code></pre>\n");
+      return;
+    }
 
     self.write("<pre class=\"td-code-placeholder\"");
     if !lang.is_empty() {
@@ -761,7 +777,7 @@ fn parse_separator_alignments(table_node: &RedNode) -> Vec<Option<&'static str>>
 
 fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>) {
   let mut label = String::new();
-  let mut title_parts = Vec::new();
+  let mut title_raw = String::new();
   let mut seen_opening = false;
 
   for child in node.children() {
@@ -774,21 +790,25 @@ fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>)
     }
     if seen_opening {
       let text = child.text();
-      let trimmed = text.trim();
-      if !trimmed.is_empty() {
-        if label.is_empty() {
+      if label.is_empty() {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
           label = trimmed.to_string();
-        } else {
-          title_parts.push(trimmed.to_string());
         }
+      } else {
+        // Collect remaining tokens as raw text to preserve quotes and spacing
+        title_raw.push_str(&text);
       }
     }
   }
 
-  let title = if title_parts.is_empty() {
-    None
-  } else {
-    Some(title_parts.join(" "))
+  let title = {
+    let trimmed = title_raw.trim();
+    if trimmed.is_empty() {
+      None
+    } else {
+      Some(trimmed.to_string())
+    }
   };
 
   (label, title)

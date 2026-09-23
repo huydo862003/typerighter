@@ -244,16 +244,16 @@ function groupAlphabetically (items: DirectoryEntry[]): AlphaGroup[] {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--color-td-neutral-border-subtle);
+  border: 1px solid var(--color-td-line-soft);
   border-radius: 7px;
-  background: var(--color-td-neutral-bg);
+  background: var(--color-td-pg);
   padding: 8px 12px;
   margin-bottom: 20px;
 }
 
 .td-glossary-filter-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-glossary-filter-input {
@@ -262,16 +262,16 @@ function groupAlphabetically (items: DirectoryEntry[]): AlphaGroup[] {
   background: none;
   outline: none;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
 }
 
 .td-glossary-filter-input::placeholder {
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 .td-glossary-empty {
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   font-style: italic;
   padding: 16px 4px;
 }
@@ -295,19 +295,19 @@ function groupAlphabetically (items: DirectoryEntry[]): AlphaGroup[] {
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-glossary-letter-line {
   flex: 1;
   height: 1px;
-  background: var(--color-td-neutral-border-subtle);
+  background: var(--color-td-line-soft);
 }
 
 .td-glossary-letter-count {
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
 }
 
 /* Dense mode */
@@ -328,7 +328,7 @@ function groupAlphabetically (items: DirectoryEntry[]): AlphaGroup[] {
 .td-glossary-dense-link {
   font-size: var(--font-size-td-sm);
   padding: 4px 0;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -337,7 +337,7 @@ function groupAlphabetically (items: DirectoryEntry[]): AlphaGroup[] {
 }
 
 .td-glossary-dense-link:hover {
-  color: var(--color-td-primary-solid-hover);
+  color: var(--color-td-accent-hi);
 }
 
 @media (width < 75rem) {

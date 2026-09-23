@@ -1,15 +1,16 @@
 /* Inline code */
 
 .td-content :not(pre, h1, h2, h3, h4, h5, h6) > code {
-  font-size: var(--font-size-td-xs);
-  color: var(--color-td-fg);
+  font-size: var(--font-size-td-sm);
+  font-weight: 500;
+  color: var(--color-td-ink);
 }
 
 .td-content :not(pre) > code {
   padding: 3px 6px;
   font-family: var(--font-mono);
-  background-color: var(--color-td-neutral-bg-hover);
-  border-radius: 4px;
+  background-color: var(--color-td-hov);
+  border-radius: var(--radius-td-sm);
 }
 
 .td-content h1 > code,
@@ -65,7 +66,7 @@
   width: fit-content;
   min-width: 100%;
   background: transparent;
-  font-size: var(--font-size-td-xs);
+  font-size: 13px;
   line-height: var(--leading-td-loose);
   color: var(--color-td-code-fg);
 }
@@ -89,10 +90,10 @@
   z-index: 2;
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
-  color: var(--color-td-code-chrome-40);
+  color: rgba(255, 255, 255, 0.4);
   font-family: var(--font-mono);
   user-select: none;
-  transition: color 0.4s, opacity 0.4s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart), opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content div[class*="language-"]:hover > button.copy + span.lang,
@@ -109,12 +110,12 @@
   z-index: 3;
   width: 32px;
   height: 32px;
-  border: 1px solid var(--color-td-code-chrome-15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 4px;
   background-color: var(--color-td-code-bg);
   cursor: pointer;
   opacity: 0;
-  transition: border-color 0.25s, background-color 0.25s, opacity 0.25s;
+  transition: border-color var(--duration-td-move) var(--ease-td-out-quart), background-color var(--duration-td-move) var(--ease-td-out-quart), opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content div[class*="language-"]:hover .copy,
@@ -124,8 +125,8 @@
 
 .td-content div[class*="language-"] .copy:hover,
 .td-content div[class*="language-"] .copy.copied {
-  border-color: var(--color-td-code-chrome-20);
-  background-color: var(--color-td-code-chrome-08);
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Copy icon via CSS mask-image, adapted from VitePress
@@ -137,7 +138,7 @@
   width: 16px;
   height: 16px;
   margin: auto;
-  background-color: var(--color-td-code-chrome-40);
+  background-color: rgba(255, 255, 255, 0.4);
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'/%3E%3C/svg%3E");
   mask-size: contain;
 }
@@ -162,9 +163,9 @@
   text-align: center;
   font-size: var(--font-size-td-xs);
   line-height: var(--leading-td-loose);
-  color: var(--color-td-code-chrome-20);
+  color: rgba(255, 255, 255, 0.2);
   font-family: var(--font-mono);
-  border-right: 1px solid var(--color-td-code-chrome-08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Shiki diff/focus/highlight/error transformers */
@@ -201,7 +202,7 @@
 
 .td-content div[class*="language-"] .has-focused-lines .line:not(.has-focus) {
   opacity: 0.4;
-  transition: opacity 0.3s;
+  transition: opacity var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-content div[class*="language-"] .has-focused-lines:hover .line:not(.has-focus) {
@@ -213,7 +214,7 @@
   margin: 0 -24px;
   padding: 0 24px;
   width: calc(100% + 48px);
-  background-color: var(--color-td-code-chrome-06);
+  background-color: rgba(255, 255, 255, 0.06);
 }
 
 .td-content div[class*="language-"] .line.highlighted.error {

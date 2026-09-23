@@ -130,9 +130,9 @@ defineExpose({
   border-radius: 0.75rem;
   /* `neutral-border-strong` rather than `-subtle`: the subtle token measures
      1.3:1 against the page and fails the 3:1 floor for a component boundary */
-  border: 1px solid var(--color-td-neutral-border-strong);
-  background: var(--color-td-neutral-bg-subtle);
-  color: var(--color-td-fg);
+  border: 1px solid var(--color-td-ink-4);
+  background: var(--color-td-surf);
+  color: var(--color-td-ink);
   font-size: var(--font-size-td-base);
   line-height: var(--leading-td-relaxed);
   transition-property: transform;
@@ -142,8 +142,8 @@ defineExpose({
 
 /* Tint the revealed side so a flipped card reads as flipped at a glance */
 .td-flashcard-face-key {
-  background: var(--color-td-primary-bg-subtle);
-  border-color: var(--color-td-primary-solid);
+  background: var(--color-td-sel);
+  border-color: var(--color-td-accent);
   transform: rotateY(180deg);
 }
 
@@ -174,11 +174,11 @@ defineExpose({
   text-transform: uppercase;
   /* `neutral-fg` not `-fg-muted`: at 11px the muted token measures 3.6:1 in
      light mode, under the 4.5:1 needed for small text */
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
 }
 
 .td-flashcard-face-key .td-flashcard-label {
-  color: var(--color-td-primary-fg);
+  color: var(--color-td-accent);
 }
 
 .td-flashcard-body {

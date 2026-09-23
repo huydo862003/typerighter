@@ -148,7 +148,7 @@ watch(() => route.path, () => {
   align-items: center;
   gap: 2px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
   min-width: 0;
 }
 
@@ -165,9 +165,9 @@ watch(() => route.path, () => {
 }
 
 .td-breadcrumb-link {
-  color: var(--color-td-neutral-border-strong);
+  color: var(--color-td-ink-4);
   text-decoration: none;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-breadcrumb-home {
@@ -175,11 +175,11 @@ watch(() => route.path, () => {
 }
 
 .td-breadcrumb-link:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-breadcrumb-current {
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
 }
 
 .td-breadcrumb-ellipsis {
@@ -190,29 +190,29 @@ watch(() => route.path, () => {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   padding: 2px 4px;
   border-radius: 4px;
-  transition: color 0.15s, background-color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart), background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-breadcrumb-ellipsis:hover {
-  color: var(--color-td-fg);
-  background: var(--color-td-neutral-bg-hover);
+  color: var(--color-td-ink);
+  background: var(--color-td-hov);
 }
 
 .td-breadcrumb-dropdown-item {
   display: block;
   padding: 6px 10px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   border-radius: 4px;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-breadcrumb-dropdown-item:hover {
-  background: var(--color-td-neutral-bg-hover);
-  color: var(--color-td-primary-solid);
+  background: var(--color-td-hov);
+  color: var(--color-td-accent);
 }
 </style>

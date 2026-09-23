@@ -12,7 +12,7 @@
 //! [ FileFooter (16 bytes)      ]  total_node_count + total_edge_count
 //! ```
 
-use crate::Fingerprint;
+use crate::{DerivedIdentity, Fingerprint};
 
 pub type DepNodeIndex = u32;
 
@@ -82,6 +82,8 @@ pub enum DepNode {
     verified_at: u32,
     // Indices into the dep graph nodes array
     edges: Vec<u32>,
+    // (name_fingerprint, identity_hash, disambiguator, entry_id) for derived structs created by this query
+    derived_identities: Vec<DerivedIdentity>,
   },
   // A derived struct field (e.g. `VaultConfigResult::version`)
   DerivedField {
@@ -128,6 +130,11 @@ const ENTRY_ID_SIZE: usize = std::mem::size_of::<u32>();
 const REVISION_SIZE: usize = std::mem::size_of::<u32>();
 const EDGE_COUNT_SIZE: usize = std::mem::size_of::<u32>();
 const EDGE_SIZE: usize = std::mem::size_of::<u32>();
+const IDENTITY_COUNT_SIZE: usize = std::mem::size_of::<u32>();
+const IDENTITY_HASH_SIZE: usize = std::mem::size_of::<u64>();
+const DISAMBIGUATOR_SIZE: usize = std::mem::size_of::<u32>();
+const IDENTITY_ENTRY_SIZE: usize =
+  FINGERPRINT_SIZE + IDENTITY_HASH_SIZE + DISAMBIGUATOR_SIZE + ENTRY_ID_SIZE;
 
 impl DepNode {
   pub fn name(&self) -> Fingerprint {
@@ -182,13 +189,19 @@ impl DepNode {
   /// Serialize
   pub fn to_bytes(&self) -> Vec<u8> {
     let capacity = match self {
-      DepNode::DerivedQuery { edges, .. } => {
+      DepNode::DerivedQuery {
+        edges,
+        derived_identities,
+        ..
+      } => {
         TAG_SIZE +
         FINGERPRINT_SIZE * 3 + // name + key + value
         ENTRY_ID_SIZE + // value_entry_id
         REVISION_SIZE * 2 + // changed_at + verified_at
         EDGE_COUNT_SIZE +
-        edges.len() * EDGE_SIZE
+        edges.len() * EDGE_SIZE +
+        IDENTITY_COUNT_SIZE +
+        derived_identities.len() * IDENTITY_ENTRY_SIZE
       }
       DepNode::DerivedField { .. } => {
         TAG_SIZE +
@@ -222,6 +235,7 @@ impl DepNode {
         changed_at,
         verified_at,
         edges,
+        derived_identities,
       } => {
         bytes.push(TAG_DERIVED_QUERY);
         bytes.extend_from_slice(&name.0);
@@ -230,6 +244,13 @@ impl DepNode {
         bytes.extend_from_slice(&value_entry_id.to_le_bytes());
         bytes.extend_from_slice(&changed_at.to_le_bytes());
         bytes.extend_from_slice(&verified_at.to_le_bytes());
+        bytes.extend_from_slice(&(derived_identities.len() as u32).to_le_bytes());
+        for &(name_fingerprint, identity_hash, disambiguator, entry_id) in derived_identities {
+          bytes.extend_from_slice(&name_fingerprint.0);
+          bytes.extend_from_slice(&identity_hash.to_le_bytes());
+          bytes.extend_from_slice(&disambiguator.to_le_bytes());
+          bytes.extend_from_slice(&entry_id.to_le_bytes());
+        }
         bytes.extend_from_slice(&(edges.len() as u32).to_le_bytes());
         for edge in edges {
           bytes.extend_from_slice(&edge.to_le_bytes());
@@ -311,12 +332,30 @@ impl DepNode {
         let verified_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
         pos += REVISION_SIZE;
 
-        // the number of edges connecting this dep node
+        // derived identities
+        let id_count =
+          u32::from_le_bytes(bytes[pos..pos + IDENTITY_COUNT_SIZE].try_into().unwrap()) as usize;
+        pos += IDENTITY_COUNT_SIZE;
+        let mut derived_identities = Vec::with_capacity(id_count);
+        for _ in 0..id_count {
+          let name_fingerprint =
+            Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+          pos += FINGERPRINT_SIZE;
+          let identity_hash =
+            u64::from_le_bytes(bytes[pos..pos + IDENTITY_HASH_SIZE].try_into().unwrap());
+          pos += IDENTITY_HASH_SIZE;
+          let disambiguator =
+            u32::from_le_bytes(bytes[pos..pos + DISAMBIGUATOR_SIZE].try_into().unwrap());
+          pos += DISAMBIGUATOR_SIZE;
+          let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+          pos += ENTRY_ID_SIZE;
+          derived_identities.push((name_fingerprint, identity_hash, disambiguator, entry_id));
+        }
+
+        // edges at the end
         let edge_count =
           u32::from_le_bytes(bytes[pos..pos + EDGE_COUNT_SIZE].try_into().unwrap()) as usize;
         pos += EDGE_COUNT_SIZE;
-
-        // decode all the edges
         let mut edges = Vec::with_capacity(edge_count);
         for _ in 0..edge_count {
           edges.push(u32::from_le_bytes(
@@ -334,6 +373,7 @@ impl DepNode {
             changed_at,
             verified_at,
             edges,
+            derived_identities,
           },
           pos,
         )

@@ -13,3 +13,7 @@ output/
 # tree-sitter
 editors/tree-sitter/src
 perf.data
+
+# Playwright
+test-results/
+playwright-report/

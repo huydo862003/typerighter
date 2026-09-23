@@ -1,6 +1,273 @@
 # Change Log
 
-Full changelog: [CHANGELOG.md](../../CHANGELOG.md)
+Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.39.0] - 2026-09-23
+
+### Fixed
+
+* crates/typedown-lang
+  - Syntax error messages now show descriptive labels ("an identifier", "a field name", "a value") instead of generic "a token" for 17 syntax kinds
+  - Complete BTreeMap to HashMap migration for Project.files across all crates, eliminating expensive PathBuf component-by-component comparison
+
+* crates/typedown-server
+  - Frontmatter code action no longer generates duplicate `---` delimiters when markers already exist
+  - Frontmatter code action includes `_label` and `_icon` with sensible defaults in schema template
+
+### Perf
+
+* crates/typedown-incremental
+  - Cache write reduced from 29.5s to 30ms by wrapping dep graph, interned blobs, and query cache writes with BufWriter
+  - Cache load: `promote_cached` uses `fingerprint_map` index for O(1) name lookups instead of scanning all dep graph nodes per ingredient
+  - PathBuf `StableCompare` overridden to use raw byte comparison instead of component-by-component iteration
+
+* packages/typerighter
+  - SSG prerender parallelized with native worker_threads pool (45s to 8.6s for 1284 pages)
+  - `WorkerPool` generic utility at `src/node/lib/worker-pool/` for distributing tasks across worker threads
+  - Vue SSR uses `shallowRef` for siteData to avoid deep-proxying the content tree
+  - CLI no longer hangs after build completes
+
+## [0.38.1] - 2026-09-20
+
+### Fixed
+
+* packages/typerighter
+  - Improve search result for more context and remove unnecessary groupings
+  - Auto focus search box when sidebar opens
+
+## [0.38.0] - 2026-09-20
+
+### Fixed
+
+* crates/typedown-incremental
+  - Identity maps now seeded from previous session's cache, preventing duplicate entry IDs for derived structs (TdSchemaType, etc.) after cache roundtrip
+  - No-hash query memos promoted during cache load so their derived identities survive across sessions
+  - SKIPPED fingerprint deps re-executed during cross-session green check instead of blindly trusted
+  - Dep graph serialization format extended with derived_identities per query memo
+
+* packages/typerighter
+  - Vault path resolution in Vite transform now uses path segment boundaries, fixing false matches when parent directory names contain the vault root name
+  - `--port` flag now correctly passed to Vite dev server (was ignored due to string-to-number conversion and hardcoded default)
+  - `--fresh` flag added to CLI, RPC, and LSP binaries to skip cache loading
+
+* crates/typedown-server
+  - `--root`, `--addr`, `--port`, `--fresh`, `--help` CLI flags added to typedown-rpc and typedown-lsp via pico-args
+  - `TYPEDOWN_NO_CACHE` env var skips cache loading in both RPC and LSP servers
+
+### Added
+
+* packages/typerighter
+  - Playwright e2e test suite: 13 tests across HMR, navigation, and server startup, run against both root and base-path fixtures
+  - `data-testid` attributes on sidebar and content elements for robust test selectors
+  - `path.stripPrefix` shared utility for safe vault-relative path extraction
+
+* crates/typedown-server
+  - 39 integration tests restructured into `cache/` (16 tests) and `multi_session/` (11 tests) modules
+  - Multi-session flow tests: RPC-to-LSP, LSP-to-RPC, 3-session chains, concurrent dumps
+  - `server_simulation` module with `run_rpc_queries`, `run_lsp_queries`, `collect_type_errors` helpers
+  - Zero-type-error regression test for cache corruption bug
+  - Cache roundtrip tests assert export headers are non-null and parse results have content
+
+* CI
+  - E2E workflow with Playwright on GitHub Actions
+
+## [0.37.1] - 2026-09-19
+
+### Fixed
+
+* packages/typerighter
+  - Dev server now serves `fref()` assets correctly when `base_path` is set
+  - Removed unused debounced sidebar fetch
+
+## [0.37.0] - 2026-09-19
+
+### Refactored
+
+* crates/typedown-server
+  - Unified FS notifications: 4 content events collapsed into `content_updated` / `content_deleted` with post-batch stat verification
+  - Schema notifications collapsed into `schema_updated` / `schema_deleted`
+  - New directories scanned for files to fix inotify race condition
+  - Removed event deduplication in favor of processing all events in order
+
+* packages/typerighter
+  - Single handler per notification type, every handler invalidates the individual file
+  - Removed `renamed_to` field from content notifications
+
+### Fixed
+
+* packages/typerighter
+  - Sidebar folder labels aligned with file icons
+  - Reduced tree nesting indent (22px to 16px)
+  - Hidden horizontal scrollbar on sidebar and drawer (`overflow-x: clip`)
+  - Drawer header sticky on scroll
+  - Sidebar search bar sticky above scrollable tree
+  - Bottom breathing space on sidebar nav tree
+
+## [0.36.0] - 2026-09-18
+
+### Fixed
+
+* crates/typedown-server
+  - Send all FS events in order instead of deduplicating (fixes HMR when OS emits both Create and Modify)
+
+* packages/typerighter
+  - All content notifications (created, changed, deleted, renamed) now invalidate the individual file for HMR
+
+## [0.35.0] - 2026-09-18
+
+### Fixed
+
+* crates/typedown-lang
+  - Escape curly braces in HTML output to prevent Vue template interference
+
+* packages/typerighter
+  - File cache now invalidated on `content_created` events, fixing stale HMR after atomic writes
+  - Reverted aggressive brace escaping that broke HMR
+  - Frontmatter link icons align to first line of multiline text
+
+## [0.34.3] - 2026-09-18
+
+### Fixed
+
+* crates/typedown-lang
+  - Improve diagnostic messages
+
+## [0.34.2] - 2026-09-16
+
+### Fixed
+
+* crates/typedown-lang
+  - Intraword underscore (`a_b`) lexed as text per CommonMark rules
+
+* packages/typerighter
+  - Curly braces in content no longer eaten by Vue template compiler
+  - Frontmatter link icons align to first line of multiline text
+
+### Added
+
+* crates/typedown-lang
+  - `__` for bold and `___` for bold italic (matching `**`/`***`)
+
+## [0.34.1] - 2026-09-16
+
+### Fixed
+
+* crates/typedown-incremental
+  - Skip cache promotion for no_hash queries so they always recompute on reload
+
+## [0.34.0] - 2026-09-16
+
+### Feat
+
+* crates/typedown-server, packages/typerighter
+  - Support mermaid rendering with lazy load to avoid excessive bundled size
+
+### Fixed
+
+* crates/typedown-server
+  - Cache persistence: eagerly load all derived entries at startup to prevent dangling IDs across sessions
+  - Cache dump wrapped in catch_unwind to clear corrupted cache instead of persisting it
+  - Centralized cache directory path into `get_cache_dir`
+
+## [0.33.2] - 2026-09-16
+
+### Fixed
+
+* packages/typerighter
+  - Scale h3-h6 properly
+
+## [0.33.1] - 2026-09-16
+
+### Fixed
+
+- Callout titles with quotes no longer split into separate tokens (e.g. `"frontend"` rendered correctly)
+
+## [0.33.0] - 2026-09-16
+
+### Fixed
+
+- File create/delete/rename now triggers sidebar and page updates (OS batching was merging Create+Modify into a single Modified event)
+- Dot access completions appear immediately when typing `.` (registered trigger characters)
+
+## [0.32.7] - 2026-09-15
+
+### Fixed
+
+* packages/typerighter
+  - Resizable mobile drawer with shared sidebar width
+  - Wider default sidebar (272px to 300px)
+  - Overscroll padding on sidebar for scrolling past last item
+  - Resize handle clamped to 85vw on small screens
+
+## [0.32.6] - 2026-09-15
+
+### Fixes
+
+* crates/typedown-lang
+  -  Hash enum discriminant in StableHash for TdTypeEnum and TdObjectEnum
+
+## [0.32.5] - 2026-09-15
+
+### Fixes
+
+* packages/typerighter
+  - FOUC for fonts and modified time
+
+## [0.32.4] - 2026-09-15
+
+### Fixes
+
+* packages/typerighter
+  - Nested checkbox formatting
+
+## [0.32.3] - 2026-09-15
+
+### Documentation
+
+* packages/typerighter
+  - Broken link in README
+
+## [0.32.2] - 2026-09-15
+
+### Perf
+
+* packages/typerighter
+  - Avoid prerendering in parallel to prevent OOM on large vaults
+
+## [0.32.1] - 2026-09-15
+
+### Fixes
+
+* crates/typedown-server
+  - Invalidate diagnostics for typedown.yaml when it changes
+
+* packages/typerighter
+  - Allows scrolling into and cycling through search results
+
+## [0.32.0] - 2026-09-15
+
+### Feat
+
+* packages/typerighter
+  - Improve design of SSG
+
+## [0.31.0] - 2026-09-14
+
+### Fixed
+
+* packages/typerighter, crates/typedown-lang, crates/typedown-server
+  - File rename now updates sidebar, reroutes if viewing renamed page, and correctly invalidates incremental cache (stale type errors after rename)
+  - File deletion reroutes to parent directory when viewing the deleted page
+  - `index.td` now respects `_label` in page title
+  - Sidebar metadata (`_label`, `_icon`) reactive on content changes
+  - Glossary shows `description` and `summary` fields as excerpt
+  - `${}` interpolation completions include scope variables (`self`, `fref`, etc.) alongside file suggestions
+  - Code block overflow scrolling inside `details` callout
+  - Schema rename properly invalidates client cache (delete old + create new)
+  - macOS file rename events (`RenameMode::Any`) handled correctly
+  - `RedNode::text()` pre-allocates buffer to avoid intermediate string allocations
+  - Sidebar metadata refresh debounced to coalesce rapid saves
+  - Page HMR detects when a real page replaces a directory index (e.g. `index.td` created)
+
 ## [0.30.8] - 2026-09-13
 
 ### Documentation
@@ -10,6 +277,7 @@ Full changelog: [CHANGELOG.md](../../CHANGELOG.md)
 
 * editors/vscode
   - Improve vscode README and CHANGELOG
+
 ## [0.30.7] - 2026-09-13
 
 ### Fixes

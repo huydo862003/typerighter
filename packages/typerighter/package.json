@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "typerighter",
-  "version": "0.30.8",
+  "version": "0.39.0",
   "description": "Typedown: A typed content framework.",
   "repository": {
     "type": "git",
@@ -36,7 +36,6 @@
       "import": "./dist/client/theme-default.js"
     },
     "./style.css": "./dist/typerighter.css",
-    "./fonts.css": "./dist/fonts.css",
     "./math.css": "./dist/math.css"
   },
   "sideEffects": [
@@ -57,20 +56,21 @@
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "lint": "eslint .",
-    "lint:fix": "eslint ./src --fix",
-    "test": "vitest"
+    "lint:fix": "eslint ./src ./e2e --fix",
+    "test": "vitest",
+    "e2e": "playwright test --config e2e/playwright.config.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
     "@floating-ui/vue": "^2.0.1",
-    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@lucide/vue": "^1.39.0",
+    "@lucide/vue": "^1.47.0",
     "@shikijs/transformers": "^4.4.3",
     "@tailwindcss/vite": "^4.3.3",
     "@typerighter/rpc-client": "workspace:*",
     "@typerighter/rpc-server": "workspace:*",
-    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitejs/plugin-vue": "^6.0.9",
     "cac": "^7.0.0",
     "picocolors": "^1.1.1",
     "shiki": "^4.4.3",
@@ -82,9 +82,11 @@
   },
   "devDependencies": {
     "@hdnax/nuclint": "^0.17.5",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^26.4.1",
     "minisearch": "^7.2.0",
+    "playwright": "^1.61.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   }
 }

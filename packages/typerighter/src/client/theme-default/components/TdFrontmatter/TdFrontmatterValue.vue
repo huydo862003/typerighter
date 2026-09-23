@@ -57,7 +57,7 @@ const {
 
 <style scoped>
 .td-frontmatter-empty {
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   font-style: italic;
   font-size: var(--font-size-td-xs);
 }

@@ -66,16 +66,16 @@ function isActive (link: string): boolean {
   align-items: center;
   gap: 0.125rem;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-header-nav-link:hover {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 
 .td-header-nav-link.is-active {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
 }
 </style>

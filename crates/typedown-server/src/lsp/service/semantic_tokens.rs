@@ -131,7 +131,7 @@ fn delta_encode(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
 
   use super::*;
@@ -150,7 +150,7 @@ mod tests {
     let project = Project::new(
       &db,
       PathBuf::from("/"),
-      BTreeMap::from([(path.clone(), file)]),
+      HashMap::from([(path.clone(), file)]),
     );
     let ast = parse_file(&db, project, file).ast(&db).node.clone();
     let mut raw = Vec::new();

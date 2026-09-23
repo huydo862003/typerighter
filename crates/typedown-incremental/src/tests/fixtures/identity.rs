@@ -76,3 +76,36 @@ pub fn make_range<'db>(db: &'db Database, config: RangeConfig) -> IdResult<'db> 
   }
   IdResult::new(db, count, count)
 }
+
+// Derived struct with no #[id] fields, identity is only disambiguator-based
+#[query_derived]
+pub struct Opaque<'db> {
+  name: String,
+  tag: usize,
+}
+
+// Creates multiple Opaque structs, count controls how many
+// All share the same identity_hash (no #[id] fields), distinguished only by disambiguator
+#[query_derived]
+pub fn make_opaques<'db>(db: &'db Database, config: VersionConfig) -> Opaque<'db> {
+  let v = config.version(db);
+  LOG.with(|log| log.borrow_mut().push(v));
+  for i in 0..3 {
+    Opaque::new(db, format!("item_{}", i), v);
+  }
+  Opaque::new(db, "last".to_string(), v)
+}
+
+// Returns IdResult with fixed identity (n=0) but value derived from version
+// Changing version forces re-execution while the struct identity stays the same
+#[query_input]
+pub struct VersionConfig {
+  version: usize,
+}
+
+#[query_derived]
+pub fn versioned_result<'db>(db: &'db Database, config: VersionConfig) -> IdResult<'db> {
+  let v = config.version(db);
+  LOG.with(|log| log.borrow_mut().push(v));
+  IdResult::new(db, 0, v)
+}

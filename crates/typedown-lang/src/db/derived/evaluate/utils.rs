@@ -540,7 +540,7 @@ mod tests {
   use crate::db::utils::lower_file;
   use crate::db::{QueryStorage, TypedownDatabase};
 
-  use std::collections::BTreeMap;
+  use std::collections::{BTreeMap, HashMap};
   use std::path::PathBuf;
 
   fn make_db() -> TypedownDatabase {
@@ -638,7 +638,7 @@ mod tests {
         FileMetadata::default(),
       ),
     );
-    let project = Project::new(&db, PathBuf::from("/vault"), BTreeMap::new());
+    let project = Project::new(&db, PathBuf::from("/vault"), HashMap::new());
     let (hir, _) = lower_file(&db, project, file);
     let str_hir = hir.expect("file should parse");
 

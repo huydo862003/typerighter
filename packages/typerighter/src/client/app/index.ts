@@ -104,7 +104,7 @@ export async function createTypedownApp (
     nav: config.nav,
   };
 
-  const siteData = ref<TypedownSiteData>({
+  const siteData = shallowRef<TypedownSiteData>({
     ready: data.ready ?? false,
     contentTree: data.contentTree ?? {
       entries: [],

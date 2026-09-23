@@ -92,7 +92,7 @@ watch(isSearchActive, (value) => {
 
 watch(query, (value, _old, onCleanup) => {
   onCleanup(() => cancel());
-  selectedIndex.value = -1;
+  selectedIndex.value = 0;
   search(value);
 });
 
@@ -122,9 +122,11 @@ function onKeydown (event: KeyboardEvent) {
   if (event.key === 'ArrowDown') {
     event.preventDefault();
     selectedIndex.value = (selectedIndex.value + 1) % count;
+    scrollSelectedIntoView();
   } else if (event.key === 'ArrowUp') {
     event.preventDefault();
     selectedIndex.value = (selectedIndex.value - 1 + count) % count;
+    scrollSelectedIntoView();
   } else if (event.key === 'Enter' && 0 <= selectedIndex.value) {
     event.preventDefault();
     const selected = flatResults.value[selectedIndex.value];
@@ -138,6 +140,16 @@ function onKeydown (event: KeyboardEvent) {
 
 function onResultClick () {
   emit('select');
+}
+
+function scrollSelectedIntoView () {
+  requestAnimationFrame(() => {
+    const element = document.querySelector('.td-search-result.is-selected');
+
+    element?.scrollIntoView({
+      block: 'nearest',
+    });
+  });
 }
 
 const searchInput = useTemplateRef<HTMLInputElement>('searchInput');
@@ -213,9 +225,6 @@ defineExpose({
         :key="group.pageUrl"
         class="td-search-group"
       >
-        <div class="td-search-group-label">
-          {{ group.pageTitle }}
-        </div>
         <a
           v-for="result in group.results"
           :key="result.id"
@@ -231,6 +240,7 @@ defineExpose({
             class="td-search-result-title"
             v-html="highlight(result.title, query)"
           />
+          <span class="td-search-result-path">{{ result.id }}</span>
           <span
             v-if="result.excerpt"
             class="td-search-result-excerpt"
@@ -262,14 +272,26 @@ defineExpose({
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--color-td-primary-solid) 12%, transparent);
+  border: 1px solid var(--color-td-line);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--color-td-primary-solid) 5%, transparent);
-  transition: border-color 0.15s;
+  background: var(--color-td-pg);
+  transition:
+    border-color var(--duration-td-fast) var(--ease-td-out-quart),
+    background var(--duration-td-fast) var(--ease-td-out-quart),
+    transform var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
+.td-search-input-wrap:hover {
+  border-color: var(--color-td-ink-4);
+  background: var(--color-td-hov);
+}
+
+.td-search-input-wrap:active {
+  transform: scale(0.985);
 }
 
 .td-search-input-wrap:focus-within {
-  border-color: color-mix(in srgb, var(--color-td-primary-solid) 30%, transparent);
+  border-color: var(--color-td-accent);
 }
 
 .td-search-input-wrap:focus-within .td-search-kbd {
@@ -283,7 +305,7 @@ defineExpose({
 
 .td-search-icon {
   flex-shrink: 0;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-search-input {
@@ -293,23 +315,23 @@ defineExpose({
   outline: none;
   background: none;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
   font-family: inherit;
 }
 
 .td-search-input::placeholder {
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-search-count {
   flex-shrink: 0;
   font-size: var(--font-size-td-2xs);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 
 .td-search-spinner {
   flex-shrink: 0;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   animation: td-spin 0.8s linear infinite;
 }
 
@@ -324,13 +346,13 @@ defineExpose({
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
   padding: 2px;
-  transition: color 0.15s;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-clear:hover {
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
 }
 
 /* Results */
@@ -341,55 +363,52 @@ defineExpose({
   flex-direction: column;
 }
 
-.td-search-group-label {
-  padding: 6px 20px;
-  font-size: var(--font-size-td-2xs);
-  letter-spacing: var(--tracking-td-wide);
-  text-transform: uppercase;
-  color: var(--color-td-neutral-fg-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .td-search-result {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 5px 12px 5px 20px;
-  border-left: 2px solid var(--color-td-neutral-border-subtle);
+  padding: 5px 12px 5px 12px;
   text-decoration: none;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-result:hover,
 .td-search-result.is-selected {
-  background: var(--color-td-neutral-bg-hover);
+  background: var(--color-td-hov);
 }
 
 .td-search-result.is-current {
-  border-left-color: var(--color-td-primary-solid);
-  background: color-mix(in srgb, var(--color-td-primary-solid) 6%, transparent);
+  border-left-color: var(--color-td-accent);
+  background: color-mix(in srgb, var(--color-td-accent) 6%, transparent);
 }
 
 .td-search-result.is-current .td-search-result-title {
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 
 .td-search-result-title {
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-fg);
+  color: var(--color-td-ink);
 }
 
 .td-search-result-title :deep(mark) {
   background: none;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
+}
+
+.td-search-result-path {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  color: var(--color-td-ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-search-result-excerpt {
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -401,7 +420,7 @@ defineExpose({
 
 .td-search-result-excerpt :deep(mark) {
   background: none;
-  color: var(--color-td-primary-solid);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 
@@ -411,6 +430,6 @@ defineExpose({
   margin-top: 8px;
   padding: 8px 10px;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg-muted);
+  color: var(--color-td-ink-4);
 }
 </style>

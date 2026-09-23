@@ -1,32 +1,30 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @theme {
-  --font-sans: "Archivo Variable", "Archivo", system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
 
-  /* Neutral */
-  --color-td-neutral-bg: #f3f2f2;
-  --color-td-neutral-bg-subtle: #eae9e9;
-  --color-td-neutral-bg-hover: #eae7e7;
-  --color-td-neutral-border-subtle: #d7d3d3;
-  --color-td-neutral-border: color-mix(in srgb, #201e1d 40%, transparent);
-  --color-td-neutral-border-strong: #9b9797;
-  --color-td-neutral-fg-muted: #7d7979;
-  --color-td-neutral-fg: #605d5d;
-  --color-td-fg: #201e1d;
-  --color-td-fg-muted: color-mix(in srgb, #201e1d 55%, transparent);
+  /* Warm neutral palette */
+  --color-td-pg: #FBF9F7;
+  --color-td-surf: #F5F2EE;
+  --color-td-hov: #F1EDE6;
+  --color-td-sel: rgba(181, 71, 31, 0.10);
+  --color-td-ink: #1F1C19;
+  --color-td-ink-2: #48423B;
+  --color-td-ink-3: #6B635B;
+  --color-td-ink-4: #7C746B;
+  --color-td-line: #E4DFD7;
+  --color-td-line-soft: #EDE8E1;
 
-  /* Primary (sienna) */
-  --color-td-primary-bg-subtle: #faf5f2;
-  --color-td-primary-bg-hover: color-mix(in srgb, #a0522d 10%, transparent);
-  --color-td-primary-border-subtle: color-mix(in srgb, #a0522d 25%, transparent);
-  --color-td-primary-solid: #a0522d;
-  --color-td-primary-solid-hover: #8b4726;
-  --color-td-primary-fg: #5c3019;
+  /* Brand (sienna) */
+  --color-td-accent: #B5471F;
+  --color-td-accent-hi: #93381A;
 
-  /* Link (blue) */
-  --color-td-link: #4F6BCA;
-  --color-td-link-hover: #3d56b0;
+  /* Links (blue) */
+  --color-td-link: #1B7CE4;
+  --color-td-link-hover: #1663B6;
 
   /* Status colors */
   --color-td-tip: #10b981;
@@ -47,64 +45,69 @@
   --color-td-tooltip-bg: #000;
   --color-td-tooltip-fg: #fff;
 
-  /* Code block chrome (always dark) */
-  --color-td-code-bg: #1e1e2e;
-  --color-td-code-fg: #d4d4d4;
-  --color-td-code-chrome-40: rgba(255, 255, 255, 0.4);
-  --color-td-code-chrome-20: rgba(255, 255, 255, 0.2);
-  --color-td-code-chrome-15: rgba(255, 255, 255, 0.15);
-  --color-td-code-chrome-10: rgba(255, 255, 255, 0.1);
-  --color-td-code-chrome-08: rgba(255, 255, 255, 0.08);
-  --color-td-code-chrome-06: rgba(255, 255, 255, 0.06);
+  /* Code block chrome (dark) */
+  --color-td-code-bg: #0A1F3A;
+  --color-td-code-fg: #DCE7F2;
 
-  /* Type scale (base 17px, ratio ~1.25) */
+  /* Type scale */
   --font-size-td-2xs: 11px;
-  --font-size-td-xs: 14px;
-  --font-size-td-sm: 15px;
-  --font-size-td-base: 17px;
-  --font-size-td-md: 21px;
-  --font-size-td-lg: 26px;
-  --font-size-td-xl: 33px;
-  --font-size-td-2xl: 41px;
-  --font-size-td-3xl: 51px;
-  --font-size-td-4xl: 80px;
+  --font-size-td-xs: 12.5px;
+  --font-size-td-sm: 13.5px;
+  --font-size-td-sub: 14.5px;
+  --font-size-td-base: 16px;
+  --font-size-td-md: 17px;
+  --font-size-td-lg: 20px;
+  --font-size-td-xl: 25px;
+  --font-size-td-2xl: 40px;
 
   /* Line heights */
   --leading-td-tight: 1.12;
+  --leading-td-heading: 1.25;
   --leading-td-normal: 1.5;
-  --leading-td-relaxed: 1.65;
-  --leading-td-loose: 1.7;
+  --leading-td-relaxed: 1.72;
+  --leading-td-loose: 1.8;
 
   /* Letter spacing */
-  --tracking-td-tight: -0.02em;
-  --tracking-td-wide: 0.1em;
+  --tracking-td-tight: -0.028em;
+  --tracking-td-heading: -0.024em;
+  --tracking-td-wide: 0.07em;
+
+  /* Easing */
+  --ease-td-out-quart: cubic-bezier(.33, 1, .68, 1);
+
+  /* Radii */
+  --radius-td-sm: 4px;
+  --radius-td-md: 6px;
+  --radius-td-lg: 8px;
 }
 
 :root {
-  --td-sidebar-width: 272px;
-  --td-toc-width: 264px;
-  --td-content-max: 780px;
-  --td-header-height: 58px;
+  --td-sidebar-width: 260px;
+  --td-toc-width: 216px;
+  --td-content-max: 704px;
+  --td-header-height: 56px;
+
+  /* Motion durations */
+  --duration-td-fast: 150ms;
+  --duration-td-move: 200ms;
+  --duration-td-open: 240ms;
+  --duration-td-drawer: 260ms;
 }
 
 .dark {
-  --color-td-neutral-bg: #1e1d1c;
-  --color-td-neutral-bg-subtle: #282625;
-  --color-td-neutral-bg-hover: #383535;
-  --color-td-neutral-border-subtle: #444141;
-  --color-td-neutral-border: color-mix(in srgb, #d4d0ce 25%, transparent);
-  --color-td-neutral-border-strong: #7d7979;
-  --color-td-neutral-fg-muted: #9b9797;
-  --color-td-neutral-fg: #bab6b6;
-  --color-td-fg: #d4d0ce;
-  --color-td-fg-muted: color-mix(in srgb, #d4d0ce 55%, transparent);
+  --color-td-pg: #1A1816;
+  --color-td-surf: #231F1C;
+  --color-td-hov: #2E2A26;
+  --color-td-sel: rgba(197, 120, 80, 0.12);
+  --color-td-ink: #D4D0CE;
+  --color-td-ink-2: #BAB6B4;
+  --color-td-ink-3: #9B9797;
+  --color-td-ink-4: #7D7979;
+  --color-td-line: #3A3634;
+  --color-td-line-soft: #2E2A28;
 
-  --color-td-primary-bg-subtle: #2a2220;
-  --color-td-primary-bg-hover: color-mix(in srgb, #c4885e 10%, transparent);
-  --color-td-primary-border-subtle: color-mix(in srgb, #c4885e 25%, transparent);
-  --color-td-primary-solid: #c4885e;
-  --color-td-primary-solid-hover: #d4a07a;
-  --color-td-primary-fg: #f0d4c0;
+  --color-td-accent: #C4885E;
+  --color-td-accent-hi: #D4A07A;
 
   --color-td-link: #8B9FE8;
   --color-td-link-hover: #a8b8f0;
@@ -113,6 +116,9 @@
   --color-td-info-bg: rgba(59, 130, 246, 0.12);
   --color-td-warning-bg: rgba(234, 179, 8, 0.12);
   --color-td-danger-bg: rgba(239, 68, 68, 0.12);
+
+  --color-td-code-bg: #0D1B2A;
+  --color-td-code-fg: #DCE7F2;
 }
 
 body {
@@ -120,19 +126,35 @@ body {
   font-size: var(--font-size-td-base);
   line-height: var(--leading-td-relaxed);
   font-weight: 400;
-  color: var(--color-td-fg);
-  background-color: var(--color-td-neutral-bg);
+  color: var(--color-td-ink-2);
+  background-color: var(--color-td-pg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
 }
 
+/* Collapsible container using CSS grid rows trick */
+.td-collapse {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  transition: grid-template-rows var(--duration-td-open) var(--ease-td-out-quart);
+}
+
+.td-collapse.is-collapsed {
+  grid-template-rows: minmax(0, 0fr);
+}
+
+.td-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
 ::selection {
-  background: color-mix(in srgb, var(--color-td-link) 30%, transparent);
+  background: var(--color-td-sel);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-td-primary-solid);
+  outline: 2px solid var(--color-td-accent);
   outline-offset: 2px;
 }
 

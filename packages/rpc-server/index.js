@@ -26,11 +26,12 @@ function resolveBin() {
 const bin = resolveBin();
 
 export class RpcServer extends EventEmitter {
-  constructor({ root, addr, port } = {}) {
+  constructor({ root, addr, port, fresh } = {}) {
     super();
     this._root = root ?? process.cwd();
     this._addr = addr ?? "127.0.0.1";
     this._port = port ?? 0;
+    this._fresh = fresh ?? false;
     this._process = undefined;
     this._listening = false;
     this._resolvedAddress = undefined;
@@ -68,6 +69,7 @@ export class RpcServer extends EventEmitter {
         TYPEDOWN_RPC_ROOT: this._root,
         TYPEDOWN_RPC_ADDR: this._addr,
         TYPEDOWN_RPC_PORT: String(this._port),
+        ...(this._fresh ? { TYPEDOWN_NO_CACHE: "1" } : {}),
       },
       stdio: ["ignore", "pipe", "inherit"],
       // Detach so the server can save its cache after Node exits

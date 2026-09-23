@@ -140,7 +140,7 @@ mod tests {
     TextDocumentPositionParams, WorkDoneProgressParams,
   };
   use ropey::Rope;
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
@@ -209,7 +209,7 @@ age: 25
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-    let mut files = BTreeMap::from([
+    let mut files = HashMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -268,8 +268,8 @@ age: 25
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
     (analysis, uri)

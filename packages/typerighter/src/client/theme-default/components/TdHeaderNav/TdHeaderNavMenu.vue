@@ -65,7 +65,7 @@ function isActive (link: string): boolean {
   display: block;
   height: 1px;
   margin: 0.5rem 1rem 0;
-  background: color-mix(in srgb, var(--color-td-neutral-border) 50%, transparent);
+  background: color-mix(in srgb, var(--color-td-line) 50%, transparent);
 }
 
 .td-menu-nav-item {
@@ -74,20 +74,20 @@ function isActive (link: string): boolean {
   gap: 0.5rem;
   padding: 0.625rem 1rem;
   font-size: var(--font-size-td-sm);
-  color: var(--color-td-neutral-fg);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   border-left: 3px solid transparent;
-  transition: background-color 0.15s;
+  transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-menu-nav-item:hover {
-  background-color: var(--color-td-neutral-bg-hover);
+  background-color: var(--color-td-hov);
 }
 
 .td-menu-nav-item.is-active {
-  background-color: var(--color-td-primary-bg-hover);
-  border-left-color: var(--color-td-primary-solid);
-  color: var(--color-td-primary-solid);
+  background-color: var(--color-td-sel);
+  border-left-color: var(--color-td-accent);
+  color: var(--color-td-accent);
   font-weight: 600;
 }
 </style>
