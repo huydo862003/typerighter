@@ -9,7 +9,7 @@
 //! ```
 
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -209,13 +209,13 @@ fn load_from_dir(dir: &Path) -> Option<SerializedQueryStorage> {
 }
 
 fn write_dep_graph(path: &Path, graph: &DepGraph) -> io::Result<()> {
-  let mut f = File::create(path)?;
+  let mut f = BufWriter::new(File::create(path)?);
   f.write_all(&graph.header.to_bytes())?;
   for node in &graph.nodes {
     f.write_all(&node.to_bytes())?;
   }
   f.write_all(&graph.footer.to_bytes())?;
-  Ok(())
+  f.flush()
 }
 
 fn read_dep_graph(path: &Path) -> Option<DepGraph> {
@@ -260,7 +260,7 @@ fn read_query_cache(path: &Path) -> Option<QueryCache> {
 }
 
 fn write_interned_blobs(path: &Path, blobs: &InternedBlobs) -> io::Result<()> {
-  let mut f = File::create(path)?;
+  let mut f = BufWriter::new(File::create(path)?);
   f.write_all(&blobs.header.to_bytes())?;
   for record in &blobs.records {
     let len = record.len() as u32;
@@ -268,7 +268,7 @@ fn write_interned_blobs(path: &Path, blobs: &InternedBlobs) -> io::Result<()> {
     f.write_all(record)?;
   }
   f.write_all(&blobs.footer.to_bytes())?;
-  Ok(())
+  f.flush()
 }
 
 fn read_interned_blobs(path: &Path) -> Option<InternedBlobs> {

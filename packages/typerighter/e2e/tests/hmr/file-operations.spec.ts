@@ -37,13 +37,13 @@ e2e.describe('HMR file operations', () => {
     const sidebar = page.getByTestId('sidebar');
 
     // Create a new folder with a file inside
-    const newDir = path.join(testProject.dir, 'vault/reports');
+    const newDirectory = path.join(testProject.dir, 'vault/reports');
 
-    await mkdir(newDir, {
+    await mkdir(newDirectory, {
       recursive: true,
     });
     await writeFile(
-      path.join(newDir, 'weekly.td'),
+      path.join(newDirectory, 'weekly.td'),
       '---\ntitle: Weekly Report\n---\n\nThis week went well.\n',
       'utf-8',
     );

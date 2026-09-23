@@ -40,10 +40,16 @@ pub fn code_action(analysis: &Analysis, params: CodeActionParams) -> Option<Code
 
   // Schema initialization for empty frontmatter
   if source.frontmatter().is_none_or(|fm| fm.mapping().is_none()) {
+    let has_delimiters = source.frontmatter().is_some();
     for (name, template) in collect_schemas(db, project) {
+      let new_text = if has_delimiters {
+        format!("_type: {name}\n{template}")
+      } else {
+        format!("---\n_type: {name}\n{template}---\n")
+      };
       let edit = TextEdit {
         range: params.range,
-        new_text: format!("---\n_type: {name}\n{template}---\n"),
+        new_text,
       };
 
       actions.push(lsp_types::CodeActionOrCommand::CodeAction(CodeAction {
@@ -222,6 +228,10 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 
       let mut template = String::new();
 
+      // Builtin fields with sensible defaults
+      template.push_str(&format!("# _label: \"{name}\"\n"));
+      template.push_str("# _icon: icon.file\n");
+
       for (field_name, prop_desc) in &fields {
         let default = default_value(db, &prop_desc.field_type);
         let optional = prop_desc
@@ -292,7 +302,7 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -343,7 +353,7 @@ properties:
       storage: QueryStorage::default(),
     };
 
-    let files = BTreeMap::from([
+    let files = HashMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -390,8 +400,8 @@ properties:
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 

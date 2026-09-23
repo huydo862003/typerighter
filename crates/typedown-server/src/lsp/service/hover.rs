@@ -149,7 +149,7 @@ fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -247,7 +247,7 @@ properties:
       ),
     );
 
-    let files = BTreeMap::from([
+    let files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
       (root.join("_types/Person.td"), person_file),
       (test_path, test_file),
@@ -257,8 +257,8 @@ properties:
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 
@@ -352,7 +352,7 @@ age: 30
 ---
 "#;
 
-    let files = BTreeMap::from([
+    let files = HashMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -399,8 +399,8 @@ age: 30
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 

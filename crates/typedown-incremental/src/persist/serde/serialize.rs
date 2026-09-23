@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{self, Write};
 
 use tempfile::NamedTempFile;
 
@@ -176,21 +176,22 @@ impl DepGraphBuilder {
 /// Builder for the query cache during serialization.
 /// Writes blobs to a tempfile and tracks the mapping from dep node index to byte offset.
 pub struct QueryCacheBuilder {
-  file: NamedTempFile,
+  writer: io::BufWriter<NamedTempFile>,
   offset: u64,
   entries: Vec<FooterCacheEntry>,
 }
 
 impl QueryCacheBuilder {
   fn new() -> Self {
-    let mut file = NamedTempFile::new().expect("Failed to create tempfile for query cache");
+    let file = NamedTempFile::new().expect("Failed to create tempfile for query cache");
     let header = FileHeader::new();
-    file
+    let mut writer = io::BufWriter::new(file);
+    writer
       .write_all(&header.to_bytes())
       .expect("Failed to write query cache header");
 
     Self {
-      file,
+      writer,
       offset: 8, // After the 8-byte header
       entries: Vec::new(),
     }
@@ -200,7 +201,7 @@ impl QueryCacheBuilder {
   pub fn set(&mut self, node_index: DepNodeIndex, blob: &[u8]) -> u64 {
     let byte_offset = self.offset;
     self
-      .file
+      .writer
       .write_all(blob)
       .expect("Failed to write blob to query cache tempfile");
     self.offset += blob.len() as u64;
@@ -217,27 +218,33 @@ impl QueryCacheBuilder {
 
     // Write entry count
     self
-      .file
+      .writer
       .write_all(&(self.entries.len() as u64).to_le_bytes())
       .expect("Failed to write footer entry count");
 
     // Write entries
     for entry in &self.entries {
       self
-        .file
+        .writer
         .write_all(&entry.to_bytes())
         .expect("Failed to write footer entry");
     }
 
     // Write footer position as the last 8 bytes
     self
-      .file
+      .writer
       .write_all(&footer_pos.to_le_bytes())
       .expect("Failed to write footer position");
 
-    let mmap = unsafe {
-      memmap2::Mmap::map(self.file.as_file()).expect("Failed to mmap query cache tempfile")
-    };
-    (mmap, self.file)
+    // Flush buffered data before mmapping the file
+    self.writer.flush().expect("Failed to flush query cache");
+
+    let file = self
+      .writer
+      .into_inner()
+      .expect("Failed to unwrap BufWriter");
+    let mmap =
+      unsafe { memmap2::Mmap::map(file.as_file()).expect("Failed to mmap query cache tempfile") };
+    (mmap, file)
   }
 }
