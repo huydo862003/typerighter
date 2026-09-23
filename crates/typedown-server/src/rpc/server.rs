@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +9,7 @@ use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ropey::Rope;
 use threadpool::ThreadPool;
-use typedown_incremental::{Cancelled, QueryStorage, SerializableQueryDatabase};
+use typedown_incremental::{CacheSession, Cancelled, QueryStorage, SerializableQueryDatabase};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
@@ -37,11 +37,11 @@ use typedown_types::path::normalize_path;
 
 use crate::core::analysis::Analysis;
 use crate::core::analysis_host::AnalysisHost;
-use crate::core::utils::fs::{is_asset_file, is_vault_config};
+use crate::core::utils::fs::{get_cache_dir, is_asset_file, is_vault_config};
 
 use super::contract::*;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum FsEventKind {
   Created,
   Modified,
@@ -105,7 +105,8 @@ pub struct RpcServer {
   connection: Connection,
   host: Arc<std::sync::RwLock<AnalysisHost>>,
   thread_pool: ThreadPool,
-  cache_session: typedown_incremental::CacheSession,
+  cache_session: CacheSession,
+  cache_dir: PathBuf,
   // Held to keep the watcher alive
   _watcher: RecommendedWatcher,
   fs_thread: std::thread::JoinHandle<()>,
@@ -113,9 +114,13 @@ pub struct RpcServer {
 
 impl RpcServer {
   pub fn new(connection: Connection, root_dir: PathBuf) -> anyhow::Result<Self> {
-    let cache_dir = root_dir.join(".typedown/.local/cache");
-    let (cache_session, serialized) = typedown_incremental::CacheSession::open(&cache_dir)
-      .unwrap_or_else(|_| (typedown_incremental::CacheSession::empty(), None));
+    let cache_dir = get_cache_dir(&root_dir);
+    let fresh = std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+    let (cache_session, serialized) = if fresh {
+      (CacheSession::empty(), None)
+    } else {
+      CacheSession::open(&cache_dir).unwrap_or_else(|_| (CacheSession::empty(), None))
+    };
 
     let storage = match serialized {
       Some(data) => {
@@ -163,6 +168,7 @@ impl RpcServer {
       host,
       thread_pool: ThreadPool::new(num_threads),
       cache_session,
+      cache_dir,
       _watcher: watcher,
       fs_thread,
     })
@@ -188,15 +194,19 @@ impl RpcServer {
         let dump_timeout = std::time::Duration::from_secs(120);
         let (tx, rx) = std::sync::mpsc::channel();
         let dump_thread = std::thread::spawn(move || {
-          let serialized = db.dump();
-          let _ = tx.send(serialized);
+          let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| db.dump()));
+          let _ = tx.send(result);
         });
 
         match rx.recv_timeout(dump_timeout) {
-          Ok(serialized) => {
+          Ok(Ok(serialized)) => {
             if let Err(err) = self.cache_session.finalize(&serialized, revision) {
               log::error!("Failed to save incremental cache: {err}");
             }
+          }
+          Ok(Err(_)) => {
+            eprintln!("[typedown-rpc] Cache dump panicked, clearing stale cache");
+            let _ = std::fs::remove_dir_all(&self.cache_dir);
           }
           Err(_) => {
             log::warn!("Cache dump timed out after {dump_timeout:?}, skipping save");
@@ -349,16 +359,13 @@ impl RpcServer {
     fs_rx: crossbeam_channel::Receiver<FsEvent>,
   ) {
     while let Ok(first) = fs_rx.recv() {
-      let mut pending: BTreeMap<PathBuf, FsEvent> = BTreeMap::new();
-      pending.insert(first.path.clone(), first);
+      let mut all_events = vec![first];
 
       // Drain additional events within 50ms for batching
       let deadline = std::time::Instant::now() + Duration::from_millis(50);
       loop {
         match fs_rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
-          Ok(event) => {
-            pending.insert(event.path.clone(), event);
-          }
+          Ok(event) => all_events.push(event),
           Err(crossbeam_channel::RecvTimeoutError::Timeout) => break,
           Err(crossbeam_channel::RecvTimeoutError::Disconnected) => return,
         }
@@ -367,7 +374,7 @@ impl RpcServer {
       // Apply changes to the host
       {
         let mut host_guard = host.write().unwrap();
-        for event in pending.values() {
+        for event in &all_events {
           match &event.kind {
             FsEventKind::Created | FsEventKind::Modified => {
               host_guard.on_disk_change(event.path.clone())
@@ -375,6 +382,30 @@ impl RpcServer {
             FsEventKind::Removed => host_guard.on_disk_delete(event.path.clone()),
             FsEventKind::Renamed(to) => {
               host_guard.on_did_rename_file(event.path.clone(), to.clone())
+            }
+          }
+        }
+      }
+
+      // Collect unique affected paths (including rename destinations)
+      let mut affected_paths: HashSet<PathBuf> = HashSet::new();
+      for event in &all_events {
+        affected_paths.insert(event.path.clone());
+        if let FsEventKind::Renamed(to) = &event.kind {
+          affected_paths.insert(to.clone());
+        }
+      }
+
+      // Scan newly created directories for files that inotify may have missed
+      for event in &all_events {
+        if matches!(event.kind, FsEventKind::Created)
+          && event.path.is_dir()
+          && let Ok(entries) = std::fs::read_dir(&event.path)
+        {
+          for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+              affected_paths.insert(path);
             }
           }
         }
@@ -389,71 +420,49 @@ impl RpcServer {
         let root_dir = config.root_dir(db);
 
         // Notify subscribers if any pending event is a config file change
-        if pending.values().any(|event| is_vault_config(&event.path)) {
+        if affected_paths.iter().any(|p| is_vault_config(p)) {
           let config = build_site_config(db, project);
           send_notification(&sender, NOTIF_CONFIG_CHANGED, &config);
         }
 
-        for event in pending.into_values() {
-          if event.path.starts_with(&root_dir) && !is_type_file(&event.path) {
-            let relative =
-              normalize_path(event.path.strip_prefix(&root_dir).unwrap_or(&event.path));
+        // Stat each path and emit normalized notifications
+        for path in &affected_paths {
+          if !path.starts_with(&root_dir) {
+            continue;
+          }
 
-            let (method, renamed_to) = match &event.kind {
-              FsEventKind::Created => (NOTIF_CONTENT_CREATED, None),
-              FsEventKind::Modified => (NOTIF_CONTENT_CHANGED, None),
-              FsEventKind::Removed => (NOTIF_CONTENT_DELETED, None),
-              FsEventKind::Renamed(to) => {
-                let to_relative = normalize_path(to.strip_prefix(&root_dir).unwrap_or(to));
-                (NOTIF_CONTENT_RENAMED, Some(to_relative))
-              }
-            };
+          let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
 
-            let affected_files = if matches!(event.kind, FsEventKind::Modified) {
-              collect_affected_files(db, project, &event.path, &root_dir)
-            } else {
-              vec![]
-            };
-
-            let notification = TdContentNotification {
-              filepath: relative,
-              affected_files,
-              renamed_to,
-            };
-            send_notification(&sender, method, &notification);
-          } else if is_type_file(&event.path) {
-            let Some(name) = event
-              .path
+          if is_type_file(path) {
+            let Some(name) = path
               .file_stem()
               .and_then(|s| s.to_str())
               .map(str::to_string)
             else {
               continue;
             };
-            if let FsEventKind::Renamed(to) = &event.kind {
-              // Schema rename: notify as delete old + create new
-              send_notification(
-                &sender,
-                NOTIF_SCHEMA_DELETED,
-                &TdSchemaNotification { schema: name },
-              );
-              if let Some(new_name) = to.file_stem().and_then(|s| s.to_str()).map(str::to_string) {
-                send_notification(
-                  &sender,
-                  NOTIF_SCHEMA_CREATED,
-                  &TdSchemaNotification { schema: new_name },
-                );
-              }
+            let method = if path.exists() {
+              NOTIF_SCHEMA_UPDATED
             } else {
-              let notification = TdSchemaNotification { schema: name };
-              let method = match event.kind {
-                FsEventKind::Created => NOTIF_SCHEMA_CREATED,
-                FsEventKind::Modified => NOTIF_SCHEMA_CHANGED,
-                FsEventKind::Removed => NOTIF_SCHEMA_DELETED,
-                FsEventKind::Renamed(_) => unreachable!(),
-              };
-              send_notification(&sender, method, &notification);
-            }
+              NOTIF_SCHEMA_DELETED
+            };
+            send_notification(&sender, method, &TdSchemaNotification { schema: name });
+          } else if is_content_file(path) || is_asset_file(path) {
+            let method = if path.exists() {
+              NOTIF_CONTENT_UPDATED
+            } else {
+              NOTIF_CONTENT_DELETED
+            };
+            let affected_files = if path.exists() {
+              collect_affected_files(db, project, path, &root_dir)
+            } else {
+              vec![]
+            };
+            let notification = TdContentNotification {
+              filepath: relative,
+              affected_files,
+            };
+            send_notification(&sender, method, &notification);
           }
         }
       }) else {

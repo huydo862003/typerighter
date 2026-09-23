@@ -308,8 +308,19 @@ impl<S: Utf8Stream> LexCtx<S> {
   /* Text */
 
   pub(in crate::syntax::lex) fn lex_markdown_text(&mut self) -> LexResult {
+    let mut last = '\0';
     loop {
       match self.peek() {
+        // Intraword underscore: a_b stays as one text token
+        Utf8Result::Char('_') if last.is_alphanumeric() => {
+          // Only absorb if followed by a word char (peek past the _)
+          if matches!(self.stream.peek_nth(1), Utf8Result::Char(c) if c.is_alphanumeric()) {
+            self.advance_avoid_invalid_utf8();
+            last = '_';
+          } else {
+            break;
+          }
+        }
         Utf8Result::Char(char)
           if !char.is_whitespace()
             && char != '$'
@@ -327,6 +338,7 @@ impl<S: Utf8Stream> LexCtx<S> {
             && !char.is_ascii_digit() =>
         {
           self.advance_avoid_invalid_utf8();
+          last = char;
         }
         _ => break,
       }

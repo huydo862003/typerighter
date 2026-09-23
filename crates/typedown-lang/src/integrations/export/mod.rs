@@ -150,7 +150,7 @@ pub fn export_resource_meta(
     })
   });
 
-  // Only check header fields; body parsing is too expensive for sidebar metadata
+  // Try description or summary from header, fall back to first paragraph in body
   let excerpt = obj
     .get_owned_field(db, "description")
     .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
@@ -159,7 +159,14 @@ pub fn export_resource_meta(
         .get_owned_field(db, "summary")
         .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
     })
-    .filter(|s| !s.is_empty());
+    .filter(|s| !s.is_empty())
+    .or_else(|| {
+      let parse_result = parse_file(db, project, file);
+      let root = parse_result.ast(db).node.clone();
+      let source_file = SourceFile::cast(root)?;
+      let body = source_file.body()?;
+      extract_body_excerpt(body.syntax())
+    });
 
   Some(ExportedResourceMeta {
     schema,
@@ -1100,7 +1107,7 @@ mod tests {
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{File, FileHandle, FileMetadata, Project};
   use crate::db::{QueryStorage, TypedownDatabase};
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
 
   #[test]
@@ -1479,7 +1486,7 @@ name: "Alice"
       ),
     );
 
-    let files: BTreeMap<PathBuf, File> = [
+    let files: HashMap<PathBuf, File> = [
       (schema_path.clone(), schema_file),
       (config_path.clone(), config_file),
       (content_path.clone(), content_file),

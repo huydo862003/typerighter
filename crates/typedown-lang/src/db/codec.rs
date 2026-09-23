@@ -331,7 +331,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      Diagnostic::MissingRequiredSpace {
         start_offset,
         end_offset,
       } => {
@@ -950,10 +950,10 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading => {
+      DiagnosticCode::MissingRequiredSpace => {
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+        Diagnostic::MissingRequiredSpace {
           start_offset,
           end_offset,
         }
@@ -1771,7 +1771,7 @@ impl StableHash for Diagnostic {
         start_offset,
         end_offset,
       }
-      | Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      | Diagnostic::MissingRequiredSpace {
         start_offset,
         end_offset,
       }

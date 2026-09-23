@@ -62,6 +62,18 @@ export function stripExtension (filepath: string): string {
   return extension ? filepath.slice(0, -extension.length) : filepath;
 }
 
+// Extract the portion of a path after a named directory segment
+// Uses path segment boundaries to avoid matching partial directory names
+export function stripPrefix (filepath: string, prefix: string): string {
+  const normalized = normalize(filepath);
+  const segment = `/${prefix}/`;
+  const index = normalized.lastIndexOf(segment);
+
+  return index !== -1
+    ? normalized.slice(index + segment.length)
+    : normalized;
+}
+
 function normalize (filepath: string): string {
   return filepath.replace(/\\/g, '/');
 }

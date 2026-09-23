@@ -1,16 +1,18 @@
+use std::path::Path;
+
 use typedown_incremental::InputId;
-use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
 use typedown_lang::db::types::Project;
+use typedown_lang::db::{TypedownDatabase, derived::get_vault_config::get_vault_config};
 use typedown_types::path::normalize_path;
 
 use super::utils::{example_vault, setup_db_fresh};
 
-fn affected_paths(
-  db: &typedown_lang::db::TypedownDatabase,
+fn get_affected_paths(
+  db: &TypedownDatabase,
   project: Project,
-  changed_path: &std::path::Path,
-  root_dir: &std::path::Path,
+  changed_path: &Path,
+  root_dir: &Path,
 ) -> Vec<String> {
   let changed_file = match project.files(db).get(changed_path) {
     Some(f) => *f,
@@ -34,7 +36,7 @@ fn affected_files_for_alice() {
   let root_dir = get_vault_config(&db, project).root_dir(&db);
   let alice_path = root_dir.join("people/alice.td");
 
-  let mut affected = affected_paths(&db, project, &alice_path, &root_dir);
+  let mut affected = get_affected_paths(&db, project, &alice_path, &root_dir);
   affected.sort();
 
   assert!(
@@ -60,7 +62,7 @@ fn affected_files_for_unreferenced_file() {
   let root_dir = get_vault_config(&db, project).root_dir(&db);
   let index_path = root_dir.join("index.td");
 
-  let affected = affected_paths(&db, project, &index_path, &root_dir);
+  let affected = get_affected_paths(&db, project, &index_path, &root_dir);
   assert!(
     affected.is_empty(),
     "index.td should have no referrers: {affected:?}"
@@ -78,7 +80,7 @@ fn affected_files_transitive() {
   // so changing implement-auth should transitively affect milestones via alice
   let auth_path = root_dir.join("tasks/implement-auth.td");
 
-  let affected = affected_paths(&db, project, &auth_path, &root_dir);
+  let affected = get_affected_paths(&db, project, &auth_path, &root_dir);
 
   assert!(
     affected.iter().any(|f| f.contains("alice")),

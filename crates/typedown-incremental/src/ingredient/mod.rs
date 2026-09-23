@@ -161,6 +161,9 @@ pub trait DerivedQueryIngredient: Ingredient {
   /// Load a dep node into this ingredient's storage
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
+  // Force-deserialize cached return values so entry IDs are remapped
+  fn promote_cached(&self, ctx: &DeserializeContext);
+
   /// Skip fingerprint computation, always mark dirty on reload
   fn no_hash(&self) -> bool {
     false
@@ -179,6 +182,9 @@ pub trait DerivedFieldIngredient: Ingredient {
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
   fn field_index(&self) -> u8;
+
+  // Load all field entries from the previous session that haven't been accessed yet
+  fn promote_cached(&self, ctx: &DeserializeContext);
 
   /// Skip fingerprint computation, always mark dirty on reload
   fn no_hash(&self) -> bool {

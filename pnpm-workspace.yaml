@@ -4,6 +4,7 @@ packages:
   - "editors/vscode"
   - "editors/zed"
   - "examples/*"
+  - "packages/typerighter/e2e/fixtures/*"
   - "homepage"
 allowBuilds:
   unrs-resolver: true

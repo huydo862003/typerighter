@@ -554,7 +554,7 @@ mod tests {
   use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
   use crate::syntax::diagnostic::Diagnostic;
 
-  use std::collections::BTreeMap;
+  use std::collections::{BTreeMap, HashMap};
   use std::path::PathBuf;
 
   use crate::db::{
@@ -581,7 +581,7 @@ mod tests {
   }
 
   fn make_project(db: &TypedownDatabase) -> Project {
-    Project::new(db, PathBuf::from("/test"), BTreeMap::new())
+    Project::new(db, PathBuf::from("/test"), HashMap::new())
   }
 
   #[test]
@@ -1103,7 +1103,7 @@ mod tests {
         FileMetadata::default(),
       ),
     );
-    let project = Project::new(db, PathBuf::new(), BTreeMap::new());
+    let project = Project::new(db, PathBuf::new(), HashMap::new());
     let (hir, _) = lower_file(db, project, file);
     hir.unwrap()
   }

@@ -25,7 +25,7 @@ pub enum DiagnosticCode {
   UnexpectedTokensOnFrontmatterMarkerLine = 16,
   MissingFrontmatterMarker = 17,
   MissingMarkdownHeadingHash = 18,
-  MissingRequiredSpacesBetweenHashAndHeading = 19,
+  MissingRequiredSpace = 19,
   MissingSyntaxNode = 20,
   UnclosedLink = 21,
   UnclosedBold = 22,
@@ -112,7 +112,7 @@ impl DiagnosticCode {
       DiagnosticCode::UnclosedContainerPropBlock => "unclosed-container-prop-block",
       DiagnosticCode::MissingFrontmatterMarker => "missing-frontmatter-marker",
       DiagnosticCode::MissingMarkdownHeadingHash => "missing-heading-hash",
-      DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading => "missing-heading-space",
+      DiagnosticCode::MissingRequiredSpace => "missing-required-space",
       DiagnosticCode::MissingSyntaxNode => "missing-syntax-node",
       DiagnosticCode::UnclosedLink => "unclosed-link",
       DiagnosticCode::UnclosedBold => "unclosed-bold",
@@ -312,7 +312,7 @@ pub enum Diagnostic {
   },
 
   /// Expected a specific syntax node or token but it was missing.
-  MissingRequiredSpacesBetweenHashAndHeading {
+  MissingRequiredSpace {
     start_offset: usize,
     end_offset: usize,
   },
@@ -725,7 +725,7 @@ impl Diagnostic {
         start_offset,
         end_offset,
       }
-      | Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      | Diagnostic::MissingRequiredSpace {
         start_offset,
         end_offset,
       }
@@ -966,35 +966,29 @@ impl Diagnostic {
       } => {
         format!("inconsistent indentation: expected '{expected}', found '{encountered}'")
       }
-      Diagnostic::UnmatchedDedent { indent, .. } => {
-        format!("dedent to unestablished indentation level {indent}")
-      }
-      Diagnostic::MissingExponentDigits { .. } => {
-        "missing digits after exponent in numeric literal".into()
-      }
+      Diagnostic::UnmatchedDedent { .. } => "indentation does not match any outer block".into(),
+      Diagnostic::MissingExponentDigits { .. } => "expected digits after 'e' in number".into(),
       Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine { .. } => {
-        "unexpected tokens on frontmatter marker line '---'".into()
+        "frontmatter '---' line should not contain other text".into()
       }
       Diagnostic::UnexpectedContainerPropItem { .. } => {
-        "unexpected tokens in container prop item".into()
+        "unexpected token in container properties".into()
       }
       Diagnostic::UnexpectedContainerPropValue { .. } => {
-        "unexpected tokens in container prop value".into()
+        "unexpected token in container properties".into()
       }
       Diagnostic::UnexpectedContainerSlotSeparatorToken { .. } => {
-        "unexpected tokens in container slot separator line".into()
+        "slot separator '---' line should not contain other text".into()
       }
-      Diagnostic::MissingContainerPropValueAfterEq { .. } => {
-        "missing container prop value after '='".into()
+      Diagnostic::MissingContainerPropValueAfterEq { .. } => "expected a value after '='".into(),
+      Diagnostic::UnclosedContainerPropBlock { .. } => {
+        "unclosed '{' in container properties".into()
       }
-      Diagnostic::UnclosedContainerPropBlock { .. } => "unclosed container prop block".into(),
       Diagnostic::MissingFrontmatterMarker { .. } => "missing frontmatter marker '---'".into(),
       Diagnostic::MissingMarkdownHeadingHash { .. } => "missing '#' for markdown heading".into(),
-      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. } => {
-        "missing space between '#' and heading text".into()
-      }
+      Diagnostic::MissingRequiredSpace { .. } => "missing required space after block marker".into(),
       Diagnostic::MissingSyntaxNode { expected, .. } => {
-        format!("missing {expected:?}")
+        format!("expected {}", syntax_kind_label(*expected))
       }
       Diagnostic::UnclosedLink { .. } => "unclosed link '[', expected '](url)'".into(),
       Diagnostic::UnclosedBold { .. } => "unclosed bold span".into(),
@@ -1007,7 +1001,7 @@ impl Diagnostic {
       Diagnostic::MissingExpectMdPrefix {
         expected_prefix, ..
       } => {
-        format!("missing expected prefix '{expected_prefix}'")
+        format!("expected '{expected_prefix}' at start of line")
       }
       Diagnostic::MissingTableSeparatorRow { .. } => {
         "missing separator row after table header".into()
@@ -1017,12 +1011,8 @@ impl Diagnostic {
       } => {
         format!("table row has {found} columns, expected {expected}")
       }
-      Diagnostic::InsufficientBlockIndent {
-        expected_more_than,
-        found,
-        ..
-      } => {
-        format!("block indent {found} must be greater than enclosing indent {expected_more_than}")
+      Diagnostic::InsufficientBlockIndent { .. } => {
+        "block content must be indented further than its parent".into()
       }
       Diagnostic::MissingVaultConfig { root_dir } => {
         format!("no typedown.yaml or typedown.yml found in '{root_dir}'")
@@ -1049,7 +1039,7 @@ impl Diagnostic {
       Diagnostic::WrongTypeArgCount { expected, got } => {
         format!("wrong number of type arguments: expected {expected}, got {got}")
       }
-      Diagnostic::NotCallable { .. } => "expression is not callable".into(),
+      Diagnostic::NotCallable { .. } => "this value is not a function".into(),
       Diagnostic::WrongArgCount { expected, got, .. } => {
         format!("wrong number of arguments: expected {expected}, got {got}")
       }
@@ -1061,7 +1051,7 @@ impl Diagnostic {
       } => {
         format!("field '{field}' type mismatch: expected {expected}")
       }
-      Diagnostic::NotIndexable { .. } => "expression is not indexable".into(),
+      Diagnostic::NotIndexable { .. } => "this value does not support indexing".into(),
       Diagnostic::IndexTypeMismatch { expected, .. } => {
         format!("index type mismatch: expected {expected}")
       }
@@ -1187,9 +1177,7 @@ impl Diagnostic {
       }
       Diagnostic::MissingFrontmatterMarker { .. } => DiagnosticCode::MissingFrontmatterMarker,
       Diagnostic::MissingMarkdownHeadingHash { .. } => DiagnosticCode::MissingMarkdownHeadingHash,
-      Diagnostic::MissingRequiredSpacesBetweenHashAndHeading { .. } => {
-        DiagnosticCode::MissingRequiredSpacesBetweenHashAndHeading
-      }
+      Diagnostic::MissingRequiredSpace { .. } => DiagnosticCode::MissingRequiredSpace,
       Diagnostic::MissingSyntaxNode { .. } => DiagnosticCode::MissingSyntaxNode,
       Diagnostic::UnclosedLink { .. } => DiagnosticCode::UnclosedLink,
       Diagnostic::UnclosedBold { .. } => DiagnosticCode::UnclosedBold,
@@ -1239,5 +1227,37 @@ impl Diagnostic {
       Diagnostic::FieldRefinementViolation { .. } => DiagnosticCode::FieldRefinementViolation,
       Diagnostic::UnresolvedImport { .. } => DiagnosticCode::UnresolvedImport,
     }
+  }
+}
+
+// Human-readable labels for syntax kinds used in diagnostic messages
+fn syntax_kind_label(kind: SyntaxKind) -> &'static str {
+  match kind {
+    SyntaxKind::PrimaryExpr => "an expression",
+    SyntaxKind::Ident => "an identifier",
+    SyntaxKind::Newline => "a line break",
+    SyntaxKind::Colon => "':'",
+    SyntaxKind::LParen => "'('",
+    SyntaxKind::RParen => "')'",
+    SyntaxKind::LBracket => "'['",
+    SyntaxKind::RBracket => "']'",
+    SyntaxKind::LBrace => "'{'",
+    SyntaxKind::RBrace => "'}'",
+    SyntaxKind::InterpEnd => "'}'",
+    SyntaxKind::YamlIndent => "indentation",
+    SyntaxKind::YamlMappingEntryKey => "a field name",
+    SyntaxKind::YamlMappingEntryValue => "a value",
+    SyntaxKind::DictEntryKey => "a key",
+    SyntaxKind::DictEntryValue => "a value",
+    SyntaxKind::MdOrderedListItem => "'.' after list number",
+    SyntaxKind::MdBulletListItem => "a list item",
+    SyntaxKind::MdHeading => "heading text",
+    SyntaxKind::MdTableCell => "a table cell",
+    SyntaxKind::MdParagraph => "text content",
+    SyntaxKind::MdText => "text",
+    SyntaxKind::MdLink => "a link",
+    SyntaxKind::MdMedia => "an image or media",
+    SyntaxKind::MdContainerBlock => "a block",
+    _ => "a token",
   }
 }

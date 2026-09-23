@@ -94,7 +94,7 @@ fn fref_hint(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -148,7 +148,7 @@ friend: fref("alice.td")
       storage: QueryStorage::default(),
     };
 
-    let files = BTreeMap::from([
+    let files = HashMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -195,8 +195,8 @@ friend: fref("alice.td")
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 

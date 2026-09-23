@@ -112,12 +112,17 @@ impl Multiproject {
 /// Create a new project entry for the given directory.
 fn load_project(project_dir: &Path) -> anyhow::Result<Arc<ProjectEntry>> {
   log::info!("Loading project: {}", project_dir.display());
-  let cache_dir = project_dir.join(".typedown/.local/cache");
+  let cache_dir = super::utils::fs::get_cache_dir(project_dir);
 
-  let (session, serialized) = CacheSession::open(&cache_dir).unwrap_or_else(|_| {
-    // If cache dir is inaccessible, proceed without cache
+  let fresh = std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+  let (session, serialized) = if fresh {
     (CacheSession::empty(), None)
-  });
+  } else {
+    CacheSession::open(&cache_dir).unwrap_or_else(|_| {
+      // If cache dir is inaccessible, proceed without cache
+      (CacheSession::empty(), None)
+    })
+  };
 
   // catch_unwind guards against panics in corrupted cache deserialization
   let storage = match serialized {

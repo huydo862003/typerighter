@@ -8,6 +8,6 @@ repository = "https://github.com/Huy-DNA/typerighter"
 authors = ["Huy-DNA <huydo862003@gmail.com>"]
 
 [dependencies]
-unescaper = "0.1"
+unescaper = "0.2"
 html-escape = "0.2"
 num_enum = "0.7"

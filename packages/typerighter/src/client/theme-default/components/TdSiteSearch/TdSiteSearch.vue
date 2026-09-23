@@ -225,9 +225,6 @@ defineExpose({
         :key="group.pageUrl"
         class="td-search-group"
       >
-        <div class="td-search-group-label">
-          {{ group.pageTitle }}
-        </div>
         <a
           v-for="result in group.results"
           :key="result.id"
@@ -243,6 +240,7 @@ defineExpose({
             class="td-search-result-title"
             v-html="highlight(result.title, query)"
           />
+          <span class="td-search-result-path">{{ result.id }}</span>
           <span
             v-if="result.excerpt"
             class="td-search-result-excerpt"
@@ -365,23 +363,11 @@ defineExpose({
   flex-direction: column;
 }
 
-.td-search-group-label {
-  padding: 6px 20px;
-  font-size: var(--font-size-td-2xs);
-  letter-spacing: var(--tracking-td-wide);
-  text-transform: uppercase;
-  color: var(--color-td-ink-4);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .td-search-result {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 5px 12px 5px 20px;
-  border-left: 2px solid var(--color-td-line-soft);
+  padding: 5px 12px 5px 12px;
   text-decoration: none;
   transition: background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
@@ -409,6 +395,15 @@ defineExpose({
 .td-search-result-title :deep(mark) {
   background: none;
   color: var(--color-td-accent);
+}
+
+.td-search-result-path {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  color: var(--color-td-ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-search-result-excerpt {

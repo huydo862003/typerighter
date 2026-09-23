@@ -43,7 +43,7 @@ function isCurrent (href: string): boolean {
 </script>
 
 <template>
-  <nav>
+  <nav class="td-nav">
     <a
       :href="withBase(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/'))"
       class="td-root-link"
@@ -99,11 +99,15 @@ function isCurrent (href: string): boolean {
 </template>
 
 <style scoped>
+.td-nav {
+  padding-bottom: min(40vh, 300px);
+}
+
 .td-root-link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 17px 5px 17px;
+  padding: 5px 17px 5px 10px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
   text-decoration: none;
@@ -117,7 +121,7 @@ function isCurrent (href: string): boolean {
 .td-root-link:hover {
   background-color: var(--color-td-hov);
   color: var(--color-td-ink);
-  padding-left: 20px;
+  padding-left: 13px;
 }
 
 .td-root-link.is-active {

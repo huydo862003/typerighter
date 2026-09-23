@@ -1,0 +1,8 @@
+{
+  "name": "e2e-vault-base",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "typerighter": "workspace:*"
+  }
+}

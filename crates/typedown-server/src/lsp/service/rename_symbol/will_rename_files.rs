@@ -52,7 +52,7 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -147,7 +147,7 @@ avatar: fref("icon.svg")
       ),
     );
 
-    let mut files = BTreeMap::from([
+    let mut files = HashMap::from([
       (root.join("typedown.yaml"), config_file),
       (root.join("_types/Person.td"), person_file),
       (root.join("alice.td"), alice_file),
@@ -166,8 +166,8 @@ avatar: fref("icon.svg")
     Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     )
   }

@@ -1,16 +1,13 @@
 import {
-  computed, createApp, markRaw, shallowRef, triggerRef, watch,
-  type ShallowRef,
+  markRaw, shallowRef, watch,
 } from 'vue';
 import MiniSearch from 'minisearch';
 import {
-  usePageLoader, useSearchIndex,
+  useSearchIndex,
 } from '@/client/app';
 import {
   debounce,
-  getAnchor, stripAnchor, stripHtml,
   SEARCH_FIELDS, SEARCH_STORE_FIELDS,
-  type PageModule,
 } from '@/shared';
 
 export interface SearchResult {
@@ -21,24 +18,19 @@ export interface SearchResult {
 }
 
 const EXCERPT_CHARS = 120;
-const HEADING_RE = /^h[1-6]$/i;
-const CACHE_SIZE = 16;
 
 export function useSiteSearch () {
   const searchIndex = useSearchIndex();
-  const loadPage = usePageLoader();
 
   let engine: MiniSearch | undefined;
   let canceled = false;
 
   const results = shallowRef<SearchResult[]>([]);
   const searching = shallowRef(false);
-  const sectionCache = new Map<string, Map<string, string>>();
 
   // Invalidate engine when the search index changes (e.g. HMR)
   watch(searchIndex, () => {
     engine = undefined;
-    sectionCache.clear();
   });
 
   // Lazily deserialize the MiniSearch index on first search
@@ -51,75 +43,6 @@ export function useSiteSearch () {
     }));
 
     return engine;
-  }
-
-  // Mount a page component in a throwaway div and extract text per heading section
-  function extractSections (component: PageModule['default']): Map<string, string> {
-    const sections = new Map<string, string>();
-    const app = createApp(component);
-    const container = document.createElement('div');
-
-    app.config.warnHandler = () => {};
-
-    try {
-      app.mount(container);
-      const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
-
-      for (const heading of headings) {
-        const anchor = heading.querySelector('a')?.getAttribute('href')
-          ?.slice(1) ?? '';
-        let html = '';
-        let sibling = heading.nextElementSibling;
-
-        while (sibling && !HEADING_RE.test(sibling.tagName)) {
-          html += sibling.outerHTML;
-          sibling = sibling.nextElementSibling;
-        }
-
-        sections.set(anchor, stripHtml(html));
-      }
-
-      if (sections.size === 0) {
-        sections.set('', stripHtml(container.innerHTML));
-      } else {
-        sections.set('', [...sections.values()].join(' '));
-      }
-    } finally {
-      app.unmount();
-    }
-
-    return sections;
-  }
-
-  // Load a page and return the text for a specific section, using LRU cache
-  async function getSectionText (documentId: string): Promise<string> {
-    if (!loadPage) return '';
-
-    const pageUrl = stripAnchor(documentId);
-    const anchor = getAnchor(documentId);
-    let sections = sectionCache.get(pageUrl);
-
-    if (!sections) {
-      try {
-        const module_ = await loadPage(pageUrl);
-        const component = module_?.default;
-
-        if (!component) return '';
-        sections = extractSections(component);
-
-        if (CACHE_SIZE <= sectionCache.size) {
-          const oldest = sectionCache.keys().next().value;
-
-          if (oldest !== undefined) sectionCache.delete(oldest);
-        }
-
-        sectionCache.set(pageUrl, sections);
-      } catch {
-        return '';
-      }
-    }
-
-    return sections.get(anchor) ?? sections.get('') ?? '';
   }
 
   // Build a short snippet centered on the earliest matched term
@@ -148,7 +71,6 @@ export function useSiteSearch () {
     return snippet;
   }
 
-  // Show results immediately with titles, then fill in excerpts progressively
   async function runSearch (trimmed: string) {
     const index = getEngine();
 
@@ -169,37 +91,23 @@ export function useSiteSearch () {
 
     const top = rawResults.slice(0, 20);
 
+    // Build excerpts synchronously from text stored in the index
     results.value = top.map((result) => ({
       id: result.id,
       title: result.title as string,
-      excerpt: '',
+      excerpt: extractSnippet((result.text as string) ?? '', result.match),
       score: result.score,
     }));
     searching.value = false;
-
-    for (const [
-      index_,
-      result,
-    ] of top.entries()) {
-      if (canceled) return;
-
-      const sectionText = await getSectionText(result.id);
-      const excerpt = extractSnippet(sectionText, result.match);
-
-      if (canceled) return;
-
-      results.value[index_].excerpt = excerpt;
-      triggerRef(results);
-    }
   }
 
-  const debouncedSearch = debounce((trimmed: string) => runSearch(trimmed), 150);
+  const debouncedSearch = debounce(runSearch, 150);
 
-  function search (query: string) {
+  function search (raw: string) {
     canceled = false;
-    const trimmed = query.trim();
+    const trimmed = raw.trim();
 
-    if (!trimmed) {
+    if (trimmed.length === 0) {
       results.value = [];
       searching.value = false;
 
@@ -212,12 +120,21 @@ export function useSiteSearch () {
 
   function cancel () {
     canceled = true;
+    searching.value = false;
   }
 
+  const indexLoaded = shallowRef(false);
+
+  watch(searchIndex, (value) => {
+    if (value) indexLoaded.value = true;
+  }, {
+    immediate: true,
+  });
+
   return {
-    results: results as Readonly<ShallowRef<SearchResult[]>>,
-    searching: computed(() => searching.value),
-    indexLoaded: computed(() => searchIndex.value !== undefined),
+    results,
+    searching,
+    indexLoaded,
     search,
     cancel,
   };
