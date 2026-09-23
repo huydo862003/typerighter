@@ -456,7 +456,7 @@ mod tests {
   use crate::db::types::TdTypeEnum;
   use crate::db::types::derived::object_system::TdStaticType;
   use crate::db::types::{File, FileHandle, FileMetadata, FuncSignature, LiteralValue, Project};
-  use std::{collections::BTreeMap, path::PathBuf};
+  use std::{collections::HashMap, path::PathBuf};
 
   use crate::db::{QueryStorage, TypedownDatabase, utils::lower_file};
 
@@ -561,7 +561,7 @@ mod tests {
       &db,
       FileHandle::Path(schema_file_path.clone(), FileMetadata::default()),
     );
-    let files = BTreeMap::from([(schema_file_path, file)]);
+    let files = HashMap::from([(schema_file_path, file)]);
     let project = Project::new(&db, vault, files);
 
     let (hir, _) = lower_file(&db, project, file);

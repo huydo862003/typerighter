@@ -275,7 +275,7 @@ fn derived_struct_identity_preserved_across_roundtrip() {
 // make_range creates IdResult(n=0..count), overlapping structs should keep IDs
 #[test]
 fn multiple_derived_structs_preserve_identity_across_roundtrip() {
-  use crate::{Id, InputId};
+  use crate::InputId;
 
   let db1 = IdDatabase {
     storage: QueryStorage::default(),

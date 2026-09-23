@@ -237,15 +237,14 @@ impl QueryCacheBuilder {
       .expect("Failed to write footer position");
 
     // Flush buffered data before mmapping the file
-    self
-      .writer
-      .flush()
-      .expect("Failed to flush query cache");
+    self.writer.flush().expect("Failed to flush query cache");
 
-    let file = self.writer.into_inner().expect("Failed to unwrap BufWriter");
-    let mmap = unsafe {
-      memmap2::Mmap::map(file.as_file()).expect("Failed to mmap query cache tempfile")
-    };
+    let file = self
+      .writer
+      .into_inner()
+      .expect("Failed to unwrap BufWriter");
+    let mmap =
+      unsafe { memmap2::Mmap::map(file.as_file()).expect("Failed to mmap query cache tempfile") };
     (mmap, file)
   }
 }

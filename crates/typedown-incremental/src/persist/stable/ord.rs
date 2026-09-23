@@ -285,7 +285,10 @@ impl StableOrd for std::path::PathBuf {}
 // Compare paths by raw bytes instead of component-by-component
 impl StableCompare for std::path::PathBuf {
   fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
-    self.as_os_str().as_encoded_bytes().cmp(other.as_os_str().as_encoded_bytes())
+    self
+      .as_os_str()
+      .as_encoded_bytes()
+      .cmp(other.as_os_str().as_encoded_bytes())
   }
 }
 

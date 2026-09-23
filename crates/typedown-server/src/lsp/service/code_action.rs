@@ -292,7 +292,7 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
 
@@ -343,7 +343,7 @@ properties:
       storage: QueryStorage::default(),
     };
 
-    let files = BTreeMap::from([
+    let files = HashMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -390,8 +390,8 @@ properties:
     let analysis = Analysis::new(
       db,
       project,
-      Arc::new(BTreeMap::new()),
-      Arc::new(BTreeMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 

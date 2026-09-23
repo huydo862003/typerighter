@@ -1107,7 +1107,7 @@ mod tests {
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{File, FileHandle, FileMetadata, Project};
   use crate::db::{QueryStorage, TypedownDatabase};
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
 
   #[test]
@@ -1486,7 +1486,7 @@ name: "Alice"
       ),
     );
 
-    let files: BTreeMap<PathBuf, File> = [
+    let files: HashMap<PathBuf, File> = [
       (schema_path.clone(), schema_file),
       (config_path.clone(), config_file),
       (content_path.clone(), content_file),
