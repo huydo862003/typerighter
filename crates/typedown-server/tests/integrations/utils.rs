@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -62,7 +62,7 @@ pub fn run_child_test(test_name: &str, envs: &[(&str, &str)]) {
 }
 
 fn register_project_fresh(db: &TypedownDatabase, project_dir: &Path) {
-  let mut files = BTreeMap::new();
+  let mut files = HashMap::new();
   for path in scan_project_files(project_dir) {
     let meta = std::fs::metadata(&path).ok();
     let mtime = meta
@@ -81,7 +81,7 @@ fn register_project_fresh(db: &TypedownDatabase, project_dir: &Path) {
 }
 
 fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
-  let cached_files: BTreeMap<PathBuf, File> = File::iter(db)
+  let cached_files: HashMap<PathBuf, File> = File::iter(db)
     .into_iter()
     .filter_map(|file| {
       let handle = file.handle(db);
@@ -89,7 +89,7 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
     })
     .collect();
 
-  let mut files = BTreeMap::new();
+  let mut files = HashMap::new();
   for path in scan_project_files(project_dir) {
     let meta = std::fs::metadata(&path).ok();
     let mtime = meta
@@ -154,6 +154,11 @@ pub fn copy_dir_recursive(src: &Path, dst: &Path) {
   for entry in std::fs::read_dir(src).unwrap().flatten() {
     let src_path = entry.path();
     let dst_path = dst.join(entry.file_name());
+    // Skip cache and node_modules to avoid stale data and symlinked .td files
+    let name = entry.file_name();
+    if name == ".typedown" || name == "node_modules" {
+      continue;
+    }
     if src_path.is_dir() {
       copy_dir_recursive(&src_path, &dst_path);
     } else {

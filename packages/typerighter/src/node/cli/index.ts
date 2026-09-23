@@ -33,14 +33,20 @@ export function cli () {
     .alias('dev')
     .option('--port <port>', 'Port to listen on')
     .option('--host', 'Expose to network')
+    .option('--fresh', 'Start fresh, ignore cache from previous session')
     .option('--verbose', 'Print version and build info')
     .action(async (root: string | undefined, options: {
       port?: number;
       host?: boolean;
+      fresh?: boolean;
       verbose?: boolean;
     }) => {
       if (options.verbose) {
         console.log(`${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})\n`);
+      }
+
+      if (options.fresh) {
+        process.env.TYPEDOWN_NO_CACHE = '1';
       }
 
       const server = await createServer({
@@ -49,7 +55,8 @@ export function cli () {
         configFile: false,
         plugins: [typedown()],
         server: {
-          port: options.port,
+          port: options.port !== undefined ? Number(options.port) : undefined,
+          strictPort: options.port !== undefined,
           host: options.host,
         },
       });
@@ -82,6 +89,8 @@ export function cli () {
       } finally {
         context.dispose();
       }
+
+      process.exit(0);
     });
 
   program
@@ -124,7 +133,7 @@ export function cli () {
           root: resolvedRoot,
           base: basePath,
           preview: {
-            port: options.port,
+            port: options.port !== undefined ? Number(options.port) : undefined,
           },
         });
 
@@ -208,6 +217,9 @@ function handleError (command: string, error: unknown): never {
 
   console.error(`\n${TAG} ${pc.red(`${command} failed`)}\n`);
   console.error(pc.red(message));
+  if (error instanceof Error && error.stack) {
+    console.error(pc.red(error.stack));
+  }
   console.error('');
   process.exit(1);
 }

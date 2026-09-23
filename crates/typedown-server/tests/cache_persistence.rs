@@ -3,12 +3,13 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use typedown_incremental::{CacheSession, SerializableQueryDatabase};
 use typedown_lang::db::{QueryStorage, TypedownDatabase};
+use typedown_server::core::utils::fs::get_cache_dir;
 
 /// Verify that the cache session creates files on disk and can be loaded back.
 #[test]
 fn cache_roundtrip_creates_and_loads_files() {
   let dir = TempDir::new().unwrap();
-  let cache_dir = dir.path().join(".typedown/.local/cache");
+  let cache_dir = get_cache_dir(dir.path());
 
   // Session 1: create a database, dump, finalize
   {

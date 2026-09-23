@@ -121,7 +121,7 @@ impl<'db> Decodable for FnKind<'db> {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::BTreeMap;
+  use std::collections::HashMap;
   use std::path::PathBuf;
 
   use super::*;
@@ -132,7 +132,7 @@ mod tests {
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-    let project = Project::new(&db, PathBuf::from("/test"), BTreeMap::new());
+    let project = Project::new(&db, PathBuf::from("/test"), HashMap::new());
     (db, project)
   }
 

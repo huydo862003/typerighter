@@ -45,7 +45,7 @@ jobs:
               echo "$PKG_JSON version '$PKG_VERSION' does not match VERSION '$VERSION'"
               exit 1
             fi
-          done < <(find . -name package.json -not -path '*/node_modules/*' -not -path '*/examples/*')
+          done < <(find . -name package.json -not -path '*/node_modules/*' -not -path '*/examples/*' -not -path '*/e2e/fixtures/*')
 
           # CHANGELOG.md latest version
           CHANGELOG_VERSION=$(grep -m1 '^## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/' || true)

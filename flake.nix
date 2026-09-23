@@ -63,7 +63,7 @@
         };
         typedown-server = rustPlatform.buildRustPackage {
           pname = "typedown-server";
-          version = "0.32.7";
+          version = "0.39.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
           cargoBuildFlags = [
@@ -97,6 +97,8 @@
           TREE_SITTER_WASI_SDK_PATH = "${wasi-sdk}";
           shellHook = ''
             export TREE_SITTER_PATH="${pkgs.tree-sitter}/bin/tree-sitter"
+            export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
+            export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
             # Symlink our patched wasi-sdk so Zed's `install dev extension` works on NixOS
             mkdir -p "$HOME/.local/share/zed/extensions/build"

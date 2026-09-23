@@ -101,12 +101,12 @@ const isExternal = computed(() => resolved.value !== undefined && isUrlExternal(
 <style scoped>
 .td-widget-relation-wrapper {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .td-widget-ref {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
   color: var(--color-td-link);
   text-decoration: none;
@@ -119,10 +119,12 @@ const isExternal = computed(() => resolved.value !== undefined && isUrlExternal(
 
 .td-widget-ref-icon {
   flex-shrink: 0;
+  margin-top: 0.2em;
 }
 
 .td-widget-external-icon {
   flex-shrink: 0;
+  margin-top: 0.2em;
   margin-left: 3px;
 }
 

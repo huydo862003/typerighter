@@ -142,8 +142,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SyntaxKind::MdSymbol => {
         let text: String = next.token.chars().collect();
         match text.as_str() {
-          "***" => self.parse_bold_italic(),
-          "**" => self.parse_bold(),
+          "***" | "___" => self.parse_bold_italic(),
+          "**" | "__" => self.parse_bold(),
           "*" | "_" => self.parse_italic(),
           "~~" => self.parse_strikethrough(),
           "!" => {
@@ -195,7 +195,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     let next_token = &self.lex_ctx.peek_md(SKIP_NONE).token;
     if next_token.kind() != SyntaxKind::Whitespace {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });
@@ -662,7 +662,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if after_bullet == SyntaxKind::Whitespace {
       self.advance_md(&mut children, SKIP_NONE);
     } else if !matches!(after_bullet, SyntaxKind::Newline | SyntaxKind::Eof) {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });
@@ -875,7 +875,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if after_dot == SyntaxKind::Whitespace {
       self.advance_md(&mut children, SKIP_NONE);
     } else if !matches!(after_dot, SyntaxKind::Newline | SyntaxKind::Eof) {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });
@@ -957,7 +957,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Require a space between `:::` and the label
     let next = self.lex_ctx.peek_md(SKIP_NONE);
     if next.token.kind() != SyntaxKind::Whitespace {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpacesBetweenHashAndHeading {
+      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
         start_offset: self.offset(),
         end_offset: self.offset(),
       });

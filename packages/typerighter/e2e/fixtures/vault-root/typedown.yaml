@@ -1,0 +1,6 @@
+version: "1"
+vault:
+  root_dir: "vault"
+site:
+  title: "E2E Test Vault"
+  description: "Test fixture for e2e tests"

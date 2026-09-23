@@ -16,7 +16,7 @@ import type {
   TypedownPluginCache,
 } from '..';
 import {
-  getUrlPath, path,
+  getUrlPath, path, stripTrailingSlash,
 } from '@/shared';
 
 const COMMON_MIME_TYPES: Record<string, string> = {
@@ -52,7 +52,12 @@ export function vaultAssets (server: ViteDevServer, cache: TypedownPluginCache) 
     if (urlPath.startsWith('/@') || urlPath.startsWith('/node_modules'))
       return next();
 
-    const relativePath = urlPath.replace(/^\//, '');
+    // Strip base path prefix so vault-relative resolution works
+    const base = stripTrailingSlash(cache.basePath);
+    const pathAfterBase = base && urlPath.startsWith(base)
+      ? urlPath.slice(base.length)
+      : urlPath;
+    const relativePath = pathAfterBase.replace(/^\//, '');
     const contentFilePath = resolve(
       server.config.root,
       cache.rootDirectory,

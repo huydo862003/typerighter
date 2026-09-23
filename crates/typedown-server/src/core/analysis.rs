@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -9,8 +9,8 @@ use typedown_lang::db::types::Project;
 pub struct Analysis {
   pub(crate) db: TypedownDatabase,
   pub(crate) project: Project,
-  pub(crate) scheme_map: Arc<BTreeMap<PathBuf, String>>,
-  pub(crate) open_files: Arc<BTreeMap<PathBuf, Rope>>,
+  pub(crate) scheme_map: Arc<HashMap<PathBuf, String>>,
+  pub(crate) open_files: Arc<HashMap<PathBuf, Rope>>,
   snapshot_counter: Arc<(Mutex<usize>, Condvar)>,
 }
 
@@ -18,8 +18,8 @@ impl Analysis {
   pub(crate) fn new(
     db: TypedownDatabase,
     project: Project,
-    scheme_map: Arc<BTreeMap<PathBuf, String>>,
-    open_files: Arc<BTreeMap<PathBuf, Rope>>,
+    scheme_map: Arc<HashMap<PathBuf, String>>,
+    open_files: Arc<HashMap<PathBuf, Rope>>,
     snapshot_counter: Arc<(Mutex<usize>, Condvar)>,
   ) -> Self {
     Self {

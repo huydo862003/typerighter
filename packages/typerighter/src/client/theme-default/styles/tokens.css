@@ -55,8 +55,10 @@
   --font-size-td-sm: 13.5px;
   --font-size-td-sub: 14.5px;
   --font-size-td-base: 16px;
-  --font-size-td-md: 25px;
-  --font-size-td-lg: 40px;
+  --font-size-td-md: 17px;
+  --font-size-td-lg: 20px;
+  --font-size-td-xl: 25px;
+  --font-size-td-2xl: 40px;
 
   /* Line heights */
   --leading-td-tight: 1.12;

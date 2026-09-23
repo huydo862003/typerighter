@@ -5,6 +5,10 @@ use std::{fs, io};
 use typedown_lang::db::types::{AssetKind, FileHandle, FileMetadata};
 use typedown_lang::db::utils::is_content_file;
 
+pub fn get_cache_dir(root: &Path) -> PathBuf {
+  root.join(".typedown/.local/cache")
+}
+
 pub fn disk_handle(path: &Path) -> Option<FileHandle> {
   let meta = fs::metadata(path).ok()?;
   let mtime = meta.modified().ok()?;

@@ -35,6 +35,16 @@ pub trait SerializableQueryDatabase: QueryDatabase {
         }
       };
     }
+    // Promote unaccessed cached entries so they survive the dump
+    if let Some(ctx) = storage.deserialize_ctx.get() {
+      for query in storage.queries.iter() {
+        query.promote_cached(ctx);
+      }
+      for field in storage.fields.iter() {
+        field.promote_cached(ctx);
+      }
+    }
+
     serialize_all!(storage.inputs);
     serialize_all!(storage.interned);
     serialize_all!(storage.queries);

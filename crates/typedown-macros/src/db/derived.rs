@@ -300,17 +300,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     .enumerate()
     .filter(|(_, field)| field.attrs.iter().any(|attr| attr.path().is_ident("id")))
     .collect();
-  let id_field_tys: Vec<_> = id_fields
-    .iter()
-    .map(|(_, field)| field.ty.clone())
-    .collect();
-  let id_field_tys_static: Vec<proc_macro2::TokenStream> =
-    id_field_tys.iter().map(erase_db_lifetime_tokens).collect();
   let id_field_names: Vec<_> = id_fields
     .iter()
     .map(|(_, field)| field.ident.as_ref().unwrap())
     .collect();
-  let identity_ty = quote! {(u32, (#(#id_field_tys_static,)*) )};
 
   // Register per-field ingredients via FieldInventory
   let struct_name_str = struct_name.to_string();
@@ -460,24 +453,23 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
   // Identity map lookup
   let identity_map_lookup_tokens = quote! {
+    let identity_key = (identity_hash, disambiguator);
     let id = storage.with_context(|ctx| {
       let ctx = ctx.as_mut()?;
       let store = ctx.identity_maps.as_ref()?;
       let parent_entry_id = ctx.query_stack.last().map(|e| e.dep_id.entry_id())?;
-      let map_arc = store
+      let map = store
         .entry((parent_entry_id, start_index))
-        .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::<#identity_ty, u32>::new()))
+        .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::new()))
         .clone();
-      let map = (&*map_arc as &dyn ::std::any::Any)
-        .downcast_ref::<dashmap::DashMap<#identity_ty, u32>>()
-        .expect("identity_map type mismatch");
-      let id = if let Some(existing) = map.get(&identity) {
+      let id = if let Some(existing) = map.get(&identity_key) {
         *existing
       } else {
         let new_id = Self::next_id();
-        *map.entry(identity).or_insert(new_id)
+        *map.entry(identity_key).or_insert(new_id)
       };
       ctx.created_ids.entry(start_index).or_default().insert(id);
+      ctx.derived_identities.push((Self::ingredient_name_fingerprint(), identity_hash, disambiguator, id));
       Some(id)
     }).unwrap_or_else(|| Self::next_id());
   };
@@ -590,6 +582,11 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
           let _ = Self::ingredient_start_index_lock().set(index);
         }
 
+        fn ingredient_name_fingerprint() -> ::typedown_incremental::Fingerprint {
+          static NAME_FP: ::std::sync::OnceLock<::typedown_incremental::Fingerprint> = ::std::sync::OnceLock::new();
+          *NAME_FP.get_or_init(|| ::typedown_incremental::Fingerprint::from_name(#struct_name_str))
+        }
+
         #[doc(hidden)]
         pub fn id_counter() -> &'static ::std::sync::atomic::AtomicU32 {
           static COUNTER: ::std::sync::atomic::AtomicU32 = ::std::sync::atomic::AtomicU32::new(0);
@@ -616,16 +613,10 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
             use ::std::hash::{Hash, Hasher};
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             start_index.hash(&mut hasher);
-            storage.current_query_dep_id().hash(&mut hasher);
             #(#id_field_names.hash(&mut hasher);)*
             hasher.finish()
           };
           let disambiguator = storage.next_disambiguator(identity_hash);
-
-          // Safety: erase 'db to 'static for the identity map key
-          let identity: #identity_ty = unsafe {
-            ::std::mem::transmute((disambiguator, (#(#id_field_names.clone(),)*)))
-          };
           #identity_map_lookup_tokens
 
           #new_body_tokens
