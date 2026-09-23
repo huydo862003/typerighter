@@ -89,6 +89,8 @@ export function cli () {
       } finally {
         context.dispose();
       }
+
+      process.exit(0);
     });
 
   program
