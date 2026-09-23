@@ -215,6 +215,9 @@ function handleError (command: string, error: unknown): never {
 
   console.error(`\n${TAG} ${pc.red(`${command} failed`)}\n`);
   console.error(pc.red(message));
+  if (error instanceof Error && error.stack) {
+    console.error(pc.red(error.stack));
+  }
   console.error('');
   process.exit(1);
 }

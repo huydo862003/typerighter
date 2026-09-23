@@ -12,4 +12,7 @@ export const SEARCH_FIELDS: string[] = [
 ];
 
 // Fields stored in the index and retrievable from search results without re-loading the page
-export const SEARCH_STORE_FIELDS: string[] = ['title', 'text'];
+export const SEARCH_STORE_FIELDS: string[] = [
+  'title',
+  'text',
+];
