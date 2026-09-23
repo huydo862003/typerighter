@@ -87,6 +87,6 @@
     "minisearch": "^7.2.0",
     "playwright": "^1.61.1",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }
