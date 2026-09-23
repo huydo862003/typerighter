@@ -1,3 +1,28 @@
+## [0.39.0] - 2026-09-23
+
+### Fixed
+
+* crates/typedown-lang
+  - Syntax error messages now show descriptive labels ("an identifier", "a field name", "a value") instead of generic "a token" for 17 syntax kinds
+  - Complete BTreeMap to HashMap migration for Project.files across all crates, eliminating expensive PathBuf component-by-component comparison
+
+* crates/typedown-server
+  - Frontmatter code action no longer generates duplicate `---` delimiters when markers already exist
+  - Frontmatter code action includes `_label` and `_icon` with sensible defaults in schema template
+
+### Perf
+
+* crates/typedown-incremental
+  - Cache write reduced from 29.5s to 30ms by wrapping dep graph, interned blobs, and query cache writes with BufWriter
+  - Cache load: `promote_cached` uses `fingerprint_map` index for O(1) name lookups instead of scanning all dep graph nodes per ingredient
+  - PathBuf `StableCompare` overridden to use raw byte comparison instead of component-by-component iteration
+
+* packages/typerighter
+  - SSG prerender parallelized with native worker_threads pool (45s to 8.6s for 1284 pages)
+  - `WorkerPool` generic utility at `src/node/lib/worker-pool/` for distributing tasks across worker threads
+  - Vue SSR uses `shallowRef` for siteData to avoid deep-proxying the content tree
+  - CLI no longer hangs after build completes
+
 ## [0.38.1] - 2026-09-20
 
 ### Fixed
