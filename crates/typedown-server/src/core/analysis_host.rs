@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex};
@@ -33,7 +33,7 @@ impl AnalysisHost {
     let project_files = scan_project_files(&project_dir)?;
 
     // Derived queries are keyed by File/Project entry ID, so we must reuse the same IDs from the previous session for cache hits
-    let cached_files: BTreeMap<PathBuf, File> = File::iter(&db)
+    let cached_files: HashMap<PathBuf, File> = File::iter(&db)
       .into_iter()
       .filter_map(|file| {
         let handle = file.handle(&db);
@@ -42,7 +42,7 @@ impl AnalysisHost {
       .collect();
 
     let mut file_map = BTreeMap::new();
-    let mut files = BTreeMap::new();
+    let mut files = HashMap::new();
     for path in &project_files {
       let Some(handle) = disk_handle(path) else {
         continue;
@@ -146,7 +146,7 @@ impl AnalysisHost {
 
     let new_file_map = self.write(|db| {
       let mut file_map = BTreeMap::new();
-      let mut files = BTreeMap::new();
+      let mut files = HashMap::new();
 
       for (path, handle) in desired {
         let file = if let Some(existing) = old_file_map.get(&path) {
