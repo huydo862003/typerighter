@@ -102,6 +102,31 @@ test('build without origin: HTML has meta tags', async () => {
   }
 });
 
+test('build: sitemap has lastmod dates', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const sitemap = await readFile(path.join(directory, 'dist', 'sitemap.xml'), 'utf-8');
+
+    expect(sitemap).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('build: HTML has og:site_name', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(path.join(directory, 'dist', 'index.html'), 'utf-8');
+
+    expect(html).toContain('og:site_name');
+    expect(html).toContain('E2E Test Vault');
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
 test('build with origin: sitemap has absolute URLs', async () => {
   const directory = await buildFixture('vault-root', (yaml) => yaml + '\n  origin: "https://example.com"\n');
 

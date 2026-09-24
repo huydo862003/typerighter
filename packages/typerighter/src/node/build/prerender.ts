@@ -30,6 +30,8 @@ export interface PrerenderContext {
   pagePaths: string[];
   /** Site title for SEO title suffix */
   siteTitle: string;
+  /** Site author for meta tag */
+  author?: string;
   /** Progress logger for reporting render progress */
   progress?: ProgressLogger;
 }
@@ -39,6 +41,7 @@ export interface PrerenderWorkerConfig {
   base: string;
   origin?: string;
   siteTitle: string;
+  author?: string;
   clientEntry: string;
   headExtra?: string;
 }
@@ -86,6 +89,7 @@ async function prerenderWithWorkers (
       base: context.base,
       origin: context.origin,
       siteTitle: context.siteTitle,
+      author: context.author,
       clientEntry,
       headExtra,
     } satisfies PrerenderWorkerConfig,
@@ -134,6 +138,7 @@ async function prerenderSingleThread (
           ? String(result.pageData.frontmatter.description)
           : '',
         siteTitle: context.siteTitle,
+        author: context.author,
         base: context.base,
         origin: context.origin,
         entryScript: clientEntry,

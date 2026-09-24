@@ -11,6 +11,8 @@ export interface HtmlTemplateOptions {
   description: string;
   /** Site title, appended as suffix when different from page title */
   siteTitle?: string;
+  /** Site author from config */
+  author?: string;
   /** Base path, e.g. "/" or "/docs/" */
   base: string;
   /** Absolute site URL (e.g. "https://example.com") for SEO meta tags */
@@ -50,6 +52,14 @@ export function generateHtmlTemplate (options: HtmlTemplateOptions): string {
 
   const ogImage = `${origin}${options.base}og-image.png`;
 
+  const authorMeta = options.author !== undefined
+    ? `\n    <meta name="author" content="${escapeHtml(options.author)}">`
+    : '';
+
+  const ogSiteName = options.siteTitle !== undefined
+    ? `\n    <meta property="og:site_name" content="${escapeHtml(options.siteTitle)}">`
+    : '';
+
   const headExtra = options.headExtra !== undefined
     ? options.headExtra + '\n'
     : '';
@@ -68,9 +78,9 @@ export function generateHtmlTemplate (options: HtmlTemplateOptions): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${pageTitle}</title>
-    <meta name="description" content="${description}">${canonical}
+    <meta name="description" content="${description}">${authorMeta}${canonical}
     <link rel="icon" href="${options.base}favicon.svg" type="image/svg+xml">
-    <meta property="og:type" content="article">${ogUrl}
+    <meta property="og:type" content="article">${ogSiteName}${ogUrl}
     <meta property="og:title" content="${title}">
     <meta property="og:description" content="${description}">
     <meta property="og:image" content="${escapeHtml(ogImage)}">

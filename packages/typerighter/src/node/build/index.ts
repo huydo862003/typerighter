@@ -166,6 +166,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       origin: config.origin,
       pagePaths,
       siteTitle: config.siteTitle,
+      author: config.author ?? undefined,
       progress: phase3,
     });
 
@@ -173,7 +174,16 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     // 6. Generate sitemap.xml and robots.txt
     const origin = config.origin ?? undefined;
-    const sitemap = generateSitemap(pagePaths, base, origin);
+    const mtimeMap = new Map<string, number>();
+
+    for (const item of sidebarItems) {
+      const withoutExtension = tdpath.stripExtension(item.filepath);
+      const pagePath = withoutExtension === 'index' ? '/' : `/${withoutExtension}`;
+
+      mtimeMap.set(pagePath, item.metadata.mtime);
+    }
+
+    const sitemap = generateSitemap(pagePaths, base, origin, mtimeMap);
     const writes: Promise<void>[] = [
       fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
     ];
@@ -300,10 +310,23 @@ async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> 
 
 // Generate a sitemap.xml string from the list of page paths
 // Uses absolute URLs when origin is configured
-function generateSitemap (pagePaths: string[], base: string, origin?: string): string {
+function generateSitemap (
+  pagePaths: string[],
+  base: string,
+  origin?: string,
+  mtimeMap?: Map<string, number>,
+): string {
   const prefix = origin ?? '';
   const urls = pagePaths
-    .map((p) => `  <url><loc>${escapeHtml(prefix + base + p.replace(/^\//, ''))}</loc></url>`)
+    .map((p) => {
+      const loc = escapeHtml(prefix + base + p.replace(/^\//, ''));
+      const mtime = mtimeMap?.get(p);
+      const lastmod = mtime !== undefined
+        ? `<lastmod>${new Date(mtime).toISOString().slice(0, 10)}</lastmod>`
+        : '';
+
+      return `  <url><loc>${loc}</loc>${lastmod}</url>`;
+    })
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>

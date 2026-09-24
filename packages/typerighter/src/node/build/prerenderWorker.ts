@@ -26,6 +26,7 @@ parentPort!.on('message', async (pagePath: string) => {
         ? String(result.pageData.frontmatter.description)
         : '',
       siteTitle: config.siteTitle,
+      author: config.author,
       base: config.base,
       origin: config.origin,
       entryScript: config.clientEntry,
