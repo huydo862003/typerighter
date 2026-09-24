@@ -217,16 +217,26 @@ impl<'db> TdSchemaType<'db> {
       "_type" => Some(get_schema_meta_type(db).into()),
       "_extends" => Some(get_schema_meta_type(db).into()),
       "_meta" => {
-        let optional_str = get_sum_type(db, vec![
-          LazyType::eager(get_str_type(db).into()),
-          LazyType::eager(get_null_type(db).into()),
-        ]);
+        let optional_str = get_sum_type(
+          db,
+          vec![
+            LazyType::eager(get_str_type(db).into()),
+            LazyType::eager(get_null_type(db).into()),
+          ],
+        );
         let meta_fields = std::collections::BTreeMap::from([
-          ("title".to_string(), LazyType::eager(optional_str.clone().into())),
-          ("description".to_string(), LazyType::eager(optional_str.clone().into())),
+          (
+            "title".to_string(),
+            LazyType::eager(optional_str.into()),
+          ),
+          (
+            "description".to_string(),
+            LazyType::eager(optional_str.into()),
+          ),
           ("image".to_string(), LazyType::eager(optional_str.into())),
         ]);
-        let meta_type = LazyType::eager(TdProductType::new(db, Some("_meta".to_string()), meta_fields).into());
+        let meta_type =
+          LazyType::eager(TdProductType::new(db, Some("_meta".to_string()), meta_fields).into());
         Some(get_sum_type(db, vec![meta_type, null_type]).into())
       }
       _ => None,
