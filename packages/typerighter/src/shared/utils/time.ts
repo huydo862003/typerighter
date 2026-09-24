@@ -57,6 +57,12 @@ export function formatDateString (value: string): string {
   return dateFormatter.format(date);
 }
 
+// Format a millisecond timestamp as YYYY-MM-DD
+export function formatIsoDate (epochMs: number): string {
+  return new Date(epochMs).toISOString()
+    .slice(0, 10);
+}
+
 export function formatTime (epochSecs: number): string {
   const delta = Math.floor(Date.now() / 1000) - epochSecs;
 

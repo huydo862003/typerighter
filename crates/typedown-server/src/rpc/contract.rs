@@ -55,6 +55,8 @@ pub struct TdSiteConfig {
   pub base_path: String,
   /// Absolute site URL (e.g. "https://example.com")
   pub origin: Option<String>,
+  /// HTML lang attribute (default "en")
+  pub lang: String,
   /// Vault root directory path relative to the project root
   pub root_dir: String,
   /// Site title from typedown.yaml

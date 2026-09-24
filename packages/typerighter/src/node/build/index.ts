@@ -14,11 +14,14 @@ import {
 } from '../lib/progress';
 import {
   buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
-  escapeHtml, getIndexUrl, getNodeIndexItem, path as tdpath,
+  getIndexUrl, getNodeIndexItem, path as tdpath,
 } from '@/shared';
 import type {
   AppContext,
 } from '../context';
+import {
+  generateSitemap, generateRobotsTxt, generateRssFeed,
+} from './seo';
 
 const DEFAULT_LAYOUT_IMPORT = 'typerighter/client/theme-default';
 
@@ -56,6 +59,12 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     tdContext.listSchemas(),
   ]);
 
+  // Coerce null -> undefined for optional fields from JSON-RPC
+  const origin = config.origin ?? undefined;
+  const author = config.author ?? undefined;
+  const license = config.license ?? undefined;
+  const repo = config.repo ?? undefined;
+
   const rawBase = options.base ?? config.basePath ?? '/';
   const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
 
@@ -64,7 +73,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     header: {},
   }));
   const contentTree = buildContentTree(contentItems);
-  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin: config.origin, nav: config.nav });
+  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin, lang: config.lang, nav: config.nav });
   const siteData = JSON.stringify({ ready: true, contentTree });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports
@@ -77,12 +86,13 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     fs.writeFile(clientEntryPath, generateClientAppEntry({
       rootDir: config.rootDir,
       basePath: base,
-      origin: config.origin,
+      origin,
+      lang: config.lang,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
-      repo: config.repo,
-      author: config.author,
-      license: config.license,
+      repo,
+      author,
+      license,
       nav: config.nav,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
@@ -163,17 +173,17 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       clientOutDir,
       outDir,
       base,
-      origin: config.origin,
+      origin,
+      lang: config.lang,
       pagePaths,
       siteTitle: config.siteTitle,
-      author: config.author ?? undefined,
+      author,
       progress: phase3,
     });
 
     phase3.done(`Pre-rendered ${pagePaths.length} pages`);
 
     // 6. Generate sitemap.xml and robots.txt
-    const origin = config.origin ?? undefined;
     const mtimeMap = new Map<string, number>();
 
     for (const item of sidebarItems) {
@@ -190,6 +200,9 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     if (origin !== undefined) {
       writes.push(fs.writeFile(path.join(outDir, 'robots.txt'), generateRobotsTxt(origin, base)));
+      writes.push(fs.writeFile(path.join(outDir, 'feed.xml'), generateRssFeed(
+        sidebarItems, base, origin, config.siteTitle, config.siteDescription, config.lang,
+      )));
     }
 
     await Promise.all(writes);
@@ -308,42 +321,6 @@ async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> 
   await Promise.all(copies);
 }
 
-// Generate a sitemap.xml string from the list of page paths
-// Uses absolute URLs when origin is configured
-function generateSitemap (
-  pagePaths: string[],
-  base: string,
-  origin?: string,
-  mtimeMap?: Map<string, number>,
-): string {
-  const prefix = origin ?? '';
-  const urls = pagePaths
-    .map((p) => {
-      const loc = escapeHtml(prefix + base + p.replace(/^\//, ''));
-      const mtime = mtimeMap?.get(p);
-      const lastmod = mtime !== undefined
-        ? `<lastmod>${new Date(mtime).toISOString().slice(0, 10)}</lastmod>`
-        : '';
-
-      return `  <url><loc>${loc}</loc>${lastmod}</url>`;
-    })
-    .join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
-</urlset>
-`;
-}
-
-// Generate robots.txt with a reference to the sitemap
-function generateRobotsTxt (origin: string, base: string): string {
-  return `User-agent: *
-Allow: /
-
-Sitemap: ${origin}${base}sitemap.xml
-`;
-}
 
 // Collect directory index paths from the content tree for pre-rendering
 // Only adds dirs without an index.td (those are already covered by files.map)

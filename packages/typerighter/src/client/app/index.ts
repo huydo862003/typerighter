@@ -51,6 +51,8 @@ export interface TypedownSiteConfig {
   basePath: string;
   /** Absolute site URL (e.g. "https://example.com") */
   origin?: string;
+  /** HTML lang attribute */
+  lang?: string;
   /** Repository URL */
   repo?: string;
   /** Site author */

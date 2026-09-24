@@ -42,6 +42,7 @@ pub fn get_vault_config<'db>(
   let site_title = site_str(db, &site, "title").unwrap_or_default();
   let site_description = site_str(db, &site, "description").unwrap_or_default();
   let origin = site_str(db, &site, "origin").map(|s| normalize_origin(&s));
+  let lang = site_str(db, &site, "lang").unwrap_or_else(|| "en".to_string());
   let base_path = site_str(db, &site, "base_path")
     .map(|s| normalize_base_path(&s))
     .unwrap_or_else(|| "/".to_string());
@@ -66,6 +67,7 @@ pub fn get_vault_config<'db>(
     root_dir,
     base_path,
     origin,
+    lang,
     site_title,
     site_description,
     repo,
@@ -88,6 +90,7 @@ fn empty_config<'db>(
     root.to_path_buf(),
     "/".to_string(),
     None,
+    "en".to_string(),
     String::new(),
     String::new(),
     None,

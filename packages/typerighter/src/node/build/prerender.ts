@@ -9,11 +9,18 @@ import type {
   ProgressLogger,
 } from '../lib/progress';
 import {
-  generateHtmlTemplate,
-} from '../lib/html-template';
+  renderHtmlDocument,
+} from '../lib/htmlTemplate';
 import {
   WorkerPool,
 } from '../lib/worker-pool';
+import {
+  stripLeadingSlash,
+} from '@/shared';
+import {
+  resolvePageTitle, resolvePageDescription, extractDateModified, extractOgImagePath,
+  buildArticleLd, buildBreadcrumbLd,
+} from './seo';
 
 export interface PrerenderContext {
   /** Absolute path to the SSR bundle entry */
@@ -26,6 +33,8 @@ export interface PrerenderContext {
   base: string;
   /** Absolute site URL for SEO (e.g. "https://example.com") */
   origin?: string;
+  /** HTML lang attribute */
+  lang?: string;
   /** List of page paths to render (e.g. ["/", "/posts/hello"]) */
   pagePaths: string[];
   /** Site title for SEO title suffix */
@@ -40,6 +49,7 @@ export interface PrerenderWorkerConfig {
   ssrEntryPath: string;
   base: string;
   origin?: string;
+  lang?: string;
   siteTitle: string;
   author?: string;
   clientEntry: string;
@@ -88,6 +98,7 @@ async function prerenderWithWorkers (
       ssrEntryPath: context.ssrEntryPath,
       base: context.base,
       origin: context.origin,
+      lang: context.lang,
       siteTitle: context.siteTitle,
       author: context.author,
       clientEntry,
@@ -132,24 +143,35 @@ async function prerenderSingleThread (
     await Promise.all(batch.map(async (pagePath) => {
       const result = await ssrModule.render(pagePath);
 
-      const html = generateHtmlTemplate({
-        title: result.pageData.title,
-        description: result.pageData.frontmatter.description !== undefined
-          ? String(result.pageData.frontmatter.description)
-          : '',
+      const title = resolvePageTitle(result.pageData);
+      const description = resolvePageDescription(result.pageData);
+      const dateModified = extractDateModified(result.pageData);
+      const canonicalUrl = context.base + stripLeadingSlash(pagePath);
+
+      const jsonLdBlocks = [
+        buildArticleLd({ title, description, canonicalUrl, author: context.author, dateModified }),
+        buildBreadcrumbLd(pagePath, title),
+      ].filter((block): block is string => block !== undefined);
+
+      const html = renderHtmlDocument({
+        title,
+        description,
         siteTitle: context.siteTitle,
         author: context.author,
         base: context.base,
         origin: context.origin,
+        lang: context.lang,
         entryScript: clientEntry,
-        canonicalUrl: context.base + pagePath.replace(/^\//, ''),
+        canonicalUrl,
+        ogImagePath: extractOgImagePath(result.pageData),
+        jsonLdBlocks,
         headExtra,
         appContent: result.html,
       });
 
       const fileName = pagePath === '/'
         ? 'index.html'
-        : `${pagePath.replace(/^\//, '')}.html`;
+        : `${stripLeadingSlash(pagePath)}.html`;
       const filepath = path.join(context.outDir, fileName);
 
       await fs.mkdir(path.dirname(filepath), { recursive: true });

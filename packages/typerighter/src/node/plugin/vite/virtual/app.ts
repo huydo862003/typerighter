@@ -22,6 +22,7 @@ export interface AppEntryOptions {
   rootDir?: string;
   basePath?: string;
   origin?: string;
+  lang?: string;
   siteTitle: string;
   siteDescription: string;
   repo?: string;
@@ -60,6 +61,7 @@ export function generate (options: AppEntryOptions): string {
     description: options.siteDescription,
     basePath: options.basePath ?? '/',
     origin: options.origin,
+    lang: options.lang,
     repo: options.repo,
     author: options.author,
     license: options.license,

@@ -10,8 +10,8 @@ import type {
   TypedownPluginCache,
 } from '..';
 import {
-  generateHtmlTemplate,
-} from '@/node/lib/html-template';
+  renderHtmlDocument,
+} from '@/node/lib/htmlTemplate';
 import {
   VIRTUAL_APP_ID,
 } from '@/node/plugin/vite/constants';
@@ -72,7 +72,7 @@ function getDevHtml (
 ): string {
   if (cache.devHtml !== undefined) return cache.devHtml;
 
-  cache.devHtml = generateHtmlTemplate({
+  cache.devHtml = renderHtmlDocument({
     title: config.siteTitle,
     description: config.siteDescription,
     base: '/',

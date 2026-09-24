@@ -100,6 +100,7 @@ export interface TdSiteConfig {
   version: string;
   basePath: string;
   origin: string | undefined;
+  lang: string;
   rootDir: string;
   siteTitle: string;
   siteDescription: string;
@@ -108,6 +109,12 @@ export interface TdSiteConfig {
   license: string | undefined;
   publicDir: string;
   nav: TdNavItem[];
+}
+
+export interface TdPageMeta {
+  title?: string;
+  description?: string;
+  image?: string;
 }
 
 export interface TdBuiltResource {
@@ -120,6 +127,7 @@ export interface TdBuiltResource {
   headings: TdHeading[];
   title?: string;
   metadata: TdFileMetadata;
+  meta?: TdPageMeta;
 }
 
 // Server-reserved JSON-RPC error code for cancelled queries (-32000 to -32099)

@@ -307,6 +307,7 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
       LazyType::eager(optional_str.clone()),
     ),
     ("origin".to_string(), LazyType::eager(optional_str.clone())),
+    ("lang".to_string(), LazyType::eager(optional_str.clone())),
     (
       "base_path".to_string(),
       LazyType::eager(optional_str.clone()),

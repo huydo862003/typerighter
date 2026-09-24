@@ -73,7 +73,10 @@ test('build without origin: sitemap has relative URLs', async () => {
     expect(sitemap).toContain('<loc>/');
     expect(sitemap).not.toContain('https://');
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -83,7 +86,10 @@ test('build without origin: no robots.txt', async () => {
   try {
     expect(await fileExists(path.join(directory, 'dist', 'robots.txt'))).toBe(false);
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -98,7 +104,10 @@ test('build without origin: HTML has meta tags', async () => {
     expect(html).toContain('<meta name="twitter:card"');
     expect(html).toContain('application/ld+json');
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -110,7 +119,10 @@ test('build: sitemap has lastmod dates', async () => {
 
     expect(sitemap).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -123,7 +135,10 @@ test('build: HTML has og:site_name', async () => {
     expect(html).toContain('og:site_name');
     expect(html).toContain('E2E Test Vault');
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -135,7 +150,10 @@ test('build with origin: sitemap has absolute URLs', async () => {
 
     expect(sitemap).toContain('https://example.com/');
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -148,7 +166,10 @@ test('build with origin: robots.txt references sitemap', async () => {
     expect(robots).toContain('User-agent: *');
     expect(robots).toContain('Sitemap: https://example.com/sitemap.xml');
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });
 
@@ -162,6 +183,89 @@ test('build with origin: HTML has absolute SEO URLs', async () => {
     expect(html).toContain('og:url" content="https://example.com/');
     expect(html).toContain('og:image" content="https://example.com/');
   } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  }
+});
+
+test('build with origin: generates RSS feed', async () => {
+  const directory = await buildFixture('vault-root', (yaml) => yaml + '\n  origin: "https://example.com"\n');
+
+  try {
+    const feed = await readFile(path.join(directory, 'dist', 'feed.xml'), 'utf-8');
+
+    expect(feed).toContain('<rss version="2.0"');
+    expect(feed).toContain('<title>E2E Test Vault</title>');
+    expect(feed).toContain('https://example.com/');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  }
+});
+
+test('build with origin: HTML has RSS feed link', async () => {
+  const directory = await buildFixture('vault-root', (yaml) => yaml + '\n  origin: "https://example.com"\n');
+
+  try {
+    const html = await readFile(path.join(directory, 'dist', 'index.html'), 'utf-8');
+
+    expect(html).toContain('application/rss+xml');
+    expect(html).toContain('feed.xml');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  }
+});
+
+test('build: HTML has generator and robots meta', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(path.join(directory, 'dist', 'index.html'), 'utf-8');
+
+    expect(html).toContain('name="generator" content="Typerighter"');
+    expect(html).toContain('name="robots" content="index, follow"');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  }
+});
+
+test('build: nested pages have breadcrumb JSON-LD', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(path.join(directory, 'dist', 'people', 'alice.html'), 'utf-8');
+
+    expect(html).toContain('BreadcrumbList');
+    expect(html).toContain('People');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  }
+});
+
+test('build: root page has no breadcrumb JSON-LD', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(path.join(directory, 'dist', 'index.html'), 'utf-8');
+
+    expect(html).not.toContain('BreadcrumbList');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
   }
 });

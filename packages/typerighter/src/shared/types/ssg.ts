@@ -28,6 +28,13 @@ export interface PageData {
   headings: MarkdownHeading[];
   title: string;
   metadata?: FileMetadata;
+  meta?: PageMeta;
+}
+
+export interface PageMeta {
+  title?: string;
+  description?: string;
+  image?: string;
 }
 
 export interface PageModule {

@@ -88,6 +88,10 @@ export function stripAnchor (url: string): string {
   return 0 <= hashIndex ? url.slice(0, hashIndex) : url;
 }
 
+export function stripLeadingSlash (url: string): string {
+  return url.replace(/^\//, '');
+}
+
 export function stripTrailingSlash (url: string): string {
   return url.replace(/\/$/, '') || '/';
 }

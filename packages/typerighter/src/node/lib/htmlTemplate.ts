@@ -1,35 +1,40 @@
-// Shared HTML document shell used by both dev server and pre-renderer
+// HTML document shell used by both dev server and pre-renderer
 
 import {
   escapeHtml,
 } from '@/shared';
 
 export interface HtmlTemplateOptions {
-  /** Raw page title */
+  /** Page title */
   title: string;
-  /** Raw page description */
+  /** Page description for meta tags */
   description: string;
   /** Site title, appended as suffix when different from page title */
   siteTitle?: string;
-  /** Site author from config */
+  /** Site author for meta and JSON-LD */
   author?: string;
-  /** Base path, e.g. "/" or "/docs/" */
+  /** Base path (e.g. "/" or "/docs/") */
   base: string;
-  /** Absolute site URL (e.g. "https://example.com") for SEO meta tags */
+  /** Absolute site origin (e.g. "https://example.com") */
   origin?: string;
-  /** Module script src, e.g. "/@typedown/app" or "assets/app-abc.js" */
+  /** Module script src (e.g. "assets/app-abc.js") */
   entryScript: string;
-  /** HTML language attribute */
+  /** HTML lang attribute */
   lang?: string;
-  /** Canonical URL for SEO */
+  /** Canonical URL path (e.g. "/people/alice") */
   canonicalUrl?: string;
-  /** Extra tags injected into <head> (CSS links, module preloads) */
+  /** Per-page OG image path, falls back to global og-image.png */
+  ogImagePath?: string;
+  /** Pre-built JSON-LD blocks to inject into head */
+  jsonLdBlocks?: string[];
+  /** Extra tags injected into head (CSS links, module preloads) */
   headExtra?: string;
   /** SSR-rendered content inside div#app */
   appContent?: string;
 }
 
-export function generateHtmlTemplate (options: HtmlTemplateOptions): string {
+// Render a complete HTML document from the given options
+export function renderHtmlDocument (options: HtmlTemplateOptions): string {
   const title = escapeHtml(options.title);
   const description = escapeHtml(options.description);
 
@@ -50,7 +55,9 @@ export function generateHtmlTemplate (options: HtmlTemplateOptions): string {
     ? `\n    <meta property="og:url" content="${escapeHtml(absoluteCanonical)}">`
     : '';
 
-  const ogImage = `${origin}${options.base}og-image.png`;
+  const ogImageSrc = options.ogImagePath !== undefined
+    ? `${origin}${options.base}${options.ogImagePath}`
+    : `${origin}${options.base}og-image.png`;
 
   const authorMeta = options.author !== undefined
     ? `\n    <meta name="author" content="${escapeHtml(options.author)}">`
@@ -60,35 +67,36 @@ export function generateHtmlTemplate (options: HtmlTemplateOptions): string {
     ? `\n    <meta property="og:site_name" content="${escapeHtml(options.siteTitle)}">`
     : '';
 
+  const rssFeed = origin !== ''
+    ? `\n    <link rel="alternate" type="application/rss+xml" title="${options.siteTitle !== undefined ? escapeHtml(options.siteTitle) : 'RSS Feed'}" href="${origin}${options.base}feed.xml">`
+    : '';
+
+  const jsonLdTags = (options.jsonLdBlocks ?? [])
+    .map((block) => `\n    <script type="application/ld+json">${block}</script>`)
+    .join('');
+
   const headExtra = options.headExtra !== undefined
     ? options.headExtra + '\n'
     : '';
-
-  const jsonLd = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: options.title,
-    description: options.description,
-    ...(absoluteCanonical !== undefined ? { url: absoluteCanonical } : {}),
-  });
 
   return `<!DOCTYPE html>
 <html lang="${options.lang ?? 'en'}">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="Typerighter">
+    <meta name="robots" content="index, follow">
     <title>${pageTitle}</title>
     <meta name="description" content="${description}">${authorMeta}${canonical}
-    <link rel="icon" href="${options.base}favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="${options.base}favicon.svg" type="image/svg+xml">${rssFeed}
     <meta property="og:type" content="article">${ogSiteName}${ogUrl}
     <meta property="og:title" content="${title}">
     <meta property="og:description" content="${description}">
-    <meta property="og:image" content="${escapeHtml(ogImage)}">
+    <meta property="og:image" content="${escapeHtml(ogImageSrc)}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="${description}">
-    <meta name="twitter:image" content="${escapeHtml(ogImage)}">
-    <script type="application/ld+json">${jsonLd}</script>
+    <meta name="twitter:image" content="${escapeHtml(ogImageSrc)}">${jsonLdTags}
     <script>
       (function () {
         var theme = localStorage.getItem('td-theme');

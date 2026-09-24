@@ -41,6 +41,7 @@ export async function buildPageData (
     headings: buildHeadingTree(resource.headings),
     title,
     metadata: resource.metadata,
+    meta: resource.meta,
   };
 }
 

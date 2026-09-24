@@ -64,6 +64,17 @@ pub struct ExportedMetadata {
   pub ctime: u64,
 }
 
+/// SEO metadata from the _meta builtin field
+#[derive(serde::Serialize, Clone, Default)]
+pub struct ExportedMeta {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub image: Option<String>,
+}
+
 /// Structured export result with HTML content and extracted headings
 #[derive(serde::Serialize)]
 pub struct ExportedResourceHtml {
@@ -80,6 +91,8 @@ pub struct ExportedResourceHtml {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
   pub metadata: ExportedMetadata,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub meta: Option<ExportedMeta>,
 }
 
 /// Summary for content listings (no rendered body)
@@ -182,6 +195,7 @@ struct ResourcePreamble {
   schema: Option<String>,
   label: Option<String>,
   icon: Option<ExportedIcon>,
+  meta: Option<ExportedMeta>,
   header: serde_json::Value,
   metadata: ExportedMetadata,
   excerpt: Option<String>,
@@ -220,7 +234,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     });
   }
 
-  let (schema, header, label, icon) = if let Some(ref obj) = obj {
+  let (schema, header, label, icon, meta) = if let Some(ref obj) = obj {
     let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
       Some(schema_obj.schema(db).display_name(db))
     } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
@@ -243,12 +257,15 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
       })
     });
 
-    (schema, header, label, icon)
+    let meta = extract_meta(db, obj);
+
+    (schema, header, label, icon, meta)
   } else {
     // Body-only file with no frontmatter
     (
       None,
       serde_json::Value::Object(Default::default()),
+      None,
       None,
       None,
     )
@@ -265,6 +282,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     schema,
     label,
     icon,
+    meta,
     header,
     metadata,
     excerpt,
@@ -325,6 +343,7 @@ pub fn export_resource_html(
       headings: Vec::new(),
       title: None,
       metadata,
+      meta: None,
     }),
     ResourceKind::Content(pre) => {
       let html_result = html::export_html_body(db, project, file, &pre.body);
@@ -337,6 +356,7 @@ pub fn export_resource_html(
         headings: html_result.headings,
         title: html_result.title,
         metadata: pre.metadata,
+        meta: pre.meta,
       })
     }
   }
@@ -492,7 +512,35 @@ pub fn export_property_descriptors(
   }
 }
 
-// Extract plain text from the first paragraph in the AST for excerpts
+// Extract SEO metadata from the _meta builtin field
+fn extract_meta(db: &TypedownDatabase, obj: &TdObjectEnum) -> Option<ExportedMeta> {
+  let meta_obj = obj.get_builtin_field(db, "_meta")?;
+
+  if meta_obj.is_td_null_obj() {
+    return None;
+  }
+
+  let title = meta_obj
+    .get_owned_field(db, "title")
+    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+  let description = meta_obj
+    .get_owned_field(db, "description")
+    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+  let image = meta_obj
+    .get_owned_field(db, "image")
+    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+
+  if title.is_none() && description.is_none() && image.is_none() {
+    return None;
+  }
+
+  Some(ExportedMeta {
+    title,
+    description,
+    image,
+  })
+}
+
 fn extract_body_excerpt(node: &RedNode) -> Option<String> {
   find_first_paragraph(node)
     .map(|p| utils::extract_plain_text(&p))
