@@ -1,6 +1,12 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.40.1] - 2026-09-24
+
+### Fixed
+
+- Inlcude dist in rpc-client
+
 ## [0.40.0] - 2026-09-24
 
 ### Added

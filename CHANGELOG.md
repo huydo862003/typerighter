@@ -1,4 +1,10 @@
-## [0.40.0] - 2026-09-24
+## [0.40.1] - 2026-09-24
+
+### Fixed
+
+- Inlcude dist in rpc-client
+
+## [0.40.0] - 2026-09-24 (retracted)
 
 ### Added
 
@@ -13,7 +19,7 @@
 - **SEO module** - New `seo/` directory with focused modules: `page.ts` (data extraction), `jsonld.ts` (structured data), `sitemap.ts` (sitemap/robots), `feed.ts` (RSS).
 - **init prompts for origin** - `typerighter init` now asks for site origin with a note about sitemap/robots usage.
 
-### Fixes
+### Fixed
 
 - **pnpm 12 on NixOS** - Updated `packageManager` from pnpm 11.9.0 to 12.3.4. The old version caused "dynamically linked executable" errors on NixOS.
 
