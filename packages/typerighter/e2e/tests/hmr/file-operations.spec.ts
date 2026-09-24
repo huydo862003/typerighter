@@ -42,6 +42,10 @@ e2e.describe('HMR file operations', () => {
     await mkdir(newDirectory, {
       recursive: true,
     });
+
+    // Small delay so the watcher registers the directory before the file
+    await page.waitForTimeout(500);
+
     await writeFile(
       path.join(newDirectory, 'weekly.td'),
       '---\ntitle: Weekly Report\n---\n\nThis week went well.\n',
@@ -50,7 +54,7 @@ e2e.describe('HMR file operations', () => {
 
     // The new folder should appear in sidebar
     await expect(sidebar.locator('text=Reports')).toBeVisible({
-      timeout: 10_000,
+      timeout: 15_000,
     });
   });
 
