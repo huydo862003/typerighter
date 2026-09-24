@@ -64,7 +64,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     header: {},
   }));
   const contentTree = buildContentTree(contentItems);
-  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, nav: config.nav });
+  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin: config.origin, nav: config.nav });
   const siteData = JSON.stringify({ ready: true, contentTree });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports
@@ -77,6 +77,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     fs.writeFile(clientEntryPath, generateClientAppEntry({
       rootDir: config.rootDir,
       basePath: base,
+      origin: config.origin,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
       repo: config.repo,
@@ -162,6 +163,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       clientOutDir,
       outDir,
       base,
+      origin: config.origin,
       pagePaths,
       siteTitle: config.siteTitle,
       progress: phase3,
@@ -169,10 +171,18 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     phase3.done(`Pre-rendered ${pagePaths.length} pages`);
 
-    // 6. Generate sitemap.xml
-    const sitemap = generateSitemap(pagePaths, base);
+    // 6. Generate sitemap.xml and robots.txt
+    const origin = config.origin ?? undefined;
+    const sitemap = generateSitemap(pagePaths, base, origin);
+    const writes: Promise<void>[] = [
+      fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
+    ];
 
-    await fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap);
+    if (origin !== undefined) {
+      writes.push(fs.writeFile(path.join(outDir, 'robots.txt'), generateRobotsTxt(origin, base)));
+    }
+
+    await Promise.all(writes);
 
     // 7. Copy assets to the final output directory
     const clientAssetsDir = path.join(clientOutDir, 'assets');
@@ -289,15 +299,26 @@ async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> 
 }
 
 // Generate a sitemap.xml string from the list of page paths
-function generateSitemap (pagePaths: string[], base: string): string {
+// Uses absolute URLs when origin is configured
+function generateSitemap (pagePaths: string[], base: string, origin?: string): string {
+  const prefix = origin ?? '';
   const urls = pagePaths
-    .map((p) => `  <url><loc>${escapeHtml(base + p.replace(/^\//, ''))}</loc></url>`)
+    .map((p) => `  <url><loc>${escapeHtml(prefix + base + p.replace(/^\//, ''))}</loc></url>`)
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls}
 </urlset>
+`;
+}
+
+// Generate robots.txt with a reference to the sitemap
+function generateRobotsTxt (origin: string, base: string): string {
+  return `User-agent: *
+Allow: /
+
+Sitemap: ${origin}${base}sitemap.xml
 `;
 }
 

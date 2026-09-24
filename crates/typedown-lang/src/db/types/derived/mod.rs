@@ -83,6 +83,7 @@ pub struct VaultConfigResult<'db> {
   version: String,
   root_dir: PathBuf,
   base_path: String,
+  origin: Option<String>,
   site_title: String,
   site_description: String,
   repo: Option<String>,

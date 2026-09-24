@@ -53,6 +53,8 @@ pub struct TdSiteConfig {
   pub version: String,
   /// URL base path (e.g. "/" or "/docs")
   pub base_path: String,
+  /// Absolute site URL (e.g. "https://example.com")
+  pub origin: Option<String>,
   /// Vault root directory path relative to the project root
   pub root_dir: String,
   /// Site title from typedown.yaml

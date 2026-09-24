@@ -40,6 +40,7 @@ interface InitializeOptions {
   projectName: string;
   siteTitle: string;
   siteDescription: string;
+  siteOrigin: string;
 }
 
 async function collectUserInput (
@@ -57,11 +58,13 @@ async function collectUserInput (
   const projectName = flags.name ?? await prompt('Project name', existing.packageName ?? path.basename(root));
   const siteTitle = flags.title ?? await prompt('Site title', projectName);
   const siteDescription = flags.description ?? await prompt('Site description', 'A typedown site');
+  const siteOrigin = await prompt('Site origin (used for sitemap and robots.txt)', 'https://example.com');
 
   return {
     projectName,
     siteTitle,
     siteDescription,
+    siteOrigin,
   };
 }
 
@@ -178,12 +181,16 @@ properties:
 }
 
 function generateTypedownYaml (options: InitializeOptions): string {
+  const originLine = options.siteOrigin !== ''
+    ? `\n  origin: "${options.siteOrigin}"`
+    : '';
+
   return `version: "1.0.0"
 vault:
   root_dir: "vault"
 site:
   title: "${options.siteTitle}"
-  description: "${options.siteDescription}"
+  description: "${options.siteDescription}"${originLine}
 `;
 }
 
@@ -285,6 +292,7 @@ function toOptions (flags: Required<InitializeFlags>): InitializeOptions {
     projectName: flags.name,
     siteTitle: flags.title,
     siteDescription: flags.description,
+    siteOrigin: '',
   };
 }
 

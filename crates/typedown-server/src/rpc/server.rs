@@ -81,6 +81,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   TdSiteConfig {
     version: config.version(db).to_string(),
     base_path: base_path.to_string(),
+    origin: config.origin(db).clone(),
     root_dir: root_dir_rel,
     site_title: config.site_title(db).to_string(),
     site_description: config.site_description(db).to_string(),

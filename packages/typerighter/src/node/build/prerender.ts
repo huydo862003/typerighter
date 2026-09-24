@@ -24,6 +24,8 @@ export interface PrerenderContext {
   outDir: string;
   /** The base path (e.g. "/") */
   base: string;
+  /** Absolute site URL for SEO (e.g. "https://example.com") */
+  origin?: string;
   /** List of page paths to render (e.g. ["/", "/posts/hello"]) */
   pagePaths: string[];
   /** Site title for SEO title suffix */
@@ -35,6 +37,7 @@ export interface PrerenderContext {
 export interface PrerenderWorkerConfig {
   ssrEntryPath: string;
   base: string;
+  origin?: string;
   siteTitle: string;
   clientEntry: string;
   headExtra?: string;
@@ -81,6 +84,7 @@ async function prerenderWithWorkers (
     workerData: {
       ssrEntryPath: context.ssrEntryPath,
       base: context.base,
+      origin: context.origin,
       siteTitle: context.siteTitle,
       clientEntry,
       headExtra,
@@ -131,6 +135,7 @@ async function prerenderSingleThread (
           : '',
         siteTitle: context.siteTitle,
         base: context.base,
+        origin: context.origin,
         entryScript: clientEntry,
         canonicalUrl: context.base + pagePath.replace(/^\//, ''),
         headExtra,

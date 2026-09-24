@@ -41,6 +41,7 @@ pub fn get_vault_config<'db>(
   let site = get_field(db, &obj, "site");
   let site_title = site_str(db, &site, "title").unwrap_or_default();
   let site_description = site_str(db, &site, "description").unwrap_or_default();
+  let origin = site_str(db, &site, "origin").map(|s| normalize_origin(&s));
   let base_path = site_str(db, &site, "base_path")
     .map(|s| normalize_base_path(&s))
     .unwrap_or_else(|| "/".to_string());
@@ -64,6 +65,7 @@ pub fn get_vault_config<'db>(
     version,
     root_dir,
     base_path,
+    origin,
     site_title,
     site_description,
     repo,
@@ -85,6 +87,7 @@ fn empty_config<'db>(
     String::new(),
     root.to_path_buf(),
     "/".to_string(),
+    None,
     String::new(),
     String::new(),
     None,
@@ -167,6 +170,16 @@ fn extract_nav<'db>(
     }
   }
   items
+}
+
+// Normalize origin to include scheme, default to https
+fn normalize_origin(raw: &str) -> String {
+  let trimmed = raw.trim_end_matches('/');
+  if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+    trimmed.to_string()
+  } else {
+    format!("https://{trimmed}")
+  }
 }
 
 // Normalize and validate base_path

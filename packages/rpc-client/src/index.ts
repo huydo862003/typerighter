@@ -99,6 +99,7 @@ export interface TdSchemaInfo {
 export interface TdSiteConfig {
   version: string;
   basePath: string;
+  origin: string | undefined;
   rootDir: string;
   siteTitle: string;
   siteDescription: string;

@@ -27,6 +27,7 @@ parentPort!.on('message', async (pagePath: string) => {
         : '',
       siteTitle: config.siteTitle,
       base: config.base,
+      origin: config.origin,
       entryScript: config.clientEntry,
       canonicalUrl: config.base + pagePath.replace(/^\//, ''),
       headExtra: config.headExtra,
