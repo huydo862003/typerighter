@@ -1,6 +1,36 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.40.0] - 2026-09-24
+
+### Added
+
+- **site.origin config** - New `site.origin` field in typedown.yaml (e.g. `origin: "example.com"`, defaults to https). When set, enables absolute URLs in sitemap, canonical links, Open Graph tags, and JSON-LD.
+- **site.lang config** - New `site.lang` field for the HTML lang attribute, defaults to "en".
+- **Sitemap improvements** - `<lastmod>` dates from file modification time. Absolute URLs when origin is configured.
+- **robots.txt** - Auto-generated when origin is set, with sitemap reference. User's `public/robots.txt` takes priority.
+- **RSS feed** - `feed.xml` generated when origin is set, containing the 50 most recently modified pages with title, excerpt, and date.
+- **SEO meta tags** - `meta generator`, `meta robots`, `meta author`, `og:site_name`, `og:url`, RSS feed auto-discovery link.
+- **JSON-LD structured data** - Article schema with headline, description, author, dateModified, and URL. BreadcrumbList schema for nested pages.
+- **_meta builtin** - Per-page SEO overrides via `_meta: { title, description, image }`. Type-validated with autocompletion support.
+- **SEO module** - New `seo/` directory with focused modules: `page.ts` (data extraction), `jsonld.ts` (structured data), `sitemap.ts` (sitemap/robots), `feed.ts` (RSS).
+- **init prompts for origin** - `typerighter init` now asks for site origin with a note about sitemap/robots usage.
+
+### Fixes
+
+- **pnpm 12 on NixOS** - Updated `packageManager` from pnpm 11.9.0 to 12.3.4. The old version caused "dynamically linked executable" errors on NixOS.
+
+### Dependencies
+
+- bump html-escape 0.2.14 to 0.2.15
+- bump vscode-languageclient 10.1.0 to 10.1.1
+- bump unescaper 0.1.10 to 0.2.0
+- bump @vitejs/plugin-vue 6.0.8 to 6.0.9
+- bump @lucide/vue 1.44.0 to 1.47.0
+- bump eslint 10.9.1 to 10.11.0
+- bump vitest 5.0.0 to 5.0.1
+- bump rust-overlay, nixpkgs
+
 ## [0.39.0] - 2026-09-23
 
 ### Fixed
