@@ -225,10 +225,7 @@ impl<'db> TdSchemaType<'db> {
           ],
         );
         let meta_fields = std::collections::BTreeMap::from([
-          (
-            "title".to_string(),
-            LazyType::eager(optional_str.into()),
-          ),
+          ("title".to_string(), LazyType::eager(optional_str.into())),
           (
             "description".to_string(),
             LazyType::eager(optional_str.into()),
