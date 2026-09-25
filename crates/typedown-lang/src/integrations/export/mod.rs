@@ -623,7 +623,7 @@ impl<'a> MarkdownExporter<'a> {
       .path()
       .unwrap_or(&empty)
       .parent()
-      .and_then(|p| p.strip_prefix(&config.root_dir(self.db)).ok())
+      .and_then(|p| p.strip_prefix(config.root_dir(self.db)).ok())
       .unwrap_or(Path::new(""));
 
     utils::resolve_vault_url(url, &config.base_path(self.db), file_dir)
@@ -958,27 +958,27 @@ impl<'a> MarkdownExporter<'a> {
     }
 
     // Resolve URLs in links and images
-    if node.kind() == SyntaxKind::MdLink {
-      if let Some(link) = MdLink::cast(node.clone()) {
-        let url = link.url().map(|t| t.value()).unwrap_or_default();
-        let resolved = self.resolve_url(&url);
-        self.write("[");
-        if let Some(alt) = link.alt() {
-          self.emit_inline_children(alt.syntax());
-        }
-        self.write(&format!("]({})", resolved));
-        return;
+    if node.kind() == SyntaxKind::MdLink
+      && let Some(link) = MdLink::cast(node.clone())
+    {
+      let url = link.url().map(|t| t.value()).unwrap_or_default();
+      let resolved = self.resolve_url(&url);
+      self.write("[");
+      if let Some(alt) = link.alt() {
+        self.emit_inline_children(alt.syntax());
       }
+      self.write(&format!("]({})", resolved));
+      return;
     }
 
-    if node.kind() == SyntaxKind::MdMedia {
-      if let Some(media) = MdMedia::cast(node.clone()) {
-        let alt = media.alt().map(|t| t.value()).unwrap_or_default();
-        let url = media.url().map(|t| t.value()).unwrap_or_default();
-        let resolved = self.resolve_url(&url);
-        self.write(&format!("![{}]({})", alt, resolved));
-        return;
-      }
+    if node.kind() == SyntaxKind::MdMedia
+      && let Some(media) = MdMedia::cast(node.clone())
+    {
+      let alt = media.alt().map(|t| t.value()).unwrap_or_default();
+      let url = media.url().map(|t| t.value()).unwrap_or_default();
+      let resolved = self.resolve_url(&url);
+      self.write(&format!("![{}]({})", alt, resolved));
+      return;
     }
 
     for child in node.children() {
@@ -1011,7 +1011,7 @@ pub fn resolve_ref(
       let relative = path.strip_prefix(&root_dir).unwrap_or(path);
       let relative_str = relative.to_string_lossy();
       let without_ext = strip_content_extension(&relative_str);
-      let url = utils::prepend_base_path(&config.base_path(db), &without_ext);
+      let url = utils::prepend_base_path(&config.base_path(db), without_ext);
       Some(ResolvedRef { name, url })
     }
     SymbolKind::Asset(_, _, target_file) => {

@@ -199,9 +199,7 @@ fn resolve_schema_hover(db: &TypedownDatabase, project: Project, node: &RedNode)
   let member_map = project_members.members(db);
   let sym = member_map.get(schema_name)?;
   let typ = evaluate_type(db, *sym).typ(db)?;
-  if typ.as_td_schema_type().is_none() {
-    return None;
-  }
+  typ.as_td_schema_type()?;
 
   Some(schema_hover_text(db, &typ))
 }
@@ -237,10 +235,9 @@ fn build_link_hover(
 ) -> Option<String> {
   let url = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
     MdLink::cast(link_node)?.url().map(|t| t.value())?
-  } else if let Some(media_node) = find_ancestor(node, SyntaxKind::MdMedia) {
-    MdMedia::cast(media_node)?.url().map(|t| t.value())?
   } else {
-    return None;
+    let media_node = find_ancestor(node, SyntaxKind::MdMedia)?;
+    MdMedia::cast(media_node)?.url().map(|t| t.value())?
   };
 
   if is_external_url(&url) || url.starts_with('#') {

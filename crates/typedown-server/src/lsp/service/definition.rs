@@ -226,10 +226,9 @@ fn markdown_link_definition(
   // Find the enclosing MdLink or MdMedia
   let url = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
     MdLink::cast(link_node)?.url().map(|t| t.value())?
-  } else if let Some(media_node) = find_ancestor(node, SyntaxKind::MdMedia) {
-    MdMedia::cast(media_node)?.url().map(|t| t.value())?
   } else {
-    return None;
+    let media_node = find_ancestor(node, SyntaxKind::MdMedia)?;
+    MdMedia::cast(media_node)?.url().map(|t| t.value())?
   };
 
   if is_external_url(&url) || url.starts_with('#') {

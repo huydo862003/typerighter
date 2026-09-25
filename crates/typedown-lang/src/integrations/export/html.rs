@@ -79,7 +79,7 @@ impl<'a> HtmlEmitter<'a> {
       .path()
       .unwrap_or(&empty)
       .parent()
-      .and_then(|p| p.strip_prefix(&config.root_dir(self.db)).ok())
+      .and_then(|p| p.strip_prefix(config.root_dir(self.db)).ok())
       .unwrap_or(Path::new(""));
 
     resolve_vault_url(url, &config.base_path(self.db), file_dir)
