@@ -1,8 +1,29 @@
+## [0.40.2] - 2026-09-25
+
+### Added
+
+- Hover on `_type`/`_extends` values shows schema name and field list with types
+- Hover on markdown links/images shows target label, schema, and path
+- Hover on field values shows declared type instead of literal value
+- Go-to-definition for markdown links and images, resolves relative paths from current file
+- Config validation diagnostics published to editor for invalid typedown.yaml
+- Completion: required/optional markers on field suggestions, required sorted first
+- Completion: `_meta` snippet with tab stops, hidden when already present
+- Completion: `fref` inserts `fref("$1")` with cursor inside quotes
+- `_meta` builtin type validation (`title: string?`, `description: string?`, `image: string?`)
+- `_meta` nullable, consistent with `_label`/`_icon`
+- `_meta` data flows end-to-end from Rust extraction through RPC to HTML output
+- Centralized URL resolution via `resolve_vault_url` and `prepend_base_path` in export/utils.rs
+- HTML and markdown emitters resolve relative URLs in links and images
+- `_meta.image` resolved on Rust side via `resolve_vault_url`
+- `is_external_url` moved to shared `db::utils`
+- Dangling link check in go-to-definition returns None for nonexistent targets
+
 ## [0.40.1] - 2026-09-24
 
 ### Fixed
 
-- Inlcude dist in rpc-client
+- Include dist in rpc-client
 
 ## [0.40.0] - 2026-09-24 (retracted)
 
