@@ -13,7 +13,8 @@ use typedown_lang::db::types::{
   File, FileHandle, FileRedNode, HirValueKind, Project, Scope, Symbol, SymbolKind,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
-use typedown_lang::syntax::ast::AstNode;
+use typedown_lang::db::utils::is_external_url;
+use typedown_lang::syntax::ast::{AstNode, MdLink, MdMedia};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -59,6 +60,11 @@ pub fn definition(
       range: Range::default(),
     };
     return Some(GotoDefinitionResponse::Scalar(location));
+  }
+
+  // Markdown link or image: resolve the URL to a file path
+  if let Some(response) = markdown_link_definition(analysis, db, project, file, &node) {
+    return Some(response);
   }
 
   // Identifier or type reference: resolve via referee
@@ -207,6 +213,57 @@ fn find_property_key_offset(root: &RedNode, field_name: &str) -> Option<usize> {
     .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
   let field_entry = find_entry_by_key(&props_value, field_name)?;
   entry_key_offset(&field_entry)
+}
+
+// Go to definition for URLs in markdown links and images
+fn markdown_link_definition(
+  analysis: &Analysis,
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<GotoDefinitionResponse> {
+  // Find the enclosing MdLink or MdMedia
+  let url = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
+    MdLink::cast(link_node)?.url().map(|t| t.value())?
+  } else if let Some(media_node) = find_ancestor(node, SyntaxKind::MdMedia) {
+    MdMedia::cast(media_node)?.url().map(|t| t.value())?
+  } else {
+    return None;
+  };
+
+  if is_external_url(&url) || url.starts_with('#') {
+    return None;
+  }
+
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+
+  // Resolve the path: absolute from vault root, relative from current file's directory
+  let target_path = if url.starts_with('/') {
+    root_dir.join(url.trim_start_matches('/'))
+  } else {
+    let handle = file.handle(db);
+    let file_path = handle.path()?;
+    let file_dir = file_path.parent()?;
+    file_dir.join(&url)
+  };
+
+  // Only resolve if the target is a known project file
+  if !project.files(db).contains_key(&target_path) {
+    return None;
+  }
+
+  let scheme = analysis
+    .scheme_map
+    .get(&target_path)
+    .map(String::as_str)
+    .unwrap_or("file");
+  let target_uri = path_to_uri(&target_path, scheme);
+  Some(GotoDefinitionResponse::Scalar(Location {
+    uri: target_uri,
+    range: Range::default(),
+  }))
 }
 
 // Resolve the target path from a fref() string argument
@@ -673,6 +730,158 @@ name: Ali|ce
     assert!(
       response.is_none(),
       "plain string value should not have a definition"
+    );
+  }
+
+  #[test]
+  fn definition_on_markdown_link_resolves_relative_path() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for markdown link");
+    };
+    let target = location.uri.to_string();
+    assert!(
+      target.contains("alice.td"),
+      "should resolve to alice.td, got: {target}"
+    );
+  }
+
+  #[test]
+  fn definition_on_external_link_returns_none() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[external](https://exam|ple.com)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    assert!(
+      response.is_none(),
+      "external URL should not have a definition"
+    );
+  }
+
+  #[test]
+  fn definition_on_dangling_link_returns_none() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[missing](nonexist|ent.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    assert!(
+      response.is_none(),
+      "dangling link should not have a definition"
+    );
+  }
+
+  #[test]
+  fn definition_on_extends_jumps_to_parent_schema() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let type_root = root.join("_types");
+
+    let _child_schema = r#"---
+_type: schema
+_extends: Person
+properties:
+  agency:
+    type: string
+---
+"#;
+
+    let (content, offset) = cursor(
+      r#"---
+_type: schema
+_extends: Per|son
+properties:
+  agency:
+    type: string
+---
+"#,
+    );
+
+    let test_path = type_root.join("Contractor.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let files = HashMap::from([
+      (
+        root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("typedown.yaml"),
+            VAULT_CONFIG.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        type_root.join("Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            type_root.join("Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        test_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(test_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, root, files);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let params = make_params(uri, &content, offset);
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected _extends to resolve to parent schema file");
+    };
+    let target = location.uri.to_string();
+    assert!(
+      target.contains("Person.td"),
+      "_extends should jump to Person.td, got: {target}"
     );
   }
 }

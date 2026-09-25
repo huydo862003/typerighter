@@ -153,6 +153,21 @@ pub struct TdBuiltResource {
   pub title: Option<String>,
   /// File metadata
   pub metadata: TdFileMetadata,
+  /// SEO metadata from _meta builtin
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub meta: Option<TdPageMeta>,
+}
+
+/// SEO metadata from the _meta builtin field
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdPageMeta {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub image: Option<String>,
 }
 
 /// Heading extracted from page content

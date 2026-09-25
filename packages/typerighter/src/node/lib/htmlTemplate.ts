@@ -56,7 +56,7 @@ export function renderHtmlDocument (options: HtmlTemplateOptions): string {
     : '';
 
   const ogImageSrc = options.ogImagePath !== undefined
-    ? `${origin}${options.base}${options.ogImagePath}`
+    ? `${origin}${options.ogImagePath}`
     : `${origin}${options.base}og-image.png`;
 
   const authorMeta = options.author !== undefined

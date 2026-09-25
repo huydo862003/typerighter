@@ -1,16 +1,21 @@
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
+use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
 use typedown_lang::db::types::derived::object_system::TdStaticType;
-use typedown_lang::db::types::{File, FileRedNode, HirValueKind, Project, TdTypeEnum};
-use typedown_lang::syntax::ast::{AstNode, Expr};
+use typedown_lang::db::types::{
+  File, FileRedNode, HirValueKind, Project, Scope, ScopeKind, Symbol, TdTypeEnum,
+};
+use typedown_lang::db::utils::is_external_url;
+use typedown_lang::syntax::ast::{AstNode, Expr, MdLink, MdMedia};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -43,23 +48,31 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
   let hovered_node = node_at_offset(root_node, hovered_offset)?;
 
   // fref hover: show target label and schema
-  if let Some(fref_text) = fref_hover_text(db, project, file, &hovered_node) {
-    return Some(Hover {
-      contents: HoverContents::Markup(MarkupContent {
-        kind: MarkupKind::Markdown,
-        value: fref_text,
-      }),
-      range: None,
-    });
+  if let Some(text) = build_fref_hover(db, project, file, &hovered_node) {
+    return Some(create_hover(text));
+  }
+
+  // Markdown link/image hover: show target info
+  if let Some(text) = build_link_hover(db, project, file, &hovered_node) {
+    return Some(create_hover(text));
+  }
+
+  // _type/_extends value: show schema fields
+  if let Some(text) = resolve_schema_hover(db, project, &hovered_node) {
+    return Some(create_hover(text));
   }
 
   let text = if is_in_mapping_value_position(&hovered_node) {
-    // Value position: show the resolved type of the expression
+    // Value position: show declared type if available, otherwise inferred type
     let expr = get_nearest_expr_ancestor(&hovered_node)?;
     let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
+    let expected = expected_node_type(db, hir).typ(db);
+    let actual = actual_node_type(db, hir).typ(db)?;
 
-    let typ = actual_node_type(db, hir).typ(db)?;
-    typ.display_name(db)
+    match expected {
+      Some(expected_typ) => type_label(db, &expected_typ),
+      None => actual.display_name(db),
+    }
   } else if find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey).is_some() {
     // Key position: show the field name with its declared type
     let entry_key = find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey)?;
@@ -91,7 +104,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
 }
 
 // Resolve hover text for a fref() argument: show target label and schema
-fn fref_hover_text(
+fn build_fref_hover(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -113,6 +126,11 @@ fn fref_hover_text(
   let target_file = *project.files(db).get(&target_path)?;
   let sym = file_symbol(db, project, target_file).value(db)?;
 
+  Some(format_resource_hover(db, sym, &path_str))
+}
+
+// Format hover text for a resolved resource file
+fn format_resource_hover(db: &TypedownDatabase, sym: Symbol, path: &str) -> String {
   let schema_name = get_symbol_type(db, sym).typ(db).map(|t| t.display_name(db));
   let label = get_resource_label(db, sym);
 
@@ -123,9 +141,9 @@ fn fref_hover_text(
   if let Some(schema) = schema_name {
     parts.push(schema);
   }
-  parts.push(format!("`{path_str}`"));
+  parts.push(format!("`{path}`"));
 
-  Some(parts.join("\n\n"))
+  parts.join("\n\n")
 }
 
 fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
@@ -145,6 +163,108 @@ fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
     }
   }
   typ.display_name(db)
+}
+
+fn create_hover(text: String) -> Hover {
+  Hover {
+    contents: HoverContents::Markup(MarkupContent {
+      kind: MarkupKind::Markdown,
+      value: text,
+    }),
+    range: None,
+  }
+}
+
+// Resolve a _type/_extends value to its schema definition
+fn resolve_schema_hover(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<String> {
+  let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
+
+  let key = entry
+    .children()
+    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)?;
+  let key_text = key.text();
+  let key_text = key_text.trim();
+  if key_text != "_type" && key_text != "_extends" {
+    return None;
+  }
+
+  let value = entry
+    .children()
+    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
+  let schema_name = value.text();
+  let schema_name = schema_name.trim();
+
+  let scope = Scope::new(db, ScopeKind::Project(project));
+  let project_members = members(db, scope);
+  let member_map = project_members.members(db);
+  let sym = member_map.get(schema_name)?;
+  let typ = evaluate_type(db, *sym).typ(db)?;
+  if typ.as_td_schema_type().is_none() {
+    return None;
+  }
+
+  Some(schema_hover_text(db, &typ))
+}
+
+// Show schema name and its fields
+fn schema_hover_text(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
+  let name = typ.display_name(db);
+  let fields = typ.get_fields(db);
+  if fields.is_empty() {
+    return name;
+  }
+
+  let field_lines: Vec<String> = fields
+    .iter()
+    .map(|(field_name, lazy)| {
+      let type_name = lazy
+        .resolve(db)
+        .map(|t| type_label(db, &t))
+        .unwrap_or_else(|| "unknown".to_string());
+      format!("  {field_name}: {type_name}")
+    })
+    .collect();
+
+  format!("**{name}**\n```yaml\n{}\n```", field_lines.join("\n"))
+}
+
+// Show hover info for markdown link or image targets
+fn build_link_hover(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<String> {
+  let url = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
+    MdLink::cast(link_node)?.url().map(|t| t.value())?
+  } else if let Some(media_node) = find_ancestor(node, SyntaxKind::MdMedia) {
+    MdMedia::cast(media_node)?.url().map(|t| t.value())?
+  } else {
+    return None;
+  };
+
+  if is_external_url(&url) || url.starts_with('#') {
+    return None;
+  }
+
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  let target_path = if url.starts_with('/') {
+    root_dir.join(url.trim_start_matches('/'))
+  } else {
+    let handle = file.handle(db);
+    let file_dir = handle.path()?.parent()?;
+    file_dir.join(&url)
+  };
+
+  let target_file = *project.files(db).get(&target_path)?;
+  let sym = file_symbol(db, project, target_file).value(db)?;
+
+  Some(format_resource_hover(
+    db,
+    sym,
+    &target_path.display().to_string(),
+  ))
 }
 
 #[cfg(test)]
@@ -276,7 +396,7 @@ properties:
   }
 
   #[test]
-  fn hover_on_value_shows_resolved_type() {
+  fn hover_on_value_shows_declared_type() {
     let (content, offset) = cursor(
       r#"---
 _type: Person
@@ -287,8 +407,8 @@ name: "Ali|ce"
     let (analysis, uri) = setup(&content);
     let text = hover_text(&analysis, uri, &content, offset).expect("expected hover");
     assert!(
-      text.contains("\"Alice\""),
-      "expected literal type, got: {text}"
+      text.contains("string"),
+      "should show declared type 'string': {text}"
     );
   }
 
@@ -407,5 +527,176 @@ age: 30
     let text = hover_text(&analysis, uri, &content, offset).expect("fref should show hover");
     assert!(text.contains("Alice Chen"), "should show _label: {text}");
     assert!(text.contains("Person"), "should show schema name: {text}");
+  }
+
+  // Helper that uses the standard setup
+  fn hover_text_from_setup(content_with_cursor: &str) -> Option<String> {
+    let (content, offset) = cursor(content_with_cursor);
+    let (analysis, uri) = setup(&content);
+    hover_text(&analysis, uri, &content, offset)
+  }
+
+  #[test]
+  fn hover_on_markdown_link_shows_target_info() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let type_root = root.join("_types");
+
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](ali|ce.td)
+"#,
+    );
+    let test_path = root.join("file.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let alice_content = r#"---
+_type: Person
+_label: "Alice Chen"
+name: "Alice"
+age: 30
+---
+"#;
+
+    let files = HashMap::from([
+      (
+        root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("typedown.yaml"),
+            VAULT_CONFIG.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        type_root.join("Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            type_root.join("Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("alice.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("alice.td"),
+            alice_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        test_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(test_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, root, files);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let text =
+      hover_text(&analysis, uri, &content, offset).expect("markdown link should show hover");
+    assert!(text.contains("Alice Chen"), "should show _label: {text}");
+    assert!(text.contains("Person"), "should show schema name: {text}");
+  }
+
+  #[test]
+  fn hover_on_external_link_returns_none() {
+    let text = hover_text_from_setup(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[external](https://exam|ple.com)
+"#,
+    );
+    assert!(text.is_none(), "external link should not show hover");
+  }
+
+  #[test]
+  fn hover_on_dangling_link_returns_none() {
+    let text = hover_text_from_setup(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[missing](nonexist|ent.td)
+"#,
+    );
+    assert!(text.is_none(), "dangling link should not show hover");
+  }
+
+  #[test]
+  fn hover_on_type_value_shows_schema_fields() {
+    let text = hover_text_from_setup(
+      r#"---
+_type: Per|son
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let text = text.expect("_type value should show hover");
+    assert!(text.contains("Person"), "should show schema name: {text}");
+    assert!(text.contains("name"), "should show field 'name': {text}");
+    assert!(text.contains("age"), "should show field 'age': {text}");
+  }
+
+  #[test]
+  fn hover_on_boolean_value_shows_type() {
+    let text = hover_text_from_setup(
+      r#"---
+_type: Person
+name: "Alice"
+verified: tru|e
+---
+"#,
+    );
+    let text = text.expect("boolean value should show hover");
+    // Boolean literals resolve to the literal type
+    assert!(
+      text.contains("true") || text.contains("boolean"),
+      "should show type info: {text}"
+    );
+  }
+
+  #[test]
+  fn hover_on_plain_markdown_body_returns_none() {
+    let text = hover_text_from_setup(
+      r#"---
+_type: Person
+name: "Alice"
+age: 30
+---
+
+Some plain te|xt.
+"#,
+    );
+    assert!(text.is_none(), "plain markdown body should not show hover");
   }
 }

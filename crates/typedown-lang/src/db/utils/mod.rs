@@ -15,6 +15,13 @@ use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{File, FileRedNode, HirValue, Project};
 
 /// Whether a path has a content file extension (.td or .md)
+pub fn is_external_url(url: &str) -> bool {
+  url.starts_with("http://")
+    || url.starts_with("https://")
+    || url.starts_with("//")
+    || url.starts_with("mailto:")
+}
+
 pub fn is_content_file(path: &Path) -> bool {
   path
     .extension()

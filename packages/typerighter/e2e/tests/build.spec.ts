@@ -20,6 +20,7 @@ const BIN = path.resolve(import.meta.dirname, '../../bin/typerighter.js');
 async function buildFixture (
   fixture: string,
   configPatch?: (yaml: string) => string,
+  filePatches?: Record<string, string>,
 ): Promise<string> {
   const fixtureDirectory = path.join(FIXTURES_DIR, fixture);
   const directory = await mkdtemp(path.join(tmpdir(), `typerighter-build-${fixture}-`));
@@ -45,6 +46,12 @@ async function buildFixture (
     const yaml = await readFile(configPath, 'utf-8');
 
     await writeFile(configPath, configPatch(yaml));
+  }
+
+  if (filePatches !== undefined) {
+    for (const [filePath, content] of Object.entries(filePatches)) {
+      await writeFile(path.join(directory, filePath), content);
+    }
   }
 
   execFileSync('node', [
@@ -247,6 +254,53 @@ test('build: nested pages have breadcrumb JSON-LD', async () => {
 
     expect(html).toContain('BreadcrumbList');
     expect(html).toContain('People');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  }
+});
+
+test('build: _meta overrides title and description in HTML', async () => {
+  const directory = await buildFixture(
+    'vault-root',
+    (yaml) => yaml + '\n  origin: "https://example.com"\n',
+    {
+      'vault/people/alice.td': `---
+_type: Person
+_meta:
+  title: "Custom SEO Title"
+  description: "Custom SEO description for search engines"
+  image: "images/alice-og.png"
+name: "Alice"
+role: "developer"
+email: "alice@test.com"
+---
+
+Alice writes code.
+`,
+    },
+  );
+
+  try {
+    const html = await readFile(path.join(directory, 'dist', 'people', 'alice.html'), 'utf-8');
+
+    // _meta.title should override the page title in og and twitter tags
+    expect(html).toContain('<title>Custom SEO Title');
+    expect(html).toContain('og:title" content="Custom SEO Title"');
+    expect(html).toContain('twitter:title" content="Custom SEO Title"');
+
+    // _meta.description should override in meta and og tags
+    expect(html).toContain('description" content="Custom SEO description');
+    expect(html).toContain('og:description" content="Custom SEO description');
+
+    // _meta.image should be used for og:image
+    expect(html).toContain('og:image" content="https://example.com/images/alice-og.png"');
+    expect(html).toContain('twitter:image" content="https://example.com/images/alice-og.png"');
+
+    // JSON-LD should also use the overridden title
+    expect(html).toContain('"headline":"Custom SEO Title"');
   } finally {
     await rm(directory, {
       recursive: true,

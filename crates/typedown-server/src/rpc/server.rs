@@ -614,6 +614,11 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         mtime: exported.metadata.mtime,
         ctime: exported.metadata.ctime,
       },
+      meta: exported.meta.map(|m| TdPageMeta {
+        title: m.title,
+        description: m.description,
+        image: m.image,
+      }),
     });
   }
 

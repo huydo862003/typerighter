@@ -2,7 +2,9 @@
 
 pub mod html;
 pub mod json;
-pub(super) mod utils;
+pub mod utils;
+
+use std::path::{Path, PathBuf};
 
 use typedown_types::either::Either;
 use typedown_types::string::split_pascal_case;
@@ -24,7 +26,7 @@ use crate::db::types::{
 };
 use crate::db::utils::strip_content_extension;
 
-use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
+use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdLink, MdMedia, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -257,7 +259,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
       })
     });
 
-    let meta = extract_meta(db, obj);
+    let meta = extract_meta(db, project, obj);
 
     (schema, header, label, icon, meta)
   } else {
@@ -513,7 +515,11 @@ pub fn export_property_descriptors(
 }
 
 // Extract SEO metadata from the _meta builtin field
-fn extract_meta(db: &TypedownDatabase, obj: &TdObjectEnum) -> Option<ExportedMeta> {
+fn extract_meta(
+  db: &TypedownDatabase,
+  project: Project,
+  obj: &TdObjectEnum,
+) -> Option<ExportedMeta> {
   let meta_obj = obj.get_builtin_field(db, "_meta")?;
 
   if meta_obj.is_td_null_obj() {
@@ -526,9 +532,17 @@ fn extract_meta(db: &TypedownDatabase, obj: &TdObjectEnum) -> Option<ExportedMet
   let description = meta_obj
     .get_owned_field(db, "description")
     .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
-  let image = meta_obj
-    .get_owned_field(db, "image")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+  let image = meta_obj.get_owned_field(db, "image").and_then(|o| {
+    o.as_td_str_obj().map(|s| {
+      let raw = s.value(db);
+      if utils::is_external_url(&raw) || raw.starts_with('/') {
+        raw
+      } else {
+        let config = get_vault_config(db, project);
+        utils::prepend_base_path(&config.base_path(db), &raw)
+      }
+    })
+  });
 
   if title.is_none() && description.is_none() && image.is_none() {
     return None;
@@ -599,6 +613,20 @@ impl<'a> MarkdownExporter<'a> {
       prefix: String::new(),
       at_line_start: true,
     }
+  }
+
+  fn resolve_url(&self, url: &str) -> String {
+    let config = get_vault_config(self.db, self.project);
+    let handle = self.file.handle(self.db);
+    let empty = PathBuf::new();
+    let file_dir = handle
+      .path()
+      .unwrap_or(&empty)
+      .parent()
+      .and_then(|p| p.strip_prefix(&config.root_dir(self.db)).ok())
+      .unwrap_or(Path::new(""));
+
+    utils::resolve_vault_url(url, &config.base_path(self.db), file_dir)
   }
 
   fn finish(mut self) -> String {
@@ -929,6 +957,30 @@ impl<'a> MarkdownExporter<'a> {
       return;
     }
 
+    // Resolve URLs in links and images
+    if node.kind() == SyntaxKind::MdLink {
+      if let Some(link) = MdLink::cast(node.clone()) {
+        let url = link.url().map(|t| t.value()).unwrap_or_default();
+        let resolved = self.resolve_url(&url);
+        self.write("[");
+        if let Some(alt) = link.alt() {
+          self.emit_inline_children(alt.syntax());
+        }
+        self.write(&format!("]({})", resolved));
+        return;
+      }
+    }
+
+    if node.kind() == SyntaxKind::MdMedia {
+      if let Some(media) = MdMedia::cast(node.clone()) {
+        let alt = media.alt().map(|t| t.value()).unwrap_or_default();
+        let url = media.url().map(|t| t.value()).unwrap_or_default();
+        let resolved = self.resolve_url(&url);
+        self.write(&format!("![{}]({})", alt, resolved));
+        return;
+      }
+    }
+
     for child in node.children() {
       self.emit_inline(&child);
     }
@@ -956,15 +1008,10 @@ pub fn resolve_ref(
       let path = handle.path()?;
       let config = get_vault_config(db, project);
       let root_dir = config.root_dir(db);
-      let base_path = config.base_path(db);
       let relative = path.strip_prefix(&root_dir).unwrap_or(path);
-      let path_str = relative.to_string_lossy();
-      let without_ext = strip_content_extension(&path_str);
-      let url = if base_path == "/" {
-        format!("/{without_ext}")
-      } else {
-        format!("{base_path}/{without_ext}")
-      };
+      let relative_str = relative.to_string_lossy();
+      let without_ext = strip_content_extension(&relative_str);
+      let url = utils::prepend_base_path(&config.base_path(db), &without_ext);
       Some(ResolvedRef { name, url })
     }
     SymbolKind::Asset(_, _, target_file) => {
@@ -972,14 +1019,8 @@ pub fn resolve_ref(
       let path = handle.path()?;
       let config = get_vault_config(db, project);
       let root_dir = config.root_dir(db);
-      let base_path = config.base_path(db);
       let relative = path.strip_prefix(&root_dir).unwrap_or(path);
-      let path_str = relative.to_string_lossy();
-      let url = if base_path == "/" {
-        format!("/{path_str}")
-      } else {
-        format!("{base_path}/{path_str}")
-      };
+      let url = utils::prepend_base_path(&config.base_path(db), &relative.to_string_lossy());
       Some(ResolvedRef { name, url })
     }
     _ => None,
@@ -2014,5 +2055,55 @@ properties:
         .content
         .contains("<p>This file has no frontmatter.</p>")
     );
+  }
+
+  #[test]
+  fn html_export_extracts_meta() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_meta.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let meta = exported.meta.expect("_meta should be extracted");
+    assert_eq!(meta.title.as_deref(), Some("Custom SEO Title"));
+    assert_eq!(meta.description.as_deref(), Some("Custom SEO description"));
+    assert_eq!(meta.image.as_deref(), Some("/images/og.png"));
+  }
+
+  #[test]
+  fn html_export_preserves_external_url() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"https://example.com\""),
+      "external URL should pass through unchanged: {}",
+      exported.content
+    );
+  }
+
+  #[test]
+  fn html_export_preserves_anchor_url() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"#section\""),
+      "anchor URL should pass through unchanged: {}",
+      exported.content
+    );
+  }
+
+  #[test]
+  fn html_export_resolves_relative_link() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"/other.td\""),
+      "relative link should resolve with base path: {}",
+      exported.content
+    );
+  }
+
+  #[test]
+  fn html_export_no_meta_when_absent() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.meta.is_none(), "_meta should be None when not set");
   }
 }

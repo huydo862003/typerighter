@@ -1,6 +1,7 @@
 //! Emit HTML directly from the typedown AST, with placeholders for shiki and KaTeX
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -15,8 +16,8 @@ use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
 use super::utils::{
-  collect_inline_children, extract_plain_text, html_escape, is_delimiter, is_external_url, slugify,
-  strip_quotes,
+  collect_inline_children, extract_plain_text, html_escape, is_delimiter, is_external_url,
+  resolve_vault_url, slugify, strip_quotes,
 };
 
 /// Heading extracted during HTML emission
@@ -68,6 +69,20 @@ impl<'a> HtmlEmitter<'a> {
       title: None,
       slug_counts: BTreeMap::new(),
     }
+  }
+
+  fn resolve_url(&self, url: &str) -> String {
+    let config = crate::db::derived::get_vault_config::get_vault_config(self.db, self.project);
+    let handle = self.file.handle(self.db);
+    let empty = PathBuf::new();
+    let file_dir = handle
+      .path()
+      .unwrap_or(&empty)
+      .parent()
+      .and_then(|p| p.strip_prefix(&config.root_dir(self.db)).ok())
+      .unwrap_or(Path::new(""));
+
+    resolve_vault_url(url, &config.base_path(self.db), file_dir)
   }
 
   fn finish(self) -> HtmlBodyResult {
@@ -570,7 +585,8 @@ impl<'a> HtmlEmitter<'a> {
     let Some(link) = crate::syntax::ast::MdLink::cast(node.clone()) else {
       return;
     };
-    let url = link.url().map(|t| t.value()).unwrap_or_default();
+    let raw_url = link.url().map(|t| t.value()).unwrap_or_default();
+    let url = self.resolve_url(&raw_url);
 
     // Check for an embedded image (linked image / badge syntax)
     let has_media = node
@@ -609,7 +625,8 @@ impl<'a> HtmlEmitter<'a> {
       return;
     };
     let alt = media.alt().map(|t| t.value()).unwrap_or_default();
-    let url = media.url().map(|t| t.value()).unwrap_or_default();
+    let raw_url = media.url().map(|t| t.value()).unwrap_or_default();
+    let url = self.resolve_url(&raw_url);
 
     self.write(&format!(
       "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",

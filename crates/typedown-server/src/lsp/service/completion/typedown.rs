@@ -172,9 +172,9 @@ fn is_interp_position(node: &RedNode) -> bool {
   find_ancestor(node, SyntaxKind::InterpFragment).is_some()
 }
 
-// Returns true if the cursor is inside the string argument of a fref() call
+// Returns true if the cursor is inside the argument of a fref() call
 fn is_fref_arg_position(node: &RedNode) -> bool {
-  // Walk up to find an enclosing StrLit, then a CallExpr above it
+  // Walk up to find a CallExpr, checking for StrLit or direct position
   let str_lit = find_ancestor(node, SyntaxKind::StrLit);
   let call = match str_lit {
     Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),
@@ -183,7 +183,6 @@ fn is_fref_arg_position(node: &RedNode) -> bool {
   let Some(call) = call else {
     return false;
   };
-  // Check callee text is "fref"
   call
     .children()
     .next()
@@ -402,11 +401,22 @@ fn value_completions(
       SymbolKind::UserDefinedSchema(..) => CompletionItemKind::CLASS,
       _ => CompletionItemKind::VARIABLE,
     };
-    items.push(CompletionItem {
-      label: name,
-      kind: Some(kind),
-      ..Default::default()
-    });
+    // fref inserts a snippet with quotes and cursor inside
+    if name == "fref" {
+      items.push(CompletionItem {
+        label: name,
+        kind: Some(kind),
+        insert_text: Some("fref(\"$1\")".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+      });
+    } else {
+      items.push(CompletionItem {
+        label: name,
+        kind: Some(kind),
+        ..Default::default()
+      });
+    }
   }
 
   // Type-specific completions from declared field type
@@ -670,16 +680,38 @@ fn field_completions_from_type(
   typ: &TdTypeEnum,
   existing: &[String],
 ) -> Vec<CompletionItem> {
-  typ
-    .get_fields(db)
-    .keys()
-    .filter(|field| !existing.iter().any(|k| k == *field))
-    .map(|field| CompletionItem {
-      label: field.clone(),
-      kind: Some(CompletionItemKind::FIELD),
-      ..Default::default()
+  let fields = typ.get_fields(db);
+  let mut items: Vec<CompletionItem> = fields
+    .iter()
+    .filter(|(field, _)| !existing.iter().any(|k| k == *field))
+    .map(|(field, lazy)| {
+      let optional = lazy.resolve(db).is_some_and(|t| is_nullable(db, &t));
+      let detail = if optional { "optional" } else { "required" };
+
+      CompletionItem {
+        label: field.clone(),
+        kind: Some(CompletionItemKind::FIELD),
+        detail: Some(detail.to_string()),
+        sort_text: Some(format!("{}{}", if optional { "1" } else { "0" }, field)),
+        ..Default::default()
+      }
     })
-    .collect()
+    .collect();
+
+  // Add _meta snippet if not already present
+  if !existing.iter().any(|k| k == "_meta") {
+    items.push(CompletionItem {
+      label: "_meta".to_string(),
+      kind: Some(CompletionItemKind::SNIPPET),
+      detail: Some("SEO overrides".to_string()),
+      insert_text: Some("_meta:\n  title: \"$1\"\n  description: \"$2\"".to_string()),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      sort_text: Some("2_meta".to_string()),
+      ..Default::default()
+    });
+  }
+
+  items
 }
 
 #[cfg(test)]
@@ -689,8 +721,8 @@ mod tests {
   use std::sync::{Arc, Condvar, Mutex};
 
   use lsp_types::{
-    CompletionParams, CompletionResponse, PartialResultParams, Position, TextDocumentIdentifier,
-    TextDocumentPositionParams, Uri, WorkDoneProgressParams,
+    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, PartialResultParams,
+    Position, TextDocumentIdentifier, TextDocumentPositionParams, Uri, WorkDoneProgressParams,
   };
   use ropey::Rope;
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
@@ -1772,15 +1804,18 @@ name: a|
       panic!("expected value completions");
     };
 
-    let has_fref = items.iter().any(|item| {
-      item
-        .insert_text
-        .as_deref()
-        .is_some_and(|t| t.contains("fref("))
+    // Wrapped fref completions like fref("alice.td") should not appear for string fields
+    // The bare fref function is fine since it's always in scope
+    let has_wrapped_fref = items.iter().any(|item| {
+      item.kind == Some(CompletionItemKind::REFERENCE)
+        && item
+          .insert_text
+          .as_deref()
+          .is_some_and(|t| t.contains("fref("))
     });
     assert!(
-      !has_fref,
-      "string field should not suggest fref: {:?}",
+      !has_wrapped_fref,
+      "string field should not suggest fref file completions: {:?}",
       items.iter().map(|i| &i.label).collect::<Vec<_>>()
     );
   }
@@ -2193,6 +2228,135 @@ name: s|
       labels.contains(&"self"),
       "should suggest 'self': {:?}",
       labels
+    );
+  }
+
+  #[test]
+  fn field_completions_show_required_and_optional() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected field completions");
+    };
+
+    let name_item = items
+      .iter()
+      .find(|i| i.label == "name")
+      .expect("should suggest name");
+    assert_eq!(name_item.detail.as_deref(), Some("required"));
+
+    let nickname_item = items
+      .iter()
+      .find(|i| i.label == "nickname")
+      .expect("should suggest nickname");
+    assert_eq!(nickname_item.detail.as_deref(), Some("optional"));
+  }
+
+  #[test]
+  fn required_fields_sorted_before_optional() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected field completions");
+    };
+
+    let field_items: Vec<&CompletionItem> = items
+      .iter()
+      .filter(|i| i.kind == Some(CompletionItemKind::FIELD))
+      .collect();
+
+    // All required fields should have sort_text starting with "0"
+    // All optional fields should have sort_text starting with "1"
+    for item in &field_items {
+      let sort = item.sort_text.as_deref().unwrap_or("");
+      let detail = item.detail.as_deref().unwrap_or("");
+      if detail == "required" {
+        assert!(
+          sort.starts_with('0'),
+          "required field {} should sort first",
+          item.label
+        );
+      } else {
+        assert!(
+          sort.starts_with('1'),
+          "optional field {} should sort after required",
+          item.label
+        );
+      }
+    }
+  }
+
+  #[test]
+  fn meta_snippet_suggested_in_field_position() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Alice"
+|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected field completions");
+    };
+
+    let meta_item = items
+      .iter()
+      .find(|i| i.label == "_meta")
+      .expect("should suggest _meta");
+    assert_eq!(meta_item.kind, Some(CompletionItemKind::SNIPPET));
+    assert_eq!(meta_item.detail.as_deref(), Some("SEO overrides"));
+    assert!(
+      meta_item.insert_text.as_ref().unwrap().contains("title"),
+      "_meta snippet should contain title placeholder"
+    );
+  }
+
+  #[test]
+  fn meta_snippet_not_suggested_when_already_present() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+_meta:
+  title: "Custom"
+name: "Alice"
+|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected field completions");
+    };
+
+    assert!(
+      !items.iter().any(|i| i.label == "_meta"),
+      "_meta should not be suggested when already present"
     );
   }
 }

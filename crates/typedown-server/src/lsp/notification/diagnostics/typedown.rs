@@ -6,6 +6,7 @@ use lsp_types::{Diagnostic, NumberOrString, PublishDiagnosticsParams};
 use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
+use typedown_lang::db::derived::evaluate::evaluate_config::evaluate_config;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
@@ -41,6 +42,45 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
     };
     notifications.push(get_diagnostics_for_file(
       analysis, db, project, path, *file, &rope,
+    ));
+  }
+
+  // Config file diagnostics (typedown.yaml)
+  let config_result = evaluate_config(db, project);
+  let config_diags = config_result.diagnostics(db);
+  if !config_diags.is_empty() {
+    let root_dir = project.root_dir(db);
+    let config_path = root_dir.join("typedown.yaml");
+    let alt_path = root_dir.join("typedown.yml");
+    let path = if files.contains_key(&config_path) {
+      &config_path
+    } else {
+      &alt_path
+    };
+    let scheme = analysis
+      .scheme_map
+      .get(path)
+      .map(|s| s.as_str())
+      .unwrap_or("file");
+    let uri = path_to_uri(path, scheme);
+    let diags: Vec<Diagnostic> = config_diags
+      .iter()
+      .map(|diag| Diagnostic {
+        range: lsp_types::Range::default(),
+        severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+        code: Some(NumberOrString::String(diag.code().as_str().into())),
+        source: Some("typedown".into()),
+        message: diag.message(),
+        ..Default::default()
+      })
+      .collect();
+    notifications.push(Notification::new(
+      PublishDiagnostics::METHOD.to_string(),
+      PublishDiagnosticsParams {
+        uri,
+        diagnostics: diags,
+        version: None,
+      },
     ));
   }
 
@@ -328,5 +368,122 @@ name: "Alice"
       codes.contains(&"missing-required-field"),
       "expected a missing-required-field diagnostic, got codes: {codes:?}"
     );
+  }
+
+  #[test]
+  fn meta_with_wrong_type_produces_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_meta:
+  title: 42
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let content_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("file.td"));
+    let notif = content_notif.expect("expected a notification for the content file");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let diags = params["diagnostics"].as_array().unwrap();
+    assert!(
+      !diags.is_empty(),
+      "_meta.title with wrong type should produce a diagnostic"
+    );
+  }
+
+  #[test]
+  fn valid_meta_produces_no_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_meta:
+  title: "Custom Title"
+  description: "Custom Description"
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let content_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("file.td"));
+    if let Some(notif) = content_notif {
+      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+      let diags = params["diagnostics"].as_array().unwrap();
+      assert!(
+        diags.is_empty(),
+        "valid _meta should produce no diagnostics, got: {diags:?}"
+      );
+    }
+  }
+
+  #[test]
+  fn invalid_config_produces_diagnostic() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    // Config with wrong type for version (number instead of string)
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        root.join("typedown.yaml"),
+        "version: 42\n".to_string(),
+        FileMetadata::default(),
+      ),
+    );
+
+    let files = HashMap::from([(root.join("typedown.yaml"), config_file)]);
+    let project = Project::new(&db, root, files);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let config_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("typedown.yaml"));
+    let notif = config_notif.expect("expected a diagnostic for the config file");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let diags = params["diagnostics"].as_array().unwrap();
+    assert!(
+      !diags.is_empty(),
+      "invalid config should produce at least one diagnostic"
+    );
+  }
+
+  #[test]
+  fn valid_config_produces_no_config_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let config_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("typedown.yaml"));
+    // Config notification should either not exist or have empty diagnostics
+    if let Some(notif) = config_notif {
+      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+      let diags = params["diagnostics"].as_array().unwrap();
+      assert!(
+        diags.is_empty(),
+        "valid config should produce no diagnostics, got: {diags:?}"
+      );
+    }
   }
 }
