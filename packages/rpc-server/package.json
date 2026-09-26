@@ -23,7 +23,7 @@
     "postpublish": "mv .env.bak .env"
   },
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "dotenv": "^18.0.3"
   },
   "author": "Huy-DNA <huydo862003@gmail.com>",
   "license": "AGPL-3.0-only"
