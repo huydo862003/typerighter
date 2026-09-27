@@ -3,7 +3,7 @@ _label: "Neo4j Internals: Transactions, Availability, Scale"
 _icon: icon.document
 ---
 
-Part of the Neo4j internals series: [Native Graph Processing](./11-native-graph-processing.md) | [Native Graph Storage](./12-native-graph-storage.md) | **Transactions, Availability, Scale**
+Part of the Neo4j internals series: [Native Graph Processing](./11-native-graph-processing.td) \| [Native Graph Storage](./12-native-graph-storage.td) \| **Transactions, Availability, Scale**
 
 ## Transactions
 
