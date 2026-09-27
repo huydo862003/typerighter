@@ -4,8 +4,7 @@ import {
 
 const CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let mermaidModule: typeof import('mermaid') | undefined;
+let mermaidModule: any;
 let idCounter = 0;
 
 // Lazy-load mermaid from CDN and render diagram placeholders

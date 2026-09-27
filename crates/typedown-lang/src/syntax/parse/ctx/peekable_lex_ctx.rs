@@ -133,7 +133,7 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
     result
   }
 
-  pub fn peek(&mut self, skip: u16, mode: LexMode) -> LexResult {
+  pub fn peek(&mut self, skip: usize, mode: LexMode) -> LexResult {
     debug_assert!(
       self.lex_ctx.mode() == mode,
       "[PeekableLexCtx::peek] Lex mode must be the same as the `mode` argument"
@@ -145,12 +145,12 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
   }
 
   /// Peek at the next non-skipped YAML token without consuming.
-  pub fn peek_yaml(&mut self, skip: u16) -> YamlLexResult {
+  pub fn peek_yaml(&mut self, skip: usize) -> YamlLexResult {
     self.peek_yaml_nth(0, skip)
   }
 
   /// Peek at the nth non-skipped YAML token without consuming (0-indexed).
-  pub fn peek_yaml_nth(&mut self, nth: usize, skip: u16) -> YamlLexResult {
+  pub fn peek_yaml_nth(&mut self, nth: usize, skip: usize) -> YamlLexResult {
     debug_assert!(
       self.lex_ctx.mode() == LexMode::YamlFrontmatter,
       "[PeekableLexCtx::peek_yaml_nth] Lex mode must be YamlFrontmatter"
@@ -197,12 +197,12 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
   }
 
   /// Peek at the next non-skipped Markdown token without consuming.
-  pub fn peek_md(&mut self, skip: u16) -> MdLexResult {
+  pub fn peek_md(&mut self, skip: usize) -> MdLexResult {
     self.peek_md_nth(0, skip)
   }
 
   /// Peek at the nth non-skipped Markdown token without consuming.
-  pub fn peek_md_nth(&mut self, nth: usize, skip: u16) -> MdLexResult {
+  pub fn peek_md_nth(&mut self, nth: usize, skip: usize) -> MdLexResult {
     debug_assert!(
       self.lex_ctx.mode() == LexMode::MarkdownBody,
       "[PeekableLexCtx::peek_md_nth] Lex mode must be MarkdownBody"
@@ -240,7 +240,7 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
   }
 
   /// Whether the most recently lexed token should be skipped given the skip flags.
-  pub fn should_skip(&self, kind: SyntaxKind, skip: u16) -> bool {
+  pub fn should_skip(&self, kind: SyntaxKind, skip: usize) -> bool {
     match kind {
       SyntaxKind::Whitespace => skip & SKIP_WS != 0,
       SyntaxKind::YamlComment => skip & SKIP_COMMENT != 0,

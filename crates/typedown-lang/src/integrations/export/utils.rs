@@ -1,7 +1,6 @@
 //! Shared utilities for HTML and markdown export
 
 use crate::syntax::red::RedNode;
-use crate::syntax::syntax_kind::SyntaxKind;
 
 pub fn slugify(text: &str) -> String {
   let mut slug = String::new();
@@ -91,26 +90,11 @@ fn collect_plain_text(node: &RedNode, buf: &mut String) {
   }
 }
 
-pub fn is_delimiter(text: &str) -> bool {
+fn is_delimiter(text: &str) -> bool {
   matches!(
     text,
     "**" | "*" | "_" | "~~" | "***" | "[" | "]" | "(" | ")" | "!"
   )
-}
-
-// Flatten structural wrappers to get a flat list of inline-level children
-// Tokens and inline elements are collected directly, structural nodes are recursed into
-pub fn collect_inline_children(node: &RedNode) -> Vec<RedNode> {
-  let mut result = Vec::new();
-  for child in node.children() {
-    let kind = child.kind();
-    if child.as_token().is_some() || kind.is_md_inline() || kind == SyntaxKind::InterpFragment {
-      result.push(child);
-    } else {
-      result.extend(collect_inline_children(&child));
-    }
-  }
-  result
 }
 
 #[cfg(test)]
