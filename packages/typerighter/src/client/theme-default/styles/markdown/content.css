@@ -94,7 +94,7 @@
 }
 
 /* External link icon (emitted before the <a> as a sibling) */
-.td-content :has(+ .td-external-link) {
+.td-content:has(+ .td-external-link) {
   color: var(--color-td-link);
   vertical-align: -1px;
 }
