@@ -1,6 +1,17 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.40.3] - 2026-09-27
+
+### Fixed
+
+- crates/typedown-lang
+  - Robust to unknown file in parse_file
+  - Allow blocks to be nested in paragraphs
+
+- packages/typerighter
+  - Fix coloring of bullet point in widget list
+
 ## [0.40.2] - 2026-09-25
 
 ### Added
