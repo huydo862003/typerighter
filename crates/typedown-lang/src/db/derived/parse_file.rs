@@ -2,10 +2,13 @@
 
 use typedown_macros::query_derived;
 
-use crate::syntax::{
-  green::cache::green_cache,
-  parse::ctx::{ParseCtx, ParseResult},
-  red::RedNode,
+use crate::{
+  db::types::FileHandle,
+  syntax::{
+    green::cache::green_cache,
+    parse::ctx::{ParseCtx, ParseResult},
+    red::RedNode,
+  },
 };
 
 use crate::db::TypedownDatabase;
@@ -19,7 +22,21 @@ pub fn parse_file<'db>(
   file: File,
 ) -> FileAstResult<'db> {
   let handle = file.handle(db);
-  let stream = handle.open().expect("failed to open file");
+  let stream = handle.open();
+
+  if stream.is_err() {
+    eprintln!("Failed to open file. Return empty ast");
+  }
+
+  let stream = stream.unwrap_or(
+    FileHandle::Content(
+      handle.path().unwrap().clone(),
+      String::new(),
+      handle.metadata().clone(),
+    )
+    .open()
+    .unwrap(),
+  );
 
   let cache = green_cache();
   let ctx = ParseCtx::new(stream, cache);
