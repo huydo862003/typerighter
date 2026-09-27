@@ -42,6 +42,73 @@ fn parse_paragraph_simple() {
   );
 }
 
+// Parses a paragraph with nested list
+#[test]
+fn parse_paragraph_with_nested_list() {
+  let tree = parse_body(
+    r#"this is a paragraph with nested list:
+  - list item 1
+  - list item 2
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "this"
+        " "
+        "is"
+        " "
+        "a"
+        " "
+        "paragraph"
+        " "
+        "with"
+        " "
+        "nested"
+        " "
+        "list"
+        ":")
+      "\n"
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "list"
+              " "
+              "item"
+              " "
+              "1")))
+        "\n"
+        " "
+        " "
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "list"
+              " "
+              "item"
+              " "
+              "2")))))
+    "\n"))"####
+  );
+}
+
 // Parses a level-1 heading
 #[test]
 fn parse_heading_simple() {
@@ -159,12 +226,12 @@ fn parse_bullet_list_dash() {
 fn parse_nested_bullet_list() {
   let tree = parse_body(
     r#"- parent
- - child one
- - child two
+  - child one
+  - child two
 "#,
   );
   assert!(
-    tree.contains("(MdBulletList") && tree.matches("(MdBulletList").count() == 2,
+    tree.contains("(MdBulletList") && tree.matches("(MdBulletList\n").count() == 2,
     "should have nested MdBulletList:\n{tree}"
   );
 }
@@ -4802,7 +4869,12 @@ fn parse_ordered_list_blank_line_before_nested_paragraphs() {
 // Blank line with trailing spaces should not break list item containment
 #[test]
 fn parse_bullet_list_blank_line_with_spaces() {
-  let tree = parse_body("- item\n   \n  - child\n");
+  let tree = parse_body(
+    r#"- item
+   
+  - child
+"#,
+  );
   assert_eq!(
     tree,
     r####"(SourceFile

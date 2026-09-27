@@ -1658,6 +1658,7 @@ properties:
   fn html_export_headings() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
+    eprintln!("{:?}", exported.content);
     assert!(exported.content.contains(
       "<h1 id=\"heading-1\">Heading 1 <a class=\"td-header-anchor\" href=\"#heading-1\""
     ));
