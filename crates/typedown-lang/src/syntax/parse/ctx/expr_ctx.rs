@@ -35,19 +35,19 @@ pub(in crate::syntax::parse) enum ExprCtx {
   /// Top-level Markdown body context
   MarkdownBody,
   /// Inside a `:::` container block, closed by `:::`
-  /// The `u16` is the indentation level (spaces before `:::`) to append to the prefix.
-  MdContainerBlock(u16),
+  /// The `usize` is the indentation level (spaces before `:::`) to append to the prefix.
+  MdContainerBlock(usize),
   MdContainerPropBlock,
   MdContainerPropItem,
   MdContainerSlot,
   /// Inside a `>` blockquote
   MdBlockQuote,
-  /// Inside an ordered list, `u16` = extra leading indentation
-  MdOrderedList(u16),
+  /// Inside an ordered list, `usize` = extra leading indentation
+  MdOrderedList(usize),
   /// Inside an ordered list item
   MdOrderedListItem,
-  /// Inside an unordered list, `u16` = extra leading indentation
-  MdUnorderedList(u16),
+  /// Inside an unordered list, `usize` = extra leading indentation
+  MdUnorderedList(usize),
   /// Inside an unordered list item
   MdUnorderedListItem,
   /// Inside a task list item
@@ -58,6 +58,9 @@ pub(in crate::syntax::parse) enum ExprCtx {
   MdTableRow,
   /// Inside a table cell, closed by `|`
   MdTableCell,
+
+  /// Inside prose
+  MdParagraph,
 
   /// Inside the text part of a markdown link or media: `[text]`
   MdLinkText,
@@ -78,7 +81,7 @@ pub(in crate::syntax::parse) enum ExprCtx {
 struct ExprStackEntry {
   ctx: ExprCtx,
   /// Number of prefix tokens this context contributed.
-  prefix_token_count: u16,
+  prefix_token_count: usize,
 }
 
 /// Stack of expression contexts for error recovery in expressions.
@@ -102,7 +105,7 @@ impl ExprCtxStack {
   pub(in crate::syntax::parse) fn enter(&mut self, ctx: ExprCtx) {
     let before = self.md_prefix_tokens.len();
     self.push_md_prefix_tokens(ctx);
-    let prefix_token_count = (self.md_prefix_tokens.len() - before) as u16;
+    let prefix_token_count = self.md_prefix_tokens.len() - before;
     self.stack.push(ExprStackEntry {
       ctx,
       prefix_token_count,
@@ -119,7 +122,7 @@ impl ExprCtxStack {
       entry.as_ref().unwrap().ctx,
     );
     if let Some(entry) = entry {
-      let new_len = self.md_prefix_tokens.len() - entry.prefix_token_count as usize;
+      let new_len = self.md_prefix_tokens.len() - entry.prefix_token_count;
       self.md_prefix_tokens.truncate(new_len);
     }
   }

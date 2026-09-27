@@ -85,7 +85,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   // Based on context, determine which trivia we should skip
-  fn formula_expr_skip_flags(&self) -> u16 {
+  fn formula_expr_skip_flags(&self) -> usize {
     let mut skip = SKIP_WC;
     if self.expr_ctx_stack.should_expr_span_newline() {
       skip |= SKIP_NEWLINE;

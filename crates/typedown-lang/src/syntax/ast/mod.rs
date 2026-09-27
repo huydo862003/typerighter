@@ -205,6 +205,10 @@ impl MdHeading {
       })
       .unwrap_or(0)
   }
+
+  pub fn inline_elements(&self) -> impl Iterator<Item = MdInlineElement> {
+    children::<MdInlineElement>(&self.0)
+  }
 }
 
 /// The Markdown paragraph
@@ -215,6 +219,10 @@ pub struct MdParagraph(RedNode);
 impl MdParagraph {
   pub fn inline_elements(&self) -> impl Iterator<Item = MdInlineElement> {
     children::<MdInlineElement>(&self.0)
+  }
+
+  pub fn block_elements(&self) -> impl Iterator<Item = MdBlockElement> {
+    children::<MdBlockElement>(&self.0)
   }
 }
 
