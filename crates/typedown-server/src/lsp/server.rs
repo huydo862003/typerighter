@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -108,18 +109,31 @@ impl Server {
       .snapshot();
 
     // Dispatch to thread pool so the main loop stays responsive
-    // Cancelled::catch handles the case where a didChange cancels in-flight queries
+    // Cancelled::catch handles didChange cancellation; the outer catch_unwind
+    // guards against unexpected panics so the thread pool thread survives and
+    // the client always receives a response
+    let method = req.method.clone();
     let sender = self.connection.sender.clone();
     let request_id = req.id.clone();
     self.thread_pool.execute(move || {
-      let resp = match Cancelled::catch(|| service::dispatch(&analysis, req)) {
-        Ok(resp) => resp,
-        // A didChange arrived and cancelled this query via the DB's cancelled flag
-        Err(_) => Response::new_err(
+      let resp = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        Cancelled::catch(|| service::dispatch(&analysis, req))
+      })) {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(_)) => Response::new_err(
           request_id,
           lsp_server::ErrorCode::ContentModified as i32,
           "request cancelled: content modified".to_string(),
         ),
+        Err(payload) => {
+          let msg = panic_message(&payload);
+          log::error!("{method} panicked: {msg}");
+          Response::new_err(
+            request_id,
+            lsp_server::ErrorCode::InternalError as i32,
+            format!("internal error: {msg}"),
+          )
+        }
       };
       if let Err(err) = sender.send(Message::Response(resp)) {
         log::error!("Failed to send response: {err}");
@@ -274,7 +288,11 @@ impl Server {
     }
 
     // For other notifications, extract the document URI and route to a single project
-    let uri = try_extract_path_from_notification(&note)?;
+    // Notifications without a textDocument URI (initialized, $/setTrace, etc) are ignored
+    let uri = match try_extract_path_from_notification(&note) {
+      Ok(uri) => uri,
+      Err(_) => return Ok(()),
+    };
     let path = uri_to_path(&uri).ok_or_else(|| Error::msg("Failed to convert URI to path"))?;
     let project_entry = self.multiproject.load_nearest_project(&path)?;
 
@@ -307,11 +325,20 @@ impl Server {
     let sender = self.connection.sender.clone();
     self.thread_pool.execute(move || {
       // Silently drop if cancelled by a newer didChange
-      let Ok(notifications) = Cancelled::catch(|| match path.as_deref() {
-        Some(path) => publish_diagnostics_for_file(&analysis, path),
-        None => publish_diagnostics(&analysis),
-      }) else {
-        return;
+      // Outer catch_unwind logs unexpected panics instead of losing them in the thread pool
+      let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        Cancelled::catch(|| match path.as_deref() {
+          Some(path) => publish_diagnostics_for_file(&analysis, path),
+          None => publish_diagnostics(&analysis),
+        })
+      }));
+      let notifications = match result {
+        Ok(Ok(n)) => n,
+        Ok(Err(_)) => return,
+        Err(payload) => {
+          log::error!("diagnostics panicked: {}", panic_message(&payload));
+          return;
+        }
       };
       for notif in notifications {
         if let Err(err) = sender.send(Message::Notification(notif)) {
@@ -481,4 +508,13 @@ pub(crate) fn apply_content_change(mut rope: Rope, change: TextDocumentContentCh
   rope.remove(start..end);
   rope.insert(start, &change.text);
   rope
+}
+
+// Extract a human-readable message from a panic payload
+fn panic_message(payload: &Box<dyn Any + Send>) -> &str {
+  payload
+    .downcast_ref::<String>()
+    .map(|s| s.as_str())
+    .or_else(|| payload.downcast_ref::<&str>().copied())
+    .unwrap_or("unknown panic")
 }
