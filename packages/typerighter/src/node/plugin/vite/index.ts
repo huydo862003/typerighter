@@ -261,7 +261,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath, ...affectedFiles);
       });
@@ -274,7 +273,6 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath);
       });

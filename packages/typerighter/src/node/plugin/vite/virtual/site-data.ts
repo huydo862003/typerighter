@@ -15,6 +15,7 @@ import {
   type ContentTree,
   buildContentTree,
   buildDirectoryListingMap,
+  debounce,
   getTdResourceTitle,
   type ContentSummary,
 } from '@/shared';
@@ -75,7 +76,8 @@ export class VirtualSiteData implements VirtualModule {
   }
 
   // Fetch full data from RPC in background, push to client via HMR when ready
-  fetch (context: TypedownContext, server?: ViteDevServer): void {
+  // Debounced so rapid edits only trigger one RPC round-trip
+  fetch = debounce((context: TypedownContext, server?: ViteDevServer): void => {
     fetchFromRpc(context)
       .then((result) => {
         this.data = result;
@@ -84,7 +86,7 @@ export class VirtualSiteData implements VirtualModule {
       .catch((error) => {
         console.error('[typedown] Failed to fetch site data:', error instanceof Error ? error.message : error);
       });
-  }
+  }, 200);
 
   // Fetch and block until data is ready (for production builds)
   async fetchSync (context: TypedownContext): Promise<void> {
