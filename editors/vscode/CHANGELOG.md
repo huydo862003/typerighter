@@ -1,6 +1,27 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.40.4] - 2026-09-29
+
+### Fixed
+
+- crates/typedown-lang
+  - Formatter no longer deletes media in list items (`MdMedia` added to `MdBlockElement`)
+  - Formatter body range clamped to rope length, preventing silent panic on large files
+  - Headings with inline markup (links, bold, code) render rich HTML instead of plain text
+  - External link icon in headings styled with `td-external-link-icon` class
+
+- crates/typedown-server
+  - Unexpected panics in request handlers are logged and return error responses instead of being silently swallowed by the thread pool
+  - Notifications without a document URI (initialized, $/setTrace) no longer produce error logs
+
+### Performance
+
+- packages/typerighter
+  - HMR search index uses incremental single-file reindex instead of full disk scan (100ms -> 3ms)
+  - HMR site data fetch debounced so rapid edits trigger only one RPC round-trip
+  - Sidebar data preserved during HMR fetch instead of clearing and flashing empty
+
 ## [0.40.3] - 2026-09-27
 
 ### Fixed
