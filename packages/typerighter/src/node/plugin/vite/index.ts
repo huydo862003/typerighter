@@ -258,7 +258,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         filepath, affectedFiles = [],
       }) => {
         if (!server) return;
-        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
         virtualSiteData.clear();
@@ -271,7 +271,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         filepath,
       }) => {
         if (!server) return;
-        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
         virtualSiteData.clear();
