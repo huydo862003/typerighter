@@ -594,4 +594,34 @@ More text.
       "math block closing $$ should be preserved:\n{result}"
     );
   }
+
+  // Media in bullet list item is preserved
+  #[test]
+  fn media_in_list_item() {
+    let result = fmt(
+      r#"---
+---
+- ![architecture](_assets/architecture.webp)
+"#,
+    );
+    assert!(
+      result.contains("![architecture](_assets/architecture.webp)"),
+      "media should be preserved in list item:\n{result}"
+    );
+  }
+
+  // Standalone media block is preserved
+  #[test]
+  fn standalone_media() {
+    let result = fmt(
+      r#"---
+---
+![photo](img.png)
+"#,
+    );
+    assert!(
+      result.contains("![photo](img.png)"),
+      "standalone media should be preserved:\n{result}"
+    );
+  }
 }

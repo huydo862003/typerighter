@@ -168,6 +168,7 @@ pub struct MdNode(RedNode);
   MdHeading, MdParagraph, MdBlockquote, MdTable,
   MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
   MathBlock, CodeBlock,
+  MdMedia,
 ])]
 pub struct MdBlockElement(RedNode);
 
