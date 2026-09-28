@@ -93,8 +93,8 @@
   text-decoration: underline;
 }
 
-/* External link icon (emitted before the <a> as a sibling) */
-.td-content:has(+ .td-external-link) {
+/* External link icon (svg emitted before the <a> as a sibling) */
+.td-content .td-external-link-icon {
   color: var(--color-td-link);
   vertical-align: -1px;
 }

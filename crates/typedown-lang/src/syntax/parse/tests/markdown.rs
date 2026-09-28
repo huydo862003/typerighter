@@ -5248,3 +5248,11 @@ fn parse_not_horizontal_rule_with_text() {
     "should not be hr:\n{tree}"
   );
 }
+
+// Link with inline code as link text
+#[test]
+fn parse_link_with_inline_code_text() {
+  let tree = parse_body("# [`def1`](http://example.com)\n");
+  eprintln!("{tree}");
+  assert!(tree.contains("MdLink"), "should parse as a link:\n{tree}");
+}

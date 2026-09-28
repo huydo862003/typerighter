@@ -7,3 +7,9 @@ Body-only file with special characters in headings.
 ## C++ and C#
 
 ## node.js vs Deno
+
+## [def1](https://example.com)
+
+## [`def1`](https://example.com)
+
+## **bold heading**

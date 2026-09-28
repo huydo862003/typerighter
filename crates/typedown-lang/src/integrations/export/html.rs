@@ -137,7 +137,7 @@ impl<'a> HtmlEmitter<'a> {
       return;
     }
 
-    // Extract text from inline content, skipping the leading heading marker (# through ######)
+    // Extract plain text for slug and title metadata
     let plain_text = {
       let mut text = String::new();
       for child in heading.inline_elements() {
@@ -154,7 +154,10 @@ impl<'a> HtmlEmitter<'a> {
     let escaped_slug = html_escape(&slug);
     self.write(&format!("<h{level} id=\"{escaped_slug}\">"));
     let title_html_start = self.out.len();
-    self.write(&plain_text);
+    // Emit rich inline content (links, bold, etc) not just plain text
+    for child in heading.inline_elements() {
+      self.emit_inline(child.syntax());
+    }
     let title_html = self.out[title_html_start..].to_string();
 
     self.headings.push(ExportedHeading {
@@ -576,7 +579,7 @@ impl<'a> HtmlEmitter<'a> {
       .any(|child| child.kind() == SyntaxKind::MdMedia);
 
     if is_external_url(&url) && !url.starts_with("mailto:") && !has_media {
-      self.write("<LucideIcon name=\"arrow-up-right\" />");
+      self.write("<LucideIcon name=\"arrow-up-right\" class=\"td-external-link-icon\" />");
       self.write(&format!(
         "<a href=\"{}\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">",
         html_escape(&url)

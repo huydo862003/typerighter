@@ -1698,6 +1698,31 @@ properties:
     );
   }
 
+  // Headings with inline markup render rich HTML, not plain text
+  #[test]
+  fn html_export_heading_with_inline_markup() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    // Link in heading
+    assert!(
+      exported.content.contains("href=\"https://example.com\""),
+      "heading should contain rendered link:\n{}",
+      exported.content
+    );
+    // Inline code in link in heading
+    assert!(
+      exported.content.contains("`def1`"),
+      "heading should preserve inline code in link:\n{}",
+      exported.content
+    );
+    // Bold in heading
+    assert!(
+      exported.content.contains("<strong>bold heading</strong>"),
+      "heading should contain rendered bold:\n{}",
+      exported.content
+    );
+  }
+
   #[test]
   fn html_export_inline_markup() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
