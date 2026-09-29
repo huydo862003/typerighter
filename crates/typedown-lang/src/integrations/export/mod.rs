@@ -1887,7 +1887,7 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
-      "<LucideIcon name=\"arrow-up-right\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">link text</a>"
+      "<LucideIcon name=\"arrow-up-right\" class=\"td-external-link-icon\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">link text</a>"
     ));
   }
 
