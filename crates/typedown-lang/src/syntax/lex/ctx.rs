@@ -11,6 +11,7 @@ use typedown_types::stream::{Utf8Result, Utf8Stream};
 
 use crate::syntax::green::cache::Cache;
 use crate::syntax::green::token::SyntaxToken;
+use crate::syntax::lex::yaml::is_op_char;
 use crate::syntax::syntax_kind::SyntaxKind;
 
 pub struct LexResult {
@@ -106,7 +107,6 @@ impl<S: Utf8Stream> LexCtx<S> {
 
   /// Check if the stream starts with --- at byte 0
   pub fn has_frontmatter_start(&mut self) -> bool {
-    use crate::syntax::lex::yaml::is_op_char;
     matches!(self.stream.peek_nth(0), Utf8Result::Char('-'))
       && matches!(self.stream.peek_nth(1), Utf8Result::Char('-'))
       && matches!(self.stream.peek_nth(2), Utf8Result::Char('-'))
