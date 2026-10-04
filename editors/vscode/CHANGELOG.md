@@ -1,6 +1,19 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.40.5] - 2026-10-04
+
+### Fixed
+
+- crates/typedown-lang
+  - Duplicate property names in schema definitions emit a `DuplicateKey` diagnostic; the second definition is ignored
+  - `file_ref.rs` functions documented with doc comments
+
+- crates/typedown-server
+  - LSP: filepath completions only trigger when cursor is inside a `fref()` argument, not for all schema-typed fields
+  - LSP: enum and date completions inside an existing string literal no longer insert extra surrounding quotes
+  - Schema HMR now clears only the transitive set of affected content files instead of the full cache
+
 ## [0.40.4] - 2026-09-29
 
 ### Fixed
