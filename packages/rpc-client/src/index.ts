@@ -88,6 +88,7 @@ export interface TdFormatResult {
 
 export interface TdSchemaNotification {
   schema: string;
+  affectedFiles?: string[];
 }
 
 export interface TdSchemaInfo {

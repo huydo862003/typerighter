@@ -1,10 +1,10 @@
 //! Export schema property descriptors for the client
 
+use super::json;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::types::{File, LazyType, LiteralValue, Project, TdTypeEnum};
-use super::json;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -131,10 +131,10 @@ fn export_lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyType) -> serde_js
     return serde_json::json!({ "widget": Widget::Text });
   }
 
-  simple_type_to_descriptor(db, &typ)
+  export_simple_type_to_descriptor(db, &typ)
 }
 
-fn simple_type_to_descriptor(db: &TypedownDatabase, typ: &TdTypeEnum) -> serde_json::Value {
+fn export_simple_type_to_descriptor(db: &TypedownDatabase, typ: &TdTypeEnum) -> serde_json::Value {
   match typ {
     TdTypeEnum::TdStrType(_) => serde_json::json!({ "widget": Widget::Text }),
     TdTypeEnum::TdNumType(_) => serde_json::json!({ "widget": Widget::Number }),
@@ -144,7 +144,7 @@ fn simple_type_to_descriptor(db: &TypedownDatabase, typ: &TdTypeEnum) -> serde_j
     TdTypeEnum::TdTimeType(_) => serde_json::json!({ "widget": Widget::Text }),
     TdTypeEnum::TdListType(list) => match list.elem(db).and_then(|e| e.resolve(db)) {
       Some(elem) => {
-        let inner = simple_type_to_descriptor(db, &elem);
+        let inner = export_simple_type_to_descriptor(db, &elem);
         serde_json::json!({ "widget": Widget::List, "items": inner })
       }
       None => serde_json::json!({ "widget": Widget::List }),

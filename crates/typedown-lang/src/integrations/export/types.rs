@@ -4,7 +4,7 @@ use super::html::ExportedHeading;
 
 /// Structured export result for markdown output
 #[derive(serde::Serialize)]
-pub struct ExportedResource {
+pub struct ExportedResourceMarkdown {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub schema: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -70,7 +70,7 @@ pub struct ExportedResourceHtml {
 }
 
 /// Content listing entry: includes header for filtering, no body
-pub struct ResourceSummary {
+pub struct ExportedResourceSummary {
   pub schema: Option<String>,
   pub label: Option<String>,
   pub icon: Option<ExportedIcon>,
@@ -80,7 +80,7 @@ pub struct ResourceSummary {
 }
 
 /// Lightweight sidebar nav entry: no header or body
-pub struct ResourceNav {
+pub struct ExportedResourceNav {
   pub schema: Option<String>,
   pub label: Option<String>,
   pub icon: Option<ExportedIcon>,

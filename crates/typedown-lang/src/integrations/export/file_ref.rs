@@ -2,6 +2,7 @@
 
 use typedown_types::string::split_pascal_case;
 
+use super::utils;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_type::evaluate_type;
@@ -9,12 +10,9 @@ use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
+use crate::db::types::{File, FileRedNode, Project, Symbol, SymbolKind, TdRuntimeObject};
 use crate::db::utils::strip_content_extension;
-use crate::db::types::{
-  File, FileRedNode, Project, Symbol, SymbolKind, TdRuntimeObject,
-};
 use crate::syntax::red::RedNode;
-use super::utils;
 
 /// Resolved reference: display name and URL
 pub struct ResolvedRef {
@@ -23,7 +21,7 @@ pub struct ResolvedRef {
 }
 
 /// Resolve a symbol to a display name and URL
-pub fn resolve_ref(
+pub fn resolve_file_ref(
   db: &TypedownDatabase,
   project: Project,
   symbol: &Symbol,
@@ -64,6 +62,7 @@ pub struct FrefTarget {
   pub is_image: bool,
 }
 
+/// Resolve a fref AST node to its full target: name, URL, icon, and image flag
 pub fn resolve_fref_target(
   db: &TypedownDatabase,
   project: Project,
@@ -73,7 +72,7 @@ pub fn resolve_fref_target(
   let hir = lower_node(db, project, FileRedNode::new(file, node.clone()));
   let referee_result = referee(db, hir);
   let target_symbol = referee_result.value(db)?;
-  let resolved = resolve_ref(db, project, &target_symbol)?;
+  let resolved = resolve_file_ref(db, project, &target_symbol)?;
 
   let is_image = matches!(
     target_symbol.kind(db),
@@ -94,7 +93,7 @@ pub fn resolve_fref_target(
   })
 }
 
-/// Resolve a fref interpolation to a markdown link string with optional icon
+// Resolve a fref interpolation to a markdown link string; returns None if the target cannot be resolved
 pub(super) fn try_resolve_fref(
   db: &TypedownDatabase,
   project: Project,
@@ -115,7 +114,7 @@ pub(super) fn try_resolve_fref(
   Some(format!("{}[{}]({})", icon_html, target.name, target.url))
 }
 
-// Get the lucide icon name for a fref target
+// Get the lucide icon name for a fref target from its evaluated resource or schema type
 fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> Option<String> {
   match symbol.kind(db) {
     SymbolKind::UserDefinedResource(_, target_file) => {
@@ -135,6 +134,7 @@ fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -
   }
 }
 
+/// Get the display label for a schema file: tries _label, falls back to PascalCase-split file stem
 pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File) -> String {
   // Try _label from the schema type
   if let Some(symbol) = file_symbol(db, project, file).value(db)
@@ -155,7 +155,7 @@ pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File)
   split_pascal_case(stem)
 }
 
-/// Get a display name for a symbol: try _label, then file stem
+// Get a display name for a symbol: tries _label from the resource or schema type, falls back to file stem
 fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> String {
   let kind = symbol.kind(db);
 

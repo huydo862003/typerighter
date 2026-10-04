@@ -448,7 +448,15 @@ impl RpcServer {
             } else {
               NOTIF_SCHEMA_DELETED
             };
-            send_notification(&sender, method, &TdSchemaNotification { schema: name });
+            let affected_files = collect_affected_files(db, project, path, &root_dir);
+            send_notification(
+              &sender,
+              method,
+              &TdSchemaNotification {
+                schema: name,
+                affected_files,
+              },
+            );
           } else if is_content_file(path) || is_asset_file(path) {
             let method = if path.exists() {
               NOTIF_CONTENT_UPDATED

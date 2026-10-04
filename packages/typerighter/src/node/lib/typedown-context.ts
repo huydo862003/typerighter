@@ -46,21 +46,23 @@ export class TypedownContext {
     });
 
     client.onSchemaUpdated(({
-      schema,
-    }: {
-      schema: string;
+      schema, affectedFiles = [],
     }) => {
       this.cachedSchemas = undefined;
       this.cachedSchemaMap.delete(schema);
+      for (const filepath of affectedFiles) {
+        this.cachedFileMap.delete(filepath);
+      }
     });
 
     client.onSchemaDeleted(({
-      schema,
-    }: {
-      schema: string;
+      schema, affectedFiles = [],
     }) => {
       this.cachedSchemas = undefined;
       this.cachedSchemaMap.delete(schema);
+      for (const filepath of affectedFiles) {
+        this.cachedFileMap.delete(filepath);
+      }
     });
   }
 

@@ -1,18 +1,18 @@
 //! Export typedown resources
 
+pub mod file_ref;
 pub mod html;
 pub mod json;
 pub mod markdown;
 pub mod properties;
-pub mod file_ref;
 pub mod types;
 pub mod utils;
 
-pub use properties::{Widget, export_property_descriptors};
 pub use file_ref::{
-  FrefTarget, ResolvedRef, resolve_fref_target, resolve_ref, resolve_schema_label,
+  FrefTarget, ResolvedRef, resolve_fref_target, resolve_file_ref, resolve_schema_label,
 };
 pub use json::evaluate_lazy_field;
+pub use properties::{Widget, export_property_descriptors};
 pub use types::*;
 
 pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -39,36 +39,141 @@ struct ResourceFields {
   body: MdBody,
 }
 
+// Fields for binary asset files (no body, schema is always blob type)
+struct BlobFields {
+  header: serde_json::Value,
+  metadata: ExportedFileMetadata,
+}
+
 enum ResourceKind {
-  Blob {
-    schema: String,
-    header: serde_json::Value,
-    metadata: ExportedFileMetadata,
-  },
+  Blob(BlobFields),
   Content(ResourceFields),
 }
 
-fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
-  let symbol = file_symbol(db, project, file).value(db)?;
+/// Export a content listing entry (no body, includes header)
+pub fn export_resource_summary(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceSummary> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(_) => None,
+    ResourceKind::Content(fields) => Some(ExportedResourceSummary {
+      schema: fields.schema,
+      label: fields.label,
+      icon: fields.icon,
+      header: fields.header,
+      excerpt: fields.excerpt,
+      metadata: fields.metadata,
+    }),
+  }
+}
 
-  // Schema files are not resources
+/// Export a lightweight sidebar nav entry (no header or body)
+pub fn export_resource_nav(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceNav> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(_) => None,
+    ResourceKind::Content(fields) => Some(ExportedResourceNav {
+      schema: fields.schema,
+      label: fields.label,
+      icon: fields.icon,
+      metadata: fields.metadata,
+      excerpt: fields.excerpt,
+    }),
+  }
+}
+
+/// Export a resource file as structured header and CommonMark body
+pub fn export_resource_markdown(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceMarkdown> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(blob) => Some(ExportedResourceMarkdown {
+      schema: Some(TdBlobType::get(db).display_name(db)),
+      label: None,
+      icon: None,
+      header: blob.header,
+      content: String::new(),
+      metadata: blob.metadata,
+    }),
+    ResourceKind::Content(fields) => {
+      let content = markdown::export_markdown_body(db, project, file, &fields.body);
+      Some(ExportedResourceMarkdown {
+        schema: fields.schema,
+        label: fields.label,
+        icon: fields.icon,
+        header: fields.header,
+        content,
+        metadata: fields.metadata,
+      })
+    }
+  }
+}
+
+/// Export a resource file as structured header and HTML body
+pub fn export_resource_html(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceHtml> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(blob) => Some(ExportedResourceHtml {
+      schema: Some(TdBlobType::get(db).display_name(db)),
+      label: None,
+      icon: None,
+      header: blob.header,
+      content: String::new(),
+      headings: Vec::new(),
+      title: None,
+      metadata: blob.metadata,
+      seo_metadata: None,
+    }),
+    ResourceKind::Content(fields) => {
+      let content = html::export_html_body(db, project, file, &fields.body);
+      Some(ExportedResourceHtml {
+        schema: fields.schema,
+        label: fields.label,
+        icon: fields.icon,
+        header: fields.header,
+        content: content.html,
+        headings: content.headings,
+        title: content.title,
+        metadata: fields.metadata,
+        seo_metadata: fields.seo_metadata,
+      })
+    }
+  }
+}
+
+// Internal helpers
+
+// Extract the resource kind and fields for a file, returning None for schema files
+fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
+  // Skip schema type definitions
+  let symbol = file_symbol(db, project, file).value(db)?;
   if symbol.kind(db).is_schema() {
     return None;
   }
 
-  let metadata = build_file_metadata(&file.handle(db));
+  let metadata = export_file_metadata(&file.handle(db));
 
-  // Body-only files (no frontmatter) have no evaluated object
+  // Evaluate the runtime object: body-only files have no frontmatter object
   let obj = evaluate_resource(db, symbol).value(db);
 
+  // Blob files (binary assets) have no body or navigation fields
   if let Some(ref obj) = obj
     && obj.as_td_blob_obj().is_some()
   {
-    return Some(ResourceKind::Blob {
-      schema: TdBlobType::get(db).display_name(db),
+    return Some(ResourceKind::Blob(BlobFields {
       header: json::serialize_to_json(db, project, obj).unwrap_or_default(),
       metadata,
-    });
+    }));
   }
 
   let (schema, header, label, icon, seo_metadata) = if let Some(ref obj) = obj {
@@ -88,17 +193,17 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     let label = obj
       .get_builtin_field(db, "_label")
       .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
-    let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
-      o.as_td_icon_obj().map(|i| ExportedIcon {
-        name: i.lucide_name(db),
+    let icon = obj.get_builtin_field(db, "_icon").and_then(|obj| {
+      obj.as_td_icon_obj().map(|icon| ExportedIcon {
+        name: icon.lucide_name(db),
       })
     });
 
-    let seo_metadata = extract_seo_metadata(db, project, obj);
+    let seo_metadata = export_seo_metadata(db, project, obj);
 
     (schema, header, label, icon, seo_metadata)
   } else {
-    // Body-only file with no frontmatter
+    // Body-only file: no frontmatter, all fields default to empty
     (
       None,
       serde_json::Value::Object(Default::default()),
@@ -108,12 +213,25 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     )
   };
 
+  // Parse the markdown body
   let parse_result = parse_file(db, project, file);
   let root = parse_result.ast(db).node.clone();
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
 
-  let excerpt = extract_body_excerpt(body.syntax());
+  // Prefer description or summary fields from the object, fall back to first body paragraph
+  let excerpt = obj
+    .as_ref()
+    .and_then(|o| {
+      o.get_owned_field(db, "description")
+        .and_then(|f| f.as_td_str_obj().map(|s| s.value(db)))
+        .or_else(|| {
+          o.get_owned_field(db, "summary")
+            .and_then(|f| f.as_td_str_obj().map(|s| s.value(db)))
+        })
+        .filter(|s| !s.is_empty())
+    })
+    .or_else(|| export_body_excerpt(body.syntax()));
 
   Some(ResourceKind::Content(ResourceFields {
     schema,
@@ -127,157 +245,7 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
   }))
 }
 
-/// Export a content listing entry (no body, includes header)
-pub fn export_resource_summary(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ResourceSummary> {
-  match resolve_resource(db, project, file)? {
-    ResourceKind::Blob { .. } => None,
-    ResourceKind::Content(fields) => Some(ResourceSummary {
-      schema: fields.schema,
-      label: fields.label,
-      icon: fields.icon,
-      header: fields.header,
-      excerpt: fields.excerpt,
-      metadata: fields.metadata,
-    }),
-  }
-}
-
-/// Export a lightweight sidebar nav entry (no header or body)
-pub fn export_resource_nav(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ResourceNav> {
-  let symbol = file_symbol(db, project, file).value(db)?;
-  let obj = evaluate_resource(db, symbol).value(db)?;
-
-  if obj.as_td_blob_obj().is_some() {
-    return None;
-  }
-
-  let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
-    Some(schema_obj.schema(db).display_name(db))
-  } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
-    None
-  } else {
-    return None;
-  };
-
-  let label = obj
-    .get_builtin_field(db, "_label")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
-  let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
-    o.as_td_icon_obj().map(|i| ExportedIcon {
-      name: i.lucide_name(db),
-    })
-  });
-
-  // Try description or summary from header, fall back to first paragraph in body
-  let excerpt = obj
-    .get_owned_field(db, "description")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
-    .or_else(|| {
-      obj
-        .get_owned_field(db, "summary")
-        .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
-    })
-    .filter(|s| !s.is_empty())
-    .or_else(|| {
-      let parse_result = parse_file(db, project, file);
-      let root = parse_result.ast(db).node.clone();
-      let source_file = SourceFile::cast(root)?;
-      let body = source_file.body()?;
-      extract_body_excerpt(body.syntax())
-    });
-
-  Some(ResourceNav {
-    schema,
-    label,
-    icon,
-    metadata: build_file_metadata(&file.handle(db)),
-    excerpt,
-  })
-}
-
-/// Export a resource file as structured header and CommonMark body
-pub fn export_resource_markdown(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResource> {
-  match resolve_resource(db, project, file)? {
-    ResourceKind::Blob {
-      schema,
-      header,
-      metadata,
-    } => Some(ExportedResource {
-      schema: Some(schema),
-      label: None,
-      icon: None,
-      header,
-      content: String::new(),
-      metadata,
-    }),
-    ResourceKind::Content(fields) => {
-      let content = markdown::export_markdown_body(db, project, file, &fields.body);
-      Some(ExportedResource {
-        schema: fields.schema,
-        label: fields.label,
-        icon: fields.icon,
-        header: fields.header,
-        content,
-        metadata: fields.metadata,
-      })
-    }
-  }
-}
-
-/// Export a resource file as structured header and HTML body
-pub fn export_resource_html(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResourceHtml> {
-  match resolve_resource(db, project, file)? {
-    ResourceKind::Blob {
-      schema,
-      header,
-      metadata,
-    } => Some(ExportedResourceHtml {
-      schema: Some(schema),
-      label: None,
-      icon: None,
-      header,
-      content: String::new(),
-      headings: Vec::new(),
-      title: None,
-      metadata,
-      seo_metadata: None,
-    }),
-    ResourceKind::Content(fields) => {
-      let html_result = html::export_html_body(db, project, file, &fields.body);
-      Some(ExportedResourceHtml {
-        schema: fields.schema,
-        label: fields.label,
-        icon: fields.icon,
-        header: fields.header,
-        content: html_result.html,
-        headings: html_result.headings,
-        title: html_result.title,
-        metadata: fields.metadata,
-        seo_metadata: fields.seo_metadata,
-      })
-    }
-  }
-}
-
-// Internal helpers
-
-fn build_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
+fn export_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
   let meta = handle.metadata();
   ExportedFileMetadata {
     mtime: meta.mtime_epoch_secs(),
@@ -285,7 +253,7 @@ fn build_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
   }
 }
 
-fn extract_seo_metadata(
+fn export_seo_metadata(
   db: &TypedownDatabase,
   project: Project,
   obj: &TdObjectEnum,
@@ -325,23 +293,23 @@ fn extract_seo_metadata(
   })
 }
 
-fn extract_body_excerpt(node: &RedNode) -> Option<String> {
+fn export_body_excerpt(node: &RedNode) -> Option<String> {
+  // Depth-first search for the first MdParagraph in the AST
+  fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
+    for child in node.children() {
+      if child.kind() == SyntaxKind::MdParagraph {
+        return Some(child);
+      }
+      if let Some(found) = find_first_paragraph(&child) {
+        return Some(found);
+      }
+    }
+    None
+  }
+
   find_first_paragraph(node)
     .map(|p| utils::extract_plain_text(&p))
     .filter(|s| !s.is_empty())
-}
-
-// Depth-first search for the first MdParagraph in the AST
-fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
-  for child in node.children() {
-    if child.kind() == SyntaxKind::MdParagraph {
-      return Some(child);
-    }
-    if let Some(found) = find_first_paragraph(&child) {
-      return Some(found);
-    }
-  }
-  None
 }
 
 #[cfg(test)]

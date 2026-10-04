@@ -260,6 +260,9 @@ pub struct TdContentNotification {
 
 /// Schema file event: A schema file was created, changed, or deleted
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TdSchemaNotification {
   pub schema: String,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub affected_files: Vec<String>,
 }

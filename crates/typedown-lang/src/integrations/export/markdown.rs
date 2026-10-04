@@ -2,6 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
+use super::file_ref::try_resolve_fref;
+use super::utils;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_vault_config::get_vault_config;
@@ -11,8 +13,6 @@ use crate::db::types::{File, FileRedNode, Project, TdRuntimeObject};
 use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdLink, MdMedia};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
-use super::file_ref::try_resolve_fref;
-use super::utils;
 
 pub fn export_markdown_body(
   db: &TypedownDatabase,

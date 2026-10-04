@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use typedown_incremental::Id;
 use typedown_types::either::Either;
 
-use super::{file_symbol, resolve_ref};
+use super::{file_symbol, resolve_file_ref};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
@@ -117,7 +117,7 @@ fn serialize(
       // Resolve references to other files as project relative paths
       if should_serialize_as_fref
         && let Some(symbol) = schema_obj.file_symbol(db)
-        && let Some(resolved) = resolve_ref(db, project, &symbol)
+        && let Some(resolved) = resolve_file_ref(db, project, &symbol)
       {
         let icon = schema_obj
           .get_builtin_field(db, "_icon")
@@ -152,7 +152,7 @@ fn serialize(
       // Resolve references to other files as project relative paths
       if should_serialize_as_fref
         && let Some(symbol) = product.file_symbol(db)
-        && let Some(resolved) = resolve_ref(db, project, &symbol)
+        && let Some(resolved) = resolve_file_ref(db, project, &symbol)
       {
         let icon = product
           .get_builtin_field(db, "_icon")
@@ -188,7 +188,7 @@ fn serialize(
       let file = blob.file(db);
       if should_serialize_as_fref
         && let Some(symbol) = file_symbol(db, project, file).value(db)
-        && let Some(resolved) = resolve_ref(db, project, &symbol)
+        && let Some(resolved) = resolve_file_ref(db, project, &symbol)
       {
         return Ok(serde_json::json!({
           "$ref": { "url": resolved.url, "name": resolved.name, "format": format }
