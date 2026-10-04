@@ -87,17 +87,6 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     return Some(CompletionResponse::Array(items));
   }
 
-  // Cursor in a field value whose type is a schema: suggest fref("path") completions
-  if let Some(typ) = declared_field_type_at_value(db, project, file, &node)
-    && (typ.is_td_schema_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_schema_type))
-  {
-    let expected = declared_field(db, project, file, &node);
-    let items = fref_wrapped_completions(db, project, expected.as_ref());
-    if !items.is_empty() {
-      return Some(CompletionResponse::Array(items));
-    }
-  }
-
   // Cursor in a field value: suggest value completions (booleans, null for optional fields)
   if let Some(items) = value_completions(db, project, file, &node) {
     return Some(CompletionResponse::Array(items));
@@ -428,14 +417,22 @@ fn value_completions(
     items.push(keyword_item("null"));
   }
 
+  // When cursor is already inside a string literal, completions must not add surrounding quotes
+  let inside_str = find_ancestor(node, SyntaxKind::StrLit).is_some();
+
   // Enum values from union of literals
-  collect_enum_items(db, &typ, &mut items);
+  collect_enum_items(db, &typ, inside_str, &mut items);
 
   // Date placeholder
   if typ.is_td_date_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_date_type) {
+    let (label, insert) = if inside_str {
+      ("YYYY-MM-DD", "$1")
+    } else {
+      ("\"YYYY-MM-DD\"", "\"$1\"")
+    };
     items.push(CompletionItem {
-      label: "\"YYYY-MM-DD\"".to_string(),
-      insert_text: Some("\"$1\"".to_string()),
+      label: label.to_string(),
+      insert_text: Some(insert.to_string()),
       insert_text_format: Some(InsertTextFormat::SNIPPET),
       detail: Some("ISO 8601 date".to_string()),
       kind: Some(CompletionItemKind::VALUE),
@@ -459,7 +456,13 @@ fn value_completions(
 }
 
 // Collect literal values from a union type as completion items
-fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<CompletionItem>) {
+// When inside_str is true, string values are inserted without surrounding quotes
+fn collect_enum_items(
+  db: &TypedownDatabase,
+  typ: &TdTypeEnum,
+  inside_str: bool,
+  items: &mut Vec<CompletionItem>,
+) {
   let sum = if let Some(s) = typ.as_td_sum_type() {
     s
   } else {
@@ -472,13 +475,18 @@ fn collect_enum_items(db: &TypedownDatabase, typ: &TdTypeEnum, items: &mut Vec<C
     let Some(lit) = resolved.as_td_literal_type() else {
       continue;
     };
-    let (label, detail) = match lit.value(db) {
-      LiteralValue::Str(s) => (format!("\"{s}\""), "string".to_string()),
-      LiteralValue::Num(n) => (n.clone(), "number".to_string()),
-      LiteralValue::Bool(b) => (b.to_string(), "boolean".to_string()),
+    let (label, insert_text, detail) = match lit.value(db) {
+      LiteralValue::Str(s) => {
+        let label = format!("\"{s}\"");
+        let insert = if inside_str { s.clone() } else { label.clone() };
+        (label, insert, "string".to_string())
+      }
+      LiteralValue::Num(n) => (n.clone(), n.clone(), "number".to_string()),
+      LiteralValue::Bool(b) => (b.to_string(), b.to_string(), "boolean".to_string()),
     };
     items.push(CompletionItem {
       label,
+      insert_text: Some(insert_text),
       detail: Some(detail),
       kind: Some(CompletionItemKind::ENUM_MEMBER),
       ..Default::default()

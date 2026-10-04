@@ -93,7 +93,7 @@ pub fn resolve_fref_target(
   })
 }
 
-// Resolve a fref interpolation to a markdown link string; returns None if the target cannot be resolved
+// Resolve a fref interpolation to a markdown link string, returns None if the target cannot be resolved
 pub(super) fn try_resolve_fref(
   db: &TypedownDatabase,
   project: Project,

@@ -129,10 +129,20 @@ fn evaluate_user_defined_schema<'db>(
 
   // Start with inherited fields, then overlay own fields
   let mut fields = inherited_fields.clone();
+  let mut seen_props: HashSet<&str> = HashSet::new();
 
   for (prop_name, prop_hir) in &properties_entries {
     let node = prop_hir.node(db);
     let (tr_offset, tr_len) = node.trimmed_range();
+
+    if !seen_props.insert(prop_name.as_str()) {
+      diagnostics.push(Diagnostic::DuplicateKey {
+        key: prop_name.clone(),
+        start_offset: tr_offset,
+        end_offset: tr_offset + tr_len,
+      });
+      continue;
+    }
     if let Some(desc) = resolve_property_descriptor(db, *prop_hir, &mut diagnostics) {
       // Validate that a redefined inherited field type is a subtype of the parent field type
       if let Some(parent_desc) = inherited_fields.get(prop_name)
@@ -658,6 +668,20 @@ mod tests {
       load_vault_fixture("evaluate/my_vault", "_types/WrongPropertyDescriptor.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     assert!(!evaluate_type(&db, symbol).diagnostics(&db).is_empty());
+  }
+
+  #[test]
+  fn evaluate_type_duplicate_property_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "_types/DuplicateProperty.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let diags = evaluate_type(&db, symbol).diagnostics(&db);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::DuplicateKey { key, .. } if key == "name")),
+      "expected DuplicateKey diagnostic for 'name': {diags:?}"
+    );
   }
 
   #[test]
