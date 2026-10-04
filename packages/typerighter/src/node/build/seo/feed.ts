@@ -18,7 +18,7 @@ export function generateRssFeed (
 ): string {
   const sorted = [...items]
     .filter((item) => item.fileMetadata.mtime > 0)
-    .sort((first, second) => second.metadata.mtime - first.metadata.mtime)
+    .sort((first, second) => second.fileMetadata.mtime - first.fileMetadata.mtime)
     .slice(0, 50);
 
   const feedItems = sorted.map((item) => {
