@@ -9,12 +9,12 @@ import {
 
 // Resolve the effective page title, preferring _meta override
 export function resolvePageTitle (pageData: PageData): string {
-  return pageData.meta?.title ?? pageData.title;
+  return pageData.seoMetadata?.title ?? pageData.title;
 }
 
 // Resolve the effective page description, preferring _meta override
 export function resolvePageDescription (pageData: PageData): string {
-  if (pageData.meta?.description !== undefined) return pageData.meta.description;
+  if (pageData.seoMetadata?.description !== undefined) return pageData.seoMetadata.description;
 
   const description = pageData.frontmatter.description;
 
@@ -23,7 +23,7 @@ export function resolvePageDescription (pageData: PageData): string {
 
 // Extract dateModified from file mtime as YYYY-MM-DD
 export function extractDateModified (pageData: PageData): string | undefined {
-  const mtime = pageData.metadata?.mtime;
+  const mtime = pageData.fileMetadata?.mtime;
 
   return mtime !== undefined
     ? formatIsoDate(mtime)
@@ -32,5 +32,5 @@ export function extractDateModified (pageData: PageData): string | undefined {
 
 // Extract per-page og:image path from _meta
 export function extractOgImagePath (pageData: PageData): string | undefined {
-  return pageData.meta?.image;
+  return pageData.seoMetadata?.image;
 }

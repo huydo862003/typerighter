@@ -107,7 +107,7 @@ pub struct TdContentSummary {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
   /// File metadata
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
 }
 
 /// Lightweight sidebar item (no header/content/excerpt)
@@ -125,7 +125,7 @@ pub struct TdSidebarItem {
   pub icon: Option<TdIcon>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
 }
 
 /// Structured build result: header (frontmatter), HTML content, and extracted headings
@@ -152,16 +152,16 @@ pub struct TdBuiltResource {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
   /// File metadata
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
   /// SEO metadata from _meta builtin
   #[serde(skip_serializing_if = "Option::is_none")]
-  pub meta: Option<TdPageMeta>,
+  pub seo_metadata: Option<TdSeoMeta>,
 }
 
-/// SEO metadata from the _meta builtin field
+/// SEO fields from the _meta builtin field
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct TdPageMeta {
+pub struct TdSeoMeta {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]

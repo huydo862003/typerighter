@@ -17,14 +17,14 @@ export function generateRssFeed (
   lang: string,
 ): string {
   const sorted = [...items]
-    .filter((item) => item.metadata.mtime > 0)
+    .filter((item) => item.fileMetadata.mtime > 0)
     .sort((first, second) => second.metadata.mtime - first.metadata.mtime)
     .slice(0, 50);
 
   const feedItems = sorted.map((item) => {
     const pagePath = tdpath.stripExtension(item.filepath);
     const url = `${origin}${base}${pagePath}`;
-    const pubDate = new Date(item.metadata.mtime).toUTCString();
+    const pubDate = new Date(item.fileMetadata.mtime).toUTCString();
     const itemTitle = escapeHtml(item.label ?? pagePath);
     const itemDescription = item.excerpt !== undefined ? `<![CDATA[${item.excerpt}]]>` : '';
 

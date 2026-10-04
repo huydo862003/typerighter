@@ -190,7 +190,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       const withoutExtension = tdpath.stripExtension(item.filepath);
       const pagePath = withoutExtension === 'index' ? '/' : `/${withoutExtension}`;
 
-      mtimeMap.set(pagePath, item.metadata.mtime);
+      mtimeMap.set(pagePath, item.fileMetadata.mtime);
     }
 
     const sitemap = generateSitemap(pagePaths, base, origin, mtimeMap);

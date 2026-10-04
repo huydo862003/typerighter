@@ -25,7 +25,7 @@ use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, FileRedNode, Project, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
 use typedown_lang::integrations::export::{
-  export_property_descriptors, export_resource_html, export_resource_meta, export_resource_summary,
+  export_property_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
   resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
@@ -610,11 +610,11 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         })
         .collect(),
       title: exported.title,
-      metadata: TdFileMetadata {
+      file_metadata: TdFileMetadata {
         mtime: exported.metadata.mtime,
         ctime: exported.metadata.ctime,
       },
-      meta: exported.meta.map(|m| TdPageMeta {
+      seo_metadata: exported.seo_metadata.map(|m| TdSeoMeta {
         title: m.title,
         description: m.description,
         image: m.image,
@@ -678,7 +678,7 @@ fn list_files_grouped_by_schema(
         icon: summary.icon.map(|icon| TdIcon { name: icon.name }),
         header: summary.header,
         excerpt: summary.excerpt,
-        metadata: TdFileMetadata {
+        file_metadata: TdFileMetadata {
           mtime: summary.metadata.mtime,
           ctime: summary.metadata.ctime,
         },
@@ -703,18 +703,18 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
       continue;
     }
     let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    if let Some(meta) = export_resource_meta(db, project, *file) {
-      let schema_label = get_schema_label(db, project, meta.schema.as_deref());
+    if let Some(nav) = export_resource_nav(db, project, *file) {
+      let schema_label = get_schema_label(db, project, nav.schema.as_deref());
       items.push(TdSidebarItem {
         filepath: relative,
-        schema: meta.schema,
+        schema: nav.schema,
         schema_label,
-        label: meta.label,
-        icon: meta.icon.map(|icon| TdIcon { name: icon.name }),
-        excerpt: meta.excerpt,
-        metadata: TdFileMetadata {
-          mtime: meta.metadata.mtime,
-          ctime: meta.metadata.ctime,
+        label: nav.label,
+        icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
+        excerpt: nav.excerpt,
+        file_metadata: TdFileMetadata {
+          mtime: nav.metadata.mtime,
+          ctime: nav.metadata.ctime,
         },
       });
     }

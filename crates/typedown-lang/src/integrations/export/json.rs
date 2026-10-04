@@ -3,14 +3,30 @@
 use std::collections::HashSet;
 
 use typedown_incremental::Id;
+use typedown_types::either::Either;
 
-use super::{evaluate_lazy_field, file_symbol, resolve_ref};
+use super::{file_symbol, resolve_ref};
 use crate::db::TypedownDatabase;
+use crate::db::derived::evaluate::evaluate_node::evaluate_node;
+use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::derived::object_system::{TdRuntimeObject, TdStaticType};
-use crate::db::types::{FileHandle, LazyType, Project, TdObjectEnum, TdTypeEnum};
+use crate::db::types::{FileHandle, HirValue, LazyType, Project, TdObjectEnum, TdTypeEnum};
+
+pub fn evaluate_lazy_field<'db>(
+  db: &'db TypedownDatabase,
+  field: Either<HirValue<'db>, TdObjectEnum<'db>>,
+) -> Option<TdObjectEnum<'db>> {
+  match field {
+    Either::Right(obj) => Some(obj),
+    Either::Left(hir) => {
+      let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
+      evaluate_node(db, hir, file_scope).value(db)
+    }
+  }
+}
 
 /// Serialize a FileHandle to a JSON object
-pub fn handle_to_json(handle: &FileHandle) -> serde_json::Value {
+pub fn serialize_handle(handle: &FileHandle) -> serde_json::Value {
   let meta = handle.metadata();
   let metadata = serde_json::json!({
     "mtime": meta.mtime_epoch_secs(),
@@ -40,7 +56,7 @@ pub fn handle_to_json(handle: &FileHandle) -> serde_json::Value {
 pub struct CircularRef;
 
 /// Serialize a Typedown object to a plain JSON value
-pub fn to_json(
+pub fn serialize_to_json(
   db: &TypedownDatabase,
   project: Project,
   obj: &TdObjectEnum,
@@ -178,7 +194,7 @@ fn serialize(
           "$ref": { "url": resolved.url, "name": resolved.name, "format": format }
         }));
       }
-      let handle = handle_to_json(&file.handle(db));
+      let handle = serialize_handle(&file.handle(db));
       Ok(serde_json::json!({ "format": format, "handle": handle }))
     }
 
@@ -262,7 +278,7 @@ mod tests {
   fn serializes_string() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_str_obj(&db, "hello".to_string()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("hello".to_string()));
   }
 
@@ -270,7 +286,7 @@ mod tests {
   fn serializes_number() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_num_obj(&db, 42.0_f64.to_bits()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::json!(42.0));
   }
 
@@ -278,7 +294,7 @@ mod tests {
   fn non_finite_float_serializes_to_null() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_num_obj(&db, f64::NAN.to_bits()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Null);
   }
 
@@ -286,7 +302,7 @@ mod tests {
   fn infinity_serializes_to_null() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_num_obj(&db, f64::INFINITY.to_bits()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Null);
   }
 
@@ -294,7 +310,7 @@ mod tests {
   fn serializes_bool() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_bool_obj(&db, true));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Bool(true));
   }
 
@@ -307,7 +323,7 @@ mod tests {
       Either::Right(TdObjectEnum::from(make_bool_obj(&db, false))),
     ];
     let obj = TdObjectEnum::from(make_list_obj(&db, items));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::json!([1.0, "two", false]));
   }
 
@@ -325,7 +341,7 @@ mod tests {
       ),
     ];
     let obj = TdObjectEnum::from(make_dict_obj(&db, entries));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value["x"], serde_json::json!(10.0));
     assert_eq!(value["y"], serde_json::json!("hello"));
   }
@@ -334,7 +350,7 @@ mod tests {
   fn serializes_math_as_string() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_math_obj(&db, "$E = mc^2$".to_string()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("$E = mc^2$".to_string()));
   }
 
@@ -342,7 +358,7 @@ mod tests {
   fn serializes_datetime_as_string() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_datetime_obj(&db, "2024-01-15T10:30:00Z".to_string()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(
       value,
       serde_json::Value::String("2024-01-15T10:30:00Z".to_string())
@@ -353,7 +369,7 @@ mod tests {
   fn serializes_date_as_string() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_date_obj(&db, "2024-01-15".to_string()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("2024-01-15".to_string()));
   }
 
@@ -361,7 +377,7 @@ mod tests {
   fn serializes_time_as_string() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(make_time_obj(&db, "10:30:00".to_string()));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::String("10:30:00".to_string()));
   }
 
@@ -370,7 +386,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
-    let value = to_json(&db, project, &obj).expect("should serialize without cycle");
+    let value = serialize_to_json(&db, project, &obj).expect("should serialize without cycle");
     assert!(value.is_object(), "product should serialize to object");
     assert_eq!(
       value["name"],
@@ -384,7 +400,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
-    let value = to_json(&db, project, &obj).expect("should serialize");
+    let value = serialize_to_json(&db, project, &obj).expect("should serialize");
     assert!(
       value["friend"]["$ref"].is_object(),
       "friend should have $ref: {value}"
@@ -404,7 +420,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "transitive_fref.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
-    let value = to_json(&db, project, &obj).expect("should serialize");
+    let value = serialize_to_json(&db, project, &obj).expect("should serialize");
     assert!(
       value["friend"]["$ref"]["url"].is_string(),
       "transitive ref should have url: {value}",
@@ -428,7 +444,7 @@ mod tests {
     )];
     let outer = make_product_obj(&db, num_type, None, fields);
 
-    let result = to_json(&db, project, &TdObjectEnum::from(outer));
+    let result = serialize_to_json(&db, project, &TdObjectEnum::from(outer));
     assert!(result.is_ok(), "non-cyclic nested product should serialize");
   }
 
@@ -440,7 +456,7 @@ mod tests {
       .typ(&db)
       .expect("should have type");
     let obj = TdObjectEnum::from(typ);
-    let value = to_json(&db, project, &obj).expect("should serialize");
+    let value = serialize_to_json(&db, project, &obj).expect("should serialize");
     assert!(value.is_object(), "product type should serialize to object");
     assert_eq!(
       value["name"],
@@ -460,7 +476,7 @@ mod tests {
       .typ(&db)
       .expect("should have type");
     let obj = TdObjectEnum::from(typ);
-    let value = to_json(&db, project, &obj).expect("should serialize");
+    let value = serialize_to_json(&db, project, &obj).expect("should serialize");
     assert_eq!(
       value["title"],
       serde_json::Value::String("string".to_string())
@@ -484,7 +500,7 @@ mod tests {
   fn non_product_type_serializes_to_null() {
     let (db, project) = empty_db();
     let obj = TdObjectEnum::from(TdStrType::get(&db));
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value, serde_json::Value::Null);
   }
 
@@ -495,7 +511,7 @@ mod tests {
     let file = File::new(&db, FileHandle::Path(path.clone(), FileMetadata::default()));
     let blob = make_blob_obj(&db, AssetKind::Png, file);
     let obj = TdObjectEnum::from(blob);
-    let value = to_json(&db, project, &obj).unwrap();
+    let value = serialize_to_json(&db, project, &obj).unwrap();
     assert_eq!(value["format"], "png");
     assert_eq!(value["handle"]["type"], "path");
     assert_eq!(value["handle"]["path"], "/vault/_assets/photo.png");

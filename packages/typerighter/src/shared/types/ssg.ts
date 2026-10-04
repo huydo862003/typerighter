@@ -27,11 +27,11 @@ export interface PageData {
   frontmatter: Record<string, unknown>;
   headings: MarkdownHeading[];
   title: string;
-  metadata?: FileMetadata;
-  meta?: PageMeta;
+  fileMetadata?: FileMetadata;
+  seoMetadata?: SeoMeta;
 }
 
-export interface PageMeta {
+export interface SeoMeta {
   title?: string;
   description?: string;
   image?: string;

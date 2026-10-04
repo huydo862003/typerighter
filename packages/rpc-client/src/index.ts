@@ -50,7 +50,7 @@ export interface TdSidebarItem {
   label?: string;
   icon?: TdIcon;
   excerpt?: string;
-  metadata: TdFileMetadata;
+  fileMetadata: TdFileMetadata;
 }
 
 export interface TdContentSummary {
@@ -61,7 +61,7 @@ export interface TdContentSummary {
   icon?: TdIcon;
   header: Record<string, any>;
   excerpt?: string;
-  metadata: TdFileMetadata;
+  fileMetadata: TdFileMetadata;
 }
 
 export interface TdNavItem {
@@ -111,7 +111,7 @@ export interface TdSiteConfig {
   nav: TdNavItem[];
 }
 
-export interface TdPageMeta {
+export interface TdSeoMeta {
   title?: string;
   description?: string;
   image?: string;
@@ -126,8 +126,8 @@ export interface TdBuiltResource {
   content: string;
   headings: TdHeading[];
   title?: string;
-  metadata: TdFileMetadata;
-  meta?: TdPageMeta;
+  fileMetadata: TdFileMetadata;
+  seoMetadata?: TdSeoMeta;
 }
 
 // Server-reserved JSON-RPC error code for cancelled queries (-32000 to -32099)
