@@ -9,4 +9,6 @@ properties:
     type: number
   agency:
     type: string?
+  status:
+    type: ("active" | "inactive")?
 ---

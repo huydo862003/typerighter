@@ -45,24 +45,39 @@ impl<'db> TdStaticType<'db> for TdSchemaMetaType<'db> {
   fn display_name(&self, _db: &'db TypedownDatabase) -> String {
     "schema".to_string()
   }
+
   fn parent_type(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some(TdTypeType::get(db).into())
   }
+
   fn get_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, LazyType<'db>> {
-    let properties_type = get_dict_type(db)
-      .instantiate(
-        db,
-        vec![
-          LazyType::eager(get_str_type(db).into()),
-          LazyType::eager(get_schema_property_type(db).into()),
-        ],
-      )
-      .typ(db);
-    BTreeMap::from([("properties".to_string(), LazyType::eager(properties_type))])
+    let properties_type = get_sum_type(
+      db,
+      vec![
+        LazyType::eager(
+          get_dict_type(db)
+            .instantiate(
+              db,
+              vec![
+                LazyType::eager(get_str_type(db).into()),
+                LazyType::eager(get_schema_property_type(db).into()),
+              ],
+            )
+            .typ(db),
+        ),
+        LazyType::eager(TdTypeEnum::TdNullType(get_null_type(db))),
+      ],
+    );
+    BTreeMap::from([(
+      "properties".to_string(),
+      LazyType::eager(TdTypeEnum::TdSumType(properties_type)),
+    )])
   }
+
   fn is_type(&self, _db: &'db TypedownDatabase) -> bool {
     true
   }
+
   fn runtime_type(&self, _db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
     Some((*self).into())
   }

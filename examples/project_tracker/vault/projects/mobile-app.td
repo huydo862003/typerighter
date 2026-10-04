@@ -1,10 +1,12 @@
 ---
-_type: Project
+_type: MobileProject
 _label: "Mobile App"
 _icon: icon.rocket
 name: "Mobile App"
 status: "planning"
 started: "2026-06-01"
+status2: "Reading"
+OS: "linux"
 ---
 
 ## Overview
