@@ -1,4 +1,11 @@
-## [0.40.5] - 2026-10-04
+## [0.40.6] - 2026-10-04
+
+### Fixed
+
+- crates/typedown-lang
+  - Remove circular dependencies
+
+## [0.40.5] - 2026-10-04 (retracted)
 
 ### Fixed
 
