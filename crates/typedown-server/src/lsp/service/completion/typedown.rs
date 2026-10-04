@@ -278,26 +278,6 @@ fn fref_completions(
     .collect()
 }
 
-// Resolve the declared field type at a value position or empty value after a colon
-fn declared_field_type_at_value<'db>(
-  db: &'db TypedownDatabase,
-  project: Project,
-  file: File,
-  node: &RedNode,
-) -> Option<TdTypeEnum<'db>> {
-  if is_in_mapping_value_position(node) {
-    return declared_field(db, project, file, node);
-  }
-
-  // Empty value: resolve from the entry key name
-  let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
-  let key_text = entry_key_text(&entry)?;
-  let mapping = entry
-    .parent()
-    .filter(|p| p.kind() == SyntaxKind::YamlMapping)?;
-  resolve_field_type_from_schema(db, project, &mapping, &key_text)
-}
-
 // Check if a nullable type (T?) has a member satisfying the predicate
 fn has_nullable_member<'db>(
   db: &'db TypedownDatabase,
