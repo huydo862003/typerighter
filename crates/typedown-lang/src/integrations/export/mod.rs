@@ -394,7 +394,7 @@ pub fn export_property_descriptors(
   let mut properties = serde_json::Map::new();
 
   for (name, prop_desc) in fields {
-    let mut prop_json = lazy_to_descriptor(db, &prop_desc.field_type);
+    let mut prop_json = export_lazy_to_descriptor(db, &prop_desc.field_type);
     if let Some(ref def_obj) = prop_desc.default_value
       && let Ok(def_json) = json::to_json(db, project, def_obj)
       && let serde_json::Value::Object(ref mut map) = prop_json
@@ -407,7 +407,7 @@ pub fn export_property_descriptors(
   return Some(serde_json::Value::Object(properties));
 
   // Map a LazyType to a property descriptor with a widget hint
-  fn lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyType) -> serde_json::Value {
+  fn export_lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyType) -> serde_json::Value {
     let Some(typ) = lazy.resolve(db) else {
       return serde_json::json!({ "type": "string" });
     };
@@ -428,7 +428,7 @@ pub fn export_property_descriptors(
         .collect();
 
       if non_null_members.len() == 1 {
-        return lazy_to_descriptor(db, &non_null_members[0]);
+        return export_lazy_to_descriptor(db, &non_null_members[0]);
       }
 
       let mut literals: Vec<String> = non_null_members
@@ -477,11 +477,11 @@ pub fn export_property_descriptors(
           }
           if members.len() == 1 {
             let first_member = members.iter().next().unwrap();
-            let inner = lazy_to_descriptor(db, first_member);
+            let inner = export_lazy_to_descriptor(db, first_member);
             return serde_json::json!({ "widget": Widget::List, "items": inner });
           }
         } else {
-          let inner = lazy_to_descriptor(db, &elem_lazy);
+          let inner = export_lazy_to_descriptor(db, &elem_lazy);
           return serde_json::json!({ "widget": Widget::List, "items": inner });
         }
       }
