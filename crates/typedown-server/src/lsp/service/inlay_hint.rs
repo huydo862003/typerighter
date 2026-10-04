@@ -15,7 +15,7 @@ use crate::core::utils::position::text_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::utils::symbol::get_resource_label;
 
-pub fn inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Option<Vec<InlayHint>> {
+pub fn resolve_inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Option<Vec<InlayHint>> {
   let db = &analysis.db;
   let project = analysis.project;
 
@@ -38,7 +38,7 @@ fn collect_fref_hints(
   hints: &mut Vec<InlayHint>,
 ) {
   if node.kind() == SyntaxKind::CallExpr
-    && let Some(hint) = fref_hint(db, project, file, node, rope)
+    && let Some(hint) = build_fref_hint(db, project, file, node, rope)
   {
     hints.push(hint);
     return;
@@ -49,7 +49,7 @@ fn collect_fref_hints(
   }
 }
 
-fn fref_hint(
+fn build_fref_hint(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -105,7 +105,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
 
-  use super::inlay_hints;
+  use super::resolve_inlay_hints;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
@@ -206,7 +206,7 @@ friend: fref("alice.td")
       work_done_progress_params: WorkDoneProgressParams::default(),
     };
 
-    let hints = inlay_hints(&analysis, params).expect("should return hints");
+    let hints = resolve_inlay_hints(&analysis, params).expect("should return hints");
     assert!(
       hints
         .iter()

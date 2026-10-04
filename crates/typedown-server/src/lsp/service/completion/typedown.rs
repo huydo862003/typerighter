@@ -33,7 +33,10 @@ use crate::core::utils::ast::{
 use crate::core::utils::position::lsp_position_to_text_offset;
 use crate::core::utils::uri::uri_to_path;
 
-pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<CompletionResponse> {
+pub fn resolve_completion(
+  analysis: &Analysis,
+  params: CompletionParams,
+) -> Option<CompletionResponse> {
   let db = &analysis.db;
   let project = analysis.project;
 
@@ -49,24 +52,26 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
 
   // Cursor in a _type value: suggest schema names
   if is_type_value_position(&node) {
-    return Some(CompletionResponse::Array(schema_completions(db, project)));
+    return Some(CompletionResponse::Array(collect_schema_completions(
+      db, project,
+    )));
   }
 
   // Cursor after "." in a dot expression: suggest members of the LHS type
-  if let Some(items) = dot_access_completions(db, project, file, &node) {
+  if let Some(items) = collect_dot_access_completions(db, project, file, &node) {
     return Some(CompletionResponse::Array(items));
   }
 
   // Cursor inside a fref() string argument: suggest file paths
   if is_fref_arg_position(&node) {
-    return Some(CompletionResponse::Array(fref_completions(
+    return Some(CompletionResponse::Array(collect_fref_completions(
       db, project, file, &node,
     )));
   }
 
   // Cursor inside ${} interpolation: suggest scope variables and fref("path") completions
   if is_interp_position(&node) {
-    let mut items = fref_wrapped_completions(db, project, None);
+    let mut items = collect_fref_wrapped_completions(db, project, None);
     let scope = Scope::new(db, ScopeKind::File(project, file));
     for (name, sym) in all_visible_members(db, scope) {
       if name.starts_with('_') {
@@ -87,17 +92,27 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
     return Some(CompletionResponse::Array(items));
   }
 
+  // Schema-typed field value (including empty values): suggest fref("path") completions
+  if let Some(typ) = get_declared_field_type_at_value(db, project, file, &node)
+    && (typ.is_td_schema_type() || has_nullable_member(db, &typ, TdTypeEnum::is_td_schema_type))
+  {
+    let items = collect_fref_wrapped_completions(db, project, Some(&typ));
+    if !items.is_empty() {
+      return Some(CompletionResponse::Array(items));
+    }
+  }
+
   // Cursor in a field value: suggest value completions (booleans, null for optional fields)
-  if let Some(items) = value_completions(db, project, file, &node) {
+  if let Some(items) = collect_value_completions(db, project, file, &node) {
     return Some(CompletionResponse::Array(items));
   }
 
   // Cursor in a mapping key or blank line: suggest field names from the declared type
-  if let Some((typ, mapping)) = enclosing_mapping_type(db, project, file, &node) {
-    let existing = existing_keys(&mapping);
-    return Some(CompletionResponse::Array(field_completions_from_type(
-      db, &typ, &existing,
-    )));
+  if let Some((typ, mapping)) = find_enclosing_mapping_type(db, project, file, &node) {
+    let existing = collect_existing_keys(&mapping);
+    return Some(CompletionResponse::Array(
+      collect_field_completions_from_type(db, &typ, &existing),
+    ));
   }
 
   None
@@ -118,7 +133,7 @@ fn is_type_value_position(node: &RedNode) -> bool {
 }
 
 // Suggest members of the LHS type after a "." in a binary expression
-fn dot_access_completions(
+fn collect_dot_access_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -234,7 +249,7 @@ fn collect_fref_candidates(
 }
 
 // Build a CompletionItem from a candidate, wrapping the path with the given template
-fn candidate_to_completion(
+fn build_candidate_completion(
   candidate: &FrefCandidate,
   insert_template: impl Fn(&str) -> String,
 ) -> CompletionItem {
@@ -264,18 +279,38 @@ fn candidate_to_completion(
 }
 
 // Suggest file paths inside fref("") argument
-fn fref_completions(
+fn collect_fref_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
 ) -> Vec<CompletionItem> {
-  let expected_type = declared_field(db, project, file, node);
+  let expected_type = get_declared_field(db, project, file, node);
   let candidates = collect_fref_candidates(db, project, expected_type.as_ref());
   candidates
     .iter()
-    .map(|c| candidate_to_completion(c, |path| path.to_string()))
+    .map(|c| build_candidate_completion(c, |path| path.to_string()))
     .collect()
+}
+
+// Resolve the declared field type at a value position or empty value after a colon
+fn get_declared_field_type_at_value<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<TdTypeEnum<'db>> {
+  if is_in_mapping_value_position(node) {
+    return get_declared_field(db, project, file, node);
+  }
+
+  // Empty value: resolve from the entry key name
+  let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
+  let key_text = get_entry_key_text(&entry)?;
+  let mapping = entry
+    .parent()
+    .filter(|p| p.kind() == SyntaxKind::YamlMapping)?;
+  resolve_field_type_from_schema(db, project, &mapping, &key_text)
 }
 
 // Check if a nullable type (T?) has a member satisfying the predicate
@@ -293,7 +328,7 @@ fn has_nullable_member<'db>(
 }
 
 // Suggest fref("path") completions, optionally filtered by an expected type
-fn fref_wrapped_completions(
+fn collect_fref_wrapped_completions(
   db: &TypedownDatabase,
   project: Project,
   expected_type: Option<&TdTypeEnum>,
@@ -301,11 +336,11 @@ fn fref_wrapped_completions(
   let candidates = collect_fref_candidates(db, project, expected_type);
   candidates
     .iter()
-    .map(|c| candidate_to_completion(c, |path| format!("fref(\"{path}\")")))
+    .map(|c| build_candidate_completion(c, |path| format!("fref(\"{path}\")")))
     .collect()
 }
 
-fn enclosing_mapping_type<'db>(
+fn find_enclosing_mapping_type<'db>(
   db: &'db TypedownDatabase,
   project: Project,
   file: File,
@@ -339,7 +374,7 @@ fn enclosing_mapping_type<'db>(
 }
 
 // Suggest value completions based on the declared field type
-fn value_completions(
+fn collect_value_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -349,7 +384,7 @@ fn value_completions(
     return None;
   }
 
-  let mut items = vec![keyword_item("true"), keyword_item("false")];
+  let mut items = vec![make_keyword_item("true"), make_keyword_item("false")];
 
   // Variables in scope (icon, fref, vault, file names, imports, closure params)
   // Find the nearest Expr ancestor to resolve scope (captures enclosing closures)
@@ -389,12 +424,12 @@ fn value_completions(
   }
 
   // Type-specific completions from declared field type
-  let Some(typ) = declared_field(db, project, file, node) else {
+  let Some(typ) = get_declared_field(db, project, file, node) else {
     return Some(items);
   };
 
   if is_nullable(db, &typ) {
-    items.push(keyword_item("null"));
+    items.push(make_keyword_item("null"));
   }
 
   // When cursor is already inside a string literal, completions must not add surrounding quotes
@@ -475,7 +510,7 @@ fn collect_enum_items(
 }
 
 // Resolve the declared type for the field whose value the cursor is in
-fn declared_field<'db>(
+fn get_declared_field<'db>(
   db: &'db TypedownDatabase,
   project: Project,
   file: File,
@@ -497,13 +532,13 @@ fn declared_field<'db>(
 
   // Fall back to looking up the field name in the enclosing schema
   let entry = entry_value.parent()?;
-  let key_text = entry_key_text(&entry)?;
+  let key_text = get_entry_key_text(&entry)?;
   let mapping = find_ancestor(&entry, SyntaxKind::YamlMapping)?;
   resolve_field_type_from_schema(db, project, &mapping, &key_text)
 }
 
 // Extract the key text from a YamlMappingEntry node
-fn entry_key_text(entry: &RedNode) -> Option<String> {
+fn get_entry_key_text(entry: &RedNode) -> Option<String> {
   entry
     .children()
     .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
@@ -527,7 +562,7 @@ fn resolve_field_type_from_schema<'db>(
 }
 
 // Build a keyword completion item (true, false, null)
-fn keyword_item(label: &str) -> CompletionItem {
+fn make_keyword_item(label: &str) -> CompletionItem {
   CompletionItem {
     label: label.to_string(),
     kind: Some(CompletionItemKind::KEYWORD),
@@ -536,7 +571,7 @@ fn keyword_item(label: &str) -> CompletionItem {
 }
 
 // Suggest all user-defined schema names visible in the project scope
-fn schema_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
+fn collect_schema_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
   let scope = Scope::new(db, ScopeKind::Project(project));
   members(db, scope)
     .members(db)
@@ -572,7 +607,7 @@ fn build_schema_snippet(
   let fields = schema.fields(db);
   let mut snippet = name.to_string();
   for (tab_stop, (field_name, prop_desc)) in fields.iter().enumerate() {
-    let placeholder = lazy_placeholder(db, &prop_desc.field_type, 0);
+    let placeholder = make_lazy_placeholder(db, &prop_desc.field_type, 0);
     let idx = tab_stop + 1;
 
     snippet.push_str(&format!("\n{field_name}: ${{{idx}:{placeholder}}}"));
@@ -582,7 +617,7 @@ fn build_schema_snippet(
 }
 
 // Generate a placeholder string for a lazy type
-fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> String {
+fn make_lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> String {
   let Some(typ) = lazy.resolve(db) else {
     return "value".to_string();
   };
@@ -596,7 +631,7 @@ fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> St
         .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
         .collect();
       if non_null.len() == 1 {
-        return lazy_placeholder(db, non_null[0], indent);
+        return make_lazy_placeholder(db, non_null[0], indent);
       }
       // Enum: use first literal string option as default
       let first = members.iter().find_map(|m| {
@@ -609,11 +644,11 @@ fn lazy_placeholder(db: &TypedownDatabase, lazy: &LazyType, indent: usize) -> St
       });
       first.unwrap_or_else(|| "value".to_string())
     }
-    _ => simple_type_placeholder(db, &typ, indent),
+    _ => make_simple_type_placeholder(db, &typ, indent),
   }
 }
 
-fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usize) -> String {
+fn make_simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usize) -> String {
   match typ {
     TdTypeEnum::TdStrType(_) => "string".to_string(),
     TdTypeEnum::TdNumType(_) => "0".to_string(),
@@ -625,7 +660,7 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
       let inner = list
         .elem(db)
         .and_then(|elem| elem.resolve(db))
-        .map(|elem| simple_type_placeholder(db, &elem, indent + 1))
+        .map(|elem| make_simple_type_placeholder(db, &elem, indent + 1))
         .unwrap_or_else(|| "value".to_string());
       let pad = "  ".repeat(indent);
 
@@ -639,7 +674,7 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
       let pad = "  ".repeat(indent + 1);
       let mut nested = String::new();
       for (field_name, field_lazy) in &fields {
-        let placeholder = lazy_placeholder(db, field_lazy, indent + 1);
+        let placeholder = make_lazy_placeholder(db, field_lazy, indent + 1);
         nested.push_str(&format!("\\n{pad}{field_name}: {placeholder}"));
       }
       nested
@@ -649,7 +684,7 @@ fn simple_type_placeholder(db: &TypedownDatabase, typ: &TdTypeEnum, indent: usiz
 }
 
 // Collect existing key names from a mapping node
-fn existing_keys(mapping: &RedNode) -> Vec<String> {
+fn collect_existing_keys(mapping: &RedNode) -> Vec<String> {
   mapping
     .children()
     .filter(|child| child.kind() == SyntaxKind::YamlMappingEntry)
@@ -663,7 +698,7 @@ fn existing_keys(mapping: &RedNode) -> Vec<String> {
 }
 
 // Suggest field names from a resolved type, excluding already-present keys
-fn field_completions_from_type(
+fn collect_field_completions_from_type(
   db: &TypedownDatabase,
   typ: &TdTypeEnum,
   existing: &[String],
@@ -719,7 +754,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
 
-  use super::completion;
+  use super::resolve_completion as completion;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

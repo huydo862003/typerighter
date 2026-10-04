@@ -7,7 +7,10 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::position::text_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 
-pub fn formatting(analysis: &Analysis, params: DocumentFormattingParams) -> Option<Vec<TextEdit>> {
+pub fn format_document(
+  analysis: &Analysis,
+  params: DocumentFormattingParams,
+) -> Option<Vec<TextEdit>> {
   let db = &analysis.db;
   let project = analysis.project;
 

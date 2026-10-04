@@ -25,7 +25,7 @@ use crate::core::utils::ast::{
 use crate::core::utils::position::{lsp_position_to_text_offset, text_offset_to_lsp_position};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
 
-pub fn definition(
+pub fn resolve_definition(
   analysis: &Analysis,
   params: GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
@@ -43,12 +43,12 @@ pub fn definition(
   let node = node_at_offset(root, lookup)?;
 
   // Field key: jump to the property definition in the schema file
-  if let Some(response) = field_key_definition(analysis, db, project, &node) {
+  if let Some(response) = resolve_field_key_definition(analysis, db, project, &node) {
     return Some(response);
   }
 
   // fref("path") string argument: jump to the referenced file
-  if let Some(target_path) = fref_target(db, project, &node) {
+  if let Some(target_path) = get_fref_target(db, project, &node) {
     let scheme = analysis
       .scheme_map
       .get(&target_path)
@@ -63,7 +63,7 @@ pub fn definition(
   }
 
   // Markdown link or image: resolve the URL to a file path
-  if let Some(response) = markdown_link_definition(analysis, db, project, file, &node) {
+  if let Some(response) = resolve_markdown_link_definition(analysis, db, project, file, &node) {
     return Some(response);
   }
 
@@ -101,7 +101,7 @@ pub fn definition(
 }
 
 // Jump from a field key to its property definition in the schema file
-fn field_key_definition(
+fn resolve_field_key_definition(
   analysis: &Analysis,
   db: &TypedownDatabase,
   project: Project,
@@ -168,7 +168,7 @@ fn find_field_in_schema_chain(
 
   // Check parent schema via _extends
   let extends_entry = find_entry_by_key(&root, "_extends")?;
-  let extends_name = entry_value_text(&extends_entry)?;
+  let extends_name = get_entry_value_text(&extends_entry)?;
 
   let parent_sym = *members(db, *scope).members(db).get(&extends_name)?;
   find_field_in_schema_chain(db, project, parent_sym, field_name, scope)
@@ -191,14 +191,14 @@ fn find_entry_by_key(node: &RedNode, key_name: &str) -> Option<RedNode> {
   None
 }
 
-fn entry_value_text(entry: &RedNode) -> Option<String> {
+fn get_entry_value_text(entry: &RedNode) -> Option<String> {
   entry
     .children()
     .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)
     .map(|v| v.text().trim().to_string())
 }
 
-fn entry_key_offset(entry: &RedNode) -> Option<usize> {
+fn get_entry_key_offset(entry: &RedNode) -> Option<usize> {
   entry
     .children()
     .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)
@@ -212,11 +212,11 @@ fn find_property_key_offset(root: &RedNode, field_name: &str) -> Option<usize> {
     .children()
     .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
   let field_entry = find_entry_by_key(&props_value, field_name)?;
-  entry_key_offset(&field_entry)
+  get_entry_key_offset(&field_entry)
 }
 
 // Go to definition for URLs in markdown links and images
-fn markdown_link_definition(
+fn resolve_markdown_link_definition(
   analysis: &Analysis,
   db: &TypedownDatabase,
   project: Project,
@@ -266,7 +266,7 @@ fn markdown_link_definition(
 }
 
 // Resolve the target path from a fref() string argument
-fn fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<PathBuf> {
+fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<PathBuf> {
   let call_expr = containing_fref_expr(node)?;
 
   // Any file works as context since fref args don't depend on the enclosing file
@@ -304,7 +304,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
 
-  use super::definition;
+  use super::resolve_definition as definition;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

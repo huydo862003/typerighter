@@ -18,19 +18,19 @@ use typedown_lang::db::{
   types::{File, FileHandle, Project},
 };
 
-pub fn token_types() -> Vec<SemanticTokenType> {
+pub fn list_token_types() -> Vec<SemanticTokenType> {
   vec![SemanticTokenType::TYPE]
 }
 
-fn token_type_index(token_type: &SemanticTokenType) -> u32 {
-  token_types()
+fn get_token_type_index(token_type: &SemanticTokenType) -> u32 {
+  list_token_types()
     .iter()
     .position(|t| t == token_type)
     .expect("token type not in legend") as u32
 }
 
 // TODO: recompute incrementally in the future
-pub fn semantic_tokens_full(
+pub fn resolve_semantic_tokens_full(
   analysis: &Analysis,
   params: SemanticTokensParams,
 ) -> Option<SemanticTokensResult> {
@@ -80,7 +80,7 @@ fn collect_tokens(node: RedNode, out: &mut Vec<(usize, usize, SemanticTokenType,
   }
 }
 
-pub fn token_modifiers() -> Vec<SemanticTokenModifier> {
+pub fn list_token_modifiers() -> Vec<SemanticTokenModifier> {
   vec![]
 }
 
@@ -118,7 +118,7 @@ fn delta_encode(
       delta_line,
       delta_start,
       length: length as u32,
-      token_type: token_type_index(&token_type),
+      token_type: get_token_type_index(&token_type),
       token_modifiers_bitset: modifiers,
     });
 

@@ -26,7 +26,10 @@ use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::commands;
 use crate::lsp::service::commands::create_linked_resource::CreateLinkedResourceArgs;
 
-pub fn code_action(analysis: &Analysis, params: CodeActionParams) -> Option<CodeActionResponse> {
+pub fn resolve_code_action(
+  analysis: &Analysis,
+  params: CodeActionParams,
+) -> Option<CodeActionResponse> {
   let db = &analysis.db;
   let project = analysis.project;
 
@@ -233,7 +236,7 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
       template.push_str("# _icon: icon.file\n");
 
       for (field_name, prop_desc) in &fields {
-        let default = default_value(db, &prop_desc.field_type);
+        let default = format_default_value(db, &prop_desc.field_type);
         let optional = prop_desc
           .field_type
           .resolve(db)
@@ -252,7 +255,7 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 }
 
 // Generate a default value string for a schema field type
-fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
+fn format_default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
   let Some(typ) = lazy.resolve(db) else {
     return "\"\"".to_string();
   };
@@ -281,7 +284,7 @@ fn default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
         .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
         .collect();
       if non_null.len() == 1 {
-        return default_value(db, non_null[0]);
+        return format_default_value(db, non_null[0]);
       }
       // Enum: use first literal as default
       members
@@ -313,7 +316,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
 
-  use super::code_action;
+  use super::resolve_code_action as code_action;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

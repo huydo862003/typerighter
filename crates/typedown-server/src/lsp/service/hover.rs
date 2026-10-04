@@ -28,7 +28,7 @@ use crate::core::utils::position::lsp_position_to_text_offset;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::utils::symbol::get_resource_label;
 
-pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
+pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
   let db = &analysis.db;
 
   // Get the current file that requests hover information
@@ -70,7 +70,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
     let actual = actual_node_type(db, hir).typ(db)?;
 
     match expected {
-      Some(expected_typ) => type_label(db, &expected_typ),
+      Some(expected_typ) => format_type_label(db, &expected_typ),
       None => actual.display_name(db),
     }
   } else if find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey).is_some() {
@@ -89,7 +89,7 @@ pub fn hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> {
     let typ = expected_node_type(db, hir).typ(db)?;
     let key_text = entry_key.text().trim().to_string();
 
-    format!("{key_text}: {}", type_label(db, &typ))
+    format!("{key_text}: {}", format_type_label(db, &typ))
   } else {
     return None;
   };
@@ -146,7 +146,7 @@ fn format_resource_hover(db: &TypedownDatabase, sym: Symbol, path: &str) -> Stri
   parts.join("\n\n")
 }
 
-fn type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
+fn format_type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
   if let Some(sum) = typ.as_td_sum_type() {
     let members = sum.members(db);
     let has_null = members
@@ -201,11 +201,11 @@ fn resolve_schema_hover(db: &TypedownDatabase, project: Project, node: &RedNode)
   let typ = evaluate_type(db, *sym).typ(db)?;
   typ.as_td_schema_type()?;
 
-  Some(schema_hover_text(db, &typ))
+  Some(build_schema_hover_text(db, &typ))
 }
 
 // Show schema name and its fields
-fn schema_hover_text(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
+fn build_schema_hover_text(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
   let name = typ.display_name(db);
   let fields = typ.get_fields(db);
   if fields.is_empty() {
@@ -217,7 +217,7 @@ fn schema_hover_text(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
     .map(|(field_name, lazy)| {
       let type_name = lazy
         .resolve(db)
-        .map(|t| type_label(db, &t))
+        .map(|t| format_type_label(db, &t))
         .unwrap_or_else(|| "unknown".to_string());
       format!("  {field_name}: {type_name}")
     })
@@ -281,7 +281,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
 
-  use super::hover;
+  use super::resolve_hover as hover;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
