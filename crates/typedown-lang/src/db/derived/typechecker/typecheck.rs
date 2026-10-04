@@ -691,11 +691,10 @@ mod tests {
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
+    // properties is optional: a schema without it is valid
     assert!(
-      diags.iter().any(
-        |d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "properties")
-      ),
-      "expected MissingRequiredField for 'properties', got: {:?}",
+      diags.is_empty(),
+      "schema without properties should have no errors, got: {:?}",
       diags
     );
   }
@@ -1128,11 +1127,11 @@ mod tests {
       load_vault_fixture("typecheck/my_vault", "_types/MissingProperties.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
+    // properties is optional: a schema without it is valid
     assert!(
-      result.diagnostics(&db).iter().any(
-        |d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "properties")
-      ),
-      "missing properties"
+      result.diagnostics(&db).is_empty(),
+      "schema without properties should have no errors: {:?}",
+      result.diagnostics(&db)
     );
   }
 

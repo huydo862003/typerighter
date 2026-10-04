@@ -460,6 +460,16 @@ fn resolve_lazy_type<'db>(
   };
   if let TdTypeEnum::TdSumType(sum) = &typ {
     let members = sum.members(db);
+    // For nullable types, strip null and return the non-null arm without calling
+    // actual_node_type to avoid re-entering the type query for the same node
+    let non_null: Vec<_> = members
+      .iter()
+      .filter(|m| !m.resolve(db).is_some_and(|t| t.is_td_null_type()))
+      .cloned()
+      .collect();
+    if non_null.len() == 1 {
+      return non_null.into_iter().next().unwrap();
+    }
     if let Some(picked) = pick_most_specific_arm(db, &members, hir) {
       return picked;
     }
