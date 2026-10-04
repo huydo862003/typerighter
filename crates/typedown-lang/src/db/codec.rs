@@ -486,7 +486,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::WrongTypeArgCount { expected, got } => {
+      Diagnostic::WrongTypArgCount { expected, got } => {
         expected.encode(buf, encoder);
         got.encode(buf, encoder);
       }
@@ -508,7 +508,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::ArgTypeMismatch {
+      Diagnostic::ArgTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -517,7 +517,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::FieldTypeMismatch {
+      Diagnostic::FieldTypMismatch {
         field,
         expected,
         start_offset,
@@ -535,7 +535,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::IndexTypeMismatch {
+      Diagnostic::IndexTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -544,7 +544,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::TagTypeMismatch {
+      Diagnostic::TagTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -553,7 +553,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::OperandTypeMismatch {
+      Diagnostic::OperandTypMismatch {
         op,
         expected,
         start_offset,
@@ -573,7 +573,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::ElementTypeMismatch {
+      Diagnostic::ElementTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -620,7 +620,7 @@ impl Encodable for Diagnostic {
       }
       Diagnostic::UnknownField {
         field,
-        on_type,
+        on_typ: on_type,
         start_offset,
         end_offset,
       } => {
@@ -706,7 +706,7 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
-      Diagnostic::TypeArgBoundViolation {
+      Diagnostic::TypArgBoundViolation {
         index,
         expected_bound,
         got,
@@ -1125,10 +1125,10 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::WrongTypeArgCount => {
+      DiagnosticCode::WrongTypArgCount => {
         let expected = usize::decode(data, decoder);
         let got = usize::decode(data, decoder);
-        Diagnostic::WrongTypeArgCount { expected, got }
+        Diagnostic::WrongTypArgCount { expected, got }
       }
       DiagnosticCode::NotCallable => {
         let start_offset = usize::decode(data, decoder);
@@ -1150,22 +1150,22 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::ArgTypeMismatch => {
+      DiagnosticCode::ArgTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::ArgTypeMismatch {
+        Diagnostic::ArgTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }
-      DiagnosticCode::FieldTypeMismatch => {
+      DiagnosticCode::FieldTypMismatch => {
         let field = String::decode(data, decoder);
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::FieldTypeMismatch {
+        Diagnostic::FieldTypMismatch {
           field,
           expected,
           start_offset,
@@ -1180,32 +1180,32 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::IndexTypeMismatch => {
+      DiagnosticCode::IndexTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::IndexTypeMismatch {
+        Diagnostic::IndexTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }
-      DiagnosticCode::TagTypeMismatch => {
+      DiagnosticCode::TagTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::TagTypeMismatch {
+        Diagnostic::TagTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }
-      DiagnosticCode::OperandTypeMismatch => {
+      DiagnosticCode::OperandTypMismatch => {
         let op = String::decode(data, decoder);
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::OperandTypeMismatch {
+        Diagnostic::OperandTypMismatch {
           op,
           expected,
           start_offset,
@@ -1222,11 +1222,11 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::ElementTypeMismatch => {
+      DiagnosticCode::ElementTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::ElementTypeMismatch {
+        Diagnostic::ElementTypMismatch {
           expected,
           start_offset,
           end_offset,
@@ -1264,12 +1264,12 @@ impl Decodable for Diagnostic {
       }
       DiagnosticCode::UnknownField => {
         let field = String::decode(data, decoder);
-        let on_type = String::decode(data, decoder);
+        let on_typ = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
         Diagnostic::UnknownField {
           field,
-          on_type,
+          on_typ,
           start_offset,
           end_offset,
         }
@@ -1360,11 +1360,11 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::TypeArgBoundViolation => {
+      DiagnosticCode::TypArgBoundViolation => {
         let index = usize::decode(data, decoder);
         let expected_bound = String::decode(data, decoder);
         let got = String::decode(data, decoder);
-        Diagnostic::TypeArgBoundViolation {
+        Diagnostic::TypArgBoundViolation {
           index,
           expected_bound,
           got,
@@ -1563,7 +1563,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::WrongTypeArgCount { expected, got } => {
+      Diagnostic::WrongTypArgCount { expected, got } => {
         expected.stable_hash(db, hasher);
         got.stable_hash(db, hasher);
       }
@@ -1578,7 +1578,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::ArgTypeMismatch {
+      Diagnostic::ArgTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1587,7 +1587,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::FieldTypeMismatch {
+      Diagnostic::FieldTypMismatch {
         field,
         expected,
         start_offset,
@@ -1598,7 +1598,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::IndexTypeMismatch {
+      Diagnostic::IndexTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1607,7 +1607,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::TagTypeMismatch {
+      Diagnostic::TagTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1616,7 +1616,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::OperandTypeMismatch {
+      Diagnostic::OperandTypMismatch {
         op,
         expected,
         start_offset,
@@ -1636,7 +1636,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::ElementTypeMismatch {
+      Diagnostic::ElementTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1683,7 +1683,7 @@ impl StableHash for Diagnostic {
       }
       Diagnostic::UnknownField {
         field,
-        on_type,
+        on_typ: on_type,
         start_offset,
         end_offset,
       } => {
@@ -1872,7 +1872,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::TypeArgBoundViolation {
+      Diagnostic::TypArgBoundViolation {
         index,
         expected_bound,
         got,

@@ -5,7 +5,7 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::utils::construct_from_hir;
 use crate::db::derived::typechecker::typecheck::{typecheck, typecheck_with_expected};
-use crate::db::types::{HirValue, ResourceResult, RuntimeScope, TdTypeEnum};
+use crate::db::types::{HirValue, ResourceResult, RuntimeScope, TdTypEnum};
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
@@ -25,7 +25,7 @@ pub fn evaluate_node<'db>(
 pub fn evaluate_node_with_expected<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,
-  expected_type: &TdTypeEnum<'db>,
+  expected_type: &TdTypEnum<'db>,
   runtime_scope: RuntimeScope<'db>,
 ) -> ResourceResult<'db> {
   let typecheck_result = typecheck_with_expected(db, hir, expected_type);

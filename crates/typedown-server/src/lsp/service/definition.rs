@@ -278,7 +278,7 @@ fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> O
   );
   if let HirValueKind::Call { args, .. } = hir.kind(db)
     && let Some(arg) = args.first()
-    && let HirValueKind::Str(path_str) = arg.kind(db)
+    && let HirValueKind::String(path_str) = arg.kind(db)
   {
     let config = get_vault_config(db, project);
     let root_dir = config.root_dir(db);

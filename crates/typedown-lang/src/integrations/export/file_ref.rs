@@ -5,12 +5,12 @@ use typedown_types::string::split_pascal_case;
 use super::utils;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use crate::db::derived::evaluate::evaluate_type::evaluate_type;
+use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::types::{File, FileRedNode, Project, Symbol, SymbolKind, TdRuntimeObject};
+use crate::db::types::{File, FileRedNode, Project, Symbol, SymbolKind, TdRuntimeObj};
 use crate::db::utils::strip_content_extension;
 use crate::syntax::red::RedNode;
 
@@ -36,8 +36,8 @@ pub fn resolve_file_ref(
       let config = get_vault_config(db, project);
       let root_dir = config.root_dir(db);
       let relative = path.strip_prefix(&root_dir).unwrap_or(path);
-      let relative_str = relative.to_string_lossy();
-      let without_ext = strip_content_extension(&relative_str);
+      let relative_string = relative.to_string_lossy();
+      let without_ext = strip_content_extension(&relative_string);
       let url = utils::prepend_base_path(&config.base_path(db), without_ext);
       Some(ResolvedRef { name, url })
     }
@@ -125,7 +125,7 @@ fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -
         .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
     }
     SymbolKind::UserDefinedSchema(_, _) => {
-      let typ = evaluate_type(db, *symbol).typ(db)?;
+      let typ = evaluate_typ(db, *symbol).typ(db)?;
       typ
         .get_builtin_field(db, "_icon")
         .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
@@ -138,11 +138,11 @@ fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -
 pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File) -> String {
   // Try _label from the schema type
   if let Some(symbol) = file_symbol(db, project, file).value(db)
-    && let Some(typ) = evaluate_type(db, symbol).typ(db)
+    && let Some(typ) = evaluate_typ(db, symbol).typ(db)
     && let Some(label_obj) = typ.get_builtin_field(db, "_label")
-    && let Some(str_obj) = label_obj.as_td_str_obj()
+    && let Some(string_obj) = label_obj.as_td_string_obj()
   {
-    return str_obj.value(db);
+    return string_obj.value(db);
   }
 
   // Fall back to PascalCase split of file stem
@@ -165,17 +165,17 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
       if let Some(target_symbol) = file_symbol(db, project, *target_file).value(db)
         && let Some(obj) = evaluate_resource(db, target_symbol).value(db)
         && let Some(label_obj) = obj.get_builtin_field(db, "_label")
-        && let Some(str_obj) = label_obj.as_td_str_obj()
+        && let Some(string_obj) = label_obj.as_td_string_obj()
       {
-        return str_obj.value(db);
+        return string_obj.value(db);
       }
     }
     SymbolKind::UserDefinedSchema(_, _) => {
-      if let Some(typ) = evaluate_type(db, *symbol).typ(db)
+      if let Some(typ) = evaluate_typ(db, *symbol).typ(db)
         && let Some(label_obj) = typ.get_builtin_field(db, "_label")
-        && let Some(str_obj) = label_obj.as_td_str_obj()
+        && let Some(string_obj) = label_obj.as_td_string_obj()
       {
-        return str_obj.value(db);
+        return string_obj.value(db);
       }
     }
     _ => {}

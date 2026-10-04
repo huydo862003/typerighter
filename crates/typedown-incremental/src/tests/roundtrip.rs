@@ -172,7 +172,7 @@ fn base_cases() {
 
 // Derived query returning an interned type roundtrips correctly
 #[test]
-fn interned_return_type_roundtrip() {
+fn interned_ret_type_roundtrip() {
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -203,7 +203,7 @@ fn interned_return_type_roundtrip() {
 
 // Derived query returning an interned type without lifetime roundtrips correctly
 #[test]
-fn interned_no_lifetime_return_type_roundtrip() {
+fn interned_no_lifetime_ret_type_roundtrip() {
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };

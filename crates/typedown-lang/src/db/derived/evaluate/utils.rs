@@ -3,18 +3,18 @@ use std::collections::BTreeMap;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use crate::db::derived::evaluate::evaluate_type::{evaluate_type, resolve_property_descriptor};
-use crate::db::derived::get_builtin_types::{get_never_type, get_null_type, get_sum_type};
+use crate::db::derived::evaluate::evaluate_typ::{evaluate_typ, resolve_property_descriptor};
+use crate::db::derived::get_builtin_typs::{get_never_typ, get_null_typ, get_sum_typ};
 use crate::db::derived::get_vault_config::get_vault_config;
-use crate::db::derived::icon::{ICON_ENTRIES, get_icon_module_type};
+use crate::db::derived::icon::{ICON_ENTRIES, get_icon_module_typ};
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::typechecker::actual_node_type::actual_node_type;
+use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, FnKind, HirValue, HirValueKind, InterpolatedPart, LazyType,
-  PropertyDescriptor, RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncType,
-  TdIconObj, TdListObj, TdMathObj, TdNullObj, TdNumObj, TdObjectEnum, TdProductObj,
-  TdRuntimeObject, TdSchemaObj, TdSchemaType, TdStaticType, TdStrObj, TdTypeEnum, TdVaultObj,
+  BuiltinGlobalKind, BuiltinMacroKind, FuncKind, HirValue, HirValueKind, InterpolatedPart, LazyTyp,
+  PropertyDescriptor, RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncTyp,
+  TdIconObj, TdListObj, TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdRuntimeObj,
+  TdSchemaObj, TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -24,7 +24,7 @@ pub(crate) fn construct_from_hir<'db>(
   hir: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   match hir.kind(db) {
     HirValueKind::Null => {
       return Some(TdNullObj::get(db).into());
@@ -47,14 +47,14 @@ pub(crate) fn construct_from_hir<'db>(
                     TdIconObj::new(db, entry.name.to_string(), entry.lucide_name.to_string());
                   fields.insert(entry.name.to_string(), Either::Right(obj.into()));
                 }
-                let module_type = get_icon_module_type(db).into();
-                Some(TdProductObj::new(db, module_type, None, BTreeMap::new(), fields).into())
+                let module_typ = get_icon_module_typ(db).into();
+                Some(TdProductObj::new(db, module_typ, None, BTreeMap::new(), fields).into())
               }
             };
           }
           // Schema identifiers evaluate to the schema type as an object
           SymbolKind::UserDefinedSchema(_, _) | SymbolKind::BuiltinSchema(_) => {
-            return evaluate_type(db, symbol).typ(db).map(TdObjectEnum::from);
+            return evaluate_typ(db, symbol).typ(db).map(TdObjEnum::from);
           }
           // Resource identifiers (including self) evaluate to the resource object
           SymbolKind::UserDefinedResource(_, _) => {
@@ -140,20 +140,20 @@ pub(crate) fn construct_from_hir<'db>(
     }
     // Closure: create a TdFuncObj capturing the defining scope
     HirValueKind::Closure { ref params, .. } => {
-      let func_type = match actual_node_type(db, hir).typ(db) {
-        Some(TdTypeEnum::TdFuncType(f)) => f,
+      let func_typ = match actual_node_typ(db, hir).typ(db) {
+        Some(TdTypEnum::TdFuncTyp(f)) => f,
         // No expected type context: assume never for params and return
         _ => {
-          let never: TdTypeEnum = get_never_type(db).into();
-          let param_types = vec![never.clone(); params.len()];
-          TdFuncType::get(db, param_types, never)
+          let never: TdTypEnum = get_never_typ(db).into();
+          let param_typs = vec![never.clone(); params.len()];
+          TdFuncTyp::get(db, param_typs, never)
         }
       };
       let func_obj = TdFuncObj::new(
         db,
         "<closure>".to_string(),
-        func_type.signature(db),
-        FnKind::UserDefined(hir, runtime_scope),
+        func_typ.signature(db),
+        FuncKind::UserDefined(hir, runtime_scope),
       );
       return Some(func_obj.into());
     }
@@ -161,27 +161,27 @@ pub(crate) fn construct_from_hir<'db>(
   }
 
   // Anonymous mappings become product objects
-  let type_result = actual_node_type(db, hir);
+  let typ_result = actual_node_typ(db, hir);
   if let HirValueKind::Mapping(entries) = hir.kind(db)
-    && type_result.typ(db).is_some_and(|t| t.is_td_product_type())
+    && typ_result.typ(db).is_some_and(|t| t.is_td_product_typ())
   {
     let mut builtins = BTreeMap::new();
     let mut fields = BTreeMap::new();
-    for (key, val_hir) in entries {
+    for (key, value_hir) in entries {
       if key.starts_with('_') {
-        builtins.insert(key, Either::Left(val_hir));
+        builtins.insert(key, Either::Left(value_hir));
       } else {
-        fields.insert(key, Either::Left(val_hir));
+        fields.insert(key, Either::Left(value_hir));
       }
     }
-    let product_type = type_result.typ(db).unwrap();
-    return Some(TdProductObj::new(db, product_type, None, builtins, fields).into());
+    let product_typ = typ_result.typ(db).unwrap();
+    return Some(TdProductObj::new(db, product_typ, None, builtins, fields).into());
   }
 
   // Normal construction: convert HIR to args, then call construct
-  let raw_typ = type_result.typ(db)?;
-  let typ = match raw_typ.runtime_type(db) {
-    Some(t) => t,
+  let raw_typ = typ_result.typ(db)?;
+  let typ = match raw_typ.runtime_typ(db) {
+    Some(typ) => typ,
     None => {
       let (start, len) = hir.node(db).trimmed_range();
       diagnostics.push(Diagnostic::NotConstructible {
@@ -193,12 +193,12 @@ pub(crate) fn construct_from_hir<'db>(
     }
   };
   match hir.kind(db) {
-    HirValueKind::Str(val) => {
-      typ.construct(db, hir.project(db), vec![TdStrObj::new(db, val).into()])
+    HirValueKind::String(val) => {
+      typ.construct(db, hir.project(db), vec![TdStringObj::new(db, val).into()])
     }
-    HirValueKind::Num(val) => {
+    HirValueKind::Number(val) => {
       let num: f64 = val.parse().unwrap_or(0.0);
-      typ.construct(db, hir.project(db), vec![TdNumObj::new(db, num).into()])
+      typ.construct(db, hir.project(db), vec![TdNumberObj::new(db, num).into()])
     }
     HirValueKind::Bool(val) => {
       typ.construct(db, hir.project(db), vec![TdBoolObj::new(db, val).into()])
@@ -211,7 +211,7 @@ pub(crate) fn construct_from_hir<'db>(
       typ.construct(db, hir.project(db), vec![obj])
     }
     HirValueKind::Sequence(items) => {
-      if typ.is_td_list_type() {
+      if typ.is_td_list_typ() {
         let hir_items = items.into_iter().map(Either::Left).collect();
         return Some(TdListObj::new(db, hir_items).into());
       }
@@ -235,18 +235,18 @@ fn evaluate_prefix<'db>(
   op: &str,
   operand: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   let operand_obj = evaluate_node(db, operand, runtime_scope).value(db)?;
   match op {
     "-" | "+" => {
-      let num = operand_obj.as_td_num_obj()?;
+      let num = operand_obj.as_td_number_obj()?;
       let val = num.value(db);
       let result = match op {
         "-" => -val,
         "+" => val,
         _ => unreachable!(),
       };
-      Some(TdNumObj::new(db, result).into())
+      Some(TdNumberObj::new(db, result).into())
     }
     // Logical not: only null and false are falsy, everything else is truthy
     "~" => {
@@ -262,18 +262,18 @@ fn evaluate_postfix<'db>(
   op: &str,
   operand: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   match op {
     // T? evaluates to Sum([T, null]) as a type object
     "?" => {
       let inner = evaluate_node(db, operand, runtime_scope).value(db)?;
-      let inner_type = inner.into_td_type_obj().ok()?;
+      let inner_typ = inner.into_td_typ_obj().ok()?;
       Some(
-        get_sum_type(
+        get_sum_typ(
           db,
           vec![
-            LazyType::eager(inner_type),
-            LazyType::eager(get_null_type(db).into()),
+            LazyTyp::eager(inner_typ),
+            LazyTyp::eager(get_null_typ(db).into()),
           ],
         )
         .into(),
@@ -289,13 +289,13 @@ fn evaluate_binary<'db>(
   left: HirValue<'db>,
   right: HirValue<'db>,
   runtime_scope: RuntimeScope<'db>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   let left_obj = evaluate_node(db, left, runtime_scope).value(db)?;
   let right_obj = evaluate_node(db, right, runtime_scope).value(db)?;
   match op {
     "+" | "-" | "*" | "/" | "%" | "**" => {
-      let lnum = left_obj.as_td_num_obj()?;
-      let rnum = right_obj.as_td_num_obj()?;
+      let lnum = left_obj.as_td_number_obj()?;
+      let rnum = right_obj.as_td_number_obj()?;
       let lval = lnum.value(db);
       let rval = rnum.value(db);
       let result = match op {
@@ -307,7 +307,7 @@ fn evaluate_binary<'db>(
         "**" => lval.powf(rval),
         _ => unreachable!(),
       };
-      Some(TdNumObj::new(db, result).into())
+      Some(TdNumberObj::new(db, result).into())
     }
     "==" | "!=" | "<" | ">" | "<=" | ">=" => {
       let result = compare_objects(db, op, &left_obj, &right_obj);
@@ -330,12 +330,12 @@ fn evaluate_binary<'db>(
 fn compare_objects<'db>(
   db: &'db TypedownDatabase,
   op: &str,
-  left: &TdObjectEnum<'db>,
-  right: &TdObjectEnum<'db>,
+  left: &TdObjEnum<'db>,
+  right: &TdObjEnum<'db>,
 ) -> bool {
   match op {
-    "==" => TdRuntimeObject::eq(left, db, right),
-    "!=" => !TdRuntimeObject::eq(left, db, right),
+    "==" => TdRuntimeObj::eq(left, db, right),
+    "!=" => !TdRuntimeObj::eq(left, db, right),
     "<" => left.lt(db, right),
     ">" => left.gt(db, right),
     "<=" => left.le(db, right),
@@ -350,7 +350,7 @@ fn evaluate_index<'db>(
   indices: Vec<HirValue<'db>>,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<Diagnostic>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   if indices.len() != 1 {
     return None;
   }
@@ -359,18 +359,18 @@ fn evaluate_index<'db>(
   let index_obj = evaluate_node(db, index_hir, runtime_scope).value(db)?;
 
   // Bounds check for diagnostics before delegating to protocol
-  if let Some(num) = index_obj.as_td_num_obj()
+  if let Some(number) = index_obj.as_td_number_obj()
     && let Some(len) = container.len(db)
   {
-    let idx = num.value(db) as usize;
-    if idx >= len {
+    let index = number.value(db) as usize;
+    if index >= len {
       let node = index_hir.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
+      let (trimmed_offset, trimmed_len) = node.trimmed_range();
       diagnostics.push(Diagnostic::IndexOutOfBounds {
-        index: idx,
+        index,
         length: len,
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
       return None;
     }
@@ -382,7 +382,7 @@ fn construct_macro<'db>(
   db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
   args: Vec<HirValue<'db>>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   match kind {
     BuiltinMacroKind::Fref => construct_fref(db, args),
   }
@@ -392,32 +392,32 @@ fn evaluate_interpolated<'db>(
   db: &'db TypedownDatabase,
   runtime_scope: RuntimeScope<'db>,
   parts: Vec<InterpolatedPart<'db>>,
-) -> Option<TdObjectEnum<'db>> {
-  let mut val = String::new();
+) -> Option<TdObjEnum<'db>> {
+  let mut value = String::new();
   for part in parts {
     match part {
-      InterpolatedPart::Literal(lit) => val.push_str(&lit),
+      InterpolatedPart::Literal(lit) => value.push_str(&lit),
       InterpolatedPart::Expr(expr) => {
         let obj = evaluate_node(db, expr, runtime_scope).value(db)?;
-        let to_string_fn = obj.lookup_method(db, "to_string")?;
+        let to_string_func = obj.lookup_method(db, "to_string")?;
         let project = runtime_scope.scope(db).project(db);
-        let str_obj = to_string_fn.call(db, project, Some(obj), vec![]).ok()?;
-        let str_val = str_obj.as_td_str_obj()?;
-        val.push_str(&str_val.value(db));
+        let string_obj = to_string_func.call(db, project, Some(obj), vec![]).ok()?;
+        let string_value = string_obj.as_td_string_obj()?;
+        value.push_str(&string_value.value(db));
       }
     }
   }
-  Some(TdStrObj::new(db, val).into())
+  Some(TdStringObj::new(db, value).into())
 }
 
 // Evaluate mapping as an object of type `typ`
 fn evaluate_mapping<'db>(
   db: &'db TypedownDatabase,
-  typ: &TdTypeEnum<'db>,
+  typ: &TdTypEnum<'db>,
   entries: Vec<(String, HirValue<'db>)>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   // Schema type
-  if typ.is_td_schema_meta_type() {
+  if typ.is_td_schema_meta_typ() {
     let properties_entries = match entries.iter().find(|(key, _)| key == "properties") {
       Some((_, props_hir)) => match props_hir.kind(db) {
         HirValueKind::Mapping(entries) => entries,
@@ -427,13 +427,13 @@ fn evaluate_mapping<'db>(
     };
     let mut fields = BTreeMap::new();
     for (prop_name, prop_hir) in properties_entries {
-      if prop_name.starts_with('_') && TdSchemaType::builtin_field_type(db, &prop_name).is_none() {
+      if prop_name.starts_with('_') && TdSchemaTyp::builtin_field_typ(db, &prop_name).is_none() {
         fields.insert(
           prop_name,
           PropertyDescriptor {
-            field_type: LazyType::eager(get_never_type(db).into()),
+            field_typ: LazyTyp::eager(get_never_typ(db).into()),
             default_value: None,
-            computed_fn: None,
+            computed_func: None,
           },
         );
         continue;
@@ -443,7 +443,7 @@ fn evaluate_mapping<'db>(
       }
     }
     return Some(
-      TdSchemaType::new(
+      TdSchemaTyp::new(
         db,
         "anonymous".to_string(),
         BTreeMap::new(),
@@ -456,7 +456,7 @@ fn evaluate_mapping<'db>(
   }
 
   // Schema type: build product obj from fields, then construct schema instance
-  if let TdTypeEnum::TdSchemaType(schema_typ) = &typ {
+  if let TdTypEnum::TdSchemaTyp(schema_typ) = &typ {
     let mut builtins = BTreeMap::new();
     let mut fields = BTreeMap::new();
     for (key, val_hir) in entries {
@@ -469,7 +469,7 @@ fn evaluate_mapping<'db>(
     let project = builtins
       .values()
       .chain(fields.values())
-      .find_map(|v| match v {
+      .find_map(|value| match value {
         Either::Left(hir) => Some(hir.project(db)),
         _ => None,
       })?;
@@ -479,14 +479,14 @@ fn evaluate_mapping<'db>(
   }
 
   // Product type
-  if let TdTypeEnum::TdProductType(product_typ) = &typ {
+  if let TdTypEnum::TdProductTyp(product_typ) = &typ {
     let mut builtins = BTreeMap::new();
     let mut fields = BTreeMap::new();
-    for (key, val_hir) in entries {
+    for (key, value_hir) in entries {
       if key.starts_with('_') {
-        builtins.insert(key, Either::Left(val_hir));
+        builtins.insert(key, Either::Left(value_hir));
       } else {
-        fields.insert(key, Either::Left(val_hir));
+        fields.insert(key, Either::Left(value_hir));
       }
     }
     return Some(TdProductObj::new(db, (*product_typ).into(), None, builtins, fields).into());
@@ -494,7 +494,7 @@ fn evaluate_mapping<'db>(
 
   let dict_entries: BTreeMap<_, _> = entries
     .into_iter()
-    .map(|(k, v)| (k, Either::Left(v)))
+    .map(|(key, value)| (key, Either::Left(value)))
     .collect();
   Some(TdDictObj::new(db, dict_entries).into())
 }
@@ -503,20 +503,20 @@ fn evaluate_mapping<'db>(
 fn construct_fref<'db>(
   db: &'db TypedownDatabase,
   args: Vec<HirValue<'db>>,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   if args.len() != 1 {
     return None;
   }
   let arg = args[0];
-  let path_str = match arg.kind(db) {
-    HirValueKind::Str(val) => val,
+  let path_string = match arg.kind(db) {
+    HirValueKind::String(value) => value,
     _ => return None,
   };
 
   let project = arg.project(db);
   let files = project.files(db);
   let root_dir = get_vault_config(db, project).root_dir(db);
-  let target_path = root_dir.join(&path_str);
+  let target_path = root_dir.join(&path_string);
 
   let target_file = *files.get(&target_path)?;
   let target_symbol = file_symbol(db, project, target_file).value(db)?;
@@ -527,15 +527,15 @@ fn construct_fref<'db>(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::derived::get_builtin_types::{
-    get_bool_type, get_dict_type, get_list_type, get_literal_type, get_never_type, get_null_type,
-    get_num_type, get_str_type, get_sum_type, get_type_type,
+  use crate::db::derived::get_builtin_typs::{
+    get_bool_typ, get_dict_typ, get_list_typ, get_lit_typ, get_never_typ, get_null_typ,
+    get_number_typ, get_string_typ, get_sum_typ, get_typ_typ,
   };
   use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-  use crate::db::types::derived::object_system::TdFuncObj;
+  use crate::db::types::derived::obj_system::TdFuncObj;
   use crate::db::types::{
-    File, FileHandle, FileMetadata, FnKind, FuncSignature, LazyType, LiteralValue, NativeFnKind,
-    PROTOCOL_CALL, PROTOCOL_INDEX, Project, TdProductType, TdSchemaType, TdTypeEnum,
+    File, FileHandle, FileMetadata, FuncKind, FuncSignature, LazyTyp, LitValue, NativeFuncKind,
+    PROTOCOL_CALL, PROTOCOL_INDEX, Project, TdProductTyp, TdSchemaTyp, TdTypEnum,
   };
   use crate::db::utils::lower_file;
   use crate::db::{QueryStorage, TypedownDatabase};
@@ -550,84 +550,93 @@ mod tests {
   }
 
   #[test]
-  fn test_runtime_type_mapping() {
+  fn test_runtime_typ_mapping() {
     let db = make_db();
 
     // Literal types resolve to primitive underlying types
-    let lit_str: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Str("hello".into())).into();
-    let lit_num: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Num("42".into())).into();
-    let lit_bool: TdTypeEnum<'_> = get_literal_type(&db, LiteralValue::Bool(true)).into();
+    let lit_string: TdTypEnum<'_> = get_lit_typ(&db, LitValue::String("hello".into())).into();
+    let lit_number: TdTypEnum<'_> = get_lit_typ(&db, LitValue::Number("42".into())).into();
+    let lit_bool: TdTypEnum<'_> = get_lit_typ(&db, LitValue::Bool(true)).into();
 
-    assert_eq!(lit_str.runtime_type(&db), Some(get_str_type(&db).into()));
-    assert_eq!(lit_num.runtime_type(&db), Some(get_num_type(&db).into()));
-    assert_eq!(lit_bool.runtime_type(&db), Some(get_bool_type(&db).into()));
+    assert_eq!(
+      lit_string.runtime_typ(&db),
+      Some(get_string_typ(&db).into())
+    );
+    assert_eq!(
+      lit_number.runtime_typ(&db),
+      Some(get_number_typ(&db).into())
+    );
+    assert_eq!(lit_bool.runtime_typ(&db), Some(get_bool_typ(&db).into()));
 
     // Primitive constructible types return themselves
-    let str_type: TdTypeEnum = get_str_type(&db).into();
-    let num_type: TdTypeEnum = get_num_type(&db).into();
-    let bool_type: TdTypeEnum = get_bool_type(&db).into();
-    let list_type: TdTypeEnum = get_list_type(&db).into();
-    let dict_type: TdTypeEnum = get_dict_type(&db).into();
-    let null_type: TdTypeEnum = get_null_type(&db).into();
+    let string_typ: TdTypEnum = get_string_typ(&db).into();
+    let number_typ: TdTypEnum = get_number_typ(&db).into();
+    let bool_typ: TdTypEnum = get_bool_typ(&db).into();
+    let list_typ: TdTypEnum = get_list_typ(&db).into();
+    let dict_typ: TdTypEnum = get_dict_typ(&db).into();
+    let null_typ: TdTypEnum = get_null_typ(&db).into();
 
-    assert_eq!(str_type.runtime_type(&db), Some(str_type.clone()));
-    assert_eq!(num_type.runtime_type(&db), Some(num_type.clone()));
-    assert_eq!(bool_type.runtime_type(&db), Some(bool_type.clone()));
+    assert_eq!(string_typ.runtime_typ(&db), Some(string_typ.clone()));
+    assert_eq!(number_typ.runtime_typ(&db), Some(number_typ.clone()));
+    assert_eq!(bool_typ.runtime_typ(&db), Some(bool_typ.clone()));
     // Uninstantiated generics are not constructible
-    assert_eq!(list_type.runtime_type(&db), None);
-    assert_eq!(dict_type.runtime_type(&db), None);
-    assert_eq!(null_type.runtime_type(&db), Some(null_type.clone()));
+    assert_eq!(list_typ.runtime_typ(&db), None);
+    assert_eq!(dict_typ.runtime_typ(&db), None);
+    assert_eq!(null_typ.runtime_typ(&db), Some(null_typ.clone()));
 
     // Instantiated generics are constructible
-    let list_str: TdTypeEnum = get_list_type(&db)
-      .instantiate(&db, vec![LazyType::eager(get_str_type(&db).into())])
+    let list_string: TdTypEnum = get_list_typ(&db)
+      .instantiate(&db, vec![LazyTyp::eager(get_string_typ(&db).into())])
       .typ(&db);
-    let dict_str_num: TdTypeEnum = get_dict_type(&db)
+    let dict_string_number: TdTypEnum = get_dict_typ(&db)
       .instantiate(
         &db,
         vec![
-          LazyType::eager(get_str_type(&db).into()),
-          LazyType::eager(get_num_type(&db).into()),
+          LazyTyp::eager(get_string_typ(&db).into()),
+          LazyTyp::eager(get_number_typ(&db).into()),
         ],
       )
       .typ(&db);
-    assert_eq!(list_str.runtime_type(&db), Some(list_str.clone()));
-    assert_eq!(dict_str_num.runtime_type(&db), Some(dict_str_num.clone()));
+    assert_eq!(list_string.runtime_typ(&db), Some(list_string.clone()));
+    assert_eq!(
+      dict_string_number.runtime_typ(&db),
+      Some(dict_string_number.clone())
+    );
 
     // Non-constructible types return None
-    let sum_type: TdTypeEnum = get_sum_type(
+    let sum_typ: TdTypEnum = get_sum_typ(
       &db,
-      vec![LazyType::eager(str_type), LazyType::eager(num_type)],
+      vec![LazyTyp::eager(string_typ), LazyTyp::eager(number_typ)],
     )
     .into();
-    let never_type: TdTypeEnum = get_never_type(&db).into();
-    let product_type: TdTypeEnum = TdProductType::new(&db, None, BTreeMap::new()).into();
+    let never_typ: TdTypEnum = get_never_typ(&db).into();
+    let product_typ: TdTypEnum = TdProductTyp::new(&db, None, BTreeMap::new()).into();
 
-    let type_type_val: TdTypeEnum = get_type_type(&db).into();
-    assert_eq!(type_type_val.runtime_type(&db), Some(type_type_val.clone()));
-    assert_eq!(sum_type.runtime_type(&db), None);
-    assert_eq!(never_type.runtime_type(&db), None);
-    assert_eq!(product_type.runtime_type(&db), None);
+    let typ_typ_value: TdTypEnum = get_typ_typ(&db).into();
+    assert_eq!(typ_typ_value.runtime_typ(&db), Some(typ_typ_value.clone()));
+    assert_eq!(sum_typ.runtime_typ(&db), None);
+    assert_eq!(never_typ.runtime_typ(&db), None);
+    assert_eq!(product_typ.runtime_typ(&db), None);
   }
 
   #[test]
   fn test_not_constructible_diagnostic_emitted() {
     let db = make_db();
 
-    // Verify runtime_type returns None for non-constructible sum type
-    let sum_type: TdTypeEnum<'_> = get_sum_type(
+    // Verify runtime_typ returns None for non-constructible sum typ
+    let sum_typ: TdTypEnum<'_> = get_sum_typ(
       &db,
       vec![
-        LazyType::eager(get_str_type(&db).into()),
-        LazyType::eager(get_num_type(&db).into()),
+        LazyTyp::eager(get_string_typ(&db).into()),
+        LazyTyp::eager(get_number_typ(&db).into()),
       ],
     )
     .into();
-    assert_eq!(sum_type.runtime_type(&db), None);
+    assert_eq!(sum_typ.runtime_typ(&db), None);
 
-    // Verify runtime_type returns None for never type
-    let never_type: TdTypeEnum = get_never_type(&db).into();
-    assert_eq!(never_type.runtime_type(&db), None);
+    // Verify runtime_typ returns None for never typ
+    let never_typ: TdTypEnum = get_never_typ(&db).into();
+    assert_eq!(never_typ.runtime_typ(&db), None);
 
     // Verify construct_from_hir on constructible literal succeeds cleanly
     let file = File::new(
@@ -640,11 +649,11 @@ mod tests {
     );
     let project = Project::new(&db, PathBuf::from("/vault"), HashMap::new());
     let (hir, _) = lower_file(&db, project, file);
-    let str_hir = hir.expect("file should parse");
+    let string_hir = hir.expect("file should parse");
 
     let mut diagnostics = vec![];
     let scope = get_file_runtime_scope(&db, project, file);
-    let obj = construct_from_hir(&db, str_hir, scope, &mut diagnostics);
+    let obj = construct_from_hir(&db, string_hir, scope, &mut diagnostics);
     assert!(obj.is_some());
     assert!(diagnostics.is_empty());
   }
@@ -652,26 +661,26 @@ mod tests {
   #[test]
   fn test_dunder_methods_call_and_index() {
     let db = make_db();
-    let str_type: TdTypeEnum<'_> = get_str_type(&db).into();
-    let sig = FuncSignature::new(&db, vec![str_type.clone()], str_type.clone());
-    let index_fn = TdFuncObj::new(
+    let string_typ: TdTypEnum<'_> = get_string_typ(&db).into();
+    let signature = FuncSignature::new(&db, vec![string_typ.clone()], string_typ.clone());
+    let index_func = TdFuncObj::new(
       &db,
       PROTOCOL_INDEX.to_string(),
-      sig,
-      FnKind::Native(NativeFnKind::ToStringMethod),
+      signature,
+      FuncKind::Native(NativeFuncKind::ToStringMethod),
     );
-    let call_fn = TdFuncObj::new(
+    let call_func = TdFuncObj::new(
       &db,
       PROTOCOL_CALL.to_string(),
-      sig,
-      FnKind::Native(NativeFnKind::ToStringMethod),
+      signature,
+      FuncKind::Native(NativeFuncKind::ToStringMethod),
     );
 
     let mut vtable = BTreeMap::new();
-    vtable.insert(PROTOCOL_INDEX.to_string(), index_fn);
-    vtable.insert(PROTOCOL_CALL.to_string(), call_fn);
+    vtable.insert(PROTOCOL_INDEX.to_string(), index_func);
+    vtable.insert(PROTOCOL_CALL.to_string(), call_func);
 
-    let schema_type = TdSchemaType::new(
+    let schema_typ = TdSchemaTyp::new(
       &db,
       "CustomContainer".into(),
       BTreeMap::new(),
@@ -679,16 +688,16 @@ mod tests {
       vtable,
       None,
     );
-    let schema_enum: TdTypeEnum = schema_type.into();
+    let schema_enum: TdTypEnum = schema_typ.into();
 
     // Verify static typechecking detects [[index]] and [[call]] return types
     assert_eq!(
-      schema_enum.index_type(&db, &get_num_type(&db).into()),
-      Some(sig)
+      schema_enum.index_typ(&db, &get_number_typ(&db).into()),
+      Some(signature)
     );
     assert_eq!(
-      schema_enum.call_type(&db, vec![get_str_type(&db).into()]),
-      Some(sig)
+      schema_enum.call_typ(&db, vec![get_string_typ(&db).into()]),
+      Some(signature)
     );
   }
 }

@@ -4,7 +4,7 @@ pub mod file_ref;
 pub mod html;
 pub mod json;
 pub mod markdown;
-pub mod properties;
+pub mod props;
 pub mod types;
 pub mod utils;
 
@@ -12,7 +12,7 @@ pub use file_ref::{
   FrefTarget, ResolvedRef, resolve_file_ref, resolve_fref_target, resolve_schema_label,
 };
 pub use json::evaluate_lazy_field;
-pub use properties::{Widget, export_property_descriptors};
+pub use props::{Widget, export_prop_descriptors};
 pub use types::*;
 
 pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -21,8 +21,8 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::parse_file::parse_file;
-use crate::db::types::derived::object_system::TdStaticType;
-use crate::db::types::{File, FileHandle, Project, TdBlobType, TdObjectEnum, TdRuntimeObject};
+use crate::db::types::derived::obj_system::TdStaticTyp;
+use crate::db::types::{File, FileHandle, Project, TdBlobTyp, TdObjEnum, TdRuntimeObj};
 use crate::syntax::ast::{AstNode, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -95,7 +95,7 @@ pub fn export_resource_markdown(
 ) -> Option<ExportedResourceMarkdown> {
   match extract_resource(db, project, file)? {
     ResourceKind::Blob(blob) => Some(ExportedResourceMarkdown {
-      schema: Some(TdBlobType::get(db).display_name(db)),
+      schema: Some(TdBlobTyp::get(db).display_name(db)),
       label: None,
       icon: None,
       header: blob.header,
@@ -124,7 +124,7 @@ pub fn export_resource_html(
 ) -> Option<ExportedResourceHtml> {
   match extract_resource(db, project, file)? {
     ResourceKind::Blob(blob) => Some(ExportedResourceHtml {
-      schema: Some(TdBlobType::get(db).display_name(db)),
+      schema: Some(TdBlobTyp::get(db).display_name(db)),
       label: None,
       icon: None,
       header: blob.header,
@@ -192,7 +192,7 @@ fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
 
     let label = obj
       .get_builtin_field(db, "_label")
-      .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+      .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
     let icon = obj.get_builtin_field(db, "_icon").and_then(|obj| {
       obj.as_td_icon_obj().map(|icon| ExportedIcon {
         name: icon.lucide_name(db),
@@ -224,10 +224,10 @@ fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     .as_ref()
     .and_then(|o| {
       o.get_owned_field(db, "description")
-        .and_then(|f| f.as_td_str_obj().map(|s| s.value(db)))
+        .and_then(|f| f.as_td_string_obj().map(|s| s.value(db)))
         .or_else(|| {
           o.get_owned_field(db, "summary")
-            .and_then(|f| f.as_td_str_obj().map(|s| s.value(db)))
+            .and_then(|f| f.as_td_string_obj().map(|s| s.value(db)))
         })
         .filter(|s| !s.is_empty())
     })
@@ -256,7 +256,7 @@ fn export_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
 fn export_seo_metadata(
   db: &TypedownDatabase,
   project: Project,
-  obj: &TdObjectEnum,
+  obj: &TdObjEnum,
 ) -> Option<ExportedSeoMeta> {
   let meta_obj = obj.get_builtin_field(db, "_meta")?;
 
@@ -266,12 +266,12 @@ fn export_seo_metadata(
 
   let title = meta_obj
     .get_owned_field(db, "title")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+    .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
   let description = meta_obj
     .get_owned_field(db, "description")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
+    .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
   let image = meta_obj.get_owned_field(db, "image").and_then(|o| {
-    o.as_td_str_obj().map(|s| {
+    o.as_td_string_obj().map(|s| {
       let raw = s.value(db);
       if utils::is_external_url(&raw) || raw.starts_with('/') {
         raw
@@ -315,7 +315,7 @@ fn export_body_excerpt(node: &RedNode) -> Option<String> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::derived::evaluate::evaluate_type::evaluate_type;
+  use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
   use crate::db::derived::name_resolver::file_symbol::file_symbol;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{File, FileHandle, FileMetadata, Project};
@@ -467,7 +467,7 @@ mod tests {
   fn exports_list_field_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/WithListField.td");
     let props =
-      export_property_descriptors(&db, project, file).expect("WithListField schema should export");
+      export_prop_descriptors(&db, project, file).expect("WithListField schema should export");
     assert_eq!(props["tags"]["widget"], "list");
     assert_eq!(props["tags"]["items"]["widget"], "text");
     assert_eq!(props["scores"]["widget"], "list");
@@ -475,19 +475,17 @@ mod tests {
   }
 
   #[test]
-  fn exports_schema_properties() {
+  fn exports_schema_props() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let props =
-      export_property_descriptors(&db, project, file).expect("Person schema should export");
+    let props = export_prop_descriptors(&db, project, file).expect("Person schema should export");
     assert_eq!(props["name"]["widget"], "text");
     assert_eq!(props["age"]["widget"], "number");
   }
 
   #[test]
-  fn exports_schema_select_property() {
+  fn exports_schema_select_prop() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Status.td");
-    let props =
-      export_property_descriptors(&db, project, file).expect("Status schema should export");
+    let props = export_prop_descriptors(&db, project, file).expect("Status schema should export");
     assert_eq!(props["status"]["widget"], "select");
     assert_eq!(
       props["status"]["options"],
@@ -496,10 +494,9 @@ mod tests {
   }
 
   #[test]
-  fn exports_schema_relation_property() {
+  fn exports_schema_relation_prop() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Event.td");
-    let props =
-      export_property_descriptors(&db, project, file).expect("Event schema should export");
+    let props = export_prop_descriptors(&db, project, file).expect("Event schema should export");
     assert_eq!(props["title"]["widget"], "text");
     assert_eq!(props["location"]["widget"], "relation");
     assert_eq!(props["location"]["schema"], "Address");
@@ -508,10 +505,10 @@ mod tests {
   #[test]
   fn returns_none_for_non_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let result = export_property_descriptors(&db, project, file);
+    let result = export_prop_descriptors(&db, project, file);
     assert!(
       result.is_none(),
-      "resource file should return None from export_property_descriptors"
+      "resource file should return None from export_prop_descriptors"
     );
   }
 
@@ -697,7 +694,7 @@ name: "Alice"
 
     // First evaluation, no icon
     let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();
-    let result = evaluate_type(&db, symbol);
+    let result = evaluate_typ(&db, symbol);
     assert!(
       result.diagnostics(&db).is_empty(),
       "{:?}",
@@ -734,7 +731,7 @@ properties:
 
     // Re-evaluate, should not panic with a query cycle
     let symbol2 = file_symbol(&db, project, schema_file).value(&db).unwrap();
-    let result2 = evaluate_type(&db, symbol2);
+    let result2 = evaluate_typ(&db, symbol2);
     assert!(
       result2.diagnostics(&db).is_empty(),
       "after adding _icon: {:?}",

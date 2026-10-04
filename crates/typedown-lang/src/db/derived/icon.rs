@@ -4,8 +4,8 @@ use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::get_icon_type;
-use crate::db::types::{LazyType, TdProductType};
+use crate::db::derived::get_builtin_typs::get_icon_typ;
+use crate::db::types::{LazyTyp, TdProductTyp};
 
 pub struct IconEntry {
   pub name: &'static str,
@@ -751,11 +751,11 @@ pub static ICON_ENTRIES: &[IconEntry] = &[
 ];
 
 #[query_derived]
-pub fn get_icon_module_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
-  let icon_type = get_icon_type(db);
+pub fn get_icon_module_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> {
+  let icon_type = get_icon_typ(db);
   let mut fields = BTreeMap::new();
   for entry in ICON_ENTRIES {
-    fields.insert(entry.name.to_string(), LazyType::eager(icon_type.into()));
+    fields.insert(entry.name.to_string(), LazyTyp::eager(icon_type.into()));
   }
-  TdProductType::new(db, None, fields)
+  TdProductTyp::new(db, None, fields)
 }

@@ -7,7 +7,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::scope::{
   get_builtin_runtime_scope, get_file_runtime_scope, get_project_runtime_scope, parent_scope,
 };
-use crate::db::types::{File, HirValue, Project, TdObjectEnum, TdRuntimeObject};
+use crate::db::types::{File, HirValue, Project, TdObjEnum, TdRuntimeObj};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
@@ -20,7 +20,7 @@ pub enum SymbolKind<'db> {
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
-  FnParam(Project, File, HirValue<'db>),
+  FuncParam(Project, File, HirValue<'db>),
 }
 
 #[derive(FromRepr)]
@@ -57,7 +57,7 @@ impl<'db> SymbolKind<'db> {
       SymbolKind::UserDefinedSchema(_, _)
         | SymbolKind::UserDefinedResource(_, _)
         | SymbolKind::Asset(_, _, _)
-        | SymbolKind::FnParam(_, _, _)
+        | SymbolKind::FuncParam(_, _, _)
     )
   }
 
@@ -75,7 +75,7 @@ impl<'db> StableHash for SymbolKind<'db> {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
       }
-      SymbolKind::FnParam(project, file, closure) => {
+      SymbolKind::FuncParam(project, file, closure) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
         closure.stable_hash(db, hasher);
@@ -123,7 +123,7 @@ impl<'db> Encodable for SymbolKind<'db> {
         encoder.emit_u8(buf, SymbolKindTag::BuiltinGlobal as u8);
         kind.encode(buf, encoder);
       }
-      SymbolKind::FnParam(project, file, closure) => {
+      SymbolKind::FuncParam(project, file, closure) => {
         encoder.emit_u8(buf, SymbolKindTag::FnParam as u8);
         project.field_encode(buf, encoder);
         file.field_encode(buf, encoder);
@@ -159,7 +159,7 @@ impl<'db> Decodable for SymbolKind<'db> {
       SymbolKindTag::BuiltinGlobal => {
         SymbolKind::BuiltinGlobal(BuiltinGlobalKind::decode(data, decoder))
       }
-      SymbolKindTag::FnParam => SymbolKind::FnParam(
+      SymbolKindTag::FnParam => SymbolKind::FuncParam(
         Project::field_decode(data, decoder),
         File::field_decode(data, decoder),
         HirValue::field_decode(data, decoder),
@@ -302,10 +302,10 @@ impl Decodable for BuiltinGlobalKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum BuiltinSchemaKind {
-  TypeType = 0,
+  TypTyp = 0,
   Schema = 1,
-  Str = 2,
-  Num = 3,
+  String = 2,
+  Number = 3,
   Bool = 4,
   Date = 5,
   DateTime = 6,
@@ -313,8 +313,8 @@ pub enum BuiltinSchemaKind {
   List = 8,
   Dict = 9,
   Math = 10,
-  SchemaProperty = 11,
-  Object = 12,
+  SchemaProp = 11,
+  Obj = 12,
 }
 
 impl StableHash for BuiltinSchemaKind {
@@ -458,7 +458,7 @@ impl<'db> Scope<'db> {
 #[query_derived(no_hash, custom_hash)]
 pub struct RuntimeScope<'db> {
   scope: Scope<'db>,
-  bindings: Vec<(String, TdObjectEnum<'db>)>,
+  bindings: Vec<(String, TdObjEnum<'db>)>,
   parent: Option<Box<RuntimeScope<'db>>>,
 }
 
@@ -523,7 +523,7 @@ impl<'db> RuntimeScope<'db> {
     &self,
     db: &'db (impl QueryDatabase + ?Sized),
     name: &str,
-  ) -> Option<TdObjectEnum<'db>> {
+  ) -> Option<TdObjEnum<'db>> {
     for (key, val) in &self.bindings(db) {
       if key == name {
         return Some(val.clone());

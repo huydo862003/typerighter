@@ -54,7 +54,7 @@ fn resolve_call<'db>(
   if let HirValueKind::Ident(name) = callee.kind(db)
     && name == "fref"
     && let Some(first_arg) = args.first()
-    && let HirValueKind::Str(path) = first_arg.kind(db)
+    && let HirValueKind::String(path) = first_arg.kind(db)
   {
     let project = hir.project(db);
     let root_dir = get_vault_config(db, project).root_dir(db);
@@ -165,7 +165,7 @@ mod tests {
       &db,
       project,
       FileRedNode::new(file, node.clone()),
-      HirValueKind::Str("nonexistent.td".to_string()),
+      HirValueKind::String("nonexistent.td".to_string()),
       vec![],
     );
     let call_hir = HirValue::new(
@@ -244,12 +244,12 @@ fn: (a, b) -> a + b
     let a_hir = find_ident(&db, hir, "a").expect("should find Ident('a')");
     let resolved_a = referee(&db, a_hir).value(&db).expect("a should resolve");
     assert_eq!(resolved_a.name(&db), "a");
-    assert!(matches!(resolved_a.kind(&db), SymbolKind::FnParam(..)));
+    assert!(matches!(resolved_a.kind(&db), SymbolKind::FuncParam(..)));
 
     let b_hir = find_ident(&db, hir, "b").expect("should find Ident('b')");
     let resolved_b = referee(&db, b_hir).value(&db).expect("b should resolve");
     assert_eq!(resolved_b.name(&db), "b");
-    assert!(matches!(resolved_b.kind(&db), SymbolKind::FnParam(..)));
+    assert!(matches!(resolved_b.kind(&db), SymbolKind::FuncParam(..)));
   }
 
   #[test]
@@ -266,12 +266,12 @@ fn: (a) -> (b) -> a + b
     let a_hir = find_ident(&db, hir, "a").expect("should find Ident('a')");
     let resolved_a = referee(&db, a_hir).value(&db).expect("a should resolve");
     assert_eq!(resolved_a.name(&db), "a");
-    assert!(matches!(resolved_a.kind(&db), SymbolKind::FnParam(..)));
+    assert!(matches!(resolved_a.kind(&db), SymbolKind::FuncParam(..)));
 
     let b_hir = find_ident(&db, hir, "b").expect("should find Ident('b')");
     let resolved_b = referee(&db, b_hir).value(&db).expect("b should resolve");
     assert_eq!(resolved_b.name(&db), "b");
-    assert!(matches!(resolved_b.kind(&db), SymbolKind::FnParam(..)));
+    assert!(matches!(resolved_b.kind(&db), SymbolKind::FuncParam(..)));
   }
 
   #[test]

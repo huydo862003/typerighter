@@ -66,7 +66,7 @@ fn build_fref_hint(
     return None;
   };
   let arg = args.first()?;
-  let HirValueKind::Str(path_str) = arg.kind(db) else {
+  let HirValueKind::String(path_str) = arg.kind(db) else {
     return None;
   };
 

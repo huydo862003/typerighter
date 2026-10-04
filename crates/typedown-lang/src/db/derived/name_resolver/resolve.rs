@@ -29,11 +29,11 @@ fn collect_unresolved<'db>(
       let resolved = referee(db, hir);
       if resolved.value(db).is_none() {
         let node = hir.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
         diagnostics.push(Diagnostic::UnresolvedIdentifier {
           name: node.text(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
     }
@@ -87,8 +87,8 @@ fn collect_unresolved<'db>(
     HirValueKind::Closure { body, .. } => {
       collect_unresolved(db, *body, diagnostics);
     }
-    HirValueKind::Str(_)
-    | HirValueKind::Num(_)
+    HirValueKind::String(_)
+    | HirValueKind::Number(_)
     | HirValueKind::Math(_)
     | HirValueKind::Bool(_)
     | HirValueKind::Null => {}
@@ -116,7 +116,7 @@ fn check_imports<'db>(
   let root_dir = get_vault_config(db, project).root_dir(db);
 
   for (_, path_hir) in entries {
-    let HirValueKind::Str(path) = path_hir.kind(db) else {
+    let HirValueKind::String(path) = path_hir.kind(db) else {
       continue;
     };
     let target_path = root_dir.join(&path);

@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 
 use crate::db::TypedownDatabase;
-use crate::db::types::LazyType;
-use crate::db::types::derived::object_system::TdStaticType;
+use crate::db::types::LazyTyp;
+use crate::db::types::derived::obj_system::TdStaticTyp;
 
 // Format a field map as "{ name: type, ... }"
-pub fn format_field_map(db: &TypedownDatabase, fields: &BTreeMap<String, LazyType>) -> String {
+pub fn format_field_map(db: &TypedownDatabase, fields: &BTreeMap<String, LazyTyp>) -> String {
   if fields.is_empty() {
     return "{}".to_string();
   }
@@ -16,7 +16,7 @@ pub fn format_field_map(db: &TypedownDatabase, fields: &BTreeMap<String, LazyTyp
     .filter_map(|(name, lazy)| {
       lazy
         .resolve(db)
-        .map(|t| format!("{}: {}", name, t.display_name(db)))
+        .map(|typ| format!("{}: {}", name, typ.display_name(db)))
     })
     .collect();
   parts.sort();

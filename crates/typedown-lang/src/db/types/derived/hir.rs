@@ -40,8 +40,8 @@ impl<'db> StableHash for HirValue<'db> {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, StableCompare)]
 pub enum HirValueKind<'db> {
-  Str(String),
-  Num(String),
+  String(String),
+  Number(String),
   Math(String),
   Bool(bool),
   Null,
@@ -85,8 +85,8 @@ impl<'db> StableHash for HirValueKind<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
-      HirValueKind::Str(s) => s.stable_hash(db, hasher),
-      HirValueKind::Num(s) => s.stable_hash(db, hasher),
+      HirValueKind::String(s) => s.stable_hash(db, hasher),
+      HirValueKind::Number(s) => s.stable_hash(db, hasher),
       HirValueKind::Math(s) => s.stable_hash(db, hasher),
       HirValueKind::Bool(b) => b.stable_hash(db, hasher),
       HirValueKind::Null => {}
@@ -190,11 +190,11 @@ enum InterpolatedPartTag {
 impl<'db> Encodable for HirValueKind<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      HirValueKind::Str(val) => {
+      HirValueKind::String(val) => {
         encoder.emit_u8(buf, HirValueKindTag::Str as u8);
         val.encode(buf, encoder);
       }
-      HirValueKind::Num(val) => {
+      HirValueKind::Number(val) => {
         encoder.emit_u8(buf, HirValueKindTag::Num as u8);
         val.encode(buf, encoder);
       }
@@ -273,8 +273,8 @@ impl<'db> Decodable for HirValueKind<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match HirValueKindTag::from_repr(tag).expect("unknown HirValueKind tag") {
-      HirValueKindTag::Str => HirValueKind::Str(String::decode(data, decoder)),
-      HirValueKindTag::Num => HirValueKind::Num(String::decode(data, decoder)),
+      HirValueKindTag::Str => HirValueKind::String(String::decode(data, decoder)),
+      HirValueKindTag::Num => HirValueKind::Number(String::decode(data, decoder)),
       HirValueKindTag::Math => HirValueKind::Math(String::decode(data, decoder)),
       HirValueKindTag::Bool => HirValueKind::Bool(bool::decode(data, decoder)),
       HirValueKindTag::Null => HirValueKind::Null,

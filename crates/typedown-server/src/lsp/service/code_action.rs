@@ -5,14 +5,14 @@ use lsp_types::{
 use std::collections::HashMap;
 use typedown_incremental::StableCompare;
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
+use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use typedown_lang::db::types::typecheck::is_nullable;
 use typedown_lang::db::types::{
-  File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
+  File, FileRedNode, LazyTyp, LitValue, Project, SymbolKind, TdStaticTyp, TdTypEnum,
 };
 use typedown_lang::db::types::{Scope, ScopeKind};
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
@@ -118,11 +118,11 @@ fn create_linked_action(
   let schema_name = extract_schema_name(db, &typ)?;
 
   // Detect if the field is a list
-  let is_list = typ.is_td_list_type()
-    || typ.as_td_sum_type().is_some_and(|s| {
+  let is_list = typ.is_td_list_typ()
+    || typ.as_td_sum_typ().is_some_and(|s| {
       s.members(db)
         .iter()
-        .any(|m| m.resolve(db).is_some_and(|t| t.is_td_list_type()))
+        .any(|m| m.resolve(db).is_some_and(|t| t.is_td_list_typ()))
     });
 
   let args = CreateLinkedResourceArgs {
@@ -158,7 +158,7 @@ fn resolve_entry_type<'db>(
   file: File,
   node: &RedNode,
   entry: &RedNode,
-) -> Option<TdTypeEnum<'db>> {
+) -> Option<TdTypEnum<'db>> {
   // Try via the value expression
   if is_in_mapping_value_position(node) {
     let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
@@ -168,7 +168,7 @@ fn resolve_entry_type<'db>(
         project,
         FileRedNode::new(file, value_expr.syntax().clone()),
       );
-      if let Some(typ) = expected_node_type(db, hir).typ(db) {
+      if let Some(typ) = expected_node_typ(db, hir).typ(db) {
         return Some(typ);
       }
     }
@@ -185,31 +185,31 @@ fn resolve_entry_type<'db>(
   let schema_name = typedown_lang::db::utils::get_mapping_schema_name(&mapping)?;
   let scope = Scope::new(db, ScopeKind::Project(project));
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
-  let typ = evaluate_type(db, symbol).typ(db)?;
-  let schema = typ.as_td_schema_type()?;
+  let typ = evaluate_typ(db, symbol).typ(db)?;
+  let schema = typ.as_td_schema_typ()?;
   let prop = schema.fields(db).get(&key_text)?.clone();
-  prop.field_type.resolve(db)
+  prop.field_typ.resolve(db)
 }
 
 // Extract the schema name from a type, handling nullable and list wrappers
-fn extract_schema_name(db: &TypedownDatabase, typ: &TdTypeEnum) -> Option<String> {
-  if typ.is_td_schema_type() {
+fn extract_schema_name(db: &TypedownDatabase, typ: &TdTypEnum) -> Option<String> {
+  if typ.is_td_schema_typ() {
     return Some(typ.display_name(db));
   }
   // Check nullable: T? -> extract T if T is a schema
-  if let Some(sum) = typ.as_td_sum_type() {
+  if let Some(sum) = typ.as_td_sum_typ() {
     for member in sum.members(db) {
       if let Some(resolved) = member.resolve(db)
-        && resolved.is_td_schema_type()
+        && resolved.is_td_schema_typ()
       {
         return Some(resolved.display_name(db));
       }
     }
   }
   // Check list[Schema]
-  if let Some(list) = typ.as_td_list_type() {
-    let resolved = list.element_type(db)?.resolve(db)?;
-    if resolved.is_td_schema_type() {
+  if let Some(list) = typ.as_td_list_typ() {
+    let resolved = list.element_typ(db)?.resolve(db)?;
+    if resolved.is_td_schema_typ() {
       return Some(resolved.display_name(db));
     }
   }
@@ -225,8 +225,8 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
     .iter()
     .filter(|(_, sym)| matches!(sym.kind(db), SymbolKind::UserDefinedSchema(..)))
     .filter_map(|(name, sym)| {
-      let typ = evaluate_type(db, *sym).typ(db)?;
-      let schema = typ.as_td_schema_type()?;
+      let typ = evaluate_typ(db, *sym).typ(db)?;
+      let schema = typ.as_td_schema_typ()?;
       let fields = schema.fields(db);
 
       let mut template = String::new();
@@ -235,10 +235,10 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
       template.push_str(&format!("# _label: \"{name}\"\n"));
       template.push_str("# _icon: icon.file\n");
 
-      for (field_name, prop_desc) in &fields {
-        let default = format_default_value(db, &prop_desc.field_type);
-        let optional = prop_desc
-          .field_type
+      for (field_name, prop_descriptor) in &fields {
+        let default = format_default_value(db, &prop_descriptor.field_typ);
+        let optional = prop_descriptor
+          .field_typ
           .resolve(db)
           .is_some_and(|t| is_nullable(db, &t));
 
@@ -255,33 +255,33 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 }
 
 // Generate a default value string for a schema field type
-fn format_default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
+fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
   let Some(typ) = lazy.resolve(db) else {
     return "\"\"".to_string();
   };
   match typ {
-    TdTypeEnum::TdLiteralType(lit) => match lit.value(db) {
-      LiteralValue::Str(s) => format!("\"{s}\""),
+    TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
+      LitValue::String(s) => format!("\"{s}\""),
       _ => "\"\"".to_string(),
     },
-    TdTypeEnum::TdStrType(_) => "\"\"".to_string(),
-    TdTypeEnum::TdNumType(_) => "0".to_string(),
-    TdTypeEnum::TdBoolType(_) => "false".to_string(),
-    TdTypeEnum::TdDateType(_) => "\"\"".to_string(),
-    TdTypeEnum::TdDateTimeType(_) => "\"\"".to_string(),
-    TdTypeEnum::TdTimeType(_) => "\"\"".to_string(),
-    TdTypeEnum::TdSchemaType(schema) => {
+    TdTypEnum::TdStringTyp(_) => "\"\"".to_string(),
+    TdTypEnum::TdNumberTyp(_) => "0".to_string(),
+    TdTypEnum::TdBoolTyp(_) => "false".to_string(),
+    TdTypEnum::TdDateTyp(_) => "\"\"".to_string(),
+    TdTypEnum::TdDateTimeTyp(_) => "\"\"".to_string(),
+    TdTypEnum::TdTimeTyp(_) => "\"\"".to_string(),
+    TdTypEnum::TdSchemaTyp(schema) => {
       format!("fref(\"{}\")", schema.name(db))
     }
-    TdTypeEnum::TdListType(_) => "[]".to_string(),
+    TdTypEnum::TdListTyp(_) => "[]".to_string(),
 
-    TdTypeEnum::TdSumType(sum) => {
+    TdTypEnum::TdSumTyp(sum) => {
       let mut members: Vec<_> = sum.members(db).into_iter().collect();
       members.sort_by(|a, b| a.stable_cmp(db, b));
       // Optional type: use non-null member's default
       let non_null: Vec<_> = members
         .iter()
-        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
+        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_typ().is_none()))
         .collect();
       if non_null.len() == 1 {
         return format_default_value(db, non_null[0]);
@@ -290,8 +290,8 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyType) -> String {
       members
         .iter()
         .find_map(|m| {
-          if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
-            && let LiteralValue::Str(s) = lit.value(db)
+          if let Some(TdTypEnum::TdLitTyp(lit)) = m.resolve(db)
+            && let LitValue::String(s) = lit.value(db)
           {
             return Some(format!("\"{s}\""));
           }

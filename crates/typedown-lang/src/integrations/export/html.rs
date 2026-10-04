@@ -7,7 +7,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{File, FileRedNode, Project, TdRuntimeObject};
+use crate::db::types::{File, FileRedNode, Project, TdRuntimeObj};
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
   MdBoldItalic, MdHeading, MdItalic, MdLink, MdStrikethrough, MdTable, MdTableCell,
@@ -686,9 +686,9 @@ impl<'a> HtmlEmitter<'a> {
     if let Some(obj) = eval.value(self.db)
       && let Some(func) = obj.lookup_method(self.db, "to_string")
       && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
-      && let Some(str_obj) = result.as_td_str_obj()
+      && let Some(string_obj) = result.as_td_string_obj()
     {
-      self.write_escaped(&str_obj.value(self.db));
+      self.write_escaped(&string_obj.value(self.db));
     }
   }
 

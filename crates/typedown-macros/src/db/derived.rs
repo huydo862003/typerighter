@@ -24,9 +24,9 @@ pub fn query_derived_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStream {
   let visibility = &func.vis;
-  let fn_name = &func.sig.ident;
+  let func_name = &func.sig.ident;
   let fn_block = &func.block;
-  let return_type = match &func.sig.output {
+  let ret_typ = match &func.sig.output {
     syn::ReturnType::Type(_, ty) => ty.as_ref(),
     syn::ReturnType::Default => {
       return syn::Error::new_spanned(&func.sig, "derived query must have a return type")
@@ -35,29 +35,29 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     }
   };
 
-  let return_type_segment = if let syn::Type::Path(type_path) = return_type {
-    type_path.path.segments.last()
+  let ret_type_segment = if let syn::Type::Path(typ_path) = ret_typ {
+    typ_path.path.segments.last()
   } else {
     None
   };
-  let Some(return_type_segment) = return_type_segment else {
-    return syn::Error::new_spanned(return_type, "return type must be a named type")
+  let Some(ret_typ_segment) = ret_type_segment else {
+    return syn::Error::new_spanned(ret_typ, "return type must be a named type")
       .to_compile_error()
       .into();
   };
-  let return_type_without_lifetime = &return_type_segment.ident;
+  let ret_typ_without_lifetime = &ret_typ_segment.ident;
   // Check if the return type has a 'db lifetime (e.g. IdResult<'db> vs IdInput)
-  let return_type_has_lifetime = matches!(
-    &return_type_segment.arguments,
+  let ret_typ_has_lifetime = matches!(
+    &ret_typ_segment.arguments,
     syn::PathArguments::AngleBracketed(args) if args.args.iter().any(|arg| {
       matches!(arg, syn::GenericArgument::Lifetime(lt) if lt.ident == "db")
     })
   );
   // Static version of return type for storage (either Type<'static> or Type)
-  let return_type_static = if return_type_has_lifetime {
-    quote! { #return_type_without_lifetime<'static> }
+  let ret_typ_static = if ret_typ_has_lifetime {
+    quote! { #ret_typ_without_lifetime<'static> }
   } else {
-    quote! { #return_type_without_lifetime }
+    quote! { #ret_typ_without_lifetime }
   };
 
   let has_db_lifetime = func
@@ -93,7 +93,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
       None
     })
     .collect();
-  let key_types: Vec<_> = key_args
+  let key_typs: Vec<_> = key_args
     .iter()
     .filter_map(|arg| {
       if let syn::FnArg::Typed(pat_type) = arg {
@@ -103,14 +103,14 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     })
     .collect();
 
-  let key_tuple_ty = quote! { (#(#key_types,)*) };
-  let key_tuple_ty_static = erase_db_lifetime_tokens(&key_tuple_ty);
+  let key_tuple_typ = quote! { (#(#key_typs,)*) };
+  let key_tuple_typ_static = erase_db_lifetime_tokens(&key_tuple_typ);
 
   let db_arg = &all_args[0];
 
-  let db_type = if let syn::FnArg::Typed(pat_type) = db_arg {
-    if let syn::Type::Reference(type_ref) = pat_type.ty.as_ref() {
-      let has_db_lifetime = type_ref
+  let db_typ = if let syn::FnArg::Typed(pattern_type) = db_arg {
+    if let syn::Type::Reference(typ_ref) = pattern_type.ty.as_ref() {
+      let has_db_lifetime = typ_ref
         .lifetime
         .as_ref()
         .is_some_and(|lifetime| lifetime.ident == "db");
@@ -122,7 +122,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
         .to_compile_error()
         .into();
       }
-      type_ref.elem.as_ref().clone()
+      typ_ref.elem.as_ref().clone()
     } else {
       return syn::Error::new_spanned(db_arg, "first argument must be a reference to a database")
         .to_compile_error()
@@ -140,10 +140,10 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
   output.extend::<TokenStream>(
     quote! {
       #[allow(non_camel_case_types, clippy::useless_transmute)]
-      #visibility struct #fn_name { private: () }
+      #visibility struct #func_name { private: () }
 
       #[allow(clippy::useless_transmute)]
-      impl #fn_name {
+      impl #func_name {
         fn ingredient_id_lock() -> &'static ::std::sync::OnceLock<u32> {
           static INDEX: ::std::sync::OnceLock<u32> = ::std::sync::OnceLock::new();
           &INDEX
@@ -159,12 +159,12 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
           let _ = Self::ingredient_id_lock().set(index);
         }
 
-        fn #fn_name<'db>(db: &'db #db_type, key: #key_tuple_ty_static) -> #return_type_static {
-          fn __inner<'db>(db: &'db #db_type, #(#key_names: #key_types),*) -> #return_type
+        fn #func_name<'db>(db: &'db #db_typ, key: #key_tuple_typ_static) -> #ret_typ_static {
+          fn __inner<'db>(db: &'db #db_typ, #(#key_names: #key_typs),*) -> #ret_typ
             #fn_block
 
           // Safety: transmute key from 'static to 'db, then result from 'db to 'static
-          let (#(#key_names,)*): #key_tuple_ty = unsafe { ::std::mem::transmute(key) };
+          let (#(#key_names,)*): #key_tuple_typ = unsafe { ::std::mem::transmute(key) };
           unsafe { ::std::mem::transmute(__inner(db, #(#key_names),*)) }
         }
       }
@@ -182,19 +182,19 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
             let index = factories.len() as u32;
             factories.push(|ingredient_id| {
               let mut ingredient = ::typedown_incremental::DerivedQueryIngredientStore::<
-                #db_type,
-                #key_tuple_ty_static,
-                #return_type_static,
+                #db_typ,
+                #key_tuple_typ_static,
+                #ret_typ_static,
               >::new(
                 ingredient_id,
-                stringify!(#fn_name),
-                stringify!(#return_type_without_lifetime),
-                #fn_name::#fn_name,
+                stringify!(#func_name),
+                stringify!(#ret_typ_without_lifetime),
+                #func_name::#func_name,
               );
               ingredient.no_hash_flag = #no_hash;
               Box::new(ingredient)
             });
-            #fn_name::set_ingredient_id(index);
+            #func_name::set_ingredient_id(index);
           },
         }
       }
@@ -206,17 +206,17 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
   output.extend::<TokenStream>(
     quote! {
       #[allow(clippy::useless_transmute)]
-      #visibility fn #fn_name<'db>(#db_arg, #(#key_names: #key_types),*) -> #return_type {
+      #visibility fn #func_name<'db>(#db_arg, #(#key_names: #key_typs),*) -> #ret_typ {
         let storage = unsafe { db.storage() };
-        let ingredient = (&*storage.queries[#fn_name::ingredient_id() as usize] as &dyn ::std::any::Any)
+        let ingredient = (&*storage.queries[#func_name::ingredient_id() as usize] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::DerivedQueryIngredientStore<
-            #db_type,
-            #key_tuple_ty_static,
-            #return_type_static,
+            #db_typ,
+            #key_tuple_typ_static,
+            #ret_typ_static,
           >>()
           .expect("derived ingredient type mismatch");
         // Safety: transmute key 'db -> 'static, then result 'static -> 'db
-        let key: #key_tuple_ty_static = unsafe { ::std::mem::transmute((#(#key_names,)*)) };
+        let key: #key_tuple_typ_static = unsafe { ::std::mem::transmute((#(#key_names,)*)) };
         unsafe { ::std::mem::transmute(ingredient.execute_query(db, key)) }
       }
     }
@@ -257,16 +257,16 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let mut output: TokenStream = quote! {}.into();
 
   for field in &fields {
-    let field_ty_static = erase_db_lifetime_tokens(&field.ty);
+    let field_typ_static = erase_db_lifetime_tokens(&field.ty);
     output.extend::<TokenStream>(
       quote! {
         const _: () = {
           const fn assert_send<T: Send>() {}
           const fn assert_sync<T: Sync>() {}
           const fn assert_clone<T: Clone>() {}
-          assert_send::<#field_ty_static>();
-          assert_sync::<#field_ty_static>();
-          assert_clone::<#field_ty_static>();
+          assert_send::<#field_typ_static>();
+          assert_sync::<#field_typ_static>();
+          assert_clone::<#field_typ_static>();
 
           #[cfg(debug_assertions)]
           const _: () = ::typedown_incremental::QueryStorage::__TYPEDOWN_QUERY_STORAGE;
@@ -277,19 +277,19 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   }
 
   let has_phantom = fields.is_empty();
-  let internal_field_types: Vec<syn::Type> = if has_phantom {
+  let internal_field_typs: Vec<syn::Type> = if has_phantom {
     vec![syn::parse_quote! { () }]
   } else {
     fields.iter().map(|f| f.ty.clone()).collect()
   };
-  let internal_field_types_static: Vec<proc_macro2::TokenStream> = internal_field_types
+  let internal_field_typs_static: Vec<proc_macro2::TokenStream> = internal_field_typs
     .iter()
     .map(erase_db_lifetime_tokens)
     .collect();
 
-  let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
-  let field_types_static: Vec<proc_macro2::TokenStream> =
-    field_types.iter().map(erase_db_lifetime_tokens).collect();
+  let field_typs: Vec<_> = fields.iter().map(|field| &field.ty).collect();
+  let field_typs_static: Vec<proc_macro2::TokenStream> =
+    field_typs.iter().map(erase_db_lifetime_tokens).collect();
   let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
   let try_field_names: Vec<_> = field_names
     .iter()
@@ -306,16 +306,16 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     .collect();
 
   // Register per-field ingredients via FieldInventory
-  let struct_name_str = struct_name.to_string();
+  let struct_name_string = struct_name.to_string();
   let no_hash = modifiers.no_hash;
   let mut register_tokens = quote! {};
-  for (idx, field_ty) in internal_field_types_static.iter().enumerate() {
+  for (index, field_typ) in internal_field_typs_static.iter().enumerate() {
     register_tokens.extend(quote! {
       factories.push(|ingredient_id| {
-        let mut ingredient = ::typedown_incremental::DerivedFieldIngredientStore::<#field_ty>::new(
+        let mut ingredient = ::typedown_incremental::DerivedFieldIngredientStore::<#field_typ>::new(
           ingredient_id,
-          #struct_name_str,
-          #idx as u8,
+          #struct_name_string,
+          #index as u8,
           #struct_name::id_counter(),
         );
         ingredient.no_hash_flag = #no_hash;
@@ -340,22 +340,22 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
   // Generate getters
   let mut getter_tokens = quote! {};
-  for (idx, field) in fields.iter().enumerate() {
+  for (index, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
-    let field_ty = &field.ty;
-    let field_ty_static = &field_types_static[idx];
+    let field_typ = &field.ty;
+    let field_typ_static = &field_typs_static[index];
     let try_field_name = quote::format_ident!("try_{}", field_name);
     let is_return_ref = has_return_ref(field);
 
     let getter = if is_return_ref {
       quote! {
-        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_ty_static>, #field_ty> {
+        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_typ_static>, #field_typ> {
           let id = self.0;
           debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_typ_static>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id).expect("invalid derived id");
 
           // Record dependency if inside a derived query
@@ -379,13 +379,13 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
       }
     } else {
       quote! {
-        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
+        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_typ {
           let id = self.0;
           debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_typ_static>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id).expect("invalid derived id");
 
           // Record dependency if inside a derived query
@@ -414,15 +414,15 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     let try_getter = if is_return_ref {
       quote! {
         // Fallible getter for serialization paths where field data may have been cleaned up
-        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_ty_static>, #field_ty>> {
+        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_typ_static>, #field_typ>> {
           let id = self.0;
           if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
             return None;
           }
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_typ_static>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id)?;
 
           // Safety: transmute 'static to 'db on the projected type (same as the clone path)
@@ -432,15 +432,15 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     } else {
       quote! {
         // Fallible getter for serialization paths where field data may have been cleaned up
-        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_typ> {
           let id = self.0;
           if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
             return None;
           }
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_typ_static>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id)?;
 
           // Safety: transmute 'static stored value to 'db at the boundary
@@ -501,16 +501,16 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     });
   }
 
-  for (idx, field) in fields.iter().enumerate() {
+  for (index, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
-    let field_ty_static = &field_types_static[idx];
+    let field_typ_static = &field_typs_static[index];
 
     new_body_tokens.extend(quote! {
       {
-        let ingredient = (&*storage.fields[(start_index + #idx as u32) as usize] as &dyn ::std::any::Any)
-          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_ty_static>>().expect("ingredient type mismatch");
+        let ingredient = (&*storage.fields[(start_index + #index as u32) as usize] as &dyn ::std::any::Any)
+          .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_typ_static>>().expect("ingredient type mismatch");
         // Safety: transmute field value from 'db to 'static at storage boundary
-        let __val: #field_ty_static = unsafe { ::std::mem::transmute(#field_name.clone()) };
+        let __val: #field_typ_static = unsafe { ::std::mem::transmute(#field_name.clone()) };
         // Backdate: only update changed_at if the value actually changed
         if let Some(existing) = ingredient.data.get(&id) {
           if existing.value == __val {
@@ -584,7 +584,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
         fn ingredient_name_fingerprint() -> ::typedown_incremental::Fingerprint {
           static NAME_FP: ::std::sync::OnceLock<::typedown_incremental::Fingerprint> = ::std::sync::OnceLock::new();
-          *NAME_FP.get_or_init(|| ::typedown_incremental::Fingerprint::from_name(#struct_name_str))
+          *NAME_FP.get_or_init(|| ::typedown_incremental::Fingerprint::from_name(#struct_name_string))
         }
 
         #[doc(hidden)]
@@ -599,7 +599,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
 
         /// Create or update a derived struct by identity
         #[allow(clippy::too_many_arguments)]
-        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &'db DB, #(#field_names: #field_types),*) -> Self {
+        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &'db DB, #(#field_names: #field_typs),*) -> Self {
           let storage = unsafe { db.storage() };
           debug_assert!(
             storage.is_in_query(),
@@ -659,7 +659,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types_static as ::typedown_incremental::Decodable>::field_decode(data, decoder);
+            let _ = <#field_typs_static as ::typedown_incremental::Decodable>::field_decode(data, decoder);
           )*
           #phantom_decode_tokens
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)

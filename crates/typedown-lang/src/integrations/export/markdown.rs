@@ -9,7 +9,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{File, FileRedNode, Project, TdRuntimeObject};
+use crate::db::types::{File, FileRedNode, Project, TdRuntimeObj};
 use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdLink, MdMedia};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -379,9 +379,9 @@ impl<'a> MarkdownExporter<'a> {
       if let Some(obj) = obj
         && let Some(func) = obj.lookup_method(self.db, "to_string")
         && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
-        && let Some(str_obj) = result.as_td_str_obj()
+        && let Some(string_obj) = result.as_td_string_obj()
       {
-        self.write(&str_obj.value(self.db));
+        self.write(&string_obj.value(self.db));
       }
       return;
     }

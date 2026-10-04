@@ -8,7 +8,7 @@ use typedown_incremental::QueryDatabase;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::{File, Project, Symbol, SymbolKind, TdRuntimeObject};
+use typedown_lang::db::types::{File, Project, Symbol, SymbolKind, TdRuntimeObj};
 use typedown_lang::syntax::ast::{AstNode, CallExpr, IdentLit};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -95,6 +95,6 @@ pub fn str_content_node(str_lit: &RedNode) -> Option<RedNode> {
 pub fn get_resource_label(db: &TypedownDatabase, sym: Symbol) -> Option<String> {
   let obj = evaluate_resource(db, sym).value(db)?;
   let field = obj.get_builtin_field(db, "_label")?;
-  let str_obj = field.as_td_str_obj()?;
+  let str_obj = field.as_td_string_obj()?;
   Some(str_obj.value(db))
 }

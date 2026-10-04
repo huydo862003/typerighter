@@ -3,38 +3,38 @@
 
 use std::collections::HashSet;
 
+use crate::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::{get_bool_type, get_num_type};
+use crate::db::derived::get_builtin_typs::{get_bool_typ, get_number_typ};
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::typechecker::actual_node_type::actual_node_type;
-use crate::db::derived::typechecker::expected_node_type::expected_node_type;
+use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 
-use crate::db::types::derived::object_system::TdStaticType;
+use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::typecheck::{is_nullable, is_subtype_of};
 use crate::db::types::{
-  HirValue, HirValueKind, InterpolatedPart, TdSchemaType, TdTypeEnum, TypecheckResult,
+  HirValue, HirValueKind, InterpolatedPart, TdSchemaTyp, TdTypEnum, TypecheckResult,
 };
 use crate::syntax::ast::{AstNode, YamlMapping};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived(no_hash)]
 pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypecheckResult<'db> {
-  let type_result = actual_node_type(db, hir);
-  let mut diagnostics = type_result.diagnostics(db).clone();
+  let typ_result = actual_node_typ(db, hir);
+  let mut diagnostics = typ_result.diagnostics(db).clone();
 
   // Use expected type from schema if available, otherwise fall back to inferred type
-  let declared_type = match expected_node_type(db, hir).typ(db) {
+  let declared_typ = match expected_node_typ(db, hir).typ(db) {
     Some(typ) => typ,
-    None => match type_result.typ(db) {
+    None => match typ_result.typ(db) {
       Some(typ) => typ,
       None => return TypecheckResult::new(db, diagnostics),
     },
   };
 
-  diagnostics.extend(typecheck_body(db, hir, &declared_type));
+  diagnostics.extend(typecheck_body(db, hir, &declared_typ));
   TypecheckResult::new(db, diagnostics)
 }
 
@@ -42,12 +42,12 @@ pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> Typechec
 pub fn typecheck_with_expected<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,
-  expected_type: &TdTypeEnum<'db>,
+  expected_typ: &TdTypEnum<'db>,
 ) -> TypecheckResult<'db> {
-  let type_result = actual_node_type(db, hir);
-  let mut diagnostics = type_result.diagnostics(db).clone();
+  let typ_result = actual_node_typ(db, hir);
+  let mut diagnostics = typ_result.diagnostics(db).clone();
 
-  diagnostics.extend(typecheck_body(db, hir, expected_type));
+  diagnostics.extend(typecheck_body(db, hir, expected_typ));
   TypecheckResult::new(db, diagnostics)
 }
 
@@ -55,18 +55,18 @@ pub fn typecheck_with_expected<'db>(
 fn typecheck_body<'db>(
   db: &'db TypedownDatabase,
   hir: HirValue<'db>,
-  declared_type: &TdTypeEnum<'db>,
+  declared_typ: &TdTypEnum<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   match hir.kind(db) {
     // Check mapping fields against declared schema type
     HirValueKind::Mapping(entries) => {
-      diagnostics.extend(check_mapping_fields(db, hir, &entries, declared_type));
+      diagnostics.extend(check_mapping_fields(db, hir, &entries, declared_typ));
     }
     // Check tag inner matches the tag's schema
     HirValueKind::Tag { inner, .. } => {
-      diagnostics.extend(check_tag(db, declared_type, *inner));
+      diagnostics.extend(check_tag(db, declared_typ, *inner));
     }
     // Check call arity and arg types against function signature
     HirValueKind::Call { callee, args } => {
@@ -74,14 +74,14 @@ fn typecheck_body<'db>(
     }
     // Check each item against the list's element type
     HirValueKind::Sequence(items) => {
-      diagnostics.extend(check_sequence(db, declared_type, items));
+      diagnostics.extend(check_sequence(db, declared_typ, items));
     }
     // Typecheck each embedded expression in an interpolated string
     HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
       for part in parts {
         if let InterpolatedPart::Expr(expr) = part {
-          let tc_result = typecheck(db, expr);
-          diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+          let typecheck_result = typecheck(db, expr);
+          diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
         }
       }
     }
@@ -103,8 +103,8 @@ fn typecheck_body<'db>(
     }
     // Recurse into closure body
     HirValueKind::Closure { body, .. } => {
-      let tc_result = typecheck(db, *body);
-      diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+      let typecheck_result = typecheck(db, *body);
+      diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
     }
     _ => {}
   }
@@ -116,10 +116,10 @@ fn check_mapping_fields<'db>(
   db: &'db TypedownDatabase,
   mapping_hir: HirValue<'db>,
   entries: &[(String, HirValue<'db>)],
-  expected_type: &TdTypeEnum<'db>,
+  expected_typ: &TdTypEnum<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
-  let declared_fields = expected_type.get_fields(db);
+  let declared_fields = expected_typ.get_fields(db);
 
   for (key, value_hir) in entries {
     // _type requires the value to resolve to a schema symbol
@@ -129,87 +129,87 @@ fn check_mapping_fields<'db>(
         && !symbol.kind(db).is_schema()
       {
         let node = value_hir.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypeMismatch {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::FieldTypMismatch {
           field: "_type".to_string(),
           expected: "schema".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
       continue;
     }
     // Built-in fields (_label, _icon) have fixed types
-    if let Some(builtin_type) = TdSchemaType::builtin_field_type(db, key) {
-      let value_result = actual_node_type(db, *value_hir);
-      if let Some(actual_type) = value_result.typ(db)
-        && !is_subtype_of(db, &actual_type, &builtin_type)
+    if let Some(builtin_typ) = TdSchemaTyp::builtin_field_typ(db, key) {
+      let value_result = actual_node_typ(db, *value_hir);
+      if let Some(actual_typ) = value_result.typ(db)
+        && !is_subtype_of(db, &actual_typ, &builtin_typ)
       {
         let node = value_hir.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypeMismatch {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::FieldTypMismatch {
           field: key.clone(),
-          expected: builtin_type.display_name(db),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          expected: builtin_typ.display_name(db),
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
       continue;
     }
     if let Some(field_lazy) = declared_fields.get(key) {
-      if let Some(field_type) = field_lazy.resolve(db) {
+      if let Some(field_typ) = field_lazy.resolve(db) {
         // Recursively typecheck the field value
-        let tc_result = typecheck(db, *value_hir);
-        diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+        let typecheck_result = typecheck(db, *value_hir);
+        diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
         // Check synthesized type against expected field type
-        let value_result = actual_node_type(db, *value_hir);
-        let is_optional = is_nullable(db, &field_type);
+        let value_result = actual_node_typ(db, *value_hir);
+        let is_optional = is_nullable(db, &field_typ);
         match value_result.typ(db) {
-          Some(actual_type) if !is_subtype_of(db, &actual_type, &field_type) => {
+          Some(actual_typ) if !is_subtype_of(db, &actual_typ, &field_typ) => {
             let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypeMismatch {
+            let (trimmed_offset, trimmed_len) = node.trimmed_range();
+            diagnostics.push(Diagnostic::FieldTypMismatch {
               field: key.clone(),
-              expected: field_type.display_name(db),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
+              expected: field_typ.display_name(db),
+              start_offset: trimmed_offset,
+              end_offset: trimmed_offset + trimmed_len,
             });
           }
           // Unresolved identifier used as a field value
           None if matches!(value_hir.kind(db), HirValueKind::Ident(_)) => {
             let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
+            let (trimmed_offset, trimmed_len) = node.trimmed_range();
             diagnostics.push(Diagnostic::UnresolvedSchema {
               name: node.text(),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
+              start_offset: trimmed_offset,
+              end_offset: trimmed_offset + trimmed_len,
             });
           }
           // Null on a non-optional field is a type error
           None if !is_optional => {
             let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypeMismatch {
+            let (trimmed_offset, trimmed_len) = node.trimmed_range();
+            diagnostics.push(Diagnostic::FieldTypMismatch {
               field: key.clone(),
-              expected: field_type.display_name(db),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
+              expected: field_typ.display_name(db),
+              start_offset: trimmed_offset,
+              end_offset: trimmed_offset + trimmed_len,
             });
           }
           Some(_) | None => {}
         }
       }
-    } else if expected_type.as_td_schema_type().is_some() && !key.starts_with('_') {
+    } else if expected_typ.as_td_schema_typ().is_some() && !key.starts_with('_') {
       // Excess property: key not declared on the schema
       let (start_offset, end_offset) = YamlMapping::cast(mapping_hir.node(db).node.clone())
-        .and_then(|m| m.find_entry(key))
-        .and_then(|e| e.key_node())
-        .map(|n| n.trimmed_range())
+        .and_then(|mapping| mapping.find_entry(key))
+        .and_then(|entry| entry.key_node())
+        .map(|node| node.trimmed_range())
         .unwrap_or_else(|| value_hir.node(db).trimmed_range());
       diagnostics.push(Diagnostic::UnknownField {
         field: key.clone(),
-        on_type: expected_type.display_name(db),
+        on_typ: expected_typ.display_name(db),
         start_offset,
         end_offset,
       });
@@ -218,17 +218,17 @@ fn check_mapping_fields<'db>(
 
   // Check required fields are present (null values are checked above)
   let mapping_node = mapping_hir.node(db);
-  let (tr_offset, tr_len) = mapping_node.trimmed_range();
+  let (trimmed_offset, trimmed_len) = mapping_node.trimmed_range();
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
 
-  let default_fields: HashSet<String> = expected_type
-    .as_td_schema_type()
+  let default_fields: HashSet<String> = expected_typ
+    .as_td_schema_typ()
     .map(|p| {
       p.fields(db)
         .iter()
-        .filter_map(|(k, desc)| {
-          if desc.default_value.is_some() {
-            Some(k.clone())
+        .filter_map(|(key, descriptor)| {
+          if descriptor.default_value.is_some() {
+            Some(key.clone())
           } else {
             None
           }
@@ -238,13 +238,15 @@ fn check_mapping_fields<'db>(
     .unwrap_or_default();
 
   for (field_name, field_lazy) in declared_fields {
-    let is_optional = field_lazy.resolve(db).is_some_and(|t| is_nullable(db, &t))
+    let is_optional = field_lazy
+      .resolve(db)
+      .is_some_and(|typ| is_nullable(db, &typ))
       || default_fields.contains(&field_name);
     if !is_optional && !present_keys.contains(field_name.as_str()) {
       diagnostics.push(Diagnostic::MissingRequiredField {
         field: field_name,
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -254,21 +256,21 @@ fn check_mapping_fields<'db>(
 
 fn check_tag<'db>(
   db: &'db TypedownDatabase,
-  expected_type: &TdTypeEnum<'db>,
+  expected_typ: &TdTypEnum<'db>,
   inner: HirValue<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
-  let inner_result = actual_node_type(db, inner);
+  let inner_result = actual_node_typ(db, inner);
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
-  if let Some(actual_type) = inner_result.typ(db)
-    && !is_subtype_of(db, &actual_type, expected_type)
+  if let Some(actual_typ) = inner_result.typ(db)
+    && !is_subtype_of(db, &actual_typ, expected_typ)
   {
     let node = inner.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
-    diagnostics.push(Diagnostic::TagTypeMismatch {
-      expected: expected_type.display_name(db),
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+    diagnostics.push(Diagnostic::TagTypMismatch {
+      expected: expected_typ.display_name(db),
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
   }
   diagnostics
@@ -281,55 +283,55 @@ fn check_call<'db>(
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let callee_result = actual_node_type(db, callee);
+  let callee_result = actual_node_typ(db, callee);
   diagnostics.extend(callee_result.diagnostics(db).iter().cloned());
 
-  let callee_type = match callee_result.typ(db) {
+  let callee_typ = match callee_result.typ(db) {
     Some(typ) => typ,
     None => return diagnostics,
   };
 
-  let arg_types: Vec<TdTypeEnum> = args
+  let arg_typs: Vec<TdTypEnum> = args
     .iter()
-    .filter_map(|arg| actual_node_type(db, *arg).typ(db))
+    .filter_map(|arg| actual_node_typ(db, *arg).typ(db))
     .collect();
 
-  let Some(sig) = callee_type.call_type(db, arg_types) else {
+  let Some(signature) = callee_typ.call_typ(db, arg_typs) else {
     let node = callee.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
+    let (trimmed_offset, trimmed_len) = node.trimmed_range();
     diagnostics.push(Diagnostic::NotCallable {
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
     return diagnostics;
   };
 
-  let params = sig.params(db);
+  let params = signature.params(db);
 
   if params.len() != args.len() {
     let node = callee.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
+    let (trimmed_offset, trimmed_len) = node.trimmed_range();
     diagnostics.push(Diagnostic::WrongArgCount {
       expected: params.len(),
       got: args.len(),
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
     return diagnostics;
   }
 
   for (param, arg_hir) in params.iter().zip(args.iter()) {
-    let arg_result = actual_node_type(db, *arg_hir);
+    let arg_result = actual_node_typ(db, *arg_hir);
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
     if let Some(arg_type) = arg_result.typ(db)
       && !is_subtype_of(db, &arg_type, param)
     {
       let node = arg_hir.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::ArgTypeMismatch {
+      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::ArgTypMismatch {
         expected: param.display_name(db),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -344,18 +346,18 @@ fn check_index<'db>(
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let expr_result = actual_node_type(db, expr);
+  let expr_result = actual_node_typ(db, expr);
   diagnostics.extend(expr_result.diagnostics(db).iter().cloned());
 
-  let expr_type = match expr_result.typ(db) {
+  let expr_typ = match expr_result.typ(db) {
     Some(typ) => typ,
     None => return diagnostics,
   };
 
   // Unwrap literal types to their underlying type
-  let expr_type = match &expr_type {
-    TdTypeEnum::TdLiteralType(lit) => lit.underlying_type(db),
-    _ => expr_type,
+  let expr_type = match &expr_typ {
+    TdTypEnum::TdLitTyp(lit) => lit.underlying_typ(db),
+    _ => expr_typ,
   };
 
   // Type instantiation: no checking is needed because we do not support type bound, only check arity
@@ -364,19 +366,19 @@ fn check_index<'db>(
   }
 
   // List element access: index must be a number
-  if expr_type.is_td_list_type() {
-    for idx_hir in &indices {
-      let idx_result = actual_node_type(db, *idx_hir);
-      diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
-      if let Some(idx_type) = idx_result.typ(db) {
-        let num_type = get_num_type(db);
-        if !is_subtype_of(db, &idx_type, &num_type.into()) {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypeMismatch {
+  if expr_type.is_td_list_typ() {
+    for index_hir in &indices {
+      let index_result = actual_node_typ(db, *index_hir);
+      diagnostics.extend(index_result.diagnostics(db).iter().cloned());
+      if let Some(index_typ) = index_result.typ(db) {
+        let number_typ = get_number_typ(db);
+        if !is_subtype_of(db, &index_typ, &number_typ.into()) {
+          let node = index_hir.node(db);
+          let (trimmed_offset, trimmed_len) = node.trimmed_range();
+          diagnostics.push(Diagnostic::IndexTypMismatch {
             expected: "number".to_string(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
       }
@@ -385,20 +387,20 @@ fn check_index<'db>(
   }
 
   // Dict element access: index must match key type
-  if let TdTypeEnum::TdDictType(dict) = &expr_type {
+  if let TdTypEnum::TdDictTyp(dict) = &expr_type {
     if let Some(key_type) = dict.key(db).and_then(|l| l.resolve(db)) {
-      for idx_hir in &indices {
-        let idx_result = actual_node_type(db, *idx_hir);
-        diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
-        if let Some(idx_type) = idx_result.typ(db)
-          && !is_subtype_of(db, &idx_type, &key_type)
+      for index_hir in &indices {
+        let index_result = actual_node_typ(db, *index_hir);
+        diagnostics.extend(index_result.diagnostics(db).iter().cloned());
+        if let Some(index_type) = index_result.typ(db)
+          && !is_subtype_of(db, &index_type, &key_type)
         {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypeMismatch {
+          let node = index_hir.node(db);
+          let (trimmed_offset, trimmed_len) = node.trimmed_range();
+          diagnostics.push(Diagnostic::IndexTypMismatch {
             expected: key_type.display_name(db),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
       }
@@ -407,19 +409,19 @@ fn check_index<'db>(
   }
 
   // String indexing is valid: index must be a number
-  if expr_type.is_td_str_type() {
-    for idx_hir in &indices {
-      let idx_result = actual_node_type(db, *idx_hir);
-      diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
-      if let Some(idx_type) = idx_result.typ(db) {
-        let num_type = get_num_type(db);
-        if !is_subtype_of(db, &idx_type, &num_type.into()) {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypeMismatch {
+  if expr_type.is_td_string_typ() {
+    for index_hir in &indices {
+      let index_result = actual_node_typ(db, *index_hir);
+      diagnostics.extend(index_result.diagnostics(db).iter().cloned());
+      if let Some(index_type) = index_result.typ(db) {
+        let number_typ = get_number_typ(db);
+        if !is_subtype_of(db, &index_type, &number_typ.into()) {
+          let node = index_hir.node(db);
+          let (trimmed_offset, trimmed_len) = node.trimmed_range();
+          diagnostics.push(Diagnostic::IndexTypMismatch {
             expected: "number".to_string(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
       }
@@ -429,10 +431,10 @@ fn check_index<'db>(
 
   // Not indexable
   let node = expr.node(db);
-  let (tr_offset, tr_len) = node.trimmed_range();
+  let (trimmed_offset, trimmed_len) = node.trimmed_range();
   diagnostics.push(Diagnostic::NotIndexable {
-    start_offset: tr_offset,
-    end_offset: tr_offset + tr_len,
+    start_offset: trimmed_offset,
+    end_offset: trimmed_offset + trimmed_len,
   });
 
   diagnostics
@@ -445,30 +447,30 @@ fn check_prefix<'db>(
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let tc_result = typecheck(db, operand);
-  diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+  let typecheck_result = typecheck(db, operand);
+  diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
-  let operand_result = actual_node_type(db, operand);
-  let operand_type = match operand_result.typ(db) {
+  let operand_result = actual_node_typ(db, operand);
+  let operand_typ = match operand_result.typ(db) {
     Some(typ) => typ,
     None => return diagnostics,
   };
 
-  let expected_type: TdTypeEnum = match op {
-    "-" | "+" => get_num_type(db).into(),
+  let expected_typ: TdTypEnum = match op {
+    "-" | "+" => get_number_typ(db).into(),
     // ~ is logical not: accepts any type (only null and false are falsy)
     "~" => return diagnostics,
     _ => return diagnostics,
   };
 
-  if !is_subtype_of(db, &operand_type, &expected_type) {
+  if !is_subtype_of(db, &operand_typ, &expected_typ) {
     let node = operand.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
-    diagnostics.push(Diagnostic::OperandTypeMismatch {
+    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+    diagnostics.push(Diagnostic::OperandTypMismatch {
       op: op.to_string(),
-      expected: expected_type.display_name(db),
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+      expected: expected_typ.display_name(db),
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
   }
 
@@ -481,21 +483,21 @@ fn check_postfix<'db>(
   operand: HirValue<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
-  let tc_result = typecheck(db, operand);
-  diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+  let typecheck_result = typecheck(db, operand);
+  diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
   if op == "?" {
-    let operand_result = actual_node_type(db, operand);
+    let operand_result = actual_node_typ(db, operand);
     if let Some(operand_type) = operand_result.typ(db)
-      && !operand_type.is_type(db)
+      && !operand_type.is_typ(db)
     {
       let node = operand.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::OperandTypeMismatch {
+      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::OperandTypMismatch {
         op: "?".to_string(),
         expected: "type".to_string(),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -511,68 +513,68 @@ fn check_binary<'db>(
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let tc_left = typecheck(db, left);
-  diagnostics.extend(tc_left.diagnostics(db).iter().cloned());
-  let tc_right = typecheck(db, right);
-  diagnostics.extend(tc_right.diagnostics(db).iter().cloned());
+  let typecheck_left = typecheck(db, left);
+  diagnostics.extend(typecheck_left.diagnostics(db).iter().cloned());
+  let typecheck_right = typecheck(db, right);
+  diagnostics.extend(typecheck_right.diagnostics(db).iter().cloned());
 
-  let left_type = actual_node_type(db, left).typ(db);
-  let right_type = actual_node_type(db, right).typ(db);
+  let left_typ_result = actual_node_typ(db, left).typ(db);
+  let right_typ_result = actual_node_typ(db, right).typ(db);
 
   match op {
     // Arithmetic: both operands must be number
     "+" | "-" | "*" | "/" | "%" | "**" => {
-      let num_type: TdTypeEnum = get_num_type(db).into();
-      if let Some(lt) = &left_type
-        && !is_subtype_of(db, lt, &num_type)
+      let number_typ: TdTypEnum = get_number_typ(db).into();
+      if let Some(left_typ) = &left_typ_result
+        && !is_subtype_of(db, left_typ, &number_typ)
       {
         let node = left.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "number".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
-      if let Some(rt) = &right_type
-        && !is_subtype_of(db, rt, &num_type)
+      if let Some(right_typ) = &right_typ_result
+        && !is_subtype_of(db, right_typ, &number_typ)
       {
         let node = right.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "number".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
     }
     // Logical: both operands must be boolean
     "&&" | "||" => {
-      let bool_type: TdTypeEnum = get_bool_type(db).into();
-      if let Some(lt) = &left_type
-        && !is_subtype_of(db, lt, &bool_type)
+      let bool_typ: TdTypEnum = get_bool_typ(db).into();
+      if let Some(left_typ) = &left_typ_result
+        && !is_subtype_of(db, left_typ, &bool_typ)
       {
         let node = left.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "boolean".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
-      if let Some(rt) = &right_type
-        && !is_subtype_of(db, rt, &bool_type)
+      if let Some(right_type) = &right_typ_result
+        && !is_subtype_of(db, right_type, &bool_typ)
       {
         let node = right.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "boolean".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
     }
@@ -586,17 +588,17 @@ fn check_binary<'db>(
 
 fn check_sequence<'db>(
   db: &'db TypedownDatabase,
-  declared_type: &TdTypeEnum<'db>,
+  declared_typ: &TdTypEnum<'db>,
   items: Vec<HirValue<'db>>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   // Get the element type from the list type
-  let Some(list) = declared_type.as_td_list_type() else {
+  let Some(list) = declared_typ.as_td_list_typ() else {
     return diagnostics;
   };
 
-  let elem_type = match list.elem(db).and_then(|e| e.resolve(db)) {
+  let element_typ = match list.element(db).and_then(|e| e.resolve(db)) {
     Some(typ) => typ,
     // Uninstantiated list: no element type constraint
     None => return diagnostics,
@@ -604,20 +606,20 @@ fn check_sequence<'db>(
 
   for item in items {
     // Recursively typecheck each item
-    let tc_result = typecheck(db, item);
-    diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+    let typcheck_result = typecheck(db, item);
+    diagnostics.extend(typcheck_result.diagnostics(db).iter().cloned());
 
     // Check item type against element type
-    let item_result = actual_node_type(db, item);
+    let item_result = actual_node_typ(db, item);
     if let Some(item_type) = item_result.typ(db)
-      && !is_subtype_of(db, &item_type, &elem_type)
+      && !is_subtype_of(db, &item_type, &element_typ)
     {
       let node = item.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::ElementTypeMismatch {
-        expected: elem_type.display_name(db),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      diagnostics.push(Diagnostic::ElementTypMismatch {
+        expected: element_typ.display_name(db),
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -634,7 +636,7 @@ mod tests {
 
   // Mapping without _type: infers product type, no validation errors
   #[test]
-  fn typecheck_mapping_without_type_infers_product_no_errors() {
+  fn typecheck_mapping_without_typ_infers_product_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -647,7 +649,7 @@ mod tests {
 
   // _type references a non-existent schema
   #[test]
-  fn typecheck_unresolved_type_has_diagnostics() {
+  fn typecheck_unresolved_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unresolved_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -678,7 +680,7 @@ mod tests {
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::UnknownField { field, on_type, .. } if field == "favorite_color" && on_type == "Person")),
+        .any(|d| matches!(d, Diagnostic::UnknownField { field, on_typ, .. } if field == "favorite_color" && on_typ == "Person")),
       "expected UnknownField for 'favorite_color', got: {:?}",
       diags
     );
@@ -712,13 +714,13 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_wrong_field_type_has_diagnostics() {
+  fn typecheck_wrong_field_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "wrong_field_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
     let diags = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, expected, .. } if field == "name" && expected == "string")),
+      diags.iter().any(|d| matches!(d, Diagnostic::FieldTypMismatch { field, expected, .. } if field == "name" && expected == "string")),
       "expected FieldTypeMismatch for 'name' with expected 'string', got: {:?}",
       diags
     );
@@ -745,7 +747,7 @@ mod tests {
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "address")),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { field, .. } if field == "address")),
       "expected FieldTypeMismatch for 'address', got: {:?}",
       diags
     );
@@ -764,7 +766,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_prefix_wrong_type() {
+  fn typecheck_prefix_wrong_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -772,7 +774,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
       "expected OperandTypeMismatch"
     );
   }
@@ -790,7 +792,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_binary_wrong_type() {
+  fn typecheck_binary_wrong_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -798,7 +800,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::OperandTypMismatch { .. })),
       "expected OperandTypeMismatch"
     );
   }
@@ -828,7 +830,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_literal_type_valid() {
+  fn typecheck_literal_typ_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_status.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -840,7 +842,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_literal_type_mismatch() {
+  fn typecheck_literal_typ_mismatch() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "invalid_status.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -848,7 +850,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "state")),
+        .any(|d| matches!(d, Diagnostic::FieldTypMismatch { field, .. } if field == "state")),
       "state mismatch expected"
     );
   }
@@ -902,7 +904,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_list_type_no_errors() {
+  fn typecheck_schema_with_list_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithListType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -926,7 +928,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_bare_user_type_ref() {
+  fn typecheck_schema_with_bare_user_typ_ref() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithBareRef.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -950,7 +952,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_list_of_user_type_no_errors() {
+  fn typecheck_schema_with_list_of_user_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithRefList.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -1061,7 +1063,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_explicit_type_tag_no_errors() {
+  fn typecheck_schema_with_explicit_typ_tag_no_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/WithExplicitTypeTag.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1074,7 +1076,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_union_type_no_errors() {
+  fn typecheck_schema_with_union_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithUnion.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -1086,7 +1088,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_nested_type_no_errors() {
+  fn typecheck_schema_with_nested_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithNestedType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -1098,7 +1100,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_literal_type_no_errors() {
+  fn typecheck_schema_with_lit_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithLiteralType.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -1149,7 +1151,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_prop_descriptor_missing_type_has_errors() {
+  fn typecheck_schema_prop_descriptor_missing_typ_has_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/PropDescriptorMissingType.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1259,7 +1261,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_nested_product_wrong_field_type() {
+  fn typecheck_nested_product_wrong_field_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "nested_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -1279,7 +1281,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_contrived_wrong_literal_num() {
+  fn typecheck_contrived_wrong_lit_number() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_wrong_literal.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1303,7 +1305,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_contrived_mixed_accepts_literal_num() {
+  fn typecheck_contrived_mixed_accepts_lit_number() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_mixed_num.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1316,7 +1318,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_contrived_mixed_accepts_literal_bool() {
+  fn typecheck_contrived_mixed_accepts_lit_bool() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_mixed_bool.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1356,7 +1358,7 @@ mod tests {
 
   // Binary expression with wrong operand type should fail
   #[test]
-  fn typecheck_binary_expr_wrong_operand_type() {
+  fn typecheck_binary_expr_wrong_operand_typ() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "binary_schema_wrong_operand.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1365,14 +1367,14 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::OperandTypMismatch { .. })),
       "1 + true should report operand mismatch"
     );
   }
 
   // Binary expression result assigned to wrong field type should fail
   #[test]
-  fn typecheck_binary_expr_wrong_field_type() {
+  fn typecheck_binary_expr_wrong_field_typ() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "binary_schema_wrong_field_type.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1381,7 +1383,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "name")),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { field, .. } if field == "name")),
       "name: 1 + 2 should report field type mismatch"
     );
   }
@@ -1435,7 +1437,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
       "(1 + true) * 3 should report operand mismatch"
     );
   }
@@ -1502,7 +1504,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
       "1 && 2 should report operand mismatch"
     );
   }
@@ -1548,7 +1550,7 @@ mod tests {
 
   // File with _imports has type error when imported field type mismatches schema
   #[test]
-  fn typecheck_with_imports_wrong_type_has_diagnostics() {
+  fn typecheck_with_imports_wrong_typ_has_diagnostics() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "with_imports_wrong_type.td");
     let (hir, _) = lower_file(&db, project, file);
@@ -1557,7 +1559,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { .. })),
       "should have FieldTypeMismatch for string assigned to number field: {:?}",
       result.diagnostics(&db)
     );
@@ -1565,7 +1567,7 @@ mod tests {
 
   // String literal indexing should not produce NotIndexable
   #[test]
-  fn typecheck_str_literal_index_no_errors() {
+  fn typecheck_string_lit_index_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "str_literal_index.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
@@ -1573,7 +1575,7 @@ mod tests {
       !result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::NotIndexable { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::NotIndexable { .. })),
       "string literal indexing should not be flagged as not indexable: {:?}",
       result.diagnostics(&db)
     );

@@ -40,7 +40,7 @@ pub fn is_internal_file(path: &Path) -> bool {
 }
 
 /// Whether a path is located inside a `_types` directory anywhere in the vault
-pub fn is_type_file(path: &Path) -> bool {
+pub fn is_typ_file(path: &Path) -> bool {
   is_content_file(path) && path.components().any(|c| c.as_os_str() == "_types")
 }
 

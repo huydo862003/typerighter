@@ -31,10 +31,10 @@ struct Input {
 impl Parse for Input {
   fn parse(input: ParseStream) -> syn::Result<Self> {
     // type Type OR ident
-    let (binding, ty) = if input.peek(Token![type]) {
+    let (binding, typ) = if input.peek(Token![type]) {
       input.parse::<Token![type]>()?;
-      let ty: Type = input.parse()?;
-      (None, ty)
+      let typ: Type = input.parse()?;
+      (None, typ)
     } else {
       let ident: Ident = input.parse()?;
       (Some(ident), syn::parse_quote! { _ })
@@ -79,7 +79,11 @@ impl Parse for Input {
       return Err(body.error("specialize! requires at least one arm"));
     }
 
-    Ok(Input { binding, ty, arms })
+    Ok(Input {
+      binding,
+      ty: typ,
+      arms,
+    })
   }
 }
 

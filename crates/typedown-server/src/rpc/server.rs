@@ -13,7 +13,7 @@ use typedown_incremental::{CacheSession, Cancelled, QueryStorage, SerializableQu
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
@@ -23,9 +23,9 @@ use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, FileRedNode, Project, SymbolKind};
-use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
+use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
-  export_property_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
+  export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
   resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
@@ -435,7 +435,7 @@ impl RpcServer {
 
           let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
 
-          if is_type_file(path) {
+          if is_typ_file(path) {
             let Some(name) = path
               .file_stem()
               .and_then(|s| s.to_str())
@@ -561,13 +561,13 @@ fn collect_affected_files(
   root_dir: &Path,
 ) -> Vec<String> {
   let changed_file = match project.files(db).get(changed_path) {
-    Some(f) => *f,
+    Some(file) => *file,
     None => return vec![],
   };
   find_transitive_referrers(db, project, changed_file)
     .into_iter()
-    .filter_map(|f| {
-      let path = f.handle(db).path()?.clone();
+    .filter_map(|file| {
+      let path = file.handle(db).path()?.clone();
       path.strip_prefix(root_dir).ok().map(normalize_path)
     })
     .collect()
@@ -610,11 +610,11 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
       headings: exported
         .headings
         .into_iter()
-        .map(|h| TdHeading {
-          level: h.level,
-          title: h.title,
-          title_html: h.title_html,
-          slug: h.slug,
+        .map(|heading| TdHeading {
+          level: heading.level,
+          title: heading.title,
+          title_html: heading.title_html,
+          slug: heading.slug,
         })
         .collect(),
       title: exported.title,
@@ -747,7 +747,7 @@ fn list_schemas(analysis: &Analysis) -> RpcResult<Vec<String>> {
 
   let mut schemas = Vec::new();
   for (path, file) in &*files {
-    if !path.starts_with(&*root_dir) || !is_type_file(path) {
+    if !path.starts_with(&*root_dir) || !is_typ_file(path) {
       continue;
     }
     let Some(symbol) = file_symbol(db, project, *file).value(db) else {
@@ -777,7 +777,7 @@ fn get_schema(analysis: &Analysis, schema: &str) -> RpcResult<TdSchemaInfo> {
   };
 
   let label = resolve_schema_label(db, project, file);
-  let properties = export_property_descriptors(db, project, file)
+  let properties = export_prop_descriptors(db, project, file)
     .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
 
   Ok(TdSchemaInfo {
@@ -799,14 +799,14 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let mut file_count: u32 = 0;
 
   for (path, &file) in &*files {
-    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_type_file(path) {
+    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_typ_file(path) {
       continue;
     }
     file_count += 1;
 
     let relative_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
     let rope = match analysis.file_rope(path) {
-      Some(r) => r,
+      Some(rope) => rope,
       None => continue,
     };
 
@@ -895,40 +895,40 @@ fn collect_file_diagnostics(
 
   // Parse errors
   let parse_result = parse_file(db, project, file);
-  let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
+  let mut typedown_diagnostics: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
   // Typecheck and name resolution errors
   let root = parse_result.ast(db).node.clone();
   let hir = lower_node(db, project, FileRedNode::new(file, root));
   let typecheck_result = typecheck(db, hir);
-  td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
+  typedown_diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
   let resolve_result = resolve(db, hir);
-  td_diags.extend(resolve_result.diagnostics(db).iter().cloned());
+  typedown_diagnostics.extend(resolve_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors
-  if let Some(sym) = file_symbol(db, project, file).value(db) {
-    if sym.kind(db).is_schema() {
-      let eval_result = evaluate_type(db, sym);
-      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+  if let Some(symbol) = file_symbol(db, project, file).value(db) {
+    if symbol.kind(db).is_schema() {
+      let evaluate_result = evaluate_typ(db, symbol);
+      typedown_diagnostics.extend(evaluate_result.diagnostics(db).iter().cloned());
     } else {
-      let eval_result = evaluate_resource(db, sym);
-      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+      let evaluate_result = evaluate_resource(db, symbol);
+      typedown_diagnostics.extend(evaluate_result.diagnostics(db).iter().cloned());
     }
   }
 
   // Deduplicate diagnostics by (code, line, column)
   let mut seen = std::collections::HashSet::new();
-  for diag in &td_diags {
-    let (line, column) = if let Some((start, _)) = diag.offsets() {
+  for diagnostic in &typedown_diagnostics {
+    let (line, column) = if let Some((start, _)) = diagnostic.offsets() {
       let start = start.min(rope.len_chars());
-      let l = rope.char_to_line(start);
-      let c = start - rope.line_to_char(l);
-      (l as u32 + 1, c as u32 + 1)
+      let line = rope.char_to_line(start);
+      let column = start - rope.line_to_char(line);
+      (line as u32 + 1, column as u32 + 1)
     } else {
       (1, 1)
     };
 
-    let code = diag.code().as_str().to_string();
+    let code = diagnostic.code().as_str().to_string();
     let key = (code.clone(), line, column);
     if !seen.insert(key) {
       continue;
@@ -940,7 +940,7 @@ fn collect_file_diagnostics(
       column,
       severity: "error".to_string(),
       code,
-      message: diag.message(),
+      message: diagnostic.message(),
     });
   }
 
@@ -948,13 +948,13 @@ fn collect_file_diagnostics(
   if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
     for lint in lint_markdown(&body) {
       let start = lint.start_offset.min(rope.len_chars());
-      let l = rope.char_to_line(start);
-      let c = start - rope.line_to_char(l);
+      let line = rope.char_to_line(start);
+      let column = start - rope.line_to_char(line);
 
       items.push(TdDiagnosticItem {
         filepath: filepath.to_string(),
-        line: l as u32 + 1,
-        column: c as u32 + 1,
+        line: line as u32 + 1,
+        column: column as u32 + 1,
         severity: "warning".to_string(),
         code: lint.code.as_str().to_string(),
         message: lint.message,

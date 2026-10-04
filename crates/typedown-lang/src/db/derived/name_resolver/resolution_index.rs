@@ -194,8 +194,8 @@ fn collect_references<'db>(
           });
       }
     }
-    HirValueKind::Str(_)
-    | HirValueKind::Num(_)
+    HirValueKind::String(_)
+    | HirValueKind::Number(_)
     | HirValueKind::Math(_)
     | HirValueKind::Bool(_)
     | HirValueKind::Null => {}

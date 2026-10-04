@@ -8,7 +8,7 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_config::evaluate_config;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
@@ -160,7 +160,7 @@ fn get_diagnostics_for_file(
   // Evaluation errors
   if let Some(sym) = file_symbol(db, project, file).value(db) {
     if sym.kind(db).is_schema() {
-      let eval_result = evaluate_type(db, sym);
+      let eval_result = evaluate_typ(db, sym);
       td_diags.extend(eval_result.diagnostics(db).iter().cloned());
     } else {
       let eval_result = evaluate_resource(db, sym);

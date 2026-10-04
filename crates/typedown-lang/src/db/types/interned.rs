@@ -9,16 +9,16 @@ use typedown_incremental::{
 
 use typedown_types::either::Either;
 
-use super::TdTypeEnum;
+use super::TdTypEnum;
 use crate::db::TypedownDatabase;
-use crate::db::derived::evaluate::evaluate_type::evaluate_type;
-use crate::db::derived::get_builtin_types::get_object_type;
+use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use crate::db::derived::get_builtin_typs::get_obj_typ;
 use crate::db::types::Symbol;
 
 #[query_interned]
 pub struct FuncSignature<'db> {
-  pub params: Vec<TdTypeEnum<'db>>,
-  pub ret: TdTypeEnum<'db>,
+  pub params: Vec<TdTypEnum<'db>>,
+  pub ret: TdTypEnum<'db>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
@@ -52,52 +52,52 @@ impl Decodable for Variance {
 }
 
 #[query_interned]
-pub struct TypeVariable<'db> {
-  pub upper_bound: LazyType<'db>,
+pub struct TypVariable<'db> {
+  pub upper_bound: LazyTyp<'db>,
   pub variance: Variance, // Existential type variables always have INVARIANCE because variance is irrelevant
 }
 
-impl<'db> TypeVariable<'db> {
-  pub fn get(db: &'db TypedownDatabase, upper_bound: Option<LazyType<'db>>) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
-    TypeVariable::new(db, upper_bound, Variance::Covariant)
+impl<'db> TypVariable<'db> {
+  pub fn get(db: &'db TypedownDatabase, upper_bound: Option<LazyTyp<'db>>) -> Self {
+    let upper_bound = upper_bound.unwrap_or_else(|| LazyTyp::eager(get_obj_typ(db).into()));
+    TypVariable::new(db, upper_bound, Variance::Covariant)
   }
 
   pub fn get_with_variance(
     db: &'db TypedownDatabase,
-    upper_bound: Option<LazyType<'db>>,
+    upper_bound: Option<LazyTyp<'db>>,
     variance: Variance,
   ) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyType::eager(get_object_type(db).into()));
-    TypeVariable::new(db, upper_bound, variance)
+    let upper_bound = upper_bound.unwrap_or_else(|| LazyTyp::eager(get_obj_typ(db).into()));
+    TypVariable::new(db, upper_bound, variance)
   }
 }
 
 #[query_interned]
-pub struct TypeParams<'db> {
-  pub params: Vec<TypeVariable<'db>>,
-  pub bindings: Vec<LazyType<'db>>,
+pub struct TypParams<'db> {
+  pub params: Vec<TypVariable<'db>>,
+  pub bindings: Vec<LazyTyp<'db>>,
 }
 
-impl<'db> TypeParams<'db> {
+impl<'db> TypParams<'db> {
   pub fn instantiate(
     &self,
     db: &'db TypedownDatabase,
-    args: Vec<LazyType<'db>>,
-  ) -> Option<TypeParams<'db>> {
+    args: Vec<LazyTyp<'db>>,
+  ) -> Option<TypParams<'db>> {
     let params = self.params(db);
     if params.len() != args.len() {
       return None;
     }
-    Some(TypeParams::new(db, params, args))
+    Some(TypParams::new(db, params, args))
   }
 
   pub fn bind(
     &self,
     db: &'db TypedownDatabase,
     index: usize,
-    arg: LazyType<'db>,
-  ) -> Option<TypeParams<'db>> {
+    arg: LazyTyp<'db>,
+  ) -> Option<TypParams<'db>> {
     let params = self.params(db);
     let mut bindings = self.bindings(db);
     if index >= params.len() {
@@ -107,18 +107,18 @@ impl<'db> TypeParams<'db> {
       bindings.resize(index + 1, arg.clone());
     }
     bindings[index] = arg;
-    Some(TypeParams::new(db, params, bindings))
+    Some(TypParams::new(db, params, bindings))
   }
 
-  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypVariable<'_>> {
     self.params(db).get(index).copied()
   }
 
-  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyType<'_>> {
+  pub fn get_binding(&self, db: &TypedownDatabase, index: usize) -> Option<LazyTyp<'_>> {
     self.bindings(db).get(index).cloned()
   }
 
-  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypeVariable<'_>> {
+  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypVariable<'_>> {
     self.params(db).get(index).copied()
   }
 
@@ -145,25 +145,25 @@ impl<'db> TypeParams<'db> {
 
 // A type reference that may be eagerly resolved or lazily deferred to a symbol
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub struct LazyType<'db>(Either<TdTypeEnum<'db>, Symbol<'db>>);
+pub struct LazyTyp<'db>(Either<TdTypEnum<'db>, Symbol<'db>>);
 
-impl<'db> LazyType<'db> {
-  pub fn eager(typ: TdTypeEnum<'db>) -> Self {
-    LazyType(Either::Left(typ))
+impl<'db> LazyTyp<'db> {
+  pub fn eager(typ: TdTypEnum<'db>) -> Self {
+    LazyTyp(Either::Left(typ))
   }
 
   pub fn lazy(symbol: Symbol<'db>) -> Self {
-    LazyType(Either::Right(symbol))
+    LazyTyp(Either::Right(symbol))
   }
 
-  pub fn resolve(&self, db: &'db TypedownDatabase) -> Option<TdTypeEnum<'db>> {
+  pub fn resolve(&self, db: &'db TypedownDatabase) -> Option<TdTypEnum<'db>> {
     match &self.0 {
       Either::Left(typ) => Some(typ.clone()),
-      Either::Right(symbol) => evaluate_type(db, *symbol).typ(db),
+      Either::Right(symbol) => evaluate_typ(db, *symbol).typ(db),
     }
   }
 
-  pub fn as_eager(&self) -> Option<TdTypeEnum<'db>> {
+  pub fn as_eager(&self) -> Option<TdTypEnum<'db>> {
     match &self.0 {
       Either::Left(typ) => Some(typ.clone()),
       Either::Right(_) => None,
@@ -171,19 +171,19 @@ impl<'db> LazyType<'db> {
   }
 }
 
-impl<'db> Encodable for LazyType<'db> {
+impl<'db> Encodable for LazyTyp<'db> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     self.0.encode(buf, encoder);
   }
 }
 
-impl<'db> Decodable for LazyType<'db> {
+impl<'db> Decodable for LazyTyp<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    LazyType(Either::<TdTypeEnum, Symbol>::decode(data, decoder))
+    LazyTyp(Either::<TdTypEnum, Symbol>::decode(data, decoder))
   }
 }
 
-impl<'db> StableHash for LazyType<'db> {
+impl<'db> StableHash for LazyTyp<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.0.stable_hash(db, hasher);
   }
@@ -191,58 +191,58 @@ impl<'db> StableHash for LazyType<'db> {
 
 /// A concrete literal value used in literal constraints
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum LiteralValue {
-  Str(String),
+pub enum LitValue {
+  String(String),
   Bool(bool),
   // f64 cannot be hashed so we store in string
-  Num(String),
+  Number(String),
 }
 
 #[derive(FromRepr)]
 #[repr(u8)]
-enum LiteralValueTag {
-  Str = 0,
+enum LitValueTag {
+  String = 0,
   Bool = 1,
-  Num = 2,
+  Number = 2,
 }
 
-impl Encodable for LiteralValue {
+impl Encodable for LitValue {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      LiteralValue::Str(val) => {
-        encoder.emit_u8(buf, LiteralValueTag::Str as u8);
+      LitValue::String(val) => {
+        encoder.emit_u8(buf, LitValueTag::String as u8);
         val.encode(buf, encoder);
       }
-      LiteralValue::Bool(val) => {
-        encoder.emit_u8(buf, LiteralValueTag::Bool as u8);
+      LitValue::Bool(val) => {
+        encoder.emit_u8(buf, LitValueTag::Bool as u8);
         val.encode(buf, encoder);
       }
-      LiteralValue::Num(val) => {
-        encoder.emit_u8(buf, LiteralValueTag::Num as u8);
+      LitValue::Number(val) => {
+        encoder.emit_u8(buf, LitValueTag::Number as u8);
         val.encode(buf, encoder);
       }
     }
   }
 }
 
-impl Decodable for LiteralValue {
+impl Decodable for LitValue {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
-    match LiteralValueTag::from_repr(tag).expect("unknown LiteralValue tag") {
-      LiteralValueTag::Str => LiteralValue::Str(String::decode(data, decoder)),
-      LiteralValueTag::Bool => LiteralValue::Bool(bool::decode(data, decoder)),
-      LiteralValueTag::Num => LiteralValue::Num(String::decode(data, decoder)),
+    match LitValueTag::from_repr(tag).expect("unknown LiteralValue tag") {
+      LitValueTag::String => LitValue::String(String::decode(data, decoder)),
+      LitValueTag::Bool => LitValue::Bool(bool::decode(data, decoder)),
+      LitValueTag::Number => LitValue::Number(String::decode(data, decoder)),
     }
   }
 }
 
-impl StableHash for LiteralValue {
+impl StableHash for LitValue {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
-      LiteralValue::Str(value) => value.stable_hash(db, hasher),
-      LiteralValue::Bool(value) => value.stable_hash(db, hasher),
-      LiteralValue::Num(value) => value.stable_hash(db, hasher),
+      LitValue::String(value) => value.stable_hash(db, hasher),
+      LitValue::Bool(value) => value.stable_hash(db, hasher),
+      LitValue::Number(value) => value.stable_hash(db, hasher),
     }
   }
 }

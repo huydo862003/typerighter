@@ -9,7 +9,7 @@ use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::types::{
   File, HirValueKind, MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind,
 };
-use crate::db::utils::{is_content_file, is_type_file, lower_file};
+use crate::db::utils::{is_content_file, is_typ_file, lower_file};
 use crate::syntax::ast::{AstNode, ClosureExpr};
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
@@ -23,7 +23,7 @@ pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> Membe
 
   let mut members = BTreeMap::new();
   for (path, file) in &*proj_files {
-    if !path.starts_with(&root_dir) || !is_type_file(path) {
+    if !path.starts_with(&root_dir) || !is_typ_file(path) {
       continue;
     }
     if let Some(sym) = file_symbol(db, project, *file).value(db) {
@@ -106,7 +106,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
           {
             let sym = Symbol::new(
               db,
-              SymbolKind::FnParam(project, file, value),
+              SymbolKind::FuncParam(project, file, value),
               name.clone(),
               format!("@param::{}", name),
             );
@@ -170,7 +170,7 @@ fn resolve_import_members<'db>(
   let root_dir = config.root_dir(db);
 
   for (alias, path_hir) in import_entries {
-    let HirValueKind::Str(path) = path_hir.kind(db) else {
+    let HirValueKind::String(path) = path_hir.kind(db) else {
       continue;
     };
     let target_path = root_dir.join(&path);

@@ -6,8 +6,9 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_config::evaluate_config;
-use crate::db::types::derived::object_system::TdRuntimeObject;
-use crate::db::types::{Project, TdObjectEnum, VaultConfigResult};
+use crate::db::types::derived::obj_system::TdRuntimeObj;
+use crate::db::types::{Project, TdObjEnum, VaultConfigResult};
+use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -23,11 +24,11 @@ pub fn get_vault_config<'db>(
     return empty_config(db, &root, diagnostics);
   };
 
-  let version = get_str_field(db, &obj, "version").unwrap_or_default();
-  let repo = get_str_field(db, &obj, "repo");
+  let version = get_string_field(db, &obj, "version").unwrap_or_default();
+  let repo = get_string_field(db, &obj, "repo");
 
   // Extract vault.root_dir
-  let root_dir = get_nested_str_field(db, &obj, "vault", "root_dir")
+  let root_dir = get_nested_string_field(db, &obj, "vault", "root_dir")
     .map(|s| {
       if s.is_empty() || s == "." {
         root.clone()
@@ -39,16 +40,16 @@ pub fn get_vault_config<'db>(
 
   // Extract site fields
   let site = get_field(db, &obj, "site");
-  let site_title = site_str(db, &site, "title").unwrap_or_default();
-  let site_description = site_str(db, &site, "description").unwrap_or_default();
-  let origin = site_str(db, &site, "origin").map(|s| normalize_origin(&s));
-  let lang = site_str(db, &site, "lang").unwrap_or_else(|| "en".to_string());
-  let base_path = site_str(db, &site, "base_path")
+  let site_title = get_site_string(db, &site, "title").unwrap_or_default();
+  let site_description = get_site_string(db, &site, "description").unwrap_or_default();
+  let origin = get_site_string(db, &site, "origin").map(|s| normalize_origin(&s));
+  let lang = get_site_string(db, &site, "lang").unwrap_or_else(|| "en".to_string());
+  let base_path = get_site_string(db, &site, "base_path")
     .map(|s| normalize_base_path(&s))
     .unwrap_or_else(|| "/".to_string());
-  let author = site_str(db, &site, "author");
-  let license = site_str(db, &site, "license");
-  let public_dir = site_str(db, &site, "public_dir").unwrap_or_else(|| "public".to_string());
+  let author = get_site_string(db, &site, "author");
+  let license = get_site_string(db, &site, "license");
+  let public_dir = get_site_string(db, &site, "public_dir").unwrap_or_else(|| "public".to_string());
   let nav = extract_nav(db, &site);
   if nav.len() > 4 {
     use std::sync::Once;
@@ -82,7 +83,7 @@ pub fn get_vault_config<'db>(
 fn empty_config<'db>(
   db: &'db TypedownDatabase,
   root: &Path,
-  diagnostics: Vec<crate::syntax::diagnostic::Diagnostic>,
+  diagnostics: Vec<Diagnostic>,
 ) -> VaultConfigResult<'db> {
   VaultConfigResult::new(
     db,
@@ -104,9 +105,9 @@ fn empty_config<'db>(
 
 fn get_field<'db>(
   db: &'db TypedownDatabase,
-  obj: &TdObjectEnum<'db>,
+  obj: &TdObjEnum<'db>,
   key: &str,
-) -> Option<TdObjectEnum<'db>> {
+) -> Option<TdObjEnum<'db>> {
   let field = obj.get_owned_field(db, key)?;
 
   if field.is_td_null_obj() {
@@ -116,35 +117,35 @@ fn get_field<'db>(
   }
 }
 
-fn get_str_field<'db>(
+fn get_string_field<'db>(
   db: &'db TypedownDatabase,
-  obj: &TdObjectEnum<'db>,
+  obj: &TdObjEnum<'db>,
   key: &str,
 ) -> Option<String> {
-  get_field(db, obj, key).and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
+  get_field(db, obj, key).and_then(|o| o.as_td_string_obj().map(|string| string.value(db)))
 }
 
-fn get_nested_str_field<'db>(
+fn get_nested_string_field<'db>(
   db: &'db TypedownDatabase,
-  obj: &TdObjectEnum<'db>,
+  obj: &TdObjEnum<'db>,
   parent_key: &str,
   child_key: &str,
 ) -> Option<String> {
   let parent = get_field(db, obj, parent_key)?;
-  get_str_field(db, &parent, child_key)
+  get_string_field(db, &parent, child_key)
 }
 
-fn site_str<'db>(
+fn get_site_string<'db>(
   db: &'db TypedownDatabase,
-  site: &Option<TdObjectEnum<'db>>,
+  site: &Option<TdObjEnum<'db>>,
   key: &str,
 ) -> Option<String> {
-  site.as_ref().and_then(|s| get_str_field(db, s, key))
+  site.as_ref().and_then(|s| get_string_field(db, s, key))
 }
 
 fn extract_nav<'db>(
   db: &'db TypedownDatabase,
-  site: &Option<TdObjectEnum<'db>>,
+  site: &Option<TdObjEnum<'db>>,
 ) -> Vec<(String, String, Option<String>)> {
   let Some(site) = site else {
     return Vec::new();
@@ -164,10 +165,10 @@ fn extract_nav<'db>(
     let Some(item) = list_obj.get(db, i) else {
       continue;
     };
-    let title = get_str_field(db, &item, "title").unwrap_or_default();
-    let link = get_str_field(db, &item, "link").unwrap_or_default();
-    let icon =
-      get_field(db, &item, "icon").and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)));
+    let title = get_string_field(db, &item, "title").unwrap_or_default();
+    let link = get_string_field(db, &item, "link").unwrap_or_default();
+    let icon = get_field(db, &item, "icon")
+      .and_then(|object| object.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
     if !title.is_empty() && !link.is_empty() {
       items.push((title, link, icon));
     }

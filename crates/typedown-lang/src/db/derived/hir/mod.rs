@@ -121,11 +121,11 @@ fn lower_expr_kind<'db>(
       .map(|(key, val_expr)| {
         if !seen_keys.insert(key.clone()) {
           let node = val_expr.syntax();
-          let (tr_offset, tr_len) = node.trimmed_range();
+          let (trimmed_offset, trimmed_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::DuplicateKey {
             key: key.clone(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
         let child = lower_node(
@@ -151,11 +151,11 @@ fn lower_expr_kind<'db>(
       .map(|(key, val_expr)| {
         if !seen_keys.insert(key.clone()) {
           let node = val_expr.syntax();
-          let (tr_offset, tr_len) = node.trimmed_range();
+          let (trimmed_offset, trimmed_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::DuplicateKey {
             key: key.clone(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
         let child = lower_node(
@@ -228,7 +228,7 @@ fn lower_expr_kind<'db>(
       if let Some(code) = children.iter().find_map(|c| CodeLit::cast(c.clone()))
         && let Some(val) = code.value()
       {
-        return HirValueKind::Str(val);
+        return HirValueKind::String(val);
       }
     }
 
@@ -277,14 +277,14 @@ fn lower_expr_kind<'db>(
       })
       .collect::<Vec<_>>()
       .join("");
-    return HirValueKind::Str(text);
+    return HirValueKind::String(text);
   }
 
   // Handle number lit
   if let Some(lit) = NumberLit::cast(inner.syntax().clone())
     && let Some(val) = lit.value()
   {
-    return HirValueKind::Num(val.to_string());
+    return HirValueKind::Number(val.to_string());
   }
 
   // Handle math lit
@@ -298,7 +298,7 @@ fn lower_expr_kind<'db>(
   if let Some(lit) = CodeLit::cast(inner.syntax().clone())
     && let Some(val) = lit.value()
   {
-    return HirValueKind::Str(val);
+    return HirValueKind::String(val);
   }
 
   // Handle identifier
@@ -431,10 +431,10 @@ fn lower_expr_kind<'db>(
       if let Some(name) = id.value() {
         if name == "self" {
           let node = id.syntax();
-          let (tr_offset, tr_len) = node.trimmed_range();
+          let (trimmed_offset, trimmed_len) = node.trimmed_range();
           diagnostics.push(Diagnostic::InvalidSelfClosureParams {
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         } else {
           params.push(name);
@@ -459,7 +459,7 @@ fn lower_expr_kind<'db>(
     };
   }
 
-  HirValueKind::Str(inner.syntax().text().trim().to_string())
+  HirValueKind::String(inner.syntax().text().trim().to_string())
 }
 
 // Remove unnecessary parens

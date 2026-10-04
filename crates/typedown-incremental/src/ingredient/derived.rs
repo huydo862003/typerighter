@@ -69,7 +69,7 @@ pub struct StampedDerivedField<T> {
 pub struct DerivedQueryIngredientStore<DB, K, V: Id + From<u32> + Into<u32>> {
   ingredient_id: DepId, // DepId with entry_id=0, identifies this ingredient
   name_fingerprint: Fingerprint,
-  return_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
+  ret_type_fingerprint: Fingerprint, // fingerprint of the return type name (e.g. "FibResult")
   next_entry_id: Arc<AtomicU32>,
   query_fn: fn(&DB, K) -> V,
   intern_map: Arc<DashMap<K, EntryId>>, // key -> stable entry_id
@@ -115,7 +115,7 @@ impl<
     ctx: &DeserializeContext,
     serialized_entry_id: u32,
   ) -> Option<u32> {
-    let group_key = (self.return_type_fingerprint, serialized_entry_id);
+    let group_key = (self.ret_type_fingerprint, serialized_entry_id);
     if let Some(field_group) = ctx.derived_groups.get(&group_key) {
       for &(_, field_node_index) in &field_group.fields {
         ctx.decoder.get_or_deserialize_dep_node_id(field_node_index);
@@ -143,13 +143,13 @@ impl<
   pub fn new(
     ingredient_id: DepId,
     name_fingerprint: &'static str,
-    return_type_name: &'static str,
+    ret_type_name: &'static str,
     query_fn: fn(&DB, K) -> V,
   ) -> Self {
     Self {
       ingredient_id,
       name_fingerprint: Fingerprint::from_name(name_fingerprint),
-      return_type_fingerprint: Fingerprint::from_name(return_type_name),
+      ret_type_fingerprint: Fingerprint::from_name(ret_type_name),
       next_entry_id: Arc::new(AtomicU32::new(0)),
       query_fn,
       intern_map: Arc::new(DashMap::new()),

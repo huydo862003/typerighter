@@ -1,18 +1,18 @@
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
-use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
-use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
-use typedown_lang::db::types::derived::object_system::TdStaticType;
+use typedown_lang::db::derived::typechecker::actual_node_typ::actual_node_typ;
+use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_typ;
+use typedown_lang::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
+use typedown_lang::db::types::derived::obj_system::TdStaticTyp;
 use typedown_lang::db::types::{
-  File, FileRedNode, HirValueKind, Project, Scope, ScopeKind, Symbol, TdTypeEnum,
+  File, FileRedNode, HirValueKind, Project, Scope, ScopeKind, Symbol, TdTypEnum,
 };
 use typedown_lang::db::utils::is_external_url;
 use typedown_lang::syntax::ast::{AstNode, Expr, MdLink, MdMedia};
@@ -66,8 +66,8 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
     // Value position: show declared type if available, otherwise inferred type
     let expr = get_nearest_expr_ancestor(&hovered_node)?;
     let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
-    let expected = expected_node_type(db, hir).typ(db);
-    let actual = actual_node_type(db, hir).typ(db)?;
+    let expected = expected_node_typ(db, hir).typ(db);
+    let actual = actual_node_typ(db, hir).typ(db)?;
 
     match expected {
       Some(expected_typ) => format_type_label(db, &expected_typ),
@@ -86,7 +86,7 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
       project,
       FileRedNode::new(file, value_expr.syntax().clone()),
     );
-    let typ = expected_node_type(db, hir).typ(db)?;
+    let typ = expected_node_typ(db, hir).typ(db)?;
     let key_text = entry_key.text().trim().to_string();
 
     format!("{key_text}: {}", format_type_label(db, &typ))
@@ -116,7 +116,7 @@ fn build_fref_hover(
     return None;
   };
   let arg = args.first()?;
-  let HirValueKind::Str(path_str) = arg.kind(db) else {
+  let HirValueKind::String(path_str) = arg.kind(db) else {
     return None;
   };
 
@@ -130,9 +130,11 @@ fn build_fref_hover(
 }
 
 // Format hover text for a resolved resource file
-fn format_resource_hover(db: &TypedownDatabase, sym: Symbol, path: &str) -> String {
-  let schema_name = get_symbol_type(db, sym).typ(db).map(|t| t.display_name(db));
-  let label = get_resource_label(db, sym);
+fn format_resource_hover(db: &TypedownDatabase, symbol: Symbol, path: &str) -> String {
+  let schema_name = get_symbol_typ(db, symbol)
+    .typ(db)
+    .map(|t| t.display_name(db));
+  let label = get_resource_label(db, symbol);
 
   let mut parts = vec![];
   if let Some(label) = label {
@@ -146,18 +148,22 @@ fn format_resource_hover(db: &TypedownDatabase, sym: Symbol, path: &str) -> Stri
   parts.join("\n\n")
 }
 
-fn format_type_label(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
-  if let Some(sum) = typ.as_td_sum_type() {
+fn format_type_label(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
+  if let Some(sum) = typ.as_td_sum_typ() {
     let members = sum.members(db);
     let has_null = members
       .iter()
-      .any(|m| m.resolve(db).is_some_and(|t| t.as_td_null_type().is_some()));
+      .any(|m| m.resolve(db).is_some_and(|t| t.as_td_null_typ().is_some()));
     if has_null {
       // Display non-null members joined by " | " with "?" suffix
       let non_null: Vec<String> = members
         .iter()
-        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_type().is_none()))
-        .filter_map(|m| m.resolve(db).map(|t| t.display_name(db)))
+        .filter(|member| {
+          member
+            .resolve(db)
+            .is_none_or(|typ| typ.as_td_null_typ().is_none())
+        })
+        .filter_map(|member| member.resolve(db).map(|typ| typ.display_name(db)))
         .collect();
       return format!("{}?", non_null.join(" | "));
     }
@@ -198,14 +204,14 @@ fn resolve_schema_hover(db: &TypedownDatabase, project: Project, node: &RedNode)
   let project_members = members(db, scope);
   let member_map = project_members.members(db);
   let sym = member_map.get(schema_name)?;
-  let typ = evaluate_type(db, *sym).typ(db)?;
-  typ.as_td_schema_type()?;
+  let typ = evaluate_typ(db, *sym).typ(db)?;
+  typ.as_td_schema_typ()?;
 
   Some(build_schema_hover_text(db, &typ))
 }
 
 // Show schema name and its fields
-fn build_schema_hover_text(db: &TypedownDatabase, typ: &TdTypeEnum) -> String {
+fn build_schema_hover_text(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
   let name = typ.display_name(db);
   let fields = typ.get_fields(db);
   if fields.is_empty() {
@@ -255,11 +261,11 @@ fn build_link_hover(
   };
 
   let target_file = *project.files(db).get(&target_path)?;
-  let sym = file_symbol(db, project, target_file).value(db)?;
+  let symbol = file_symbol(db, project, target_file).value(db)?;
 
   Some(format_resource_hover(
     db,
-    sym,
+    symbol,
     &target_path.display().to_string(),
   ))
 }

@@ -7,8 +7,7 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::types::{
-  ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjectEnum, TdProductObj, TdProductType,
-  TdSchemaObj,
+  ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjEnum, TdProductObj, TdProductTyp, TdSchemaObj,
 };
 use crate::db::utils::{is_schemaless_file, lower_file};
 use typedown_incremental::QueryDatabase;
@@ -44,7 +43,7 @@ pub fn evaluate_resource<'db>(
 
   // Stamp the file symbol so serialization can detect fref origins
   let value = match node_result.value(db) {
-    Some(TdObjectEnum::TdSchemaObj(obj)) => Some(
+    Some(TdObjEnum::TdSchemaObj(obj)) => Some(
       TdSchemaObj::new(
         db,
         obj.schema(db),
@@ -55,13 +54,13 @@ pub fn evaluate_resource<'db>(
       )
       .into(),
     ),
-    Some(TdObjectEnum::TdProductObj(obj)) => {
-      let file_sym = if is_schemaless { Some(symbol) } else { None };
+    Some(TdObjEnum::TdProductObj(obj)) => {
+      let file_symbol = if is_schemaless { Some(symbol) } else { None };
       Some(
         TdProductObj::new(
           db,
-          obj.product_type(db),
-          file_sym,
+          obj.product_typ(db),
+          file_symbol,
           obj.builtins(db),
           obj.fields(db),
         )
@@ -69,20 +68,20 @@ pub fn evaluate_resource<'db>(
       )
     }
     // Schemaless files with no type produce a DictObj, convert to ProductObj
-    Some(TdObjectEnum::TdDictObj(dict)) if is_schemaless => {
+    Some(TdObjEnum::TdDictObj(dict)) if is_schemaless => {
       let mut builtins = BTreeMap::new();
       let mut fields = BTreeMap::new();
-      for (key, val) in dict.entries(db) {
+      for (key, value) in dict.entries(db) {
         if key.starts_with('_') {
-          builtins.insert(key, val);
+          builtins.insert(key, value);
         } else {
-          fields.insert(key, val);
+          fields.insert(key, value);
         }
       }
       Some(
         TdProductObj::new(
           db,
-          TdProductType::new(db, None, BTreeMap::new()).into(),
+          TdProductTyp::new(db, None, BTreeMap::new()).into(),
           Some(symbol),
           builtins,
           fields,
@@ -98,11 +97,11 @@ pub fn evaluate_resource<'db>(
 
 #[cfg(test)]
 mod tests {
+  use crate::integrations::export::export_resource_markdown;
   use std::path::PathBuf;
 
   use crate::db::types::{
-    AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdObjectEnum,
-    TdRuntimeObject,
+    AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdObjEnum, TdRuntimeObj,
   };
   use crate::syntax::diagnostic::Diagnostic;
 
@@ -134,8 +133,8 @@ mod tests {
     );
     let obj = result.value(&db).unwrap();
     let name_obj = obj.get_owned_field(&db, "name").expect("should have name");
-    let name_str = name_obj.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(name_str.value(&db), "Alice");
+    let name_string = name_obj.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(name_string.value(&db), "Alice");
   }
 
   // A field value that doesn't match the declared schema type produces diagnostics
@@ -173,12 +172,12 @@ mod tests {
       result.diagnostics(&db)
     );
     let obj = result.value(&db).unwrap();
-    let schema_type = obj
-      .as_td_type_obj()
-      .and_then(|t| t.as_td_schema_type())
+    let schema_typ = obj
+      .as_td_typ_obj()
+      .and_then(|typ| typ.as_td_schema_typ())
       .expect("expected TdSchemaType");
     assert!(
-      schema_type.fields(&db).contains_key("title"),
+      schema_typ.fields(&db).contains_key("title"),
       "should have title field"
     );
   }
@@ -200,8 +199,8 @@ mod tests {
     // Access a non-fref field to verify the object works
     let obj = result.value(&db).unwrap();
     let name_obj = obj.get_owned_field(&db, "name").expect("should have name");
-    let name_str = name_obj.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(name_str.value(&db), "Alice");
+    let name_string = name_obj.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(name_string.value(&db), "Alice");
   }
 
   // Lazy field access: accessing the fref field evaluates the target on both sides
@@ -222,8 +221,8 @@ mod tests {
     let friend_name = friend
       .get_owned_field(&db, "name")
       .expect("friend should have name");
-    let friend_name_str = friend_name.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(friend_name_str.value(&db), "Bob");
+    let friend_name_string = friend_name.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(friend_name_string.value(&db), "Bob");
 
     // Bob -> friend -> Alice (circular, should not panic)
     let friend_of_friend = friend
@@ -232,13 +231,13 @@ mod tests {
     let fof_name = friend_of_friend
       .get_owned_field(&db, "name")
       .expect("should have name");
-    let fof_name_str = fof_name.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(fof_name_str.value(&db), "Alice");
+    let fof_name_string = fof_name.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(fof_name_string.value(&db), "Alice");
   }
 
-  // str.to_string() returns the same string value
+  // string.to_string() returns the same string value
   #[test]
-  fn str_to_string_produces_same_value() {
+  fn string_to_string_produces_same_value() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_method_call.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
@@ -248,13 +247,13 @@ mod tests {
     let result_field = obj
       .get_owned_field(&db, "result")
       .expect("should have result field");
-    let str_obj = result_field.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "hello");
+    let string_obj = result_field.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "hello");
   }
 
   // num.to_string() returns the decimal representation, without trailing .0 for integers
   #[test]
-  fn num_to_string_produces_string_repr() {
+  fn number_to_string_produces_string_repr() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "num_method_call.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
@@ -264,8 +263,8 @@ mod tests {
     let result_field = obj
       .get_owned_field(&db, "result")
       .expect("should have result field");
-    let str_obj = result_field.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "42");
+    let string_obj = result_field.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "42");
   }
 
   // bool.to_string() returns "true" or "false"
@@ -280,8 +279,8 @@ mod tests {
     let result_field = obj
       .get_owned_field(&db, "result")
       .expect("should have result field");
-    let str_obj = result_field.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "true");
+    let string_obj = result_field.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "true");
   }
 
   #[test]
@@ -295,8 +294,8 @@ mod tests {
     let full_name = obj
       .get_owned_field(&db, "fullName")
       .expect("should evaluate computed fullName field");
-    let str_obj = full_name.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "Alice Smith");
+    let string_obj = full_name.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "Alice Smith");
   }
 
   // fref("file.td").prop evaluates the referenced resource and accesses a field on it
@@ -311,8 +310,8 @@ mod tests {
     let result_field = obj
       .get_owned_field(&db, "result")
       .expect("should have result field");
-    let str_obj = result_field.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "Alice");
+    let string_obj = result_field.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "Alice");
   }
 
   // self.field accesses a field on the current resource object
@@ -327,13 +326,13 @@ mod tests {
     let result_field = obj
       .get_owned_field(&db, "result")
       .expect("should have result field");
-    let str_obj = result_field.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "Alice");
+    let string_obj = result_field.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "Alice");
   }
 
   // String interpolation evaluates embedded expressions and concatenates the parts
   #[test]
-  fn str_interp_evaluates_expr_parts() {
+  fn string_interpolation_evaluates_expr_parts() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_interp.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
@@ -343,17 +342,17 @@ mod tests {
     let result_field = obj
       .get_owned_field(&db, "result")
       .expect("should have result field");
-    let str_obj = result_field.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "hello 42");
+    let string_obj = result_field.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "hello 42");
   }
 
-  fn get_num_field(db: &TypedownDatabase, obj: &TdObjectEnum, field: &str) -> f64 {
+  fn get_number_field(db: &TypedownDatabase, obj: &TdObjEnum, field: &str) -> f64 {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
-    let num = field_obj.as_td_num_obj().expect("should be TdNumObj");
-    num.value(db)
+    let number = field_obj.as_td_number_obj().expect("should be TdNumObj");
+    number.value(db)
   }
 
-  fn get_bool_field(db: &TypedownDatabase, obj: &TdObjectEnum, field: &str) -> bool {
+  fn get_bool_field(db: &TypedownDatabase, obj: &TdObjEnum, field: &str) -> bool {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
     let b = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
     b.value(db)
@@ -365,7 +364,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "binary_valid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
-    assert_eq!(get_num_field(&db, &obj, "result"), 3.0);
+    assert_eq!(get_number_field(&db, &obj, "result"), 3.0);
   }
 
   // -, *, /, %, ** all produce the expected numeric result
@@ -374,11 +373,11 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "arithmetic_ops.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
-    assert_eq!(get_num_field(&db, &obj, "sub"), 7.0);
-    assert_eq!(get_num_field(&db, &obj, "mul"), 12.0);
-    assert_eq!(get_num_field(&db, &obj, "div"), 2.5);
-    assert_eq!(get_num_field(&db, &obj, "mod"), 1.0);
-    assert_eq!(get_num_field(&db, &obj, "pow"), 256.0);
+    assert_eq!(get_number_field(&db, &obj, "sub"), 7.0);
+    assert_eq!(get_number_field(&db, &obj, "mul"), 12.0);
+    assert_eq!(get_number_field(&db, &obj, "div"), 2.5);
+    assert_eq!(get_number_field(&db, &obj, "mod"), 1.0);
+    assert_eq!(get_number_field(&db, &obj, "pow"), 256.0);
   }
 
   // Unary - negates the number
@@ -387,7 +386,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "unary_valid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
-    assert_eq!(get_num_field(&db, &obj, "result"), -42.0);
+    assert_eq!(get_number_field(&db, &obj, "result"), -42.0);
   }
 
   // <, >, ==, !=, <=, >= all produce bool results for numeric operands
@@ -420,7 +419,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "unary_extras.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
-    assert_eq!(get_num_field(&db, &obj, "pos"), 5.0);
+    assert_eq!(get_number_field(&db, &obj, "pos"), 5.0);
     assert!(get_bool_field(&db, &obj, "logical_not_false"));
     assert!(!get_bool_field(&db, &obj, "logical_not_true"));
     assert!(!get_bool_field(&db, &obj, "logical_not_num"));
@@ -428,7 +427,7 @@ mod tests {
 
   // String comparison operators work lexicographically
   #[test]
-  fn str_comparison_evaluates_correctly() {
+  fn string_comparison_evaluates_correctly() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_comparison.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
@@ -443,7 +442,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "list_index.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
-    assert_eq!(get_num_field(&db, &obj, "result"), 20.0);
+    assert_eq!(get_number_field(&db, &obj, "result"), 20.0);
   }
 
   // out-of-bounds index on list and string evaluates to undefined and emits a diagnostic
@@ -466,34 +465,40 @@ mod tests {
       "list OOB should be undefined"
     );
     assert!(
-      list_result.diagnostics(&db).iter().any(|d| matches!(
-        d,
-        Diagnostic::IndexOutOfBounds {
-          index: 99,
-          length: 3,
-          ..
-        }
-      )),
+      list_result
+        .diagnostics(&db)
+        .iter()
+        .any(|diagnostic| matches!(
+          diagnostic,
+          Diagnostic::IndexOutOfBounds {
+            index: 99,
+            length: 3,
+            ..
+          }
+        )),
       "expected IndexOutOfBounds(99, 3) for list, got: {:?}",
       list_result.diagnostics(&db)
     );
 
-    let str_result = evaluate_node(&db, field_hirs["str_oob"], file_scope);
+    let string_result = evaluate_node(&db, field_hirs["str_oob"], file_scope);
     assert!(
-      str_result.value(&db).is_none(),
+      string_result.value(&db).is_none(),
       "string OOB should be undefined"
     );
     assert!(
-      str_result.diagnostics(&db).iter().any(|d| matches!(
-        d,
-        Diagnostic::IndexOutOfBounds {
-          index: 99,
-          length: 5,
-          ..
-        }
-      )),
+      string_result
+        .diagnostics(&db)
+        .iter()
+        .any(|diagnostic| matches!(
+          diagnostic,
+          Diagnostic::IndexOutOfBounds {
+            index: 99,
+            length: 5,
+            ..
+          }
+        )),
       "expected IndexOutOfBounds(99, 5) for string, got: {:?}",
-      str_result.diagnostics(&db)
+      string_result.diagnostics(&db)
     );
   }
 
@@ -504,8 +509,8 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let result = obj.get_owned_field(&db, "result").unwrap();
-    let str_obj = result.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "e");
+    let string_obj = result.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "e");
   }
 
   // Tag expressions like !str "Alice" strip the tag and evaluate the inner value
@@ -515,9 +520,9 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let name = obj.get_owned_field(&db, "name").unwrap();
-    let name_str = name.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(name_str.value(&db), "Alice");
-    assert_eq!(get_num_field(&db, &obj, "age"), 30.0);
+    let name_string = name.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(name_string.value(&db), "Alice");
+    assert_eq!(get_number_field(&db, &obj, "age"), 30.0);
   }
 
   // A math field evaluates to TdMathObj with the correct value
@@ -542,8 +547,8 @@ mod tests {
     let content = obj
       .get_builtin_field(&db, "_content")
       .expect("should have _content field");
-    let str_obj = content.as_td_str_obj().expect("expected TdStrObj");
-    assert!(str_obj.value(&db).contains("Hello world"));
+    let string_obj = content.as_td_string_obj().expect("expected TdStrObj");
+    assert!(string_obj.value(&db).contains("Hello world"));
   }
 
   // String field with inline math evaluates to a concatenated string
@@ -555,8 +560,8 @@ mod tests {
     let name = obj
       .get_owned_field(&db, "name")
       .expect("should have name field");
-    let str_obj = name.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(str_obj.value(&db), "The judgment $\\vdash$ holds");
+    let string_obj = name.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(string_obj.value(&db), "The judgment $\\vdash$ holds");
   }
 
   // String field with multiple inline math expressions evaluates to a concatenated string
@@ -568,12 +573,12 @@ mod tests {
     let name = obj
       .get_owned_field(&db, "name")
       .expect("should have name field");
-    let str_obj = name.as_td_str_obj().expect("expected TdStrObj");
-    let val = str_obj.value(&db);
+    let string_obj = name.as_td_string_obj().expect("expected TdStrObj");
+    let value = string_obj.value(&db);
     assert!(
-      val.contains("$\\Gamma \\vdash J$") && val.contains("$\\Gamma \\vdash K$"),
+      value.contains("$\\Gamma \\vdash J$") && value.contains("$\\Gamma \\vdash K$"),
       "expected math content wrapped in $ delimiters, got: {}",
-      val
+      value
     );
   }
 
@@ -608,8 +613,8 @@ mod tests {
     let format = obj
       .get_owned_field(&db, "format")
       .expect("should have format field");
-    let format_str = format.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(format_str.value(&db), "png");
+    let format_string = format.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(format_string.value(&db), "png");
   }
 
   // An SVG file in the fixture vault is loaded as an asset and evaluates to a blob
@@ -633,8 +638,8 @@ mod tests {
     let format = obj
       .get_owned_field(&db, "format")
       .expect("should have format field");
-    let format_str = format.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(format_str.value(&db), "svg");
+    let format_string = format.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(format_string.value(&db), "svg");
   }
 
   // Each AssetKind produces the correct format string
@@ -659,12 +664,12 @@ mod tests {
 
     for (kind, expected_format) in cases {
       let blob = make_blob_obj(&db, kind, file);
-      let format = TdObjectEnum::from(blob)
+      let format = TdObjEnum::from(blob)
         .get_owned_field(&db, "format")
         .expect("should have format");
-      let format_str = format.as_td_str_obj().expect("expected TdStrObj");
+      let format_string = format.as_td_string_obj().expect("expected TdStrObj");
       assert_eq!(
-        format_str.value(&db),
+        format_string.value(&db),
         expected_format,
         "format mismatch for {:?}",
         kind
@@ -694,7 +699,7 @@ mod tests {
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
     let name = obj.get_owned_field(&db, "name").expect("should have name");
-    assert_eq!(name.as_td_str_obj().unwrap().value(&db), "Alice");
+    assert_eq!(name.as_td_string_obj().unwrap().value(&db), "Alice");
     let nickname = obj
       .get_owned_field(&db, "nickname")
       .expect("should have nickname");
@@ -713,8 +718,8 @@ mod tests {
     let nickname = obj
       .get_owned_field(&db, "nickname")
       .expect("should have nickname");
-    let str_obj = nickname.as_td_str_obj().expect("should be a string");
-    assert_eq!(str_obj.value(&db), "Bobby");
+    let string_obj = nickname.as_td_string_obj().expect("should be a string");
+    assert_eq!(string_obj.value(&db), "Bobby");
   }
 
   // string? field can be omitted
@@ -747,13 +752,13 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "nullable_type_ref.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags
+      diagnostics
         .iter()
         .any(|d| matches!(d, Diagnostic::UnresolvedSchema { .. })),
       "_type: Schema? should produce UnresolvedSchema: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -763,13 +768,13 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "missing_required.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags
+      diagnostics
         .iter()
         .any(|d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "name")),
       "missing required field 'name' should produce diagnostic: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -779,13 +784,13 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "without_optional.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      !diags.iter().any(
-        |d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "nickname")
+      !diagnostics.iter().any(
+        |diagnostic| matches!(diagnostic, Diagnostic::MissingRequiredField { field, .. } if field == "nickname")
       ),
       "missing nullable field should not produce diagnostic: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -810,11 +815,11 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "default_resource.td");
     let (hir, _) = lower_file(&db, project, file);
     let result = typecheck(&db, hir.unwrap());
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags.is_empty(),
+      diagnostics.is_empty(),
       "missing field with default should not produce diagnostics: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -827,18 +832,18 @@ mod tests {
     let status_obj = obj
       .get_owned_field(&db, "status")
       .expect("field with default should return evaluated default object");
-    let status_str = status_obj
-      .as_td_str_obj()
+    let status_string = status_obj
+      .as_td_string_obj()
       .expect("expected TdStrObj for status default");
-    assert_eq!(status_str.value(&db), "draft");
+    assert_eq!(status_string.value(&db), "draft");
 
     let count_obj = obj
       .get_owned_field(&db, "count")
       .expect("field with default should return evaluated default object");
-    let count_num = count_obj
-      .as_td_num_obj()
-      .expect("expected TdNumObj for count default");
-    assert_eq!(count_num.value(&db), 0.0);
+    let count_number = count_obj
+      .as_td_number_obj()
+      .expect("expected TdNumberObj for count default");
+    assert_eq!(count_number.value(&db), 0.0);
   }
 
   #[test]
@@ -858,15 +863,13 @@ mod tests {
     let brand = obj
       .get_owned_field(&db, "brand")
       .expect("should have brand field");
-    let brand_str = brand.as_td_str_obj().expect("expected TdStrObj");
-    assert_eq!(brand_str.value(&db), "#4F6BCA");
+    let brand_string = brand.as_td_string_obj().expect("expected TdStrObj");
+    assert_eq!(brand_string.value(&db), "#4F6BCA");
   }
 
   #[test]
   #[cfg(feature = "export")]
   fn imports_stripped_from_export() {
-    use crate::integrations::export::export_resource_markdown;
-
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
@@ -879,7 +882,7 @@ mod tests {
       "_imports should be stripped from export"
     );
     assert_eq!(
-      header.get("brand").and_then(|v| v.as_str()),
+      header.get("brand").and_then(|value| value.as_str()),
       Some("#4F6BCA"),
       "brand should resolve to imported color value"
     );

@@ -50,15 +50,18 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
   }
 
-  let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
-  let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
+  let field_types: Vec<_> = fields.iter().map(|field| &field.ty).collect();
+  let field_names: Vec<_> = fields
+    .iter()
+    .map(|field| field.ident.as_ref().unwrap())
+    .collect();
   let try_field_names: Vec<_> = field_names
     .iter()
-    .map(|n| quote::format_ident!("try_{}", n))
+    .map(|name| quote::format_ident!("try_{}", name))
     .collect();
   let field_indices: Vec<_> = (0..fields.len()).collect();
 
-  let struct_name_str = struct_name.to_string();
+  let struct_name_string = struct_name.to_string();
 
   // Register input ingredients
   output.extend::<TokenStream>(
@@ -71,7 +74,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
               factories.push(|ingredient_id| {
                 Box::new(::typedown_incremental::InputIngredientStore::<#field_types>::new(
                   ingredient_id,
-                  #struct_name_str,
+                  #struct_name_string,
                   #field_indices as u8,
                   #struct_name::id_counter(),
                 ))

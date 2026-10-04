@@ -3,7 +3,7 @@ use typedown_types::path::normalize_path;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::{AssetKind, File, Project, Symbol, SymbolKind};
-use crate::db::utils::is_type_file;
+use crate::db::utils::is_typ_file;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -18,7 +18,7 @@ pub fn file_symbol<'db>(
   file: File,
 ) -> MaybeSymbol<'db> {
   let path = file.handle(db).path().cloned().unwrap_or_default();
-  let is_schema_file = is_type_file(&path);
+  let is_schema_file = is_typ_file(&path);
 
   let name = path
     .file_stem()

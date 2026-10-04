@@ -13,13 +13,13 @@ use crate::db::{QueryStorage, TypedownDatabase};
 // Factory functions for creating derived structs in test query context
 
 #[query_derived]
-pub fn make_str_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdStrObj<'db> {
-  TdStrObj::new(db, value)
+pub fn make_string_obj<'db>(db: &'db TypedownDatabase, value: String) -> TdStringObj<'db> {
+  TdStringObj::new(db, value)
 }
 
 #[query_derived]
-pub fn make_num_obj<'db>(db: &'db TypedownDatabase, value: u64) -> TdNumObj<'db> {
-  TdNumObj::new(db, f64::from_bits(value))
+pub fn make_number_obj<'db>(db: &'db TypedownDatabase, value: u64) -> TdNumberObj<'db> {
+  TdNumberObj::new(db, f64::from_bits(value))
 }
 
 #[query_derived]
@@ -62,7 +62,7 @@ pub fn make_blob_obj<'db>(
 #[query_derived]
 pub fn make_list_obj<'db>(
   db: &'db TypedownDatabase,
-  items: Vec<Either<HirValue<'db>, TdObjectEnum<'db>>>,
+  items: Vec<Either<HirValue<'db>, TdObjEnum<'db>>>,
 ) -> TdListObj<'db> {
   TdListObj::new(db, items)
 }
@@ -70,7 +70,7 @@ pub fn make_list_obj<'db>(
 #[query_derived]
 pub fn make_dict_obj<'db>(
   db: &'db TypedownDatabase,
-  entries: Vec<(String, Either<HirValue<'db>, TdObjectEnum<'db>>)>,
+  entries: Vec<(String, Either<HirValue<'db>, TdObjEnum<'db>>)>,
 ) -> TdDictObj<'db> {
   TdDictObj::new(db, entries.into_iter().collect())
 }
@@ -78,13 +78,13 @@ pub fn make_dict_obj<'db>(
 #[query_derived]
 pub fn make_product_obj<'db>(
   db: &'db TypedownDatabase,
-  product_type: TdTypeEnum<'db>,
+  product_typ: TdTypEnum<'db>,
   file_symbol: Option<Symbol<'db>>,
-  fields: Vec<(String, Either<HirValue<'db>, TdObjectEnum<'db>>)>,
+  fields: Vec<(String, Either<HirValue<'db>, TdObjEnum<'db>>)>,
 ) -> TdProductObj<'db> {
   TdProductObj::new(
     db,
-    product_type,
+    product_typ,
     file_symbol,
     BTreeMap::new(),
     fields.into_iter().collect(),
@@ -92,12 +92,12 @@ pub fn make_product_obj<'db>(
 }
 
 #[query_derived]
-pub fn make_product_type<'db>(
+pub fn make_product_typ<'db>(
   db: &'db TypedownDatabase,
   name: Option<String>,
-  fields: Vec<(String, LazyType<'db>)>,
-) -> TdProductType<'db> {
-  TdProductType::new(db, name, fields.into_iter().collect())
+  fields: Vec<(String, LazyTyp<'db>)>,
+) -> TdProductTyp<'db> {
+  TdProductTyp::new(db, name, fields.into_iter().collect())
 }
 
 pub struct Fixture {
@@ -154,7 +154,7 @@ pub fn load_vault_fixture(
   let target_file = *files.entry(target_path.clone()).or_insert_with(|| {
     File::new(
       &db,
-      FileHandle::Path(target_path.clone(), path_metadata(&target_path)),
+      FileHandle::Path(target_path.clone(), get_path_metadata(&target_path)),
     )
   });
 
@@ -181,7 +181,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, Fi
         if path.is_dir() {
           walk(&path, db, files);
         } else if is_vault_file(&path) {
-          let file = File::new(db, FileHandle::Path(path.clone(), path_metadata(&path)));
+          let file = File::new(db, FileHandle::Path(path.clone(), get_path_metadata(&path)));
           files.insert(path, file);
         }
       }
@@ -193,7 +193,7 @@ fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, Fi
   files
 }
 
-fn path_metadata(path: &Path) -> FileMetadata {
+fn get_path_metadata(path: &Path) -> FileMetadata {
   let meta = fs::metadata(path).ok();
   let mtime = meta
     .as_ref()

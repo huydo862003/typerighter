@@ -7,7 +7,7 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::{Project, SchemaAstResults};
-use crate::db::utils::is_type_file;
+use crate::db::utils::is_typ_file;
 
 use super::get_vault_config::get_vault_config;
 use super::parse_file::parse_file;
@@ -21,7 +21,7 @@ pub fn parse_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> Schema
   let mut schema_asts = BTreeMap::new();
 
   for (path, file) in &*proj_files {
-    if path.starts_with(&root_dir) && is_type_file(path) {
+    if path.starts_with(&root_dir) && is_typ_file(path) {
       let ast = parse_file(db, project, *file);
       schema_asts.insert(path.clone(), ast);
     }

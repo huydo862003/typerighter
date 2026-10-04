@@ -1,11 +1,11 @@
 //! Derived types for the incremental database
 
 pub mod hir;
-pub mod object_system;
+pub mod obj_system;
 pub mod symbol;
 
 pub use hir::*;
-pub use object_system::*;
+pub use obj_system::*;
 pub use symbol::*;
 
 use std::collections::BTreeMap;
@@ -122,19 +122,19 @@ pub struct ResolveResult<'db> {
 }
 
 #[query_derived]
-pub struct TypeResult<'db> {
-  typ: Option<TdTypeEnum<'db>>,
+pub struct TypResult<'db> {
+  typ: Option<TdTypEnum<'db>>,
   diagnostics: Vec<Diagnostic>,
 }
 
 #[query_derived]
-pub struct InstResult<'db> {
-  pub typ: TdTypeEnum<'db>,
+pub struct InstantiateResult<'db> {
+  pub typ: TdTypEnum<'db>,
   pub diagnostics: Vec<Diagnostic>,
 }
 
 #[query_derived]
 pub struct ResourceResult<'db> {
-  pub value: Option<TdObjectEnum<'db>>,
+  pub value: Option<TdObjEnum<'db>>,
   pub diagnostics: Vec<Diagnostic>,
 }
