@@ -5,7 +5,7 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use std::collections::{BTreeMap, HashSet};
 
-use crate::db::typecheck::utils::make_nullable;
+use crate::db::types::typecheck::make_nullable;
 use crate::db::types::{
   BuiltinSchemaKind, FuncSignature, LazyType, LiteralValue, Symbol, SymbolKind, TdBlobType,
   TdBoolObj, TdBoolType, TdDateTimeType, TdDateType, TdDictType, TdFuncType, TdIconType,
@@ -341,8 +341,9 @@ pub fn get_config_type<'db>(db: &'db TypedownDatabase) -> TdProductType<'db> {
 #[cfg(test)]
 mod tests {
   use super::{get_bool_type, get_sum_type};
-  use crate::db::typecheck::utils::validate_type_params;
   use crate::db::types::derived::object_system::TdStaticType;
+  use crate::db::types::typecheck::is_nullable;
+  use crate::db::types::typecheck::validate_type_params;
   use crate::db::types::{LazyType, TdTypeEnum, TypeParams, TypeVariable};
   use crate::syntax::diagnostic::Diagnostic;
 
@@ -540,8 +541,6 @@ mod tests {
 
   #[test]
   fn config_version_is_required() {
-    use crate::db::typecheck::utils::is_nullable;
-
     let db = make_db();
     let config = get_config_type(&db);
     let fields = config.fields(&db);

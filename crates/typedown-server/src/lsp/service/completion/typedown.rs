@@ -17,7 +17,7 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_type::actual_node_type;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
 use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
-use typedown_lang::db::typecheck::utils::{is_nullable, is_subtype_of};
+use typedown_lang::db::types::typecheck::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
   File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };

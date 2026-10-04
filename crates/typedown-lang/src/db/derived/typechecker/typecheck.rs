@@ -12,8 +12,8 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
 use crate::db::derived::typechecker::expected_node_type::expected_node_type;
 
-use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
 use crate::db::types::derived::object_system::TdStaticType;
+use crate::db::types::typecheck::{is_nullable, is_subtype_of};
 use crate::db::types::{
   HirValue, HirValueKind, InterpolatedPart, TdSchemaType, TdTypeEnum, TypecheckResult,
 };

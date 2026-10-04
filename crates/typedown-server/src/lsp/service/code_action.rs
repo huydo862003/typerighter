@@ -10,7 +10,7 @@ use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_type::expected_node_type;
-use typedown_lang::db::typecheck::utils::is_nullable;
+use typedown_lang::db::types::typecheck::is_nullable;
 use typedown_lang::db::types::{
   File, FileRedNode, LazyType, LiteralValue, Project, SymbolKind, TdStaticType, TdTypeEnum,
 };

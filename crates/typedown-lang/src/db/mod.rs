@@ -2,7 +2,6 @@ pub mod codec;
 pub mod derived;
 #[cfg(test)]
 pub(crate) mod fixtures;
-pub mod typecheck;
 pub mod types;
 pub mod utils;
 

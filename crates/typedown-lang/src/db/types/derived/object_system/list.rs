@@ -3,12 +3,12 @@ use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
+use super::typecheck::validate_type_params;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::{get_list_type, get_num_type, get_object_type};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::typecheck::utils::validate_type_params;
 use crate::db::types::Project;
 use crate::db::types::{FuncSignature, HirValue, InstResult, LazyType, TypeParams, TypeVariable};
 use crate::syntax::diagnostic::Diagnostic;

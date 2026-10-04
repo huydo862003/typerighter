@@ -16,7 +16,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_property::get_schema_property_type;
 use crate::db::derived::typechecker::actual_node_type::actual_node_type;
-use crate::db::typecheck::utils::is_subtype_of;
+use crate::db::types::typecheck::is_subtype_of;
 use crate::db::types::{
   BuiltinSchemaKind, File, HirValue, HirValueKind, LazyType, LiteralValue, Project,
   PropertyDescriptor, Symbol, SymbolKind, TdBlobType, TdObjectEnum, TdProductType, TdSchemaType,
@@ -560,7 +560,7 @@ fn resolve_type_lazy<'db>(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::typecheck::utils::{is_subtype_of, validate_type_params};
+  use crate::db::types::typecheck::{is_subtype_of, validate_type_params};
   use crate::db::types::{TdObjectEnum, TdRuntimeObject, TdTypeEnum, TypeParams, TypeVariable};
   use crate::syntax::diagnostic::Diagnostic;
 

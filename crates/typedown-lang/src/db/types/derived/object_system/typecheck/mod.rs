@@ -1,3 +1,5 @@
 //! Typecheck utilities and subtyping engine
 
-pub mod utils;
+mod utils;
+
+pub use utils::*;

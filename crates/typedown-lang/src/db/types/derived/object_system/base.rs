@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 use ambassador::delegatable_trait;
 
 use super::func::TdFuncObj;
+use super::typecheck::validate_type_params;
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_types::{get_object_type, get_type_type};
-use crate::db::typecheck::utils::validate_type_params;
 use crate::db::types::{FuncSignature, InstResult, LazyType, TypeParams};
 use typedown_incremental::Id;
 use typedown_macros::query_derived;

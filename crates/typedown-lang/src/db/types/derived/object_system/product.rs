@@ -6,12 +6,12 @@ use typedown_macros::{StableCompare, query_derived};
 
 use super::base::{TdRuntimeObject, TdStaticType, TdTypeType};
 use super::null::TdNullObj;
+use super::typecheck::{is_nullable, is_subtype_of};
 use super::{TdObjectEnum, TdTypeEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_types::get_object_type;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
 use crate::db::types::{HirValue, LazyType, Symbol};
 use crate::db::utils::static_type::format_field_map;
 use typedown_types::either::Either;

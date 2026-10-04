@@ -18,6 +18,7 @@ mod product;
 mod schema;
 mod str;
 mod sum;
+pub mod typecheck;
 mod variable;
 mod vault;
 
