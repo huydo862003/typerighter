@@ -9,7 +9,7 @@ pub mod types;
 pub mod utils;
 
 pub use file_ref::{
-  FrefTarget, ResolvedRef, resolve_fref_target, resolve_file_ref, resolve_schema_label,
+  FrefTarget, ResolvedRef, resolve_file_ref, resolve_fref_target, resolve_schema_label,
 };
 pub use json::evaluate_lazy_field;
 pub use properties::{Widget, export_property_descriptors};
