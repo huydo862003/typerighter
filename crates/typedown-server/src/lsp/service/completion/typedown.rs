@@ -594,11 +594,7 @@ fn collect_schema_completions(db: &TypedownDatabase, project: Project) -> Vec<Co
 }
 
 // Build a snippet with all schema fields as placeholders
-fn build_schema_snippet(
-  db: &TypedownDatabase,
-  name: &str,
-  symbol: &Symbol,
-) -> String {
+fn build_schema_snippet(db: &TypedownDatabase, name: &str, symbol: &Symbol) -> String {
   let typ = evaluate_typ(db, *symbol).typ(db);
   let schema = typ.as_ref().and_then(|t| t.as_td_schema_typ());
 
