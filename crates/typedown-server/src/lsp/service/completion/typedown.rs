@@ -288,7 +288,9 @@ fn build_candidate_completion(
   }
 }
 
-// Suggest file paths inside fref("") argument
+// Suggest file paths inside a fref() argument.
+// When cursor is already inside a string literal, insert bare path (inside existing quotes).
+// When cursor is inside fref() without quotes, wrap path in quotes.
 fn collect_fref_completions(
   db: &TypedownDatabase,
   project: Project,
@@ -297,9 +299,16 @@ fn collect_fref_completions(
 ) -> Vec<CompletionItem> {
   let expected_typ = get_declared_field(db, project, file, node);
   let candidates = collect_fref_candidates(db, project, expected_typ.as_ref());
+  let inside_str = find_ancestor(node, SyntaxKind::StrLit).is_some();
   candidates
     .iter()
-    .map(|candidate| build_candidate_completion(candidate, |path| path.to_string()))
+    .map(|candidate| {
+      if inside_str {
+        build_candidate_completion(candidate, |path| path.to_string())
+      } else {
+        build_candidate_completion(candidate, |path| format!("\"{path}\""))
+      }
+    })
     .collect()
 }
 
@@ -405,11 +414,18 @@ fn collect_value_completions(
     })
     .unwrap_or_else(|| Scope::new(db, ScopeKind::File(project, file)));
 
-  for (name, sym) in all_visible_members(db, current_scope) {
+  for (name, symbol) in all_visible_members(db, current_scope) {
     if name.starts_with('_') {
       continue;
     }
-    let kind = match sym.kind(db) {
+    // Resources must be referenced via fref(), not by bare name
+    if matches!(
+      symbol.kind(db),
+      SymbolKind::UserDefinedResource(..) | SymbolKind::Asset(..)
+    ) {
+      continue;
+    }
+    let kind = match symbol.kind(db) {
       SymbolKind::BuiltinMacro(_) => CompletionItemKind::FUNCTION,
       SymbolKind::BuiltinGlobal(_) => CompletionItemKind::VARIABLE,
       SymbolKind::UserDefinedSchema(..) => CompletionItemKind::CLASS,
@@ -1408,6 +1424,21 @@ properties:
 ---
 "#;
 
+  // Schema with list[string], list[number], dict[string,string], and list[Person] fields
+  const SCHEMA_COLLECTION: &str = r#"---
+_type: schema
+properties:
+  tags:
+    type: list[string]
+  scores:
+    type: list[number]
+  labels:
+    type: dict[string, string]
+  authors:
+    type: list[Person]
+---
+"#;
+
   const CONTENT_ALICE: &str = r#"---
 _type: Person
 _label: "Alice Chen"
@@ -1476,6 +1507,14 @@ date: 2024-01-01
         FileMetadata::default(),
       ),
     );
+    let collection_file = File::new(
+      &db,
+      FileHandle::Content(
+        type_root.join("Collection.td"),
+        SCHEMA_COLLECTION.to_string(),
+        FileMetadata::default(),
+      ),
+    );
     let alice_file = File::new(
       &db,
       FileHandle::Content(
@@ -1507,6 +1546,7 @@ date: 2024-01-01
       (root.join("_types/Event.td"), event_file),
       (root.join("_types/Directory.td"), directory_file),
       (root.join("_types/TaskRef.td"), task_ref_file),
+      (root.join("_types/Collection.td"), collection_file),
       (root.join("alice.td"), alice_file),
       (root.join("birthday.td"), birthday_file),
       (test_path, editing_file),
@@ -1716,6 +1756,40 @@ featured: fref("|")
     );
   }
 
+  // fref(|) without quotes wraps the path in quotes: insert "path" not bare path
+  #[test]
+  fn fref_without_quotes_wraps_path_in_quotes() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Directory
+featured: fref(|)
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected fref completions inside fref() without quotes");
+    };
+
+    let alice_item = items
+      .iter()
+      .find(|item| item.detail.as_deref().is_some_and(|d| d.contains("alice")))
+      .expect("should suggest alice.td");
+
+    let insert = alice_item.insert_text.as_deref().expect("should have insert_text");
+    assert!(
+      insert.starts_with('"') && insert.ends_with('"'),
+      "insert_text should be quoted path, got: {insert}"
+    );
+    assert!(
+      insert.contains("alice"),
+      "insert_text should contain the path, got: {insert}"
+    );
+  }
+
   // Empty value on a schema-typed field suggests fref snippet
   #[test]
   fn schema_typd_empty_value_suggests_fref() {
@@ -1851,6 +1925,229 @@ name: a|
       "string field should not suggest fref file completions: {:?}",
       items.iter().map(|i| &i.label).collect::<Vec<_>>()
     );
+  }
+
+  // Resource files should never appear as bare completions (no insert_text wrapping)
+  // They should only be suggested via fref() when the field type is a schema
+  #[test]
+  fn resource_files_not_suggested_as_bare_completions_in_string_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: a|
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions");
+    };
+
+    // No REFERENCE items (resource file completions) should appear
+    let has_resource = items
+      .iter()
+      .any(|item| item.kind == Some(CompletionItemKind::REFERENCE));
+    assert!(
+      !has_resource,
+      "resource files should not appear as bare completions: {:?}",
+      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+    );
+  }
+
+  // Resource files should not appear in value completions outside of fref context
+  #[test]
+  fn resource_files_not_suggested_outside_fref_context() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: |
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    if let Some(CompletionResponse::Array(items)) = response {
+      let resource_labels: Vec<&str> = items
+        .iter()
+        .filter(|item| item.kind == Some(CompletionItemKind::REFERENCE))
+        .map(|item| item.label.as_str())
+        .collect();
+      assert!(
+        resource_labels.is_empty(),
+        "resource files should not appear in plain string field: {:?}",
+        resource_labels
+      );
+    }
+  }
+
+  #[test]
+  fn resource_files_not_suggested_in_number_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+age: |
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    if let Some(CompletionResponse::Array(items)) = response {
+      let has_resource = items
+        .iter()
+        .any(|item| item.kind == Some(CompletionItemKind::REFERENCE));
+      assert!(
+        !has_resource,
+        "resource files should not appear in number field: {:?}",
+        items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      );
+    }
+  }
+
+  #[test]
+  fn resource_files_not_suggested_in_object_type_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: PersonWithAddress
+address: |
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    if let Some(CompletionResponse::Array(items)) = response {
+      let has_resource = items
+        .iter()
+        .any(|item| item.kind == Some(CompletionItemKind::REFERENCE));
+      assert!(
+        !has_resource,
+        "resource files should not appear in object-typed field: {:?}",
+        items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      );
+    }
+  }
+
+  #[test]
+  fn resource_files_not_suggested_inside_quoted_string() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "ali|"
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    if let Some(CompletionResponse::Array(items)) = response {
+      let has_resource = items
+        .iter()
+        .any(|item| item.kind == Some(CompletionItemKind::REFERENCE));
+      assert!(
+        !has_resource,
+        "resource files should not appear inside a quoted string value: {:?}",
+        items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      );
+    }
+  }
+
+  fn assert_no_reference_items(items: &[CompletionItem], ctx: &str) {
+    let found: Vec<&str> = items
+      .iter()
+      .filter(|item| item.kind == Some(CompletionItemKind::REFERENCE))
+      .map(|item| item.label.as_str())
+      .collect();
+    assert!(found.is_empty(), "{ctx}: unexpected resource items: {found:?}");
+  }
+
+  #[test]
+  fn resource_files_not_suggested_in_list_of_string_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Collection
+tags:
+  - t|
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    if let Some(CompletionResponse::Array(items)) = completion(&analysis, params) {
+      assert_no_reference_items(&items, "list[string] item");
+    }
+  }
+
+  #[test]
+  fn resource_files_not_suggested_in_list_of_number_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Collection
+scores:
+  - |
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    if let Some(CompletionResponse::Array(items)) = completion(&analysis, params) {
+      assert_no_reference_items(&items, "list[number] item");
+    }
+  }
+
+  #[test]
+  fn resource_files_not_suggested_in_dict_value_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Collection
+labels:
+  key: v|
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    if let Some(CompletionResponse::Array(items)) = completion(&analysis, params) {
+      assert_no_reference_items(&items, "dict[string,string] value");
+    }
+  }
+
+  // list[Person] items SHOULD suggest fref-wrapped completions, not bare resource names
+  #[test]
+  fn list_of_schema_field_suggests_fref_not_bare_resource() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Collection
+authors:
+  - |
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    if let Some(CompletionResponse::Array(items)) = completion(&analysis, params) {
+      // No bare REFERENCE items (insert_text without fref wrapper)
+      let has_bare_resource = items.iter().any(|item| {
+        item.kind == Some(CompletionItemKind::REFERENCE)
+          && item
+            .insert_text
+            .as_deref()
+            .is_none_or(|t| !t.starts_with("fref("))
+      });
+      assert!(
+        !has_bare_resource,
+        "list[Person] items should not appear as bare resource names: {:?}",
+        items.iter().map(|i| (&i.label, &i.insert_text)).collect::<Vec<_>>()
+      );
+    }
   }
 
   // Enum field suggests literal values

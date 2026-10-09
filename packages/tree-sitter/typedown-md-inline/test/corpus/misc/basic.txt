@@ -40,6 +40,29 @@ hello ${self.x} world
         (identifier)))))
 
 ================
+Interpolation with fref
+================
+${fref("file.td")}
+---
+
+(inline
+  (interpolation
+    (expression
+      (fref
+        (string)))))
+
+================
+Interpolation with fref empty parens
+================
+${fref()}
+---
+
+(inline
+  (interpolation
+    (expression
+      (fref))))
+
+================
 Multiple constructs
 ================
 *em* and `code` and [link](url)

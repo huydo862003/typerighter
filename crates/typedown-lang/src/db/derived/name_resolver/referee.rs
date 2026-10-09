@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use typedown_macros::query_derived;
 
 use crate::syntax::red::RedNode;
@@ -90,8 +88,6 @@ fn is_dot_rhs(node: &RedNode) -> bool {
     None => false,
   }
 }
-
-// Join base and relative path, collapsing . and .. components
 
 #[cfg(test)]
 mod tests {
