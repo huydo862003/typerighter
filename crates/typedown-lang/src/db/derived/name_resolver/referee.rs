@@ -1,4 +1,4 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::PathBuf;
 
 use typedown_macros::query_derived;
 
@@ -11,6 +11,7 @@ use crate::db::derived::name_resolver::file_symbol::{MaybeSymbol, file_symbol};
 use crate::db::derived::name_resolver::members::members;
 use crate::db::derived::name_resolver::scope::{parent_scope, scope};
 use crate::db::types::{HirValue, HirValueKind};
+use crate::db::utils::resolve_fref_path;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -58,18 +59,13 @@ fn resolve_call<'db>(
   {
     let project = hir.project(db);
     let root_dir = get_vault_config(db, project).root_dir(db);
-    // Resolve relative paths (./ or ../) from the current file's directory
-    let target_path = if path.starts_with("./") || path.starts_with("../") {
-      let file = hir.node(db).owner_file;
-      let file_path = match file.handle(db).path() {
-        Some(p) => p.clone(),
-        None => return MaybeSymbol::new(db, None),
-      };
-      let file_dir = file_path.parent().unwrap_or(&root_dir).to_path_buf();
-      normalize_join(&file_dir, &path)
-    } else {
-      root_dir.join(&path)
-    };
+    let file = hir.node(db).owner_file;
+    let file_dir = file
+      .handle(db)
+      .path()
+      .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+      .unwrap_or_else(|| root_dir.clone());
+    let target_path = resolve_fref_path(&path, &file_dir, &root_dir);
     if let Some(&target_file) = project.files(db).get(&target_path) {
       return file_symbol(db, project, target_file);
     }
@@ -96,20 +92,6 @@ fn is_dot_rhs(node: &RedNode) -> bool {
 }
 
 // Join base and relative path, collapsing . and .. components
-fn normalize_join(base: &Path, relative: &str) -> PathBuf {
-  let joined = base.join(relative);
-  let mut result = PathBuf::new();
-  for component in joined.components() {
-    match component {
-      Component::CurDir => {}
-      Component::ParentDir => {
-        result.pop();
-      }
-      other => result.push(other),
-    }
-  }
-  result
-}
 
 #[cfg(test)]
 mod tests {
@@ -145,6 +127,42 @@ mod tests {
       "fref target should be a resource"
     );
     assert_eq!(symbol.name(&db), "valid_person");
+  }
+
+  // fref("./peer.td") from subdir/ resolves relative to the source file, not vault root
+  #[test]
+  fn fref_relative_path_resolves_from_source_file_directory() {
+    // subdir/relative_fref.td is the source file; peer.td lives alongside it in subdir/
+    let (db, project, source_file) =
+      load_vault_fixture("evaluate/my_vault", "subdir/relative_fref.td");
+    let node = parse_file(&db, project, source_file).ast(&db).node.clone();
+
+    let make_hir = |kind| {
+      HirValue::new(
+        &db,
+        project,
+        FileRedNode::new(source_file, node.clone()),
+        kind,
+        vec![],
+      )
+    };
+
+    let callee = make_hir(HirValueKind::Ident("fref".to_string()));
+    let arg = make_hir(HirValueKind::String("./peer.td".to_string()));
+    let call = make_hir(HirValueKind::Call {
+      callee: callee.into(),
+      args: vec![arg],
+    });
+
+    let resolved = referee(&db, call);
+    let symbol = resolved
+      .value(&db)
+      .expect("fref(\"./peer.td\") from subdir/ should resolve to subdir/peer.td");
+    assert_eq!(
+      symbol.name(&db),
+      "peer",
+      "resolved symbol should be subdir/peer.td, not vault-root peer.td"
+    );
   }
 
   // fref("nonexistent.td") resolves to None when the target file does not exist

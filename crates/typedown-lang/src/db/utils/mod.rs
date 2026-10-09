@@ -7,7 +7,7 @@ use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::hir::lower_node;
@@ -102,6 +102,33 @@ pub fn get_mapping_schema_name(mapping: &RedNode) -> Option<String> {
     }
   }
   None
+}
+
+/// Join `base` with `relative` and collapse `.` and `..` components.
+pub fn normalize_joined_path(base: &Path, relative: &str) -> PathBuf {
+  let joined = base.join(relative);
+  let mut result = PathBuf::new();
+  for component in joined.components() {
+    match component {
+      Component::CurDir => {}
+      Component::ParentDir => {
+        result.pop();
+      }
+      other => result.push(other),
+    }
+  }
+  result
+}
+
+/// Resolve a fref path string to an absolute file system path.
+/// Paths starting with `./` or `../` are resolved relative to `source_file_dir`.
+/// All other paths are resolved relative to `vault_root`.
+pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) -> PathBuf {
+  if path.starts_with("./") || path.starts_with("../") {
+    normalize_joined_path(source_file_dir, path)
+  } else {
+    vault_root.join(path)
+  }
 }
 
 #[cfg(test)]

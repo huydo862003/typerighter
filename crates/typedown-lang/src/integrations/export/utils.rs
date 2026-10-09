@@ -1,5 +1,6 @@
 //! Shared utilities for HTML and markdown export
 
+use crate::db::utils::{is_external_url, normalize_joined_path};
 use crate::syntax::red::RedNode;
 
 pub fn slugify(text: &str) -> String {
@@ -42,8 +43,6 @@ pub fn strip_quotes(s: &str) -> &str {
   }
 }
 
-pub use crate::db::utils::is_external_url;
-
 // Prepend base_path to a vault-relative path
 pub fn prepend_base_path(base_path: &str, vault_path: &str) -> String {
   if base_path == "/" {
@@ -56,7 +55,7 @@ pub fn prepend_base_path(base_path: &str, vault_path: &str) -> String {
 // Resolve a URL found in page content to a site-absolute path:
 // - External URLs and anchors pass through unchanged
 // - Absolute paths get base_path prepended
-// - Relative paths resolve from file_dir then get base_path prepended
+// - Relative paths resolve from file_dir (with .. collapsing) then get base_path prepended
 pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &std::path::Path) -> String {
   if is_external_url(url) || url.starts_with('#') {
     return url.to_string();
@@ -65,11 +64,12 @@ pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &std::path::Path)
   let relative = if url.starts_with('/') {
     url.trim_start_matches('/').to_string()
   } else {
-    file_dir.join(url).to_string_lossy().to_string()
+    normalize_joined_path(file_dir, url).to_string_lossy().to_string()
   };
 
   prepend_base_path(base_path, &relative)
 }
+
 
 pub fn extract_plain_text(node: &RedNode) -> String {
   let mut text = String::new();

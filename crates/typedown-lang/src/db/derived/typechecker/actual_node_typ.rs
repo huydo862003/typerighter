@@ -18,6 +18,7 @@ use crate::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
 use crate::db::types::derived::obj_system::{
   TdProductTyp, TdStaticTyp, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
+use crate::db::utils::resolve_fref_path;
 use crate::db::types::{
   BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyTyp, LitValue, SymbolKind,
   TdTypEnum, TypResult,
@@ -317,7 +318,14 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<HirValue<'db>>) -> Typ
   let project = arg.project(db);
   let files = project.files(db);
   let root_dir = get_vault_config(db, project).root_dir(db);
-  let target_path = root_dir.join(&path_string);
+  let file_dir = arg
+    .node(db)
+    .owner_file
+    .handle(db)
+    .path()
+    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    .unwrap_or_else(|| root_dir.clone());
+  let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 
   let target_file = match files.get(&target_path) {
     Some(file) => *file,
@@ -459,6 +467,7 @@ mod tests {
   use std::{collections::HashMap, path::PathBuf};
 
   use crate::db::{QueryStorage, TypedownDatabase, utils::lower_file};
+  use crate::syntax::diagnostic::Diagnostic;
 
   use crate::db::{fixtures::load_vault_fixture, types::HirValueKind};
 
@@ -722,6 +731,37 @@ mod tests {
     let expected_func_typ: TdTypEnum = get_func_typ(&db, expected_signature).into();
 
     assert_eq!(field_typ, expected_func_typ);
+  }
+
+  // fref("./peer.td") in a file inside subdir/ resolves relative to that file, not vault root
+  #[test]
+  fn actual_node_typ_relative_fref_resolves_from_file_directory() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/narrow_vault", "subdir/with_relative_fref.td");
+    let (hir, _) = lower_file(&db, project, file);
+    let hir = hir.expect("should parse");
+    let related_hir = match hir.kind(&db) {
+      HirValueKind::Mapping(entries) => entries
+        .into_iter()
+        .find(|(k, _)| k == "related")
+        .map(|(_, v)| v)
+        .expect("should have 'related' field"),
+      _ => panic!("expected mapping"),
+    };
+    let result = actual_node_typ(&db, related_hir);
+    let has_unresolved = result
+      .diagnostics(&db)
+      .iter()
+      .any(|d| matches!(d, Diagnostic::UnresolvedFileRef { .. }));
+    assert!(
+      !has_unresolved,
+      "fref(\"./peer.td\") should resolve relative to subdir/, not vault root: {:?}",
+      result.diagnostics(&db)
+    );
+    assert!(
+      result.typ(&db).is_some(),
+      "fref(\"./peer.td\") should have a resolved type"
+    );
   }
 
   #[test]

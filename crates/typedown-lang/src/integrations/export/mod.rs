@@ -18,6 +18,7 @@ pub use types::*;
 pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
 
 use crate::db::TypedownDatabase;
+use crate::db::utils::is_external_url;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::parse_file::parse_file;
@@ -273,7 +274,7 @@ fn export_seo_metadata(
   let image = meta_obj.get_owned_field(db, "image").and_then(|o| {
     o.as_td_string_obj().map(|s| {
       let raw = s.value(db);
-      if utils::is_external_url(&raw) || raw.starts_with('/') {
+      if is_external_url(&raw) || raw.starts_with('/') {
         raw
       } else {
         let config = get_vault_config(db, project);

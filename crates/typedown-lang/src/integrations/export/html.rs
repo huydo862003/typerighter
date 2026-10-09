@@ -15,9 +15,8 @@ use crate::syntax::ast::{
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use super::utils::{
-  extract_plain_text, html_escape, is_external_url, resolve_vault_url, slugify, strip_quotes,
-};
+use crate::db::utils::is_external_url;
+use super::utils::{extract_plain_text, html_escape, resolve_vault_url, slugify, strip_quotes};
 
 /// Heading extracted during HTML emission
 #[derive(Debug, Clone)]
