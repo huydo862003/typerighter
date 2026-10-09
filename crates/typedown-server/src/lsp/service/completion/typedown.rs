@@ -1,5 +1,5 @@
 use typedown_incremental::StableCompare;
-use typedown_lang::db::types::{Scope, ScopeKind};
+use typedown_lang::db::types::{Scope, ScopeKind, Symbol};
 use typedown_lang::db::utils::{is_content_file, is_typ_file};
 
 use crate::lsp::service::utils::symbol::get_resource_label;
@@ -597,9 +597,9 @@ fn collect_schema_completions(db: &TypedownDatabase, project: Project) -> Vec<Co
 fn build_schema_snippet(
   db: &TypedownDatabase,
   name: &str,
-  sym: &typedown_lang::db::types::Symbol,
+  symbol: &Symbol,
 ) -> String {
-  let typ = evaluate_typ(db, *sym).typ(db);
+  let typ = evaluate_typ(db, *symbol).typ(db);
   let schema = typ.as_ref().and_then(|t| t.as_td_schema_typ());
 
   let Some(schema) = schema else {
@@ -608,18 +608,18 @@ fn build_schema_snippet(
 
   let fields = schema.fields(db);
   let mut snippet = name.to_string();
-  for (tab_stop, (field_name, prop_desc)) in fields.iter().enumerate() {
-    let placeholder = make_lazy_placeholder(db, &prop_desc.field_typ, 0);
-    let idx = tab_stop + 1;
+  for (tab_stop, (field_name, prop_descriptor)) in fields.iter().enumerate() {
+    let placeholder = make_snippet_placeholder(db, &prop_descriptor.field_typ, 0);
+    let index = tab_stop + 1;
 
-    snippet.push_str(&format!("\n{field_name}: ${{{idx}:{placeholder}}}"));
+    snippet.push_str(&format!("\n{field_name}: ${{{index}:{placeholder}}}"));
   }
 
   snippet
 }
 
 // Generate a placeholder string for a lazy type
-fn make_lazy_placeholder(db: &TypedownDatabase, lazy: &LazyTyp, indent: usize) -> String {
+fn make_snippet_placeholder(db: &TypedownDatabase, lazy: &LazyTyp, indent: usize) -> String {
   let Some(typ) = lazy.resolve(db) else {
     return "value".to_string();
   };
@@ -637,7 +637,7 @@ fn make_lazy_placeholder(db: &TypedownDatabase, lazy: &LazyTyp, indent: usize) -
         })
         .collect();
       if non_null.len() == 1 {
-        return make_lazy_placeholder(db, non_null[0], indent);
+        return make_snippet_placeholder(db, non_null[0], indent);
       }
       // Enum: use first literal string option as default
       let first = members.iter().find_map(|m| {
@@ -670,18 +670,18 @@ fn make_simple_typ_placeholder(db: &TypedownDatabase, typ: &TdTypEnum, indent: u
         .unwrap_or_else(|| "value".to_string());
       let pad = "  ".repeat(indent);
 
-      format!("\\n{pad}- {inner}")
+      format!("\n{pad}- {inner}")
     }
     TdTypEnum::TdSchemaTyp(schema) => {
-      format!("fref(\\\"{}\\\")", schema.name(db))
+      format!("fref(\"{}\")", schema.name(db))
     }
     TdTypEnum::TdProductTyp(product) => {
       let fields = product.get_fields(db);
       let pad = "  ".repeat(indent + 1);
       let mut nested = String::new();
       for (field_name, field_lazy) in &fields {
-        let placeholder = make_lazy_placeholder(db, field_lazy, indent + 1);
-        nested.push_str(&format!("\\n{pad}{field_name}: {placeholder}"));
+        let placeholder = make_snippet_placeholder(db, field_lazy, indent + 1);
+        nested.push_str(&format!("\n{pad}{field_name}: {placeholder}"));
       }
       nested
     }
@@ -1027,7 +1027,7 @@ _type: |
       "enum field should have first option as placeholder: {snippet}"
     );
     assert!(
-      snippet.contains("fref(\\\"Person\\\")"),
+      snippet.contains("fref(\"Person\")"),
       "relation field should have fref placeholder: {snippet}"
     );
   }
