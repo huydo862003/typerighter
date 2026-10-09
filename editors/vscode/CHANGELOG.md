@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.40.7] - 2026-10-09
+
+### Fixed
+
+- crates/typedown-server
+  - LSP: Double escapes in snippet
+
 ## [0.40.6] - 2026-10-04
 
 ### Fixed
