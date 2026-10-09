@@ -1,7 +1,11 @@
-mod cache_entry_count;
+mod cache_backdating;
+mod cache_eviction;
+mod cache_hit;
+mod cache_miss;
+mod cache_persistence;
+mod cache_promote;
+mod cache_stats;
+mod derived_identity;
 mod fixtures;
-mod lru;
-mod query;
-mod roundtrip;
 mod specialize;
 mod utils;
