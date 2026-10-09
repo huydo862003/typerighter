@@ -6,6 +6,7 @@ import {
   PAGES_ID,
   SITE_DATA_ID,
   SEARCH_INDEX_ID,
+  PAGE_DATA_EVENT,
 } from '../constants';
 import {
   invalidateVirtualModule,
@@ -130,6 +131,15 @@ if (import.meta.hot) {
 
   import.meta.hot.accept('${SITE_DATA_ID}', (m) => {
     if (m) siteData.value = m.default;
+  });
+
+  // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
+  import.meta.hot.on('${PAGE_DATA_EVENT}', ({ filepath, pageData }) => {
+    const eventBase = path.join('/', '${rootDirectory}', path.stripExtension(filepath));
+    const routeBase = path.join('/', '${rootDirectory}', router.route.path);
+    if (eventBase === routeBase) {
+      router.route.data = pageData;
+    }
   });
 }
 `;

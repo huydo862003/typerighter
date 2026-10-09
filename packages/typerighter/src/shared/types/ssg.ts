@@ -31,15 +31,15 @@ export interface PageData {
   seoMetadata?: SeoMeta;
 }
 
+export interface PageModule {
+  pageData: PageData;
+  default: Component;
+}
+
 export interface SeoMeta {
   title?: string;
   description?: string;
   image?: string;
-}
-
-export interface PageModule {
-  pageData: PageData;
-  default: Component;
 }
 
 export interface TypedownData {

@@ -49,7 +49,10 @@ async function buildFixture (
   }
 
   if (filePatches !== undefined) {
-    for (const [filePath, content] of Object.entries(filePatches)) {
+    for (const [
+      filePath,
+      content,
+    ] of Object.entries(filePatches)) {
       await writeFile(path.join(directory, filePath), content);
     }
   }

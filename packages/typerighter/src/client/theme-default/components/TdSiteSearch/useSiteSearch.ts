@@ -23,7 +23,6 @@ export function useSiteSearch () {
   const searchIndex = useSearchIndex();
 
   let engine: MiniSearch | undefined;
-  let canceled = false;
 
   const results = shallowRef<SearchResult[]>([]);
   const searching = shallowRef(false);
@@ -104,7 +103,6 @@ export function useSiteSearch () {
   const debouncedSearch = debounce(runSearch, 150);
 
   function search (raw: string) {
-    canceled = false;
     const trimmed = raw.trim();
 
     if (trimmed.length === 0) {
@@ -119,7 +117,6 @@ export function useSiteSearch () {
   }
 
   function cancel () {
-    canceled = true;
     searching.value = false;
   }
 

@@ -20,7 +20,7 @@ export function throttle<T extends (...args: any[]) => any> (
   return (...args: Parameters<T>) => {
     const now = Date.now();
 
-    if (now - last >= ms) {
+    if (ms <= now - last) {
       last = now;
       fn(...args);
     } else {

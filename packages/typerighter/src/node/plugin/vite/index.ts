@@ -263,6 +263,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualPages.invalidate(server);
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath, ...affectedFiles);
+        virtualPages.sendPageData(server, tdContext, filepath);
       });
 
       // Content deleted: file was removed from disk
