@@ -112,7 +112,10 @@ pub fn root_query_versioned_result<'db>(db: &'db Database, config: VersionConfig
 
 // Downstream query that depends on versioned_result, used to test backdating: if versioned_result is re-executed but returns the same value (same changed_at), downstream must not re-execute
 #[query_derived]
-pub fn downstream_query_of_versioned<'db>(db: &'db Database, config: VersionConfig) -> IdResult<'db> {
+pub fn downstream_query_of_versioned<'db>(
+  db: &'db Database,
+  config: VersionConfig,
+) -> IdResult<'db> {
   let upstream = root_query_versioned_result(db, config);
   let value = upstream.value(db);
   LOG.with(|log| log.borrow_mut().push(value + 1000));

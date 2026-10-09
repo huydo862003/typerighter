@@ -64,12 +64,13 @@ pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &std::path::Path)
   let relative = if url.starts_with('/') {
     url.trim_start_matches('/').to_string()
   } else {
-    normalize_joined_path(file_dir, url).to_string_lossy().to_string()
+    normalize_joined_path(file_dir, url)
+      .to_string_lossy()
+      .to_string()
   };
 
   prepend_base_path(base_path, &relative)
 }
-
 
 pub fn extract_plain_text(node: &RedNode) -> String {
   let mut text = String::new();

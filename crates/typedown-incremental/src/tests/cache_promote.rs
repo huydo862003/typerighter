@@ -18,13 +18,19 @@ fn unaccessed_entry_survives_passthrough_session() {
   let db3 = identity::dump_and_reload(&db2, |s| IdDb { storage: s });
 
   // Session 3: identity(7) must still be cached
-  let input3 =
-    identity::find_entry(identity::IdInput::iter(&db3), |i| i.n(&db3) == 7, "IdInput(7)");
+  let input3 = identity::find_entry(
+    identity::IdInput::iter(&db3),
+    |i| i.n(&db3) == 7,
+    "IdInput(7)",
+  );
   identity::take_log();
   identity::identity(&db3, input3);
   let log = identity::take_log();
 
-  assert!(log.is_empty(), "unaccessed entry must survive passthrough session: {log:?}");
+  assert!(
+    log.is_empty(),
+    "unaccessed entry must survive passthrough session: {log:?}"
+  );
 }
 
 // All subqueries in a chain must survive a passthrough session
@@ -49,7 +55,10 @@ fn all_subqueries_survive_passthrough_session() {
   identity::root_query_versioned_result(&db3, config3);
   let log = identity::take_log();
 
-  assert!(log.is_empty(), "all subqueries must survive passthrough: {log:?}");
+  assert!(
+    log.is_empty(),
+    "all subqueries must survive passthrough: {log:?}"
+  );
 }
 
 // Three consecutive sessions with no mutations must never recompute
@@ -74,7 +83,10 @@ fn three_sessions_no_recomputation() {
   identity::root_query_versioned_result(&db4, config4);
   let log = identity::take_log();
 
-  assert!(log.is_empty(), "three-session chain must not recompute: {log:?}");
+  assert!(
+    log.is_empty(),
+    "three-session chain must not recompute: {log:?}"
+  );
 }
 
 // A mutated value must be cached after the mutation session dumps
@@ -109,5 +121,8 @@ fn mutated_value_is_cached_in_next_session() {
   let log = identity::take_log();
 
   assert_eq!(result3.value(&db3), 99);
-  assert!(log.is_empty(), "mutated value must be cached in next session: {log:?}");
+  assert!(
+    log.is_empty(),
+    "mutated value must be cached in next session: {log:?}"
+  );
 }

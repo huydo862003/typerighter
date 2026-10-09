@@ -418,11 +418,8 @@ fn collect_value_completions(
     if name.starts_with('_') {
       continue;
     }
-    // Resources must be referenced via fref(), not by bare name
-    if matches!(
-      symbol.kind(db),
-      SymbolKind::UserDefinedResource(..) | SymbolKind::Asset(..)
-    ) {
+    // Assets are not valid expression values
+    if matches!(symbol.kind(db), SymbolKind::Asset(..)) {
       continue;
     }
     let kind = match symbol.kind(db) {
@@ -1779,7 +1776,10 @@ featured: fref(|)
       .find(|item| item.detail.as_deref().is_some_and(|d| d.contains("alice")))
       .expect("should suggest alice.td");
 
-    let insert = alice_item.insert_text.as_deref().expect("should have insert_text");
+    let insert = alice_item
+      .insert_text
+      .as_deref()
+      .expect("should have insert_text");
     assert!(
       insert.starts_with('"') && insert.ends_with('"'),
       "insert_text should be quoted path, got: {insert}"
@@ -2066,7 +2066,10 @@ name: "ali|"
       .filter(|item| item.kind == Some(CompletionItemKind::REFERENCE))
       .map(|item| item.label.as_str())
       .collect();
-    assert!(found.is_empty(), "{ctx}: unexpected resource items: {found:?}");
+    assert!(
+      found.is_empty(),
+      "{ctx}: unexpected resource items: {found:?}"
+    );
   }
 
   #[test]
@@ -2145,7 +2148,10 @@ authors:
       assert!(
         !has_bare_resource,
         "list[Person] items should not appear as bare resource names: {:?}",
-        items.iter().map(|i| (&i.label, &i.insert_text)).collect::<Vec<_>>()
+        items
+          .iter()
+          .map(|i| (&i.label, &i.insert_text))
+          .collect::<Vec<_>>()
       );
     }
   }

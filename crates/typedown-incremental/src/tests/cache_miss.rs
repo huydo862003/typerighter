@@ -21,7 +21,10 @@ fn green_check_skips_recomputation_when_deps_unchanged() {
   let log = identity::take_log();
 
   assert_eq!(result.value(&db), 1);
-  assert!(log.is_empty(), "must not recompute when deps unchanged: {log:?}");
+  assert!(
+    log.is_empty(),
+    "must not recompute when deps unchanged: {log:?}"
+  );
 }
 
 // Changed dep must trigger recomputation
@@ -40,7 +43,10 @@ fn red_check_recomputes_when_dep_changed() {
   let log = identity::take_log();
 
   assert_eq!(result.value(&db), 6);
-  assert!(!log.is_empty(), "must recompute when dep changed: log was empty");
+  assert!(
+    !log.is_empty(),
+    "must recompute when dep changed: log was empty"
+  );
 }
 
 // Query not depending on the mutated input must stay cached
@@ -55,8 +61,11 @@ fn independent_query_stays_cached_after_unrelated_mutation() {
   identity::root_query_versioned_result(&db1, config);
 
   let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let input5_2 =
-    identity::find_entry(identity::IdInput::iter(&db2), |i| i.n(&db2) == 5, "IdInput(5)");
+  let input5_2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(5)",
+  );
   // Load from cache so it's accessible for the assertion below
   identity::identity(&db2, input5_2);
 
@@ -94,7 +103,10 @@ fn mutation_after_roundtrip_causes_recomputation() {
   // Confirm cached before mutation
   identity::take_log();
   identity::root_query_versioned_result(&db2, config2);
-  assert!(identity::take_log().is_empty(), "must be cached before mutation");
+  assert!(
+    identity::take_log().is_empty(),
+    "must be cached before mutation"
+  );
 
   config2.set_version(&mut db2, 2);
 
@@ -103,5 +115,8 @@ fn mutation_after_roundtrip_causes_recomputation() {
   let log = identity::take_log();
 
   assert_eq!(result.value(&db2), 2);
-  assert!(!log.is_empty(), "must recompute after mutation: log was empty");
+  assert!(
+    !log.is_empty(),
+    "must recompute after mutation: log was empty"
+  );
 }

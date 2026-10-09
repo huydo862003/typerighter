@@ -14,8 +14,11 @@ fn interned_entries_preserved_across_roundtrip() {
   identity::identity(&db1, input);
 
   let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let input2 =
-    identity::find_entry(identity::IdInput::iter(&db2), |i| i.n(&db2) == 7, "IdInput(7)");
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 7,
+    "IdInput(7)",
+  );
   assert_eq!(input2.n(&db2), 7);
 }
 
@@ -29,14 +32,20 @@ fn no_recomputation_after_roundtrip() {
   identity::identity(&db1, input);
 
   let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let input2 =
-    identity::find_entry(identity::IdInput::iter(&db2), |i| i.n(&db2) == 3, "IdInput(3)");
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 3,
+    "IdInput(3)",
+  );
 
   identity::take_log();
   identity::identity(&db2, input2);
   let log = identity::take_log();
 
-  assert!(log.is_empty(), "must not recompute cached result after roundtrip: {log:?}");
+  assert!(
+    log.is_empty(),
+    "must not recompute cached result after roundtrip: {log:?}"
+  );
 }
 
 // Field values on derived structs must match after roundtrip
@@ -50,8 +59,11 @@ fn derived_field_values_preserved_across_roundtrip() {
   assert_eq!(result1.value(&db1), 42);
 
   let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let input2 =
-    identity::find_entry(identity::IdInput::iter(&db2), |i| i.n(&db2) == 42, "IdInput(42)");
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 42,
+    "IdInput(42)",
+  );
   let result2 = identity::identity(&db2, input2);
 
   assert_eq!(result2.value(&db2), 42);
@@ -74,7 +86,10 @@ fn all_subqueries_cached_after_roundtrip() {
   fibonacci(&db2, input2);
   let log = take_log();
 
-  assert!(log.is_empty(), "all fib subqueries must be cached after roundtrip: {log:?}");
+  assert!(
+    log.is_empty(),
+    "all fib subqueries must be cached after roundtrip: {log:?}"
+  );
 }
 
 // Two back-to-back roundtrips must both preserve the cache
@@ -89,8 +104,11 @@ fn double_roundtrip_preserves_cache() {
   let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
   let db3 = identity::dump_and_reload(&db2, |s| IdDb { storage: s });
 
-  let input3 =
-    identity::find_entry(identity::IdInput::iter(&db3), |i| i.n(&db3) == 9, "IdInput(9)");
+  let input3 = identity::find_entry(
+    identity::IdInput::iter(&db3),
+    |i| i.n(&db3) == 9,
+    "IdInput(9)",
+  );
   identity::take_log();
   identity::identity(&db3, input3);
   let log = identity::take_log();
@@ -131,7 +149,10 @@ fn fibonacci_base_cases_cached_after_roundtrip() {
   fibonacci(&db2, i1b);
   let log = take_log();
 
-  assert!(log.is_empty(), "base cases must be cached after roundtrip: {log:?}");
+  assert!(
+    log.is_empty(),
+    "base cases must be cached after roundtrip: {log:?}"
+  );
 }
 
 // Derived query returning an interned type with lifetime must round-trip correctly
@@ -145,14 +166,20 @@ fn interned_ret_type_roundtrip() {
   assert_eq!(pair.a(&db1).value(&db1), 4);
 
   let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let input2 =
-    identity::find_entry(identity::IdInput::iter(&db2), |i| i.n(&db2) == 4, "IdInput(4)");
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 4,
+    "IdInput(4)",
+  );
 
   identity::take_log();
   let pair2 = identity::make_pair(&db2, input2);
   let log = identity::take_log();
 
-  assert!(log.is_empty(), "make_pair must be cached after roundtrip: {log:?}");
+  assert!(
+    log.is_empty(),
+    "make_pair must be cached after roundtrip: {log:?}"
+  );
   assert_eq!(pair2.a(&db2).value(&db2), 4);
 }
 
@@ -167,13 +194,19 @@ fn interned_no_lifetime_ret_type_roundtrip() {
   assert_eq!(doubled.n(&db1), 12);
 
   let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let input2 =
-    identity::find_entry(identity::IdInput::iter(&db2), |i| i.n(&db2) == 6, "IdInput(6)");
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 6,
+    "IdInput(6)",
+  );
 
   identity::take_log();
   let doubled2 = identity::double_input(&db2, input2);
   let log = identity::take_log();
 
-  assert!(log.is_empty(), "double_input must be cached after roundtrip: {log:?}");
+  assert!(
+    log.is_empty(),
+    "double_input must be cached after roundtrip: {log:?}"
+  );
   assert_eq!(doubled2.n(&db2), 12);
 }

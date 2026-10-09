@@ -18,11 +18,11 @@ use crate::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
 use crate::db::types::derived::obj_system::{
   TdProductTyp, TdStaticTyp, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
-use crate::db::utils::resolve_fref_path;
 use crate::db::types::{
   BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyTyp, LitValue, SymbolKind,
   TdTypEnum, TypResult,
 };
+use crate::db::utils::resolve_fref_path;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;

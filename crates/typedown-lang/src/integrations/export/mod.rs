@@ -18,12 +18,12 @@ pub use types::*;
 pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
 
 use crate::db::TypedownDatabase;
-use crate::db::utils::is_external_url;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::{File, FileHandle, Project, TdBlobTyp, TdObjEnum, TdRuntimeObj};
+use crate::db::utils::is_external_url;
 use crate::syntax::ast::{AstNode, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;

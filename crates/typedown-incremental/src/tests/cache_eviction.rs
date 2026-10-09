@@ -67,7 +67,11 @@ fn evicted_entry_recomputes_after_roundtrip() {
   let result = identity(&db2, input_0);
   assert_eq!(result.value(&db2), 0);
   let log = take_log();
-  assert_eq!(log, vec![0], "expected recomputation of evicted identity(0)");
+  assert_eq!(
+    log,
+    vec![0],
+    "expected recomputation of evicted identity(0)"
+  );
 }
 
 #[test]

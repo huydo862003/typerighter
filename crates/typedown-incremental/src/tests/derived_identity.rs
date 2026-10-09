@@ -184,12 +184,18 @@ fn drain_then_roundtrip_is_clean() {
   assert_eq!(result.value(&db), 2);
 
   let db2 = identity::dump_and_reload(&db, |storage| IdDatabase { storage });
-  let config2 =
-    identity::find_entry(identity::RangeConfig::iter(&db2), |c| c.count(&db2) == 2, "count=2");
+  let config2 = identity::find_entry(
+    identity::RangeConfig::iter(&db2),
+    |c| c.count(&db2) == 2,
+    "count=2",
+  );
   identity::take_log();
   let result2 = identity::make_range(&db2, config2);
   let log = identity::take_log();
 
   assert_eq!(result2.value(&db2), 2);
-  assert!(log.is_empty(), "surviving entry must be cached after drain+roundtrip: {log:?}");
+  assert!(
+    log.is_empty(),
+    "surviving entry must be cached after drain+roundtrip: {log:?}"
+  );
 }
