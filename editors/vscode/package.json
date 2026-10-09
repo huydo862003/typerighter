@@ -59,7 +59,13 @@
         "configuration": "./language-configuration.json"
       }
     ],
-    "configurationDefaults": {
+    "snippets": [
+    {
+      "language": "typedown",
+      "path": "./snippets/typedown.json"
+    }
+  ],
+  "configurationDefaults": {
       "[typedown]": {
         "editor.tabSize": 2,
         "editor.insertSpaces": true
