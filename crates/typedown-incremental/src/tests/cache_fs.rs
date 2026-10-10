@@ -1,11 +1,11 @@
 // Filesystem-level cache tests: CacheSession open/finalize, disk roundtrip,
-// multi-session chains, stale dir cleanup, and corrupt-file fallback.
+// multi-session chains, stale dir cleanup, corrupt-file fallback
 
 #![cfg(feature = "session")]
 
 use std::fs;
 
-use crate::persist::fs::CacheSession;
+use crate::serial::format::fs::CacheSession;
 use crate::{QueryStorage, SerializableQueryDatabase};
 
 use super::fixtures::identity;
@@ -197,6 +197,166 @@ fn corrupt_dep_graph_starts_clean() {
   assert!(
     prior.is_none(),
     "corrupt cache must be ignored, got prior data"
+  );
+  drop(session);
+}
+
+// Old finalized session directories must be removed when a newer one exists
+// GC keeps only the most recent and deletes the rest
+#[test]
+fn old_finalized_sessions_are_removed() {
+  let dir = tempfile::tempdir().unwrap();
+
+  // Run three sessions so three finalized dirs accumulate (open adds a tiny sleep to ensure unique millisecond timestamps)
+  // We just finalize without sleeping and check the count instead
+  let mut last_finalized_dir: Option<std::path::PathBuf> = None;
+  for i in 0u8..3 {
+    let (session, _) = open_session(dir.path());
+    let db = make_db();
+    identity::identity(&db, identity::IdInput::new(&db, i as usize));
+    finalize(session, &db);
+
+    // Record the name of the just-finalized directory
+    last_finalized_dir = fs::read_dir(dir.path())
+      .unwrap()
+      .filter_map(|e| e.ok())
+      .map(|e| e.path())
+      .filter(|p| {
+        p.is_dir()
+          && p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+      })
+      .max_by_key(|p| p.file_name().unwrap().to_os_string());
+  }
+
+  // Opening a 4th session triggers GC, which must remove all but the most recent
+  let (session, _) = open_session(dir.path());
+  drop(session);
+
+  let finalized_dirs: Vec<_> = fs::read_dir(dir.path())
+    .unwrap()
+    .filter_map(|e| e.ok())
+    .map(|e| e.path())
+    .filter(|p| {
+      p.is_dir()
+        && p
+          .file_name()
+          .and_then(|n| n.to_str())
+          .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+    })
+    .collect();
+
+  assert_eq!(
+    finalized_dirs.len(),
+    1,
+    "GC must keep only the most recent finalized session, found: {finalized_dirs:?}"
+  );
+  if let Some(expected) = last_finalized_dir {
+    assert_eq!(
+      finalized_dirs[0], expected,
+      "GC must keep the most recent session dir"
+    );
+  }
+}
+
+// A non-directory file named like a session dir must not be mistaken for a session
+// Must not cause GC or loading to crash
+#[test]
+fn non_directory_session_lookalike_is_ignored() {
+  let dir = tempfile::tempdir().unwrap();
+
+  // Place a regular file with a session-like name in the cache dir
+  fs::write(dir.path().join("s-0000000000000-deadbeef-99"), b"not a dir").unwrap();
+
+  // Open must not panic and must not load the file as a prior session
+  let (session, prior) = open_session(dir.path());
+  assert!(
+    prior.is_none(),
+    "a regular file with a session name must not be loaded as a session"
+  );
+  drop(session);
+}
+
+// Gitignore written on first open must not be overwritten if it already has custom content
+#[test]
+fn gitignore_not_overwritten_when_exists() {
+  let parent = tempfile::tempdir().unwrap();
+  let cache_dir = parent.path().join("cache");
+  fs::create_dir_all(&cache_dir).unwrap();
+
+  let gitignore = parent.path().join(".gitignore");
+  fs::write(&gitignore, "custom content\n").unwrap();
+
+  let (session, _) = CacheSession::open(&cache_dir).expect("open failed");
+  drop(session);
+
+  let content = fs::read_to_string(&gitignore).unwrap();
+  assert_eq!(
+    content, "custom content\n",
+    "existing .gitignore must not be overwritten by CacheSession::open"
+  );
+}
+
+// Values inside interned blobs must survive a disk roundtrip exactly
+// Catches parser offset bugs in read_interned_blobs / write_interned_blobs
+#[test]
+fn interned_blob_values_survive_disk_roundtrip() {
+  let dir = tempfile::tempdir().unwrap();
+
+  // Session 1: intern several distinct values
+  {
+    let (session, _) = open_session(dir.path());
+    let db = make_db();
+    for n in [0usize, 1, 100, 999] {
+      identity::IdInput::new(&db, n);
+    }
+    finalize(session, &db);
+  }
+
+  // Session 2: all interned values must be present and have correct content
+  {
+    let (session, db) = open_session(dir.path());
+    let db = db.expect("session 2 must load previous session");
+    for n in [0usize, 1, 100, 999] {
+      let found = identity::IdInput::iter(&db)
+        .into_iter()
+        .any(|i| i.n(&db) == n);
+      assert!(found, "IdInput(n={n}) must survive disk roundtrip");
+    }
+    finalize(session, &db);
+  }
+}
+
+// Corrupt interned-blobs file must cause open to start a clean session
+#[test]
+fn corrupt_interned_blobs_starts_clean() {
+  let dir = tempfile::tempdir().unwrap();
+
+  {
+    let (session, _) = open_session(dir.path());
+    let db = make_db();
+    identity::identity(&db, identity::IdInput::new(&db, 42));
+    finalize(session, &db);
+  }
+
+  let session_dir = fs::read_dir(dir.path())
+    .unwrap()
+    .filter_map(|e| e.ok())
+    .find(|e| {
+      e.file_name()
+        .to_str()
+        .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+    })
+    .expect("finalized session dir")
+    .path();
+  fs::write(session_dir.join("interned-blobs.bin"), b"corrupt").unwrap();
+
+  let (session, prior) = open_session(dir.path());
+  assert!(
+    prior.is_none(),
+    "corrupt interned-blobs must be ignored, got prior data"
   );
   drop(session);
 }

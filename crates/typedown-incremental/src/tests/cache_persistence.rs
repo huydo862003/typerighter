@@ -1,7 +1,8 @@
-// Cache persistence: values survive a dump+reload roundtrip and are served from cache
+// Cache persistence: values survive a dump + reload roundtrip and are served from cache
 
 use super::fixtures::fibonacci::*;
 use super::fixtures::identity;
+use crate::InputId;
 use identity::{Database as IdDb, InternedId, QueryStorage};
 
 // Interned inputs serialized in db1 must be queryable in db2
@@ -157,7 +158,7 @@ fn fibonacci_base_cases_cached_after_roundtrip() {
 
 // Derived query returning an interned type with lifetime must round-trip correctly
 #[test]
-fn interned_ret_type_roundtrip() {
+fn interned_ret_typ_roundtrip() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
@@ -183,9 +184,225 @@ fn interned_ret_type_roundtrip() {
   assert_eq!(pair2.a(&db2).value(&db2), 4);
 }
 
+// outer_query depends on a DerivedField<IdResult> via wrapper.inner(db)
+// The cross-session fingerprint check must use the stored fingerprint
+// IdResult sub-fields may not be deserialized yet when the check runs
+#[test]
+fn derived_field_containing_derived_struct_cached_after_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 5);
+  let result1 = identity::outer_query(&db1, input);
+  assert_eq!(result1.value(&db1), 5);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(5)",
+  );
+
+  identity::take_log();
+  let result2 = identity::outer_query(&db2, input2);
+  let log = identity::take_log();
+
+  assert_eq!(result2.value(&db2), 5);
+  assert!(
+    log.is_empty(),
+    "outer_query must not recompute after roundtrip: {log:?}"
+  );
+}
+
+// outer_query must survive two back-to-back roundtrips
+// Each roundtrip re-exercises the DerivedField<IdResult> fingerprint check
+#[test]
+fn derived_field_containing_derived_struct_double_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 8);
+  identity::outer_query(&db1, input);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db3 = identity::dump_and_reload(&db2, |s| IdDb { storage: s });
+
+  let input3 = identity::find_entry(
+    identity::IdInput::iter(&db3),
+    |i| i.n(&db3) == 8,
+    "IdInput(8)",
+  );
+
+  identity::take_log();
+  identity::outer_query(&db3, input3);
+  let log = identity::take_log();
+
+  assert!(
+    log.is_empty(),
+    "outer_query must not recompute after two roundtrips: {log:?}"
+  );
+}
+
+// Query keyed by an interned value whose fields are derived structs must be cached after roundtrip
+// The key fingerprint stable_hash(pair, db) traverses pair.a and pair.b (IdResult values)
+// IdResult sub-fields must be in memory for the hash to be correct
+// Known limitation: identity must be called first to load those sub-fields
+#[test]
+fn interned_key_with_derived_struct_fields_cached_after_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 6);
+  let pair = identity::make_pair(&db1, input);
+  let result1 = identity::use_pair(&db1, pair);
+  assert_eq!(result1.value(&db1), 6);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 6,
+    "IdInput(6)",
+  );
+
+  // Loads IdResult(6) sub-fields so stable_hash(pair, db2) produces a correct key fingerprint
+  // Without this, unloaded DerivedField deps hash as None, producing a wrong key
+  identity::identity(&db2, input2);
+  let pair2 = identity::make_pair(&db2, input2);
+
+  identity::take_log();
+  let result2 = identity::use_pair(&db2, pair2);
+  let log = identity::take_log();
+
+  assert_eq!(result2.value(&db2), 6);
+  assert!(
+    log.is_empty(),
+    "use_pair must not recompute after roundtrip: {log:?}"
+  );
+}
+
+// After a stale dep forces re-execution, the re-executed query and the cached downstream
+// must return the same IdResult entry ID.
+#[test]
+fn reused_entry_ids_after_cross_session_stale_dep_recompute() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let _vc = identity::VersionConfig::new(&db1, 1);
+  let input = identity::IdInput::new(&db1, 5);
+  identity::versioned_identity(&db1, input);
+  identity::versioned_identity_downstream(&db1, input);
+
+  let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+
+  let vc2 = identity::find_entry(
+    identity::VersionConfig::iter(&db2),
+    |v| v.version(&db2) == 1,
+    "VersionConfig(1)",
+  );
+  vc2.set_version(&mut db2, 2);
+
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(5)",
+  );
+
+  // versioned_identity re-executes (dep mismatch), cached_downstream stays cached via backdating
+  let recomputed = identity::versioned_identity(&db2, input2);
+  let cached = identity::versioned_identity_downstream(&db2, input2);
+
+  let recomputed_id: u32 = recomputed.into();
+  let cached_id: u32 = cached.into();
+
+  assert_eq!(
+    recomputed_id, cached_id,
+    "re-executed query must reuse the same entry ID as cached downstream: recomputed={recomputed_id}, cached={cached_id}"
+  );
+}
+
+// When nothing changes between sessions, both a query and its cached downstream must return
+// the exact same entry ID. No recomputation, no ID drift.
+// Mirrors the integration test: zero_spurious_errors (no mutations between sessions).
+#[test]
+fn no_id_drift_after_unchanged_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let _vc = identity::VersionConfig::new(&db1, 1);
+  let input = identity::IdInput::new(&db1, 5);
+  let r1 = identity::versioned_identity(&db1, input);
+  let r2 = identity::versioned_identity_downstream(&db1, input);
+  let id_before: u32 = r1.into();
+  let downstream_before: u32 = r2.into();
+  assert_eq!(id_before, downstream_before);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(5)",
+  );
+
+  identity::take_log();
+  let r3 = identity::versioned_identity(&db2, input2);
+  let r4 = identity::versioned_identity_downstream(&db2, input2);
+  let log = identity::take_log();
+
+  assert!(log.is_empty(), "no recomputation expected: {log:?}");
+  let id_after: u32 = r3.into();
+  let downstream_after: u32 = r4.into();
+  assert_eq!(
+    id_after, downstream_after,
+    "IDs must match after unchanged roundtrip"
+  );
+  assert_eq!(r3.n(&db2), 5);
+  assert_eq!(r3.value(&db2), 5);
+}
+
+// After re-execution due to a stale side dep, the cached downstream result must return
+// a struct whose fields are accessible with correct values.
+// If the bug exists: re-execution creates a new entry_id, the cached downstream holds the old
+// entry_id whose field data is stale or cleaned up -> field access panics or returns wrong value.
+// Mirrors the integration test: zero_spurious_errors_after_file_change.
+#[test]
+fn cached_downstream_fields_accessible_after_stale_dep_recompute() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let _vc = identity::VersionConfig::new(&db1, 1);
+  let input = identity::IdInput::new(&db1, 5);
+  identity::versioned_identity(&db1, input);
+  identity::versioned_identity_downstream(&db1, input);
+
+  let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let vc2 = identity::find_entry(
+    identity::VersionConfig::iter(&db2),
+    |v| v.version(&db2) == 1,
+    "VersionConfig(1)",
+  );
+  vc2.set_version(&mut db2, 2);
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(5)",
+  );
+
+  // versioned_identity re-executes (dep mismatch on version)
+  // versioned_identity_downstream stays cached via backdating (same IdResult value fingerprint)
+  let cached = identity::versioned_identity_downstream(&db2, input2);
+
+  // Field access must work correctly, not panic or return stale data
+  assert_eq!(cached.n(&db2), 5, "n must be 5 after stale dep recompute");
+  assert_eq!(
+    cached.value(&db2),
+    5,
+    "value must be 5 after stale dep recompute"
+  );
+}
+
 // Derived query returning an interned type without lifetime must round-trip correctly
 #[test]
-fn interned_no_lifetime_ret_type_roundtrip() {
+fn interned_no_lifetime_ret_typ_roundtrip() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };

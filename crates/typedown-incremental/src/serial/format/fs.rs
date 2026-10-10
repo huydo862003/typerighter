@@ -16,10 +16,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use fs2::FileExt;
 use memmap2::Mmap;
 
-use super::serialized::SerializedQueryStorage;
-use super::serialized::dep_graph::{self as dep_graph_fmt, DepGraph};
-use super::serialized::interned_blobs::{self as interned_blobs_fmt, InternedBlobs};
-use super::serialized::query_cache::{BackingFile, QueryCache};
+use crate::SerializedQueryStorage;
+use crate::dep_graph::DepGraph;
+use crate::interned_blobs::InternedBlobs;
+use crate::query_cache::{BackingFile, QueryCache};
+use crate::serial::format::binary_files;
 
 const DEP_GRAPH_FILE: &str = "dep-graph.bin";
 const QUERY_CACHE_FILE: &str = "query-cache.bin";
@@ -97,21 +98,35 @@ impl CacheSession {
     // Windows requires all handles closed before renaming a directory
     drop(self.lock_file.take());
 
-    // Rename working -> finalized
+    // Rename working -> finalized (s-{timestamp}-{random}-working -> s-{timestamp}-{random}-{revision})
     let parent = self
       .working_dir
       .parent()
       .expect("working dir must have parent");
-    let timestamp = SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap_or_default()
-      .as_millis();
-    let finalized_name = format!("s-{}-{}", timestamp, revision);
+    // Strip the -working suffix and keep the random token to prevent same-millisecond collisions
+    let base = self
+      .working_dir
+      .file_name()
+      .and_then(|name| name.to_str())
+      .and_then(|name| name.strip_suffix("-working"))
+      .expect("working dir must end with -working");
+    let finalized_name = format!("{}-{}", base, revision);
     let finalized_dir = parent.join(finalized_name);
     fs::rename(&self.working_dir, &finalized_dir)?;
 
     Ok(())
   }
+}
+
+// Extract the millisecond timestamp from a session dir name (s-{timestamp}-...)
+fn session_timestamp(path: &Path) -> u128 {
+  path
+    .file_name()
+    .and_then(|name| name.to_str())
+    .and_then(|name| name.strip_prefix("s-"))
+    .and_then(|name| name.split('-').next())
+    .and_then(|string| string.parse().ok())
+    .unwrap_or(0)
 }
 
 /// Find the most recent finalized session directory (not ending in "-working").
@@ -128,8 +143,8 @@ fn find_latest_finalized(cache_dir: &Path) -> Option<PathBuf> {
           .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
     })
     .collect();
-  // Sort by name descending (timestamp is first and use the same digits, so lexicographic order works)
-  candidates.sort_unstable_by(|a, b| b.cmp(a));
+  // Sort by timestamp only so same-millisecond sessions compare equal regardless of random token
+  candidates.sort_unstable_by_key(|lhs| std::cmp::Reverse(session_timestamp(lhs)));
   candidates.into_iter().next()
 }
 
@@ -176,7 +191,7 @@ fn garbage_collect(cache_dir: &Path) {
         .is_some_and(|n| !n.ends_with("-working"))
     })
     .collect();
-  finalized.sort_unstable_by(|a, b| b.cmp(a));
+  finalized.sort_unstable_by_key(|a| std::cmp::Reverse(session_timestamp(a)));
   for old in finalized.into_iter().skip(1) {
     let lock_path = old.join(LOCK_FILE);
     if let Ok(f) = File::open(&lock_path)
@@ -223,11 +238,12 @@ fn read_dep_graph(path: &Path) -> Option<DepGraph> {
   if data.len() < 32 {
     return None;
   }
-  let header = dep_graph_fmt::FileHeader::from_bytes(data[..16].try_into().ok()?);
+  let header = binary_files::dep_graph::FileHeader::from_bytes(data[..16].try_into().ok()?);
   if !header.is_valid() {
     return None;
   }
-  let footer = dep_graph_fmt::FileFooter::from_bytes(data[data.len() - 16..].try_into().ok()?);
+  let footer =
+    binary_files::dep_graph::FileFooter::from_bytes(data[data.len() - 16..].try_into().ok()?);
   let mut pos = 16;
   let node_end = data.len() - 16;
   let mut nodes = Vec::with_capacity(footer.total_node_count as usize);
@@ -235,7 +251,7 @@ fn read_dep_graph(path: &Path) -> Option<DepGraph> {
     if pos >= node_end {
       return None;
     }
-    let (node, consumed) = dep_graph_fmt::DepNode::from_bytes(&data[pos..]);
+    let (node, consumed) = binary_files::dep_graph::DepNode::from_bytes(&data[pos..]);
     pos += consumed;
     nodes.push(node);
   }
@@ -276,11 +292,12 @@ fn read_interned_blobs(path: &Path) -> Option<InternedBlobs> {
   if data.len() < 24 {
     return None;
   }
-  let header = interned_blobs_fmt::FileHeader::from_bytes(data[..8].try_into().ok()?);
+  let header = binary_files::interned_blobs::FileHeader::from_bytes(data[..8].try_into().ok()?);
   if !header.is_valid() {
     return None;
   }
-  let footer = interned_blobs_fmt::FileFooter::from_bytes(data[data.len() - 16..].try_into().ok()?);
+  let footer =
+    binary_files::interned_blobs::FileFooter::from_bytes(data[data.len() - 16..].try_into().ok()?);
   let mut pos = 8;
   let record_end = data.len() - 16;
   let mut records = Vec::with_capacity(footer.total_node_count as usize);

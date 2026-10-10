@@ -1,4 +1,5 @@
-// Green/red check: dep changed forces recomputation; unchanged dep stays cached
+// Green/red check: dep changed forces recomputation
+// Unchanged dep stays cached
 
 use super::fixtures::identity;
 use identity::{Database as IdDb, InputId, InternedId, QueryStorage};

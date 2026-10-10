@@ -35,12 +35,12 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
     }
   };
 
-  let ret_type_segment = if let syn::Type::Path(typ_path) = ret_typ {
+  let ret_typ_segment = if let syn::Type::Path(typ_path) = ret_typ {
     typ_path.path.segments.last()
   } else {
     None
   };
-  let Some(ret_typ_segment) = ret_type_segment else {
+  let Some(ret_typ_segment) = ret_typ_segment else {
     return syn::Error::new_spanned(ret_typ, "return type must be a named type")
       .to_compile_error()
       .into();
@@ -495,7 +495,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         ingredient.data.entry(id).or_insert(::typedown_incremental::StampedDerivedField {
           value: (),
           changed_at: current_revision,
-          fingerprint: ::std::sync::OnceLock::new(),
+          fingerprint: ::typedown_incremental::LazyFingerprint::new(),
         });
       }
     });
@@ -510,24 +510,14 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         let ingredient = (&*storage.fields[(start_index + #index as u32) as usize] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::DerivedFieldIngredientStore<#field_typ_static>>().expect("ingredient type mismatch");
         // Safety: transmute field value from 'db to 'static at storage boundary
-        let __val: #field_typ_static = unsafe { ::std::mem::transmute(#field_name.clone()) };
+        let value: #field_typ_static = unsafe { ::std::mem::transmute(#field_name.clone()) };
         // Backdate: only update changed_at if the value actually changed
-        if let Some(existing) = ingredient.data.get(&id) {
-          if existing.value == __val {
-            // Value unchanged, keep old changed_at (backdating)
-          } else {
-            drop(existing);
-            ingredient.data.insert(id, ::typedown_incremental::StampedDerivedField {
-              value: __val,
-              changed_at: current_revision,
-              fingerprint: ::std::sync::OnceLock::new(),
-            });
-          }
-        } else {
+        let is_unchanged = ingredient.data.get(&id).map_or(false, |expr| expr.value == value);
+        if !is_unchanged {
           ingredient.data.insert(id, ::typedown_incremental::StampedDerivedField {
-            value: __val,
+            value,
             changed_at: current_revision,
-            fingerprint: ::std::sync::OnceLock::new(),
+            fingerprint: ::typedown_incremental::LazyFingerprint::new(),
           });
         }
       }

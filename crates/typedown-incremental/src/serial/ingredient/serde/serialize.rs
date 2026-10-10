@@ -3,13 +3,13 @@ use std::io::{self, Write};
 
 use tempfile::NamedTempFile;
 
-use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::persist::serialized::query_cache::FileHeader;
-use crate::persist::serialized::query_cache::FooterCacheEntry;
+use crate::serial::format::binary_files::dep_graph::{DepNode, DepNodeIndex};
+use crate::serial::format::binary_files::query_cache::FileHeader;
+use crate::serial::format::binary_files::query_cache::FooterCacheEntry;
 use crate::{DepId, DerivedIdentity, Encoder, Fingerprint, QueryDatabase};
 
 /// Context for serializing ingredients during dump
-/// Accumulates dep graph nodes and streams query result blobs.
+/// Accumulates dep graph nodes and streams query result blobs
 pub struct SerializeContext<'a> {
   pub dep_graph: DepGraphBuilder,
   pub query_cache: QueryCacheBuilder,
@@ -92,13 +92,13 @@ impl DepGraphBuilder {
     let total = self
       .nodes
       .iter()
-      .map(|(idx, _)| *idx as usize + 1)
+      .map(|(index, _)| *index as usize + 1)
       .max()
       .unwrap_or(0);
     let mut result = vec![DepNode::Evicted; total];
 
-    for (idx, node) in self.nodes {
-      result[idx as usize] = match node {
+    for (index, node) in self.nodes {
+      result[index as usize] = match node {
         UnresolvedDepNode::DerivedQuery {
           name,
           key,
@@ -109,7 +109,8 @@ impl DepGraphBuilder {
           edges,
           derived_identities,
         } => {
-          // Skip memos with evicted deps
+          // If any dep was not serialized (LRU-evicted, never accessed), skip this query too
+          // Its slot stays DepNode::Evicted (default above)
           let has_missing = edges
             .iter()
             .any(|dep_id| !dep_id_table.contains_key(dep_id));

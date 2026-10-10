@@ -1,5 +1,6 @@
 mod cache_backdating;
 mod cache_eviction;
+mod cache_fs;
 mod cache_hit;
 mod cache_miss;
 mod cache_persistence;
