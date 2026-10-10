@@ -20,7 +20,7 @@
     "theme": "dark"
   },
   "author": "Huy-DNA <huydo862003@gmail.com>",
-  "version": "0.40.7",
+  "version": "0.41.0",
   "icon": "icons/typedown.png",
   "engines": {
     "vscode": "^1.125.0"
@@ -60,12 +60,12 @@
       }
     ],
     "snippets": [
-    {
-      "language": "typedown",
-      "path": "./snippets/typedown.json"
-    }
-  ],
-  "configurationDefaults": {
+      {
+        "language": "typedown",
+        "path": "./snippets/typedown.json"
+      }
+    ],
+    "configurationDefaults": {
       "[typedown]": {
         "editor.tabSize": 2,
         "editor.insertSpaces": true

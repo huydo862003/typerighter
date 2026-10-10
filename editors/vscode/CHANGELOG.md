@@ -1,6 +1,24 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.41.0] - 2026-10-10
+
+### Fixed
+
+- crates/typedown-incremental
+  - Cache corruption after lazy-load optimization: re-executed queries now reuse the same derived struct entry IDs held by cached downstream queries, preventing spurious type errors across sessions
+  - Identity maps seeded by the serial layer on both green and stale dep paths, keeping the query engine transparent to serialization
+
+- crates/typedown-lang
+  - Relative file references in `fref()` resolved correctly from the current file's directory
+  - `fref` fields get syntax highlighting and completions in both YAML and inline expression positions
+
+- crates/typedown-server
+  - Completion: backtick-backtick-backtick triggers a fenced code block snippet instead of being left unhandled
+
+- packages/typerighter
+  - TOC and schema label HMR updates now propagate correctly to the client
+
 ## [0.40.7] - 2026-10-09
 
 ### Fixed
