@@ -176,6 +176,14 @@ impl DepNode {
     }
   }
 
+  // Returns the verified_at revision for DerivedQuery nodes, None for all others
+  pub fn verified_at(&self) -> Option<u32> {
+    match self {
+      DepNode::DerivedQuery { verified_at, .. } => Some(*verified_at),
+      _ => None,
+    }
+  }
+
   pub fn edges(&self) -> &[u32] {
     match self {
       DepNode::DerivedQuery { edges, .. } => edges,

@@ -1,4 +1,4 @@
-// Cache persistence: values survive a dump+reload roundtrip and are served from cache
+// Cache persistence: values survive a dump + reload roundtrip and are served from cache
 
 use super::fixtures::fibonacci::*;
 use super::fixtures::identity;
@@ -157,7 +157,7 @@ fn fibonacci_base_cases_cached_after_roundtrip() {
 
 // Derived query returning an interned type with lifetime must round-trip correctly
 #[test]
-fn interned_ret_type_roundtrip() {
+fn interned_ret_typ_roundtrip() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
@@ -183,9 +183,105 @@ fn interned_ret_type_roundtrip() {
   assert_eq!(pair2.a(&db2).value(&db2), 4);
 }
 
+// outer_query depends on a DerivedField<IdResult> via wrapper.inner(db)
+// The cross-session fingerprint check must use the stored fingerprint
+// IdResult sub-fields may not be deserialized yet when the check runs
+#[test]
+fn derived_field_containing_derived_struct_cached_after_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 5);
+  let result1 = identity::outer_query(&db1, input);
+  assert_eq!(result1.value(&db1), 5);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 5,
+    "IdInput(5)",
+  );
+
+  identity::take_log();
+  let result2 = identity::outer_query(&db2, input2);
+  let log = identity::take_log();
+
+  assert_eq!(result2.value(&db2), 5);
+  assert!(
+    log.is_empty(),
+    "outer_query must not recompute after roundtrip: {log:?}"
+  );
+}
+
+// outer_query must survive two back-to-back roundtrips
+// Each roundtrip re-exercises the DerivedField<IdResult> fingerprint check
+#[test]
+fn derived_field_containing_derived_struct_double_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 8);
+  identity::outer_query(&db1, input);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db3 = identity::dump_and_reload(&db2, |s| IdDb { storage: s });
+
+  let input3 = identity::find_entry(
+    identity::IdInput::iter(&db3),
+    |i| i.n(&db3) == 8,
+    "IdInput(8)",
+  );
+
+  identity::take_log();
+  identity::outer_query(&db3, input3);
+  let log = identity::take_log();
+
+  assert!(
+    log.is_empty(),
+    "outer_query must not recompute after two roundtrips: {log:?}"
+  );
+}
+
+// Query keyed by an interned value whose fields are derived structs must be cached after roundtrip
+// The key fingerprint stable_hash(pair, db) traverses pair.a and pair.b (IdResult values)
+// IdResult sub-fields must be in memory for the hash to be correct
+// Known limitation: identity must be called first to load those sub-fields
+#[test]
+fn interned_key_with_derived_struct_fields_cached_after_roundtrip() {
+  let db1 = IdDb {
+    storage: QueryStorage::default(),
+  };
+  let input = identity::IdInput::new(&db1, 6);
+  let pair = identity::make_pair(&db1, input);
+  let result1 = identity::use_pair(&db1, pair);
+  assert_eq!(result1.value(&db1), 6);
+
+  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let input2 = identity::find_entry(
+    identity::IdInput::iter(&db2),
+    |i| i.n(&db2) == 6,
+    "IdInput(6)",
+  );
+
+  // Loads IdResult(6) sub-fields so stable_hash(pair, db2) produces a correct key fingerprint
+  // Without this, unloaded DerivedField deps hash as None, producing a wrong key
+  identity::identity(&db2, input2);
+  let pair2 = identity::make_pair(&db2, input2);
+
+  identity::take_log();
+  let result2 = identity::use_pair(&db2, pair2);
+  let log = identity::take_log();
+
+  assert_eq!(result2.value(&db2), 6);
+  assert!(
+    log.is_empty(),
+    "use_pair must not recompute after roundtrip: {log:?}"
+  );
+}
+
 // Derived query returning an interned type without lifetime must round-trip correctly
 #[test]
-fn interned_no_lifetime_ret_type_roundtrip() {
+fn interned_no_lifetime_ret_typ_roundtrip() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };

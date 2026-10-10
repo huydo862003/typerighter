@@ -6,8 +6,8 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use typedown_types::either::Either;
 
-use crate::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::persist::stable::StableCompare;
+use crate::serial::format::dep_graph::{DepNode, DepNodeIndex};
+use crate::serial::format::stable::StableCompare;
 use crate::{DepId, QueryDatabase, QueryStorage};
 
 pub struct Encoder<'a> {
@@ -162,7 +162,10 @@ impl Decoder {
     self.dep_id_table.get(&index).map(|e| *e.value())
   }
 
-  /// Get the DepId for a node, triggering deserialization if not yet loaded.
+  // Get the DepId for a node, triggering deserialization if not yet loaded
+  // Returns None if the node is Evicted (LRU-evicted or never serialized)
+  // Returns None if the ingredient no longer exists (renamed or removed)
+  // Both cases are treated as a cache miss: the caller must recompute
   pub fn get_or_deserialize_dep_node_id(&self, index: DepNodeIndex) -> Option<DepId> {
     if let Some(dep_id) = self.get_dep_node_id(index) {
       return Some(dep_id);
@@ -199,6 +202,8 @@ impl Decoder {
           }
         }
       }
+      // Evicted means this node was not serialized (LRU-evicted or never accessed)
+      // Return None so callers treat it as a cache miss and recompute
       DepNode::Evicted => {}
     }
     None

@@ -4,8 +4,7 @@
 use super::fixtures::identity;
 use identity::{Database as IdDb, QueryStorage};
 
-// Compute upstream and downstream in the same session, bump an unrelated input,
-// then verify downstream stays cached without re-executing
+// Compute upstream and downstream in the same session, bump an unrelated input, then verify downstream stays cached without re-executing
 #[test]
 fn downstream_cached_when_upstream_unchanged_after_revision_bump() {
   let mut db = IdDb {
@@ -45,7 +44,7 @@ fn changed_upstream_propagates_to_downstream() {
   let result = identity::downstream_query_of_versioned(&db, config);
   let log = identity::take_log();
 
-  // downstream logs v + 1000 so log entry 1002 means it re-executed with value 2
+  // Downstream logs v + 1000 so log entry 1002 means it re-executed with value 2
   assert_eq!(result.value(&db), 2);
   assert!(
     log.contains(&1002),
@@ -79,7 +78,7 @@ fn downstream_stays_cached_across_multiple_revision_bumps() {
 }
 
 // Calling downstream twice in the same revision after an upstream mutation
-// must execute downstream exactly once
+// Must execute downstream exactly once
 #[test]
 fn downstream_executes_once_per_revision_after_upstream_change() {
   let mut db = IdDb {
@@ -96,7 +95,7 @@ fn downstream_executes_once_per_revision_after_upstream_change() {
   identity::downstream_query_of_versioned(&db, config);
   let log = identity::take_log();
 
-  // downstream logs v + 1000 on execution so exactly one entry of 1003
+  // Downstream logs v + 1000 on execution so exactly one entry of 1003
   assert_eq!(
     log.iter().filter(|&&x| x == 1003).count(),
     1,

@@ -96,7 +96,7 @@ pub fn make_opaques<'db>(db: &'db Database, config: VersionConfig) -> Opaque<'db
   Opaque::new(db, "last".to_string(), v)
 }
 
-// Returns IdResult with fixed identity (n=0) but value derived from version
+// Returns IdResult with fixed identity (n = 0) but value derived from version
 // Changing version forces re-execution while the struct identity stays the same
 #[query_input]
 pub struct VersionConfig {
@@ -108,6 +108,41 @@ pub fn root_query_versioned_result<'db>(db: &'db Database, config: VersionConfig
   let value = config.version(db);
   LOG.with(|log| log.borrow_mut().push(value));
   IdResult::new(db, 0, value)
+}
+
+// Derived struct whose field is another derived struct
+// Used to test DerivedField fingerprints when the field value is itself a derived struct
+#[query_derived]
+pub struct Wrapper<'db> {
+  inner: IdResult<'db>,
+}
+
+// Creates a Wrapper holding the identity result for the given input
+#[query_derived]
+pub fn wrap<'db>(db: &'db Database, input: IdInput) -> Wrapper<'db> {
+  let result = identity(db, input);
+  LOG.with(|log| log.borrow_mut().push(input.n(db) + 2000));
+  Wrapper::new(db, result)
+}
+
+// Reads wrapper.inner, creating a DerivedField<IdResult> dep
+// Cross-session fingerprint check must use stored fingerprint, not stable_hash on nested IdResult
+// IdResult sub-fields (n, value) may not yet be loaded from the previous session
+#[query_derived]
+pub fn outer_query<'db>(db: &'db Database, input: IdInput) -> IdResult<'db> {
+  let wrapper = wrap(db, input);
+  let inner = wrapper.inner(db);
+  LOG.with(|log| log.borrow_mut().push(input.n(db) + 3000));
+  inner
+}
+
+// Query keyed by an interned value whose fields contain derived structs
+// Tests that the key fingerprint stable_hash(pair, db) works correctly when IdResult fields are loaded
+#[query_derived]
+pub fn use_pair<'db>(db: &'db Database, pair: Pair<'db>) -> IdResult<'db> {
+  let a = pair.a(db);
+  LOG.with(|log| log.borrow_mut().push(a.n(db) + 4000));
+  a
 }
 
 // Downstream query that depends on versioned_result, used to test backdating: if versioned_result is re-executed but returns the same value (same changed_at), downstream must not re-execute
