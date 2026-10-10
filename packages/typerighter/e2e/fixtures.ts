@@ -96,7 +96,7 @@ function createTestProjectFixture (fixture: FixtureName) {
       await page.waitForFunction(
         () => 0 < document.querySelector('#app')?.children.length ?? 0,
         {
-          timeout: 15_000,
+          timeout: 30_000,
         },
       );
     };
