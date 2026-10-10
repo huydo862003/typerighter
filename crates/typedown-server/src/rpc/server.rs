@@ -323,6 +323,11 @@ impl RpcServer {
       for path in &event.paths {
         if is_vault_config(path) {
           // Accept config file changes regardless of location
+        } else if path.starts_with(&vault_root)
+          && path.is_dir()
+          && matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_))
+        {
+          // Accept vault directory create/remove so new folders are scanned
         } else if path.starts_with(&vault_root) && (is_content_file(path) || is_asset_file(path)) {
           // Accept vault content and asset changes
         } else {
