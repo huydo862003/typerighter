@@ -63,7 +63,7 @@ impl<
     ctx.decoder.set_dep_node_id(node_index, dep_id);
     let name = Fingerprint::from_name(self.name);
     ctx
-      .serialized_entry_id_to_session_local_map
+      .old_session_entry_id_to_new_session_id_map
       .entry((name, *serialized_entry_id))
       .or_insert(entry_id);
     Some(dep_id)

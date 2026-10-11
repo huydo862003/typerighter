@@ -52,7 +52,7 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
     };
 
     let entry_id = *ctx
-      .serialized_entry_id_to_session_local_map
+      .old_session_entry_id_to_new_session_id_map
       .entry((*name, *serialized_entry_id))
       .or_insert_with(|| self.id_counter.fetch_add(1, Ordering::Relaxed));
 

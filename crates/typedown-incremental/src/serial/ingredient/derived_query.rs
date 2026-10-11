@@ -52,7 +52,7 @@ impl<
       }
     }
     ctx
-      .serialized_entry_id_to_session_local_map
+      .old_session_entry_id_to_new_session_id_map
       .get(&group_key)
       .map(|entry| *entry.value())
   }
@@ -155,7 +155,7 @@ impl<
     arg.stable_hash(db, &mut hasher);
     let key_fingerprint = Fingerprint::from_hasher(hasher);
 
-    let Some((node_index, node)) = ctx.find_derived_query(self.name_fingerprint, key_fingerprint)
+    let Some((node_index, node)) = ctx.find_cached_derived_query_memo(self.name_fingerprint, key_fingerprint)
     else {
       return false;
     };
@@ -314,7 +314,7 @@ impl<
 
   // Deserialize unaccessed query memos so identity maps can be seeded on re-execution
   fn promote_cached(&self, ctx: &DeserializeContext) {
-    let Some(indices) = ctx.fingerprint_reverse_map.get(&self.name_fingerprint) else {
+    let Some(indices) = ctx.serialized_ingredient_name_to_dep_node_indices_map.get(&self.name_fingerprint) else {
       return;
     };
     let slots = LRU_CAPACITY.saturating_sub(self.data.len());

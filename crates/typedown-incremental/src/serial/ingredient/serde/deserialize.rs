@@ -17,11 +17,11 @@ pub struct DeserializeContext {
   pub serialized: SerializedQueryStorage,
   pub decoder: Decoder,
   /// Ingredient name fingerprint -> list of dep node indices (all node kinds)
-  pub fingerprint_reverse_map: HashMap<Fingerprint, Vec<DepNodeIndex>>,
+  pub serialized_ingredient_name_to_dep_node_indices_map: HashMap<Fingerprint, Vec<DepNodeIndex>>,
   /// DerivedField nodes grouped by (struct_name, serialized entry_id) for atomic deserialization
   pub derived_groups: HashMap<(Fingerprint, u32), FieldGroup>,
   /// (struct_name, serialized entry_id) -> current session entry_id
-  pub serialized_entry_id_to_session_local_map: DashMap<(Fingerprint, u32), u32>,
+  pub old_session_entry_id_to_new_session_id_map: DashMap<(Fingerprint, u32), u32>,
   /// Per-kind name -> ingredient indices
   inputs_by_name: HashMap<Fingerprint, Vec<usize>>,
   interned_by_name: HashMap<Fingerprint, Vec<usize>>,
@@ -46,10 +46,11 @@ impl DeserializeContext {
       .expect("QueryStorage must be alive during DeserializeContext creation");
     let intern_blobs = Arc::new(serialized.interned_blobs.records.clone());
 
-    let mut fingerprint_reverse_map: HashMap<Fingerprint, Vec<DepNodeIndex>> = HashMap::new();
+    let mut serialized_ingredient_name_to_dep_node_indices_map: HashMap<Fingerprint, Vec<DepNodeIndex>> =
+      HashMap::new();
     let mut derived_groups: HashMap<(Fingerprint, u32), FieldGroup> = HashMap::new();
     for (index, node) in serialized.dep_graph.nodes.iter().enumerate() {
-      fingerprint_reverse_map
+      serialized_ingredient_name_to_dep_node_indices_map
         .entry(node.name())
         .or_default()
         .push(index as DepNodeIndex);
@@ -84,9 +85,9 @@ impl DeserializeContext {
     Self {
       decoder: Decoder::new(storage, intern_blobs),
       serialized,
-      fingerprint_reverse_map,
+      serialized_ingredient_name_to_dep_node_indices_map,
       derived_groups,
-      serialized_entry_id_to_session_local_map: DashMap::new(),
+      old_session_entry_id_to_new_session_id_map: DashMap::new(),
       inputs_by_name,
       interned_by_name,
       queries_by_name,
@@ -135,38 +136,36 @@ impl DeserializeContext {
     let (name_fingerprint, identity_hash, disambiguator, old_entry_id) = *identity;
     let group_key = (name_fingerprint, old_entry_id);
     let already_in_map = self
-      .serialized_entry_id_to_session_local_map
+      .old_session_entry_id_to_new_session_id_map
       .contains_key(&group_key);
     if !already_in_map {
-      {
-        let field_group = self.derived_groups.get(&group_key)?;
-        for &(_, field_node_index) in &field_group.fields {
-          self
-            .decoder
-            .get_or_deserialize_dep_node_id(field_node_index);
-        }
+      let field_group = self.derived_groups.get(&group_key)?;
+      for &(_, field_node_index) in &field_group.fields {
+        self
+          .decoder
+          .get_or_deserialize_dep_node_id(field_node_index);
       }
     }
     let new_entry_id = self
-      .serialized_entry_id_to_session_local_map
+      .old_session_entry_id_to_new_session_id_map
       .get(&group_key)
       .map(|v| *v.value())?;
     Some((name_fingerprint, identity_hash, disambiguator, new_entry_id))
   }
 
   /// Find a DerivedQuery node by name + key fingerprint
-  pub fn find_derived_query(
+  pub fn find_cached_derived_query_memo(
     &self,
     name: Fingerprint,
     key: Fingerprint,
   ) -> Option<(DepNodeIndex, &DepNode)> {
-    let indices = self.fingerprint_reverse_map.get(&name)?;
-    indices.iter().find_map(|&idx| {
-      let node = &self.serialized.dep_graph.nodes[idx as usize];
+    let indices = self.serialized_ingredient_name_to_dep_node_indices_map.get(&name)?;
+    indices.iter().find_map(|&index| {
+      let node = &self.serialized.dep_graph.nodes[index as usize];
       if let DepNode::DerivedQuery { key: k, .. } = node
         && k == &key
       {
-        return Some((idx, node));
+        return Some((index, node));
       }
       None
     })

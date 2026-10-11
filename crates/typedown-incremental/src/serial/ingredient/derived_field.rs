@@ -66,7 +66,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
     // Allocate a session-local entry_id, shared across sibling fields
     let entry_id = *ctx
-      .serialized_entry_id_to_session_local_map
+      .old_session_entry_id_to_new_session_id_map
       .entry((*name, *serialized_entry_id))
       .or_insert_with(|| self.id_counter.fetch_add(1, Ordering::Relaxed));
 
@@ -109,7 +109,7 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
   // Fields follow their parent queries, no independent LRU cap
   fn promote_cached(&self, ctx: &DeserializeContext) {
-    let Some(indices) = ctx.fingerprint_reverse_map.get(&self.name_fingerprint()) else {
+    let Some(indices) = ctx.serialized_ingredient_name_to_dep_node_indices_map.get(&self.name_fingerprint()) else {
       return;
     };
     for &node_index in indices.iter() {
