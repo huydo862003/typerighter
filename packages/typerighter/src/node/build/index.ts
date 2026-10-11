@@ -51,12 +51,10 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     config,
     files,
     sidebarItems,
-    schemaNames,
   ] = await Promise.all([
     tdContext.getConfig(),
     tdContext.listFiles(),
     tdContext.listSidebar(),
-    tdContext.listSchemas(),
   ]);
 
   // Coerce null -> undefined for optional fields from JSON-RPC
