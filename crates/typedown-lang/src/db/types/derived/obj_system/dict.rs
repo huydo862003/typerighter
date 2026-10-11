@@ -10,10 +10,8 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{get_dict_typ, get_obj_typ, get_string_typ};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::Project;
-use crate::db::types::{
-  FuncSignature, HirValue, InstantiateResult, LazyTyp, TypParams, TypVariable,
-};
+use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams, TypVariable};
+use crate::db::types::{Project, ProjectRedNode};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
@@ -184,7 +182,7 @@ impl<'db> TdDictTyp<'db> {
 
 #[query_derived(custom_hash)]
 pub struct TdDictObj<'db> {
-  pub entries: BTreeMap<String, Either<HirValue<'db>, TdObjEnum<'db>>>,
+  pub entries: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
 }
 
 // Hash entry count + keys only, skip values to avoid deep recursion
@@ -215,9 +213,9 @@ impl<'db> TdRuntimeObj<'db> for TdDictObj<'db> {
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
     match self.entries(db).get(key).cloned()? {
-      Either::Left(hir) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Either::Left(project_node) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Either::Right(obj) => Some(obj),
     }
@@ -227,9 +225,9 @@ impl<'db> TdRuntimeObj<'db> for TdDictObj<'db> {
       return None;
     }
     match self.entries(db).get(key).cloned()? {
-      Either::Left(hir) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Either::Left(project_node) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Either::Right(obj) => Some(obj),
     }

@@ -10,17 +10,17 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::derived::obj_system::{TdRuntimeObj, TdStaticTyp};
-use crate::db::types::{FileHandle, HirValue, LazyTyp, Project, TdObjEnum, TdTypEnum};
+use crate::db::types::{FileHandle, LazyTyp, Project, ProjectRedNode, TdObjEnum, TdTypEnum};
 
 pub fn evaluate_lazy_field<'db>(
   db: &'db TypedownDatabase,
-  field: Either<HirValue<'db>, TdObjEnum<'db>>,
+  field: Either<ProjectRedNode, TdObjEnum<'db>>,
 ) -> Option<TdObjEnum<'db>> {
   match field {
     Either::Right(obj) => Some(obj),
-    Either::Left(hir) => {
-      let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-      evaluate_node(db, hir, file_scope).value(db)
+    Either::Left(project_node) => {
+      let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+      evaluate_node(db, project_node, file_scope).value(db)
     }
   }
 }

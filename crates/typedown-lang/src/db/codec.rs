@@ -14,6 +14,10 @@ use typedown_incremental::{
 // GreenNode (interned)
 fn encode_green_node(node: &GreenNode, encoder: &mut Encoder) -> u32 {
   let hint = Some(node.as_ptr() as u32);
+  if let Some(index) = hint.and_then(|hint| encoder.get_intern_blob_index_fast::<GreenNode>(hint)) {
+    return index;
+  }
+
   if node.is_node() {
     let syntax_node = node.as_node().unwrap();
     let children = syntax_node.children();
@@ -25,8 +29,8 @@ fn encode_green_node(node: &GreenNode, encoder: &mut Encoder) -> u32 {
     blob.push(0); // tag: node
     blob.extend_from_slice(&(syntax_node.kind() as u16).to_le_bytes());
     blob.extend_from_slice(&(child_indices.len() as u32).to_le_bytes());
-    for idx in &child_indices {
-      blob.extend_from_slice(&idx.to_le_bytes());
+    for index in &child_indices {
+      blob.extend_from_slice(&index.to_le_bytes());
     }
     encoder.intern_blob::<GreenNode>(blob, hint)
   } else {

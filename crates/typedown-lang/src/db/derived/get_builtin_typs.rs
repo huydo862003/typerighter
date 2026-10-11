@@ -85,7 +85,7 @@ pub fn get_schema_meta_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaMetaTyp<'d
   TdSchemaMetaTyp::new(db)
 }
 
-pub fn get_typ_typ_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_typ_typ_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypTyp),
@@ -94,7 +94,7 @@ pub fn get_typ_typ_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_obj_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_obj_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypTyp),
@@ -103,7 +103,7 @@ pub fn get_obj_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_schema_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_schema_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
@@ -112,7 +112,7 @@ pub fn get_schema_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_string_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_string_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::String),
@@ -121,7 +121,7 @@ pub fn get_string_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_number_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_number_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Number),
@@ -130,7 +130,7 @@ pub fn get_number_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_bool_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_bool_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Bool),
@@ -139,7 +139,7 @@ pub fn get_bool_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_date_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_date_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Date),
@@ -148,7 +148,7 @@ pub fn get_date_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_datetime_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_datetime_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::DateTime),
@@ -157,7 +157,7 @@ pub fn get_datetime_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_time_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_time_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Time),
@@ -166,7 +166,7 @@ pub fn get_time_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_math_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_math_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Math),
@@ -175,7 +175,7 @@ pub fn get_math_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_list_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_list_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::List),
@@ -184,7 +184,7 @@ pub fn get_list_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
   )
 }
 
-pub fn get_dict_symbol<'db>(db: &'db TypedownDatabase) -> Symbol<'db> {
+pub fn get_dict_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(
     db,
     SymbolKind::BuiltinSchema(BuiltinSchemaKind::Dict),

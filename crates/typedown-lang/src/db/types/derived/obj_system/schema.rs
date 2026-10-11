@@ -18,7 +18,7 @@ use crate::db::derived::get_builtin_typs::{
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
 use crate::db::types::{
-  FuncKind, FuncSignature, HirValue, LazyTyp, NativeFuncKind, Project, Symbol,
+  FuncKind, FuncSignature, LazyTyp, NativeFuncKind, Project, ProjectRedNode, Symbol,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_types::either::Either;
@@ -90,7 +90,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaMetaTyp<'db> {
 #[query_derived(custom_hash)]
 pub struct TdSchemaTyp<'db> {
   pub name: String,
-  pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjEnum<'db>>>,
+  pub builtins: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
   pub fields: BTreeMap<String, PropertyDescriptor<'db>>,
   pub vtable: BTreeMap<String, TdFuncObj<'db>>,
   pub parent: Option<TdTypEnum<'db>>,
@@ -122,9 +122,9 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaTyp<'db> {
   }
   fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
     match self.builtins(db).get(key).cloned() {
-      Some(Either::Left(hir)) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Some(Either::Left(project_node)) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),
       None => None,
@@ -263,9 +263,9 @@ impl<'db> TdSchemaTyp<'db> {
 pub struct TdSchemaObj<'db> {
   pub schema: TdTypEnum<'db>,
   pub project: Project,
-  pub file_symbol: Option<Symbol<'db>>,
-  pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjEnum<'db>>>,
-  pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjEnum<'db>>>,
+  pub file_symbol: Option<Symbol>,
+  pub builtins: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
+  pub fields: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
 }
 
 // If file_symbol is present, hash only (schema, file_symbol) for O(1)
@@ -301,9 +301,9 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
     match self.fields(db).get(key).cloned() {
-      Some(Either::Left(hir)) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Some(Either::Left(project_node)) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),
       // Missing fields: check schema for computed/default, then null
@@ -329,9 +329,9 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
     // Check instance builtins first
     if let Some(entry) = self.builtins(db).get(key).cloned() {
       return match entry {
-        Either::Left(hir) => {
-          let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-          evaluate_node(db, hir, file_scope).value(db)
+        Either::Left(project_node) => {
+          let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+          evaluate_node(db, project_node, file_scope).value(db)
         }
         Either::Right(obj) => Some(obj),
       };

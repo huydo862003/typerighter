@@ -15,14 +15,13 @@ use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::schema_members;
 use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, FileRedNode, Project, SymbolKind};
+use typedown_lang::db::types::{File, Project, ProjectRedNode, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
   export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
@@ -904,10 +903,10 @@ fn collect_file_diagnostics(
 
   // Typecheck and name resolution errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  let typecheck_result = typecheck(db, hir);
+  let project_node = ProjectRedNode::new(project, file, root);
+  let typecheck_result = typecheck(db, project_node.clone());
   typedown_diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
-  let resolve_result = resolve(db, hir);
+  let resolve_result = resolve(db, project_node);
   typedown_diagnostics.extend(resolve_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors

@@ -6,13 +6,12 @@ use std::collections::HashMap;
 use typedown_incremental::StableCompare;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use typedown_lang::db::types::typecheck::is_nullable;
 use typedown_lang::db::types::{
-  File, FileRedNode, LazyTyp, LitValue, Project, SymbolKind, TdStaticTyp, TdTypEnum,
+  File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
 };
 use typedown_lang::db::types::{Scope, ScopeKind};
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
@@ -163,12 +162,8 @@ fn resolve_entry_type<'db>(
   if is_in_mapping_value_position(node) {
     let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
     if let Some(value_expr) = entry_value.children().find_map(Expr::cast) {
-      let hir = lower_node(
-        db,
-        project,
-        FileRedNode::new(file, value_expr.syntax().clone()),
-      );
-      if let Some(typ) = expected_node_typ(db, hir).typ(db) {
+      let project_node = ProjectRedNode::new(project, file, value_expr.syntax().clone());
+      if let Some(typ) = expected_node_typ(db, project_node).typ(db) {
         return Some(typ);
       }
     }

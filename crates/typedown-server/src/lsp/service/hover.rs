@@ -3,7 +3,6 @@ use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
@@ -12,9 +11,10 @@ use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_ty
 use typedown_lang::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
 use typedown_lang::db::types::derived::obj_system::TdStaticTyp;
 use typedown_lang::db::types::{
-  File, FileRedNode, HirValueKind, Project, Scope, ScopeKind, Symbol, TdTypEnum,
+  File, Project, ProjectRedNode, Scope, ScopeKind, Symbol, TdTypEnum,
 };
 use typedown_lang::db::utils::is_external_url;
+use typedown_lang::syntax::ast::StrLit;
 use typedown_lang::syntax::ast::{AstNode, Expr, MdLink, MdMedia};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -48,7 +48,7 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
   let hovered_node = node_at_offset(root_node, hovered_offset)?;
 
   // fref hover: show target label and schema
-  if let Some(text) = build_fref_hover(db, project, file, &hovered_node) {
+  if let Some(text) = build_fref_hover(db, project, &hovered_node) {
     return Some(create_hover(text));
   }
 
@@ -65,9 +65,9 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
   let text = if is_in_mapping_value_position(&hovered_node) {
     // Value position: show declared type if available, otherwise inferred type
     let expr = get_nearest_expr_ancestor(&hovered_node)?;
-    let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
-    let expected = expected_node_typ(db, hir).typ(db);
-    let actual = actual_node_typ(db, hir).typ(db)?;
+    let project_node = ProjectRedNode::new(project, file, expr.syntax().clone());
+    let expected = expected_node_typ(db, project_node.clone()).typ(db);
+    let actual = actual_node_typ(db, project_node).typ(db)?;
 
     match expected {
       Some(expected_typ) => format_type_label(db, &expected_typ),
@@ -81,12 +81,8 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
       .children()
       .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
     let value_expr = entry_value.children().find_map(Expr::cast)?;
-    let hir = lower_node(
-      db,
-      project,
-      FileRedNode::new(file, value_expr.syntax().clone()),
-    );
-    let typ = expected_node_typ(db, hir).typ(db)?;
+    let project_node = ProjectRedNode::new(project, file, value_expr.syntax().clone());
+    let typ = expected_node_typ(db, project_node).typ(db)?;
     let key_text = entry_key.text().trim().to_string();
 
     format!("{key_text}: {}", format_type_label(db, &typ))
@@ -104,21 +100,13 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
 }
 
 // Resolve hover text for a fref() argument: show target label and schema
-fn build_fref_hover(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-  node: &RedNode,
-) -> Option<String> {
+fn build_fref_hover(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<String> {
   let call = containing_fref_expr(node)?;
-  let hir = lower_node(db, project, FileRedNode::new(file, call.syntax().clone()));
-  let HirValueKind::Call { args, .. } = hir.kind(db) else {
-    return None;
-  };
-  let arg = args.first()?;
-  let HirValueKind::String(path_str) = arg.kind(db) else {
-    return None;
-  };
+  let path_str = call
+    .args()
+    .into_iter()
+    .next()
+    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|s| s.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);

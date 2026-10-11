@@ -14,21 +14,24 @@ use crate::db::derived::get_builtin_typs::{
 };
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
+use crate::db::derived::parse_file::parse_file;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::types::typecheck::is_subtype_of;
 use crate::db::types::{
-  BuiltinSchemaKind, File, HirValue, HirValueKind, LazyTyp, LitValue, Project, PropertyDescriptor,
-  Symbol, SymbolKind, TdBlobTyp, TdObjEnum, TdProductTyp, TdSchemaTyp, TdStaticTyp, TdTypEnum,
-  TypResult,
+  BuiltinSchemaKind, File, LazyTyp, LitValue, Project, ProjectRedNode, PropertyDescriptor, Symbol,
+  SymbolKind, TdBlobTyp, TdObjEnum, TdProductTyp, TdSchemaTyp, TdStaticTyp, TdTypEnum, TypResult,
 };
-use crate::db::utils::lower_file;
+use crate::syntax::ast::{
+  AstNode, BinaryExpr, ClosureExpr, IdentLit, IndexExpr, NumberLit, ParenExpr, PostfixExpr,
+  PrefixExpr, StrLit, YamlOpKind,
+};
 use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
 #[query_derived(no_hash)]
-pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol<'db>) -> TypResult<'db> {
+pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(kind) => {
       let typ: TdTypEnum = match kind {
@@ -67,37 +70,30 @@ fn evaluate_user_defined_schema<'db>(
 ) -> TypResult<'db> {
   let mut diagnostics = vec![];
 
-  // Parse file and lower frontmatter to HIR
-  let (hir, _) = lower_file(db, project, file);
-  let hir = match hir {
-    Some(hir) => hir,
-    None => return TypResult::new(db, None, vec![]),
-  };
+  let root_node = parse_file(db, project, file).ast(db);
 
-  // Extract entries from the frontmatter mapping
-  let child_entries = match hir.kind(db) {
-    HirValueKind::Mapping(entries) => entries,
-    _ => return TypResult::new(db, None, diagnostics),
+  let child_entries = match root_node.mapping_entries() {
+    Some(entries) => entries,
+    None => return TypResult::new(db, None, diagnostics),
   };
 
   // Resolve _extends if present
   let (inherited_fields, parent_typ) =
     resolve_parent_schema(db, &schema_name, &child_entries, &mut diagnostics);
 
-  let child_builtins: BTreeMap<String, Either<HirValue, TdObjEnum>> = child_entries
+  let child_builtins: BTreeMap<String, Either<ProjectRedNode, TdObjEnum>> = child_entries
     .iter()
     .filter(|(key, _)| key.starts_with('_'))
-    .map(|(key, value)| (key.clone(), Either::Left(*value)))
+    .map(|(key, value)| (key.clone(), Either::Left(value.clone())))
     .collect();
 
   // Find the "properties" entry
-  let child_properties_hir = child_entries.iter().find(|(key, _)| key == "properties");
-  let child_properties_entries = match child_properties_hir {
-    Some((_, props_hir)) => match props_hir.kind(db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => {
-        let node = props_hir.node(db);
-        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+  let child_properties_node = child_entries.iter().find(|(key, _)| key == "properties");
+  let child_properties_entries = match child_properties_node {
+    Some((_, props_node)) => match props_node.mapping_entries() {
+      Some(entries) => entries,
+      None => {
+        let (trimmed_offset, trimmed_len) = props_node.node.trimmed_range();
         diagnostics.push(Diagnostic::FieldTypMismatch {
           field: "properties".to_string(),
           expected: "mapping".to_string(),
@@ -131,9 +127,8 @@ fn evaluate_user_defined_schema<'db>(
   let mut child_fields = inherited_fields.clone();
   let mut seen_child_props: HashSet<&str> = HashSet::new();
 
-  for (prop_name, prop_hir) in &child_properties_entries {
-    let node = prop_hir.node(db);
-    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+  for (prop_name, prop_node) in &child_properties_entries {
+    let (trimmed_offset, trimmed_len) = prop_node.node.trimmed_range();
 
     if !seen_child_props.insert(prop_name.as_str()) {
       diagnostics.push(Diagnostic::DuplicateKey {
@@ -143,7 +138,9 @@ fn evaluate_user_defined_schema<'db>(
       });
       continue;
     }
-    if let Some(child_descriptor) = resolve_property_descriptor(db, *prop_hir, &mut diagnostics) {
+    if let Some(child_descriptor) =
+      resolve_property_descriptor(db, prop_node.clone(), &mut diagnostics)
+    {
       // Validate that a redefined inherited field type is a subtype of the parent field type
       if let Some(parent_descriptor) = inherited_fields.get(prop_name)
         && let (Some(child_field_typ), Some(parent_field_typ)) = (
@@ -191,22 +188,22 @@ fn evaluate_user_defined_schema<'db>(
 fn resolve_parent_schema<'db>(
   db: &'db TypedownDatabase,
   child_name: &str,
-  child_entries: &[(String, HirValue<'db>)],
+  child_entries: &[(String, ProjectRedNode)],
   diagnostics: &mut Vec<Diagnostic>,
 ) -> (
   BTreeMap<String, PropertyDescriptor<'db>>, // Inherited fields
   Option<TdTypEnum<'db>>,                    // The parent schema
 ) {
-  let Some((_, extends_hir)) = child_entries.iter().find(|(key, _)| key == "_extends") else {
+  let Some((_, extends_node)) = child_entries.iter().find(|(key, _)| key == "_extends") else {
     return (BTreeMap::new(), None);
   };
 
-  let resolved_parent_symbol_result = referee(db, *extends_hir);
+  let resolved_parent_symbol_result = referee(db, extends_node.clone());
   let Some(parent_symbol) = resolved_parent_symbol_result.value(db) else {
-    let node = extends_hir.node(db);
-    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+    let red_node = &extends_node.node;
+    let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
     diagnostics.push(Diagnostic::UnresolvedExtends {
-      name: node.text(),
+      name: red_node.text(),
       start_offset: trimmed_offset,
       end_offset: trimmed_offset + trimmed_len,
     });
@@ -214,10 +211,10 @@ fn resolve_parent_schema<'db>(
   };
 
   if !matches!(parent_symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
-    let node = extends_hir.node(db);
-    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+    let red_node = &extends_node.node;
+    let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
     diagnostics.push(Diagnostic::UnresolvedExtends {
-      name: node.text(),
+      name: red_node.text(),
       start_offset: trimmed_offset,
       end_offset: trimmed_offset + trimmed_len,
     });
@@ -247,11 +244,11 @@ fn resolve_parent_schema<'db>(
   (parent_schema.fields(db), Some(parent_typ))
 }
 
-// Walk _extends by reading raw HIR to detect cycles without triggering evaluate_typ
-fn detect_extends_cycle<'db>(
-  db: &'db TypedownDatabase,
+// Walk _extends by reading raw AST to detect cycles without triggering evaluate_typ
+fn detect_extends_cycle(
+  db: &TypedownDatabase,
   start_name: &str,
-  mut current_symbol: Symbol<'db>,
+  mut current_symbol: Symbol,
 ) -> Option<Vec<String>> {
   let mut visited = HashSet::new();
   visited.insert(start_name.to_string());
@@ -270,14 +267,11 @@ fn detect_extends_cycle<'db>(
       return None;
     };
 
-    let (hir, _) = lower_file(db, project, file);
-    let hir = hir?;
-    let HirValueKind::Mapping(entries) = hir.kind(db) else {
-      return None;
-    };
-    let (_, extends_hir) = entries.iter().find(|(k, _)| k == "_extends")?;
+    let root_node = parse_file(db, project, file).ast(db);
+    let entries = root_node.mapping_entries()?;
+    let (_, extends_node) = entries.iter().find(|(k, _)| k == "_extends")?;
 
-    let resolved = referee(db, *extends_hir);
+    let resolved = referee(db, extends_node.clone());
     let next_symbol = resolved.value(db)?;
     if !matches!(next_symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
       return None;
@@ -287,42 +281,36 @@ fn detect_extends_cycle<'db>(
 }
 
 // Process a property descriptor like `{ type: string, default: "hello" }`
-// Returns Option<PropertyDescriptor>
 pub(crate) fn resolve_property_descriptor<'db>(
   db: &'db TypedownDatabase,
-  hir: HirValue<'db>,
+  project_node: ProjectRedNode,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<PropertyDescriptor<'db>> {
-  let kind = hir.kind(db);
-  let entries = match kind {
-    HirValueKind::Mapping(entries) => entries,
-    _ => return None,
-  };
+  let entries = project_node.mapping_entries()?;
 
   let mut field_typ: Option<LazyTyp> = None;
-  let mut default_value: Option<HirValue> = None;
-  let mut computed_func_value: Option<HirValue> = None;
+  let mut default_value: Option<ProjectRedNode> = None;
+  let mut computed_func_value: Option<ProjectRedNode> = None;
 
-  for (key, value) in &entries {
+  for (key, value_node) in &entries {
     match key.as_str() {
       "type" => {
-        field_typ = resolve_typ_lazy(db, *value, diagnostics);
+        field_typ = resolve_typ_lazy(db, value_node.clone(), diagnostics);
       }
       "default" => {
-        default_value = Some(*value);
+        default_value = Some(value_node.clone());
       }
       "computed" => {
-        computed_func_value = Some(*value);
+        computed_func_value = Some(value_node.clone());
       }
       _ => {}
     }
   }
 
   if default_value.is_some()
-    && let Some(computed_hir) = computed_func_value
+    && let Some(ref computed_node) = computed_func_value
   {
-    let node = computed_hir.node(db);
-    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+    let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
     diagnostics.push(Diagnostic::FieldTypMismatch {
       field: "computed".to_string(),
       expected: "property cannot specify both default and computed".to_string(),
@@ -332,17 +320,16 @@ pub(crate) fn resolve_property_descriptor<'db>(
     return None;
   }
 
-  if let (Some(lazy), Some(definition_hir)) = (&field_typ, default_value)
+  if let (Some(lazy), Some(ref definition_node)) = (&field_typ, default_value.clone())
     && let Some(declared_typ) = lazy.resolve(db)
   {
-    let actual_typ_result = actual_node_typ(db, definition_hir);
+    let actual_typ_result = actual_node_typ(db, definition_node.clone());
     diagnostics.extend(actual_typ_result.diagnostics(db).iter().cloned());
     if actual_typ_result
       .typ(db)
       .is_some_and(|actual_typ| !is_subtype_of(db, &actual_typ, &declared_typ))
     {
-      let node = definition_hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      let (trimmed_offset, trimmed_len) = definition_node.node.trimmed_range();
       diagnostics.push(Diagnostic::FieldTypMismatch {
         field: "default".to_string(),
         expected: declared_typ.display_name(db),
@@ -352,23 +339,18 @@ pub(crate) fn resolve_property_descriptor<'db>(
     }
   }
 
-  let default_obj = default_value.and_then(|def_hir| {
-    let file_scope = get_file_runtime_scope(db, def_hir.project(db), def_hir.node(db).owner_file);
-    evaluate_node(db, def_hir, file_scope).value(db)
+  let default_obj = default_value.and_then(|def_node| {
+    let file_scope = get_file_runtime_scope(db, def_node.project, def_node.file);
+    evaluate_node(db, def_node, file_scope).value(db)
   });
 
-  let computed_func = computed_func_value.and_then(|computed_hir| {
-    let scope = get_file_runtime_scope(
-      db,
-      computed_hir.project(db),
-      computed_hir.node(db).owner_file,
-    );
-    let result = evaluate_node(db, computed_hir, scope);
+  let computed_func = computed_func_value.and_then(|computed_node| {
+    let scope = get_file_runtime_scope(db, computed_node.project, computed_node.file);
+    let result = evaluate_node(db, computed_node.clone(), scope);
     diagnostics.extend(result.diagnostics(db).iter().cloned());
     let value = result.value(db)?;
     let Some(func_obj) = value.as_td_func_obj() else {
-      let node = computed_hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
       diagnostics.push(Diagnostic::FieldTypMismatch {
         field: "computed".to_string(),
         expected: "function".to_string(),
@@ -379,13 +361,18 @@ pub(crate) fn resolve_property_descriptor<'db>(
     };
 
     let signature = func_obj.signature(db);
-    let param_count = match computed_hir.kind(db) {
-      HirValueKind::Closure { ref params, .. } => params.len(),
-      _ => signature.params(db).len(),
-    };
+    // Count params from the closure AST node if available
+    let param_count = ClosureExpr::cast(computed_node.node.clone())
+      .and_then(|closure| {
+        closure.params().map(|p| match p {
+          Either::Left(param_list) => param_list.params().count(),
+          Either::Right(_) => 1,
+        })
+      })
+      .unwrap_or_else(|| signature.params(db).len());
+
     if param_count != 1 {
-      let node = computed_hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
       diagnostics.push(Diagnostic::FieldTypMismatch {
         field: "computed".to_string(),
         expected: "function expecting 1 parameter".to_string(),
@@ -395,17 +382,25 @@ pub(crate) fn resolve_property_descriptor<'db>(
       return None;
     }
 
-    let ret_typ = match computed_hir.kind(db) {
-      HirValueKind::Closure { body, .. } => actual_node_typ(db, *body).typ(db),
-      _ => Some(signature.ret(db)),
-    };
+    // Infer return type: from closure body if AST closure, else from signature
+    let ret_typ = ClosureExpr::cast(computed_node.node.clone())
+      .and_then(|closure| closure.body())
+      .map(|body_expr| {
+        let body_node = ProjectRedNode::new(
+          computed_node.project,
+          computed_node.file,
+          body_expr.syntax().clone(),
+        );
+        actual_node_typ(db, body_node).typ(db)
+      })
+      .unwrap_or_else(|| Some(signature.ret(db)));
+
     if let Some(ref lazy) = field_typ
       && let Some(declared_typ) = lazy.resolve(db)
       && let Some(ret_typ) = ret_typ
       && !is_subtype_of(db, &ret_typ, &declared_typ)
     {
-      let node = computed_hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
       diagnostics.push(Diagnostic::FieldTypMismatch {
         field: "computed".to_string(),
         expected: declared_typ.display_name(db),
@@ -432,129 +427,179 @@ pub(crate) fn resolve_property_descriptor<'db>(
 
 fn resolve_typ_lazy<'db>(
   db: &'db TypedownDatabase,
-  hir: HirValue<'db>,
+  project_node: ProjectRedNode,
   diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<LazyTyp<'db>> {
-  match hir.kind(db) {
-    // `!type expr` is redundant but valid: strip the tag and recurse on the inner value
-    HirValueKind::Tag { tag, inner } => {
-      if matches!(tag.kind(db), HirValueKind::Ident(ref name) if name == "type") {
-        return resolve_typ_lazy(db, *inner, diagnostics);
-      }
-      let node = hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::FieldTypMismatch {
-        field: "type".to_string(),
-        expected: "type expression".to_string(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
-      None
-    }
+  let node = project_node.node.clone();
+  let project = project_node.project;
+  let file = project_node.file;
 
-    // Desugar A | B to Sum([A, B])
-    HirValueKind::Binary { op, left, right } if op == "|" => {
-      let left = resolve_typ_lazy(db, *left, diagnostics)?;
-      let right = resolve_typ_lazy(db, *right, diagnostics)?;
-      Some(LazyTyp::eager(get_sum_typ(db, vec![left, right]).into()))
-    }
-    // Desugar T? to Sum([T, null])
-    HirValueKind::Postfix { op, operand } if op == "?" => {
-      let inner = resolve_typ_lazy(db, *operand, diagnostics)?;
-      let null_lazy = LazyTyp::eager(get_null_typ(db).into());
-      Some(LazyTyp::eager(
-        get_sum_typ(db, vec![inner, null_lazy]).into(),
-      ))
-    }
-
-    // Simple type reference like `type: string`
-    HirValueKind::Ident(_) => {
-      let resolved = referee(db, hir);
-      match resolved.value(db) {
-        Some(symbol) => match symbol.kind(db) {
-          SymbolKind::UserDefinedSchema(_, _) => Some(LazyTyp::lazy(symbol)),
-          _ => {
-            let result = evaluate_typ(db, symbol);
-            diagnostics.extend(result.diagnostics(db).iter().cloned());
-            result.typ(db).map(LazyTyp::eager)
-          }
-        },
-        None => {
-          let node = hir.node(db);
-          let (trimmed_offset, trimmed_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::UnresolvedSchema {
-            name: node.text(),
-            start_offset: trimmed_offset,
-            end_offset: trimmed_offset + trimmed_len,
-          });
-          None
-        }
-      }
-    }
-    // Union type like `type: [string, number]`
-    HirValueKind::Sequence(items) => {
-      let mut members = vec![];
-      for item in items {
-        if let Some(lazy) = resolve_typ_lazy(db, item, diagnostics) {
-          members.push(lazy);
-        }
-      }
-      if members.is_empty() {
-        None
-      } else {
-        Some(LazyTyp::eager(
-          get_sum_typ(db, members.into_iter().collect()).into(),
-        ))
-      }
-    }
-    // Inline object like `type: { name: { type: string }, age: { type: number } }`
-    HirValueKind::Mapping(entries) => {
-      let mut fields = BTreeMap::new();
-      for (key, value_hir) in entries {
-        if let Some(descriptor) = resolve_property_descriptor(db, value_hir, diagnostics) {
-          fields.insert(key.clone(), descriptor.field_typ);
-        }
-      }
-      Some(LazyTyp::eager(TdProductTyp::new(db, None, fields).into()))
-    }
-    // Generic type instantiation like `type: list[string]`
-    HirValueKind::Index { expr, indices } => {
-      let base = resolve_typ_lazy(db, *expr, diagnostics)?;
-      let base_typ = base.resolve(db)?;
-      if base_typ.arity(db) == 0 {
-        return Some(LazyTyp::eager(base_typ));
-      }
-      let mut arg_types = vec![];
-      for index_hir in indices {
-        arg_types.push(resolve_typ_lazy(db, index_hir, diagnostics)?);
-      }
-      let instantiate_result = base_typ.instantiate(db, arg_types);
-      diagnostics.extend(instantiate_result.diagnostics(db).iter().cloned());
-      Some(LazyTyp::eager(instantiate_result.typ(db)))
-    }
-    // Lit types
-    HirValueKind::String(value) => Some(LazyTyp::eager(
-      get_lit_typ(db, LitValue::String(value)).into(),
-    )),
-    HirValueKind::Number(value) => Some(LazyTyp::eager(
-      get_lit_typ(db, LitValue::Number(value)).into(),
-    )),
-    HirValueKind::Bool(value) => Some(LazyTyp::eager(
-      get_lit_typ(db, LitValue::Bool(value)).into(),
-    )),
-    HirValueKind::Null => Some(LazyTyp::eager(get_null_typ(db).into())),
-    _ => {
-      let node = hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::FieldTypMismatch {
-        field: "type".to_string(),
-        expected: "type expression".to_string(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
-      None
+  // BinaryExpr: handles `|` (union)
+  if let Some(binary) = BinaryExpr::cast(node.clone()) {
+    let op = binary.op().and_then(|op| op.kind());
+    if let Some(YamlOpKind::Pipe) = op {
+      // Desugar A | B to Sum([A, B])
+      let left_expr = binary.left()?;
+      let right_expr = binary.right()?;
+      let left_node = ProjectRedNode::new(project, file, left_expr.syntax().clone());
+      let right_node = ProjectRedNode::new(project, file, right_expr.syntax().clone());
+      let left = resolve_typ_lazy(db, left_node, diagnostics)?;
+      let right = resolve_typ_lazy(db, right_node, diagnostics)?;
+      return Some(LazyTyp::eager(get_sum_typ(db, vec![left, right]).into()));
     }
   }
+
+  // PostfixExpr: T? -> Sum([T, null])
+  if let Some(postfix) = PostfixExpr::cast(node.clone()) {
+    let op_text = postfix
+      .op()
+      .map(|op| op.syntax().text())
+      .unwrap_or_default();
+    if op_text == "?" {
+      let operand_expr = postfix.expr()?;
+      let operand_node = ProjectRedNode::new(project, file, operand_expr.syntax().clone());
+      let inner = resolve_typ_lazy(db, operand_node, diagnostics)?;
+      let null_lazy = LazyTyp::eager(get_null_typ(db).into());
+      return Some(LazyTyp::eager(
+        get_sum_typ(db, vec![inner, null_lazy]).into(),
+      ));
+    }
+  }
+
+  // IdentLit: simple type reference like `type: string`
+  // Also covers YAML null/bool special values
+  if let Some(ident) = IdentLit::cast(node.clone()) {
+    match ident.value().as_deref() {
+      Some("null") => return Some(LazyTyp::eager(get_null_typ(db).into())),
+      Some("true") => return Some(LazyTyp::eager(get_lit_typ(db, LitValue::Bool(true)).into())),
+      Some("false") => {
+        return Some(LazyTyp::eager(
+          get_lit_typ(db, LitValue::Bool(false)).into(),
+        ));
+      }
+      _ => {}
+    }
+    let resolved = referee(db, project_node);
+    return match resolved.value(db) {
+      Some(symbol) => match symbol.kind(db) {
+        SymbolKind::UserDefinedSchema(_, _) => Some(LazyTyp::lazy(symbol)),
+        _ => {
+          let result = evaluate_typ(db, symbol);
+          diagnostics.extend(result.diagnostics(db).iter().cloned());
+          result.typ(db).map(LazyTyp::eager)
+        }
+      },
+      None => {
+        let (trimmed_offset, trimmed_len) = node.trimmed_range();
+        diagnostics.push(Diagnostic::UnresolvedSchema {
+          name: node.text(),
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
+        });
+        None
+      }
+    };
+  }
+
+  // StrLit: lit type like `type: "draft"`
+  if let Some(string_lit) = StrLit::cast(node.clone())
+    && !string_lit.is_interpolated()
+  {
+    let value: String = string_lit
+      .fragments()
+      .filter_map(|fragment| match fragment {
+        Either::Left(s) => Some(s),
+        _ => None,
+      })
+      .collect::<Vec<_>>()
+      .concat();
+    return Some(LazyTyp::eager(
+      get_lit_typ(db, LitValue::String(value)).into(),
+    ));
+  }
+
+  // NumberLit: lit type like `type: 42`
+  if let Some(number) = NumberLit::cast(node.clone()) {
+    let value = number.value().map(|v| v.to_string()).unwrap_or_default();
+    return Some(LazyTyp::eager(
+      get_lit_typ(db, LitValue::Number(value)).into(),
+    ));
+  }
+
+  // YamlSequence/ListLit: union type like `[string, number]`
+  if let Some(items) = project_node.sequence_items() {
+    let mut members = vec![];
+    for item in items {
+      if let Some(lazy) = resolve_typ_lazy(db, item, diagnostics) {
+        members.push(lazy);
+      }
+    }
+    return if members.is_empty() {
+      None
+    } else {
+      Some(LazyTyp::eager(
+        get_sum_typ(db, members.into_iter().collect()).into(),
+      ))
+    };
+  }
+
+  // Dicts: `type: { name: { type: string }, age: { type: number } }`
+  if let Some(entries) = project_node.mapping_entries() {
+    let mut fields = BTreeMap::new();
+    for (key, value_node) in entries {
+      if let Some(descriptor) = resolve_property_descriptor(db, value_node, diagnostics) {
+        fields.insert(key.clone(), descriptor.field_typ);
+      }
+    }
+    return Some(LazyTyp::eager(TdProductTyp::new(db, None, fields).into()));
+  }
+
+  // IndexExpr: generic type instantiation like `type: list[string]`
+  if let Some(index_expr) = IndexExpr::cast(node.clone()) {
+    let base_expr = index_expr.expr()?;
+    let base_node = ProjectRedNode::new(project, file, base_expr.syntax().clone());
+    let base = resolve_typ_lazy(db, base_node, diagnostics)?;
+    let base_typ = base.resolve(db)?;
+    if base_typ.arity(db) == 0 {
+      return Some(LazyTyp::eager(base_typ));
+    }
+    let mut arg_types = vec![];
+    for index_expr_item in index_expr.indices() {
+      let index_node = ProjectRedNode::new(project, file, index_expr_item.syntax().clone());
+      arg_types.push(resolve_typ_lazy(db, index_node, diagnostics)?);
+    }
+    let instantiate_result = base_typ.instantiate(db, arg_types);
+    diagnostics.extend(instantiate_result.diagnostics(db).iter().cloned());
+    return Some(LazyTyp::eager(instantiate_result.typ(db)));
+  }
+
+  // Parenthesized expression: `(a + b)`
+  if let Some(paren) = ParenExpr::cast(node.clone())
+    && let Some(inner_expr) = paren.expr()
+  {
+    let inner_node = ProjectRedNode::new(project, file, inner_expr.syntax().clone());
+    return resolve_typ_lazy(db, inner_node, diagnostics);
+  }
+
+  // PrefixExpr with Tag op: `!type expr`
+  if let Some(prefix) = PrefixExpr::cast(node.clone())
+    && let Some(op) = prefix.op()
+    && let Some(YamlOpKind::Tag(ref tag_name)) = op.kind()
+    && tag_name == "type"
+    && let Some(inner_expr) = prefix.expr()
+  {
+    let inner_node = ProjectRedNode::new(project, file, inner_expr.syntax().clone());
+    return resolve_typ_lazy(db, inner_node, diagnostics);
+  }
+
+  let (trimmed_offset, trimmed_len) = node.trimmed_range();
+  diagnostics.push(Diagnostic::FieldTypMismatch {
+    field: "type".to_string(),
+    expected: "type expression".to_string(),
+    start_offset: trimmed_offset,
+    end_offset: trimmed_offset + trimmed_len,
+  });
+  None
 }
 
 #[cfg(test)]
@@ -571,16 +616,17 @@ mod tests {
     QueryStorage, TypedownDatabase,
     derived::evaluate::evaluate_resource::evaluate_resource,
     derived::evaluate::evaluate_typ::evaluate_typ,
-    derived::evaluate::utils::construct_from_hir,
+    derived::evaluate::utils::construct_from_node,
     derived::get_builtin_typs::*,
     derived::name_resolver::file_symbol::file_symbol,
+    derived::name_resolver::scope::get_file_runtime_scope,
+    derived::parse_file::parse_file,
     derived::typechecker::actual_node_typ::actual_node_typ,
     fixtures::load_vault_fixture,
     types::{
-      BuiltinSchemaKind, File, FileHandle, FileMetadata, HirValue, HirValueKind, LazyTyp, LitValue,
-      Project, Symbol, SymbolKind, TdBoolObj, TdNumberObj, TdProductTyp, TdStringObj, TdTypTyp,
+      BuiltinSchemaKind, File, FileHandle, FileMetadata, LazyTyp, LitValue, Project, Symbol,
+      SymbolKind, TdBoolObj, TdNumberObj, TdProductTyp, TdStringObj, TdTypTyp,
     },
-    utils::lower_file,
   };
 
   fn make_db() -> TypedownDatabase {
@@ -1116,8 +1162,8 @@ mod tests {
     assert_eq!(product_typ.display_name(&db), "{ name: string }");
   }
 
-  // Helper to create an HirValue from a frontmatter string
-  fn make_hir<'a>(db: &'a TypedownDatabase, content: &str) -> HirValue<'a> {
+  // Helper to create a ProjectRedNode from frontmatter string
+  fn make_root_node(db: &TypedownDatabase, content: &str) -> ProjectRedNode {
     let file = File::new(
       db,
       FileHandle::Content(
@@ -1127,18 +1173,18 @@ mod tests {
       ),
     );
     let project = Project::new(db, PathBuf::new(), HashMap::new());
-    let (hir, _) = lower_file(db, project, file);
-    hir.unwrap()
+
+    parse_file(db, project, file).ast(db)
   }
 
-  // Helper to get a specific field's HirValue from a frontmatter mapping
-  fn get_field_hir<'a>(db: &'a TypedownDatabase, hir: HirValue<'a>, field: &str) -> HirValue<'a> {
-    match hir.kind(db) {
-      HirValueKind::Mapping(entries) => {
-        entries.into_iter().find(|(key, _)| key == field).unwrap().1
-      }
-      _ => panic!("expected mapping"),
-    }
+  // Helper to get a specific field's ProjectRedNode from a root mapping node
+  fn get_field_node(_db: &TypedownDatabase, root: &ProjectRedNode, field: &str) -> ProjectRedNode {
+    let entries = root.mapping_entries().expect("should have entries");
+    entries
+      .into_iter()
+      .find(|(key, _)| key == field)
+      .map(|(_, value)| value)
+      .unwrap_or_else(|| panic!("field '{field}' not found"))
   }
 
   #[test]
@@ -1198,9 +1244,9 @@ mod tests {
   #[test]
   fn construct_product() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let (hir, _) = lower_file(&db, project, file);
+    let root = parse_file(&db, project, file).ast(&db);
     let scope = get_file_runtime_scope(&db, project, file);
-    let obj = construct_from_hir(&db, hir.unwrap(), scope, &mut vec![]).unwrap();
+    let obj = construct_from_node(&db, root, scope, &mut vec![]).unwrap();
     let name_obj = obj.get_owned_field(&db, "name").unwrap();
     let name = name_obj.as_td_string_obj().unwrap();
     assert_eq!(name.value(&db), "Alice");
@@ -1237,19 +1283,19 @@ mod tests {
   #[test]
   fn construct_object_typ_fallback_to_dict() {
     let db = make_db();
-    let hir = make_hir(&db, "---\nname: \"Alice\"\nage: 42\n---");
-    let value_hir = get_field_hir(&db, hir, "name");
-    let scope = get_file_runtime_scope(&db, value_hir.project(&db), value_hir.node(&db).owner_file);
-    let obj = construct_from_hir(&db, value_hir, scope, &mut vec![]).unwrap();
+    let root = make_root_node(&db, "---\nname: \"Alice\"\nage: 42\n---");
+    let name_node = get_field_node(&db, &root, "name");
+    let scope = get_file_runtime_scope(&db, name_node.project, name_node.file);
+    let obj = construct_from_node(&db, name_node, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_string_obj().unwrap().value(&db), "Alice");
   }
 
   #[test]
   fn construct_typ_typ() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let (hir, _) = lower_file(&db, project, file);
+    let root = parse_file(&db, project, file).ast(&db);
     let scope = get_file_runtime_scope(&db, project, file);
-    let obj = construct_from_hir(&db, hir.unwrap(), scope, &mut vec![]).unwrap();
+    let obj = construct_from_node(&db, root, scope, &mut vec![]).unwrap();
     assert!(
       obj
         .as_td_typ_obj()
@@ -1263,32 +1309,28 @@ mod tests {
   #[test]
   fn construct_typ_typ_rejects_non_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let (hir, _) = lower_file(&db, project, file);
+    let root = parse_file(&db, project, file).ast(&db);
     let scope = get_file_runtime_scope(&db, project, file);
     assert!(
       TdTypTyp::get(&db)
         .construct(&db, make_project(&db), vec![])
         .is_none()
     );
-    let _ = construct_from_hir(&db, hir.unwrap(), scope, &mut vec![]);
+    let _ = construct_from_node(&db, root, scope, &mut vec![]);
   }
 
   #[test]
   fn evaluate_typ_fref_resolves_referenced_typ() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.unwrap();
-    let friend_hir = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => {
-        entries
-          .into_iter()
-          .find(|(key, _)| key == "friend")
-          .unwrap()
-          .1
-      }
-      _ => panic!("expected mapping"),
-    };
-    let typ_result = actual_node_typ(&db, friend_hir);
+    let root = parse_file(&db, project, file).ast(&db);
+    let root = root;
+    let entries = root.mapping_entries().unwrap();
+    let friend_node = entries
+      .into_iter()
+      .find(|(key, _)| key == "friend")
+      .map(|(_, v)| v)
+      .expect("should have friend field");
+    let typ_result = actual_node_typ(&db, friend_node);
     let typ = typ_result.typ(&db).expect("fref should return a type");
     assert_eq!(typ.display_name(&db), "Person");
   }
@@ -1416,45 +1458,45 @@ mod tests {
   #[test]
   fn evaluate_closure_call_simple_arithmetic() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 result: ((x) -> x + 1)(3)
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "result");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_number_obj().unwrap().value(&db), 4.0);
   }
 
   #[test]
   fn evaluate_closure_call_two_params() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 result: ((x, y) -> x + y)(10, 20)
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "result");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_number_obj().unwrap().value(&db), 30.0);
   }
 
   #[test]
   fn evaluate_closure_identity() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 result: ((x) -> x)("hello")
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "result");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_string_obj().unwrap().value(&db), "hello");
   }
 
@@ -1468,15 +1510,15 @@ result: ((x) -> x)("hello")
       .stack_size(4 * 1024 * 1024)
       .spawn(|| {
         let db = make_db();
-        let hir = make_hir(
+        let root = make_root_node(
           &db,
           r#"---
 result: ((x) -> (y) -> x + y)(10)(20)
 ---"#,
         );
-        let field = get_field_hir(&db, hir, "result");
-        let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-        let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+        let field = get_field_node(&db, &root, "result");
+        let scope = get_file_runtime_scope(&db, field.project, field.file);
+        let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
         assert_eq!(obj.as_td_number_obj().unwrap().value(&db), 30.0);
       })
       .unwrap()
@@ -1487,15 +1529,15 @@ result: ((x) -> (y) -> x + y)(10)(20)
   #[test]
   fn evaluate_closure_as_value() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 f: (x) -> x + 1
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "f");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "f");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert!(obj.as_td_func_obj().is_some());
   }
 
@@ -1503,15 +1545,15 @@ f: (x) -> x + 1
   #[test]
   fn evaluate_closure_boolean_logic() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 result: ((x, y) -> x && y)(true, false)
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "result");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert!(!obj.as_td_bool_obj().unwrap().value(&db));
   }
 
@@ -1519,15 +1561,15 @@ result: ((x, y) -> x && y)(true, false)
   #[test]
   fn evaluate_closure_higher_order() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 result: ((f, x) -> f(x))((x) -> x + 10, 5)
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "result");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert_eq!(obj.as_td_number_obj().unwrap().value(&db), 15.0);
   }
 
@@ -1535,15 +1577,15 @@ result: ((f, x) -> f(x))((x) -> x + 10, 5)
   #[test]
   fn evaluate_closure_comparison() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 result: ((x) -> x > 5)(10)
 ---"#,
     );
-    let field = get_field_hir(&db, hir, "result");
-    let scope = get_file_runtime_scope(&db, field.project(&db), field.node(&db).owner_file);
-    let obj = construct_from_hir(&db, field, scope, &mut vec![]).unwrap();
+    let field = get_field_node(&db, &root, "result");
+    let scope = get_file_runtime_scope(&db, field.project, field.file);
+    let obj = construct_from_node(&db, field, scope, &mut vec![]).unwrap();
     assert!(obj.as_td_bool_obj().unwrap().value(&db));
   }
 
@@ -1581,7 +1623,7 @@ result: ((x) -> x > 5)(10)
   #[test]
   fn evaluate_schema_with_valid_default_no_diagnostics() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 _type: schema
@@ -1592,18 +1634,12 @@ properties:
 ---"#,
     );
     let mut diagnostics = vec![];
-    let entries = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
-    let props_entries = match props_hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+    let entries = root.mapping_entries().expect("should have entries");
+    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = props_node.mapping_entries().expect("should have entries");
+    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
 
-    let lazy = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
     assert!(
       diagnostics.is_empty(),
@@ -1615,7 +1651,7 @@ properties:
   #[test]
   fn evaluate_schema_with_invalid_default_emits_diagnostic() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 _type: schema
@@ -1626,18 +1662,12 @@ properties:
 ---"#,
     );
     let mut diagnostics = vec![];
-    let entries = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
-    let props_entries = match props_hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+    let entries = root.mapping_entries().expect("should have entries");
+    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = props_node.mapping_entries().expect("should have entries");
+    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
 
-    let lazy = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
     assert_eq!(
       diagnostics,
@@ -1668,7 +1698,7 @@ properties:
   #[test]
   fn evaluate_schema_with_invalid_computed_ret_typ_emits_diagnostic() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 _type: schema
@@ -1679,18 +1709,12 @@ properties:
 ---"#,
     );
     let mut diagnostics = vec![];
-    let entries = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
-    let props_entries = match props_hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let entries = root.mapping_entries().expect("should have entries");
+    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = props_node.mapping_entries().expect("should have entries");
+    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
 
-    let descriptor = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
     assert_eq!(
       diagnostics,
@@ -1706,7 +1730,7 @@ properties:
   #[test]
   fn evaluate_schema_with_invalid_computed_param_count_emits_diagnostic() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 _type: schema
@@ -1717,18 +1741,12 @@ properties:
 ---"#,
     );
     let mut diagnostics = vec![];
-    let entries = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
-    let props_entries = match props_hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let entries = root.mapping_entries().expect("should have entries");
+    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = props_node.mapping_entries().expect("should have entries");
+    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
 
-    let descriptor = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
     assert_eq!(
       diagnostics,
@@ -1744,7 +1762,7 @@ properties:
   #[test]
   fn evaluate_schema_with_default_and_computed_emits_diagnostic() {
     let db = make_db();
-    let hir = make_hir(
+    let root = make_root_node(
       &db,
       r#"---
 _type: schema
@@ -1756,18 +1774,12 @@ properties:
 ---"#,
     );
     let mut diagnostics = vec![];
-    let entries = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, props_hir) = entries.iter().find(|(k, _)| k == "properties").unwrap();
-    let props_entries = match props_hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries,
-      _ => panic!("expected mapping"),
-    };
-    let (_, prop_hir) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let entries = root.mapping_entries().expect("should have entries");
+    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let props_entries = props_node.mapping_entries().expect("should have entries");
+    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
 
-    let descriptor = resolve_property_descriptor(&db, *prop_hir, &mut diagnostics);
+    let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_none());
     assert_eq!(
       diagnostics,
