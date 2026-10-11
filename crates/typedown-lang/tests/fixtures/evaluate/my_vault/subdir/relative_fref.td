@@ -1,6 +1,5 @@
 ---
 _type: Article
 title: "Relative fref test"
+ref: fref("./peer.td")
 ---
-
-Image: ${fref("./_assets/test.svg")}
