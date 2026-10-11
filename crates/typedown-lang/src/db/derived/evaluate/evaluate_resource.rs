@@ -6,19 +6,17 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
+use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{
   ResourceResult, Symbol, SymbolKind, TdBlobObj, TdObjEnum, TdProductObj, TdProductTyp, TdSchemaObj,
 };
-use crate::db::utils::{is_schemaless_file, lower_file};
+use crate::db::utils::is_schemaless_file;
 use typedown_incremental::QueryDatabase;
 
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 
 #[query_derived(no_hash)]
-pub fn evaluate_resource<'db>(
-  db: &'db TypedownDatabase,
-  symbol: Symbol<'db>,
-) -> ResourceResult<'db> {
+pub fn evaluate_resource<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> ResourceResult<'db> {
   if let SymbolKind::Asset(asset_kind, _project, file) = symbol.kind(db) {
     let blob = TdBlobObj::new(db, asset_kind, file);
     return ResourceResult::new(db, Some(blob.into()), vec![]);
@@ -29,14 +27,12 @@ pub fn evaluate_resource<'db>(
     _ => return ResourceResult::new(db, None, vec![]),
   };
 
-  let (hir, mut diagnostics) = lower_file(db, project, file);
-  let hir = match hir {
-    Some(hir) => hir,
-    None => return ResourceResult::new(db, None, diagnostics),
-  };
+  let parse_result = parse_file(db, project, file);
+  let root_node = parse_result.ast(db);
+  let mut diagnostics = parse_result.diagnostics(db).to_vec();
 
   let file_scope = get_file_runtime_scope(db, project, file);
-  let node_result = evaluate_node(db, hir, file_scope);
+  let node_result = evaluate_node(db, root_node, file_scope);
   diagnostics.extend(node_result.diagnostics(db).iter().cloned());
 
   let is_schemaless = is_schemaless_file(db, project, file);
@@ -67,6 +63,8 @@ pub fn evaluate_resource<'db>(
         .into(),
       )
     }
+    // Explicit null frontmatter produces no object
+    Some(TdObjEnum::TdNullObj(_)) => None,
     // Schemaless files with no type produce a DictObj, convert to ProductObj
     Some(TdObjEnum::TdDictObj(dict)) if is_schemaless => {
       let mut builtins = BTreeMap::new();
@@ -97,6 +95,7 @@ pub fn evaluate_resource<'db>(
 
 #[cfg(test)]
 mod tests {
+  #[cfg(feature = "export")]
   use crate::integrations::export::export_resource_markdown;
   use std::path::PathBuf;
 
@@ -111,10 +110,9 @@ mod tests {
     derived::evaluate::evaluate_resource::evaluate_resource,
     derived::name_resolver::file_symbol::file_symbol,
     derived::name_resolver::scope::get_file_runtime_scope,
+    derived::parse_file::parse_file,
     derived::typechecker::typecheck::typecheck,
     fixtures::{load_vault_fixture, make_blob_obj},
-    types::HirValueKind,
-    utils::lower_file,
   };
 
   // A valid resource with _type produces an object with the declared fields
@@ -413,7 +411,8 @@ mod tests {
     assert!(get_bool_field(&db, &obj, "or_true"));
   }
 
-  // Unary + is identity; ~ is logical not (falsy: null/false; truthy: everything else)
+  // Unary + is identity
+  // ~ is logical not (falsy: null/false; truthy: everything else)
   #[test]
   fn unary_extras_evaluate_correctly() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "unary_extras.td");
@@ -449,17 +448,17 @@ mod tests {
   #[test]
   fn index_out_of_bounds_emits_diagnostic() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "index_oob.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.unwrap();
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let root_node = root_node;
 
-    // Extract field HIRs from the top-level mapping
-    let HirValueKind::Mapping(entries) = hir.kind(&db) else {
-      panic!("expected mapping at top level");
-    };
-    let field_hirs: std::collections::BTreeMap<_, _> = entries.into_iter().collect();
+    // Extract field nodes from the top-level mapping
+    let entries = root_node
+      .mapping_entries()
+      .expect("expected mapping at top level");
+    let field_nodes: std::collections::BTreeMap<_, _> = entries.into_iter().collect();
 
     let file_scope = get_file_runtime_scope(&db, project, file);
-    let list_result = evaluate_node(&db, field_hirs["list_oob"], file_scope);
+    let list_result = evaluate_node(&db, field_nodes["list_oob"].clone(), file_scope);
     assert!(
       list_result.value(&db).is_none(),
       "list OOB should be undefined"
@@ -480,7 +479,7 @@ mod tests {
       list_result.diagnostics(&db)
     );
 
-    let string_result = evaluate_node(&db, field_hirs["str_oob"], file_scope);
+    let string_result = evaluate_node(&db, field_nodes["str_oob"].clone(), file_scope);
     assert!(
       string_result.value(&db).is_none(),
       "string OOB should be undefined"
@@ -738,8 +737,8 @@ mod tests {
   #[test]
   fn optional_field_wrong_type_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "wrong_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "number in string? field should produce diagnostics"
@@ -750,8 +749,8 @@ mod tests {
   #[test]
   fn nullable_type_ref_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "nullable_type_ref.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diagnostics = result.diagnostics(&db);
     assert!(
       diagnostics
@@ -766,8 +765,8 @@ mod tests {
   #[test]
   fn missing_required_field_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "missing_required.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diagnostics = result.diagnostics(&db);
     assert!(
       diagnostics
@@ -782,8 +781,8 @@ mod tests {
   #[test]
   fn missing_nullable_field_no_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "without_optional.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diagnostics = result.diagnostics(&db);
     assert!(
       !diagnostics.iter().any(
@@ -813,8 +812,8 @@ mod tests {
   #[test]
   fn missing_field_with_default_no_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "default_resource.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diagnostics = result.diagnostics(&db);
     assert!(
       diagnostics.is_empty(),

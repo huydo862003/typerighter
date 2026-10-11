@@ -7,7 +7,7 @@
   "packageManager": "pnpm@12.3.4",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "cargo build && pnpm -r run build",
+    "build": "cargo build --release && pnpm -r run build",
     "build:local": "cargo build && pnpm -r --if-present run build:local",
     "build:staging": "pnpm -r --if-present run build:staging",
     "dev": "pnpm -r --if-present run dev"

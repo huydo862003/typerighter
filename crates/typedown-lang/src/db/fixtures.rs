@@ -62,7 +62,7 @@ pub fn make_blob_obj<'db>(
 #[query_derived]
 pub fn make_list_obj<'db>(
   db: &'db TypedownDatabase,
-  items: Vec<Either<HirValue<'db>, TdObjEnum<'db>>>,
+  items: Vec<Either<ProjectRedNode, TdObjEnum<'db>>>,
 ) -> TdListObj<'db> {
   TdListObj::new(db, items)
 }
@@ -70,7 +70,7 @@ pub fn make_list_obj<'db>(
 #[query_derived]
 pub fn make_dict_obj<'db>(
   db: &'db TypedownDatabase,
-  entries: Vec<(String, Either<HirValue<'db>, TdObjEnum<'db>>)>,
+  entries: Vec<(String, Either<ProjectRedNode, TdObjEnum<'db>>)>,
 ) -> TdDictObj<'db> {
   TdDictObj::new(db, entries.into_iter().collect())
 }
@@ -79,8 +79,8 @@ pub fn make_dict_obj<'db>(
 pub fn make_product_obj<'db>(
   db: &'db TypedownDatabase,
   product_typ: TdTypEnum<'db>,
-  file_symbol: Option<Symbol<'db>>,
-  fields: Vec<(String, Either<HirValue<'db>, TdObjEnum<'db>>)>,
+  file_symbol: Option<Symbol>,
+  fields: Vec<(String, Either<ProjectRedNode, TdObjEnum<'db>>)>,
 ) -> TdProductObj<'db> {
   TdProductObj::new(
     db,

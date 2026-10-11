@@ -3,10 +3,11 @@ use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
 
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::{File, FileRedNode, HirValueKind, Project};
+use typedown_lang::db::types::Project;
+use typedown_lang::syntax::ast::StrLit;
+use typedown_lang::syntax::ast::{AstNode, CallExpr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -25,34 +26,32 @@ pub fn resolve_inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Opti
   let root = parse_file(db, project, file).ast(db).node.clone();
 
   let mut hints = Vec::new();
-  collect_fref_hints(db, project, file, &root, &rope, &mut hints);
+  collect_fref_hints(db, project, &root, &rope, &mut hints);
   Some(hints)
 }
 
 fn collect_fref_hints(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
   node: &RedNode,
   rope: &ropey::Rope,
   hints: &mut Vec<InlayHint>,
 ) {
   if node.kind() == SyntaxKind::CallExpr
-    && let Some(hint) = build_fref_hint(db, project, file, node, rope)
+    && let Some(hint) = build_fref_hint(db, project, node, rope)
   {
     hints.push(hint);
     return;
   }
 
   for child in node.children() {
-    collect_fref_hints(db, project, file, &child, rope, hints);
+    collect_fref_hints(db, project, &child, rope, hints);
   }
 }
 
 fn build_fref_hint(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
   call_node: &RedNode,
   rope: &ropey::Rope,
 ) -> Option<InlayHint> {
@@ -61,14 +60,12 @@ fn build_fref_hint(
     return None;
   }
 
-  let hir = lower_node(db, project, FileRedNode::new(file, call_node.clone()));
-  let HirValueKind::Call { args, .. } = hir.kind(db) else {
-    return None;
-  };
-  let arg = args.first()?;
-  let HirValueKind::String(path_str) = arg.kind(db) else {
-    return None;
-  };
+  let call = CallExpr::cast(call_node.clone())?;
+  let path_str = call
+    .args()
+    .into_iter()
+    .next()
+    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|s| s.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);

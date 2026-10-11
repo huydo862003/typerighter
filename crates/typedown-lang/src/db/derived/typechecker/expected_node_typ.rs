@@ -1,5 +1,5 @@
-//! Tracked query for the expected (top-down) type of a HIR value
-// I think this is the idea of bidirectional typechecking
+//! Tracked query for the expected (top-down) type of an AST node.
+// This is the idea of bidirectional typechecking.
 
 use crate::db::TypedownDatabase;
 use std::collections::{BTreeMap, HashSet};
@@ -8,15 +8,14 @@ use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_builtin_typs::{
   get_bool_typ, get_func_typ, get_number_typ, get_sum_typ,
 };
-use crate::db::derived::hir::lower_node;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::types::TdSchemaTyp;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::typecheck::is_subtype_of;
 use crate::db::types::{
-  File, FileRedNode, FuncSignature, HirValue, LazyTyp, Project, StaticAccessPath, Symbol,
-  TdProductTyp, TdTypEnum, TypResult,
+  File, FuncSignature, LazyTyp, Project, ProjectRedNode, StaticAccessPath, Symbol, TdProductTyp,
+  TdTypEnum, TypResult,
 };
 use crate::db::utils::is_schemaless_file;
 use crate::syntax::ast::{
@@ -31,20 +30,23 @@ use crate::db::types::PathStep;
 
 /// Result of walking up from a node to the nearest _typ anchor
 struct AnchorResult<'db> {
-  symbol: Symbol<'db>,
+  symbol: Symbol,
   typ: TdTypEnum<'db>,
   path: Vec<(PathStep, RedNode)>,
 }
 
 #[query_derived(no_hash)]
-pub fn expected_node_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypResult<'db> {
-  let project = hir.project(db);
-  let file = hir.node(db).owner_file;
-  let node = hir.node(db).node.clone();
+pub fn expected_node_typ<'db>(
+  db: &'db TypedownDatabase,
+  project_node: ProjectRedNode,
+) -> TypResult<'db> {
+  let project = project_node.project;
+  let file = project_node.file;
+  let node = project_node.node.clone();
 
   // Expression nodes propagate expected types through expression structure
   if !is_top_level(&node) {
-    return get_expected_expr_typ(db, hir);
+    return get_expected_expr_typ(db, project_node);
   }
 
   let anchor = match collect_path_to_anchor(db, project, file, &node) {
@@ -62,10 +64,10 @@ pub fn expected_node_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> 
   let mut current_typ = LazyTyp::eager(anchor.typ);
 
   for (step, step_node) in &anchor.path {
-    let step_hir = lower_node(db, project, FileRedNode::new(file, step_node.clone()));
+    let step_project_node = ProjectRedNode::new(project, file, step_node.clone());
 
     // Resolve Sum ambiguity using actual_node_typ
-    let resolved_typ = resolve_lazy_typ(db, &current_typ, step_hir);
+    let resolved_typ = resolve_lazy_typ(db, &current_typ, step_project_node);
 
     current_typ = match step {
       PathStep::Field(name) => match traverse_field(db, &resolved_typ, name) {
@@ -83,10 +85,13 @@ pub fn expected_node_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> 
 }
 
 // Propagate expected type through expression structure
-fn get_expected_expr_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypResult<'db> {
-  let node = hir.node(db).node.clone();
-  let project = hir.project(db);
-  let file = hir.node(db).owner_file;
+fn get_expected_expr_typ<'db>(
+  db: &'db TypedownDatabase,
+  project_node: ProjectRedNode,
+) -> TypResult<'db> {
+  let node = project_node.node.clone();
+  let project = project_node.project;
+  let file = project_node.file;
 
   let parent = match node.parent() {
     Some(parent) => parent,
@@ -121,8 +126,8 @@ fn get_expected_expr_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> 
 
   // ParenExpr: transparent, forward expected type from parent
   if ParenExpr::cast(parent.clone()).is_some() {
-    let paren_hir = lower_node(db, project, FileRedNode::new(file, parent));
-    return expected_node_typ(db, paren_hir);
+    let paren_node = ProjectRedNode::new(project, file, parent);
+    return expected_node_typ(db, paren_node);
   }
 
   // BinaryExpr: propagate expected types to operands based on operator
@@ -140,7 +145,7 @@ fn get_expected_expr_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> 
   }
 
   // No expression propagation rule matched, fall back to actual type
-  actual_node_typ(db, hir)
+  actual_node_typ(db, project_node)
 }
 
 // expected(arg_i) = param_i from actual(callee)
@@ -156,12 +161,8 @@ fn get_expected_call_arg_typ<'db>(
     Some(callee) => callee,
     None => return TypResult::new(db, None, vec![]),
   };
-  let callee_hir = lower_node(
-    db,
-    project,
-    FileRedNode::new(file, callee_node.syntax().clone()),
-  );
-  let callee_typ = actual_node_typ(db, callee_hir).typ(db);
+  let callee_project_node = ProjectRedNode::new(project, file, callee_node.syntax().clone());
+  let callee_typ = actual_node_typ(db, callee_project_node).typ(db);
 
   if let Some(TdTypEnum::TdFuncTyp(func)) = callee_typ {
     let params = func.signature(db).params(db);
@@ -180,16 +181,16 @@ fn get_expected_call_callee_typ<'db>(
   file: File,
   call: &CallExpr,
 ) -> TypResult<'db> {
-  let call_hir = lower_node(db, project, FileRedNode::new(file, call.syntax().clone()));
-  let ret = match expected_node_typ(db, call_hir).typ(db) {
+  let call_node = ProjectRedNode::new(project, file, call.syntax().clone());
+  let ret = match expected_node_typ(db, call_node).typ(db) {
     Some(typ) => typ,
     None => return TypResult::new(db, None, vec![]),
   };
 
   let mut param_typs = vec![];
   for arg in call.args() {
-    let arg_hir = lower_node(db, project, FileRedNode::new(file, arg.syntax().clone()));
-    match actual_node_typ(db, arg_hir).typ(db) {
+    let arg_node = ProjectRedNode::new(project, file, arg.syntax().clone());
+    match actual_node_typ(db, arg_node).typ(db) {
       Some(typ) => param_typs.push(typ),
       None => return TypResult::new(db, None, vec![]),
     }
@@ -207,12 +208,8 @@ fn get_expected_closure_body_typ<'db>(
   file: File,
   closure: &ClosureExpr,
 ) -> TypResult<'db> {
-  let closure_hir = lower_node(
-    db,
-    project,
-    FileRedNode::new(file, closure.syntax().clone()),
-  );
-  let expected = expected_node_typ(db, closure_hir).typ(db);
+  let closure_node = ProjectRedNode::new(project, file, closure.syntax().clone());
+  let expected = expected_node_typ(db, closure_node).typ(db);
   match expected {
     Some(TdTypEnum::TdFuncTyp(func)) => {
       let ret = func.signature(db).ret(db);
@@ -279,12 +276,12 @@ fn is_top_level(node: &RedNode) -> bool {
 }
 
 /// Get the static access path from the nearest _typ anchor to the target node
-pub fn static_access_path<'db>(
-  db: &'db TypedownDatabase,
+pub fn static_access_path(
+  db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
-) -> Option<StaticAccessPath<'db>> {
+) -> Option<StaticAccessPath> {
   let anchor = collect_path_to_anchor(db, project, file, node)?;
   let steps = anchor.path.into_iter().map(|(step, _)| step).collect();
   Some(StaticAccessPath {
@@ -414,7 +411,7 @@ fn resolve_typ_anchor<'db>(
   project: Project,
   file: File,
   mapping: &RedNode,
-) -> Option<(Symbol<'db>, TdTypEnum<'db>)> {
+) -> Option<(Symbol, TdTypEnum<'db>)> {
   for entry in mapping.children() {
     let entry_kind = entry.kind();
     if entry_kind != SyntaxKind::YamlMappingEntry && entry_kind != SyntaxKind::DictEntry {
@@ -437,12 +434,8 @@ fn resolve_typ_anchor<'db>(
     }
     let entry_value = entry.children().find(|child| child.kind() == value_kind)?;
     let value_expr = entry_value.children().find_map(Expr::cast)?;
-    let value_hir = lower_node(
-      db,
-      project,
-      FileRedNode::new(file, value_expr.syntax().clone()),
-    );
-    let symbol = referee(db, value_hir).value(db)?;
+    let value_node = ProjectRedNode::new(project, file, value_expr.syntax().clone());
+    let symbol = referee(db, value_node).value(db)?;
     let typ = evaluate_typ(db, symbol).typ(db)?;
     return Some((symbol, typ));
   }
@@ -453,7 +446,7 @@ fn resolve_typ_anchor<'db>(
 fn resolve_lazy_typ<'db>(
   db: &'db TypedownDatabase,
   lazy: &LazyTyp<'db>,
-  hir: HirValue<'db>,
+  project_node: ProjectRedNode,
 ) -> LazyTyp<'db> {
   let Some(typ) = lazy.resolve(db) else {
     return lazy.clone();
@@ -470,7 +463,7 @@ fn resolve_lazy_typ<'db>(
     if non_null.len() == 1 {
       return non_null.into_iter().next().unwrap();
     }
-    if let Some(picked) = pick_most_specific_arm(db, &members, hir) {
+    if let Some(picked) = pick_most_specific_arm(db, &members, project_node) {
       return picked;
     }
   }
@@ -481,9 +474,9 @@ fn resolve_lazy_typ<'db>(
 fn pick_most_specific_arm<'db>(
   db: &'db TypedownDatabase,
   arms: &HashSet<LazyTyp<'db>>,
-  hir: HirValue<'db>,
+  project_node: ProjectRedNode,
 ) -> Option<LazyTyp<'db>> {
-  let actual_typ = actual_node_typ(db, hir).typ(db)?;
+  let actual_typ = actual_node_typ(db, project_node).typ(db)?;
 
   let matching: Vec<_> = arms
     .iter()
@@ -548,37 +541,33 @@ mod tests {
   use crate::db::types::derived::obj_system::TdStaticTyp;
 
   use crate::db::{
+    derived::parse_file::parse_file,
     derived::typechecker::expected_node_typ::expected_node_typ,
     fixtures::load_vault_fixture,
-    types::{File, HirValue, HirValueKind, Project},
-    utils::lower_file,
+    types::{File, Project},
   };
 
-  fn get_field_hir<'a>(
-    db: &'a TypedownDatabase,
+  fn get_field_node(
+    db: &TypedownDatabase,
     project: Project,
     file: File,
     field: &str,
-  ) -> Option<HirValue<'a>> {
-    let (hir, _) = lower_file(db, project, file);
-    let hir = hir?;
-    if let HirValueKind::Mapping(entries) = hir.kind(db) {
-      entries
-        .into_iter()
-        .find(|(key, _)| key == field)
-        .map(|(_, value)| value)
-    } else {
-      None
-    }
+  ) -> Option<crate::db::types::ProjectRedNode> {
+    let root = parse_file(db, project, file).ast(db);
+    root
+      .mapping_entries()?
+      .into_iter()
+      .find(|(key, _)| key == field)
+      .map(|(_, value)| value)
   }
 
   #[test]
   fn expected_node_typ_known_field_returns_member() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let name_hir = get_field_hir(&db, project, file, "name")
+    let name_node = get_field_node(&db, project, file, "name")
       .expect("valid_person.td should have a 'name' field");
 
-    let result = expected_node_typ(&db, name_hir);
+    let result = expected_node_typ(&db, name_node);
 
     assert!(
       result.diagnostics(&db).is_empty(),
@@ -599,10 +588,9 @@ mod tests {
   #[test]
   fn expected_node_typ_untyped_mapping_returns_none() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("literal_value.td should have parseable frontmatter");
+    let root = parse_file(&db, project, file).ast(&db);
 
-    let result = expected_node_typ(&db, hir);
+    let result = expected_node_typ(&db, root);
 
     assert!(
       result.typ(&db).is_none(),
@@ -613,10 +601,9 @@ mod tests {
   #[test]
   fn expected_node_typ_no_frontmatter_returns_product() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "no_frontmatter.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("no_frontmatter.td should produce HIR");
+    let root = parse_file(&db, project, file).ast(&db);
 
-    let result = expected_node_typ(&db, hir);
+    let result = expected_node_typ(&db, root);
     let typ = result
       .typ(&db)
       .expect("schemaless file should return a type");
@@ -626,24 +613,21 @@ mod tests {
     );
   }
 
-  /// Get the HIR for a nested field value: top[field1][field2]
-  fn get_nested_field_hir<'a>(
-    db: &'a TypedownDatabase,
+  /// Get the node for a nested field value: top[field1][field2]
+  fn get_nested_field_node(
+    db: &TypedownDatabase,
     project: Project,
     file: File,
     fields: &[&str],
-  ) -> Option<HirValue<'a>> {
-    let (hir, _) = lower_file(db, project, file);
-    let mut current = hir?;
+  ) -> Option<crate::db::types::ProjectRedNode> {
+    let root = parse_file(db, project, file).ast(db);
+    let mut current = root;
     for field in fields {
-      if let HirValueKind::Mapping(entries) = current.kind(db) {
-        current = entries
-          .into_iter()
-          .find(|(key, _)| key == field)
-          .map(|(_, value)| value)?;
-      } else {
-        return None;
-      }
+      let entries = current.mapping_entries()?;
+      current = entries
+        .into_iter()
+        .find(|(key, _)| key == field)
+        .map(|(_, value)| value)?;
     }
     Some(current)
   }
@@ -652,9 +636,9 @@ mod tests {
   #[test]
   fn expected_node_typ_nested_schema_property_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithUnion.td");
-    let type_hir = get_nested_field_hir(&db, project, file, &["properties", "status", "type"]);
-    let type_hir = type_hir.expect("should find nested type field");
-    let result = expected_node_typ(&db, type_hir);
+    let type_node = get_nested_field_node(&db, project, file, &["properties", "status", "type"]);
+    let type_node = type_node.expect("should find nested type field");
+    let result = expected_node_typ(&db, type_node);
 
     assert!(
       result.typ(&db).is_some(),
@@ -666,8 +650,9 @@ mod tests {
   #[test]
   fn expected_node_typ_union_field_value() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_status.td");
-    let state_hir = get_field_hir(&db, project, file, "state").expect("should have 'state' field");
-    let result = expected_node_typ(&db, state_hir);
+    let state_node =
+      get_field_node(&db, project, file, "state").expect("should have 'state' field");
+    let result = expected_node_typ(&db, state_node);
 
     let typ = result.typ(&db).expect("state should have expected type");
     assert!(
@@ -680,18 +665,16 @@ mod tests {
   #[test]
   fn expected_node_typ_sequence_item() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
+    let root = parse_file(&db, project, file).ast(&db);
 
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      for (_key, value) in entries {
-        if let HirValueKind::Sequence(items) = value.kind(&db)
-          && let Some(first_item) = items.first()
-        {
-          let result = expected_node_typ(&db, *first_item);
-          let _ = result.typ(&db);
-          return;
-        }
+    let entries = root.mapping_entries().unwrap_or_default();
+    for (_key, value_node) in entries {
+      if let Some(items) = value_node.sequence_items()
+        && let Some(first_item) = items.into_iter().next()
+      {
+        let result = expected_node_typ(&db, first_item);
+        let _ = result.typ(&db);
+        return;
       }
     }
   }

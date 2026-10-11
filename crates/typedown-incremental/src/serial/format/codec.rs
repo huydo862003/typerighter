@@ -54,6 +54,14 @@ impl<'a> Encoder<'a> {
     self.intern_blobs
   }
 
+  pub fn get_intern_blob_index_fast<T: 'static>(&self, hint: u32) -> Option<u32> {
+    let key = (std::any::TypeId::of::<T>(), hint as usize);
+    self.intern_hints.get(&key).copied()
+  }
+
+  // Insert blob to intern table if blob does not already exist
+  // Hint can be used to speed up looking up
+  // Note that equal blobs should ensure equal hints, else, you risk duplicating the blobs
   pub fn intern_blob<T: 'static>(&mut self, blob: Vec<u8>, hint: Option<u32>) -> u32 {
     let hint = hint.map(|id| (std::any::TypeId::of::<T>(), id as usize));
     if let Some(key) = hint
@@ -298,12 +306,12 @@ impl Decoder {
 
 // Encodable / Decodable traits
 pub trait Encodable {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder);
 
   // Encode as a field inside another struct
   // Id types override to write just a dep index reference
-  fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.encode(buf, encoder);
+  fn field_encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.encode(buffer, encoder);
   }
 }
 

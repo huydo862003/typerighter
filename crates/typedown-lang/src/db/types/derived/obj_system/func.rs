@@ -6,8 +6,10 @@ use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::get_func_typ;
-use crate::db::types::{FuncSignature, HirValueKind, Project, RuntimeScope};
+use crate::db::types::{FuncSignature, Project, ProjectRedNode, RuntimeScope};
+use crate::syntax::ast::{AstNode, ClosureExpr, IdentLit};
 use crate::syntax::diagnostic::Diagnostic;
+use typedown_types::either::Either;
 
 #[query_derived]
 pub struct TdFuncTyp<'db> {
@@ -105,10 +107,19 @@ impl<'db> TdRuntimeObj<'db> for TdFuncObj<'db> {
   ) -> Result<TdObjEnum<'db>, Vec<Diagnostic>> {
     match self.func(db) {
       FuncKind::Native(kind) => (kind.resolve())(db, project, this, args),
-      FuncKind::UserDefined(closure_hir, defining_scope) => {
-        let HirValueKind::Closure { params, body } = closure_hir.kind(db) else {
+      FuncKind::UserDefined(closure_project_node, defining_scope) => {
+        let Some(closure) = ClosureExpr::cast(closure_project_node.node.clone()) else {
           return Err(vec![]);
         };
+        let param_idents: Vec<IdentLit> = match closure.params() {
+          Some(Either::Left(param_list)) => param_list.params().collect(),
+          Some(Either::Right(ident)) => vec![ident],
+          None => vec![],
+        };
+        let params: Vec<String> = param_idents
+          .into_iter()
+          .filter_map(|id| id.value())
+          .collect();
         let bindings: Vec<(String, TdObjEnum)> = params.into_iter().zip(args).collect();
         // Chain the defining scope as parent so nested closures can resolve outer params
         let runtime_scope = RuntimeScope::new(
@@ -117,11 +128,19 @@ impl<'db> TdRuntimeObj<'db> for TdFuncObj<'db> {
           bindings,
           Some(Box::new(defining_scope)),
         );
-        let res = evaluate_node(db, *body, runtime_scope);
-        if let Some(val) = res.value(db) {
-          Ok(val)
+        let Some(body_expr) = closure.body() else {
+          return Err(vec![]);
+        };
+        let body_project_node = ProjectRedNode::new(
+          closure_project_node.project,
+          closure_project_node.file,
+          body_expr.syntax().clone(),
+        );
+        let result = evaluate_node(db, body_project_node, runtime_scope);
+        if let Some(value) = result.value(db) {
+          Ok(value)
         } else {
-          Err(res.diagnostics(db).clone())
+          Err(result.diagnostics(db).clone())
         }
       }
     }

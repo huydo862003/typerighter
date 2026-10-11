@@ -12,7 +12,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::get_obj_typ;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{HirValue, LazyTyp, Symbol};
+use crate::db::types::{LazyTyp, ProjectRedNode, Symbol};
 use crate::db::utils::static_type::format_field_map;
 use typedown_types::either::Either;
 
@@ -119,9 +119,9 @@ impl<'db> TdStaticTyp<'db> for TdProductTyp<'db> {
 #[query_derived(custom_hash)]
 pub struct TdProductObj<'db> {
   pub product_typ: TdTypEnum<'db>,
-  pub file_symbol: Option<Symbol<'db>>,
-  pub builtins: BTreeMap<String, Either<HirValue<'db>, TdObjEnum<'db>>>,
-  pub fields: BTreeMap<String, Either<HirValue<'db>, TdObjEnum<'db>>>,
+  pub file_symbol: Option<Symbol>,
+  pub builtins: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
+  pub fields: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
 }
 
 // If file_symbol is present, hash only (product_type, file_symbol) for O(1)
@@ -156,9 +156,9 @@ impl<'db> TdRuntimeObj<'db> for TdProductObj<'db> {
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
     match self.fields(db).get(key).cloned() {
-      Some(Either::Left(hir)) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Some(Either::Left(project_node)) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),
       None => Some(TdNullObj::get(db).into()),
@@ -166,9 +166,9 @@ impl<'db> TdRuntimeObj<'db> for TdProductObj<'db> {
   }
   fn get_builtin_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
     match self.builtins(db).get(key).cloned() {
-      Some(Either::Left(hir)) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Some(Either::Left(project_node)) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Some(Either::Right(obj)) => Some(obj),
       None => None,

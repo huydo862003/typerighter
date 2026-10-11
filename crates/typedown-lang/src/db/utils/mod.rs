@@ -2,17 +2,15 @@
 
 pub mod static_type;
 
-use crate::syntax::ast::{AstNode, SourceFile};
-use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
 use std::path::{Component, Path, PathBuf};
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::hir::lower_node;
 use crate::db::derived::parse_file::parse_file;
-use crate::db::types::{File, FileRedNode, HirValue, Project};
+use crate::db::types::{File, Project};
+use crate::syntax::ast::{AstNode, SourceFile};
 
 /// Whether a path has a content file extension (.td or .md)
 pub fn is_external_url(url: &str) -> bool {
@@ -49,21 +47,6 @@ pub fn strip_content_extension(s: &str) -> &str {
   s.strip_suffix(".td")
     .or_else(|| s.strip_suffix(".md"))
     .unwrap_or(s)
-}
-
-pub fn lower_file(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> (Option<HirValue<'_>>, Vec<Diagnostic>) {
-  let parse_result = parse_file(db, project, file);
-  let diagnostics = parse_result.diagnostics(db).to_vec();
-  let root = parse_result.ast(db).node.clone();
-  if SourceFile::cast(root.clone()).is_none() {
-    return (None, diagnostics);
-  }
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  (Some(hir), diagnostics)
 }
 
 /// Check if a file has no frontmatter (schemaless)

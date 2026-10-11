@@ -104,9 +104,9 @@ impl<
     // Returns None if any edge fails to deserialize, forcing recomputation
     let dependencies: Option<Vec<Dependency>> = edges
       .iter()
-      .map(|&edge_idx| {
-        let dep_id = ctx.decoder.get_or_deserialize_dep_node_id(edge_idx)?;
-        let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
+      .map(|&edge_index| {
+        let dep_id = ctx.decoder.get_or_deserialize_dep_node_id(edge_index)?;
+        let edge_node = &ctx.serialized.dep_graph.nodes[edge_index as usize];
         Some(Dependency {
           dep_id,
           changed_at: edge_node.changed_at(),

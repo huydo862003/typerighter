@@ -1,4 +1,4 @@
-use typedown_macros::query_derived;
+use typedown_macros::{query_derived, query_interned};
 use typedown_types::path::normalize_path;
 
 use crate::db::TypedownDatabase;
@@ -6,17 +6,13 @@ use crate::db::types::{AssetKind, File, Project, Symbol, SymbolKind};
 use crate::db::utils::is_typ_file;
 use typedown_incremental::QueryDatabase;
 
-#[query_derived]
-pub struct MaybeSymbol<'db> {
-  pub value: Option<Symbol<'db>>,
+#[query_interned]
+pub struct MaybeSymbol {
+  pub value: Option<Symbol>,
 }
 
 #[query_derived]
-pub fn file_symbol<'db>(
-  db: &'db TypedownDatabase,
-  project: Project,
-  file: File,
-) -> MaybeSymbol<'db> {
+pub fn file_symbol<'db>(db: &'db TypedownDatabase, project: Project, file: File) -> MaybeSymbol {
   let path = file.handle(db).path().cloned().unwrap_or_default();
   let is_schema_file = is_typ_file(&path);
 
