@@ -103,8 +103,8 @@ impl std::fmt::Debug for SyntaxToken {
 
 impl Hash for SyntaxToken {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    self.kind().hash(state);
-    self.bytes().hash(state);
+    state.write_u32(self.kind() as u32);
+    state.write(self.bytes());
   }
 }
 

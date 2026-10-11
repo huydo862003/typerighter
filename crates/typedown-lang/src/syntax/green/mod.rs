@@ -6,6 +6,8 @@ pub mod token;
 
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+
+use smallvec::SmallVec;
 use typedown_incremental::{QueryDatabase, StableCompare};
 use typedown_types::either::Either;
 
@@ -160,11 +162,21 @@ impl Debug for GreenNode {
 impl Hash for GreenNode {
   fn hash<H: Hasher>(&self, state: &mut H) {
     if self.is_node() {
-      0u8.hash(state);
-      self.as_node().unwrap().hash(state);
+      let node = self.as_node().unwrap();
+      let children = node.children();
+      let mut buffer: SmallVec<[u64; 64]> = SmallVec::with_capacity(1 + children.len());
+      buffer.push(((node.kind() as u64) << 32) | node.text_len() as u64);
+      for child in children {
+        buffer.push(((child.kind() as u64) << 32) | child.text_len() as u64);
+      }
+      state.write(unsafe {
+        std::slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), buffer.len() * 8)
+      });
     } else {
-      1u8.hash(state);
-      self.as_token().unwrap().hash(state);
+      let token = self.as_token().unwrap();
+      // bit 63 = 1 (token), bits 0-31 = kind
+      state.write_u64((1u64 << 63) | token.kind() as u64);
+      state.write(token.bytes());
     }
   }
 }
