@@ -79,7 +79,6 @@ pub enum DepNode {
     // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
     value_entry_id: u32,
     changed_at: u32,
-    verified_at: u32,
     // Indices into the dep graph nodes array
     edges: Vec<u32>,
     // (name_fingerprint, identity_hash, disambiguator, entry_id) for derived structs created by this query
@@ -176,14 +175,6 @@ impl DepNode {
     }
   }
 
-  // Returns the verified_at revision for DerivedQuery nodes, None for all others
-  pub fn verified_at(&self) -> Option<u32> {
-    match self {
-      DepNode::DerivedQuery { verified_at, .. } => Some(*verified_at),
-      _ => None,
-    }
-  }
-
   pub fn edges(&self) -> &[u32] {
     match self {
       DepNode::DerivedQuery { edges, .. } => edges,
@@ -205,7 +196,7 @@ impl DepNode {
         TAG_SIZE +
         FINGERPRINT_SIZE * 3 + // name + key + value
         ENTRY_ID_SIZE + // value_entry_id
-        REVISION_SIZE * 2 + // changed_at + verified_at
+        REVISION_SIZE + // changed_at
         EDGE_COUNT_SIZE +
         edges.len() * EDGE_SIZE +
         IDENTITY_COUNT_SIZE +
@@ -241,7 +232,6 @@ impl DepNode {
         value,
         value_entry_id,
         changed_at,
-        verified_at,
         edges,
         derived_identities,
       } => {
@@ -251,7 +241,6 @@ impl DepNode {
         bytes.extend_from_slice(&value.0);
         bytes.extend_from_slice(&value_entry_id.to_le_bytes());
         bytes.extend_from_slice(&changed_at.to_le_bytes());
-        bytes.extend_from_slice(&verified_at.to_le_bytes());
         bytes.extend_from_slice(&(derived_identities.len() as u32).to_le_bytes());
         for &(name_fingerprint, identity_hash, disambiguator, entry_id) in derived_identities {
           bytes.extend_from_slice(&name_fingerprint.0);
@@ -336,10 +325,6 @@ impl DepNode {
         let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
         pos += REVISION_SIZE;
 
-        // the revision when last confirmed valid
-        let verified_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
-
         // derived identities
         let id_count =
           u32::from_le_bytes(bytes[pos..pos + IDENTITY_COUNT_SIZE].try_into().unwrap()) as usize;
@@ -379,7 +364,6 @@ impl DepNode {
             value,
             value_entry_id,
             changed_at,
-            verified_at,
             edges,
             derived_identities,
           },

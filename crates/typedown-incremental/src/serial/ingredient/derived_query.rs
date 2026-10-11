@@ -1,5 +1,4 @@
 use std::{
-  cmp::Reverse,
   hash::Hash,
   sync::{Arc, atomic::Ordering},
 };
@@ -155,7 +154,8 @@ impl<
     arg.stable_hash(db, &mut hasher);
     let key_fingerprint = Fingerprint::from_hasher(hasher);
 
-    let Some((node_index, node)) = ctx.find_cached_derived_query_memo(self.name_fingerprint, key_fingerprint)
+    let Some((node_index, node)) =
+      ctx.find_cached_derived_query_memo(self.name_fingerprint, key_fingerprint)
     else {
       return false;
     };
@@ -278,7 +278,6 @@ impl<
         value: value_fp,
         value_entry_id: <V as Into<u32>>::into(memo.value.clone()),
         changed_at: memo.changed_at,
-        verified_at: memo.verified_at.load(Ordering::Relaxed),
         edges,
         derived_identities: memo.derived_query_identities.clone(),
       },
@@ -295,7 +294,7 @@ impl<
       return Some(dep_id);
     }
     let node = &ctx.serialized.dep_graph.nodes[node_index as usize];
-    let DepNode::DerivedQuery { verified_at, .. } = node else {
+    if !matches!(node, DepNode::DerivedQuery { .. }) {
       return None;
     };
     // Register dep_id BEFORE decoding to prevent recursion via get_or_deserialize_dep_node_id
@@ -307,14 +306,17 @@ impl<
     let mut data = blob;
     let key = K::decode(&mut data, &ctx.decoder);
     self.intern_map.entry(key.clone()).or_insert(entry_id);
-    self.load_cached_query_memo(ctx, entry_id, key, node, *verified_at)?;
+    self.load_cached_query_memo(ctx, entry_id, key, node, 0)?;
 
     Some(dep_id)
   }
 
   // Deserialize unaccessed query memos so identity maps can be seeded on re-execution
   fn promote_cached(&self, ctx: &DeserializeContext) {
-    let Some(indices) = ctx.serialized_ingredient_name_to_dep_node_indices_map.get(&self.name_fingerprint) else {
+    let Some(indices) = ctx
+      .serialized_ingredient_name_to_dep_node_indices_map
+      .get(&self.name_fingerprint)
+    else {
       return;
     };
     let slots = LRU_CAPACITY.saturating_sub(self.data.len());
@@ -327,15 +329,6 @@ impl<
       .filter(|&node_index| ctx.decoder.get_dep_node_id(node_index).is_none())
       .collect();
     if unloaded.len() > slots {
-      // O(N) partial sort: top `slots` elements end up in [0..slots], no full sort needed
-      // Nodes with no verified_at get revision 0 (promoted last, not dropped)
-      unloaded.select_nth_unstable_by_key(slots - 1, |&node_index| {
-        Reverse(
-          ctx.serialized.dep_graph.nodes[node_index as usize]
-            .verified_at()
-            .unwrap_or(0),
-        )
-      });
       unloaded.truncate(slots);
     }
     for node_index in unloaded {

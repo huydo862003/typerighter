@@ -46,7 +46,6 @@ pub enum UnresolvedDepNode {
     value: Fingerprint,
     value_entry_id: u32,
     changed_at: u32,
-    verified_at: u32,
     edges: Vec<DepId>,
     derived_identities: Vec<DerivedIdentity>,
   },
@@ -105,7 +104,6 @@ impl DepGraphBuilder {
           value,
           value_entry_id,
           changed_at,
-          verified_at,
           edges,
           derived_identities,
         } => {
@@ -127,7 +125,6 @@ impl DepGraphBuilder {
             value,
             value_entry_id,
             changed_at,
-            verified_at,
             edges: resolved_edges,
             derived_identities,
           }

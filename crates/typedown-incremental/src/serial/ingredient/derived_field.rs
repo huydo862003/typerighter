@@ -109,7 +109,10 @@ impl<T: StableHash + std::fmt::Debug + Encodable + Decodable + Send + Sync + 'st
 
   // Fields follow their parent queries, no independent LRU cap
   fn promote_cached(&self, ctx: &DeserializeContext) {
-    let Some(indices) = ctx.serialized_ingredient_name_to_dep_node_indices_map.get(&self.name_fingerprint()) else {
+    let Some(indices) = ctx
+      .serialized_ingredient_name_to_dep_node_indices_map
+      .get(&self.name_fingerprint())
+    else {
       return;
     };
     for &node_index in indices.iter() {
