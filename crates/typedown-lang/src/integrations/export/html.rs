@@ -678,12 +678,8 @@ impl<'a> HtmlEmitter<'a> {
     let project_node = ProjectRedNode::new(self.project, self.file, expr_node);
     let scope = get_file_runtime_scope(self.db, self.project, self.file);
     let eval = evaluate_node(self.db, project_node, scope);
-    if let Some(obj) = eval.value(self.db)
-      && let Some(func) = obj.lookup_method(self.db, "to_string")
-      && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
-      && let Some(string_obj) = result.as_td_string_obj()
-    {
-      self.write_escaped(&string_obj.value(self.db));
+    if let Some(obj) = eval.value(self.db) {
+      self.write_escaped(&obj.to_display_string(self.db));
     }
   }
 
