@@ -132,10 +132,23 @@ impl Hash for SyntaxNode {
     for child in children {
       buf.push(((child.kind() as u64) << 32) | child.text_len() as u64);
     }
-    // SAFETY: u64 is POD; viewing as bytes is valid
-    state.write(unsafe {
-      std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8)
-    });
+    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
+  }
+
+  fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
+  where
+    Self: Sized,
+  {
+    let total = data.iter().map(|n| 1 + n.n_children() as usize).sum();
+    let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(total);
+    for node in data {
+      buf.push(((node.kind() as u64) << 32) | node.text_len() as u64);
+      for child in node.children() {
+        buf.push(((child.kind() as u64) << 32) | child.text_len() as u64);
+      }
+    }
+    state.write_usize(data.len());
+    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
   }
 }
 
