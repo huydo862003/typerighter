@@ -179,6 +179,25 @@ impl Hash for GreenNode {
       state.write(token.bytes());
     }
   }
+
+  fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
+  where
+    Self: Sized,
+  {
+    // Pack (discriminant | kind | text_len) per element into one write
+    let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(data.len());
+    for green in data {
+      if green.is_node() {
+        let node = green.as_node().unwrap();
+        buf.push(((node.kind() as u64) << 32) | node.text_len() as u64);
+      } else {
+        let token = green.as_token().unwrap();
+        buf.push((1u64 << 63) | ((token.kind() as u64) << 32) | token.text_len() as u64);
+      }
+    }
+    state.write_usize(data.len());
+    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
+  }
 }
 
 unsafe impl Send for GreenNode {}
