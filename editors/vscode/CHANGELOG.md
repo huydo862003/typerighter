@@ -1,6 +1,15 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.42.0] - 2026-10-11
+
+### Performance
+
+- crates/typedown-incremental, crates/typedown-lang, packages/typerighter
+  - Reduce cache size
+  - Improve cache performance
+  - Improve prerendering speed
+
 ## [0.41.0] - 2026-10-10
 
 ### Fixed
