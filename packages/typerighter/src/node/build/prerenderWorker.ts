@@ -22,10 +22,11 @@ import {
 
 const config = workerData as PrerenderWorkerConfig;
 const ssrModule = await import(pathToFileURL(config.ssrEntryPath).href);
+const render = await ssrModule.createRenderer();
 
 parentPort!.on('message', async (pagePath: string) => {
   try {
-    const result = await ssrModule.render(pagePath);
+    const result = await render(pagePath);
 
     const title = resolvePageTitle(result.pageData);
     const description = resolvePageDescription(result.pageData);

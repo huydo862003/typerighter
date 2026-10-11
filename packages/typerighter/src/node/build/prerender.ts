@@ -125,61 +125,56 @@ async function prerenderWithWorkers (
   }
 }
 
-// Single-threaded async batching for small vaults
+// Single-threaded rendering for small vaults
 async function prerenderSingleThread (
   context: PrerenderContext,
   clientEntry: string,
   headExtra: string | undefined,
 ): Promise<void> {
   const ssrModule = await import(context.ssrEntryPath);
+  const render = await ssrModule.createRenderer();
   const totalPages = context.pagePaths.length;
   let rendered = 0;
 
-  const BATCH_SIZE = 32;
+  for (const pagePath of context.pagePaths) {
+    const result = await render(pagePath);
 
-  for (let i = 0; i < totalPages; i += BATCH_SIZE) {
-    const batch = context.pagePaths.slice(i, i + BATCH_SIZE);
+    const title = resolvePageTitle(result.pageData);
+    const description = resolvePageDescription(result.pageData);
+    const dateModified = extractDateModified(result.pageData);
+    const canonicalUrl = context.base + stripLeadingSlash(pagePath);
 
-    await Promise.all(batch.map(async (pagePath) => {
-      const result = await ssrModule.render(pagePath);
+    const jsonLdBlocks = [
+      buildArticleLd({ title, description, canonicalUrl, author: context.author, dateModified }),
+      buildBreadcrumbLd(pagePath, title),
+    ].filter((block): block is string => block !== undefined);
 
-      const title = resolvePageTitle(result.pageData);
-      const description = resolvePageDescription(result.pageData);
-      const dateModified = extractDateModified(result.pageData);
-      const canonicalUrl = context.base + stripLeadingSlash(pagePath);
+    const html = renderHtmlDocument({
+      title,
+      description,
+      siteTitle: context.siteTitle,
+      author: context.author,
+      base: context.base,
+      origin: context.origin,
+      lang: context.lang,
+      entryScript: clientEntry,
+      canonicalUrl,
+      ogImagePath: extractOgImagePath(result.pageData),
+      jsonLdBlocks,
+      headExtra,
+      appContent: result.html,
+    });
 
-      const jsonLdBlocks = [
-        buildArticleLd({ title, description, canonicalUrl, author: context.author, dateModified }),
-        buildBreadcrumbLd(pagePath, title),
-      ].filter((block): block is string => block !== undefined);
+    const fileName = pagePath === '/'
+      ? 'index.html'
+      : `${stripLeadingSlash(pagePath)}.html`;
+    const filepath = path.join(context.outDir, fileName);
 
-      const html = renderHtmlDocument({
-        title,
-        description,
-        siteTitle: context.siteTitle,
-        author: context.author,
-        base: context.base,
-        origin: context.origin,
-        lang: context.lang,
-        entryScript: clientEntry,
-        canonicalUrl,
-        ogImagePath: extractOgImagePath(result.pageData),
-        jsonLdBlocks,
-        headExtra,
-        appContent: result.html,
-      });
+    await fs.mkdir(path.dirname(filepath), { recursive: true });
+    await fs.writeFile(filepath, html);
 
-      const fileName = pagePath === '/'
-        ? 'index.html'
-        : `${stripLeadingSlash(pagePath)}.html`;
-      const filepath = path.join(context.outDir, fileName);
-
-      await fs.mkdir(path.dirname(filepath), { recursive: true });
-      await fs.writeFile(filepath, html);
-
-      rendered++;
-      context.progress?.update(rendered, totalPages);
-    }));
+    rendered++;
+    context.progress?.update(rendered, totalPages);
   }
 }
 

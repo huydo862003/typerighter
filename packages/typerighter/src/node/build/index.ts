@@ -289,11 +289,13 @@ function loadPageModule(pagePath) {
   return Promise.resolve(undefined);
 }
 
-export async function render(url) {
+export async function createRenderer() {
   const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, siteData);
-  await router.go(url, { replace: true });
-  const html = await renderToString(app);
-  return { html, pageData: router.route.data };
+  return async function render(url) {
+    await router.go(url, { replace: true });
+    const html = await renderToString(app);
+    return { html, pageData: router.route.data };
+  };
 }
 `;
 }
