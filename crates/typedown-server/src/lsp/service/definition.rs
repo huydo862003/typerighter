@@ -5,15 +5,14 @@ use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Range};
 
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{
-  File, FileHandle, FileRedNode, HirValueKind, Project, Scope, Symbol, SymbolKind,
+  File, FileHandle, Project, ProjectRedNode, Scope, Symbol, SymbolKind,
 };
-use typedown_lang::db::utils::get_mapping_schema_name;
-use typedown_lang::db::utils::is_external_url;
+use typedown_lang::db::utils::{get_mapping_schema_name, is_external_url};
+use typedown_lang::syntax::ast::StrLit;
 use typedown_lang::syntax::ast::{AstNode, MdLink, MdMedia};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -69,8 +68,8 @@ pub fn resolve_definition(
 
   // Identifier or type reference: resolve via referee
   let expr = get_nearest_expr_ancestor(&node)?;
-  let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
-  let symbol = referee(db, hir).value(db)?;
+  let project_node = ProjectRedNode::new(project, file, expr.syntax().clone());
+  let symbol = referee(db, project_node).value(db)?;
 
   let target_file = match symbol.kind(db) {
     SymbolKind::UserDefinedSchema(_, target_file)
@@ -269,16 +268,8 @@ fn resolve_markdown_link_definition(
 fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<PathBuf> {
   let call_expr = containing_fref_expr(node)?;
 
-  // Any file works as context since fref args don't depend on the enclosing file
-  let context_file = *project.files(db).values().next()?;
-  let hir = lower_node(
-    db,
-    project,
-    FileRedNode::new(context_file, call_expr.syntax().clone()),
-  );
-  if let HirValueKind::Call { args, .. } = hir.kind(db)
-    && let Some(arg) = args.first()
-    && let HirValueKind::String(path_str) = arg.kind(db)
+  if let Some(first_arg) = call_expr.args().into_iter().next()
+    && let Some(path_str) = StrLit::cast(first_arg.syntax().clone()).and_then(|s| s.plain_value())
   {
     let config = get_vault_config(db, project);
     let root_dir = config.root_dir(db);

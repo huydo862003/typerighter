@@ -2,7 +2,6 @@ pub mod check_schemas;
 pub mod evaluate;
 pub mod get_builtin_typs;
 pub mod get_vault_config;
-pub mod hir;
 pub mod icon;
 pub mod name_resolver;
 pub mod parse_file;

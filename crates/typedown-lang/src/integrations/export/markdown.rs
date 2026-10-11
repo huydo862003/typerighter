@@ -7,9 +7,9 @@ use super::utils;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_vault_config::get_vault_config;
-use crate::db::derived::hir::lower_node;
+
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{File, FileRedNode, Project, TdRuntimeObj};
+use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
 use crate::syntax::ast::{AstNode, InterpFragment, MdBody, MdLink, MdMedia};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -368,13 +368,9 @@ impl<'a> MarkdownExporter<'a> {
         self.write(&link);
         return;
       }
-      let hir = lower_node(
-        self.db,
-        self.project,
-        FileRedNode::new(self.file, expr_node),
-      );
+      let project_node = ProjectRedNode::new(self.project, self.file, expr_node);
       let scope = get_file_runtime_scope(self.db, self.project, self.file);
-      let eval = evaluate_node(self.db, hir, scope);
+      let eval = evaluate_node(self.db, project_node, scope);
       let obj = eval.value(self.db);
       if let Some(obj) = obj
         && let Some(func) = obj.lookup_method(self.db, "to_string")

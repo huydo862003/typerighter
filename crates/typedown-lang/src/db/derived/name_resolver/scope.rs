@@ -91,9 +91,7 @@ mod tests {
   use super::*;
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
-  use crate::syntax::ast::{
-    AstNode, ClosureExpr, SourceFile,
-  };
+  use crate::syntax::ast::{AstNode, ClosureExpr, SourceFile};
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
   use crate::syntax::syntax_kind::SyntaxKind;
@@ -116,9 +114,10 @@ mod tests {
     node: &RedNode,
   ) -> Option<ProjectRedNode> {
     if let Some(closure) = ClosureExpr::cast(node.clone())
-      && let Some(body) = closure.body() {
-        return Some(ProjectRedNode::new(project, file, body.syntax().clone()));
-      }
+      && let Some(body) = closure.body()
+    {
+      return Some(ProjectRedNode::new(project, file, body.syntax().clone()));
+    }
     for child in node.children() {
       if let Some(result) = find_first_closure_body(project, file, &child) {
         return Some(result);
@@ -136,9 +135,10 @@ mod tests {
   ) {
     if node.kind() == SyntaxKind::ClosureExpr
       && let Some(closure) = ClosureExpr::cast(node.clone())
-        && let Some(body) = closure.body() {
-          result.push(ProjectRedNode::new(project, file, body.syntax().clone()));
-        }
+      && let Some(body) = closure.body()
+    {
+      result.push(ProjectRedNode::new(project, file, body.syntax().clone()));
+    }
     for child in node.children() {
       find_closure_bodies(project, file, &child, result);
     }
@@ -305,19 +305,19 @@ outer: (a) -> (b) -> a + b
 
     // Innermost scope is Fn scope for inner_closure
     let inner_scope = scope(&db, innermost_body);
-    let inner_scope_val = match inner_scope.kind(&db) {
-      ScopeKind::Func(_, _, val) => val,
+    let inner_scope_value = match inner_scope.kind(&db) {
+      ScopeKind::Func(_, _, value) => value,
       _ => panic!("expected Fn scope for inner closure"),
     };
-    assert_eq!(inner_scope_val, inner_closure_node);
+    assert_eq!(inner_scope_value, inner_closure_node);
 
-    // Parent of inner scope is Fn scope for outer_closure
+    // Parent of inner scope is Func scope for outer_closure
     let outer_scope = parent_scope(&db, inner_scope).value(&db).unwrap();
-    let outer_scope_val = match outer_scope.kind(&db) {
-      ScopeKind::Func(_, _, val) => val,
+    let outer_scope_value = match outer_scope.kind(&db) {
+      ScopeKind::Func(_, _, value) => value,
       _ => panic!("expected Fn scope for outer closure"),
     };
-    assert_eq!(outer_scope_val, outer_closure_node);
+    assert_eq!(outer_scope_value, outer_closure_node);
 
     // Parent of outer scope is File scope
     let file_scope = parent_scope(&db, outer_scope).value(&db).unwrap();
@@ -351,10 +351,10 @@ ${(a) -> (b) -> a + b}
     find_closure_bodies(project, file, &md_body.syntax().clone(), &mut bodies);
     assert!(bodies.len() >= 2, "expected at least 2 closure bodies");
 
-    // inner_closure_pn = the inner ClosureExpr (body of outer closure)
-    let inner_closure_pn = bodies[0].clone();
-    // outer_closure_pn = the outer ClosureExpr (parent of inner_closure_pn in the red tree)
-    let outer_closure_pn = inner_closure_pn
+    // inner_closure_node = the inner ClosureExpr (body of outer closure)
+    let inner_closure_node = bodies[0].clone();
+    // outer_closure_node = the outer ClosureExpr (parent of inner_closure_node in the red tree)
+    let outer_closure_node = inner_closure_node
       .node
       .parent()
       .map(|p| ProjectRedNode::new(project, file, p))
@@ -367,15 +367,15 @@ ${(a) -> (b) -> a + b}
       ScopeKind::Func(_, _, val) => val,
       _ => panic!("expected Fn scope for inner closure"),
     };
-    assert_eq!(inner_scope_val, inner_closure_pn);
+    assert_eq!(inner_scope_val, inner_closure_node);
 
     // Parent of inner scope is Fn scope for outer_closure
     let outer_scope = parent_scope(&db, inner_scope).value(&db).unwrap();
-    let outer_scope_val = match outer_scope.kind(&db) {
+    let outer_scope_value = match outer_scope.kind(&db) {
       ScopeKind::Func(_, _, val) => val,
       _ => panic!("expected Fn scope for outer closure"),
     };
-    assert_eq!(outer_scope_val, outer_closure_pn);
+    assert_eq!(outer_scope_value, outer_closure_node);
 
     // Parent of outer scope is File scope
     let file_scope = parent_scope(&db, outer_scope).value(&db).unwrap();

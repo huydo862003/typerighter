@@ -5,7 +5,7 @@ use super::TdObjEnum;
 use super::base::TdRuntimeObj;
 use super::string::TdStringObj;
 use crate::db::TypedownDatabase;
-use crate::db::types::{HirValue, Project, RuntimeScope};
+use crate::db::types::{Project, ProjectRedNode, RuntimeScope};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
@@ -67,7 +67,7 @@ fn to_string_method<'db>(
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
 pub enum FuncKind<'db> {
   Native(NativeFuncKind),
-  UserDefined(HirValue<'db>, RuntimeScope<'db>),
+  UserDefined(ProjectRedNode, RuntimeScope<'db>),
 }
 
 #[derive(FromRepr)]
@@ -112,7 +112,7 @@ impl<'db> Decodable for FuncKind<'db> {
     match FuncKindTag::from_repr(tag).expect("unknown FnKind tag") {
       FuncKindTag::Native => FuncKind::Native(NativeFuncKind::decode(data, decoder)),
       FuncKindTag::UserDefined => FuncKind::UserDefined(
-        HirValue::field_decode(data, decoder),
+        ProjectRedNode::field_decode(data, decoder),
         RuntimeScope::field_decode(data, decoder),
       ),
     }

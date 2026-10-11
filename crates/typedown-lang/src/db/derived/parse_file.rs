@@ -12,7 +12,7 @@ use crate::{
 };
 
 use crate::db::TypedownDatabase;
-use crate::db::types::{File, FileAstResult, FileRedNode, Project};
+use crate::db::types::{File, FileAstResult, Project, ProjectRedNode};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -48,7 +48,7 @@ pub fn parse_file<'db>(
     file.handle(db).clone(),
     project,
     file,
-    FileRedNode::new(file, root),
+    ProjectRedNode::new(project, file, root),
     diagnostics,
   )
 }

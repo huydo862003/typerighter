@@ -298,12 +298,12 @@ impl Decoder {
 
 // Encodable / Decodable traits
 pub trait Encodable {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder);
 
   // Encode as a field inside another struct
   // Id types override to write just a dep index reference
-  fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.encode(buf, encoder);
+  fn field_encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.encode(buffer, encoder);
   }
 }
 

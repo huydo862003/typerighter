@@ -10,11 +10,10 @@ use typedown_lang::db::derived::evaluate::evaluate_config::evaluate_config;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, FileRedNode, Project};
+use typedown_lang::db::types::{File, Project, ProjectRedNode};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
@@ -153,8 +152,8 @@ fn get_diagnostics_for_file(
 
   // Typecheck errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  let typecheck_result = typecheck(db, hir);
+  let project_node = ProjectRedNode::new(project, file, root);
+  let typecheck_result = typecheck(db, project_node);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors

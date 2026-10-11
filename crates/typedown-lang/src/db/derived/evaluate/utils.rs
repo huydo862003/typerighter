@@ -13,8 +13,8 @@ use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::types::{
   BuiltinGlobalKind, BuiltinMacroKind, FuncKind, LazyTyp, ProjectRedNode, PropertyDescriptor,
   RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncTyp, TdIconObj, TdListObj,
-  TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdProductTyp, TdRuntimeObj, TdSchemaObj,
-  TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
+  TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdProductTyp, TdRuntimeObj,
+  TdSchemaObj, TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
 };
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, DictLit, Expr, IdentLit, IndexExpr,
@@ -163,7 +163,16 @@ fn construct_from_non_expr<'db>(
       }
       return construct_from_mapping_expr(db, mapping_node, entries, diagnostics);
     }
-    return Some(TdProductObj::new(db, TdProductTyp::new(db, None, BTreeMap::new()).into(), None, BTreeMap::new(), BTreeMap::new()).into());
+    return Some(
+      TdProductObj::new(
+        db,
+        TdProductTyp::new(db, None, BTreeMap::new()).into(),
+        None,
+        BTreeMap::new(),
+        BTreeMap::new(),
+      )
+      .into(),
+    );
   }
   // MdBody: evaluate as a plain string (markdown body text)
   if MdBody::cast(node.clone()).is_some() {

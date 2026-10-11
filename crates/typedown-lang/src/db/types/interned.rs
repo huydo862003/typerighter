@@ -145,14 +145,14 @@ impl<'db> TypParams<'db> {
 
 // A type reference that may be eagerly resolved or lazily deferred to a symbol
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub struct LazyTyp<'db>(Either<TdTypEnum<'db>, Symbol<'db>>);
+pub struct LazyTyp<'db>(Either<TdTypEnum<'db>, Symbol>);
 
 impl<'db> LazyTyp<'db> {
   pub fn eager(typ: TdTypEnum<'db>) -> Self {
     LazyTyp(Either::Left(typ))
   }
 
-  pub fn lazy(symbol: Symbol<'db>) -> Self {
+  pub fn lazy(symbol: Symbol) -> Self {
     LazyTyp(Either::Right(symbol))
   }
 

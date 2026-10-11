@@ -1,5 +1,5 @@
-//! Tracked query to get the actual (bottom-up) type of a HIR value
-// I think this is the idea of bidirectional typechecking
+//! Tracked query to get the actual (bottom-up) type of an AST node.
+// This is the idea of bidirectional typechecking.
 
 use std::collections::BTreeMap;
 
@@ -8,7 +8,6 @@ use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_builtin_typs::{
   get_bool_typ, get_date_typ, get_datetime_typ, get_func_typ, get_list_typ, get_lit_typ,
   get_math_typ, get_null_typ, get_number_typ, get_string_typ, get_sum_typ, get_time_typ,
-  get_typ_typ,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -19,86 +18,244 @@ use crate::db::types::derived::obj_system::{
   TdProductTyp, TdStaticTyp, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
-  BuiltinMacroKind, FuncSignature, HirValue, HirValueKind, LazyTyp, LitValue, SymbolKind,
-  TdTypEnum, TypResult,
+  BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, SymbolKind, TdTypEnum,
+  TypResult,
 };
 use crate::db::utils::resolve_fref_path;
+use crate::syntax::ast::{
+  AstNode, CallExpr, ClosureExpr, DictLit, Expr, IdentLit, IndexExpr, MathLit, NumberLit,
+  PostfixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping, YamlOpKind,
+};
 use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
+use typedown_types::either::Either;
 
-// Infer the type of an HIR bottom-up from its structure
-// Exception: closures read expected(closure) to get param types (see README.md)
+// Infer the type of an AST node bottom-up from its structure.
+// Exception: closures read expected(closure) to get param types.
 #[query_derived(no_hash)]
-pub fn actual_node_typ<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypResult<'db> {
-  let diagnostics = vec![];
-  match hir.kind(db) {
-    HirValueKind::String(ref val) => {
-      // Date/time subtypes are more specific than string literals
-      let typ = if is_valid_iso_datetime(val) {
+pub fn actual_node_typ<'db>(
+  db: &'db TypedownDatabase,
+  project_node: ProjectRedNode,
+) -> TypResult<'db> {
+  let node = project_node.node.clone();
+  let project = project_node.project;
+  let file = project_node.file;
+
+  // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping
+  if let Some(sf) = SourceFile::cast(node.clone()) {
+    if let Some(fm) = sf.frontmatter()
+      && let Some(mapping) = fm.mapping()
+    {
+      let mapping_node = ProjectRedNode::new(project, file, mapping.syntax().clone());
+      return actual_node_typ(db, mapping_node);
+    }
+    return TypResult::new(db, None, vec![]);
+  }
+  if let Some(fm) = YamlFrontmatter::cast(node.clone()) {
+    if let Some(mapping) = fm.mapping() {
+      let mapping_node = ProjectRedNode::new(project, file, mapping.syntax().clone());
+      return actual_node_typ(db, mapping_node);
+    }
+    return TypResult::new(db, None, vec![]);
+  }
+
+  // IdentLit covers ident references plus YAML null/bool scalars
+  if let Some(ident) = IdentLit::cast(node.clone()) {
+    return match ident.value().as_deref() {
+      Some("null") => TypResult::new(db, Some(get_null_typ(db).into()), vec![]),
+      Some("true") => TypResult::new(
+        db,
+        Some(get_lit_typ(db, LitValue::Bool(true)).into()),
+        vec![],
+      ),
+      Some("false") => TypResult::new(
+        db,
+        Some(get_lit_typ(db, LitValue::Bool(false)).into()),
+        vec![],
+      ),
+      _ => {
+        let resolved = referee(db, project_node);
+        match resolved.value(db) {
+          Some(symbol) => get_symbol_typ(db, symbol),
+          None => TypResult::new(db, None, vec![]),
+        }
+      }
+    };
+  }
+
+  if let Some(string_lit) = StrLit::cast(node.clone()) {
+    return if string_lit.is_interpolated() {
+      TypResult::new(db, Some(get_string_typ(db).into()), vec![])
+    } else {
+      // A string whose only content is a math literal (e.g. "$x^2$") has math type
+      let children: Vec<_> = node.children().collect();
+      let has_text = children.iter().any(|c| {
+        matches!(
+          c.kind(),
+          SyntaxKind::DqStrContent | SyntaxKind::SqStrContent
+        ) && !c.text().trim().is_empty()
+      });
+      if !has_text && children.iter().any(|c| c.kind() == SyntaxKind::MathLit) {
+        return TypResult::new(db, Some(get_math_typ(db).into()), vec![]);
+      }
+      let value: String = string_lit
+        .fragments()
+        .filter_map(|fragment| match fragment {
+          Either::Left(s) => Some(s),
+          _ => None,
+        })
+        .collect::<Vec<_>>()
+        .concat();
+      let typ = if is_valid_iso_datetime(&value) {
         get_datetime_typ(db).into()
-      } else if is_valid_iso_date(val) {
+      } else if is_valid_iso_date(&value) {
         get_date_typ(db).into()
-      } else if is_valid_iso_time(val) {
+      } else if is_valid_iso_time(&value) {
         get_time_typ(db).into()
       } else {
-        get_lit_typ(db, LitValue::String(val.clone())).into()
+        get_lit_typ(db, LitValue::String(value)).into()
       };
-      TypResult::new(db, Some(typ), diagnostics)
-    }
-    HirValueKind::Number(ref val) => TypResult::new(
-      db,
-      Some(get_lit_typ(db, LitValue::Number(val.clone())).into()),
-      diagnostics,
-    ),
-    HirValueKind::Bool(val) => TypResult::new(
-      db,
-      Some(get_lit_typ(db, LitValue::Bool(val)).into()),
-      diagnostics,
-    ),
-    HirValueKind::Interpolated(_) => TypResult::new(db, Some(get_string_typ(db).into()), vec![]),
-    HirValueKind::Null => TypResult::new(db, Some(get_null_typ(db).into()), vec![]),
-    HirValueKind::Ident(_) => {
-      let resolved = referee(db, hir);
-      match resolved.value(db) {
-        Some(symbol) => get_symbol_typ(db, symbol),
-        None => TypResult::new(db, None, vec![]),
-      }
-    }
-    HirValueKind::Mapping(entries) => get_mapping_typ(db, hir, entries),
-    HirValueKind::Sequence(items) => get_sequence_typ(db, items),
-    HirValueKind::Call { callee, args } => get_call_typ(db, *callee, args),
-    HirValueKind::Index { expr, indices } => get_index_typ(db, *expr, indices),
-    HirValueKind::Tag { tag, .. } => get_tag_typ(db, *tag),
-    HirValueKind::Prefix { op, .. } => get_prefix_typ(db, &op),
-    HirValueKind::Postfix { op, operand } => get_postfix_typ(db, &op, *operand),
-    HirValueKind::Binary { op, left, right } => get_binary_typ(db, &op, *left, *right),
-    HirValueKind::Math(_) => TypResult::new(db, Some(get_math_typ(db).into()), vec![]),
-    HirValueKind::Markdown(_) => TypResult::new(db, Some(get_string_typ(db).into()), vec![]),
-    HirValueKind::Closure { params, body } => get_closure_typ(db, hir, params, *body),
+      TypResult::new(db, Some(typ), vec![])
+    };
   }
+
+  if let Some(number) = NumberLit::cast(node.clone()) {
+    let value = number.value().map(|v| v.to_string()).unwrap_or_default();
+    return TypResult::new(
+      db,
+      Some(get_lit_typ(db, LitValue::Number(value)).into()),
+      vec![],
+    );
+  }
+
+  if MathLit::cast(node.clone()).is_some() {
+    return TypResult::new(db, Some(get_math_typ(db).into()), vec![]);
+  }
+
+  if let Some(expr) = Expr::cast(node.clone()) {
+    return match expr {
+      Expr::YamlMapping(_) | Expr::DictLit(_) => get_mapping_typ(db, project_node),
+      Expr::YamlSequence(seq) => get_sequence_typ(
+        db,
+        seq
+          .values()
+          .map(|expr| ProjectRedNode::new(project, file, expr.syntax().clone()))
+          .collect(),
+      ),
+      Expr::ListLit(list) => get_sequence_typ(
+        db,
+        list
+          .items()
+          .filter_map(|item| item.value())
+          .map(|expr| ProjectRedNode::new(project, file, expr.syntax().clone()))
+          .collect(),
+      ),
+      Expr::CallExpr(call) => get_call_typ(db, call, project, file),
+      Expr::IndexExpr(index) => get_index_typ(db, index, project, file),
+      Expr::BinaryExpr(binary) => {
+        let op = binary.op().and_then(|op| op.kind());
+        match op {
+          Some(YamlOpKind::Tag(_)) => {
+            // Tag: actual type is the tag symbol's type
+            let Some(tag_expr) = binary.left() else {
+              return TypResult::new(db, None, vec![]);
+            };
+            let tag_node = ProjectRedNode::new(project, file, tag_expr.syntax().clone());
+            get_tag_typ(db, tag_node)
+          }
+          Some(YamlOpKind::Dot) => {
+            let Some(left_expr) = binary.left() else {
+              return TypResult::new(db, None, vec![]);
+            };
+            let Some(right_expr) = binary.right() else {
+              return TypResult::new(db, None, vec![]);
+            };
+            let left_node = ProjectRedNode::new(project, file, left_expr.syntax().clone());
+            let right_node = ProjectRedNode::new(project, file, right_expr.syntax().clone());
+            get_field_access_typ(db, left_node, right_node)
+          }
+          Some(op_kind) => get_binary_op_typ(db, op_kind),
+          None => TypResult::new(db, None, vec![]),
+        }
+      }
+      Expr::PrefixExpr(prefix) => {
+        let op = prefix.op().and_then(|op| op.kind());
+        get_prefix_typ(db, op)
+      }
+      Expr::PostfixExpr(postfix) => {
+        let op_text = postfix
+          .op()
+          .map(|op| op.syntax().text())
+          .unwrap_or_default();
+        get_postfix_typ(db, &op_text, postfix, project, file)
+      }
+      Expr::ClosureExpr(_) => get_closure_typ(db, project_node),
+      Expr::CodeLit(_) => TypResult::new(db, Some(get_string_typ(db).into()), vec![]),
+      Expr::ParenExpr(paren) => {
+        let Some(inner) = paren.expr() else {
+          return TypResult::new(db, None, vec![]);
+        };
+        let inner_node = ProjectRedNode::new(project, file, inner.syntax().clone());
+        actual_node_typ(db, inner_node)
+      }
+      // Literals that were matched above but Expr covers them too
+      Expr::NumberLit(_) | Expr::StrLit(_) | Expr::MathLit(_) | Expr::IdentLit(_) => {
+        unreachable!("handled above before Expr::cast")
+      }
+    };
+  }
+
+  TypResult::new(db, None, vec![])
 }
 
-// Helper to get the type of a mapping
-fn get_mapping_typ<'db>(
-  db: &'db TypedownDatabase,
-  _hir: HirValue<'db>,
-  entries: Vec<(String, HirValue<'db>)>,
-) -> TypResult<'db> {
+fn get_mapping_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> TypResult<'db> {
+  let node = project_node.node.clone();
+  let project = project_node.project;
+  let file = project_node.file;
+
+  // Collect entries from YamlMapping or DictLit
+  let entries: Vec<(String, ProjectRedNode)> =
+    if let Some(mapping) = YamlMapping::cast(node.clone()) {
+      mapping
+        .entries()
+        .map(|(key, value)| {
+          (
+            key,
+            ProjectRedNode::new(project, file, value.syntax().clone()),
+          )
+        })
+        .collect()
+    } else if let Some(dict) = DictLit::cast(node.clone()) {
+      dict
+        .entries()
+        .filter_map(|expr| {
+          let (key, value) = expr.entry()?;
+          Some((
+            key,
+            ProjectRedNode::new(project, file, value.syntax().clone()),
+          ))
+        })
+        .collect()
+    } else {
+      return TypResult::new(db, None, vec![]);
+    };
+
   // If _type is present, resolve the schema
-  for (key, value_hir) in &entries {
+  for (key, value_node) in &entries {
     if key == "_type" {
-      let resolved = referee(db, *value_hir);
+      let resolved = referee(db, value_node.clone());
       if let Some(symbol) = resolved.value(db) {
         return evaluate_typ(db, symbol);
       }
-      let node = value_hir.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      let red_node = &value_node.node;
+      let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
       return TypResult::new(
         db,
         None,
         vec![Diagnostic::UnresolvedSchema {
-          name: node.text(),
+          name: red_node.text(),
           start_offset: trimmed_offset,
           end_offset: trimmed_offset + trimmed_len,
         }],
@@ -109,8 +266,8 @@ fn get_mapping_typ<'db>(
   // No _type: infer a structural shape from the entries
   let mut diagnostics = vec![];
   let mut fields = BTreeMap::new();
-  for (key, value_hir) in entries {
-    let field_result = actual_node_typ(db, value_hir);
+  for (key, value_node) in entries {
+    let field_result = actual_node_typ(db, value_node);
     diagnostics.extend(field_result.diagnostics(db).iter().cloned());
     if let Some(typ) = field_result.typ(db) {
       fields.insert(key, LazyTyp::eager(typ));
@@ -123,19 +280,18 @@ fn get_mapping_typ<'db>(
   )
 }
 
-// Resolve a tag expression like !Person { name: "John" }
-fn get_tag_typ<'db>(db: &'db TypedownDatabase, tag: HirValue<'db>) -> TypResult<'db> {
-  let resolved = referee(db, tag);
+fn get_tag_typ<'db>(db: &'db TypedownDatabase, tag_node: ProjectRedNode) -> TypResult<'db> {
+  let resolved = referee(db, tag_node.clone());
   match resolved.value(db) {
     Some(symbol) => evaluate_typ(db, symbol),
     None => {
-      let node = tag.node(db);
-      let (trimmed_offset, trimmed_len) = node.trimmed_range();
+      let red_node = &tag_node.node;
+      let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
       TypResult::new(
         db,
         None,
         vec![Diagnostic::UnresolvedSchema {
-          name: node.text(),
+          name: red_node.text(),
           start_offset: trimmed_offset,
           end_offset: trimmed_offset + trimmed_len,
         }],
@@ -144,79 +300,87 @@ fn get_tag_typ<'db>(db: &'db TypedownDatabase, tag: HirValue<'db>) -> TypResult<
   }
 }
 
-// Synthesize the result type of a prefix expression
-fn get_prefix_typ<'db>(db: &'db TypedownDatabase, op: &str) -> TypResult<'db> {
+fn get_prefix_typ<'db>(db: &'db TypedownDatabase, op: Option<YamlOpKind>) -> TypResult<'db> {
   match op {
-    "-" | "+" => TypResult::new(db, Some(get_number_typ(db).into()), vec![]),
-    "~" => TypResult::new(db, Some(get_bool_typ(db).into()), vec![]),
-    _ => TypResult::new(db, None, vec![]),
-  }
-}
-
-// Synthesize the result type of a postfix expression
-fn get_postfix_typ<'db>(
-  db: &'db TypedownDatabase,
-  op: &str,
-  operand: HirValue<'db>,
-) -> TypResult<'db> {
-  match op {
-    // T? is a type operator, its result is the operand type
-    "?" => actual_node_typ(db, operand),
-    _ => TypResult::new(db, None, vec![]),
-  }
-}
-
-// Synthesize the result type of a binary expression
-fn get_binary_typ<'db>(
-  db: &'db TypedownDatabase,
-  op: &str,
-  left: HirValue<'db>,
-  right: HirValue<'db>,
-) -> TypResult<'db> {
-  // Field access needs actual(left) to look up the field type
-  if op == "." {
-    let left_result = actual_node_typ(db, left);
-    let mut diagnostics = left_result.diagnostics(db).clone();
-    let left_typ = match left_result.typ(db) {
-      Some(typ) => typ,
-      None => return TypResult::new(db, None, diagnostics),
-    };
-    let field_name = match right.kind(db) {
-      HirValueKind::Ident(name) => name,
-      _ => return TypResult::new(db, None, diagnostics),
-    };
-    return match left_typ.lookup_field_typ(db, &field_name) {
-      Some(typ) => TypResult::new(db, Some(typ), diagnostics),
-      None => {
-        let node = right.node(db);
-        let (trimmed_offset, trimmed_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::UnknownField {
-          field: field_name,
-          on_typ: left_typ.display_name(db),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
-        TypResult::new(db, None, diagnostics)
-      }
-    };
-  }
-
-  match op {
-    "+" | "-" | "*" | "/" | "%" | "**" => {
+    Some(YamlOpKind::Minus) | Some(YamlOpKind::Plus) => {
       TypResult::new(db, Some(get_number_typ(db).into()), vec![])
     }
-    "==" | "!=" | "<" | ">" | "<=" | ">=" => {
-      TypResult::new(db, Some(get_bool_typ(db).into()), vec![])
-    }
-    "&&" | "||" => TypResult::new(db, Some(get_bool_typ(db).into()), vec![]),
-    // FIXME: validate both operands are type expressions
-    "|" => TypResult::new(db, Some(get_typ_typ(db).into()), vec![]),
+    Some(YamlOpKind::Tilde) => TypResult::new(db, Some(get_bool_typ(db).into()), vec![]),
     _ => TypResult::new(db, None, vec![]),
   }
 }
 
-// Helper to get the type of a sequence
-fn get_sequence_typ<'db>(db: &'db TypedownDatabase, items: Vec<HirValue<'db>>) -> TypResult<'db> {
+fn get_postfix_typ<'db>(
+  db: &'db TypedownDatabase,
+  op_text: &str,
+  postfix: PostfixExpr,
+  project: crate::db::types::Project,
+  file: crate::db::types::File,
+) -> TypResult<'db> {
+  match op_text {
+    "?" => {
+      let Some(operand_expr) = postfix.expr() else {
+        return TypResult::new(db, None, vec![]);
+      };
+      let operand_node = ProjectRedNode::new(project, file, operand_expr.syntax().clone());
+      actual_node_typ(db, operand_node)
+    }
+    _ => TypResult::new(db, None, vec![]),
+  }
+}
+
+fn get_field_access_typ<'db>(
+  db: &'db TypedownDatabase,
+  left_node: ProjectRedNode,
+  right_node: ProjectRedNode,
+) -> TypResult<'db> {
+  let left_result = actual_node_typ(db, left_node);
+  let mut diagnostics = left_result.diagnostics(db).clone();
+  let left_typ = match left_result.typ(db) {
+    Some(typ) => typ,
+    None => return TypResult::new(db, None, diagnostics),
+  };
+  let field_name = match IdentLit::cast(right_node.node.clone()).and_then(|i| i.value()) {
+    Some(name) => name,
+    None => return TypResult::new(db, None, diagnostics),
+  };
+  match left_typ.lookup_field_typ(db, &field_name) {
+    Some(typ) => TypResult::new(db, Some(typ), diagnostics),
+    None => {
+      let red_node = &right_node.node;
+      let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
+      diagnostics.push(Diagnostic::UnknownField {
+        field: field_name,
+        on_typ: left_typ.display_name(db),
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
+      });
+      TypResult::new(db, None, diagnostics)
+    }
+  }
+}
+
+fn get_binary_op_typ<'db>(db: &'db TypedownDatabase, op: YamlOpKind) -> TypResult<'db> {
+  match op {
+    YamlOpKind::Plus
+    | YamlOpKind::Minus
+    | YamlOpKind::Mul
+    | YamlOpKind::Div
+    | YamlOpKind::Mod
+    | YamlOpKind::Pow => TypResult::new(db, Some(get_number_typ(db).into()), vec![]),
+    YamlOpKind::Eq
+    | YamlOpKind::NotEq
+    | YamlOpKind::Lt
+    | YamlOpKind::Gt
+    | YamlOpKind::LtEq
+    | YamlOpKind::GtEq
+    | YamlOpKind::And
+    | YamlOpKind::Or => TypResult::new(db, Some(get_bool_typ(db).into()), vec![]),
+    _ => TypResult::new(db, None, vec![]),
+  }
+}
+
+fn get_sequence_typ<'db>(db: &'db TypedownDatabase, items: Vec<ProjectRedNode>) -> TypResult<'db> {
   let mut diagnostics = vec![];
   let mut arms = vec![];
 
@@ -237,31 +401,44 @@ fn get_sequence_typ<'db>(db: &'db TypedownDatabase, items: Vec<HirValue<'db>>) -
   TypResult::new(db, Some(list_typ), diagnostics)
 }
 
-// Helper to get the type of a call expression
 fn get_call_typ<'db>(
   db: &'db TypedownDatabase,
-  callee: HirValue<'db>,
-  args: Vec<HirValue<'db>>,
+  call: CallExpr,
+  project: crate::db::types::Project,
+  file: crate::db::types::File,
 ) -> TypResult<'db> {
+  let Some(callee_expr) = call.callee() else {
+    return TypResult::new(db, None, vec![]);
+  };
+  let callee_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
+
   // Check if callee is a macro
-  let resolved = referee(db, callee);
+  let resolved = referee(db, callee_node.clone());
   if let Some(symbol) = resolved.value(db)
     && let SymbolKind::BuiltinMacro(kind) = symbol.kind(db)
   {
-    return get_macro_call_typ(db, kind, args);
+    let arg_nodes: Vec<ProjectRedNode> = call
+      .args()
+      .into_iter()
+      .map(|expr| ProjectRedNode::new(project, file, expr.syntax().clone()))
+      .collect();
+    return get_macro_call_typ(db, kind, arg_nodes);
   }
 
-  let callee_result = actual_node_typ(db, callee);
+  let callee_result = actual_node_typ(db, callee_node);
   let diagnostics = callee_result.diagnostics(db).clone();
-
   let callee_typ = match callee_result.typ(db) {
     Some(typ) => typ,
     None => return TypResult::new(db, None, diagnostics),
   };
 
-  let arg_typs: Vec<TdTypEnum> = args
-    .iter()
-    .filter_map(|arg| actual_node_typ(db, *arg).typ(db))
+  let arg_typs: Vec<TdTypEnum> = call
+    .args()
+    .into_iter()
+    .filter_map(|arg| {
+      let node = ProjectRedNode::new(project, file, arg.syntax().clone());
+      actual_node_typ(db, node).typ(db)
+    })
     .collect();
 
   if let Some(signature) = callee_typ.call_typ(db, arg_typs) {
@@ -274,7 +451,7 @@ fn get_call_typ<'db>(
 fn get_macro_call_typ<'db>(
   db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
-  args: Vec<HirValue<'db>>,
+  args: Vec<ProjectRedNode>,
 ) -> TypResult<'db> {
   match kind {
     BuiltinMacroKind::Fref => get_fref_typ(db, args),
@@ -282,10 +459,12 @@ fn get_macro_call_typ<'db>(
 }
 
 // fref("file.td") returns link[T] where T is the target file's schema type
-fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<HirValue<'db>>) -> TypResult<'db> {
+fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> TypResult<'db> {
   if args.len() != 1 {
-    let node = args.first().map(|a| a.node(db));
-    let (trimmed_offset, trimmed_len) = node.as_ref().map_or((0, 0), |n| n.trimmed_range());
+    let (trimmed_offset, trimmed_len) = args
+      .first()
+      .map(|a| a.node.trimmed_range())
+      .unwrap_or((0, 0));
     return TypResult::new(
       db,
       None,
@@ -297,11 +476,21 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<HirValue<'db>>) -> Typ
       }],
     );
   }
-  let arg = args[0];
-  let node = arg.node(db);
-  let (trimmed_offset, trimmed_len) = node.trimmed_range();
-  let path_string = match arg.kind(db) {
-    HirValueKind::String(value) => value,
+
+  let arg_node = args[0].clone();
+  let red_node = &arg_node.node;
+  let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
+
+  // Argument must be a plain (non-interpolated) string literal
+  let path_string = match StrLit::cast(red_node.clone()) {
+    Some(string_lit) if !string_lit.is_interpolated() => string_lit
+      .fragments()
+      .filter_map(|fragment| match fragment {
+        Either::Left(s) => Some(s),
+        _ => None,
+      })
+      .collect::<Vec<_>>()
+      .concat(),
     _ => {
       return TypResult::new(
         db,
@@ -315,15 +504,14 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<HirValue<'db>>) -> Typ
     }
   };
 
-  let project = arg.project(db);
+  let project = arg_node.project;
   let files = project.files(db);
   let root_dir = get_vault_config(db, project).root_dir(db);
-  let file_dir = arg
-    .node(db)
-    .owner_file
+  let file_dir = arg_node
+    .file
     .handle(db)
     .path()
-    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    .and_then(|parent| parent.parent().map(|d| d.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 
@@ -357,13 +545,17 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<HirValue<'db>>) -> Typ
   }
 }
 
-// Helper to get the type of an index expression
 fn get_index_typ<'db>(
   db: &'db TypedownDatabase,
-  expr: HirValue<'db>,
-  indices: Vec<HirValue<'db>>,
+  index: IndexExpr,
+  project: crate::db::types::Project,
+  file: crate::db::types::File,
 ) -> TypResult<'db> {
-  let expr_result = actual_node_typ(db, expr);
+  let Some(base_expr) = index.expr() else {
+    return TypResult::new(db, None, vec![]);
+  };
+  let base_node = ProjectRedNode::new(project, file, base_expr.syntax().clone());
+  let expr_result = actual_node_typ(db, base_node.clone());
   let mut diagnostics = expr_result.diagnostics(db).clone();
 
   let expr_typ = match expr_result.typ(db) {
@@ -371,11 +563,10 @@ fn get_index_typ<'db>(
     None => return TypResult::new(db, None, diagnostics),
   };
 
-  /* Generic instantiation */
-
+  // Generic instantiation: if the base ident resolves to a generic type, use that
   let expr_typ = if expr_typ.arity(db) == 0
-    && let HirValueKind::Ident(_) = expr.kind(db)
-    && let Some(symbol) = referee(db, expr).value(db)
+    && IdentLit::cast(base_expr.syntax().clone()).is_some()
+    && let Some(symbol) = referee(db, base_node).value(db)
     && let Some(typ) = evaluate_typ(db, symbol).typ(db)
     && typ.arity(db) > 0
   {
@@ -384,11 +575,18 @@ fn get_index_typ<'db>(
     expr_typ
   };
 
-  // Resolve each type argument and instantiate the generic type
+  let index_nodes: Vec<ProjectRedNode> = index
+    .indices()
+    .into_iter()
+    .map(|expr| ProjectRedNode::new(project, file, expr.syntax().clone()))
+    .collect();
+
+  let first_index_node = index_nodes.first().cloned();
+
   if expr_typ.arity(db) > 0 {
     let mut arg_typs = vec![];
-    for index_hir in indices {
-      let index_result = actual_node_typ(db, index_hir);
+    for index_node in index_nodes {
+      let index_result = actual_node_typ(db, index_node);
       diagnostics.extend(index_result.diagnostics(db).iter().cloned());
       match index_result.typ(db) {
         Some(typ) => arg_typs.push(typ),
@@ -401,9 +599,8 @@ fn get_index_typ<'db>(
     return TypResult::new(db, Some(instantiate_result.typ(db)), diagnostics);
   }
 
-  let key_typ = indices
-    .first()
-    .and_then(|index| actual_node_typ(db, *index).typ(db))
+  let key_typ = first_index_node
+    .and_then(|node| actual_node_typ(db, node).typ(db))
     .unwrap_or_else(|| get_number_typ(db).into());
 
   if let Some(signature) = expr_typ.index_typ(db, &key_typ) {
@@ -414,21 +611,33 @@ fn get_index_typ<'db>(
 }
 
 // actual(closure) = fn(params from expected, return from actual(body))
-fn get_closure_typ<'db>(
-  db: &'db TypedownDatabase,
-  hir: HirValue<'db>,
-  params: Vec<String>,
-  body: HirValue<'db>,
-) -> TypResult<'db> {
-  let expected = expected_node_typ(db, hir).typ(db);
+fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> TypResult<'db> {
+  let closure = match ClosureExpr::cast(project_node.node.clone()) {
+    Some(c) => c,
+    None => return TypResult::new(db, None, vec![]),
+  };
+
+  let project = project_node.project;
+  let file = project_node.file;
+
+  let expected = expected_node_typ(db, project_node.clone()).typ(db);
   let param_typs = match expected {
     Some(TdTypEnum::TdFuncTyp(func)) => func.signature(db).params(db),
     _ => return TypResult::new(db, None, vec![]),
   };
 
+  let params: Vec<String> = match closure.params() {
+    Some(typedown_types::either::Either::Left(param_list)) => {
+      param_list.params().filter_map(|p| p.value()).collect()
+    }
+    Some(typedown_types::either::Either::Right(ident)) => {
+      ident.value().map(|n| vec![n]).unwrap_or_default()
+    }
+    None => vec![],
+  };
+
   if param_typs.len() != params.len() {
-    let node = hir.node(db);
-    let (trimmed_offset, trimmed_len) = node.trimmed_range();
+    let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
     return TypResult::new(
       db,
       None,
@@ -441,7 +650,12 @@ fn get_closure_typ<'db>(
     );
   }
 
-  let body_result = actual_node_typ(db, body);
+  let body_expr = match closure.body() {
+    Some(b) => b,
+    None => return TypResult::new(db, None, vec![]),
+  };
+  let body_node = ProjectRedNode::new(project, file, body_expr.syntax().clone());
+  let body_result = actual_node_typ(db, body_node);
   let ret = match body_result.typ(db) {
     Some(typ) => typ,
     None => return TypResult::new(db, None, body_result.diagnostics(db).clone()),
@@ -466,10 +680,11 @@ mod tests {
   use crate::db::types::{FuncSignature, TdTypEnum};
   use std::{collections::HashMap, path::PathBuf};
 
-  use crate::db::{QueryStorage, TypedownDatabase, utils::lower_file};
+  use crate::db::derived::parse_file::parse_file;
+  use crate::db::{QueryStorage, TypedownDatabase};
   use crate::syntax::diagnostic::Diagnostic;
 
-  use crate::db::{fixtures::load_vault_fixture, types::HirValueKind};
+  use crate::db::fixtures::load_vault_fixture;
 
   use super::actual_node_typ;
 
@@ -501,9 +716,8 @@ mod tests {
   #[test]
   fn infer_anonymous_mapping_narrows_lit_fields() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    let result_typ = actual_node_typ(&db, hir);
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result_typ = actual_node_typ(&db, root_node);
     let typ = result_typ.typ(&db).expect("should infer a type");
     let product = typ
       .as_td_product_typ()
@@ -575,9 +789,8 @@ mod tests {
     let files = HashMap::from([(schema_file_path, file)]);
     let project = Project::new(&db, vault, files);
 
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("schema file should have parseable frontmatter");
-    let result = actual_node_typ(&db, hir);
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = actual_node_typ(&db, root_node);
 
     let typ = result.typ(&db);
     let expected_typ = Some(TdTypEnum::from(get_schema_meta_typ(&db)));
@@ -595,81 +808,72 @@ mod tests {
   #[test]
   fn actual_node_typ_string_lit_returns_lit() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    // Get the "name" field value ("Alice")
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      let name_hir = entries
-        .iter()
-        .find(|(key, _)| key == "name")
-        .map(|(_, value)| *value);
-      let name_hir = name_hir.expect("should have name field");
-      let result_typ = actual_node_typ(&db, name_hir);
-      let typ = result_typ.typ(&db).expect("should have a type");
-      assert!(
-        is_lit_string(&db, &typ, "Alice"),
-        "string value should be literal str"
-      );
-    }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let name_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "name")
+      .map(|(_, v)| v)
+      .expect("should have name field");
+    let result_typ = actual_node_typ(&db, name_node);
+    let typ = result_typ.typ(&db).expect("should have a type");
+    assert!(
+      is_lit_string(&db, &typ, "Alice"),
+      "string value should be literal str"
+    );
   }
 
   #[test]
   fn actual_node_typ_bool_returns_lit() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      let active_hir = entries
-        .iter()
-        .find(|(key, _)| key == "active")
-        .map(|(_, value)| *value);
-      let active_hir = active_hir.expect("should have active field");
-      let result_typ = actual_node_typ(&db, active_hir);
-      let typ = result_typ.typ(&db).expect("should have a type");
-      assert!(
-        is_lit_bool(&db, &typ, true),
-        "bool value should be literal bool"
-      );
-    }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let active_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "active")
+      .map(|(_, v)| v)
+      .expect("should have active field");
+    let result_typ = actual_node_typ(&db, active_node);
+    let typ = result_typ.typ(&db).expect("should have a type");
+    assert!(
+      is_lit_bool(&db, &typ, true),
+      "bool value should be literal bool"
+    );
   }
 
   #[test]
   fn actual_node_typ_sequence_returns_list_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "anonymous_mapping.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      let tags_hir = entries
-        .iter()
-        .find(|(key, _)| key == "tags")
-        .map(|(_, value)| *value);
-      let tags_hir = tags_hir.expect("should have tags field");
-      let result_typ = actual_node_typ(&db, tags_hir);
-      let typ = result_typ.typ(&db).expect("should have a type");
-      assert!(typ.is_td_list_typ(), "sequence should be a list type");
-    }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let tags_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "tags")
+      .map(|(_, v)| v)
+      .expect("should have tags field");
+    let result_typ = actual_node_typ(&db, tags_node);
+    let typ = result_typ.typ(&db).expect("should have a type");
+    assert!(typ.is_td_list_typ(), "sequence should be a list type");
   }
 
   // Date strings narrow to date type, not Literal
   #[test]
   fn actual_node_typ_date_string_returns_simple_date() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      let date_hir = entries
-        .iter()
-        .find(|(key, _)| key == "date")
-        .map(|(_, value)| *value);
-      let date_hir = date_hir.expect("should have date field");
-      let result_typ = actual_node_typ(&db, date_hir);
-      let typ = result_typ.typ(&db).expect("should have a type");
-      assert_eq!(
-        typ.display_name(&db),
-        "date",
-        "ISO date string should resolve to date"
-      );
-    }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let date_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "date")
+      .map(|(_, v)| v)
+      .expect("should have date field");
+    let result_typ = actual_node_typ(&db, date_node);
+    let typ = result_typ.typ(&db).expect("should have a type");
+    assert_eq!(
+      typ.display_name(&db),
+      "date",
+      "ISO date string should resolve to date"
+    );
   }
 
   // Fref returns the resource's schema type, not type_type
@@ -677,24 +881,21 @@ mod tests {
   fn actual_node_typ_fref_returns_resource_typ() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      // status: fref("summary.td").status
-      let status_hir = entries
-        .iter()
-        .find(|(key, _)| key == "status")
-        .map(|(_, value)| *value);
-      let status_hir = status_hir.expect("should have status field");
-      let result_typ = actual_node_typ(&db, status_hir);
-      // Should resolve to something (not None), and not be type_type
-      if let Some(typ) = result_typ.typ(&db) {
-        assert_ne!(
-          typ.display_name(&db),
-          "type",
-          "fref field access should not return type_type"
-        );
-      }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    // status: fref("summary.td").status
+    let status_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "status")
+      .map(|(_, v)| v)
+      .expect("should have status field");
+    let result_typ = actual_node_typ(&db, status_node);
+    if let Some(typ) = result_typ.typ(&db) {
+      assert_ne!(
+        typ.display_name(&db),
+        "type",
+        "fref field access should not return type_type"
+      );
     }
   }
 
@@ -702,21 +903,19 @@ mod tests {
   #[test]
   fn actual_node_typ_num_returns_lit() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      let age_hir = entries
-        .iter()
-        .find(|(key, _)| key == "age")
-        .map(|(_, value)| *value);
-      let age_hir = age_hir.expect("should have age field");
-      let result_typ = actual_node_typ(&db, age_hir);
-      let typ = result_typ.typ(&db).expect("should have a type");
-      assert!(
-        is_lit_number(&db, &typ, "30"),
-        "number value should be literal num"
-      );
-    }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let age_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "age")
+      .map(|(_, v)| v)
+      .expect("should have age field");
+    let result_typ = actual_node_typ(&db, age_node);
+    let typ = result_typ.typ(&db).expect("should have a type");
+    assert!(
+      is_lit_number(&db, &typ, "30"),
+      "number value should be literal num"
+    );
   }
 
   #[test]
@@ -738,17 +937,14 @@ mod tests {
   fn actual_node_typ_relative_fref_resolves_from_file_directory() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "subdir/with_relative_fref.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    let related_hir = match hir.kind(&db) {
-      HirValueKind::Mapping(entries) => entries
-        .into_iter()
-        .find(|(k, _)| k == "related")
-        .map(|(_, v)| v)
-        .expect("should have 'related' field"),
-      _ => panic!("expected mapping"),
-    };
-    let result = actual_node_typ(&db, related_hir);
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let related_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "related")
+      .map(|(_, v)| v)
+      .expect("should have 'related' field");
+    let result = actual_node_typ(&db, related_node);
     let has_unresolved = result
       .diagnostics(&db)
       .iter()
@@ -767,18 +963,16 @@ mod tests {
   #[test]
   fn actual_node_type_method_call_to_string_returns_string_type() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "method_call.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.expect("should parse");
-    if let HirValueKind::Mapping(entries) = hir.kind(&db) {
-      let result_hir = entries
-        .iter()
-        .find(|(key, _)| key == "result")
-        .map(|(_, value)| *value)
-        .unwrap();
-      let result = actual_node_typ(&db, result_hir);
-      let typ = result.typ(&db).expect("should have a type");
-      let string_typ: TdTypEnum = get_string_typ(&db).into();
-      assert_eq!(typ, string_typ);
-    }
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let result_node = entries
+      .into_iter()
+      .find(|(k, _)| k == "result")
+      .map(|(_, v)| v)
+      .expect("should have result field");
+    let result = actual_node_typ(&db, result_node);
+    let typ = result.typ(&db).expect("should have a type");
+    let string_typ: TdTypEnum = get_string_typ(&db).into();
+    assert_eq!(typ, string_typ);
   }
 }

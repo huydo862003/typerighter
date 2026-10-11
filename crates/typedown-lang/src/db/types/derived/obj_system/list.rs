@@ -9,10 +9,8 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{get_list_typ, get_number_typ, get_obj_typ};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::Project;
-use crate::db::types::{
-  FuncSignature, HirValue, InstantiateResult, LazyTyp, TypParams, TypVariable,
-};
+use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams, TypVariable};
+use crate::db::types::{Project, ProjectRedNode};
 use crate::syntax::diagnostic::Diagnostic;
 
 #[query_derived]
@@ -137,7 +135,7 @@ impl<'db> TdListTyp<'db> {
 
 #[query_derived(custom_hash)]
 pub struct TdListObj<'db> {
-  pub items: Vec<Either<HirValue<'db>, TdObjEnum<'db>>>,
+  pub items: Vec<Either<ProjectRedNode, TdObjEnum<'db>>>,
 }
 
 // Hash item count only to avoid walking the full list
@@ -190,9 +188,9 @@ impl<'db> TdListObj<'db> {
 
   pub fn get(self, db: &'db TypedownDatabase, idx: usize) -> Option<TdObjEnum<'db>> {
     match self.items(db).into_iter().nth(idx)? {
-      Either::Left(hir) => {
-        let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-        evaluate_node(db, hir, file_scope).value(db)
+      Either::Left(project_node) => {
+        let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
+        evaluate_node(db, project_node, file_scope).value(db)
       }
       Either::Right(obj) => Some(obj),
     }

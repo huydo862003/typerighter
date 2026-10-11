@@ -9,7 +9,6 @@ use lsp_types::{
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::{all_visible_members, members};
 use typedown_lang::db::derived::name_resolver::scope::scope;
@@ -19,7 +18,7 @@ use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_ty
 use typedown_lang::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
 use typedown_lang::db::types::typecheck::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
-  File, FileRedNode, LazyTyp, LitValue, Project, SymbolKind, TdStaticTyp, TdTypEnum,
+  File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
 };
 use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::{AstNode, BinaryExpr, Expr, YamlOpKind};
@@ -155,8 +154,8 @@ fn collect_dot_access_completions(
   }
 
   let lhs = bin.left()?;
-  let hir = lower_node(db, project, FileRedNode::new(file, lhs.syntax().clone()));
-  let lhs_typ = actual_node_typ(db, hir).typ(db)?;
+  let project_node = ProjectRedNode::new(project, file, lhs.syntax().clone());
+  let lhs_typ = actual_node_typ(db, project_node).typ(db)?;
 
   let mut items = Vec::new();
 
@@ -380,12 +379,8 @@ fn find_enclosing_mapping_typ<'db>(
 
   // No explicit _typ, resolve via the parent field's declared type
   let mapping_expr = Expr::cast(mapping.clone())?;
-  let hir = lower_node(
-    db,
-    project,
-    FileRedNode::new(file, mapping_expr.syntax().clone()),
-  );
-  let typ = expected_node_typ(db, hir).typ(db)?;
+  let project_node = ProjectRedNode::new(project, file, mapping_expr.syntax().clone());
+  let typ = expected_node_typ(db, project_node).typ(db)?;
   if typ.is_td_product_typ() || typ.is_td_schema_typ() {
     return Some((typ, mapping));
   }
@@ -409,8 +404,8 @@ fn collect_value_completions(
   // Find the nearest Expr ancestor to resolve scope (captures enclosing closures)
   let current_scope = get_nearest_expr_ancestor(node)
     .map(|expr| {
-      let hir = lower_node(db, project, FileRedNode::new(file, expr.syntax().clone()));
-      scope(db, hir)
+      let project_node = ProjectRedNode::new(project, file, expr.syntax().clone());
+      scope(db, project_node)
     })
     .unwrap_or_else(|| Scope::new(db, ScopeKind::File(project, file)));
 
@@ -543,12 +538,8 @@ fn get_declared_field<'db>(
 
   // Try the value expression first
   if let Some(value_expr) = entry_value.children().find_map(Expr::cast) {
-    let hir = lower_node(
-      db,
-      project,
-      FileRedNode::new(file, value_expr.syntax().clone()),
-    );
-    if let Some(typ) = expected_node_typ(db, hir).typ(db) {
+    let project_node = ProjectRedNode::new(project, file, value_expr.syntax().clone());
+    if let Some(typ) = expected_node_typ(db, project_node).typ(db) {
       return Some(typ);
     }
   }

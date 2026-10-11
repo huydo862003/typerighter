@@ -7,10 +7,10 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_vault_config::get_vault_config;
-use crate::db::derived::hir::lower_node;
+
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::types::{File, FileRedNode, Project, Symbol, SymbolKind, TdRuntimeObj};
+use crate::db::types::{File, Project, ProjectRedNode, Symbol, SymbolKind, TdRuntimeObj};
 use crate::db::utils::strip_content_extension;
 use crate::syntax::red::RedNode;
 
@@ -69,8 +69,8 @@ pub fn resolve_fref_target(
   file: File,
   node: &RedNode,
 ) -> Option<FrefTarget> {
-  let hir = lower_node(db, project, FileRedNode::new(file, node.clone()));
-  let referee_result = referee(db, hir);
+  let project_node = ProjectRedNode::new(project, file, node.clone());
+  let referee_result = referee(db, project_node);
   let target_symbol = referee_result.value(db)?;
   let resolved = resolve_file_ref(db, project, &target_symbol)?;
 
