@@ -118,15 +118,18 @@ impl CacheSession {
   }
 }
 
-// Extract the millisecond timestamp from a session dir name (s-{timestamp}-...)
-fn session_timestamp(path: &Path) -> u128 {
-  path
+// Extract (timestamp, revision) from a finalized session dir name (s-{timestamp}-{random}-{revision}).
+// Revision is the last dash-separated segment; used as a tiebreaker when two sessions share a timestamp.
+fn session_sort_key(path: &Path) -> (u128, u64) {
+  let name = path
     .file_name()
-    .and_then(|name| name.to_str())
-    .and_then(|name| name.strip_prefix("s-"))
-    .and_then(|name| name.split('-').next())
-    .and_then(|string| string.parse().ok())
-    .unwrap_or(0)
+    .and_then(|n| n.to_str())
+    .and_then(|n| n.strip_prefix("s-"))
+    .unwrap_or("");
+  let mut parts = name.split('-');
+  let timestamp: u128 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+  let revision: u64 = parts.next_back().and_then(|s| s.parse().ok()).unwrap_or(0);
+  (timestamp, revision)
 }
 
 /// Find the most recent finalized session directory (not ending in "-working").
@@ -143,8 +146,9 @@ fn find_latest_finalized(cache_dir: &Path) -> Option<PathBuf> {
           .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
     })
     .collect();
-  // Sort by timestamp only so same-millisecond sessions compare equal regardless of random token
-  candidates.sort_unstable_by_key(|lhs| std::cmp::Reverse(session_timestamp(lhs)));
+  // Sort by (timestamp, revision) descending so the newest session is always first,
+  // even when two sessions complete within the same millisecond.
+  candidates.sort_unstable_by_key(|p| std::cmp::Reverse(session_sort_key(p)));
   candidates.into_iter().next()
 }
 
@@ -191,7 +195,7 @@ fn garbage_collect(cache_dir: &Path) {
         .is_some_and(|n| !n.ends_with("-working"))
     })
     .collect();
-  finalized.sort_unstable_by_key(|a| std::cmp::Reverse(session_timestamp(a)));
+  finalized.sort_unstable_by_key(|a| std::cmp::Reverse(session_sort_key(a)));
   for old in finalized.into_iter().skip(1) {
     let lock_path = old.join(LOCK_FILE);
     if let Ok(f) = File::open(&lock_path)
