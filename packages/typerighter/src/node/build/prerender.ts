@@ -21,6 +21,9 @@ import {
   resolvePageTitle, resolvePageDescription, extractDateModified, extractOgImagePath,
   buildArticleLd, buildBreadcrumbLd,
 } from './seo';
+import {
+  isCriticalFontFile,
+} from './fonts';
 
 export interface PrerenderContext {
   /** Absolute path to the SSR bundle entry */
@@ -67,17 +70,21 @@ const WORKER_THRESHOLD = 64;
 // Pre-render all pages to static HTML files
 export async function prerenderHtmlPages (context: PrerenderContext): Promise<void> {
   // 1. Resolve client assets (JS/CSS paths)
-  const { clientEntry, cssFiles, jsFiles } = await resolveClientAssets(context.clientOutDir);
+  const { clientEntry, cssFiles, jsFiles, fontFiles } = await resolveClientAssets(context.clientOutDir);
 
   const cssLinks = cssFiles
     .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
+    .join('\n');
+
+  const fontPreloads = fontFiles
+    .map((file) => `    <link rel="preload" as="font" type="font/woff2" crossorigin href="${context.base}${file}">`)
     .join('\n');
 
   const modulePreloads = jsFiles
     .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
     .join('\n');
 
-  const headExtra = [cssLinks, modulePreloads].filter(Boolean).join('\n') || undefined;
+  const headExtra = [cssLinks, fontPreloads, modulePreloads].filter(Boolean).join('\n') || undefined;
 
   if (context.pagePaths.length >= WORKER_THRESHOLD) {
     await prerenderWithWorkers(context, clientEntry, headExtra);
@@ -183,6 +190,7 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
   clientEntry: string;
   cssFiles: string[];
   jsFiles: string[];
+  fontFiles: string[];
 }> {
   const manifestPath = path.join(clientOutDir, '.vite', 'manifest.json');
   const raw = await fs.readFile(manifestPath, 'utf-8');
@@ -196,6 +204,7 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
   let clientEntry = '';
   const cssFiles: string[] = [];
   const jsFiles: string[] = [];
+  const fontFiles: string[] = [];
 
   for (const chunk of Object.values(manifest)) {
     if (chunk.isEntry) {
@@ -206,8 +215,10 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
       }
     } else if (chunk.file.endsWith('.js')) {
       jsFiles.push(chunk.file);
+    } else if (isCriticalFontFile(chunk.file)) {
+      fontFiles.push(chunk.file);
     }
   }
 
-  return { clientEntry, cssFiles, jsFiles };
+  return { clientEntry, cssFiles, jsFiles, fontFiles };
 }

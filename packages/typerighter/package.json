@@ -36,6 +36,7 @@
       "import": "./dist/client/theme-default.js"
     },
     "./style.css": "./dist/typerighter.css",
+    "./fonts.css": "./dist/fonts.css",
     "./math.css": "./dist/math.css"
   },
   "sideEffects": [
