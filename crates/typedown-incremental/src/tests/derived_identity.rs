@@ -168,6 +168,65 @@ fn drain_shrinks_serialized_field_count() {
   );
 }
 
+// Regression: concurrent deserialize_derived_identity for shared struct entries must not panic.
+//
+// Two sets of queries share IdResult entries in their derived_identities.
+// After roundtrip, concurrent loading of both sets races on deserialize_derived_identity for the same entries
+#[test]
+fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
+  use crate::{InputId, InternedId};
+  use std::sync::Arc;
+
+  let db1 = IdDatabase {
+    storage: QueryStorage::default(),
+  };
+
+  // make_range and identity both create IdResult::new(db, i, i) for i in 0..=count.
+  // They produce the same struct entries (same identity_hash), so both memos list them in derived_identities. After roundtrip, loading these concurrently races on deserialize_derived_identity for each shared IdResult entry
+  let count = 50usize;
+  let config = identity::RangeConfig::new(&db1, count);
+  identity::make_range(&db1, config);
+  for i in 0..=count {
+    let input = identity::IdInput::new(&db1, i);
+    identity::identity(&db1, input);
+  }
+
+  let db2 = Arc::new(identity::dump_and_reload(&db1, |storage| IdDatabase {
+    storage,
+  }));
+
+  std::thread::scope(|s| {
+    let db = Arc::as_ref(&db2);
+
+    // One thread loads make_range (deserialize_derived_identity for IdResult[0..=count])
+    s.spawn(|| {
+      let cfg = identity::find_entry(
+        identity::RangeConfig::iter(db),
+        |c| c.count(db) == count,
+        "RangeConfig",
+      );
+      let result = identity::make_range(db, cfg);
+      assert_eq!(result.n(db), count);
+      assert_eq!(result.value(db), count);
+    });
+
+    // Many threads each load identity(input_i), racing on deserialize_derived_identity for IdResult[i] which is also in make_range's derived_identities
+    for i in 0..=count {
+      s.spawn(move || {
+        let input = identity::find_entry(
+          identity::IdInput::iter(db),
+          |inp| inp.n(db) == i,
+          format!("IdInput(n={i})"),
+        );
+        let result = identity::identity(db, input);
+        // These reads panic if sibling fields were not fully written before entry_id was returned
+        assert_eq!(result.n(db), i);
+        assert_eq!(result.value(db), i);
+      });
+    }
+  });
+}
+
 // Identity map cleanup must not break serialization
 #[test]
 fn drain_then_roundtrip_is_clean() {

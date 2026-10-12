@@ -155,16 +155,13 @@ impl DeserializeContext {
   ) -> Option<DerivedIdentity> {
     let (name_fingerprint, identity_hash, disambiguator, old_entry_id) = *identity;
     let group_key = (name_fingerprint, old_entry_id);
-    let already_in_map = self
-      .old_session_entry_id_to_new_session_id_map
-      .contains_key(&group_key);
-    if !already_in_map {
-      let field_group = self.derived_groups.get(&group_key)?;
-      for &(_, field_node_index) in &field_group.fields {
-        self
-          .decoder
-          .get_or_deserialize_dep_node_id(field_node_index);
-      }
+    // Always deserialize all sibling fields before reading the map
+    // The map entry may be inserted by one field's deserialization before its siblings are written, so reading the map first and skipping the group would return an incomplete entry
+    let field_group = self.derived_groups.get(&group_key)?;
+    for &(_, field_node_index) in &field_group.fields {
+      self
+        .decoder
+        .get_or_deserialize_dep_node_id(field_node_index);
     }
     let new_entry_id = self
       .old_session_entry_id_to_new_session_id_map
