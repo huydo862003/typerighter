@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.42.1] - 2026-10-12
+
+### Fixed
+
+- crates/typedown-incremental
+  - Race condition on deserializing derived identities
+
 ## [0.42.0] - 2026-10-11
 
 ### Performance

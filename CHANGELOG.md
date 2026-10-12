@@ -1,9 +1,16 @@
+## [0.42.1] - 2026-10-12
+
+### Fixed
+
+- crates/typedown-incremental
+  - Race condition on deserializing derived identities
+
 ## [0.42.0] - 2026-10-11
 
 ### Performance
 
 - crates/typedown-incremental, crates/typedown-lang, packages/typerighter
-  - Reduce cache size
+  - Reduce cache size by removing the HIR layer
   - Improve cache performance
   - Improve prerendering speed
 
