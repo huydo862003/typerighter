@@ -185,7 +185,8 @@ function generateTypedownYaml (options: InitializeOptions): string {
     ? `\n  origin: "${options.siteOrigin}"`
     : '';
 
-  return `version: "1.0.0"
+  return `# yaml-language-server: $schema=./node_modules/typerighter/dist/typedown.schema.json
+version: "1.0.0"
 vault:
   root_dir: "vault"
 site:

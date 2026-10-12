@@ -43,6 +43,7 @@ export default defineConfig({
     emitCssAssets({
       'math.css': 'src/client/theme-default/styles/math.css',
       'fonts.css': 'src/client/theme-default/styles/fonts.css',
+      'typedown.schema.json': 'src/node/cli/typedown.schema.json',
     }),
   ],
   build: {
