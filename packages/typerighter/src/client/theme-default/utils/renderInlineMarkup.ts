@@ -2,11 +2,11 @@ import {
   ref, watchEffect, type Ref,
 } from 'vue';
 import {
+  INLINE_RE,
+} from './inlineRe';
+import {
   escapeHtml,
 } from '@/shared';
-
-// Matches inline code (`...`) and inline math ($...$)
-const INLINE_RE = /`([^`]+)`|\$([^$]+)\$/g;
 
 // temml is loaded lazily as it's very heavy
 export function useLazyInlineMarkup (getText: () => string): Ref<string> {
@@ -29,9 +29,9 @@ export function useLazyInlineMarkup (getText: () => string): Ref<string> {
     });
 
     import('./renderMath').then(({
-      renderWithMath,
+      renderInlineMarkup,
     }) => {
-      if (active) rendered.value = renderWithMath(text);
+      if (active) rendered.value = renderInlineMarkup(text);
     });
   });
 

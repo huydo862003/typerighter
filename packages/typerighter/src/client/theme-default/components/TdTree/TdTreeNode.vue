@@ -111,6 +111,16 @@ function isCurrent (href: string): boolean {
   return route.path === href;
 }
 
+function onToggleKeydown (event: KeyboardEvent): void {
+  if (event.key === 'ArrowRight' && collapsed.value) {
+    collapsed.value = false;
+    event.preventDefault();
+  } else if (event.key === 'ArrowLeft' && !collapsed.value) {
+    collapsed.value = true;
+    event.preventDefault();
+  }
+}
+
 function toggle () {
   collapsed.value = !collapsed.value;
 }
@@ -120,13 +130,15 @@ function toggle () {
   <div
     v-if="hasContent"
     class="td-tree-node"
+    role="treeitem"
+    :aria-expanded="!collapsed"
   >
     <div class="td-tree-label">
       <button
         type="button"
         class="td-tree-toggle"
-        :aria-expanded="!collapsed"
         @click="toggle"
+        @keydown="onToggleKeydown"
       >
         <ChevronDown
           :size="14"
@@ -162,6 +174,7 @@ function toggle () {
     </div>
     <div
       class="td-collapse td-tree-children"
+      role="group"
       :class="{
         'is-collapsed': collapsed,
       }"
@@ -200,8 +213,7 @@ function toggle () {
               :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
             >
               <TdTreeNodeLabel
-                :text="
-                  getTdResourceTitle(entry.item.filepath, entry.item.label)
+                :text="getTdResourceTitle(entry.item.filepath, entry.item.label)
                 "
               />
             </TdTooltip>

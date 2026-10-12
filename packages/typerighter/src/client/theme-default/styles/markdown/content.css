@@ -123,6 +123,11 @@
   opacity: 1;
 }
 
+.td-content .td-header-anchor--copied::before {
+  content: '\2713';
+  color: var(--color-td-tip);
+}
+
 /* Lists */
 
 .td-content ul {

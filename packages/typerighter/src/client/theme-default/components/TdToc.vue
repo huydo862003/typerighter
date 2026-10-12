@@ -20,9 +20,23 @@ const {
   static?: boolean;
 }>();
 
+// Flatten h2 + their direct h3 children, deeper levels are omitted
+const flatHeadings = computed(() => {
+  const result: MarkdownHeading[] = [];
+
+  for (const heading of headings) {
+    result.push(heading);
+    for (const child of heading.children) {
+      result.push(child);
+    }
+  }
+
+  return result;
+});
+
 const activeTocId = isStatic
   ? computed(() => undefined)
-  : useActiveTocHeading(() => headings);
+  : useActiveTocHeading(() => flatHeadings.value);
 </script>
 
 <template>
@@ -35,7 +49,7 @@ const activeTocId = isStatic
     </div>
     <ul class="td-toc-list">
       <li
-        v-for="heading in headings"
+        v-for="heading in flatHeadings"
         :key="heading.slug"
         :class="{
           'td-toc-indent-1': heading.level === 3,

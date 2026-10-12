@@ -102,11 +102,17 @@ export async function createTypedownApp (
     title: config.title ?? '',
     description: config.description ?? '',
     basePath: config.basePath ?? '/',
+    origin: config.origin,
+    lang: config.lang,
     repo: config.repo,
     author: config.author,
     license: config.license,
     nav: config.nav,
   };
+
+  if (typeof document !== 'undefined' && siteConfig.lang) {
+    document.documentElement.lang = siteConfig.lang;
+  }
 
   const siteData = shallowRef<TypedownSiteData>({
     ready: data.ready ?? false,

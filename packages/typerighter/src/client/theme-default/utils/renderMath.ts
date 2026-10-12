@@ -1,13 +1,12 @@
 import temml from 'temml';
 import {
+  INLINE_RE,
+} from './inlineRe';
+import {
   escapeHtml,
 } from '@/shared';
 
-// Matches inline code (`...`) and inline math ($...$)
-const INLINE_RE = /`([^`]+)`|\$([^$]+)\$/g;
-
-// Render inline code and math; only loaded when a label actually contains math
-export function renderWithMath (text: string): string {
+export function renderInlineMarkup (text: string): string {
   let lastIndex = 0;
   let result = '';
 

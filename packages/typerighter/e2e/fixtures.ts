@@ -94,7 +94,7 @@ function createTestProjectFixture (fixture: FixtureName) {
     const goto = async (page: Page, vaultPath = '') => {
       await page.goto(url(vaultPath));
       await page.waitForFunction(
-        () => 0 < document.querySelector('#app')?.children.length ?? 0,
+        () => 0 < (document.querySelector('#app')?.children.length ?? 0),
         {
           timeout: 30_000,
         },

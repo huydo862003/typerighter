@@ -33,6 +33,9 @@ import {
   useCopyCode,
 } from './composables/useCopyCode';
 import {
+  useCopyHeadingAnchor,
+} from './composables/useCopyHeadingAnchor';
+import {
   useGlobalHotkey,
 } from './composables/useHotkey';
 import {
@@ -87,6 +90,7 @@ watch(
 );
 
 useCopyCode();
+useCopyHeadingAnchor();
 useMermaid();
 
 const sidebarSearch =
