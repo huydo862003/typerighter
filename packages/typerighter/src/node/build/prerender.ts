@@ -70,7 +70,7 @@ const WORKER_THRESHOLD = 64;
 // Pre-render all pages to static HTML files
 export async function prerenderHtmlPages (context: PrerenderContext): Promise<void> {
   // 1. Resolve client assets (JS/CSS paths)
-  const { clientEntry, cssFiles, jsFiles, fontFiles } = await resolveClientAssets(context.clientOutDir);
+  const { clientEntry, cssFiles, fontFiles } = await resolveClientAssets(context.clientOutDir);
 
   const cssLinks = cssFiles
     .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
@@ -80,11 +80,7 @@ export async function prerenderHtmlPages (context: PrerenderContext): Promise<vo
     .map((file) => `    <link rel="preload" as="font" type="font/woff2" crossorigin href="${context.base}${file}">`)
     .join('\n');
 
-  const modulePreloads = jsFiles
-    .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
-    .join('\n');
-
-  const headExtra = [cssLinks, fontPreloads, modulePreloads].filter(Boolean).join('\n') || undefined;
+  const headExtra = [cssLinks, fontPreloads].filter(Boolean).join('\n') || undefined;
 
   if (context.pagePaths.length >= WORKER_THRESHOLD) {
     await prerenderWithWorkers(context, clientEntry, headExtra);
@@ -189,7 +185,6 @@ async function prerenderSingleThread (
 async function resolveClientAssets (clientOutDir: string): Promise<{
   clientEntry: string;
   cssFiles: string[];
-  jsFiles: string[];
   fontFiles: string[];
 }> {
   const manifestPath = path.join(clientOutDir, '.vite', 'manifest.json');
@@ -198,12 +193,10 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
     file: string;
     isEntry?: boolean;
     css?: string[];
-    imports?: string[];
   }>;
 
   let clientEntry = '';
   const cssFiles: string[] = [];
-  const jsFiles: string[] = [];
   const fontFiles: string[] = [];
 
   for (const chunk of Object.values(manifest)) {
@@ -213,12 +206,10 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
       if (chunk.css) {
         cssFiles.push(...chunk.css);
       }
-    } else if (chunk.file.endsWith('.js')) {
-      jsFiles.push(chunk.file);
     } else if (isCriticalFontFile(chunk.file)) {
       fontFiles.push(chunk.file);
     }
   }
 
-  return { clientEntry, cssFiles, jsFiles, fontFiles };
+  return { clientEntry, cssFiles, fontFiles };
 }
