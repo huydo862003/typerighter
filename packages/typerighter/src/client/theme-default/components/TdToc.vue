@@ -43,6 +43,7 @@ const activeTocId = isStatic
   <div
     v-if="headings.length"
     class="td-toc"
+    data-testid="toc"
   >
     <div class="td-toc-label">
       On this page

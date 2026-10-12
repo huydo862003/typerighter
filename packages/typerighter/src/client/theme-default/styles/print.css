@@ -1,0 +1,27 @@
+@media print {
+  .td-header,
+  .td-sidebar-left,
+  .td-rail,
+  .td-drawer,
+  .td-drawer-scrim,
+  .td-skip-link,
+  .td-toc-inline,
+  .td-frontmatter-inline,
+  .td-previous-next,
+  .td-page-edit {
+    display: none !important;
+  }
+
+  .td-page {
+    display: block;
+  }
+
+  .td-main-and-rail {
+    display: block;
+  }
+
+  .td-content {
+    padding: 0;
+    max-width: 100%;
+  }
+}

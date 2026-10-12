@@ -29,6 +29,8 @@ export interface PageData {
   title: string;
   /** HTML-rendered title with inline code/math; safe for v-html */
   titleHtml: string;
+  /** Path of the source file relative to the vault root (e.g. "people/alice.td") */
+  filepath: string;
   fileMetadata?: FileMetadata;
   seoMetadata?: SeoMeta;
 }

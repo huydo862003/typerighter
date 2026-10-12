@@ -4,3 +4,4 @@ vault:
 site:
   title: "E2E Test Vault"
   description: "Test fixture for e2e tests"
+  repo: "https://github.com/test/repo"

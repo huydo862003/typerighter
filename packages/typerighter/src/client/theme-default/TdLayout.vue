@@ -26,6 +26,7 @@ import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
 import TdToc from './components/TdToc.vue';
+import TdSidebarNav from './components/TdSidebarNav.vue';
 import TdSkeleton from './components/TdSkeleton.vue';
 import TdSiteSearch from './components/TdSiteSearch/TdSiteSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
@@ -54,7 +55,7 @@ import {
   getPageIcon,
 } from './utils/pageIcon';
 import {
-  formatEditTime, getIndexUrl,
+  formatEditTime, getIndexUrl, stripTrailingSlash,
 } from '@/shared';
 import './styles/main.css';
 import './styles/markdown/content.css';
@@ -324,13 +325,11 @@ function shrinkSidebar () {
           v-model:active="sidebarSearchActive"
           class="td-sidebar-search"
         />
-        <div class="td-sidebar-scroll">
-          <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
-          <TdContentNav
-            v-else-if="!sidebarSearchActive"
-            :tree="siteData.contentTree"
-          />
-        </div>
+        <TdSidebarNav
+          :tree="siteData.contentTree"
+          :search-active="sidebarSearchActive"
+          :ready="siteDataReady"
+        />
         <div
           class="td-resize-handle"
           role="separator"
@@ -393,6 +392,13 @@ function shrinkSidebar () {
               <Content />
             </div>
             <TdPreviousNext />
+            <a
+              v-if="siteConfig.repo && page.filepath"
+              :href="`${stripTrailingSlash(siteConfig.repo!)}/edit/main/${page.filepath}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="td-page-edit"
+            >Edit this page</a>
           </article>
         </main>
 
@@ -551,6 +557,21 @@ function shrinkSidebar () {
   margin-bottom: 8px;
 }
 
+/* Edit link */
+
+.td-page-edit {
+  display: inline-block;
+  margin-top: 32px;
+  font-size: var(--font-size-td-xs);
+  color: var(--color-td-ink-4);
+  text-decoration: none;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
+.td-page-edit:hover {
+  color: var(--color-td-accent);
+}
+
 /* Menu button: hidden above 900px */
 
 .td-menu-button {
@@ -572,16 +593,6 @@ function shrinkSidebar () {
 .td-sidebar-search {
   flex-shrink: 0;
   padding: 12px 10px;
-}
-
-.td-sidebar-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: clip;
-  overscroll-behavior: contain;
-  padding: 8px 0 0;
-  scrollbar-gutter: stable;
 }
 
 .td-resize-handle {

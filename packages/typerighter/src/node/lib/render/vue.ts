@@ -41,6 +41,7 @@ export async function buildPageData (
     headings: buildHeadingTree(resource.headings),
     title,
     titleHtml: renderInlineTitleHtml(title),
+    filepath,
     fileMetadata: resource.fileMetadata,
     seoMetadata: resource.seoMetadata,
   };
