@@ -2,14 +2,17 @@
 
 use typedown_macros::query_derived;
 
-use crate::syntax::{
-  green::cache::green_cache,
-  parse::ctx::{ParseCtx, ParseResult},
-  red::RedNode,
+use crate::{
+  db::types::FileHandle,
+  syntax::{
+    green::cache::green_cache,
+    parse::ctx::{ParseCtx, ParseResult},
+    red::RedNode,
+  },
 };
 
 use crate::db::TypedownDatabase;
-use crate::db::types::{File, FileAstResult, FileRedNode, Project};
+use crate::db::types::{File, FileAstResult, Project, ProjectRedNode};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -19,7 +22,21 @@ pub fn parse_file<'db>(
   file: File,
 ) -> FileAstResult<'db> {
   let handle = file.handle(db);
-  let stream = handle.open().expect("failed to open file");
+  let stream = handle.open();
+
+  if stream.is_err() {
+    eprintln!("Failed to open file. Return empty ast");
+  }
+
+  let stream = stream.unwrap_or(
+    FileHandle::Content(
+      handle.path().unwrap().clone(),
+      String::new(),
+      handle.metadata().clone(),
+    )
+    .open()
+    .unwrap(),
+  );
 
   let cache = green_cache();
   let ctx = ParseCtx::new(stream, cache);
@@ -31,7 +48,7 @@ pub fn parse_file<'db>(
     file.handle(db).clone(),
     project,
     file,
-    FileRedNode::new(file, root),
+    ProjectRedNode::new(project, file, root),
     diagnostics,
   )
 }

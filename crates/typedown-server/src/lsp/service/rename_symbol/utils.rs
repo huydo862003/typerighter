@@ -6,7 +6,7 @@ use lsp_types::{
   ResourceOp, TextDocumentEdit, TextEdit, WorkspaceEdit,
 };
 use typedown_lang::db::derived::name_resolver::resolution_index::{Reference, ReferenceKind};
-use typedown_lang::db::types::HirValueKind;
+use typedown_lang::syntax::ast::{AstNode, CallExpr};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 use typedown_types::path::normalize_path;
 
@@ -27,23 +27,24 @@ pub fn collect_reference_edits(
   let mut edits: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
 
   for r in refs {
-    let ref_path = r.hir.node(db).owner_file.handle(db).path()?.clone();
+    let ref_path = r.node.file.handle(db).path()?.clone();
     let ref_rope = analysis.file_rope(&ref_path)?;
-    let node = r.hir.node(db);
 
     let text_edit = match r.kind {
       // Ident references get replaced with `new_stem`
       ReferenceKind::Ident => TextEdit {
-        range: node_trimmed_range(&ref_rope, &node),
+        range: node_trimmed_range(&ref_rope, &r.node.node),
         new_text: new_stem.to_string(),
       },
       // Fref references get their path argument replaced with the new relative path
       ReferenceKind::Fref => {
-        let HirValueKind::Call { args, .. } = r.hir.kind(db) else {
+        let Some(call) = CallExpr::cast(r.node.node.clone()) else {
           continue;
         };
-        let Some(arg) = args.first() else { continue };
-        let arg_node = arg.node(db);
+        let Some(arg) = call.args().into_iter().next() else {
+          continue;
+        };
+        let arg_node = arg.syntax().clone();
         // Skip interpolated string arguments
         if arg_node
           .children()

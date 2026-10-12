@@ -3,7 +3,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::resolution_index::references;
 use typedown_lang::db::types::SymbolKind;
-use typedown_lang::db::utils::is_type_file;
+use typedown_lang::db::utils::is_typ_file;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::uri::uri_to_path;
@@ -31,7 +31,7 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
     let symbol = file_symbol(db, project, file).value(db)?;
 
     // Schema rename: ensure new path stays inside a _types directory
-    if matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _)) && !is_type_file(&new_path) {
+    if matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _)) && !is_typ_file(&new_path) {
       continue;
     }
 

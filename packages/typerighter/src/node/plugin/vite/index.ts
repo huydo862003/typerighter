@@ -258,12 +258,12 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         filepath, affectedFiles = [],
       }) => {
         if (!server) return;
-        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath, ...affectedFiles);
+        virtualPages.sendPageData(server, tdContext, filepath);
       });
 
       // Content deleted: file was removed from disk
@@ -271,10 +271,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         filepath,
       }) => {
         if (!server) return;
-        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath);
       });

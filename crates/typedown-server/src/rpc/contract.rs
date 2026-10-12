@@ -53,6 +53,10 @@ pub struct TdSiteConfig {
   pub version: String,
   /// URL base path (e.g. "/" or "/docs")
   pub base_path: String,
+  /// Absolute site URL (e.g. "https://example.com")
+  pub origin: Option<String>,
+  /// HTML lang attribute (default "en")
+  pub lang: String,
   /// Vault root directory path relative to the project root
   pub root_dir: String,
   /// Site title from typedown.yaml
@@ -103,7 +107,7 @@ pub struct TdContentSummary {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
   /// File metadata
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
 }
 
 /// Lightweight sidebar item (no header/content/excerpt)
@@ -121,7 +125,7 @@ pub struct TdSidebarItem {
   pub icon: Option<TdIcon>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
 }
 
 /// Structured build result: header (frontmatter), HTML content, and extracted headings
@@ -148,7 +152,22 @@ pub struct TdBuiltResource {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
   /// File metadata
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
+  /// SEO metadata from _meta builtin
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub seo_metadata: Option<TdSeoMeta>,
+}
+
+/// SEO fields from the _meta builtin field
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdSeoMeta {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub image: Option<String>,
 }
 
 /// Heading extracted from page content
@@ -241,6 +260,9 @@ pub struct TdContentNotification {
 
 /// Schema file event: A schema file was created, changed, or deleted
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TdSchemaNotification {
   pub schema: String,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub affected_files: Vec<String>,
 }

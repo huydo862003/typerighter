@@ -18,4 +18,6 @@ properties:
     type: list[Task]?
   tags:
     type: list[string]?
+  status2:
+    type: ("Not started" | "Reading" | "Reference only" | "Finished")?
 ---

@@ -3,6 +3,7 @@ vault:
   root_dir: "vault"
 repo: "https://github.com/huydo862003/typerighter"
 site:
+  origin: "https://huydo862003.github.io"
   title: "Typedown"
   description: "A typed markdown language for structured content"
   base_path: "/typerighter"

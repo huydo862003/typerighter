@@ -1,4 +1,4 @@
-//! Per-file index mapping each symbol to the HIR nodes that reference it
+//! Per-file index mapping each symbol to the AST nodes that reference it
 
 use std::collections::BTreeMap;
 use std::hash::Hasher;
@@ -12,10 +12,15 @@ use typedown_macros::{StableCompare, query_derived};
 use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::types::{
-  File, HirValue, HirValueKind, InterpolatedPart, Project, Symbol, SymbolKind,
+use crate::db::derived::parse_file::parse_file;
+use crate::db::types::{File, Project, ProjectRedNode, Symbol, SymbolKind};
+use crate::db::utils::is_content_file;
+use crate::syntax::ast::{
+  AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, IdentLit, IndexExpr, MdBlockElement, MdBody,
+  MdInlineElement, MdNode, PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter,
+  YamlMapping,
 };
-use crate::db::utils::{is_content_file, lower_file};
+use typedown_types::either::Either;
 
 /// How a symbol is referenced at a particular site
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, FromRepr, StableCompare)]
@@ -47,31 +52,31 @@ impl StableHash for ReferenceKind {
 }
 
 /// A single reference to a symbol
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, StableCompare)]
-pub struct Reference<'db> {
-  pub hir: HirValue<'db>,
+#[derive(Clone, Debug, PartialEq, Eq, Hash, StableCompare)]
+pub struct Reference {
+  pub node: ProjectRedNode,
   pub kind: ReferenceKind,
 }
 
-impl<'db> Encodable for Reference<'db> {
+impl Encodable for Reference {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.hir.encode(buf, encoder);
+    self.node.encode(buf, encoder);
     self.kind.encode(buf, encoder);
   }
 }
 
-impl<'db> Decodable for Reference<'db> {
+impl Decodable for Reference {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     Reference {
-      hir: HirValue::decode(data, decoder),
+      node: ProjectRedNode::decode(data, decoder),
       kind: ReferenceKind::decode(data, decoder),
     }
   }
 }
 
-impl<'db> StableHash for Reference<'db> {
+impl StableHash for Reference {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.hir.stable_hash(db, hasher);
+    self.node.stable_hash(db, hasher);
     self.kind.stable_hash(db, hasher);
   }
 }
@@ -79,19 +84,15 @@ impl<'db> StableHash for Reference<'db> {
 #[query_derived]
 pub struct ResolutionIndex<'db> {
   // Keyed by Symbol.def_id for stable ordering (Symbol is interned with session-local IDs)
-  references: BTreeMap<String, Vec<Reference<'db>>>,
+  references: BTreeMap<String, Vec<Reference>>,
 }
 
 impl<'db> ResolutionIndex<'db> {
   /// Look up all references to a given symbol
-  pub fn get_references(
-    &self,
-    db: &'db TypedownDatabase,
-    symbol: Symbol<'db>,
-  ) -> Vec<Reference<'db>> {
+  pub fn get_references(&self, db: &'db TypedownDatabase, symbol: Symbol) -> Vec<Reference> {
     self
       .references(db)
-      .get(&symbol.def_id(db).to_string())
+      .get(&symbol.definition_id(db).to_string())
       .cloned()
       .unwrap_or_default()
   }
@@ -110,104 +111,455 @@ pub fn resolution_index<'db>(
   file: File,
 ) -> ResolutionIndex<'db> {
   let mut map: BTreeMap<String, Vec<Reference>> = BTreeMap::new();
-  let (hir, _) = lower_file(db, project, file);
-  if let Some(hir) = hir {
-    collect_references(db, hir, &mut map);
-  }
+  let root = parse_file(db, project, file).ast(db);
+  collect_refs_in_source(db, root, &mut map);
   ResolutionIndex::new(db, map)
 }
 
-fn collect_references<'db>(
-  db: &'db TypedownDatabase,
-  hir: HirValue<'db>,
-  map: &mut BTreeMap<String, Vec<Reference<'db>>>,
+fn collect_refs_in_source(
+  db: &TypedownDatabase,
+  project_node: ProjectRedNode,
+  map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
-  match hir.kind(db) {
-    HirValueKind::Mapping(values) => {
-      for (_, value) in values {
-        collect_references(db, value, map);
+  let source_file = match SourceFile::cast(project_node.node.clone()) {
+    Some(sf) => sf,
+    None => return,
+  };
+  if let Some(frontmatter) = source_file.frontmatter() {
+    collect_refs_in_frontmatter(
+      db,
+      frontmatter,
+      project_node.project,
+      project_node.file,
+      map,
+    );
+  }
+  if let Some(body) = source_file.body() {
+    collect_refs_in_md_body(db, body, project_node.project, project_node.file, map);
+  }
+}
+
+fn collect_refs_in_frontmatter(
+  db: &TypedownDatabase,
+  frontmatter: YamlFrontmatter,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  if let Some(mapping) = frontmatter.mapping() {
+    collect_refs_in_mapping(db, mapping, project, file, map);
+  }
+}
+
+fn collect_refs_in_mapping(
+  db: &TypedownDatabase,
+  mapping: YamlMapping,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  for (_, value_expr) in mapping.entries() {
+    let child = ProjectRedNode::new(project, file, value_expr.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+}
+
+fn collect_refs_in_md_body(
+  db: &TypedownDatabase,
+  body: MdBody,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  for block in body.block_elements() {
+    collect_refs_in_md_block(db, block, project, file, map);
+  }
+}
+
+fn collect_refs_in_md_block(
+  db: &TypedownDatabase,
+  block: MdBlockElement,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  match block {
+    MdBlockElement::MdParagraph(p) => {
+      for inline in p.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
       }
     }
-    HirValueKind::Sequence(items) => {
-      for item in items {
-        collect_references(db, item, map);
+    MdBlockElement::MdHeading(h) => {
+      for inline in h.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
       }
     }
-    HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
-      for part in parts {
-        if let InterpolatedPart::Expr(expr) = part {
-          collect_references(db, expr, map);
+    MdBlockElement::MdBlockquote(bq) => {
+      for inner_block in bq.block_elements() {
+        collect_refs_in_md_block(db, inner_block, project, file, map);
+      }
+    }
+    MdBlockElement::MdTable(table) => {
+      for row in table.rows() {
+        for cell in row.cells() {
+          for inline in cell.inline_elements() {
+            collect_refs_in_md_inline(db, inline, project, file, map);
+          }
         }
       }
     }
-    HirValueKind::Tag { tag, inner } => {
-      collect_references(db, *tag, map);
-      collect_references(db, *inner, map);
-    }
-    HirValueKind::Prefix { operand, .. } | HirValueKind::Postfix { operand, .. } => {
-      collect_references(db, *operand, map);
-    }
-    HirValueKind::Binary { left, right, .. } => {
-      collect_references(db, *left, map);
-      collect_references(db, *right, map);
-    }
-    // Only fref calls produce file references
-    HirValueKind::Call { callee, args } => {
-      let callee_ref = referee(db, *callee);
-      let hir_ref = referee(db, hir);
-      if let Some(callee_symbol) = callee_ref.value(db)
-        && matches!(callee_symbol.kind(db), SymbolKind::BuiltinMacro(_))
-        && let Some(target_symbol) = hir_ref.value(db)
-      {
-        map
-          .entry(target_symbol.def_id(db).to_string())
-          .or_default()
-          .push(Reference {
-            hir,
-            kind: ReferenceKind::Fref,
-          });
-      }
-      collect_references(db, *callee, map);
-      for arg in args {
-        collect_references(db, arg, map);
+    MdBlockElement::MdBulletList(list) => {
+      for item in list.items() {
+        for inner_block in item.block_elements() {
+          collect_refs_in_md_block(db, inner_block, project, file, map);
+        }
       }
     }
-    HirValueKind::Index { expr, indices } => {
-      collect_references(db, *expr, map);
-      for idx in indices {
-        collect_references(db, idx, map);
+    MdBlockElement::MdOrderedList(list) => {
+      for item in list.items() {
+        for inner_block in item.block_elements() {
+          collect_refs_in_md_block(db, inner_block, project, file, map);
+        }
       }
     }
-    HirValueKind::Closure { body, .. } => {
-      collect_references(db, *body, map);
-    }
-    // Only Ident nodes resolve to symbols via referee
-    HirValueKind::Ident(_) => {
-      let resolved = referee(db, hir);
-      if let Some(symbol) = resolved.value(db) {
-        map
-          .entry(symbol.def_id(db).to_string())
-          .or_default()
-          .push(Reference {
-            hir,
-            kind: ReferenceKind::Ident,
-          });
+    MdBlockElement::MdContainerBlock(container) => {
+      for node in container.value() {
+        collect_refs_in_md_node(db, node, project, file, map);
       }
     }
-    HirValueKind::Str(_)
-    | HirValueKind::Num(_)
-    | HirValueKind::Math(_)
-    | HirValueKind::Bool(_)
-    | HirValueKind::Null => {}
+    MdBlockElement::MdContainerShorthand(_)
+    | MdBlockElement::MdMedia(_)
+    | MdBlockElement::MathBlock(_)
+    | MdBlockElement::CodeBlock(_) => {}
+  }
+}
+
+fn collect_refs_in_md_node(
+  db: &TypedownDatabase,
+  node: MdNode,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  match node {
+    MdNode::MdHeading(h) => {
+      for inline in h.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
+      }
+    }
+    MdNode::MdParagraph(p) => {
+      for inline in p.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
+      }
+    }
+    MdNode::MdBlockquote(bq) => {
+      for block in bq.block_elements() {
+        collect_refs_in_md_block(db, block, project, file, map);
+      }
+    }
+    MdNode::MdContainerBlock(container) => {
+      for inner in container.value() {
+        collect_refs_in_md_node(db, inner, project, file, map);
+      }
+    }
+    MdNode::MdBold(b) => {
+      for inline in b.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
+      }
+    }
+    MdNode::MdItalic(i) => {
+      for inline in i.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
+      }
+    }
+    MdNode::MdBoldItalic(bi) => {
+      for inline in bi.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
+      }
+    }
+    MdNode::MdStrikethrough(s) => {
+      for inline in s.inline_elements() {
+        collect_refs_in_md_inline(db, inline, project, file, map);
+      }
+    }
+    MdNode::MdBulletList(_)
+    | MdNode::MdOrderedList(_)
+    | MdNode::MdTable(_)
+    | MdNode::MdContainerShorthand(_)
+    | MdNode::MdLink(_)
+    | MdNode::MdMedia(_)
+    | MdNode::MdText(_)
+    | MdNode::MdHtmlEntity(_) => {}
+  }
+}
+
+fn collect_refs_in_md_inline(
+  db: &TypedownDatabase,
+  inline: MdInlineElement,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  match inline {
+    MdInlineElement::InterpFragment(frag) => {
+      if let Some(expr) = frag.expr() {
+        let child = ProjectRedNode::new(project, file, expr.syntax().clone());
+        collect_refs_in_expr(db, child, map);
+      }
+    }
+    MdInlineElement::MdBold(b) => {
+      for inner in b.inline_elements() {
+        collect_refs_in_md_inline(db, inner, project, file, map);
+      }
+    }
+    MdInlineElement::MdItalic(i) => {
+      for inner in i.inline_elements() {
+        collect_refs_in_md_inline(db, inner, project, file, map);
+      }
+    }
+    MdInlineElement::MdBoldItalic(bi) => {
+      for inner in bi.inline_elements() {
+        collect_refs_in_md_inline(db, inner, project, file, map);
+      }
+    }
+    MdInlineElement::MdStrikethrough(s) => {
+      for inner in s.inline_elements() {
+        collect_refs_in_md_inline(db, inner, project, file, map);
+      }
+    }
+    MdInlineElement::MdLink(_)
+    | MdInlineElement::MdMedia(_)
+    | MdInlineElement::MdText(_)
+    | MdInlineElement::MdHtmlEntity(_)
+    | MdInlineElement::InlineCode(_)
+    | MdInlineElement::InlineMath(_)
+    | MdInlineElement::CodeLit(_)
+    | MdInlineElement::MathLit(_) => {}
+  }
+}
+
+fn collect_refs_in_expr(
+  db: &TypedownDatabase,
+  project_node: ProjectRedNode,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  let project = project_node.project;
+  let file = project_node.file;
+
+  let expr = match Expr::cast(project_node.node.clone()) {
+    Some(e) => e,
+    None => return,
+  };
+
+  match expr {
+    Expr::IdentLit(ident) => {
+      collect_refs_in_ident(db, ident, project_node, map);
+    }
+    Expr::StrLit(str_lit) => {
+      collect_refs_in_str_lit(db, str_lit, project, file, map);
+    }
+    Expr::CallExpr(call) => {
+      collect_refs_in_call(db, call, project_node, map);
+    }
+    Expr::YamlMapping(mapping) => {
+      collect_refs_in_mapping(db, mapping, project, file, map);
+    }
+    Expr::YamlSequence(seq) => {
+      for value in seq.values() {
+        let child = ProjectRedNode::new(project, file, value.syntax().clone());
+        collect_refs_in_expr(db, child, map);
+      }
+    }
+    Expr::DictLit(dict) => {
+      for value in dict.values() {
+        let child = ProjectRedNode::new(project, file, value.syntax().clone());
+        collect_refs_in_expr(db, child, map);
+      }
+    }
+    Expr::ListLit(list) => {
+      for item in list.items() {
+        if let Some(value) = item.value() {
+          let child = ProjectRedNode::new(project, file, value.syntax().clone());
+          collect_refs_in_expr(db, child, map);
+        }
+      }
+    }
+    Expr::BinaryExpr(binary) => {
+      collect_refs_in_binary(db, binary, project, file, map);
+    }
+    Expr::PrefixExpr(prefix) => {
+      collect_refs_in_prefix(db, prefix, project, file, map);
+    }
+    Expr::PostfixExpr(postfix) => {
+      collect_refs_in_postfix(db, postfix, project, file, map);
+    }
+    Expr::IndexExpr(index) => {
+      collect_refs_in_index(db, index, project, file, map);
+    }
+    Expr::ClosureExpr(closure) => {
+      collect_refs_in_closure(db, closure, project, file, map);
+    }
+    Expr::ParenExpr(paren) => {
+      if let Some(inner) = paren.expr() {
+        let child = ProjectRedNode::new(project, file, inner.syntax().clone());
+        collect_refs_in_expr(db, child, map);
+      }
+    }
+    Expr::NumberLit(_) | Expr::CodeLit(_) | Expr::MathLit(_) => {}
+  }
+}
+
+fn collect_refs_in_ident(
+  db: &TypedownDatabase,
+  ident: IdentLit,
+  project_node: ProjectRedNode,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  let name = ident.value().unwrap_or_default();
+  if matches!(name.as_str(), "null" | "true" | "false") {
+    return;
+  }
+  let resolved = referee(db, project_node.clone());
+  if let Some(symbol) = resolved.value(db) {
+    map
+      .entry(symbol.definition_id(db).to_string())
+      .or_default()
+      .push(Reference {
+        node: project_node,
+        kind: ReferenceKind::Ident,
+      });
+  }
+}
+
+fn collect_refs_in_str_lit(
+  db: &TypedownDatabase,
+  str_lit: StrLit,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  for fragment in str_lit.fragments() {
+    if let Either::Right(interp) = fragment
+      && let Some(inner_expr) = interp.expr()
+    {
+      let child = ProjectRedNode::new(project, file, inner_expr.syntax().clone());
+      collect_refs_in_expr(db, child, map);
+    }
+  }
+}
+
+fn collect_refs_in_call(
+  db: &TypedownDatabase,
+  call: CallExpr,
+  call_project_node: ProjectRedNode,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  let project = call_project_node.project;
+  let file = call_project_node.file;
+
+  let callee_expr = match call.callee() {
+    Some(c) => c,
+    None => return,
+  };
+  let callee_project_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
+  let callee_ref = referee(db, callee_project_node.clone());
+
+  // fref call: record the call node as a Fref reference to the target symbol
+  if let Some(callee_symbol) = callee_ref.value(db)
+    && matches!(callee_symbol.kind(db), SymbolKind::BuiltinMacro(_))
+    && let Some(target_symbol) = referee(db, call_project_node.clone()).value(db)
+  {
+    map
+      .entry(target_symbol.definition_id(db).to_string())
+      .or_default()
+      .push(Reference {
+        node: call_project_node,
+        kind: ReferenceKind::Fref,
+      });
+  }
+
+  collect_refs_in_expr(db, callee_project_node, map);
+  for arg in call.args() {
+    let child = ProjectRedNode::new(project, file, arg.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+}
+
+fn collect_refs_in_binary(
+  db: &TypedownDatabase,
+  binary: BinaryExpr,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  if let Some(left) = binary.left() {
+    let child = ProjectRedNode::new(project, file, left.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+  if let Some(right) = binary.right() {
+    let child = ProjectRedNode::new(project, file, right.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+}
+
+fn collect_refs_in_prefix(
+  db: &TypedownDatabase,
+  prefix: PrefixExpr,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  if let Some(operand) = prefix.expr() {
+    let child = ProjectRedNode::new(project, file, operand.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+}
+
+fn collect_refs_in_postfix(
+  db: &TypedownDatabase,
+  postfix: PostfixExpr,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  if let Some(operand) = postfix.expr() {
+    let child = ProjectRedNode::new(project, file, operand.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+}
+
+fn collect_refs_in_index(
+  db: &TypedownDatabase,
+  index: IndexExpr,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  if let Some(expr) = index.expr() {
+    let child = ProjectRedNode::new(project, file, expr.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+  for idx in index.indices() {
+    let child = ProjectRedNode::new(project, file, idx.syntax().clone());
+    collect_refs_in_expr(db, child, map);
+  }
+}
+
+fn collect_refs_in_closure(
+  db: &TypedownDatabase,
+  closure: ClosureExpr,
+  project: Project,
+  file: File,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  if let Some(body) = closure.body() {
+    let child = ProjectRedNode::new(project, file, body.syntax().clone());
+    collect_refs_in_expr(db, child, map);
   }
 }
 
 /// Find all references to a symbol across the project
-pub fn references<'db>(
-  db: &'db TypedownDatabase,
-  project: Project,
-  symbol: Symbol<'db>,
-) -> Vec<Reference<'db>> {
+pub fn references(db: &TypedownDatabase, project: Project, symbol: Symbol) -> Vec<Reference> {
   let mut refs = vec![];
   for (path, file) in project.files(db).iter() {
     if !is_content_file(path) {
@@ -235,7 +587,7 @@ pub fn find_transitive_referrers(db: &TypedownDatabase, project: Project, file: 
     let mut next_level = vec![];
     for sym in &current_level {
       for reference in references(db, project, *sym) {
-        let ref_file = reference.hir.node(db).owner_file;
+        let ref_file = reference.node.file;
         if ref_file == file {
           continue;
         }

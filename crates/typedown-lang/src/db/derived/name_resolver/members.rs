@@ -6,11 +6,10 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
-use crate::db::types::{
-  File, HirValueKind, MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind,
-};
-use crate::db::utils::{is_content_file, is_type_file, lower_file};
-use crate::syntax::ast::{AstNode, ClosureExpr};
+use crate::db::derived::parse_file::parse_file;
+use crate::db::types::{File, MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
+use crate::db::utils::{is_content_file, is_typ_file};
+use crate::syntax::ast::{AstNode, ClosureExpr, StrLit};
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
@@ -23,7 +22,7 @@ pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> Membe
 
   let mut members = BTreeMap::new();
   for (path, file) in &*proj_files {
-    if !path.starts_with(&root_dir) || !is_type_file(path) {
+    if !path.starts_with(&root_dir) || !is_typ_file(path) {
       continue;
     }
     if let Some(sym) = file_symbol(db, project, *file).value(db) {
@@ -40,7 +39,7 @@ pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> Membe
 }
 
 #[query_derived]
-pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResult<'db> {
+pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope) -> MembersResult<'db> {
   match scope.kind(db) {
     ScopeKind::Builtin(_) => MembersResult::new(db, builtin_scope(db).members(db)),
     ScopeKind::File(project, file) => {
@@ -89,8 +88,8 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
 
       MembersResult::new(db, members)
     }
-    ScopeKind::Fn(project, file, value) => {
-      let func = value.node(db).node.clone();
+    ScopeKind::Func(project, file, value) => {
+      let func = value.node.clone();
       let closure = ClosureExpr::cast(func).expect("expected ClosureExpr");
       let mut members = BTreeMap::new();
 
@@ -106,7 +105,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
           {
             let sym = Symbol::new(
               db,
-              SymbolKind::FnParam(project, file, value),
+              SymbolKind::FuncParam(project, file, value.clone()),
               name.clone(),
               format!("@param::{}", name),
             );
@@ -122,10 +121,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope<'db>) -> MembersResu
 
 // Collect all members visible at a scope by walking up the scope chain
 // Inner scopes shadow outer scopes
-pub fn all_visible_members<'db>(
-  db: &'db TypedownDatabase,
-  start: Scope<'db>,
-) -> BTreeMap<String, Symbol<'db>> {
+pub fn all_visible_members(db: &TypedownDatabase, start: Scope) -> BTreeMap<String, Symbol> {
   use super::scope::parent_scope;
 
   let mut result = BTreeMap::new();
@@ -148,38 +144,36 @@ pub fn all_visible_members<'db>(
 }
 
 // Extract _imports from a file's frontmatter and register each alias as a member
-fn resolve_import_members<'db>(
-  db: &'db TypedownDatabase,
+fn resolve_import_members(
+  db: &TypedownDatabase,
   project: Project,
   file: File,
-  members: &mut BTreeMap<String, Symbol<'db>>,
+  members: &mut BTreeMap<String, Symbol>,
 ) {
-  let (hir, _) = lower_file(db, project, file);
-  let Some(hir) = hir else { return };
-  let HirValueKind::Mapping(entries) = hir.kind(db) else {
+  let root_node = parse_file(db, project, file).ast(db);
+  let entries = root_node.mapping_entries();
+  let Some(entries) = entries else { return };
+  let Some((_, imports_node)) = entries.iter().find(|(key, _)| key == "_imports") else {
     return;
   };
-  let Some((_, imports_hir)) = entries.iter().find(|(k, _)| k == "_imports") else {
-    return;
-  };
-  let HirValueKind::Mapping(import_entries) = imports_hir.kind(db) else {
+  let Some(import_entries) = imports_node.mapping_entries() else {
     return;
   };
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
 
-  for (alias, path_hir) in import_entries {
-    let HirValueKind::Str(path) = path_hir.kind(db) else {
+  for (alias, path_node) in import_entries {
+    let Some(path) = StrLit::cast(path_node.node.clone()).and_then(|s| s.plain_value()) else {
       continue;
     };
     let target_path = root_dir.join(&path);
     let Some(&target_file) = project.files(db).get(&target_path) else {
       continue;
     };
-    let fs = file_symbol(db, project, target_file);
-    if let Some(sym) = fs.value(db) {
-      members.insert(alias, sym);
+    let symbol = file_symbol(db, project, target_file);
+    if let Some(symbol) = symbol.value(db) {
+      members.insert(alias, symbol);
     }
   }
 }

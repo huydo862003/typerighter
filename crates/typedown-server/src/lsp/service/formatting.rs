@@ -7,7 +7,10 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::position::text_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 
-pub fn formatting(analysis: &Analysis, params: DocumentFormattingParams) -> Option<Vec<TextEdit>> {
+pub fn format_document(
+  analysis: &Analysis,
+  params: DocumentFormattingParams,
+) -> Option<Vec<TextEdit>> {
   let db = &analysis.db;
   let project = analysis.project;
 
@@ -24,7 +27,7 @@ pub fn formatting(analysis: &Analysis, params: DocumentFormattingParams) -> Opti
   // Replace the entire body range with the formatted text
   let body_node = body.syntax();
   let start = body_node.offset();
-  let end = start + body_node.text_len();
+  let end = (start + body_node.text_len()).min(rope.len_chars()); // AST span may exceed rope length
 
   let range = lsp_types::Range {
     start: text_offset_to_lsp_position(&rope, start),

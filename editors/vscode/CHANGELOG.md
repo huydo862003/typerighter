@@ -1,6 +1,156 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.42.1] - 2026-10-12
+
+### Fixed
+
+- crates/typedown-incremental
+  - Race condition on deserializing derived identities
+
+## [0.42.0] - 2026-10-11
+
+### Performance
+
+- crates/typedown-incremental, crates/typedown-lang, packages/typerighter
+  - Reduce cache size
+  - Improve cache performance
+  - Improve prerendering speed
+
+## [0.41.0] - 2026-10-10
+
+### Fixed
+
+- crates/typedown-incremental
+  - Cache corruption after lazy-load optimization: re-executed queries now reuse the same derived struct entry IDs held by cached downstream queries, preventing spurious type errors across sessions
+  - Identity maps seeded by the serial layer on both green and stale dep paths, keeping the query engine transparent to serialization
+
+- crates/typedown-lang
+  - Relative file references in `fref()` resolved correctly from the current file's directory
+  - `fref` fields get syntax highlighting and completions in both YAML and inline expression positions
+
+- crates/typedown-server
+  - Completion: backtick-backtick-backtick triggers a fenced code block snippet instead of being left unhandled
+
+- packages/typerighter
+  - TOC and schema label HMR updates now propagate correctly to the client
+
+## [0.40.7] - 2026-10-09
+
+### Fixed
+
+- crates/typedown-server
+  - LSP: Double escapes in snippet
+
+## [0.40.6] - 2026-10-04
+
+### Fixed
+
+- crates/typedown-lang
+  - Remove circular dependencies
+
+## [0.40.5] - 2026-10-04
+
+### Fixed
+
+- crates/typedown-lang
+  - Duplicate property names in schema definitions emit a `DuplicateKey` diagnostic; the second definition is ignored
+  - `file_ref.rs` functions documented with doc comments
+
+- crates/typedown-server
+  - LSP: filepath completions only trigger when cursor is inside a `fref()` argument, not for all schema-typed fields
+  - LSP: enum and date completions inside an existing string literal no longer insert extra surrounding quotes
+  - Schema HMR now clears only the transitive set of affected content files instead of the full cache
+
+## [0.40.4] - 2026-09-29
+
+### Fixed
+
+- crates/typedown-lang
+  - Formatter no longer deletes media in list items (`MdMedia` added to `MdBlockElement`)
+  - Formatter body range clamped to rope length, preventing silent panic on large files
+  - Headings with inline markup (links, bold, code) render rich HTML instead of plain text
+  - External link icon in headings styled with `td-external-link-icon` class
+
+- crates/typedown-server
+  - Unexpected panics in request handlers are logged and return error responses instead of being silently swallowed by the thread pool
+  - Notifications without a document URI (initialized, $/setTrace) no longer produce error logs
+
+### Performance
+
+- packages/typerighter
+  - HMR search index uses incremental single-file reindex instead of full disk scan (100ms -> 3ms)
+  - HMR site data fetch debounced so rapid edits trigger only one RPC round-trip
+  - Sidebar data preserved during HMR fetch instead of clearing and flashing empty
+
+## [0.40.3] - 2026-09-27
+
+### Fixed
+
+- crates/typedown-lang
+  - Robust to unknown file in parse_file
+  - Allow blocks to be nested in paragraphs
+
+- packages/typerighter
+  - Fix coloring of bullet point in widget list
+
+## [0.40.2] - 2026-09-25
+
+### Added
+
+- Hover on `_type`/`_extends` values shows schema name and field list with types
+- Hover on markdown links/images shows target label, schema, and path
+- Hover on field values shows declared type instead of literal value
+- Go-to-definition for markdown links and images, resolves relative paths from current file
+- Config validation diagnostics published to editor for invalid typedown.yaml
+- Completion: required/optional markers on field suggestions, required sorted first
+- Completion: `_meta` snippet with tab stops, hidden when already present
+- Completion: `fref` inserts `fref("$1")` with cursor inside quotes
+- `_meta` builtin type validation (`title: string?`, `description: string?`, `image: string?`)
+- `_meta` nullable, consistent with `_label`/`_icon`
+- `_meta` data flows end-to-end from Rust extraction through RPC to HTML output
+- Centralized URL resolution via `resolve_vault_url` and `prepend_base_path` in export/utils.rs
+- HTML and markdown emitters resolve relative URLs in links and images
+- `_meta.image` resolved on Rust side via `resolve_vault_url`
+- `is_external_url` moved to shared `db::utils`
+- Dangling link check in go-to-definition returns None for nonexistent targets
+
+## [0.40.1] - 2026-09-24
+
+### Fixed
+
+- Inlcude dist in rpc-client
+
+## [0.40.0] - 2026-09-24
+
+### Added
+
+- **site.origin config** - New `site.origin` field in typedown.yaml (e.g. `origin: "example.com"`, defaults to https). When set, enables absolute URLs in sitemap, canonical links, Open Graph tags, and JSON-LD.
+- **site.lang config** - New `site.lang` field for the HTML lang attribute, defaults to "en".
+- **Sitemap improvements** - `<lastmod>` dates from file modification time. Absolute URLs when origin is configured.
+- **robots.txt** - Auto-generated when origin is set, with sitemap reference. User's `public/robots.txt` takes priority.
+- **RSS feed** - `feed.xml` generated when origin is set, containing the 50 most recently modified pages with title, excerpt, and date.
+- **SEO meta tags** - `meta generator`, `meta robots`, `meta author`, `og:site_name`, `og:url`, RSS feed auto-discovery link.
+- **JSON-LD structured data** - Article schema with headline, description, author, dateModified, and URL. BreadcrumbList schema for nested pages.
+- **_meta builtin** - Per-page SEO overrides via `_meta: { title, description, image }`. Type-validated with autocompletion support.
+- **SEO module** - New `seo/` directory with focused modules: `page.ts` (data extraction), `jsonld.ts` (structured data), `sitemap.ts` (sitemap/robots), `feed.ts` (RSS).
+- **init prompts for origin** - `typerighter init` now asks for site origin with a note about sitemap/robots usage.
+
+### Fixes
+
+- **pnpm 12 on NixOS** - Updated `packageManager` from pnpm 11.9.0 to 12.3.4. The old version caused "dynamically linked executable" errors on NixOS.
+
+### Dependencies
+
+- bump html-escape 0.2.14 to 0.2.15
+- bump vscode-languageclient 10.1.0 to 10.1.1
+- bump unescaper 0.1.10 to 0.2.0
+- bump @vitejs/plugin-vue 6.0.8 to 6.0.9
+- bump @lucide/vue 1.44.0 to 1.47.0
+- bump eslint 10.9.1 to 10.11.0
+- bump vitest 5.0.0 to 5.0.1
+- bump rust-overlay, nixpkgs
+
 ## [0.39.0] - 2026-09-23
 
 ### Fixed

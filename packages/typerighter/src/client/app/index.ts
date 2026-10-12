@@ -49,6 +49,10 @@ export interface TypedownSiteConfig {
   description: string;
   /** URL base path (e.g. "/" or "/blog") */
   basePath: string;
+  /** Absolute site URL (e.g. "https://example.com") */
+  origin?: string;
+  /** HTML lang attribute */
+  lang?: string;
   /** Repository URL */
   repo?: string;
   /** Site author */

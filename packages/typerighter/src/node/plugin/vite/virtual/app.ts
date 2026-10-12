@@ -6,6 +6,7 @@ import {
   PAGES_ID,
   SITE_DATA_ID,
   SEARCH_INDEX_ID,
+  PAGE_DATA_EVENT,
 } from '../constants';
 import {
   invalidateVirtualModule,
@@ -21,6 +22,8 @@ import {
 export interface AppEntryOptions {
   rootDir?: string;
   basePath?: string;
+  origin?: string;
+  lang?: string;
   siteTitle: string;
   siteDescription: string;
   repo?: string;
@@ -58,6 +61,8 @@ export function generate (options: AppEntryOptions): string {
     title: options.siteTitle,
     description: options.siteDescription,
     basePath: options.basePath ?? '/',
+    origin: options.origin,
+    lang: options.lang,
     repo: options.repo,
     author: options.author,
     license: options.license,
@@ -126,6 +131,15 @@ if (import.meta.hot) {
 
   import.meta.hot.accept('${SITE_DATA_ID}', (m) => {
     if (m) siteData.value = m.default;
+  });
+
+  // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
+  import.meta.hot.on('${PAGE_DATA_EVENT}', ({ filepath, pageData }) => {
+    const eventBase = path.join('/', '${rootDirectory}', path.stripExtension(filepath));
+    const routeBase = path.join('/', '${rootDirectory}', router.route.path);
+    if (eventBase === routeBase) {
+      router.route.data = pageData;
+    }
   });
 }
 `;

@@ -2,19 +2,24 @@
 
 pub mod static_type;
 
-use crate::syntax::ast::{AstNode, SourceFile};
-use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::hir::lower_node;
 use crate::db::derived::parse_file::parse_file;
-use crate::db::types::{File, FileRedNode, HirValue, Project};
+use crate::db::types::{File, Project};
+use crate::syntax::ast::{AstNode, SourceFile};
 
 /// Whether a path has a content file extension (.td or .md)
+pub fn is_external_url(url: &str) -> bool {
+  url.starts_with("http://")
+    || url.starts_with("https://")
+    || url.starts_with("//")
+    || url.starts_with("mailto:")
+}
+
 pub fn is_content_file(path: &Path) -> bool {
   path
     .extension()
@@ -33,7 +38,7 @@ pub fn is_internal_file(path: &Path) -> bool {
 }
 
 /// Whether a path is located inside a `_types` directory anywhere in the vault
-pub fn is_type_file(path: &Path) -> bool {
+pub fn is_typ_file(path: &Path) -> bool {
   is_content_file(path) && path.components().any(|c| c.as_os_str() == "_types")
 }
 
@@ -42,21 +47,6 @@ pub fn strip_content_extension(s: &str) -> &str {
   s.strip_suffix(".td")
     .or_else(|| s.strip_suffix(".md"))
     .unwrap_or(s)
-}
-
-pub fn lower_file(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> (Option<HirValue<'_>>, Vec<Diagnostic>) {
-  let parse_result = parse_file(db, project, file);
-  let diagnostics = parse_result.diagnostics(db).to_vec();
-  let root = parse_result.ast(db).node.clone();
-  if SourceFile::cast(root.clone()).is_none() {
-    return (None, diagnostics);
-  }
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  (Some(hir), diagnostics)
 }
 
 /// Check if a file has no frontmatter (schemaless)
@@ -95,6 +85,33 @@ pub fn get_mapping_schema_name(mapping: &RedNode) -> Option<String> {
     }
   }
   None
+}
+
+/// Join `base` with `relative` and collapse `.` and `..` components.
+pub fn normalize_joined_path(base: &Path, relative: &str) -> PathBuf {
+  let joined = base.join(relative);
+  let mut result = PathBuf::new();
+  for component in joined.components() {
+    match component {
+      Component::CurDir => {}
+      Component::ParentDir => {
+        result.pop();
+      }
+      other => result.push(other),
+    }
+  }
+  result
+}
+
+/// Resolve a fref path string to an absolute file system path.
+/// Paths starting with `./` or `../` are resolved relative to `source_file_dir`.
+/// All other paths are resolved relative to `vault_root`.
+pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) -> PathBuf {
+  if path.starts_with("./") || path.starts_with("../") {
+    normalize_joined_path(source_file_dir, path)
+  } else {
+    vault_root.join(path)
+  }
 }
 
 #[cfg(test)]

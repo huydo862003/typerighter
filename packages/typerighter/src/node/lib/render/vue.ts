@@ -40,7 +40,8 @@ export async function buildPageData (
     frontmatter: resource.header ?? {},
     headings: buildHeadingTree(resource.headings),
     title,
-    metadata: resource.metadata,
+    fileMetadata: resource.fileMetadata,
+    seoMetadata: resource.seoMetadata,
   };
 }
 

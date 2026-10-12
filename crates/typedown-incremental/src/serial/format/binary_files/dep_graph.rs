@@ -1,0 +1,497 @@
+//! On-disk format for the dependency graph (`dep-graph.bin`).
+//! Based on rustc's dep-graph.bin
+//!
+//! Stores nodes, edges, and fingerprints. No query result data.
+//! Fully decoded upfront into memory on load.
+//!
+//! ```text
+//! [ FileHeader (8 bytes)       ]  magic "TDEP" + version
+//! [ DepNode                    ]  tag + variant-specific data
+//! [ DepNode                    ]
+//! [ ...                        ]
+//! [ FileFooter (16 bytes)      ]  total_node_count + total_edge_count
+//! ```
+
+use crate::{DerivedIdentity, Fingerprint};
+
+pub type DepNodeIndex = u32;
+
+/* File identification */
+// Magic: 4 bytes
+// Version: 4 bytes
+// Together takes 8 bytes
+
+pub const MAGIC: [u8; 4] = *b"TDEP"; // Magic bytes, like PNG/ELF magic bytes
+pub const VERSION: u32 = 1;
+
+/// File header (16 bytes).
+#[derive(Debug, Clone, Copy)]
+pub struct FileHeader {
+  pub magic: [u8; 4],
+  pub version: u32,
+  pub revision: u64,
+}
+
+impl FileHeader {
+  pub fn new(revision: u64) -> Self {
+    FileHeader {
+      magic: MAGIC,
+      version: VERSION,
+      revision,
+    }
+  }
+
+  /// A best-effort check if the read file is valid
+  pub fn is_valid(&self) -> bool {
+    self.magic == MAGIC && self.version == VERSION
+  }
+
+  /// Serialize
+  pub fn to_bytes(&self) -> [u8; 16] {
+    let mut bytes = [0u8; 16];
+    bytes[0..4].copy_from_slice(&self.magic);
+    bytes[4..8].copy_from_slice(&self.version.to_le_bytes());
+    bytes[8..16].copy_from_slice(&self.revision.to_le_bytes());
+    bytes
+  }
+
+  pub fn from_bytes(bytes: &[u8; 16]) -> Self {
+    let mut magic = [0u8; 4];
+    magic.copy_from_slice(&bytes[0..4]);
+    let version = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    let revision = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
+    FileHeader {
+      magic,
+      version,
+      revision,
+    }
+  }
+}
+
+/// A node in the dep graph
+#[derive(Debug, Clone)]
+pub enum DepNode {
+  // A derived query invocation (e.g. `vault_config(project)`)
+  DerivedQuery {
+    name: Fingerprint,
+    key: Fingerprint,
+    value: Fingerprint,
+    // Links to the return value's entry_id in DerivedField, InputField, or Interned nodes
+    value_entry_id: u32,
+    changed_at: u32,
+    // Indices into the dep graph nodes array
+    edges: Vec<u32>,
+    // (name_fingerprint, identity_hash, disambiguator, entry_id) for derived structs created by this query
+    derived_identities: Vec<DerivedIdentity>,
+  },
+  // A derived struct field (e.g. `VaultConfigResult::version`)
+  DerivedField {
+    // Parent struct name, shared across sibling fields
+    name: Fingerprint,
+    field_index: u8,
+    // Matches value_entry_id in the parent DerivedQuery node
+    entry_id: u32,
+    value: Fingerprint,
+    changed_at: u32,
+  },
+  // An input field (e.g. `File::handle`). Leaf node
+  InputField {
+    name: Fingerprint,
+    field_index: u8,
+    entry_id: u32,
+    value: Fingerprint,
+    changed_at: u32,
+  },
+  // An interned value (e.g. `LiteralValue`). Leaf node
+  Interned {
+    name: Fingerprint,
+    // Links to value_entry_id in DerivedQuery when used as a return type
+    entry_id: u32,
+    blob_index: u32,
+  },
+  /// Evicted by LRU, forces recomputation on next load
+  Evicted,
+}
+
+// Tag bytes for serialization
+// Distinguishing among 3 kind of dep nodes
+const TAG_DERIVED_QUERY: u8 = 0;
+const TAG_DERIVED_FIELD: u8 = 1;
+const TAG_INPUT_FIELD: u8 = 2;
+const TAG_INTERNED: u8 = 3;
+const TAG_EVICTED: u8 = 4;
+
+// Byte sizes
+const TAG_SIZE: usize = std::mem::size_of::<u8>();
+const FINGERPRINT_SIZE: usize = std::mem::size_of::<Fingerprint>();
+const FIELD_INDEX_SIZE: usize = std::mem::size_of::<u8>();
+const ENTRY_ID_SIZE: usize = std::mem::size_of::<u32>();
+const REVISION_SIZE: usize = std::mem::size_of::<u32>();
+const EDGE_COUNT_SIZE: usize = std::mem::size_of::<u32>();
+const EDGE_SIZE: usize = std::mem::size_of::<u32>();
+const IDENTITY_COUNT_SIZE: usize = std::mem::size_of::<u32>();
+const IDENTITY_HASH_SIZE: usize = std::mem::size_of::<u64>();
+const DISAMBIGUATOR_SIZE: usize = std::mem::size_of::<u32>();
+const IDENTITY_ENTRY_SIZE: usize =
+  FINGERPRINT_SIZE + IDENTITY_HASH_SIZE + DISAMBIGUATOR_SIZE + ENTRY_ID_SIZE;
+
+impl DepNode {
+  pub fn name(&self) -> Fingerprint {
+    match self {
+      DepNode::DerivedQuery { name, .. }
+      | DepNode::DerivedField { name, .. }
+      | DepNode::InputField { name, .. }
+      | DepNode::Interned { name, .. } => *name,
+      DepNode::Evicted => Fingerprint([0; 16]),
+    }
+  }
+
+  pub fn value_fingerprint(&self) -> Fingerprint {
+    match self {
+      DepNode::DerivedQuery { value, .. }
+      | DepNode::DerivedField { value, .. }
+      | DepNode::InputField { value, .. } => *value,
+      DepNode::Interned { .. } | DepNode::Evicted => {
+        panic!("this node does not have a value fingerprint")
+      }
+    }
+  }
+
+  pub fn field_index(&self) -> Option<u8> {
+    match self {
+      DepNode::DerivedField { field_index, .. } | DepNode::InputField { field_index, .. } => {
+        Some(*field_index)
+      }
+      DepNode::DerivedQuery { .. } | DepNode::Interned { .. } | DepNode::Evicted => None,
+    }
+  }
+
+  pub fn changed_at(&self) -> u32 {
+    match self {
+      DepNode::DerivedQuery { changed_at, .. }
+      | DepNode::DerivedField { changed_at, .. }
+      | DepNode::InputField { changed_at, .. } => *changed_at,
+      DepNode::Interned { .. } | DepNode::Evicted => 0,
+    }
+  }
+
+  pub fn edges(&self) -> &[u32] {
+    match self {
+      DepNode::DerivedQuery { edges, .. } => edges,
+      DepNode::DerivedField { .. }
+      | DepNode::InputField { .. }
+      | DepNode::Interned { .. }
+      | DepNode::Evicted => &[],
+    }
+  }
+
+  /// Serialize
+  pub fn to_bytes(&self) -> Vec<u8> {
+    let capacity = match self {
+      DepNode::DerivedQuery {
+        edges,
+        derived_identities,
+        ..
+      } => {
+        TAG_SIZE +
+        FINGERPRINT_SIZE * 3 + // name + key + value
+        ENTRY_ID_SIZE + // value_entry_id
+        REVISION_SIZE + // changed_at
+        EDGE_COUNT_SIZE +
+        edges.len() * EDGE_SIZE +
+        IDENTITY_COUNT_SIZE +
+        derived_identities.len() * IDENTITY_ENTRY_SIZE
+      }
+      DepNode::DerivedField { .. } => {
+        TAG_SIZE +
+        FINGERPRINT_SIZE * 2 + // name + value
+        FIELD_INDEX_SIZE +
+        ENTRY_ID_SIZE +
+        REVISION_SIZE // changed_at
+      }
+      DepNode::InputField { .. } => {
+        TAG_SIZE +
+        FINGERPRINT_SIZE * 2 + // name + value
+        FIELD_INDEX_SIZE +
+        ENTRY_ID_SIZE +
+        REVISION_SIZE // changed_at
+      }
+      DepNode::Interned { .. } => {
+        TAG_SIZE +
+        FINGERPRINT_SIZE + // name
+        ENTRY_ID_SIZE +
+        ENTRY_ID_SIZE // blob_index
+      }
+      DepNode::Evicted => TAG_SIZE,
+    };
+    let mut bytes = Vec::with_capacity(capacity); // preallocated to avoid reallocation overhead
+    match self {
+      DepNode::DerivedQuery {
+        name,
+        key,
+        value,
+        value_entry_id,
+        changed_at,
+        edges,
+        derived_identities,
+      } => {
+        bytes.push(TAG_DERIVED_QUERY);
+        bytes.extend_from_slice(&name.0);
+        bytes.extend_from_slice(&key.0);
+        bytes.extend_from_slice(&value.0);
+        bytes.extend_from_slice(&value_entry_id.to_le_bytes());
+        bytes.extend_from_slice(&changed_at.to_le_bytes());
+        bytes.extend_from_slice(&(derived_identities.len() as u32).to_le_bytes());
+        for &(name_fingerprint, identity_hash, disambiguator, entry_id) in derived_identities {
+          bytes.extend_from_slice(&name_fingerprint.0);
+          bytes.extend_from_slice(&identity_hash.to_le_bytes());
+          bytes.extend_from_slice(&disambiguator.to_le_bytes());
+          bytes.extend_from_slice(&entry_id.to_le_bytes());
+        }
+        bytes.extend_from_slice(&(edges.len() as u32).to_le_bytes());
+        for edge in edges {
+          bytes.extend_from_slice(&edge.to_le_bytes());
+        }
+      }
+      DepNode::DerivedField {
+        name,
+        field_index,
+        entry_id,
+        value,
+        changed_at,
+      } => {
+        bytes.push(TAG_DERIVED_FIELD);
+        bytes.extend_from_slice(&name.0);
+        bytes.push(*field_index);
+        bytes.extend_from_slice(&entry_id.to_le_bytes());
+        bytes.extend_from_slice(&value.0);
+        bytes.extend_from_slice(&changed_at.to_le_bytes());
+      }
+      DepNode::InputField {
+        name,
+        field_index,
+        entry_id,
+        value,
+        changed_at,
+      } => {
+        bytes.push(TAG_INPUT_FIELD);
+        bytes.extend_from_slice(&name.0);
+        bytes.push(*field_index);
+        bytes.extend_from_slice(&entry_id.to_le_bytes());
+        bytes.extend_from_slice(&value.0);
+        bytes.extend_from_slice(&changed_at.to_le_bytes());
+      }
+      DepNode::Interned {
+        name,
+        entry_id,
+        blob_index,
+      } => {
+        bytes.push(TAG_INTERNED);
+        bytes.extend_from_slice(&name.0);
+        bytes.extend_from_slice(&entry_id.to_le_bytes());
+        bytes.extend_from_slice(&blob_index.to_le_bytes());
+      }
+      DepNode::Evicted => {
+        bytes.push(TAG_EVICTED);
+      }
+    }
+    bytes
+  }
+
+  /// Deserialize
+  pub fn from_bytes(bytes: &[u8]) -> (Self, usize) {
+    let tag = bytes[0]; // the variant of the dep node
+    let mut pos = TAG_SIZE; // current decoded offset
+    match tag {
+      // Derived query node
+      TAG_DERIVED_QUERY => {
+        // fingerprint of the derived query's name
+        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        // fingerprint of the derived query's args
+        let key = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        // fingerprint of the derived query's value
+        let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        let value_entry_id =
+          u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
+
+        // the revision when the value last changed
+        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        pos += REVISION_SIZE;
+
+        // derived identities
+        let id_count =
+          u32::from_le_bytes(bytes[pos..pos + IDENTITY_COUNT_SIZE].try_into().unwrap()) as usize;
+        pos += IDENTITY_COUNT_SIZE;
+        let mut derived_identities = Vec::with_capacity(id_count);
+        for _ in 0..id_count {
+          let name_fingerprint =
+            Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+          pos += FINGERPRINT_SIZE;
+          let identity_hash =
+            u64::from_le_bytes(bytes[pos..pos + IDENTITY_HASH_SIZE].try_into().unwrap());
+          pos += IDENTITY_HASH_SIZE;
+          let disambiguator =
+            u32::from_le_bytes(bytes[pos..pos + DISAMBIGUATOR_SIZE].try_into().unwrap());
+          pos += DISAMBIGUATOR_SIZE;
+          let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+          pos += ENTRY_ID_SIZE;
+          derived_identities.push((name_fingerprint, identity_hash, disambiguator, entry_id));
+        }
+
+        // edges at the end
+        let edge_count =
+          u32::from_le_bytes(bytes[pos..pos + EDGE_COUNT_SIZE].try_into().unwrap()) as usize;
+        pos += EDGE_COUNT_SIZE;
+        let mut edges = Vec::with_capacity(edge_count);
+        for _ in 0..edge_count {
+          edges.push(u32::from_le_bytes(
+            bytes[pos..pos + EDGE_SIZE].try_into().unwrap(),
+          ));
+          pos += EDGE_SIZE;
+        }
+
+        (
+          DepNode::DerivedQuery {
+            name,
+            key,
+            value,
+            value_entry_id,
+            changed_at,
+            edges,
+            derived_identities,
+          },
+          pos,
+        )
+      }
+      // Derived query field
+      TAG_DERIVED_FIELD => {
+        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        let field_index = bytes[pos];
+        pos += FIELD_INDEX_SIZE;
+
+        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
+
+        let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        pos += REVISION_SIZE;
+
+        (
+          DepNode::DerivedField {
+            name,
+            field_index,
+            entry_id,
+            value,
+            changed_at,
+          },
+          pos,
+        )
+      }
+      // Input field
+      TAG_INPUT_FIELD => {
+        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        let field_index = bytes[pos];
+        pos += FIELD_INDEX_SIZE;
+
+        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
+
+        let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
+        pos += REVISION_SIZE;
+
+        (
+          DepNode::InputField {
+            name,
+            field_index,
+            entry_id,
+            value,
+            changed_at,
+          },
+          pos,
+        )
+      }
+      TAG_INTERNED => {
+        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
+        pos += FINGERPRINT_SIZE;
+
+        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
+
+        let blob_index = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
+        pos += ENTRY_ID_SIZE;
+
+        (
+          DepNode::Interned {
+            name,
+            entry_id,
+            blob_index,
+          },
+          pos,
+        )
+      }
+      TAG_EVICTED => (DepNode::Evicted, pos),
+      _ => panic!("unknown DepNode tag {tag}"),
+    }
+  }
+}
+
+/// File footer (16 bytes).
+#[derive(Debug, Clone, Copy)]
+pub struct FileFooter {
+  pub total_node_count: u64, // 8 bytes
+  pub total_edge_count: u64, // 8 bytes
+}
+
+impl FileFooter {
+  /// Serialize
+  pub fn to_bytes(&self) -> [u8; 16] {
+    let mut bytes = [0u8; 16];
+
+    // Encode the node count as little-endian & serialize
+    bytes[0..8].copy_from_slice(&self.total_node_count.to_le_bytes());
+
+    // Encode the edge count as little-endian & serialize
+    bytes[8..16].copy_from_slice(&self.total_edge_count.to_le_bytes());
+
+    bytes
+  }
+
+  /// Deserialize
+  pub fn from_bytes(bytes: &[u8; 16]) -> Self {
+    FileFooter {
+      // Decode the node count from little-endian & deserialize
+      total_node_count: u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+      // Decode the edge count from little-endian & deserialize
+      total_edge_count: u64::from_le_bytes(bytes[8..16].try_into().unwrap()),
+    }
+  }
+}
+
+/// The dep graph readily for serialization or deserialization into
+pub struct DepGraph {
+  pub header: FileHeader,
+  pub nodes: Vec<DepNode>,
+  pub footer: FileFooter,
+}
+
+impl DepGraph {
+  pub fn node_count(&self) -> usize {
+    self.nodes.len()
+  }
+}

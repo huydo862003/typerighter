@@ -180,9 +180,9 @@ function toggle () {
               :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
             ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
             <span
-              v-if="entry.item.metadata"
+              v-if="entry.item.fileMetadata"
               class="td-tree-time"
-            >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+            >{{ formatRelativeTime(entry.item.fileMetadata.mtime) }}</span>
           </a>
         </template>
         <button

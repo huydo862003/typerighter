@@ -2,6 +2,8 @@
 //! Use the same SyntaxKind as Syntax Node
 
 use std::hash::{Hash, Hasher};
+
+use smallvec::SmallVec;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use typedown_incremental::{QueryDatabase, StableCompare};
@@ -103,8 +105,26 @@ impl std::fmt::Debug for SyntaxToken {
 
 impl Hash for SyntaxToken {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    self.kind().hash(state);
-    self.bytes().hash(state);
+    state.write_u32(self.kind() as u32);
+    state.write(self.bytes());
+  }
+
+  fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
+  where
+    Self: Sized,
+  {
+    // Pack (kind, text_len) per token as u64s in one write, then all bytes in one write
+    let mut kinds: SmallVec<[u64; 64]> = SmallVec::with_capacity(data.len());
+    let total_bytes: usize = data.iter().map(|t| t.text_len()).sum();
+    let mut bytes_buf: SmallVec<[u8; 256]> = SmallVec::with_capacity(total_bytes);
+    for token in data {
+      kinds.push(((token.kind() as u64) << 32) | token.text_len() as u64);
+      bytes_buf.extend_from_slice(token.bytes());
+    }
+    state.write_usize(data.len());
+    state
+      .write(unsafe { std::slice::from_raw_parts(kinds.as_ptr().cast::<u8>(), kinds.len() * 8) });
+    state.write(&bytes_buf);
   }
 }
 

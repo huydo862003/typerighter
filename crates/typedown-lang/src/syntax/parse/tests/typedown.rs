@@ -824,7 +824,10 @@ fn parse_container_nested_in_ordered_list() {
 // but the natural blockquote syntax uses "> :::" (one space)
 #[test]
 fn parse_container_nested_in_blockquote() {
-  let input = "> ::: info\n>  content here\n> :::\n";
+  let input = r#"> ::: info
+>  content here
+> :::
+"#;
   let (ast, _) = parse(input);
   let tree = render_tree(&ast);
   assert_eq!(
@@ -854,10 +857,12 @@ fn parse_container_nested_in_blockquote() {
         (Error
           ">"))
       (MdParagraph
-        (MdText
-          " "
-          ":::")))
-    "\n"))"#
+        " "
+        (MdContainerBlock
+          ":::"
+          "\n"
+          (Error
+            ""))))))"#
   );
 }
 

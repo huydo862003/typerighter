@@ -27,12 +27,19 @@ export interface PageData {
   frontmatter: Record<string, unknown>;
   headings: MarkdownHeading[];
   title: string;
-  metadata?: FileMetadata;
+  fileMetadata?: FileMetadata;
+  seoMetadata?: SeoMeta;
 }
 
 export interface PageModule {
   pageData: PageData;
   default: Component;
+}
+
+export interface SeoMeta {
+  title?: string;
+  description?: string;
+  image?: string;
 }
 
 export interface TypedownData {

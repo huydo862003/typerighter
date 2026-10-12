@@ -370,12 +370,12 @@ function shrinkSidebar () {
               v-html="renderInlineMarkup(title)"
             />
             <div
-              v-if="page.metadata"
+              v-if="page.fileMetadata"
               class="td-page-meta"
             >
-              <span>{{ formatEditTime(page.metadata.mtime, "Modified") }}</span>
-              <span v-if="page.metadata.ctime !== page.metadata.mtime">
-                · {{ formatEditTime(page.metadata.ctime, "Created") }}</span>
+              <span>{{ formatEditTime(page.fileMetadata.mtime, "Modified") }}</span>
+              <span v-if="page.fileMetadata.ctime !== page.fileMetadata.mtime">
+                · {{ formatEditTime(page.fileMetadata.ctime, "Created") }}</span>
             </div>
             <TdFrontmatter
               class="td-frontmatter-inline"

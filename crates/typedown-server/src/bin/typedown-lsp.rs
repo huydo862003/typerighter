@@ -103,8 +103,8 @@ pub fn main() -> anyhow::Result<()> {
     semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
       SemanticTokensOptions {
         legend: SemanticTokensLegend {
-          token_types: semantic_tokens::token_types(),
-          token_modifiers: semantic_tokens::token_modifiers(),
+          token_types: semantic_tokens::list_token_types(),
+          token_modifiers: semantic_tokens::list_token_modifiers(),
         },
         full: Some(SemanticTokensFullOptions::Bool(true)),
         ..Default::default()

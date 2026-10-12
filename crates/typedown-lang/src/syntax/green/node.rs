@@ -1,6 +1,8 @@
 use std::alloc::{Layout, alloc, dealloc};
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+
+use smallvec::SmallVec;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use typedown_incremental::{QueryDatabase, StableCompare};
@@ -124,8 +126,29 @@ impl Debug for SyntaxNode {
 
 impl Hash for SyntaxNode {
   fn hash<H: Hasher>(&self, state: &mut H) {
-    self.kind().hash(state);
-    self.children().hash(state);
+    let children = self.children();
+    let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(1 + children.len());
+    buf.push(((self.kind() as u64) << 32) | self.text_len() as u64);
+    for child in children {
+      buf.push(((child.kind() as u64) << 32) | child.text_len() as u64);
+    }
+    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
+  }
+
+  fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
+  where
+    Self: Sized,
+  {
+    let total = data.iter().map(|n| 1 + n.n_children() as usize).sum();
+    let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(total);
+    for node in data {
+      buf.push(((node.kind() as u64) << 32) | node.text_len() as u64);
+      for child in node.children() {
+        buf.push(((child.kind() as u64) << 32) | child.text_len() as u64);
+      }
+    }
+    state.write_usize(data.len());
+    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
   }
 }
 

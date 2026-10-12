@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use typedown_macros::{query_db, query_derived, query_interned};
 
 pub use super::super::utils::{dump_and_reload, find_entry};
-pub use crate::{InternedId, QueryDatabase, QueryStorage};
+pub use crate::{QueryDatabase, QueryStorage};
 
 thread_local! {
   static FIB_LOG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };

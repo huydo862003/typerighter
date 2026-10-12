@@ -3,7 +3,7 @@ import type {
 } from 'vite';
 import {
   RESOLVED_PAGES_ID,
-  PAGE_DATA_PREFIX, RESOLVED_PAGE_DATA_PREFIX,
+  PAGE_DATA_PREFIX, RESOLVED_PAGE_DATA_PREFIX, PAGE_DATA_EVENT,
 } from '../constants';
 import {
   invalidateVirtualModule,
@@ -45,6 +45,26 @@ export class VirtualPages implements VirtualModule {
 
   invalidatePageData (server: ViteDevServer, filepath: string): void {
     invalidateVirtualModule(server, RESOLVED_PAGE_DATA_PREFIX + encodeURIComponent(filepath));
+  }
+
+  // Send fresh page data via HMR so route.data updates without Vue SFC setup re-running
+  sendPageData (server: ViteDevServer, context: TypedownContext, filepath: string): void {
+    context.getFile(filepath)
+      .then(async (resource) => {
+        const pageData = await buildPageData(context, resource, filepath);
+
+        server.hot.send({
+          type: 'custom',
+          event: PAGE_DATA_EVENT,
+          data: {
+            filepath,
+            pageData,
+          },
+        });
+      })
+      .catch((error) => {
+        console.error('[typedown] Failed to send page data:', error instanceof Error ? error.message : error);
+      });
   }
 
   invalidate (server: ViteDevServer): void {
