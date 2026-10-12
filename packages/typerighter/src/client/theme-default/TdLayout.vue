@@ -48,9 +48,6 @@ import {
   useMenu,
 } from './composables/useMenu';
 import {
-  renderInlineMarkup,
-} from './utils/renderInlineMarkup';
-import {
   getPageIcon,
 } from './utils/pageIcon';
 import {
@@ -367,7 +364,7 @@ function shrinkSidebar () {
             <h1
               v-if="title"
               class="td-page-title"
-              v-html="renderInlineMarkup(title)"
+              v-html="page.titleHtml"
             />
             <div
               v-if="page.fileMetadata"

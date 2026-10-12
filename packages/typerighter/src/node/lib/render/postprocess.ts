@@ -5,7 +5,7 @@ import {
   createHighlighter,
 } from './highlight';
 import {
-  unescapeHtml,
+  escapeHtml, unescapeHtml,
 } from '@/shared';
 
 let highlighterPromise: Promise<(code: string, language: string, attrs: string) => Promise<string>> | undefined;
@@ -108,6 +108,38 @@ function renderMathBlocks (html: string): string {
   html = html.replace(MATH_BLOCK_RE, (_, tex) => renderTex(tex, true));
 
   return html;
+}
+
+// Matches `code` and $math$ in plain-text strings (e.g. page titles, labels)
+const INLINE_MARKUP_RE = /`([^`]+)`|\$([^$]+)\$/g;
+
+// Render inline code and math in a plain-text string to HTML
+// Used server-side to pre-render titles so clients do not need temml
+export function renderInlineTitleHtml (text: string): string {
+  let lastIndex = 0;
+  let result = '';
+
+  for (const match of text.matchAll(INLINE_MARKUP_RE)) {
+    result += escapeHtml(text.slice(lastIndex, match.index!));
+
+    if (match[1] !== undefined) {
+      result += `<code>${escapeHtml(match[1])}</code>`;
+    } else if (match[2] !== undefined) {
+      try {
+        result += temml.renderToString(match[2], {
+          throwOnError: false,
+        });
+      } catch {
+        result += escapeHtml(match[0]);
+      }
+    }
+
+    lastIndex = match.index! + match[0].length;
+  }
+
+  result += escapeHtml(text.slice(lastIndex));
+
+  return result;
 }
 
 function renderTex (escapedTex: string, displayMode: boolean): string {

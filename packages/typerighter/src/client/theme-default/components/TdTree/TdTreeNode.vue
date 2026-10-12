@@ -6,23 +6,28 @@ import {
   ChevronDown, File, Folder, FolderOpen,
 } from '@lucide/vue';
 import {
-  useRoute, useSiteConfig,
-} from '../../app';
-import {
-  renderInlineMarkup,
-} from '../utils/renderInlineMarkup';
-import {
   getPageIcon,
-} from '../utils/pageIcon';
-import TdTooltip from './TdTooltip.vue';
+} from '../../utils/pageIcon';
+import TdTooltip from '../TdTooltip.vue';
+import TdTreeNodeLabel from './TdTreeNodeLabel.vue';
 import {
-  formatRelativeTime, getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdResourceTitle, isIndexFile, isUrlAncestorOf, unslugify,
+  useRoute, useSiteConfig,
+} from '@/client/app';
+import {
+  formatRelativeTime,
+  getDirectoryUrl,
+  getIndexUrl,
+  getNodeIndexItem,
+  getTdContentUrl,
+  getTdResourceTitle,
+  isIndexFile,
+  isUrlAncestorOf,
+  unslugify,
   type ContentTreeNode,
 } from '@/shared';
 
 const {
-  node,
-  urlPrefix = '',
+  node, urlPrefix = '',
 } = defineProps<{
   /** Tree node to render */
   node: ContentTreeNode;
@@ -36,12 +41,20 @@ const {
 } = useSiteConfig();
 const directoryUrl = computed(() => getDirectoryUrl(urlPrefix, node.name));
 const indexItem = computed(() => getNodeIndexItem(node));
-const folderPath = computed(() => indexItem.value ? getTdContentUrl(indexItem.value.filepath) : getIndexUrl(directoryUrl.value));
+const folderPath = computed(() =>
+  indexItem.value
+    ? getTdContentUrl(indexItem.value.filepath)
+    : getIndexUrl(directoryUrl.value));
 const folderHref = computed(() => withBase(folderPath.value));
-const folderLabel = computed(() => indexItem.value?.label ?? unslugify(node.name));
-const folderIcon = computed(() => indexItem.value?.icon ? getPageIcon(indexItem.value.icon.name) : undefined);
-const regularEntries = computed(() => node.entries.filter((entry) =>
-  entry.kind === 'dir' || !isIndexFile(entry.item.filepath)));
+const folderLabel = computed(
+  () => indexItem.value?.label ?? unslugify(node.name),
+);
+const folderIcon = computed(() =>
+  indexItem.value?.icon ? getPageIcon(indexItem.value.icon.name) : undefined);
+const regularEntries = computed(() =>
+  node.entries.filter(
+    (entry) => entry.kind === 'dir' || !isIndexFile(entry.item.filepath),
+  ));
 
 const hasContent = computed(() => 0 < node.entries.length);
 
@@ -65,8 +78,11 @@ function countItems (n: ContentTreeNode): number {
 const collapsed = ref(!isUrlAncestorOf(directoryUrl.value, route.path));
 const showAll = ref(false);
 const MAX_VISIBLE_FILES = 5;
-const fileCount = computed(() => regularEntries.value.filter((entry) => entry.kind === 'file').length);
-const hiddenCount = computed(() => showAll.value ? 0 : Math.max(0, fileCount.value - MAX_VISIBLE_FILES));
+const fileCount = computed(
+  () => regularEntries.value.filter((entry) => entry.kind === 'file').length,
+);
+const hiddenCount = computed(() =>
+  showAll.value ? 0 : Math.max(0, fileCount.value - MAX_VISIBLE_FILES));
 const visibleEntries = computed(() => {
   if (showAll.value) return regularEntries.value;
 
@@ -79,9 +95,13 @@ const visibleEntries = computed(() => {
   });
 });
 
-watch(() => route.path, (currentPath) => {
-  if (isUrlAncestorOf(directoryUrl.value, currentPath)) collapsed.value = false;
-});
+watch(
+  () => route.path,
+  (currentPath) => {
+    if (isUrlAncestorOf(directoryUrl.value, currentPath))
+      collapsed.value = false;
+  },
+);
 
 function expandAll () {
   showAll.value = true;
@@ -178,11 +198,19 @@ function toggle () {
             <TdTooltip
               class="td-tree-link-text"
               :text="getTdResourceTitle(entry.item.filepath, entry.item.label)"
-            ><span v-html="renderInlineMarkup(getTdResourceTitle(entry.item.filepath, entry.item.label))" /></TdTooltip>
+            >
+              <TdTreeNodeLabel
+                :text="
+                  getTdResourceTitle(entry.item.filepath, entry.item.label)
+                "
+              />
+            </TdTooltip>
             <span
               v-if="entry.item.fileMetadata"
               class="td-tree-time"
-            >{{ formatRelativeTime(entry.item.fileMetadata.mtime) }}</span>
+            >{{
+              formatRelativeTime(entry.item.fileMetadata.mtime)
+            }}</span>
           </a>
         </template>
         <button

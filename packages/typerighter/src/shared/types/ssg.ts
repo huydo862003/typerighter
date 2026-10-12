@@ -27,6 +27,8 @@ export interface PageData {
   frontmatter: Record<string, unknown>;
   headings: MarkdownHeading[];
   title: string;
+  /** HTML-rendered title with inline code/math; safe for v-html */
+  titleHtml: string;
   fileMetadata?: FileMetadata;
   seoMetadata?: SeoMeta;
 }

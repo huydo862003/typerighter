@@ -11,7 +11,7 @@ import {
 import {
   getPageIcon,
 } from '../utils/pageIcon';
-import TdTreeNode from './TdTreeNode.vue';
+import TdTreeNode from './TdTree/TdTreeNode.vue';
 import {
   formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, isIndexFile,
   type ContentTree,
