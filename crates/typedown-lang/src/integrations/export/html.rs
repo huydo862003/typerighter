@@ -367,6 +367,13 @@ impl<'a> HtmlEmitter<'a> {
       self.write_escaped(&label);
       self.write("\"");
     }
+    for (key, value) in block.props() {
+      self.write(" data-");
+      self.write_escaped(&key);
+      self.write("=\"");
+      self.write_escaped(&value.unwrap_or_default());
+      self.write("\"");
+    }
     self.write("><code>");
     self.write_escaped(&value);
     self.write("</code></pre>\n");

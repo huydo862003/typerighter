@@ -29,7 +29,7 @@ Headings generate anchors and appear in the table of contents.
 
 ## Code blocks
 
-Fenced code blocks with optional language label and line ranges:
+Fenced code blocks with an optional language label:
 
 ````markdown
 ```python
@@ -38,17 +38,64 @@ def greet(name):
 ```
 ````
 
-Line highlighting with ranges:
+The opening and closing fence must have the same number of backticks.
+
+### Line highlighting
+
+Highlight specific lines with `{line-ranges}` after the language:
 
 ````markdown
-```js{1,3,5-8}
+```js{1,3}
 const a = 1;
 const b = 2;
 const c = 3;
 ```
 ````
 
-The opening and closing fence must have the same number of backticks.
+Supports single lines (`1,3`), ranges (`5-8`), and combinations (`1,3,5-8`).
+
+### Title
+
+Display a filename or title above the code block with `title=` inside `{...}`:
+
+````markdown
+```ts{title=vite.config.ts}
+import { defineConfig } from 'vite'
+export default defineConfig({})
+```
+````
+
+Can be combined with line highlighting:
+
+````markdown
+```ts{1,3 title=vite.config.ts}
+import { defineConfig } from 'vite'
+export default defineConfig({})
+```
+````
+
+### Line numbers
+
+Show line numbers with `line-numbers` inside `{...}`:
+
+````markdown
+```js{line-numbers}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+````
+
+Start from a specific number with `line-numbers=N`:
+
+````markdown
+```js{1,3 line-numbers=5}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+````
+
 
 ## Math
 

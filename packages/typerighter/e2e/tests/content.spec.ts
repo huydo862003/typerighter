@@ -9,7 +9,7 @@ e2e.describe('content', () => {
   }) => {
     await testProject.goto(page, '/notes/index');
 
-    const toc = page.getByTestId('toc').first();
+    const toc = page.getByTestId('toc').last();
 
     await expect(toc).toBeVisible({
       timeout: 15_000,

@@ -1070,6 +1070,46 @@ impl CodeBlock {
     Some(ranges)
   }
 
+  // Extract named props from {}, skipping numeric ranges
+  // e.g. {1,3 title=foo.ts line-numbers} -> [("title", Some("foo.ts")), ("line-numbers", None)]
+  pub fn props(&self) -> Vec<(String, Option<String>)> {
+    let label = match self.label() {
+      Some(l) => l,
+      None => return Vec::new(),
+    };
+    let start = match label.find('{') {
+      Some(i) => i,
+      None => return Vec::new(),
+    };
+    let end = match label.find('}') {
+      Some(i) => i,
+      None => return Vec::new(),
+    };
+    let inner = match label.get(start + 1..end) {
+      Some(s) => s.trim(),
+      None => return Vec::new(),
+    };
+    if inner.is_empty() {
+      return Vec::new();
+    }
+
+    let mut props = Vec::new();
+    for part in inner.split_whitespace() {
+      // Skip numeric ranges like "1,3" or "5-8"
+      if part.chars().next().is_none_or(|c| c.is_ascii_digit()) {
+        continue;
+      }
+      if let Some(eq) = part.find('=') {
+        let key = &part[..eq];
+        let value = &part[eq + 1..];
+        props.push((key.to_string(), Some(value.to_string())));
+      } else {
+        props.push((part.to_string(), None));
+      }
+    }
+    props
+  }
+
   pub fn value(&self) -> Option<String> {
     let text = self.0.text();
     let fence_count = text.chars().take_while(|c| *c == '`').count();

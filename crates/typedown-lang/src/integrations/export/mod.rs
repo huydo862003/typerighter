@@ -859,6 +859,20 @@ properties:
   }
 
   #[test]
+  fn html_export_code_block_with_title() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("data-title=\"config.ts\""));
+  }
+
+  #[test]
+  fn html_export_code_block_with_line_numbers() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("data-line-numbers=\"5\""));
+  }
+
+  #[test]
   fn html_export_inline_math_placeholder() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");

@@ -1,8 +1,8 @@
 version: "1"
 vault:
   root_dir: "vault"
+repo: "https://github.com/test/repo"
 site:
   title: "E2E Test Vault (Base Path)"
   description: "Test fixture with non-root base path"
   base_path: "/docs"
-  repo: "https://github.com/test/repo"
