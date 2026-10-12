@@ -20,6 +20,7 @@ e2e.describe('content', () => {
     })).toBeVisible();
     await expect(toc.getByRole('link', {
       name: 'Details',
+      exact: true,
     })).toBeVisible();
     await expect(toc.getByRole('link', {
       name: 'Summary',
