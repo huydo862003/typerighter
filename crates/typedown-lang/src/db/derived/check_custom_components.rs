@@ -21,11 +21,14 @@ pub fn check_custom_components<'db>(
   project: Project,
   file: File,
 ) -> CustomComponentCheckResult<'db> {
-  let contract = project
-    .custom_component_contract(db)
-    .map(|f| get_component_contract(db, f).entries(db).clone())
-    .unwrap_or_default();
+  let Some(contract_file) = project.custom_component_contract(db) else {
+    // No .typedown/components.json: skip component validation
+    return CustomComponentCheckResult::new(db, vec![]);
+  };
 
+  let contract = get_component_contract(db, contract_file)
+    .entries(db)
+    .clone();
   let root = parse_file(db, project, file).ast(db).node.clone();
   let mut diagnostics = Vec::new();
   collect(&root, &contract, &mut diagnostics);
@@ -75,9 +78,14 @@ fn validate(
     return;
   };
 
+  let Some(props) = &entry.props else {
+    // No props declared in contract: skip prop validation
+    return;
+  };
+
   let provided = extract_container_prop_names(node);
 
-  for prop in &entry.props {
+  for prop in props {
     if prop.required && !provided.iter().any(|p| p == &prop.name) {
       diagnostics.push(Diagnostic::MissingRequiredProp {
         prop: prop.name.clone(),
@@ -89,7 +97,7 @@ fn validate(
   }
 
   for prop_name in &provided {
-    if !entry.props.iter().any(|p| &p.name == prop_name) {
+    if !props.iter().any(|p| &p.name == prop_name) {
       diagnostics.push(Diagnostic::UnknownProp {
         prop: prop_name.clone(),
         component: name.to_string(),
@@ -215,7 +223,7 @@ mod tests {
     let contract = vec![CustomComponentTyp {
       name: "VideoEmbed".to_string(),
       source: "./VideoEmbed.vue".to_string(),
-      props: vec![],
+      props: Some(vec![]),
     }];
     let mut diags = Vec::new();
     validate(&block, &name, &contract, &mut diags);
@@ -230,11 +238,11 @@ mod tests {
     let contract = vec![CustomComponentTyp {
       name: "Chart".to_string(),
       source: "./Chart.vue".to_string(),
-      props: vec![CustomComponentProp {
+      props: Some(vec![CustomComponentProp {
         name: "data".to_string(),
         type_name: "string".to_string(),
         required: true,
-      }],
+      }]),
     }];
     let mut diags = Vec::new();
     validate(&block, &name, &contract, &mut diags);
@@ -254,7 +262,7 @@ mod tests {
     let contract = vec![CustomComponentTyp {
       name: "Chart".to_string(),
       source: "./Chart.vue".to_string(),
-      props: vec![],
+      props: Some(vec![]),
     }];
     let mut diags = Vec::new();
     validate(&block, &name, &contract, &mut diags);

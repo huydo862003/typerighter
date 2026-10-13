@@ -41,6 +41,9 @@ export {
 export {
   Content,
 } from './components/Content';
+export {
+  useTheme,
+} from './composables/useTheme';
 
 export interface TypedownSiteConfig {
   /** Site title */

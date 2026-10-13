@@ -1,6 +1,6 @@
 ---
 _label: "Theming"
-_icon: icon.paintbrush
+_icon: icon.brush
 description: "Custom layouts, layout slots, and the theme API."
 ---
 
@@ -54,7 +54,7 @@ A minimal custom layout:
 import { Content, useTdContent, useRoute } from 'typerighter/client'
 
 const route = useRoute()
-useTdContent(route)
+useTdContent() // no argument - call once in layout setup
 </script>
 
 <template>
@@ -65,30 +65,37 @@ useTdContent(route)
 </template>
 ```
 
-### Available composables
+### Client API
 
-| Composable | Returns |
-|------------|---------|
-| `useRoute()` | Current route with `path`, `data` (title, headings, frontmatter) |
-| `useSiteConfig()` | Site config: `title`, `description`, `repo`, `nav` |
+All composables and the `<Content />` component are imported from `typerighter/client`. See the [Client API reference](07-client-api) for full details.
+
+| Composable | Notes |
+|---|---|
+| `useRoute()` | Reactive current route with `path`, `hash`, `data` |
+| `useSiteConfig()` | Site title, nav, repo, `withBase(path)` |
 | `useSiteData()` | Content tree, schemas, directory listings |
-| `useTdContent(route)` | Provides content rendering context (call in setup) |
+| `useTdContent()` | Must call in layout setup |
+| `useTheme()` | Dark mode: `isDark`, `toggle()`, `setTheme()` |
+| `useRouter()` | Programmatic navigation with `router.go(path)` |
+
+`useTdContent()` must be called before `<Content />` renders. It establishes the provide/inject context the content component depends on.
 
 ### Reusing default components
 
-You can import individual components from the default theme to mix and match:
+Import individual components from the default theme:
 
 ```ts
-import { TdFooter, TdToc, TdPreviousNext } from 'typerighter/client/theme-default'
+import { TdLayout, TdContentNav, TdThemeToggle } from 'typerighter/client/theme-default'
 ```
 
 ## Theme API
 
-Both layout forms use the `TypedownTheme` interface under the hood:
+Both layout forms use the `TypedownTheme` interface:
 
 ```ts
 interface TypedownTheme {
   Layout: Component
+  NotFound?: Component
   enhanceApp?: (ctx: {
     app: App
     router: Router
@@ -98,7 +105,7 @@ interface TypedownTheme {
 }
 ```
 
-The `enhanceApp` hook runs after the Vue app is created but before it mounts. Use it to register global plugins, directives, or additional components.
+`enhanceApp` runs after the Vue app is created but before it mounts. Use it to register global plugins, directives, or additional components.
 
 ## Repository config
 
