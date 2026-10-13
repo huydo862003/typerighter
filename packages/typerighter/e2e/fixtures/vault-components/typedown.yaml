@@ -7,3 +7,7 @@ site:
 theme:
   components:
     - "./components"
+  layout:
+    slots:
+      layout_top: "TdBanner"
+      doc_after: "TdDocFooter"

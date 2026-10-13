@@ -265,3 +265,76 @@ components.describe('HMR', () => {
     await expect(page.locator('.td-badge')).toContainText('New badge');
   });
 });
+
+components.describe('layout slots', () => {
+  components('layout_top slot renders banner above header', async ({
+    page,
+  }) => {
+    const banner = page.locator('[data-testid="layout-slot-banner"]');
+
+    await expect(banner).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(banner).toContainText('Test announcement banner');
+  });
+
+  components('doc_after slot renders feedback widget after content', async ({
+    page,
+  }) => {
+    const footer = page.locator('[data-testid="layout-slot-doc-footer"]');
+
+    await expect(footer).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(footer).toContainText('Was this page helpful?');
+  });
+
+  components('custom layout component replaces default layout', async ({
+    page,
+    testProject,
+  }) => {
+    // Switch to a fully custom layout by rewriting the config
+    await testProject.writeFile(
+      'typedown.yaml',
+      [
+        'version: "1"',
+        'vault:',
+        '  root_dir: "vault"',
+        'site:',
+        '  title: "E2E Component Vault"',
+        '  description: "Test fixture"',
+        'theme:',
+        '  components:',
+        '    - "./components"',
+        '  layout: "./custom-layout/TdCustomLayout.vue"',
+      ].join('\n'),
+    );
+
+    await testProject.goto(page, '/demo');
+
+    await expect(page.locator('[data-testid="custom-layout"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('[data-testid="custom-header"]')).toContainText('Custom Layout');
+    // Default header should not be present
+    await expect(page.locator('.td-header')).not.toBeVisible();
+  });
+
+  components('layout_top slot appears before the header', async ({
+    page,
+  }) => {
+    const banner = page.locator('[data-testid="layout-slot-banner"]');
+    const header = page.locator('.td-header');
+
+    await expect(banner).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const bannerBox = await banner.boundingBox();
+    const headerBox = await header.boundingBox();
+
+    expect(bannerBox).not.toBeNull();
+    expect(headerBox).not.toBeNull();
+    expect(bannerBox!.y).toBeLessThan(headerBox!.y);
+  });
+});

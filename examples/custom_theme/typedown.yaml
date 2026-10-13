@@ -1,0 +1,8 @@
+version: "1"
+vault:
+  root_dir: "vault"
+site:
+  title: "Custom Theme Example"
+  description: "Demonstrates a fully custom layout replacing the default theme."
+theme:
+  layout: "./theme/Layout.vue"

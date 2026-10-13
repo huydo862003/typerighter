@@ -1,3 +1,9 @@
+// Convert a kebab-case or snake_case string to PascalCase
+// e.g. "video-embed" -> "VideoEmbed", "my_chart" -> "MyChart"
+export function kebabToPascal (string_: string): string {
+  return string_.replace(/(^|[-_])([a-z])/g, (_, __, letter: string) => letter.toUpperCase());
+}
+
 // Extract numeric prefix and the rest of the string
 // e.g. "01-getting-started" -> { order: 1, rest: "getting-started" }
 // e.g. "advanced" -> { order: Infinity, rest: "advanced" }
@@ -18,10 +24,10 @@ export function parseNumericPrefix (name: string): {
   };
 }
 
-// Convert a kebab-case or snake_case string to PascalCase
-// e.g. "video-embed" -> "VideoEmbed", "my_chart" -> "MyChart"
-export function toPascalCase (string_: string): string {
-  return string_.replace(/(^|[-_])([a-z])/g, (_, __, letter: string) => letter.toUpperCase());
+// Convert snake_case to kebab-case
+// e.g. "layout_top" -> "layout-top"
+export function snakeToKebab (string_: string): string {
+  return string_.replace(/_/g, '-');
 }
 
 // Replace dashes and underscores with spaces, capitalize the first word

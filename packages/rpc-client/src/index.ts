@@ -106,6 +106,11 @@ export interface TdRepoConfig {
   root: string;
 }
 
+export interface TdCustomLayout {
+  component: string | undefined;
+  slots: Record<string, string>;
+}
+
 export interface TdSiteConfig {
   version: string;
   basePath: string;
@@ -120,6 +125,7 @@ export interface TdSiteConfig {
   publicDir: string;
   nav: TdNavItem[];
   components: TdComponentEntry[];
+  layout: TdCustomLayout | undefined;
 }
 
 export interface TdSeoMeta {

@@ -1,5 +1,6 @@
 //! Tracked query to get the vault configuration from typedown.yaml
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use typedown_macros::query_derived;
@@ -7,7 +8,9 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_config::evaluate_config;
 use crate::db::types::derived::obj_system::TdRuntimeObj;
-use crate::db::types::{CustomComponentEntry, Project, TdObjEnum, VaultConfigResult};
+use crate::db::types::{
+  CustomComponentEntry, CustomLayoutConfig, Project, TdObjEnum, VaultConfigResult,
+};
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
@@ -61,9 +64,10 @@ pub fn get_vault_config<'db>(
   let author = get_site_string(db, &site, "author");
   let license = get_site_string(db, &site, "license");
   let public_dir = get_site_string(db, &site, "public_dir").unwrap_or_else(|| "public".to_string());
-  // Extract theme.components
+  // Extract theme fields
   let theme = get_field(db, &obj, "theme");
   let component_entries = extract_theme_components(db, &theme);
+  let layout_config = extract_theme_layout(db, &theme);
 
   let nav = extract_nav(db, &site);
   if nav.len() > 4 {
@@ -93,6 +97,7 @@ pub fn get_vault_config<'db>(
     public_dir,
     nav,
     component_entries,
+    Some(layout_config),
     diagnostics,
   )
 }
@@ -118,6 +123,7 @@ fn empty_config<'db>(
     "public".to_string(),
     Vec::new(),
     Vec::new(),
+    None,
     diagnostics,
   )
 }
@@ -240,6 +246,51 @@ fn extract_theme_components<'db>(
   entries
 }
 
+// Extract theme.layout: string path or { slots: { name: component } }
+fn extract_theme_layout<'db>(
+  db: &'db TypedownDatabase,
+  theme: &Option<TdObjEnum<'db>>,
+) -> CustomLayoutConfig {
+  let Some(theme) = theme else {
+    return CustomLayoutConfig::default();
+  };
+  let Some(layout) = get_field(db, theme, "layout") else {
+    return CustomLayoutConfig::default();
+  };
+
+  // String form: theme.layout = "./path/to/Layout.vue"
+  if let Some(path) = layout.as_td_string_obj().map(|s| s.value(db)) {
+    return CustomLayoutConfig {
+      component: Some(path),
+      slots: BTreeMap::new(),
+    };
+  }
+
+  // Object form: theme.layout = { slots: { name: "Component" } }
+  let mut slots = BTreeMap::new();
+  if let Some(slots_obj) = get_field(db, &layout, "slots") {
+    // Try as dict first (dynamic keys), then as product (typed fields)
+    let keys: Vec<String> = if let Some(dict) = slots_obj.as_td_dict_obj() {
+      dict.entries(db).keys().cloned().collect()
+    } else if let Some(product) = slots_obj.as_td_product_obj() {
+      product.fields(db).keys().cloned().collect()
+    } else {
+      Vec::new()
+    };
+
+    for key in keys {
+      if let Some(component) = get_string_field(db, &slots_obj, &key) {
+        slots.insert(key, component);
+      }
+    }
+  }
+
+  CustomLayoutConfig {
+    component: None,
+    slots,
+  }
+}
+
 // Normalize origin to include scheme, default to https
 fn normalize_origin(raw: &str) -> String {
   let trimmed = raw.trim_end_matches('/');
@@ -310,6 +361,31 @@ mod tests {
       Some("https://github.com/example/repo")
     );
     assert_eq!(config.repo_root(&db).as_ref(), None);
+  }
+
+  #[test]
+  fn layout_string_form() {
+    let (db, project, _) = load_vault_fixture("evaluate/layout_string_vault", "page.td");
+    let config = get_vault_config(&db, project);
+    assert_eq!(
+      config.layout(&db).unwrap().component.as_deref(),
+      Some("./theme/MyLayout.vue")
+    );
+    assert!(config.layout(&db).unwrap().slots.is_empty());
+  }
+
+  #[test]
+  fn layout_slots_form() {
+    let (db, project, _) = load_vault_fixture("evaluate/layout_slots_vault", "page.td");
+    let config = get_vault_config(&db, project);
+    assert_eq!(config.layout(&db).as_ref(), None);
+    let slots = config.layout(&db).unwrap().slots;
+    assert_eq!(slots.len(), 2);
+    assert_eq!(
+      slots.get("layout_top"),
+      Some(&"AnnouncementBar".to_string())
+    );
+    assert_eq!(slots.get("doc_after"), Some(&"CommentSection".to_string()));
   }
 
   #[test]
