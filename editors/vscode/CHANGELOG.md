@@ -1,6 +1,50 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.43.0] - 2026-10-13
+
+### Added
+
+- packages/typerighter
+  - Custom layout: replace the default theme with your own Vue layout component via `theme.layout` in `typedown.yaml`
+  - Layout slots: inject components into named slots of the default theme via `theme.layout.slots`
+  - Export `useTheme` from `typerighter/client` for custom layout dark mode control
+  - `NotFound` optional field on the `TypedownTheme` interface
+  - Auto-generate `.typedown/components.json` from `theme.components` during build
+
+- crates/typedown-lang, crates/typedown-server
+  - Custom component validation: `check_custom_components` query validates component usage in `.td` files against `.typedown/components.json`
+  - Component contract: `get_component_contract` query parses `.typedown/components.json` with prop type and required metadata
+  - Layout config merged into single `layout: Option<TdCustomLayout>` field in the RPC contract
+
+- packages/rpc-client
+  - `TdCustomLayout` type with `component` and `slots` fields
+  - `onComponentContractChanged` notification handler
+
+### Changed
+
+- crates/typedown-lang
+  - `CustomComponentTyp.props` changed from `Vec<CustomComponentProp>` to `Option<Vec<CustomComponentProp>>`; `None` skips prop validation
+  - Skip component validation entirely when `.typedown/components.json` is absent
+
+- packages/typerighter
+  - `generateThemeModule` accepts a single `layout` object instead of separate `themeLayout` and `themeLayoutSlots` params
+
+### Fixed
+
+- crates/typedown-server
+  - `BTreeMap` to `HashMap` conversion for layout slots uses `.into_iter().collect()` instead of `.into()`
+
+- homepage
+  - `_icon: icon.paintbrush` replaced with valid `icon.brush` in theming reference
+
+### Performance
+
+- packages/typerighter
+  - Reduced built bundle size
+  - Lazily load Temml (math rendering)
+  - Fonts emitted as external woff2 files instead of inlined
+
 ## [0.42.1] - 2026-10-12
 
 ### Fixed
