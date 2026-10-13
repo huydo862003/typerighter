@@ -101,6 +101,23 @@
   opacity: 0;
 }
 
+/* Code block title (filename) */
+
+.td-content div.has-title > span.lang {
+  position: static;
+  display: block;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--font-size-td-xs);
+  opacity: 1;
+}
+
+.td-content div.has-title:hover > button.copy + span.lang,
+.td-content div.has-title > button.copy:focus + span.lang {
+  opacity: 1;
+}
+
 /* Copy button */
 
 .td-content div[class*="language-"] .copy {
@@ -148,6 +165,7 @@
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M5 13l4 4L19 7'/%3E%3C/svg%3E");
 }
 
+
 /* Line numbers */
 
 .td-content div[class*="language-"].line-numbers-mode pre {
@@ -166,6 +184,10 @@
   color: rgba(255, 255, 255, 0.2);
   font-family: var(--font-mono);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.td-content div.has-title.line-numbers-mode .line-numbers-wrapper {
+  top: 33px;
 }
 
 /* Shiki diff/focus/highlight/error transformers */

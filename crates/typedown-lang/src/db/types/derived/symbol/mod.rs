@@ -7,20 +7,20 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::scope::{
   get_builtin_runtime_scope, get_file_runtime_scope, get_project_runtime_scope, parent_scope,
 };
-use crate::db::types::{File, HirValue, Project, TdObjectEnum, TdRuntimeObject};
+use crate::db::types::{File, Project, ProjectRedNode, TdObjEnum, TdRuntimeObj};
 use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum SymbolKind<'db> {
+pub enum SymbolKind {
   UserDefinedSchema(Project, File),
   UserDefinedResource(Project, File),
   Asset(AssetKind, Project, File),
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
-  FnParam(Project, File, HirValue<'db>),
+  FuncParam(Project, File, ProjectRedNode),
 }
 
 #[derive(FromRepr)]
@@ -35,7 +35,7 @@ enum SymbolKindTag {
   FnParam = 6,
 }
 
-impl<'db> SymbolKind<'db> {
+impl SymbolKind {
   pub fn is_schema(&self) -> bool {
     matches!(
       self,
@@ -57,7 +57,7 @@ impl<'db> SymbolKind<'db> {
       SymbolKind::UserDefinedSchema(_, _)
         | SymbolKind::UserDefinedResource(_, _)
         | SymbolKind::Asset(_, _, _)
-        | SymbolKind::FnParam(_, _, _)
+        | SymbolKind::FuncParam(_, _, _)
     )
   }
 
@@ -66,7 +66,7 @@ impl<'db> SymbolKind<'db> {
   }
 }
 
-impl<'db> StableHash for SymbolKind<'db> {
+impl StableHash for SymbolKind {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -75,7 +75,7 @@ impl<'db> StableHash for SymbolKind<'db> {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
       }
-      SymbolKind::FnParam(project, file, closure) => {
+      SymbolKind::FuncParam(project, file, closure) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
         closure.stable_hash(db, hasher);
@@ -92,48 +92,48 @@ impl<'db> StableHash for SymbolKind<'db> {
   }
 }
 
-impl<'db> Encodable for SymbolKind<'db> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+impl Encodable for SymbolKind {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       SymbolKind::UserDefinedSchema(project, file) => {
-        encoder.emit_u8(buf, SymbolKindTag::UserDefinedSchema as u8);
-        project.field_encode(buf, encoder);
-        file.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, SymbolKindTag::UserDefinedSchema as u8);
+        project.field_encode(buffer, encoder);
+        file.field_encode(buffer, encoder);
       }
       SymbolKind::UserDefinedResource(project, file) => {
-        encoder.emit_u8(buf, SymbolKindTag::UserDefinedResource as u8);
-        project.field_encode(buf, encoder);
-        file.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, SymbolKindTag::UserDefinedResource as u8);
+        project.field_encode(buffer, encoder);
+        file.field_encode(buffer, encoder);
       }
       SymbolKind::Asset(asset_kind, project, file) => {
-        encoder.emit_u8(buf, SymbolKindTag::Asset as u8);
-        asset_kind.encode(buf, encoder);
-        project.field_encode(buf, encoder);
-        file.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, SymbolKindTag::Asset as u8);
+        asset_kind.encode(buffer, encoder);
+        project.field_encode(buffer, encoder);
+        file.field_encode(buffer, encoder);
       }
       SymbolKind::BuiltinSchema(kind) => {
-        encoder.emit_u8(buf, SymbolKindTag::BuiltinSchema as u8);
-        kind.encode(buf, encoder);
+        encoder.emit_u8(buffer, SymbolKindTag::BuiltinSchema as u8);
+        kind.encode(buffer, encoder);
       }
       SymbolKind::BuiltinMacro(kind) => {
-        encoder.emit_u8(buf, SymbolKindTag::BuiltinMacro as u8);
-        kind.encode(buf, encoder);
+        encoder.emit_u8(buffer, SymbolKindTag::BuiltinMacro as u8);
+        kind.encode(buffer, encoder);
       }
       SymbolKind::BuiltinGlobal(kind) => {
-        encoder.emit_u8(buf, SymbolKindTag::BuiltinGlobal as u8);
-        kind.encode(buf, encoder);
+        encoder.emit_u8(buffer, SymbolKindTag::BuiltinGlobal as u8);
+        kind.encode(buffer, encoder);
       }
-      SymbolKind::FnParam(project, file, closure) => {
-        encoder.emit_u8(buf, SymbolKindTag::FnParam as u8);
-        project.field_encode(buf, encoder);
-        file.field_encode(buf, encoder);
-        closure.field_encode(buf, encoder);
+      SymbolKind::FuncParam(project, file, closure) => {
+        encoder.emit_u8(buffer, SymbolKindTag::FnParam as u8);
+        project.field_encode(buffer, encoder);
+        file.field_encode(buffer, encoder);
+        closure.field_encode(buffer, encoder);
       }
     }
   }
 }
 
-impl<'db> Decodable for SymbolKind<'db> {
+impl Decodable for SymbolKind {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match SymbolKindTag::from_repr(tag).expect("unknown SymbolKind tag") {
@@ -159,10 +159,10 @@ impl<'db> Decodable for SymbolKind<'db> {
       SymbolKindTag::BuiltinGlobal => {
         SymbolKind::BuiltinGlobal(BuiltinGlobalKind::decode(data, decoder))
       }
-      SymbolKindTag::FnParam => SymbolKind::FnParam(
+      SymbolKindTag::FnParam => SymbolKind::FuncParam(
         Project::field_decode(data, decoder),
         File::field_decode(data, decoder),
-        HirValue::field_decode(data, decoder),
+        ProjectRedNode::field_decode(data, decoder),
       ),
     }
   }
@@ -302,10 +302,10 @@ impl Decodable for BuiltinGlobalKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
 pub enum BuiltinSchemaKind {
-  TypeType = 0,
+  TypTyp = 0,
   Schema = 1,
-  Str = 2,
-  Num = 3,
+  String = 2,
+  Number = 3,
   Bool = 4,
   Date = 5,
   DateTime = 6,
@@ -313,8 +313,8 @@ pub enum BuiltinSchemaKind {
   List = 8,
   Dict = 9,
   Math = 10,
-  SchemaProperty = 11,
-  Object = 12,
+  SchemaProp = 11,
+  Obj = 12,
 }
 
 impl StableHash for BuiltinSchemaKind {
@@ -337,11 +337,11 @@ impl Decodable for BuiltinSchemaKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum ScopeKind<'db> {
+pub enum ScopeKind {
   Builtin(Project),
   Project(Project),
   File(Project, File),
-  Fn(Project, File, HirValue<'db>),
+  Func(Project, File, ProjectRedNode),
 }
 
 #[derive(FromRepr)]
@@ -350,10 +350,10 @@ enum ScopeKindTag {
   Builtin = 0,
   Project = 1,
   File = 2,
-  Fn = 3,
+  Func = 3,
 }
 
-impl<'db> StableHash for ScopeKind<'db> {
+impl StableHash for ScopeKind {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
@@ -363,7 +363,7 @@ impl<'db> StableHash for ScopeKind<'db> {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
       }
-      ScopeKind::Fn(project, file, value) => {
+      ScopeKind::Func(project, file, value) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
         value.stable_hash(db, hasher);
@@ -372,33 +372,33 @@ impl<'db> StableHash for ScopeKind<'db> {
   }
 }
 
-impl<'db> Encodable for ScopeKind<'db> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+impl Encodable for ScopeKind {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       ScopeKind::Builtin(project) => {
-        encoder.emit_u8(buf, ScopeKindTag::Builtin as u8);
-        project.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, ScopeKindTag::Builtin as u8);
+        project.field_encode(buffer, encoder);
       }
       ScopeKind::Project(project) => {
-        encoder.emit_u8(buf, ScopeKindTag::Project as u8);
-        project.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, ScopeKindTag::Project as u8);
+        project.field_encode(buffer, encoder);
       }
       ScopeKind::File(project, file) => {
-        encoder.emit_u8(buf, ScopeKindTag::File as u8);
-        project.field_encode(buf, encoder);
-        file.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, ScopeKindTag::File as u8);
+        project.field_encode(buffer, encoder);
+        file.field_encode(buffer, encoder);
       }
-      ScopeKind::Fn(project, file, value) => {
-        encoder.emit_u8(buf, ScopeKindTag::Fn as u8);
-        project.field_encode(buf, encoder);
-        file.field_encode(buf, encoder);
-        value.field_encode(buf, encoder);
+      ScopeKind::Func(project, file, value) => {
+        encoder.emit_u8(buffer, ScopeKindTag::Func as u8);
+        project.field_encode(buffer, encoder);
+        file.field_encode(buffer, encoder);
+        value.field_encode(buffer, encoder);
       }
     }
   }
 }
 
-impl<'db> Decodable for ScopeKind<'db> {
+impl Decodable for ScopeKind {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match ScopeKindTag::from_repr(tag).expect("unknown ScopeKind tag") {
@@ -408,27 +408,27 @@ impl<'db> Decodable for ScopeKind<'db> {
         Project::field_decode(data, decoder),
         File::field_decode(data, decoder),
       ),
-      ScopeKindTag::Fn => ScopeKind::Fn(
+      ScopeKindTag::Func => ScopeKind::Func(
         Project::field_decode(data, decoder),
         File::field_decode(data, decoder),
-        HirValue::field_decode(data, decoder),
+        ProjectRedNode::field_decode(data, decoder),
       ),
     }
   }
 }
 
 #[query_interned]
-pub struct Scope<'db> {
-  kind: ScopeKind<'db>,
+pub struct Scope {
+  kind: ScopeKind,
 }
 
-impl<'db> Scope<'db> {
+impl<'db> Scope {
   pub fn project(&self, db: &(impl QueryDatabase + ?Sized)) -> Project {
     match self.kind(db) {
       ScopeKind::Builtin(project)
       | ScopeKind::Project(project)
       | ScopeKind::File(project, _)
-      | ScopeKind::Fn(project, _, _) => project,
+      | ScopeKind::Func(project, _, _) => project,
     }
   }
 
@@ -437,14 +437,14 @@ impl<'db> Scope<'db> {
       ScopeKind::Builtin(project) => get_builtin_runtime_scope(db, project),
       ScopeKind::Project(project) => get_project_runtime_scope(db, project),
       ScopeKind::File(project, file) => get_file_runtime_scope(db, project, file),
-      ScopeKind::Fn(project, file, _) => {
+      ScopeKind::Func(project, file, _) => {
         let scope = parent_scope(db, *self);
         let parent_static = scope.value(db);
         if let Some(parent) = parent_static
-          && matches!(parent.kind(db), ScopeKind::Fn(..))
+          && matches!(parent.kind(db), ScopeKind::Func(..))
         {
           panic!(
-            "Cannot construct static RuntimeScope for a nested closure scope. Nested closures require the dynamic defining RuntimeScope captured when the closure instance was created"
+            "Cannot construct static RuntimeScope<'db> for a nested closure scope. Nested closures require the dynamic defining RuntimeScope<'db> captured when the closure instance was created"
           );
         }
         let parent = get_file_runtime_scope(db, project, file);
@@ -457,8 +457,8 @@ impl<'db> Scope<'db> {
 // Runtime scope for closure evaluation
 #[query_derived(no_hash, custom_hash)]
 pub struct RuntimeScope<'db> {
-  scope: Scope<'db>,
-  bindings: Vec<(String, TdObjectEnum<'db>)>,
+  scope: Scope,
+  bindings: Vec<(String, TdObjEnum<'db>)>,
   parent: Option<Box<RuntimeScope<'db>>>,
 }
 
@@ -491,31 +491,34 @@ fn runtime_scope_display_string<'db>(
       let path = file
         .handle(db)
         .path()
-        .map(|p| p.display().to_string())
+        .map(|path| path.display().to_string())
         .unwrap_or_default();
       format!("file:{path}")
     }
-    ScopeKind::Fn(_, file, hir) => {
+    ScopeKind::Func(_, file, project_node) => {
       let path = file
         .handle(db)
         .path()
-        .map(|p| p.display().to_string())
+        .map(|path| path.display().to_string())
         .unwrap_or_default();
-      let offset = hir.node(db).offset();
-      format!("fn:{path}:{offset}")
+      let offset = project_node.node.offset();
+      format!("func:{path}:{offset}")
     }
   };
-  let bindings_str: Vec<String> = runtime_scope
+  let bindings_string: Vec<String> = runtime_scope
     .bindings(db)
     .iter()
     .map(|(name, obj)| format!("{}={}", name, obj.to_display_string(db)))
     .collect();
-  let parent_str = runtime_scope
+  let parent_string = runtime_scope
     .parent(db)
     .as_ref()
-    .map(|p| runtime_scope_display_string(**p, db))
+    .map(|parent| runtime_scope_display_string(**parent, db))
     .unwrap_or_default();
-  format!("{scope_name}({})>{parent_str}", bindings_str.join(","))
+  format!(
+    "{scope_name}({})>{parent_string}",
+    bindings_string.join(",")
+  )
 }
 
 impl<'db> RuntimeScope<'db> {
@@ -523,7 +526,7 @@ impl<'db> RuntimeScope<'db> {
     &self,
     db: &'db (impl QueryDatabase + ?Sized),
     name: &str,
-  ) -> Option<TdObjectEnum<'db>> {
+  ) -> Option<TdObjEnum<'db>> {
     for (key, val) in &self.bindings(db) {
       if key == name {
         return Some(val.clone());
@@ -537,18 +540,18 @@ impl<'db> RuntimeScope<'db> {
 }
 
 #[query_interned]
-pub struct Symbol<'db> {
-  kind: SymbolKind<'db>,
+pub struct Symbol {
+  kind: SymbolKind,
   name: String,
-  def_id: String,
+  definition_id: String,
 }
 
 #[query_derived]
 pub struct ProjectSchemaResult<'db> {
-  members: BTreeMap<String, Symbol<'db>>,
+  members: BTreeMap<String, Symbol>,
 }
 
 #[query_derived]
 pub struct MembersResult<'db> {
-  members: BTreeMap<String, Symbol<'db>>,
+  members: BTreeMap<String, Symbol>,
 }

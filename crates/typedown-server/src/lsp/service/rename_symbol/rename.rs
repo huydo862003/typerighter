@@ -2,10 +2,9 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::{RenameParams, WorkspaceEdit};
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::name_resolver::resolution_index::references;
-use typedown_lang::db::types::{FileRedNode, SymbolKind};
+use typedown_lang::db::types::{ProjectRedNode, SymbolKind};
 use typedown_lang::db::utils::is_content_file;
 use typedown_lang::syntax::ast::AstNode;
 
@@ -34,7 +33,7 @@ pub fn rename(analysis: &Analysis, params: RenameParams) -> Option<WorkspaceEdit
     CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
     CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
   };
-  let symbol = referee(db, lower_node(db, project, FileRedNode::new(file, syntax))).value(db)?;
+  let symbol = referee(db, ProjectRedNode::new(project, file, syntax)).value(db)?;
 
   // Builtins cannot be renamed
   if matches!(
@@ -234,7 +233,7 @@ age: 30
       (test_path, editing_file),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -441,7 +440,7 @@ name: Alice
       (root.join("alice.td"), alice_file),
       (root.join("file.td"), test_file),
     ]);
-    let project = Project::new(&db, root.clone(), files);
+    let project = Project::new(&db, root.clone(), files, None);
     let analysis2 = Analysis::new(
       db,
       project,

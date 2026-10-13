@@ -8,7 +8,10 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
-pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<CompletionResponse> {
+pub fn resolve_completion(
+  analysis: &Analysis,
+  params: CompletionParams,
+) -> Option<CompletionResponse> {
   let path = uri_to_path(&params.text_document_position.text_document.uri)?;
   let rope = analysis.file_rope(&path)?;
   let offset = lsp_position_to_text_offset(&rope, params.text_document_position.position)?;
@@ -22,9 +25,9 @@ pub fn completion(analysis: &Analysis, params: CompletionParams) -> Option<Compl
   let node = node_at_offset(root, lookup)?;
 
   let items = if is_under_vault(&node) {
-    vault_field_completions()
+    collect_vault_field_completions()
   } else {
-    top_level_completions()
+    collect_top_level_completions()
   };
 
   Some(CompletionResponse::Array(items))
@@ -47,15 +50,15 @@ fn is_under_vault(node: &RedNode) -> bool {
   false
 }
 
-fn top_level_completions() -> Vec<CompletionItem> {
-  vec![field_item("version"), field_item("vault")]
+fn collect_top_level_completions() -> Vec<CompletionItem> {
+  vec![make_field_item("version"), make_field_item("vault")]
 }
 
-fn vault_field_completions() -> Vec<CompletionItem> {
-  vec![field_item("root_dir")]
+fn collect_vault_field_completions() -> Vec<CompletionItem> {
+  vec![make_field_item("root_dir")]
 }
 
-fn field_item(label: &str) -> CompletionItem {
+fn make_field_item(label: &str) -> CompletionItem {
   CompletionItem {
     label: label.to_string(),
     kind: Some(CompletionItemKind::FIELD),

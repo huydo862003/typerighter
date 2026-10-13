@@ -8,10 +8,11 @@ repository = "https://github.com/Huy-DNA/typerighter"
 authors = ["Huy-DNA <huydo862003@gmail.com>"]
 
 [dependencies]
-typedown-incremental = { version = "0.39.0", path = "../typedown-incremental" }
-typedown-types = { version = "0.39.0", path = "../typedown-types" }
-typedown-macros = { version = "0.39.0", path = "../typedown-macros" }
+typedown-incremental = { version = "0.43.0", path = "../typedown-incremental" }
+typedown-types = { version = "0.43.0", path = "../typedown-types" }
+typedown-macros = { version = "0.43.0", path = "../typedown-macros" }
 dashmap = "6.2.1"
+smallvec = "1"
 hashbrown = "0.17.1"
 inventory = "0.3.24"
 bitflags = "2.13.0"
@@ -23,7 +24,7 @@ strum = { version = "0.28.0", features = ["derive"] }
 
 [features]
 default = []
-export = ["serde", "serde_json"]
+export = ["serde"]
 
 [dependencies.serde]
 version = "1"
@@ -32,7 +33,6 @@ optional = true
 
 [dependencies.serde_json]
 version = "1"
-optional = true
 
 [dev-dependencies]
 expect-test = "1.5.1"

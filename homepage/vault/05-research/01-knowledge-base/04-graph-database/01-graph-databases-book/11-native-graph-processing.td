@@ -3,7 +3,7 @@ _label: "Neo4j Internals: Native Graph Processing"
 _icon: icon.document
 ---
 
-Part of the Neo4j internals series: **Native Graph Processing** | [Native Graph Storage](./12-native-graph-storage.md) | [Transactions, Availability, Scale](./13-internals-transactions-availability-scale.md)
+Part of the Neo4j internals series: **Native Graph Processing** \| [Native Graph Storage](./12-native-graph-storage.td) \| [Transactions, Availability, Scale](./13-internals-transactions-availability-scale.td)
 
 These sections peek under the hood of graph database implementation, using Neo4j as the reference. Neo4j has both native graph processing and [native graph storage](./4-concept-graph-database.md), and is open source.
 

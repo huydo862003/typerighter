@@ -7,13 +7,10 @@ use crate::lsp::service::utils::symbol::{
 use lsp_types::{Location, Range, ReferenceParams};
 use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::name_resolver::resolution_index::{ReferenceKind, references};
-use typedown_lang::db::types::{
-  File, FileRedNode, HirValue, HirValueKind, Project, Symbol, SymbolKind,
-};
-use typedown_lang::syntax::ast::AstNode;
+use typedown_lang::db::types::{File, Project, ProjectRedNode, Symbol, SymbolKind};
+use typedown_lang::syntax::ast::{AstNode, CallExpr};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<Vec<Location>> {
@@ -42,14 +39,13 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
   let mut locations: Vec<Location> = refs
     .into_iter()
     .filter_map(|reference| {
-      let ref_path = reference.hir.node(db).owner_file.handle(db).path()?.clone();
+      let ref_path = reference.node.file.handle(db).path()?.clone();
       let ref_rope = analysis.file_rope(&ref_path)?;
-      let node = reference.hir.node(db);
 
       let range = match reference.kind {
-        ReferenceKind::Ident => node_trimmed_range(&ref_rope, &node),
-        ReferenceKind::Fref => fref_path_range(db, &ref_rope, &reference.hir)
-          .unwrap_or_else(|| node_trimmed_range(&ref_rope, &node)),
+        ReferenceKind::Ident => node_trimmed_range(&ref_rope, &reference.node.node),
+        ReferenceKind::Fref => fref_path_range(db, &ref_rope, &reference.node)
+          .unwrap_or_else(|| node_trimmed_range(&ref_rope, &reference.node.node)),
       };
       let scheme = analysis
         .scheme_map
@@ -87,13 +83,13 @@ fn resolve_symbol(
   project: Project,
   file: File,
   offset: usize,
-) -> Option<Symbol<'_>> {
+) -> Option<Symbol> {
   let rename_symbol = find_symbol_at_cursor(db, project, file, offset)?;
   let syntax = match &rename_symbol {
     CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
     CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
   };
-  referee(db, lower_node(db, project, FileRedNode::new(file, syntax))).value(db)
+  referee(db, ProjectRedNode::new(project, file, syntax)).value(db)
 }
 
 /// Build the declaration Location for a symbol, pointing to the top of its backing file
@@ -114,12 +110,15 @@ fn declaration_location(
   })
 }
 
-/// For a fref call HIR node, return the range of the path string content
-fn fref_path_range(db: &TypedownDatabase, rope: &Rope, hir: &HirValue) -> Option<Range> {
-  let HirValueKind::Call { args, .. } = hir.kind(db) else {
-    return None;
-  };
-  let arg_node = args.first()?.node(db);
+/// For a fref call node, return the range of the path string content
+fn fref_path_range(
+  _db: &TypedownDatabase,
+  rope: &Rope,
+  project_node: &ProjectRedNode,
+) -> Option<Range> {
+  let call = CallExpr::cast(project_node.node.clone())?;
+  let first_arg = call.args().into_iter().next()?;
+  let arg_node = first_arg.syntax().clone();
   // interpolated fref arguments have no single text node, fall back to full call
   if arg_node
     .children()
@@ -264,7 +263,7 @@ age: 25
         ),
       );
     }
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,

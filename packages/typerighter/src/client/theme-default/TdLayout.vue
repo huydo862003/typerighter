@@ -26,12 +26,16 @@ import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
 import TdToc from './components/TdToc.vue';
+import TdSidebarNav from './components/TdSidebarNav.vue';
 import TdSkeleton from './components/TdSkeleton.vue';
 import TdSiteSearch from './components/TdSiteSearch/TdSiteSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
   useCopyCode,
 } from './composables/useCopyCode';
+import {
+  useCopyHeadingAnchor,
+} from './composables/useCopyHeadingAnchor';
 import {
   useGlobalHotkey,
 } from './composables/useHotkey';
@@ -48,13 +52,10 @@ import {
   useMenu,
 } from './composables/useMenu';
 import {
-  renderInlineMarkup,
-} from './utils/renderInlineMarkup';
-import {
   getPageIcon,
 } from './utils/pageIcon';
 import {
-  formatEditTime, getIndexUrl,
+  formatEditTime, getIndexUrl, stripTrailingSlash,
 } from '@/shared';
 import './styles/main.css';
 import './styles/markdown/content.css';
@@ -90,11 +91,25 @@ watch(
 );
 
 useCopyCode();
+useCopyHeadingAnchor();
 useMermaid();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
 const menuSearch = useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
+
+// Build the GitHub edit URL from repo config, rootDir, and the page filepath
+function editPageUrl (filepath: string): string {
+  const repo = siteConfig.repo!;
+  const base = stripTrailingSlash(repo.url);
+  const segments = [
+    repo.root,
+    siteConfig.rootDir,
+    filepath,
+  ].filter(Boolean);
+
+  return `${base}/edit/main/${segments.join('/')}`;
+}
 
 function focusSearch () {
   if (menuSearch.value?.isFocused || sidebarSearch.value?.isFocused) {
@@ -198,6 +213,7 @@ function shrinkSidebar () {
 
 <template>
   <div>
+    <slot name="layout-top" />
     <a
       href="#td-content"
       class="td-skip-link"
@@ -217,11 +233,12 @@ function shrinkSidebar () {
         <TdBreadcrumb class="td-header-breadcrumb" />
       </div>
       <TdHeaderNavBar />
+      <slot name="nav-bar-after" />
       <div class="td-header-right">
         <TdThemeToggle />
         <a
           v-if="siteConfig.repo"
-          :href="siteConfig.repo"
+          :href="siteConfig.repo.url"
           target="_blank"
           rel="noopener noreferrer"
           class="td-header-icon-link"
@@ -317,19 +334,19 @@ function shrinkSidebar () {
           width: `${sidebarWidth}px`,
         }"
       >
+        <slot name="sidebar-top" />
         <TdSiteSearch
           ref="sidebarSearch"
           v-model:query="searchQuery"
           v-model:active="sidebarSearchActive"
           class="td-sidebar-search"
         />
-        <div class="td-sidebar-scroll">
-          <TdSkeleton v-if="!sidebarSearchActive && !siteDataReady" />
-          <TdContentNav
-            v-else-if="!sidebarSearchActive"
-            :tree="siteData.contentTree"
-          />
-        </div>
+        <TdSidebarNav
+          :tree="siteData.contentTree"
+          :search-active="sidebarSearchActive"
+          :ready="siteDataReady"
+        />
+        <slot name="sidebar-bottom" />
         <div
           class="td-resize-handle"
           role="separator"
@@ -349,6 +366,7 @@ function shrinkSidebar () {
             class="td-content"
             data-testid="content"
           >
+            <slot name="doc-before" />
             <div
               v-if="page.schema"
               class="td-page-eyebrow"
@@ -367,15 +385,15 @@ function shrinkSidebar () {
             <h1
               v-if="title"
               class="td-page-title"
-              v-html="renderInlineMarkup(title)"
+              v-html="page.titleHtml"
             />
             <div
-              v-if="page.metadata"
+              v-if="page.fileMetadata"
               class="td-page-meta"
             >
-              <span>{{ formatEditTime(page.metadata.mtime, "Modified") }}</span>
-              <span v-if="page.metadata.ctime !== page.metadata.mtime">
-                · {{ formatEditTime(page.metadata.ctime, "Created") }}</span>
+              <span>{{ formatEditTime(page.fileMetadata.mtime, "Modified") }}</span>
+              <span v-if="page.fileMetadata.ctime !== page.fileMetadata.mtime">
+                · {{ formatEditTime(page.fileMetadata.ctime, "Created") }}</span>
             </div>
             <TdFrontmatter
               class="td-frontmatter-inline"
@@ -388,10 +406,20 @@ function shrinkSidebar () {
               :headings="page.headings"
               static
             />
+            <slot name="doc-content-before" />
             <div class="td-content-body">
               <Content />
             </div>
+            <slot name="doc-content-after" />
             <TdPreviousNext />
+            <a
+              v-if="siteConfig.repo && page.filepath"
+              :href="editPageUrl(page.filepath)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="td-page-edit"
+            >Edit this page</a>
+            <slot name="doc-after" />
           </article>
         </main>
 
@@ -400,6 +428,7 @@ function shrinkSidebar () {
     </div>
 
     <TdFooter />
+    <slot name="layout-bottom" />
   </div>
 </template>
 
@@ -515,7 +544,7 @@ function shrinkSidebar () {
 }
 
 .td-content {
-  padding: 44px 56px 120px;
+  padding: 44px 56px 48px;
 }
 
 .td-page-eyebrow {
@@ -550,6 +579,21 @@ function shrinkSidebar () {
   margin-bottom: 8px;
 }
 
+/* Edit link */
+
+.td-page-edit {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: var(--font-size-td-xs);
+  color: var(--color-td-ink-4);
+  text-decoration: none;
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
+.td-page-edit:hover {
+  color: var(--color-td-accent);
+}
+
 /* Menu button: hidden above 900px */
 
 .td-menu-button {
@@ -571,16 +615,6 @@ function shrinkSidebar () {
 .td-sidebar-search {
   flex-shrink: 0;
   padding: 12px 10px;
-}
-
-.td-sidebar-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: clip;
-  overscroll-behavior: contain;
-  padding: 8px 0 0;
-  scrollbar-gutter: stable;
 }
 
 .td-resize-handle {

@@ -1,0 +1,8 @@
+version: "1"
+vault:
+  root_dir: "."
+theme:
+  layout:
+    slots:
+      layout_top: "AnnouncementBar"
+      doc_after: "CommentSection"

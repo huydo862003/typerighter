@@ -1,0 +1,3 @@
+# Allow the pre-generated component contract so it's available in the fixture
+!.typedown/
+!.typedown/components.json

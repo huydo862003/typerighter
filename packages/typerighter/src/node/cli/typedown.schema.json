@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "typedown.schema.json",
+  "title": "Typedown vault configuration",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Config file version",
+      "examples": ["1.0.0"]
+    },
+    "repo": {
+      "type": "string",
+      "description": "Repository URL shown in the site footer"
+    },
+    "vault": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "root_dir": {
+          "type": "string",
+          "description": "Path to the vault directory relative to this file",
+          "default": ".",
+          "examples": ["vault", "docs", "."]
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "array",
+          "description": "Custom Vue components: folder paths (scanned for .vue files) or explicit name-to-source mappings",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Folder path to scan for .vue files"
+              },
+              {
+                "type": "object",
+                "description": "Explicit component name to source path mapping",
+                "minProperties": 1,
+                "maxProperties": 1,
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "examples": [
+            ["./src/components"],
+            [{ "Chart": "./src/Chart.vue" }],
+            ["./src/components", { "Chart": "./src/MyChart.vue" }]
+          ]
+        }
+      }
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Site title shown in the browser tab and header"
+        },
+        "description": {
+          "type": "string",
+          "description": "Site description used in meta tags"
+        },
+        "origin": {
+          "type": "string",
+          "description": "Canonical site URL used for sitemap and SEO (e.g. https://example.com)",
+          "examples": ["https://example.com"]
+        },
+        "lang": {
+          "type": "string",
+          "description": "HTML lang attribute",
+          "default": "en",
+          "examples": ["en", "fr", "ja"]
+        },
+        "base_path": {
+          "type": "string",
+          "description": "Base path when the site is served from a subdirectory (e.g. /docs)",
+          "default": "/",
+          "examples": ["/", "/docs", "/blog"]
+        },
+        "author": {
+          "type": "string",
+          "description": "Site author name used in meta tags and JSON-LD"
+        },
+        "license": {
+          "type": "string",
+          "description": "Content license shown in the footer",
+          "examples": ["CC BY 4.0", "MIT", "AGPL-3.0-only"]
+        },
+        "public_dir": {
+          "type": "string",
+          "description": "Directory for static assets copied as-is to the build output",
+          "default": "public"
+        },
+        "nav": {
+          "type": "array",
+          "description": "Top navigation links (max 4 recommended)",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["title", "link"],
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Link label"
+              },
+              "link": {
+                "type": "string",
+                "description": "URL or internal path"
+              },
+              "icon": {
+                "type": "string",
+                "description": "Lucide icon name (e.g. icon.book, icon.github)",
+                "examples": ["icon.book", "icon.github", "icon.home"]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

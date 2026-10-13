@@ -42,6 +42,73 @@ fn parse_paragraph_simple() {
   );
 }
 
+// Parses a paragraph with nested list
+#[test]
+fn parse_paragraph_with_nested_list() {
+  let tree = parse_body(
+    r#"this is a paragraph with nested list:
+  - list item 1
+  - list item 2
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdText
+        "this"
+        " "
+        "is"
+        " "
+        "a"
+        " "
+        "paragraph"
+        " "
+        "with"
+        " "
+        "nested"
+        " "
+        "list"
+        ":")
+      "\n"
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "list"
+              " "
+              "item"
+              " "
+              "1")))
+        "\n"
+        " "
+        " "
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "list"
+              " "
+              "item"
+              " "
+              "2")))))
+    "\n"))"####
+  );
+}
+
 // Parses a level-1 heading
 #[test]
 fn parse_heading_simple() {
@@ -159,12 +226,12 @@ fn parse_bullet_list_dash() {
 fn parse_nested_bullet_list() {
   let tree = parse_body(
     r#"- parent
- - child one
- - child two
+  - child one
+  - child two
 "#,
   );
   assert!(
-    tree.contains("(MdBulletList") && tree.matches("(MdBulletList").count() == 2,
+    tree.contains("(MdBulletList") && tree.matches("(MdBulletList\n").count() == 2,
     "should have nested MdBulletList:\n{tree}"
   );
 }
@@ -1453,6 +1520,47 @@ fn parse_container_block_kebab_case() {
   assert!(
     diags.is_empty(),
     "should produce no diagnostics, got: {diags:?}"
+  );
+}
+
+// Space after ::: is optional: ::: td-alert and :::td-alert are both valid
+#[test]
+fn parse_container_block_kebab_case_with_space() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: td-alert
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics for '::: td-alert', got: {diags:?}"
+  );
+}
+
+#[test]
+fn parse_container_block_kebab_case_no_space() {
+  let (_, diags) = parse_body_with_diags(
+    r#":::td-alert
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics for ':::td-alert', got: {diags:?}"
+  );
+}
+
+// Props can appear directly after label with no space: :::td-alert{kind="info"}
+#[test]
+fn parse_container_block_no_space_with_props() {
+  let (_, diags) = parse_body_with_diags(
+    r#":::td-alert{kind="info"}
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics for ':::td-alert{{kind=\"info\"}}', got: {diags:?}"
   );
 }
 
@@ -4802,7 +4910,12 @@ fn parse_ordered_list_blank_line_before_nested_paragraphs() {
 // Blank line with trailing spaces should not break list item containment
 #[test]
 fn parse_bullet_list_blank_line_with_spaces() {
-  let tree = parse_body("- item\n   \n  - child\n");
+  let tree = parse_body(
+    r#"- item
+   
+  - child
+"#,
+  );
   assert_eq!(
     tree,
     r####"(SourceFile
@@ -5175,4 +5288,12 @@ fn parse_not_horizontal_rule_with_text() {
     !tree.contains("MdHorizontalRule"),
     "should not be hr:\n{tree}"
   );
+}
+
+// Link with inline code as link text
+#[test]
+fn parse_link_with_inline_code_text() {
+  let tree = parse_body("# [`def1`](http://example.com)\n");
+  eprintln!("{tree}");
+  assert!(tree.contains("MdLink"), "should parse as a link:\n{tree}");
 }

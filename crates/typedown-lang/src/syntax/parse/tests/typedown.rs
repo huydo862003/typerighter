@@ -237,7 +237,7 @@ fn parse_all_project_tracker_files() {
     let file = File::new(&db, handle);
     file_map.insert(path.clone(), file);
   }
-  let project = Project::new(&db, project_dir, file_map.clone());
+  let project = Project::new(&db, project_dir, file_map.clone(), None);
 
   let mut sorted_files: Vec<_> = file_map.iter().collect();
   sorted_files.sort_by_key(|(p, _)| *p);
@@ -824,7 +824,10 @@ fn parse_container_nested_in_ordered_list() {
 // but the natural blockquote syntax uses "> :::" (one space)
 #[test]
 fn parse_container_nested_in_blockquote() {
-  let input = "> ::: info\n>  content here\n> :::\n";
+  let input = r#"> ::: info
+>  content here
+> :::
+"#;
   let (ast, _) = parse(input);
   let tree = render_tree(&ast);
   assert_eq!(
@@ -854,10 +857,12 @@ fn parse_container_nested_in_blockquote() {
         (Error
           ">"))
       (MdParagraph
-        (MdText
-          " "
-          ":::")))
-    "\n"))"#
+        " "
+        (MdContainerBlock
+          ":::"
+          "\n"
+          (Error
+            ""))))))"#
   );
 }
 

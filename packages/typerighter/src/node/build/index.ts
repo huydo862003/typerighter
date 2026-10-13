@@ -7,20 +7,26 @@ import {
   prerenderHtmlPages,
 } from './prerender';
 import {
-  generateClientAppEntry, typedown,
+  typedown,
+  THEME_ID, PAGES_ID, SITE_DATA_ID, SEARCH_INDEX_ID, PAGE_DATA_EVENT,
 } from '../plugin/vite';
+import {
+  generateAppEntry, generateThemeModule, resolveUserComponents, type UserComponent,
+} from '../lib/codegen';
 import {
   ProgressLogger,
 } from '../lib/progress';
 import {
   buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
-  escapeHtml, getIndexUrl, getNodeIndexItem, path as tdpath,
+  getIndexUrl, getNodeIndexItem, path as tdpath,
 } from '@/shared';
 import type {
   AppContext,
 } from '../context';
+import {
+  generateSitemap, generateRobotsTxt, generateRssFeed,
+} from './seo';
 
-const DEFAULT_LAYOUT_IMPORT = 'typerighter/client/theme-default';
 
 export interface BuildOptions {
   /** Output directory for the final build (default: "dist") */
@@ -48,13 +54,17 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     config,
     files,
     sidebarItems,
-    schemaNames,
   ] = await Promise.all([
     tdContext.getConfig(),
     tdContext.listFiles(),
     tdContext.listSidebar(),
-    tdContext.listSchemas(),
   ]);
+
+  // Coerce null -> undefined for optional fields from JSON-RPC
+  const origin = config.origin ?? undefined;
+  const author = config.author ?? undefined;
+  const license = config.license ?? undefined;
+  const repo = config.repo ?? undefined;
 
   const rawBase = options.base ?? config.basePath ?? '/';
   const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
@@ -64,7 +74,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     header: {},
   }));
   const contentTree = buildContentTree(contentItems);
-  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, nav: config.nav });
+  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin, lang: config.lang, rootDir: config.rootDir, repo, author, license, nav: config.nav });
   const siteData = JSON.stringify({ ready: true, contentTree });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports
@@ -72,24 +82,41 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   await fs.mkdir(tempDir, { recursive: true });
   const clientEntryPath = path.join(tempDir, 'client-entry.js');
   const ssrEntryPath = path.join(tempDir, 'ssr-entry.js');
+  const themeModulePath = path.join(tempDir, 'theme.js');
+
+  const userComponents = await resolveUserComponents(config.components, root);
+  const themeModule = generateThemeModule(
+    config.layout ?? undefined,
+    root,
+  );
 
   await Promise.all([
-    fs.writeFile(clientEntryPath, generateClientAppEntry({
+    fs.writeFile(clientEntryPath, generateAppEntry({
       rootDir: config.rootDir,
       basePath: base,
+      origin,
+      lang: config.lang,
       siteTitle: config.siteTitle,
       siteDescription: config.siteDescription,
-      repo: config.repo,
-      author: config.author,
-      license: config.license,
+      repo,
+      author,
+      license,
       nav: config.nav,
+      userComponents,
+    }, {
+      theme: THEME_ID,
+      pages: PAGES_ID,
+      siteData: SITE_DATA_ID,
+      searchIndex: SEARCH_INDEX_ID,
+      pageDataEvent: PAGE_DATA_EVENT,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
       rootDir: config.rootDir,
-      layoutImport: DEFAULT_LAYOUT_IMPORT,
       siteConfig,
       siteData,
+      userComponents,
     })),
+    fs.writeFile(themeModulePath, themeModule),
   ]);
 
   try {
@@ -162,17 +189,39 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       clientOutDir,
       outDir,
       base,
+      origin,
+      lang: config.lang,
       pagePaths,
       siteTitle: config.siteTitle,
+      author,
       progress: phase3,
     });
 
     phase3.done(`Pre-rendered ${pagePaths.length} pages`);
 
-    // 6. Generate sitemap.xml
-    const sitemap = generateSitemap(pagePaths, base);
+    // 6. Generate sitemap.xml and robots.txt
+    const mtimeMap = new Map<string, number>();
 
-    await fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap);
+    for (const item of sidebarItems) {
+      const withoutExtension = tdpath.stripExtension(item.filepath);
+      const pagePath = withoutExtension === 'index' ? '/' : `/${withoutExtension}`;
+
+      mtimeMap.set(pagePath, item.fileMetadata.mtime);
+    }
+
+    const sitemap = generateSitemap(pagePaths, base, origin, mtimeMap);
+    const writes: Promise<void>[] = [
+      fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
+    ];
+
+    if (origin !== undefined) {
+      writes.push(fs.writeFile(path.join(outDir, 'robots.txt'), generateRobotsTxt(origin, base)));
+      writes.push(fs.writeFile(path.join(outDir, 'feed.xml'), generateRssFeed(
+        sidebarItems, base, origin, config.siteTitle, config.siteDescription, config.lang,
+      )));
+    }
+
+    await Promise.all(writes);
 
     // 7. Copy assets to the final output directory
     const clientAssetsDir = path.join(clientOutDir, 'assets');
@@ -208,9 +257,9 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
 interface SsrEntryOptions {
   rootDir: string;
-  layoutImport: string;
   siteConfig: string;
   siteData: string;
+  userComponents?: UserComponent[];
 }
 
 // Generate the SSR entry module used for pre-rendering
@@ -222,13 +271,26 @@ function generateSsrEntry (options: SsrEntryOptions): string {
   const directoryListingMap = buildDirectoryListingMap(contentTree.entries ?? [], parsedConfig.title ?? '');
   const siteDataWithListings = JSON.stringify({ ...parsedData, directoryListings: directoryListingMap });
 
+  const userComponents = options.userComponents ?? [];
+  const componentImports = userComponents
+    .map((c) => `import ${c.name} from ${JSON.stringify(c.absolutePath)};`)
+    .join('\n');
+  const componentRegistrations = userComponents
+    .map((c) => `app.component(${JSON.stringify(c.name)}, ${c.name});`)
+    .join('\n');
+
+  const ssrHeader = [
+    componentImports,
+    `import { createTypedownApp } from 'typerighter/client';`,
+  ].filter(Boolean).join('\n');
+
   return `
-import { createTypedownApp } from 'typerighter/client';
+${ssrHeader}
 import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
 import { h } from 'vue';
-import theme from '${options.layoutImport}';
+import theme from './theme.js';
 
 const pages = import.meta.glob('${glob}', { eager: true });
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
@@ -258,11 +320,14 @@ function loadPageModule(pagePath) {
   return Promise.resolve(undefined);
 }
 
-export async function render(url) {
-  const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, siteData);
-  await router.go(url, { replace: true });
-  const html = await renderToString(app);
-  return { html, pageData: router.route.data };
+export async function createRenderer() {
+  const { app, router } = await createTypedownApp(loadPageModule, theme, ${options.siteConfig}, siteData);
+  ${componentRegistrations}
+  return async function render(url) {
+    await router.go(url, { replace: true });
+    const html = await renderToString(app);
+    return { html, pageData: router.route.data };
+  };
 }
 `;
 }
@@ -288,18 +353,6 @@ async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> 
   await Promise.all(copies);
 }
 
-// Generate a sitemap.xml string from the list of page paths
-function generateSitemap (pagePaths: string[], base: string): string {
-  const urls = pagePaths
-    .map((p) => `  <url><loc>${escapeHtml(base + p.replace(/^\//, ''))}</loc></url>`)
-    .join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
-</urlset>
-`;
-}
 
 // Collect directory index paths from the content tree for pre-rendering
 // Only adds dirs without an index.td (those are already covered by files.map)

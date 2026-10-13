@@ -9,11 +9,21 @@ import type {
   ProgressLogger,
 } from '../lib/progress';
 import {
-  generateHtmlTemplate,
-} from '../lib/html-template';
+  renderHtmlDocument,
+} from '../lib/htmlTemplate';
 import {
   WorkerPool,
 } from '../lib/worker-pool';
+import {
+  stripLeadingSlash,
+} from '@/shared';
+import {
+  resolvePageTitle, resolvePageDescription, extractDateModified, extractOgImagePath,
+  buildArticleLd, buildBreadcrumbLd,
+} from './seo';
+import {
+  isCriticalFontFile,
+} from './fonts';
 
 export interface PrerenderContext {
   /** Absolute path to the SSR bundle entry */
@@ -24,10 +34,16 @@ export interface PrerenderContext {
   outDir: string;
   /** The base path (e.g. "/") */
   base: string;
+  /** Absolute site URL for SEO (e.g. "https://example.com") */
+  origin?: string;
+  /** HTML lang attribute */
+  lang?: string;
   /** List of page paths to render (e.g. ["/", "/posts/hello"]) */
   pagePaths: string[];
   /** Site title for SEO title suffix */
   siteTitle: string;
+  /** Site author for meta tag */
+  author?: string;
   /** Progress logger for reporting render progress */
   progress?: ProgressLogger;
 }
@@ -35,7 +51,10 @@ export interface PrerenderContext {
 export interface PrerenderWorkerConfig {
   ssrEntryPath: string;
   base: string;
+  origin?: string;
+  lang?: string;
   siteTitle: string;
+  author?: string;
   clientEntry: string;
   headExtra?: string;
 }
@@ -51,17 +70,17 @@ const WORKER_THRESHOLD = 64;
 // Pre-render all pages to static HTML files
 export async function prerenderHtmlPages (context: PrerenderContext): Promise<void> {
   // 1. Resolve client assets (JS/CSS paths)
-  const { clientEntry, cssFiles, jsFiles } = await resolveClientAssets(context.clientOutDir);
+  const { clientEntry, cssFiles, fontFiles } = await resolveClientAssets(context.clientOutDir);
 
   const cssLinks = cssFiles
     .map((file) => `    <link rel="stylesheet" href="${context.base}${file}">`)
     .join('\n');
 
-  const modulePreloads = jsFiles
-    .map((file) => `    <link rel="modulepreload" href="${context.base}${file}">`)
+  const fontPreloads = fontFiles
+    .map((file) => `    <link rel="preload" as="font" type="font/woff2" crossorigin href="${context.base}${file}">`)
     .join('\n');
 
-  const headExtra = [cssLinks, modulePreloads].filter(Boolean).join('\n') || undefined;
+  const headExtra = [cssLinks, fontPreloads].filter(Boolean).join('\n') || undefined;
 
   if (context.pagePaths.length >= WORKER_THRESHOLD) {
     await prerenderWithWorkers(context, clientEntry, headExtra);
@@ -81,7 +100,10 @@ async function prerenderWithWorkers (
     workerData: {
       ssrEntryPath: context.ssrEntryPath,
       base: context.base,
+      origin: context.origin,
+      lang: context.lang,
       siteTitle: context.siteTitle,
+      author: context.author,
       clientEntry,
       headExtra,
     } satisfies PrerenderWorkerConfig,
@@ -106,48 +128,56 @@ async function prerenderWithWorkers (
   }
 }
 
-// Single-threaded async batching for small vaults
+// Single-threaded rendering for small vaults
 async function prerenderSingleThread (
   context: PrerenderContext,
   clientEntry: string,
   headExtra: string | undefined,
 ): Promise<void> {
   const ssrModule = await import(context.ssrEntryPath);
+  const render = await ssrModule.createRenderer();
   const totalPages = context.pagePaths.length;
   let rendered = 0;
 
-  const BATCH_SIZE = 32;
+  for (const pagePath of context.pagePaths) {
+    const result = await render(pagePath);
 
-  for (let i = 0; i < totalPages; i += BATCH_SIZE) {
-    const batch = context.pagePaths.slice(i, i + BATCH_SIZE);
+    const title = resolvePageTitle(result.pageData);
+    const description = resolvePageDescription(result.pageData);
+    const dateModified = extractDateModified(result.pageData);
+    const canonicalUrl = context.base + stripLeadingSlash(pagePath);
 
-    await Promise.all(batch.map(async (pagePath) => {
-      const result = await ssrModule.render(pagePath);
+    const jsonLdBlocks = [
+      buildArticleLd({ title, description, canonicalUrl, author: context.author, dateModified }),
+      buildBreadcrumbLd(pagePath, title),
+    ].filter((block): block is string => block !== undefined);
 
-      const html = generateHtmlTemplate({
-        title: result.pageData.title,
-        description: result.pageData.frontmatter.description !== undefined
-          ? String(result.pageData.frontmatter.description)
-          : '',
-        siteTitle: context.siteTitle,
-        base: context.base,
-        entryScript: clientEntry,
-        canonicalUrl: context.base + pagePath.replace(/^\//, ''),
-        headExtra,
-        appContent: result.html,
-      });
+    const html = renderHtmlDocument({
+      title,
+      description,
+      siteTitle: context.siteTitle,
+      author: context.author,
+      base: context.base,
+      origin: context.origin,
+      lang: context.lang,
+      entryScript: clientEntry,
+      canonicalUrl,
+      ogImagePath: extractOgImagePath(result.pageData),
+      jsonLdBlocks,
+      headExtra,
+      appContent: result.html,
+    });
 
-      const fileName = pagePath === '/'
-        ? 'index.html'
-        : `${pagePath.replace(/^\//, '')}.html`;
-      const filepath = path.join(context.outDir, fileName);
+    const fileName = pagePath === '/'
+      ? 'index.html'
+      : `${stripLeadingSlash(pagePath)}.html`;
+    const filepath = path.join(context.outDir, fileName);
 
-      await fs.mkdir(path.dirname(filepath), { recursive: true });
-      await fs.writeFile(filepath, html);
+    await fs.mkdir(path.dirname(filepath), { recursive: true });
+    await fs.writeFile(filepath, html);
 
-      rendered++;
-      context.progress?.update(rendered, totalPages);
-    }));
+    rendered++;
+    context.progress?.update(rendered, totalPages);
   }
 }
 
@@ -155,7 +185,7 @@ async function prerenderSingleThread (
 async function resolveClientAssets (clientOutDir: string): Promise<{
   clientEntry: string;
   cssFiles: string[];
-  jsFiles: string[];
+  fontFiles: string[];
 }> {
   const manifestPath = path.join(clientOutDir, '.vite', 'manifest.json');
   const raw = await fs.readFile(manifestPath, 'utf-8');
@@ -163,12 +193,11 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
     file: string;
     isEntry?: boolean;
     css?: string[];
-    imports?: string[];
   }>;
 
   let clientEntry = '';
   const cssFiles: string[] = [];
-  const jsFiles: string[] = [];
+  const fontFiles: string[] = [];
 
   for (const chunk of Object.values(manifest)) {
     if (chunk.isEntry) {
@@ -177,10 +206,10 @@ async function resolveClientAssets (clientOutDir: string): Promise<{
       if (chunk.css) {
         cssFiles.push(...chunk.css);
       }
-    } else if (chunk.file.endsWith('.js')) {
-      jsFiles.push(chunk.file);
+    } else if (isCriticalFontFile(chunk.file)) {
+      fontFiles.push(chunk.file);
     }
   }
 
-  return { clientEntry, cssFiles, jsFiles };
+  return { clientEntry, cssFiles, fontFiles };
 }

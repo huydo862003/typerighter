@@ -25,20 +25,22 @@ use crate::core::analysis::Analysis;
 /// Dispatch an LSP request to the appropriate service handler.
 pub fn dispatch(analysis: &Analysis, req: Request) -> Response {
   match req.method.as_str() {
-    CodeActionRequest::METHOD => try_handle(&req, |p| code_action::code_action(analysis, p)),
-    HoverRequest::METHOD => try_handle(&req, |p| hover::hover(analysis, p)),
-    Completion::METHOD => try_handle(&req, |p| completion::completion(analysis, p)),
-    GotoDefinition::METHOD => try_handle(&req, |p| definition::definition(analysis, p)),
-    References::METHOD => try_handle(&req, |p| references::find_references(analysis, p)),
-    SemanticTokensFullRequest::METHOD => {
-      try_handle(&req, |p| semantic_tokens::semantic_tokens_full(analysis, p))
+    CodeActionRequest::METHOD => {
+      try_handle(&req, |p| code_action::resolve_code_action(analysis, p))
     }
+    HoverRequest::METHOD => try_handle(&req, |p| hover::resolve_hover(analysis, p)),
+    Completion::METHOD => try_handle(&req, |p| completion::resolve_completion(analysis, p)),
+    GotoDefinition::METHOD => try_handle(&req, |p| definition::resolve_definition(analysis, p)),
+    References::METHOD => try_handle(&req, |p| references::find_references(analysis, p)),
+    SemanticTokensFullRequest::METHOD => try_handle(&req, |p| {
+      semantic_tokens::resolve_semantic_tokens_full(analysis, p)
+    }),
     PrepareRenameRequest::METHOD => {
       try_handle(&req, |p| rename_symbol::prepare_rename(analysis, p))
     }
     Rename::METHOD => try_handle(&req, |p| rename_symbol::rename(analysis, p)),
-    Formatting::METHOD => try_handle(&req, |p| formatting::formatting(analysis, p)),
-    InlayHintRequest::METHOD => try_handle(&req, |p| inlay_hint::inlay_hints(analysis, p)),
+    Formatting::METHOD => try_handle(&req, |p| formatting::format_document(analysis, p)),
+    InlayHintRequest::METHOD => try_handle(&req, |p| inlay_hint::resolve_inlay_hints(analysis, p)),
     WillRenameFiles::METHOD => try_handle(&req, |p| rename_symbol::will_rename_files(analysis, p)),
     _ => Response::new_err(
       req.id,

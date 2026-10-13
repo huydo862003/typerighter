@@ -1,13 +1,44 @@
-import temml from 'temml';
+import {
+  ref, watchEffect, type Ref,
+} from 'vue';
+import {
+  INLINE_RE,
+} from './inlineRe';
 import {
   escapeHtml,
 } from '@/shared';
 
-// Matches inline code (`...`) and inline math ($...$)
-const INLINE_RE = /`([^`]+)`|\$([^$]+)\$/g;
+// temml is loaded lazily as it's very heavy
+export function useLazyInlineMarkup (getText: () => string): Ref<string> {
+  // Starts with code-only rendering, then upgrades to math if the text contains '$'
+  const rendered = ref(renderCodeOnly(getText()));
 
-// Render inline code and math, escape everything else for v-html
-export function renderInlineMarkup (text: string): string {
+  watchEffect((onCleanup) => {
+    const text = getText();
+
+    if (!text.includes('$')) {
+      rendered.value = renderCodeOnly(text);
+
+      return;
+    }
+
+    let active = true;
+
+    onCleanup(() => {
+      active = false;
+    });
+
+    import('./renderMath').then(({
+      renderInlineMarkup,
+    }) => {
+      if (active) rendered.value = renderInlineMarkup(text);
+    });
+  });
+
+  return rendered;
+}
+
+function renderCodeOnly (text: string): string {
   let lastIndex = 0;
   let result = '';
 
@@ -16,14 +47,8 @@ export function renderInlineMarkup (text: string): string {
 
     if (match[1] !== undefined) {
       result += `<code>${escapeHtml(match[1])}</code>`;
-    } else if (match[2] !== undefined) {
-      try {
-        result += temml.renderToString(match[2], {
-          throwOnError: false,
-        });
-      } catch {
-        result += escapeHtml(match[0]);
-      }
+    } else {
+      result += escapeHtml(match[0]);
     }
 
     lastIndex = match.index + match[0].length;

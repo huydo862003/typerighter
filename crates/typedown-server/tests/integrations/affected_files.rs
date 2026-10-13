@@ -69,6 +69,35 @@ fn affected_files_for_unreferenced_file() {
   );
 }
 
+// Changing a schema type file propagates to content files using it or any subtype
+// - Project.td is the supertype
+// - MobileProject.td extends it
+// - mobile-app.td uses MobileProject
+#[test]
+fn affected_files_for_schema_change() {
+  let source = example_vault();
+  let db = setup_db_fresh(&source);
+  let project = Project::iter(&db).into_iter().next().unwrap();
+  let root_dir = get_vault_config(&db, project).root_dir(&db);
+  let project_schema_path = root_dir.join("_types/tracker/Project.td");
+
+  let mut affected = get_affected_paths(&db, project, &project_schema_path, &root_dir);
+  affected.sort();
+
+  assert!(
+    affected.iter().any(|f| f.contains("website-redesign")),
+    "website-redesign.td uses Project directly: {affected:?}"
+  );
+  assert!(
+    affected.iter().any(|f| f.contains("MobileProject")),
+    "MobileProject.td extends Project: {affected:?}"
+  );
+  assert!(
+    affected.iter().any(|f| f.contains("mobile-app")),
+    "mobile-app.td uses MobileProject which extends Project: {affected:?}"
+  );
+}
+
 // Transitive: if A references B and B references C, changing C affects both A and B
 #[test]
 fn affected_files_transitive() {

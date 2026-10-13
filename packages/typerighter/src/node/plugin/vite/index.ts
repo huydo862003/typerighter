@@ -25,6 +25,7 @@ import {
   PAGES_ID, RESOLVED_PAGES_ID, PAGE_DATA_PREFIX,
   SITE_DATA_ID, RESOLVED_SITE_DATA_ID,
   SEARCH_INDEX_ID, RESOLVED_SEARCH_INDEX_ID,
+  THEME_ID, RESOLVED_THEME_ID,
 } from './constants';
 import {
   VirtualApp,
@@ -32,6 +33,9 @@ import {
 import {
   VirtualPages,
 } from './virtual/pages';
+import {
+  VirtualTheme,
+} from './virtual/theme';
 import {
   VirtualSiteData,
 } from './virtual/site-data';
@@ -48,11 +52,9 @@ import {
   path,
 } from '@/shared';
 
-// Re-export for SSG build
 export {
-  generate as generateClientAppEntry,
-  type AppEntryOptions as ClientAppEntryOptions,
-} from './virtual/app';
+  THEME_ID, PAGES_ID, SITE_DATA_ID, SEARCH_INDEX_ID, PAGE_DATA_EVENT,
+} from './constants';
 
 export interface TypedownPluginCache {
   devHtml: string | undefined;
@@ -74,6 +76,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   let hostBase: string;
 
   const virtualApp = new VirtualApp();
+  const virtualTheme = new VirtualTheme();
   const virtualPages = new VirtualPages();
   const virtualSiteData = new VirtualSiteData();
   const virtualSearchIndex = new VirtualSearchIndex();
@@ -164,6 +167,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       if (id.startsWith(PAGE_DATA_PREFIX)) return virtualPages.resolvePageData(id);
       if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
       if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
+      if (id === THEME_ID) return RESOLVED_THEME_ID;
     },
 
     // Serve virtual modules
@@ -177,14 +181,16 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         && id !== RESOLVED_SITE_DATA_ID
         && id !== RESOLVED_PAGES_ID
         && id !== RESOLVED_VIRTUAL_APP_ID
+        && id !== RESOLVED_THEME_ID
       ) return;
 
-      const context = await resolveTdContext();
+      const tdContext = await resolveTdContext();
 
-      if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(context);
-      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(context);
-      if (id === RESOLVED_PAGES_ID) return virtualPages.load(context);
-      if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context);
+      if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(tdContext);
+      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(tdContext);
+      if (id === RESOLVED_PAGES_ID) return virtualPages.load(tdContext);
+      if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context!);
+      if (id === RESOLVED_THEME_ID) return virtualTheme.load(context!);
     },
 
     async configureServer (devServer) {
@@ -214,9 +220,17 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         cache.devHtml = undefined;
         virtualSiteData.clear();
         virtualApp.invalidate(server);
+        virtualTheme.invalidate(server);
         virtualPages.invalidate(server);
         hmrFullReload(server);
         virtualSiteData.fetch(tdContext, server);
+      });
+
+      // Component contract changes require re-registering user components
+      tdContext.rpc.onComponentContractChanged(() => {
+        if (!server) return;
+        virtualApp.invalidate(server);
+        hmrFullReload(server);
       });
 
       // Invalidate a file's modules and send HMR update to the browser
@@ -258,12 +272,12 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         filepath, affectedFiles = [],
       }) => {
         if (!server) return;
-        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath, ...affectedFiles);
+        virtualPages.sendPageData(server, tdContext, filepath);
       });
 
       // Content deleted: file was removed from disk
@@ -271,10 +285,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         filepath,
       }) => {
         if (!server) return;
-        virtualSearchIndex.index(rootDirectory);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.clear();
         virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath);
       });

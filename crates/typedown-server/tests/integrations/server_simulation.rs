@@ -7,11 +7,10 @@ use std::sync::atomic::Ordering;
 use typedown_incremental::{CacheSession, InputId, SerializableQueryDatabase};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{FileRedNode, Project};
+use typedown_lang::db::types::{Project, ProjectRedNode};
 use typedown_lang::integrations::export::{export_resource_html, export_resource_summary};
 use typedown_server::core::utils::fs::get_cache_dir;
 
@@ -68,8 +67,7 @@ pub fn run_lsp_queries(db: &TypedownDatabase) {
       path.display()
     );
     let root = parse_result.ast(db).node.clone();
-    let hir = lower_node(db, project, FileRedNode::new(*file, root));
-    let _ = typecheck(db, hir);
+    let _ = typecheck(db, ProjectRedNode::new(project, *file, root));
     if let Some(sym) = file_symbol(db, project, *file).value(db) {
       let _ = evaluate_resource(db, sym);
     }
@@ -92,8 +90,7 @@ pub fn collect_type_errors(db: &TypedownDatabase) -> Vec<String> {
     }
     let parse_result = parse_file(db, project, *file);
     let root = parse_result.ast(db).node.clone();
-    let hir = lower_node(db, project, FileRedNode::new(*file, root));
-    let typecheck_result = typecheck(db, hir);
+    let typecheck_result = typecheck(db, ProjectRedNode::new(project, *file, root));
     for diag in typecheck_result.diagnostics(db).iter() {
       errors.push(format!("{}: {}", path.display(), diag.message()));
     }

@@ -11,9 +11,11 @@ use super::ingredient::{
   Ingredient, InputFactory, InputIngredient, InputInventory, InternedFactory, InternedIngredient,
   InternedInventory, QueryFactory, QueryInventory,
 };
-use super::persist::serialized::SerializedQueryStorage;
-use super::persist::serialized::dep_graph::{DepNode, DepNodeIndex};
-use crate::{DepId, DeserializeContext, IngredientKind};
+use crate::dep_graph::DepNode;
+use crate::serial::format::binary_files::SerializedQueryStorage;
+use crate::serial::format::binary_files::dep_graph::DepNodeIndex;
+use crate::serial::ingredient::serde::DeserializeContext;
+use crate::{DepId, IngredientKind};
 
 #[cfg(debug_assertions)]
 pub struct IngredientStats {
@@ -113,61 +115,8 @@ impl QueryStorage {
       serialized,
       Arc::downgrade(&storage),
     ));
-    storage.load_leaf_nodes();
-    storage.load_derived_nodes();
+    load_leaf_nodes(&storage);
     storage
-  }
-
-  /// Eagerly deserialize all input and interned nodes.
-  // Must run before any derived query deserialization, because derived query blobs contain DepNodeIndex references to inputs/interned that need to be in the decoder's dep_id_table before decoding
-  // WARNING: this also populates entry_id_map for input and interned types, which deserialize_return_value relies on for non-derived return types
-  fn load_leaf_nodes(self: &Arc<Self>) {
-    let Some(ctx) = self.deserialize_ctx.get() else {
-      return;
-    };
-    for (i, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
-      let node_index = i as DepNodeIndex;
-      match node {
-        DepNode::InputField { .. } => {
-          if ctx.decoder.get_dep_node_id(node_index).is_some() {
-            continue;
-          }
-          let name = node.name();
-          let node_field_index = node.field_index();
-          for &idx in ctx.inputs_by_name(&name) {
-            let input = &self.inputs[idx];
-            if Some(input.field_index()) == node_field_index {
-              input.deserialize(ctx, node_index);
-              break;
-            }
-          }
-        }
-        DepNode::Interned { .. } => {
-          if ctx.decoder.get_dep_node_id(node_index).is_some() {
-            continue;
-          }
-          let name = node.name();
-          if let Some(&idx) = ctx.interned_by_name(&name).first() {
-            self.interned[idx].deserialize(ctx, node_index);
-          }
-        }
-        _ => {}
-      }
-    }
-  }
-
-  // FIXME: load on demand instead of eagerly to reduce startup cost
-  // Eagerly deserialize all derived query and field nodes from the previous session
-  fn load_derived_nodes(self: &Arc<Self>) {
-    let Some(ctx) = self.deserialize_ctx.get() else {
-      return;
-    };
-    for query in self.queries.iter() {
-      query.promote_cached(ctx);
-    }
-    for field in self.fields.iter() {
-      field.promote_cached(ctx);
-    }
   }
 
   pub fn reset_for_new_revision(&self) {
@@ -179,13 +128,13 @@ impl QueryStorage {
 
   /// Green check a dependency by dispatching to the correct ingredient array
   pub fn green_check_dep(&self, db: &dyn crate::QueryDatabase, dep: &Dependency) -> bool {
-    let idx = dep.dep_id.ingredient_id() as usize;
+    let index = dep.dep_id.ingredient_id() as usize;
     let entry_id = dep.dep_id.entry_id();
     match dep.dep_id.kind() {
-      IngredientKind::Input => self.inputs[idx].green_check(entry_id, dep.changed_at),
-      IngredientKind::Interned => true, // always green
-      IngredientKind::Query => self.queries[idx].green_check(db, entry_id, dep.changed_at),
-      IngredientKind::Field => self.fields[idx].green_check(entry_id, dep.changed_at),
+      IngredientKind::Input => self.inputs[index].green_check(entry_id, dep.changed_at),
+      IngredientKind::Interned => true, // Always green
+      IngredientKind::Query => self.queries[index].green_check(db, entry_id, dep.changed_at),
+      IngredientKind::Field => self.fields[index].green_check(entry_id, dep.changed_at),
     }
   }
 
@@ -194,10 +143,10 @@ impl QueryStorage {
     let idx = dep.dep_id.ingredient_id() as usize;
     let entry_id = dep.dep_id.entry_id();
     match dep.dep_id.kind() {
-      IngredientKind::Input => {}    // nothing to recompute
-      IngredientKind::Interned => {} // nothing to recompute
+      IngredientKind::Input => {}    // Nothing to recompute
+      IngredientKind::Interned => {} // Nothing to recompute
       IngredientKind::Query => self.queries[idx].re_execute(db, entry_id),
-      IngredientKind::Field => {} // fields are set by their parent query
+      IngredientKind::Field => {} // Fields are set by their parent query
     }
   }
 
@@ -220,12 +169,12 @@ impl QueryStorage {
   // Get the current session's fingerprint for a dependency, for cross-session validation
   // Look up the ingredient store that owns a given DepId
   pub fn get_ingredient_of_id(&self, dep_id: DepId) -> &dyn Ingredient {
-    let idx = dep_id.ingredient_id() as usize;
+    let index = dep_id.ingredient_id() as usize;
     match dep_id.kind() {
-      IngredientKind::Input => &*self.inputs[idx],
-      IngredientKind::Interned => &*self.interned[idx],
-      IngredientKind::Query => &*self.queries[idx],
-      IngredientKind::Field => &*self.fields[idx],
+      IngredientKind::Input => &*self.inputs[index],
+      IngredientKind::Interned => &*self.interned[index],
+      IngredientKind::Query => &*self.queries[index],
+      IngredientKind::Field => &*self.fields[index],
     }
   }
 
@@ -370,4 +319,42 @@ fn registries() -> Registries {
   });
 
   (inputs, interned, queries, fields)
+}
+
+// Eagerly deserialize all input and interned nodes
+// Must run before any derived query deserialization, because derived query blobs contain DepNodeIndex references to inputs/interned that need to be in the decoder's dep_id_table before decoding
+// WARNING: also populates DeserializeContext::serialized_entry_id_to_session_local_map for input and interned types, which deserialize_return_value relies on for non-derived return types
+pub(crate) fn load_leaf_nodes(storage: &Arc<QueryStorage>) {
+  let Some(ctx) = storage.deserialize_ctx.get() else {
+    return;
+  };
+  for (index, node) in ctx.serialized.dep_graph.nodes.iter().enumerate() {
+    let node_index = index as DepNodeIndex;
+    match node {
+      DepNode::InputField { .. } => {
+        if ctx.decoder.get_dep_node_id(node_index).is_some() {
+          continue;
+        }
+        let name = node.name();
+        let node_field_index = node.field_index();
+        for &input_index in ctx.inputs_by_name(&name) {
+          let input = &storage.inputs[input_index];
+          if Some(input.field_index()) == node_field_index {
+            input.deserialize(ctx, node_index);
+            break;
+          }
+        }
+      }
+      DepNode::Interned { .. } => {
+        if ctx.decoder.get_dep_node_id(node_index).is_some() {
+          continue;
+        }
+        let name = node.name();
+        if let Some(&interned_index) = ctx.interned_by_name(&name).first() {
+          storage.interned[interned_index].deserialize(ctx, node_index);
+        }
+      }
+      _ => {}
+    }
+  }
 }

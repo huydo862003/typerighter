@@ -235,7 +235,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
             .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
           ingredient.data.entry(id).or_insert(::typedown_incremental::StampedInternedValue {
             value: intern_key,
-            fingerprint: ::std::sync::OnceLock::new(),
+            fingerprint: ::typedown_incremental::LazyFingerprint::new(),
           });
 
           #self_constructor

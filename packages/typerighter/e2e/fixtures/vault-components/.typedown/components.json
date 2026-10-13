@@ -1,0 +1,54 @@
+{
+  "TdAlert": {
+    "source": "./components/TdAlert.vue",
+    "props": {
+      "kind": {
+        "type": "string",
+        "required": false
+      }
+    }
+  },
+  "TdDataTable": {
+    "source": "./components/TdDataTable.vue",
+    "props": {
+      "caption": {
+        "type": "string",
+        "required": false
+      },
+      "striped": {
+        "type": "boolean",
+        "required": false
+      }
+    }
+  },
+  "TdTabs": {
+    "source": "./components/TdTabs.vue",
+    "props": {
+      "labels": {
+        "type": "string",
+        "required": true
+      },
+      "active": {
+        "type": "number",
+        "required": false
+      }
+    }
+  },
+  "TdCard": {
+    "source": "./components/TdCard.vue",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "icon": {
+        "type": "string",
+        "required": false
+      },
+      "footer": {
+        "type": "string",
+        "required": false
+      }
+    }
+  }
+}

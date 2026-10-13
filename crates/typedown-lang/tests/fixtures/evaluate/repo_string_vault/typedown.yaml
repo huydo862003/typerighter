@@ -1,0 +1,4 @@
+version: "1"
+vault:
+  root_dir: "."
+repo: "https://github.com/example/repo"

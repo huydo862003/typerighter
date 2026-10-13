@@ -14,6 +14,9 @@ output/
 editors/tree-sitter/src
 perf.data
 
+# Generated component contract
+.typedown/
+
 # Playwright
 test-results/
 playwright-report/

@@ -277,17 +277,12 @@ defineExpose({
   background: var(--color-td-pg);
   transition:
     border-color var(--duration-td-fast) var(--ease-td-out-quart),
-    background var(--duration-td-fast) var(--ease-td-out-quart),
-    transform var(--duration-td-fast) var(--ease-td-out-quart);
+    background var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-input-wrap:hover {
   border-color: var(--color-td-ink-4);
   background: var(--color-td-hov);
-}
-
-.td-search-input-wrap:active {
-  transform: scale(0.985);
 }
 
 .td-search-input-wrap:focus-within {

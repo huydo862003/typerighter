@@ -1,0 +1,5 @@
+version: "1"
+vault:
+  root_dir: "."
+theme:
+  layout: "./theme/MyLayout.vue"

@@ -1,4 +1,5 @@
-mod derived;
+mod derived_field;
+mod derived_query;
 mod input;
 mod interned;
 mod inventory;
@@ -6,15 +7,15 @@ mod inventory;
 use std::any::Any;
 use std::hash::{BuildHasher, Hasher};
 
-pub use derived::*;
+pub use derived_field::*;
+pub use derived_query::*;
 pub use input::*;
 pub use interned::*;
 pub use inventory::*;
 
-use crate::persist::serialized::dep_graph::DepNodeIndex;
 use crate::{
-  DepId, DeserializeContext, Encodable, Encoder, EntryId, Fingerprint, QueryDatabase, Revision,
-  SerializeContext, StableCompare, StableHash, StableHasher,
+  Codec, Encodable, Encoder, EntryId, Fingerprint, QueryDatabase, Revision, StableCompare,
+  StableHash, StableHasher,
 };
 
 // Identity hasher for u32 keys, passes the value through as-is
@@ -124,27 +125,17 @@ pub trait Ingredient: std::fmt::Debug + Any + Send + Sync {
 }
 
 /// Input field ingredient (leaf node, ground truth)
-pub trait InputIngredient: Ingredient {
+pub trait InputIngredient: Ingredient + Codec {
   fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool;
-
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
-
-  /// Load a dep node into this ingredient's storage
-  fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
 
   fn field_index(&self) -> u8;
 }
 
 /// Interned ingredient (leaf node, never changes)
-pub trait InternedIngredient: Ingredient {
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
-
-  /// Load a dep node into this ingredient's storage
-  fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
-}
+pub trait InternedIngredient: Ingredient + Codec {}
 
 /// Derived query ingredient (has deps, green check, recomputation)
-pub trait DerivedQueryIngredient: Ingredient {
+pub trait DerivedQueryIngredient: Ingredient + Codec {
   fn reset_for_new_revision(&self);
 
   fn green_check(
@@ -155,39 +146,13 @@ pub trait DerivedQueryIngredient: Ingredient {
   ) -> bool;
 
   fn re_execute(&self, db: &dyn QueryDatabase, entry_id: EntryId);
-
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
-
-  /// Load a dep node into this ingredient's storage
-  fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
-
-  // Force-deserialize cached return values so entry IDs are remapped
-  fn promote_cached(&self, ctx: &DeserializeContext);
-
-  /// Skip fingerprint computation, always mark dirty on reload
-  fn no_hash(&self) -> bool {
-    false
-  }
 }
 
 /// Derived field ingredient (set by parent query, not independently recomputed)
-pub trait DerivedFieldIngredient: Ingredient {
+pub trait DerivedFieldIngredient: Ingredient + Codec {
   fn remove_entry(&self, entry_id: EntryId);
 
   fn green_check(&self, entry_id: EntryId, last_changed_at: Revision) -> bool;
 
-  fn serialize(&self, ctx: &mut SerializeContext, entry_id: EntryId);
-
-  /// Load a dep node into this ingredient's storage
-  fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId>;
-
   fn field_index(&self) -> u8;
-
-  // Load all field entries from the previous session that haven't been accessed yet
-  fn promote_cached(&self, ctx: &DeserializeContext);
-
-  /// Skip fingerprint computation, always mark dirty on reload
-  fn no_hash(&self) -> bool {
-    false
-  }
 }

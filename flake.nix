@@ -63,7 +63,7 @@
         };
         typedown-server = rustPlatform.buildRustPackage {
           pname = "typedown-server";
-          version = "0.39.0";
+          version = "0.43.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
           cargoBuildFlags = [
@@ -99,6 +99,7 @@
             export TREE_SITTER_PATH="${pkgs.tree-sitter}/bin/tree-sitter"
             export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+            export PLAYWRIGHT_CHROMIUM_EXECUTABLE=$(ls "${pkgs.playwright-driver.browsers}"/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | head -1)
 
             # Symlink our patched wasi-sdk so Zed's `install dev extension` works on NixOS
             mkdir -p "$HOME/.local/share/zed/extensions/build"

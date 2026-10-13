@@ -6,16 +6,16 @@ use lsp_types::{Diagnostic, NumberOrString, PublishDiagnosticsParams};
 use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
+use typedown_lang::db::derived::evaluate::evaluate_config::evaluate_config;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, FileRedNode, Project};
+use typedown_lang::db::types::{File, Project, ProjectRedNode};
 use typedown_lang::db::utils::is_content_file;
-use typedown_lang::integrations::lint::lint_markdown;
+use typedown_lang::integrations::lint::{LintDiagnostic, lint_markdown};
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
 
@@ -41,6 +41,45 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
     };
     notifications.push(get_diagnostics_for_file(
       analysis, db, project, path, *file, &rope,
+    ));
+  }
+
+  // Config file diagnostics (typedown.yaml)
+  let config_result = evaluate_config(db, project);
+  let config_diags = config_result.diagnostics(db);
+  if !config_diags.is_empty() {
+    let root_dir = project.root_dir(db);
+    let config_path = root_dir.join("typedown.yaml");
+    let alt_path = root_dir.join("typedown.yml");
+    let path = if files.contains_key(&config_path) {
+      &config_path
+    } else {
+      &alt_path
+    };
+    let scheme = analysis
+      .scheme_map
+      .get(path)
+      .map(|s| s.as_str())
+      .unwrap_or("file");
+    let uri = path_to_uri(path, scheme);
+    let diags: Vec<Diagnostic> = config_diags
+      .iter()
+      .map(|diag| Diagnostic {
+        range: lsp_types::Range::default(),
+        severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+        code: Some(NumberOrString::String(diag.code().as_str().into())),
+        source: Some("typedown".into()),
+        message: diag.message(),
+        ..Default::default()
+      })
+      .collect();
+    notifications.push(Notification::new(
+      PublishDiagnostics::METHOD.to_string(),
+      PublishDiagnosticsParams {
+        uri,
+        diagnostics: diags,
+        version: None,
+      },
     ));
   }
 
@@ -113,14 +152,14 @@ fn get_diagnostics_for_file(
 
   // Typecheck errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  let typecheck_result = typecheck(db, hir);
+  let project_node = ProjectRedNode::new(project, file, root);
+  let typecheck_result = typecheck(db, project_node);
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors
   if let Some(sym) = file_symbol(db, project, file).value(db) {
     if sym.kind(db).is_schema() {
-      let eval_result = evaluate_type(db, sym);
+      let eval_result = evaluate_typ(db, sym);
       td_diags.extend(eval_result.diagnostics(db).iter().cloned());
     } else {
       let eval_result = evaluate_resource(db, sym);
@@ -134,21 +173,10 @@ fn get_diagnostics_for_file(
     .collect();
 
   // Lint warnings (markdown body only)
-  if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
-    for lint in lint_markdown(&body) {
-      let start = lint.start_offset.min(rope.len_chars());
-      let end = lint.end_offset.min(rope.len_chars());
-      lsp_diags.push(Diagnostic {
-        range: lsp_types::Range {
-          start: text_offset_to_lsp_position(rope, start),
-          end: text_offset_to_lsp_position(rope, end),
-        },
-        severity: Some(lsp_types::DiagnosticSeverity::WARNING),
-        code: Some(NumberOrString::String(lint.code.as_str().into())),
-        source: Some("typedown".into()),
-        message: lint.message,
-        ..Default::default()
-      });
+  let root = parse_result.ast(db).node.clone();
+  if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
+    for diag in lint_markdown(&body) {
+      lsp_diags.push(lint_diag_to_lsp(&diag, rope));
     }
   }
 
@@ -165,6 +193,22 @@ fn get_diagnostics_for_file(
   };
 
   Notification::new(PublishDiagnostics::METHOD.to_string(), params)
+}
+
+fn lint_diag_to_lsp(lint: &LintDiagnostic, rope: &Rope) -> Diagnostic {
+  let start = lint.start_offset.min(rope.len_chars());
+  let end = lint.end_offset.min(rope.len_chars());
+  Diagnostic {
+    range: lsp_types::Range {
+      start: text_offset_to_lsp_position(rope, start),
+      end: text_offset_to_lsp_position(rope, end),
+    },
+    severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+    code: Some(NumberOrString::String(lint.code.as_str().into())),
+    source: Some("typedown".into()),
+    message: lint.message.clone(),
+    ..Default::default()
+  }
 }
 
 #[cfg(test)]
@@ -233,7 +277,7 @@ properties:
       (test_path, test_file),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     Analysis::new(
       db,
       project,
@@ -328,5 +372,270 @@ name: "Alice"
       codes.contains(&"missing-required-field"),
       "expected a missing-required-field diagnostic, got codes: {codes:?}"
     );
+  }
+
+  #[test]
+  fn meta_with_wrong_type_produces_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_meta:
+  title: 42
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let content_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("file.td"));
+    let notif = content_notif.expect("expected a notification for the content file");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let diags = params["diagnostics"].as_array().unwrap();
+    assert!(
+      !diags.is_empty(),
+      "_meta.title with wrong type should produce a diagnostic"
+    );
+  }
+
+  #[test]
+  fn valid_meta_produces_no_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_meta:
+  title: "Custom Title"
+  description: "Custom Description"
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let content_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("file.td"));
+    if let Some(notif) = content_notif {
+      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+      let diags = params["diagnostics"].as_array().unwrap();
+      assert!(
+        diags.is_empty(),
+        "valid _meta should produce no diagnostics, got: {diags:?}"
+      );
+    }
+  }
+
+  #[test]
+  fn invalid_config_produces_diagnostic() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    // Config with wrong type for version (number instead of string)
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        root.join("typedown.yaml"),
+        "version: 42\n".to_string(),
+        FileMetadata::default(),
+      ),
+    );
+
+    let files = HashMap::from([(root.join("typedown.yaml"), config_file)]);
+    let project = Project::new(&db, root, files, None);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let config_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("typedown.yaml"));
+    let notif = config_notif.expect("expected a diagnostic for the config file");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let diags = params["diagnostics"].as_array().unwrap();
+    assert!(
+      !diags.is_empty(),
+      "invalid config should produce at least one diagnostic"
+    );
+  }
+
+  fn setup_with_contract(content: &str, contract_json: &str) -> Analysis {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let contract_path = root.join(".typedown/components.json");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        root.join("typedown.yaml"),
+        VAULT_CONFIG.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let test_file = File::new(
+      &db,
+      FileHandle::Content(
+        test_path.clone(),
+        content.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let contract_file = File::new(
+      &db,
+      FileHandle::Content(
+        contract_path.clone(),
+        contract_json.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+
+    let files = HashMap::from([
+      (root.join("typedown.yaml"), config_file),
+      (test_path, test_file),
+      (contract_path, contract_file),
+    ]);
+
+    let project = Project::new(&db, root, files, Some(contract_file));
+    Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    )
+  }
+
+  #[test]
+  fn unknown_component_produces_diagnostic() {
+    let analysis = setup_with_contract(
+      ":::my-widget\n:::\n",
+      r#"{"KnownWidget":{"source":"./KnownWidget.vue","props":{}}}"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let notif = notifications
+      .iter()
+      .find(|n| n.params.to_string().contains("file.td"))
+      .expect("expected notification for file.td");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let codes: Vec<&str> = params["diagnostics"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|d| d["code"].as_str())
+      .collect();
+    assert!(
+      codes.contains(&"unknown-component"),
+      "expected unknown-component diagnostic, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn missing_required_prop_produces_diagnostic() {
+    let contract =
+      r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"type":"string","required":true}}}}"#;
+    let analysis = setup_with_contract(":::chart\n:::\n", contract);
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let notif = notifications
+      .iter()
+      .find(|n| n.params.to_string().contains("file.td"))
+      .expect("expected notification for file.td");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let codes: Vec<&str> = params["diagnostics"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|d| d["code"].as_str())
+      .collect();
+    assert!(
+      codes.contains(&"missing-required-prop"),
+      "expected missing-required-prop diagnostic, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn known_component_produces_no_component_diagnostic() {
+    let contract = r#"{"Chart":{"source":"./Chart.vue","props":{}}}"#;
+    let analysis = setup_with_contract(":::chart\n:::\n", contract);
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let notif = notifications
+      .iter()
+      .find(|n| n.params.to_string().contains("file.td"));
+    if let Some(notif) = notif {
+      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+      let component_codes: Vec<&str> = params["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["code"].as_str())
+        .filter(|c| {
+          matches!(
+            *c,
+            "unknown-component" | "missing-required-prop" | "unknown-prop"
+          )
+        })
+        .collect();
+      assert!(
+        component_codes.is_empty(),
+        "valid component usage should produce no component diagnostics, got: {component_codes:?}"
+      );
+    }
+  }
+
+  #[test]
+  fn unknown_prop_produces_diagnostic() {
+    let contract = r#"{"Chart":{"source":"./Chart.vue","props":{}}}"#;
+    let analysis = setup_with_contract(":::chart {extra=\"val\"}\n:::\n", contract);
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let notif = notifications
+      .iter()
+      .find(|n| n.params.to_string().contains("file.td"))
+      .expect("expected notification for file.td");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let codes: Vec<&str> = params["diagnostics"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|d| d["code"].as_str())
+      .collect();
+    assert!(
+      codes.contains(&"unknown-prop"),
+      "expected unknown-prop diagnostic, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn valid_config_produces_no_config_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let notifications = publish_diagnostics_for_project(&analysis);
+    let config_notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("typedown.yaml"));
+    // Config notification should either not exist or have empty diagnostics
+    if let Some(notif) = config_notif {
+      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+      let diags = params["diagnostics"].as_array().unwrap();
+      assert!(
+        diags.is_empty(),
+        "valid config should produce no diagnostics, got: {diags:?}"
+      );
+    }
   }
 }

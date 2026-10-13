@@ -5,7 +5,7 @@ import type {
   TypedownContext,
 } from '../typedown-context';
 import {
-  postprocessHtml,
+  postprocessHtml, renderInlineTitleHtml,
 } from './postprocess';
 import type {
   MarkdownHeading,
@@ -40,7 +40,10 @@ export async function buildPageData (
     frontmatter: resource.header ?? {},
     headings: buildHeadingTree(resource.headings),
     title,
-    metadata: resource.metadata,
+    titleHtml: renderInlineTitleHtml(title),
+    filepath,
+    fileMetadata: resource.fileMetadata,
+    seoMetadata: resource.seoMetadata,
   };
 }
 
