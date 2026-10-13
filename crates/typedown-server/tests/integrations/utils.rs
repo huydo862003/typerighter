@@ -77,7 +77,7 @@ fn register_project_fresh(db: &TypedownDatabase, project_dir: &Path) {
     let file = File::new(db, handle);
     files.insert(path, file);
   }
-  Project::new(db, project_dir.to_path_buf(), files);
+  Project::new(db, project_dir.to_path_buf(), files, None);
 }
 
 fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
@@ -116,7 +116,7 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
   if let Some(proj) = cached_project {
     proj.set_files(db, files);
   } else {
-    Project::new(db, project_dir.to_path_buf(), files);
+    Project::new(db, project_dir.to_path_buf(), files, None);
   }
 }
 

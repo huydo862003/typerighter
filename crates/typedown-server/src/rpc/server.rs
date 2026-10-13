@@ -21,14 +21,16 @@ use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, Project, ProjectRedNode, SymbolKind};
+use typedown_lang::db::types::{
+  CustomComponentEntry, File, Project, ProjectRedNode, SymbolKind,
+};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
   export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
   resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
-use typedown_lang::integrations::lint::lint_markdown;
+use typedown_lang::integrations::lint::{LintDiagnostic, lint_markdown};
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
 
@@ -36,7 +38,9 @@ use typedown_types::path::normalize_path;
 
 use crate::core::analysis::Analysis;
 use crate::core::analysis_host::AnalysisHost;
-use crate::core::utils::fs::{get_cache_dir, is_asset_file, is_vault_config};
+use crate::core::utils::fs::{
+  get_cache_dir, get_component_contract_path, is_asset_file, is_vault_config,
+};
 
 use super::contract::*;
 
@@ -96,6 +100,19 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
         title: title.clone(),
         link: link.clone(),
         icon: icon.clone(),
+      })
+      .collect(),
+    components: config
+      .component_entries(db)
+      .iter()
+      .map(|decl| match decl {
+        CustomComponentEntry::Dir { path } => {
+          TdComponentEntry::Dir { path: path.clone() }
+        }
+        CustomComponentEntry::Explicit { name, source } => TdComponentEntry::Explicit {
+          name: name.clone(),
+          source: source.clone(),
+        },
       })
       .collect(),
   }
@@ -276,6 +293,7 @@ impl RpcServer {
     fs_tx: crossbeam_channel::Sender<FsEvent>,
   ) -> anyhow::Result<RecommendedWatcher> {
     let vault_root = vault_root.to_path_buf();
+    let contract_path = get_component_contract_path(root_dir);
     let mut watcher = notify::recommended_watcher(move |result: Result<Event, notify::Error>| {
       let Ok(event) = result else { return };
 
@@ -318,10 +336,10 @@ impl RpcServer {
         return;
       }
 
-      // Only watch vault config at project root and content/assets inside the vault
+      // Only watch vault config, component contract, and content/assets inside the vault
       for path in &event.paths {
-        if is_vault_config(path) {
-          // Accept config file changes regardless of location
+        if is_vault_config(path) || *path == contract_path {
+          // Accept config and contract file changes regardless of location
         } else if path.starts_with(&vault_root)
           && path.is_dir()
           && matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_))
@@ -429,6 +447,11 @@ impl RpcServer {
         if affected_paths.iter().any(|p| is_vault_config(p)) {
           let config = build_site_config(db, project);
           send_notification(&sender, NOTIF_CONFIG_CHANGED, &config);
+        }
+
+        // Notify subscribers when the component contract is updated
+        if affected_paths.contains(&get_component_contract_path(&project.root_dir(db))) {
+          send_notification(&sender, NOTIF_COMPONENT_CONTRACT_CHANGED, &());
         }
 
         // Stat each path and emit normalized notifications
@@ -949,22 +972,26 @@ fn collect_file_diagnostics(
   }
 
   // Lint warnings
-  if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
-    for lint in lint_markdown(&body) {
-      let start = lint.start_offset.min(rope.len_chars());
-      let line = rope.char_to_line(start);
-      let column = start - rope.line_to_char(line);
-
-      items.push(TdDiagnosticItem {
-        filepath: filepath.to_string(),
-        line: line as u32 + 1,
-        column: column as u32 + 1,
-        severity: "warning".to_string(),
-        code: lint.code.as_str().to_string(),
-        message: lint.message,
-      });
+  let root = parse_result.ast(db).node.clone();
+  if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
+    for diag in lint_markdown(&body) {
+      items.push(lint_diag_to_item(&diag, filepath, rope));
     }
   }
 
   items
+}
+
+fn lint_diag_to_item(lint: &LintDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
+  let start = lint.start_offset.min(rope.len_chars());
+  let line = rope.char_to_line(start);
+  let column = start - rope.line_to_char(line);
+  TdDiagnosticItem {
+    filepath: filepath.to_string(),
+    line: line as u32 + 1,
+    column: column as u32 + 1,
+    severity: "warning".to_string(),
+    code: lint.code.as_str().to_string(),
+    message: lint.message.clone(),
+  }
 }

@@ -396,6 +396,10 @@ impl Server {
         glob_pattern: GlobPattern::String("**/typedown.yml".to_string()),
         kind: Some(WatchKind::all()),
       },
+      FileSystemWatcher {
+        glob_pattern: GlobPattern::String("**/.typedown/components.json".to_string()),
+        kind: Some(WatchKind::all()),
+      },
     ];
 
     let registration = Registration {

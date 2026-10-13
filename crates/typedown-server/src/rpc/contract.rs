@@ -25,6 +25,7 @@ pub const NOTIF_CONTENT_DELETED: &str = "typedown_build.content_deleted";
 pub const NOTIF_SCHEMA_UPDATED: &str = "typedown_build.schema_updated";
 pub const NOTIF_SCHEMA_DELETED: &str = "typedown_build.schema_deleted";
 pub const NOTIF_CONFIG_CHANGED: &str = "typedown_build.config_changed";
+pub const NOTIF_COMPONENT_CONTRACT_CHANGED: &str = "typedown_build.component_contract_changed";
 
 /* RPC error types */
 
@@ -71,6 +72,18 @@ pub struct TdSiteConfig {
   pub license: Option<String>,
   pub public_dir: String,
   pub nav: Vec<TdNavItem>,
+  /// Custom component entries from theme.components
+  pub components: Vec<TdComponentEntry>,
+}
+
+/// A component entry: either a folder to scan or an explicit name-to-source mapping
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TdComponentEntry {
+  /// Folder path scanned for .vue files
+  Dir { path: String },
+  /// Explicit component with name and source path
+  Explicit { name: String, source: String },
 }
 
 /// Navigation link from typedown.yaml

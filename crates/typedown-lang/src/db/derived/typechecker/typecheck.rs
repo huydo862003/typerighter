@@ -8,6 +8,7 @@ use crate::syntax::diagnostic::Diagnostic;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::check_custom_components::check_custom_components;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_builtin_typs::{get_bool_typ, get_number_typ};
 use crate::db::derived::name_resolver::referee::referee;
@@ -29,21 +30,24 @@ pub fn typecheck<'db>(
 ) -> TypecheckResult<'db> {
   // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping for type resolution
   let node = project_node.node.clone();
-  if let Some(sf) = SourceFile::cast(node.clone()) {
-    if let Some(fm) = sf.frontmatter()
-      && let Some(mapping) = fm.mapping()
+  if let Some(source_file) = SourceFile::cast(node.clone()) {
+    let mut diags = check_custom_components(db, project_node.project, project_node.file)
+      .diagnostics(db)
+      .clone();
+    if let Some(frontmatter) = source_file.frontmatter()
+      && let Some(mapping) = frontmatter.mapping()
     {
       let mapping_node = ProjectRedNode::new(
         project_node.project,
         project_node.file,
         mapping.syntax().clone(),
       );
-      return typecheck(db, mapping_node);
+      diags.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
     }
-    return TypecheckResult::new(db, vec![]);
+    return TypecheckResult::new(db, diags);
   }
-  if let Some(fm) = YamlFrontmatter::cast(node.clone()) {
-    if let Some(mapping) = fm.mapping() {
+  if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
+    if let Some(mapping) = frontmatter.mapping() {
       let mapping_node = ProjectRedNode::new(
         project_node.project,
         project_node.file,

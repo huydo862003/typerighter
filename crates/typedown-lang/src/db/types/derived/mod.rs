@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::syntax::diagnostic::Diagnostic;
-use typedown_macros::query_derived;
+use typedown_macros::{StableCompare, query_derived};
 
 use crate::syntax::ast::{
   AstNode, DictLit, ListLit, SourceFile, YamlFrontmatter, YamlMapping, YamlSequence,
@@ -46,14 +46,14 @@ impl ProjectRedNode {
     let file = self.file;
     let node = self.node.clone();
 
-    if let Some(sf) = SourceFile::cast(node.clone()) {
-      let fm_node = sf
+    if let Some(source_file) = SourceFile::cast(node.clone()) {
+      let frontmatter_node = source_file
         .frontmatter()
         .map(|fm| ProjectRedNode::new(project, file, fm.syntax().clone()))?;
-      return fm_node.mapping_entries();
+      return frontmatter_node.mapping_entries();
     }
-    if let Some(fm) = YamlFrontmatter::cast(node.clone()) {
-      let mapping = fm.mapping()?;
+    if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
+      let mapping = frontmatter.mapping()?;
       return Some(
         mapping
           .entries()
@@ -169,7 +169,38 @@ pub struct VaultConfigResult<'db> {
   public_dir: String,
   // (text, link, icon_name) tuples for StableHash/Encodable/Decodable compatibility
   nav_items: Vec<(String, String, Option<String>)>,
+  component_entries: Vec<CustomComponentEntry>,
   diagnostics: Vec<Diagnostic>,
+}
+
+#[query_derived]
+pub struct CustomComponentContractResult<'db> {
+  entries: Vec<CustomComponentTyp>,
+}
+
+#[query_derived]
+pub struct CustomComponentCheckResult<'db> {
+  diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare)]
+pub struct CustomComponentTyp {
+  pub name: String,
+  pub source: String,
+  pub props: Vec<CustomComponentProp>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare)]
+pub struct CustomComponentProp {
+  pub name: String,
+  pub type_name: String,
+  pub required: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare)]
+pub enum CustomComponentEntry {
+  Dir { path: String },
+  Explicit { name: String, source: String },
 }
 
 #[query_derived]

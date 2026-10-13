@@ -269,7 +269,7 @@ mod tests {
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-    let project = Project::new(&db, PathBuf::new(), HashMap::new());
+    let project = Project::new(&db, PathBuf::new(), HashMap::new(), None);
 
     (db, project)
   }

@@ -97,6 +97,10 @@ export interface TdSchemaInfo {
   properties: Record<string, any>;
 }
 
+export type TdComponentEntry =
+  | { kind: 'dir'; path: string }
+  | { kind: 'explicit'; name: string; source: string };
+
 export interface TdSiteConfig {
   version: string;
   basePath: string;
@@ -110,6 +114,7 @@ export interface TdSiteConfig {
   license: string | undefined;
   publicDir: string;
   nav: TdNavItem[];
+  components: TdComponentEntry[];
 }
 
 export interface TdSeoMeta {
@@ -154,6 +159,7 @@ const NOTIF_CONTENT_DELETED = 'typedown_build.content_deleted';
 const NOTIF_SCHEMA_UPDATED = 'typedown_build.schema_updated';
 const NOTIF_SCHEMA_DELETED = 'typedown_build.schema_deleted';
 const NOTIF_CONFIG_CHANGED = 'typedown_build.config_changed';
+const NOTIF_COMPONENT_CONTRACT_CHANGED = 'typedown_build.component_contract_changed';
 
 /**
  * Typed RPC client for the Typedown build server
@@ -254,5 +260,9 @@ export class RpcClient {
 
   onConfigChanged (callback: (config: TdSiteConfig) => void): void {
     this.rpc.onNotification(NOTIF_CONFIG_CHANGED, callback);
+  }
+
+  onComponentContractChanged (callback: () => void): void {
+    this.rpc.onNotification(NOTIF_COMPONENT_CONTRACT_CHANGED, callback);
   }
 }

@@ -691,7 +691,7 @@ name: "Alice"
     ]
     .into_iter()
     .collect();
-    let project = Project::new(&db, vault.clone(), files);
+    let project = Project::new(&db, vault.clone(), files, None);
 
     // First evaluation, no icon
     let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();

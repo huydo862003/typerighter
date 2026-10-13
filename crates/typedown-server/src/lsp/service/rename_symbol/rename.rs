@@ -233,7 +233,7 @@ age: 30
       (test_path, editing_file),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -440,7 +440,7 @@ name: Alice
       (root.join("alice.td"), alice_file),
       (root.join("file.td"), test_file),
     ]);
-    let project = Project::new(&db, root.clone(), files);
+    let project = Project::new(&db, root.clone(), files, None);
     let analysis2 = Analysis::new(
       db,
       project,

@@ -27,6 +27,38 @@
         }
       }
     },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "array",
+          "description": "Custom Vue components: folder paths (scanned for .vue files) or explicit name-to-source mappings",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Folder path to scan for .vue files"
+              },
+              {
+                "type": "object",
+                "description": "Explicit component name to source path mapping",
+                "minProperties": 1,
+                "maxProperties": 1,
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "examples": [
+            ["./src/components"],
+            [{ "Chart": "./src/Chart.vue" }],
+            ["./src/components", { "Chart": "./src/MyChart.vue" }]
+          ]
+        }
+      }
+    },
     "site": {
       "type": "object",
       "additionalProperties": false,

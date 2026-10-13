@@ -158,7 +158,7 @@ pub fn load_vault_fixture(
     )
   });
 
-  let project = Project::new(&db, vault, files);
+  let project = Project::new(&db, vault, files, None);
   (db, project, target_file)
 }
 

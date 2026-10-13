@@ -122,7 +122,7 @@ fn collect_refs_in_source(
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
   let source_file = match SourceFile::cast(project_node.node.clone()) {
-    Some(sf) => sf,
+    Some(source_file) => source_file,
     None => return,
   };
   if let Some(frontmatter) = source_file.frontmatter() {

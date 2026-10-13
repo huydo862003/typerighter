@@ -237,7 +237,7 @@ fn parse_all_project_tracker_files() {
     let file = File::new(&db, handle);
     file_map.insert(path.clone(), file);
   }
-  let project = Project::new(&db, project_dir, file_map.clone());
+  let project = Project::new(&db, project_dir, file_map.clone(), None);
 
   let mut sorted_files: Vec<_> = file_map.iter().collect();
   sorted_files.sort_by_key(|(p, _)| *p);
