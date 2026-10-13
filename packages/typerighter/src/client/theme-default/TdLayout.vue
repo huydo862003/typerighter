@@ -213,6 +213,7 @@ function shrinkSidebar () {
 
 <template>
   <div>
+    <slot name="layout-top" />
     <a
       href="#td-content"
       class="td-skip-link"
@@ -232,6 +233,7 @@ function shrinkSidebar () {
         <TdBreadcrumb class="td-header-breadcrumb" />
       </div>
       <TdHeaderNavBar />
+      <slot name="nav-bar-after" />
       <div class="td-header-right">
         <TdThemeToggle />
         <a
@@ -332,6 +334,7 @@ function shrinkSidebar () {
           width: `${sidebarWidth}px`,
         }"
       >
+        <slot name="sidebar-top" />
         <TdSiteSearch
           ref="sidebarSearch"
           v-model:query="searchQuery"
@@ -343,6 +346,7 @@ function shrinkSidebar () {
           :search-active="sidebarSearchActive"
           :ready="siteDataReady"
         />
+        <slot name="sidebar-bottom" />
         <div
           class="td-resize-handle"
           role="separator"
@@ -362,6 +366,7 @@ function shrinkSidebar () {
             class="td-content"
             data-testid="content"
           >
+            <slot name="doc-before" />
             <div
               v-if="page.schema"
               class="td-page-eyebrow"
@@ -401,9 +406,11 @@ function shrinkSidebar () {
               :headings="page.headings"
               static
             />
+            <slot name="doc-content-before" />
             <div class="td-content-body">
               <Content />
             </div>
+            <slot name="doc-content-after" />
             <TdPreviousNext />
             <a
               v-if="siteConfig.repo && page.filepath"
@@ -412,6 +419,7 @@ function shrinkSidebar () {
               rel="noopener noreferrer"
               class="td-page-edit"
             >Edit this page</a>
+            <slot name="doc-after" />
           </article>
         </main>
 
@@ -420,6 +428,7 @@ function shrinkSidebar () {
     </div>
 
     <TdFooter />
+    <slot name="layout-bottom" />
   </div>
 </template>
 

@@ -98,7 +98,7 @@ pub fn extract_container_prop_names(node: &RedNode) -> Vec<String> {
 
 // Convert a kebab-case string to PascalCase
 // e.g. "video-embed" -> "VideoEmbed", "chart" -> "Chart"
-pub fn to_pascal_case(name: &str) -> String {
+pub fn kebab_to_pascal(name: &str) -> String {
   name
     .split('-')
     .map(|segment| {
@@ -112,6 +112,12 @@ pub fn to_pascal_case(name: &str) -> String {
       }
     })
     .collect()
+}
+
+// Convert a snake_case string to kebab-case
+// e.g. "layout_top" -> "layout-top"
+pub fn snake_to_kebab(name: &str) -> String {
+  name.replace('_', "-")
 }
 
 pub fn is_external_url(url: &str) -> bool {
@@ -222,16 +228,23 @@ mod tests {
   use std::path::Path;
 
   #[test]
-  fn to_pascal_case_converts_hyphenated() {
-    assert_eq!(to_pascal_case("video-embed"), "VideoEmbed");
-    assert_eq!(to_pascal_case("chart"), "Chart");
-    assert_eq!(to_pascal_case("my-custom-chart"), "MyCustomChart");
+  fn kebab_to_pascal_converts_hyphenated() {
+    assert_eq!(kebab_to_pascal("video-embed"), "VideoEmbed");
+    assert_eq!(kebab_to_pascal("chart"), "Chart");
+    assert_eq!(kebab_to_pascal("my-custom-chart"), "MyCustomChart");
   }
 
   #[test]
-  fn to_pascal_case_preserves_pascal() {
-    assert_eq!(to_pascal_case("Chart"), "Chart");
-    assert_eq!(to_pascal_case("VideoEmbed"), "VideoEmbed");
+  fn kebab_to_pascal_preserves_pascal() {
+    assert_eq!(kebab_to_pascal("Chart"), "Chart");
+    assert_eq!(kebab_to_pascal("VideoEmbed"), "VideoEmbed");
+  }
+
+  #[test]
+  fn snake_to_kebab_converts() {
+    assert_eq!(snake_to_kebab("layout_top"), "layout-top");
+    assert_eq!(snake_to_kebab("doc_content_after"), "doc-content-after");
+    assert_eq!(snake_to_kebab("sidebar"), "sidebar");
   }
 
   #[test]

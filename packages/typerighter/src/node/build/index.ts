@@ -7,12 +7,12 @@ import {
   prerenderHtmlPages,
 } from './prerender';
 import {
-  generateClientAppEntry, typedown,
+  typedown,
+  THEME_ID, PAGES_ID, SITE_DATA_ID, SEARCH_INDEX_ID, PAGE_DATA_EVENT,
 } from '../plugin/vite';
 import {
-  resolveUserComponents,
-  type UserComponent,
-} from '../plugin/vite/virtual/app';
+  generateAppEntry, generateThemeModule, resolveUserComponents, type UserComponent,
+} from '../lib/codegen';
 import {
   ProgressLogger,
 } from '../lib/progress';
@@ -27,7 +27,6 @@ import {
   generateSitemap, generateRobotsTxt, generateRssFeed,
 } from './seo';
 
-const DEFAULT_LAYOUT_IMPORT = 'typerighter/client/theme-default';
 
 export interface BuildOptions {
   /** Output directory for the final build (default: "dist") */
@@ -83,11 +82,16 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   await fs.mkdir(tempDir, { recursive: true });
   const clientEntryPath = path.join(tempDir, 'client-entry.js');
   const ssrEntryPath = path.join(tempDir, 'ssr-entry.js');
+  const themeModulePath = path.join(tempDir, 'theme.js');
 
   const userComponents = await resolveUserComponents(config.components, root);
+  const themeModule = generateThemeModule(
+    config.layout ?? undefined,
+    root,
+  );
 
   await Promise.all([
-    fs.writeFile(clientEntryPath, generateClientAppEntry({
+    fs.writeFile(clientEntryPath, generateAppEntry({
       rootDir: config.rootDir,
       basePath: base,
       origin,
@@ -99,14 +103,20 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       license,
       nav: config.nav,
       userComponents,
+    }, {
+      theme: THEME_ID,
+      pages: PAGES_ID,
+      siteData: SITE_DATA_ID,
+      searchIndex: SEARCH_INDEX_ID,
+      pageDataEvent: PAGE_DATA_EVENT,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
       rootDir: config.rootDir,
-      layoutImport: DEFAULT_LAYOUT_IMPORT,
       siteConfig,
       siteData,
       userComponents,
     })),
+    fs.writeFile(themeModulePath, themeModule),
   ]);
 
   try {
@@ -247,7 +257,6 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
 interface SsrEntryOptions {
   rootDir: string;
-  layoutImport: string;
   siteConfig: string;
   siteData: string;
   userComponents?: UserComponent[];
@@ -281,7 +290,7 @@ import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-defa
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
 import { h } from 'vue';
-import theme from '${options.layoutImport}';
+import theme from './theme.js';
 
 const pages = import.meta.glob('${glob}', { eager: true });
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
@@ -312,7 +321,7 @@ function loadPageModule(pagePath) {
 }
 
 export async function createRenderer() {
-  const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, siteData);
+  const { app, router } = await createTypedownApp(loadPageModule, theme, ${options.siteConfig}, siteData);
   ${componentRegistrations}
   return async function render(url) {
     await router.go(url, { replace: true });

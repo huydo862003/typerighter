@@ -546,9 +546,9 @@ impl<T: Encodable> Encodable for Option<T> {
       None => {
         encoder.emit_u8(buf, 0);
       }
-      Some(val) => {
+      Some(value) => {
         encoder.emit_u8(buf, 1);
-        val.field_encode(buf, encoder);
+        value.field_encode(buf, encoder);
       }
     }
   }

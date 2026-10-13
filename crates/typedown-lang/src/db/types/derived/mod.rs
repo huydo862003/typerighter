@@ -154,6 +154,36 @@ impl typedown_incremental::StableCompare for ProjectRedNode {
   }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Default, Hash, StableCompare)]
+pub struct CustomLayoutConfig {
+  // Custom layout component path (theme.layout as string)
+  pub component: Option<String>,
+  // Slot name -> registered component name
+  pub slots: BTreeMap<String, String>,
+}
+
+impl StableHash for CustomLayoutConfig {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.component.stable_hash(db, hasher);
+    self.slots.stable_hash(db, hasher);
+  }
+}
+
+impl Encodable for CustomLayoutConfig {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.component.encode(buffer, encoder);
+    self.slots.encode(buffer, encoder);
+  }
+}
+
+impl Decodable for CustomLayoutConfig {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    let component = <Option<String> as Decodable>::decode(data, decoder);
+    let slots = <BTreeMap<String, String> as Decodable>::decode(data, decoder);
+    Self { component, slots }
+  }
+}
+
 #[query_derived]
 pub struct VaultConfigResult<'db> {
   version: String,
@@ -171,6 +201,7 @@ pub struct VaultConfigResult<'db> {
   // (text, link, icon_name) tuples for StableHash/Encodable/Decodable compatibility
   nav_items: Vec<(String, String, Option<String>)>,
   component_entries: Vec<CustomComponentEntry>,
+  layout: Option<CustomLayoutConfig>,
   diagnostics: Vec<Diagnostic>,
 }
 

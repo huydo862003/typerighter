@@ -8,7 +8,7 @@ use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{CustomComponentCheckResult, CustomComponentTyp, File, Project};
 use crate::db::utils::{
   extract_container_name, extract_container_prop_names, extract_shorthand_name,
-  is_builtin_container, to_pascal_case,
+  is_builtin_container, kebab_to_pascal,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
@@ -65,7 +65,7 @@ fn validate(
   let (start_offset, len) = node.trimmed_range();
   let end_offset = start_offset + len;
 
-  let pascal = to_pascal_case(name);
+  let pascal = kebab_to_pascal(name);
   let Some(entry) = contract.iter().find(|e| e.name == name || e.name == pascal) else {
     diagnostics.push(Diagnostic::UnknownComponent {
       name: name.to_string(),

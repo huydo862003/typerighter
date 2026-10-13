@@ -348,10 +348,40 @@ pub fn get_config_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> {
   );
   let components_typ: TdTypEnum =
     TdListTyp::new(db, Some(LazyTyp::eager(component_item_typ.into()))).into();
-  let theme_fields = BTreeMap::from([(
-    "components".to_string(),
-    LazyTyp::eager(make_nullable(db, components_typ)),
+  // theme.layout: string (component path) or { slots: dict[string, string] }
+
+  let layout_slots_fields = BTreeMap::from([(
+    "slots".to_string(),
+    LazyTyp::eager(make_nullable(
+      db,
+      TdDictTyp::new(
+        db,
+        Some(LazyTyp::eager(string_typ.clone())),
+        Some(LazyTyp::eager(string_typ.clone())),
+      )
+      .into(),
+    )),
   )]);
+
+  let layout_obj_typ: TdTypEnum =
+    TdProductTyp::new(db, Some("layout".to_string()), layout_slots_fields).into();
+  let layout_typ = {
+    let null_typ: TdTypEnum = get_null_typ(db).into();
+    let members = HashSet::from([
+      LazyTyp::eager(string_typ.clone()),
+      LazyTyp::eager(layout_obj_typ),
+      LazyTyp::eager(null_typ),
+    ]);
+    TdSumTyp::new(db, members).into()
+  };
+
+  let theme_fields = BTreeMap::from([
+    (
+      "components".to_string(),
+      LazyTyp::eager(make_nullable(db, components_typ)),
+    ),
+    ("layout".to_string(), LazyTyp::eager(layout_typ)),
+  ]);
   let theme_typ: TdTypEnum = TdProductTyp::new(db, Some("theme".to_string()), theme_fields).into();
 
   let config_fields = BTreeMap::from([

@@ -189,6 +189,12 @@ importers:
 
   editors/zed: {}
 
+  examples/custom_theme:
+    devDependencies:
+      typerighter:
+        specifier: workspace:*
+        version: link:../../packages/typerighter
+
   examples/project_tracker:
     devDependencies:
       typerighter:

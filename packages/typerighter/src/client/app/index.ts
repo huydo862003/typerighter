@@ -85,6 +85,20 @@ export interface TypedownSiteData {
   directoryListings: Record<string, DirectoryListing>;
 }
 
+export interface TypedownTheme {
+  /** Root layout component */
+  Layout: Component;
+  /** Optional 404 not-found component */
+  NotFound?: Component;
+  /** Called after app creation, before mount */
+  enhanceApp?: (context: {
+    app: App;
+    router: Router;
+    siteConfig: TypedownSiteConfig;
+    siteData: Ref<TypedownSiteData>;
+  }) => void | Promise<void>;
+}
+
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
 
 const siteConfigSymbol: InjectionKey<TypedownSiteConfig> = Symbol('typedown-site-config');
@@ -94,7 +108,7 @@ const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol('
 
 export async function createTypedownApp (
   loadPageModule: (path: string) => Promise<PageModule | undefined>,
-  Layout: Component,
+  theme: TypedownTheme,
   config: Partial<TypedownSiteConfig> = {},
   data: Partial<TypedownSiteData> = {},
 ): Promise<{
@@ -138,7 +152,7 @@ export async function createTypedownApp (
     setup () {
       provideTdContent(router.route);
 
-      return () => h(Layout);
+      return () => h(theme.Layout);
     },
   });
 
@@ -160,6 +174,15 @@ export async function createTypedownApp (
   app.component('Flashcard', TdFlashcard);
   app.component('LucideIcon', TdLucideIcon);
   /* eslint-enable vue/multi-word-component-names */
+
+  if (theme.enhanceApp) {
+    await theme.enhanceApp({
+      app,
+      router,
+      siteConfig,
+      siteData,
+    });
+  }
 
   if (typeof window !== 'undefined') {
     await router.go(location.href, {

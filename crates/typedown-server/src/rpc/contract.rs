@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 /// Server-defined JSON-RPC error code for query cancellation
@@ -57,6 +59,14 @@ pub struct TdRepoConfig {
   pub root: String,
 }
 
+/// A custom layout config
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdCustomLayout {
+  pub component: Option<String>,
+  pub slots: HashMap<String, String>,
+}
+
 /// Site-wide configuration derived from typedown.yaml
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -84,6 +94,8 @@ pub struct TdSiteConfig {
   pub nav: Vec<TdNavItem>,
   /// Custom component entries from theme.components
   pub components: Vec<TdComponentEntry>,
+  /// Custom layout
+  pub layout: Option<TdCustomLayout>,
 }
 
 /// A component entry: either a folder to scan or an explicit name-to-source mapping
