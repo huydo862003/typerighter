@@ -1,7 +1,9 @@
 version: "1.0.0"
 vault:
   root_dir: "vault"
-repo: "https://github.com/huydo862003/typerighter"
+repo:
+  url: "https://github.com/huydo862003/typerighter"
+  root: "homepage/"
 site:
   origin: "https://huydo862003.github.io"
   title: "Typedown"
