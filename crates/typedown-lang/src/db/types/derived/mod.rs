@@ -219,7 +219,8 @@ pub struct CustomComponentCheckResult<'db> {
 pub struct CustomComponentTyp {
   pub name: String,
   pub source: String,
-  pub props: Vec<CustomComponentProp>,
+  // None means props were not declared in the contract: skip prop validation
+  pub props: Option<Vec<CustomComponentProp>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, StableCompare)]

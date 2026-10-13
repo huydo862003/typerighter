@@ -10,6 +10,8 @@ Exact syntax for every part of Typedown. Use these pages as a lookup when you kn
 - [Type system](03-type-system): type expressions, primitives, unions, and schema references
 - [Icons](04-icons): the built-in page icon module
 - [CLI](05-cli): `typerighter init`, `dev`, `build`, `preview`, and `check`
+- [Theming](06-theming): custom layouts, layout slots, and the theme API
+- [Client API](07-client-api): composables and components from `typerighter/client`
 
 ## Changelog
 

@@ -2057,7 +2057,7 @@ impl Decodable for CustomComponentTyp {
     CustomComponentTyp {
       name: String::decode(data, decoder),
       source: String::decode(data, decoder),
-      props: Vec::decode(data, decoder),
+      props: Option::decode(data, decoder),
     }
   }
 }

@@ -39,25 +39,24 @@ fn parse_contract_entries(json: &str) -> Vec<CustomComponentTyp> {
       let source = entry.get("source")?.as_str()?.to_string();
       let props_obj = entry.get("props").and_then(|p| p.as_object());
 
-      let props = props_obj
-        .map(|prop| {
-          prop
-            .iter()
-            .filter_map(|(prop_name, prop)| {
-              let type_name = prop.get("type")?.as_str()?.to_string();
-              let required = prop
-                .get("required")
-                .and_then(|required| required.as_bool())
-                .unwrap_or(false);
-              Some(CustomComponentProp {
-                name: prop_name.clone(),
-                type_name,
-                required,
-              })
+      // None means props key is absent: skip prop validation for this component
+      let props = props_obj.map(|prop| {
+        prop
+          .iter()
+          .filter_map(|(prop_name, prop)| {
+            let type_name = prop.get("type")?.as_str()?.to_string();
+            let required = prop
+              .get("required")
+              .and_then(|required| required.as_bool())
+              .unwrap_or(false);
+            Some(CustomComponentProp {
+              name: prop_name.clone(),
+              type_name,
+              required,
             })
-            .collect()
-        })
-        .unwrap_or_default();
+          })
+          .collect()
+      });
 
       Some(CustomComponentTyp {
         name: name.clone(),
@@ -90,11 +89,12 @@ mod tests {
     let entry = &entries[0];
     assert_eq!(entry.name, "Chart");
     assert_eq!(entry.source, "./Chart.vue");
-    assert_eq!(entry.props.len(), 2);
-    let data_prop = entry.props.iter().find(|p| p.name == "data").unwrap();
+    let props = entry.props.as_ref().unwrap();
+    assert_eq!(props.len(), 2);
+    let data_prop = props.iter().find(|p| p.name == "data").unwrap();
     assert_eq!(data_prop.type_name, "list[number]");
     assert!(data_prop.required);
-    let title_prop = entry.props.iter().find(|p| p.name == "title").unwrap();
+    let title_prop = props.iter().find(|p| p.name == "title").unwrap();
     assert!(!title_prop.required);
   }
 
@@ -103,12 +103,20 @@ mod tests {
     let json = r#"{"Toc":{"source":"./Toc.vue","props":{}}}"#;
     let entries = parse_contract_entries(json);
     assert_eq!(entries.len(), 1);
-    assert!(entries[0].props.is_empty());
+    assert!(entries[0].props.as_ref().unwrap().is_empty());
   }
 
   #[test]
   fn parse_skips_missing_source() {
     let json = r#"{"Bad":{"props":{}}}"#;
     assert!(parse_contract_entries(json).is_empty());
+  }
+
+  #[test]
+  fn parse_component_without_props_key() {
+    let json = r#"{"Badge":{"source":"./Badge.vue"}}"#;
+    let entries = parse_contract_entries(json);
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0].props.is_none());
   }
 }
