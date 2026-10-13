@@ -286,6 +286,18 @@ Create `.typedown/components.json` alongside your vault. This file declares each
 
 Commit the contract file with your vault. Update it when component props change.
 
+#### Example
+
+A `TdAlert` component registered in `typedown.yaml` and declared in the contract can be used as a container block:
+
+```markdown
+:::td-alert{kind="info"}
+Remember to rebuild the contract file after adding new props.
+:::
+```
+
+The component receives `kind` as a prop and the inner markdown as a slot. Any markdown syntax works inside the container, including headings, lists, code blocks, and links.
+
 #### Prop types
 
 The `type` field in the contract uses Typedown type names:

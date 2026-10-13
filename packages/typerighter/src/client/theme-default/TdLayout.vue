@@ -98,6 +98,19 @@ const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
 const menuSearch = useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
 
+// Build the GitHub edit URL from repo config, rootDir, and the page filepath
+function editPageUrl (filepath: string): string {
+  const repo = siteConfig.repo!;
+  const base = stripTrailingSlash(repo.url);
+  const segments = [
+    repo.root,
+    siteConfig.rootDir,
+    filepath,
+  ].filter(Boolean);
+
+  return `${base}/edit/main/${segments.join('/')}`;
+}
+
 function focusSearch () {
   if (menuSearch.value?.isFocused || sidebarSearch.value?.isFocused) {
     menuSearch.value?.blur();
@@ -223,7 +236,7 @@ function shrinkSidebar () {
         <TdThemeToggle />
         <a
           v-if="siteConfig.repo"
-          :href="siteConfig.repo"
+          :href="siteConfig.repo.url"
           target="_blank"
           rel="noopener noreferrer"
           class="td-header-icon-link"
@@ -394,7 +407,7 @@ function shrinkSidebar () {
             <TdPreviousNext />
             <a
               v-if="siteConfig.repo && page.filepath"
-              :href="`${stripTrailingSlash(siteConfig.repo!)}/edit/main/${page.filepath}`"
+              :href="editPageUrl(page.filepath)"
               target="_blank"
               rel="noopener noreferrer"
               class="td-page-edit"
@@ -522,7 +535,7 @@ function shrinkSidebar () {
 }
 
 .td-content {
-  padding: 44px 56px 120px;
+  padding: 44px 56px 48px;
 }
 
 .td-page-eyebrow {
@@ -561,7 +574,7 @@ function shrinkSidebar () {
 
 .td-page-edit {
   display: inline-block;
-  margin-top: 32px;
+  margin-top: 16px;
   font-size: var(--font-size-td-xs);
   color: var(--color-td-ink-4);
   text-decoration: none;

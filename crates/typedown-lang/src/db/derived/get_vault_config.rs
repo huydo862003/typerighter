@@ -25,7 +25,18 @@ pub fn get_vault_config<'db>(
   };
 
   let version = get_string_field(db, &obj, "version").unwrap_or_default();
-  let repo = get_string_field(db, &obj, "repo");
+
+  // repo: "url" (string shorthand) or repo: { url: "...", root: "..." } (object form)
+  let (repo_url, repo_root) = match get_string_field(db, &obj, "repo") {
+    Some(url) => (Some(url), None),
+    None => match get_field(db, &obj, "repo") {
+      Some(repo_obj) => (
+        get_string_field(db, &repo_obj, "url"),
+        get_string_field(db, &repo_obj, "root"),
+      ),
+      None => (None, None),
+    },
+  };
 
   // Extract vault.root_dir
   let root_dir = get_nested_string_field(db, &obj, "vault", "root_dir")
@@ -75,7 +86,8 @@ pub fn get_vault_config<'db>(
     lang,
     site_title,
     site_description,
-    repo,
+    repo_url,
+    repo_root,
     author,
     license,
     public_dir,
@@ -99,6 +111,7 @@ fn empty_config<'db>(
     "en".to_string(),
     String::new(),
     String::new(),
+    None,
     None,
     None,
     None,
@@ -286,5 +299,27 @@ mod tests {
     let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let config = get_vault_config(&db, project);
     assert!(config.nav_items(&db).is_empty());
+  }
+
+  #[test]
+  fn repo_string_shorthand() {
+    let (db, project, _) = load_vault_fixture("evaluate/repo_string_vault", "page.td");
+    let config = get_vault_config(&db, project);
+    assert_eq!(
+      config.repo_url(&db).as_deref(),
+      Some("https://github.com/example/repo")
+    );
+    assert_eq!(config.repo_root(&db).as_ref(), None);
+  }
+
+  #[test]
+  fn repo_object_form() {
+    let (db, project, _) = load_vault_fixture("evaluate/repo_vault", "page.td");
+    let config = get_vault_config(&db, project);
+    assert_eq!(
+      config.repo_url(&db).as_deref(),
+      Some("https://github.com/example/repo")
+    );
+    assert_eq!(config.repo_root(&db).as_deref(), Some("docs"));
   }
 }

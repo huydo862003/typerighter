@@ -75,7 +75,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     header: {},
   }));
   const contentTree = buildContentTree(contentItems);
-  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin, lang: config.lang, nav: config.nav });
+  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin, lang: config.lang, rootDir: config.rootDir, repo, author, license, nav: config.nav });
   const siteData = JSON.stringify({ ready: true, contentTree });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports

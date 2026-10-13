@@ -355,12 +355,27 @@ pub fn get_config_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> {
   let theme_typ: TdTypEnum = TdProductTyp::new(db, Some("theme".to_string()), theme_fields).into();
 
   let config_fields = BTreeMap::from([
-    ("version".to_string(), LazyTyp::eager(string_typ)),
+    ("version".to_string(), LazyTyp::eager(string_typ.clone())),
     (
       "vault".to_string(),
       LazyTyp::eager(make_nullable(db, vault_typ)),
     ),
-    ("repo".to_string(), LazyTyp::eager(optional_string)),
+    // repo accepts string shorthand or { url, root? } object
+    ("repo".to_string(), {
+      let repo_fields = BTreeMap::from([
+        ("url".to_string(), LazyTyp::eager(string_typ.clone())),
+        ("root".to_string(), LazyTyp::eager(optional_string.clone())),
+      ]);
+      let repo_obj_typ: TdTypEnum =
+        TdProductTyp::new(db, Some("repo".to_string()), repo_fields).into();
+      let null_typ: TdTypEnum = get_null_typ(db).into();
+      let members = HashSet::from([
+        LazyTyp::eager(string_typ.clone()),
+        LazyTyp::eager(repo_obj_typ),
+        LazyTyp::eager(null_typ),
+      ]);
+      LazyTyp::eager(TdSumTyp::new(db, members).into())
+    }),
     (
       "theme".to_string(),
       LazyTyp::eager(make_nullable(db, theme_typ)),
