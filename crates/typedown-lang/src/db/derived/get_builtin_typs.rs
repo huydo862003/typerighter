@@ -331,6 +331,29 @@ pub fn get_config_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> {
   ]);
   let site_typ: TdTypEnum = TdProductTyp::new(db, Some("site".to_string()), site_fields).into();
 
+  // theme.components is list[string | dict[string, string]]
+  // String entries are folder paths, dict entries are explicit {name: source} mappings
+  let dict_string_string: TdTypEnum = TdDictTyp::new(
+    db,
+    Some(LazyTyp::eager(string_typ.clone())),
+    Some(LazyTyp::eager(string_typ.clone())),
+  )
+  .into();
+  let component_item_typ = get_sum_typ(
+    db,
+    vec![
+      LazyTyp::eager(string_typ.clone()),
+      LazyTyp::eager(dict_string_string),
+    ],
+  );
+  let components_typ: TdTypEnum =
+    TdListTyp::new(db, Some(LazyTyp::eager(component_item_typ.into()))).into();
+  let theme_fields = BTreeMap::from([(
+    "components".to_string(),
+    LazyTyp::eager(make_nullable(db, components_typ)),
+  )]);
+  let theme_typ: TdTypEnum = TdProductTyp::new(db, Some("theme".to_string()), theme_fields).into();
+
   let config_fields = BTreeMap::from([
     ("version".to_string(), LazyTyp::eager(string_typ)),
     (
@@ -338,6 +361,10 @@ pub fn get_config_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> {
       LazyTyp::eager(make_nullable(db, vault_typ)),
     ),
     ("repo".to_string(), LazyTyp::eager(optional_string)),
+    (
+      "theme".to_string(),
+      LazyTyp::eager(make_nullable(db, theme_typ)),
+    ),
     (
       "site".to_string(),
       LazyTyp::eager(make_nullable(db, site_typ)),
@@ -547,8 +574,9 @@ mod tests {
     assert!(fields.contains_key("version"), "missing version");
     assert!(fields.contains_key("vault"), "missing vault");
     assert!(fields.contains_key("repo"), "missing repo");
+    assert!(fields.contains_key("theme"), "missing theme");
     assert!(fields.contains_key("site"), "missing site");
-    assert_eq!(fields.len(), 4, "unexpected field count");
+    assert_eq!(fields.len(), 5, "unexpected field count");
   }
 
   #[test]

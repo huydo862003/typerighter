@@ -303,6 +303,12 @@ importers:
         specifier: workspace:*
         version: link:../../..
 
+  packages/typerighter/e2e/fixtures/vault-components:
+    devDependencies:
+      typerighter:
+        specifier: workspace:*
+        version: link:../../..
+
   packages/typerighter/e2e/fixtures/vault-root:
     devDependencies:
       typerighter:

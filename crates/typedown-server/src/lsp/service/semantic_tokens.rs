@@ -151,6 +151,7 @@ mod tests {
       &db,
       PathBuf::from("/"),
       HashMap::from([(path.clone(), file)]),
+      None,
     );
     let ast = parse_file(&db, project, file).ast(&db).node.clone();
     let mut raw = Vec::new();

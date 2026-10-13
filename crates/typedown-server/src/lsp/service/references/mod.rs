@@ -263,7 +263,7 @@ age: 25
         ),
       );
     }
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,

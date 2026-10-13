@@ -1095,7 +1095,7 @@ mod tests {
         FileMetadata::default(),
       ),
     );
-    let project = Project::new(&db, PathBuf::from("/vault"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/vault"), HashMap::new(), None);
     let root_node = parse_file(&db, project, file).ast(&db);
 
     let mut diagnostics = vec![];

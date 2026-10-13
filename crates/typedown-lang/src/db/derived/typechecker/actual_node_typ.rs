@@ -44,17 +44,17 @@ pub fn actual_node_typ<'db>(
   let file = project_node.file;
 
   // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping
-  if let Some(sf) = SourceFile::cast(node.clone()) {
-    if let Some(fm) = sf.frontmatter()
-      && let Some(mapping) = fm.mapping()
+  if let Some(source_file) = SourceFile::cast(node.clone()) {
+    if let Some(frontmatter) = source_file.frontmatter()
+      && let Some(mapping) = frontmatter.mapping()
     {
       let mapping_node = ProjectRedNode::new(project, file, mapping.syntax().clone());
       return actual_node_typ(db, mapping_node);
     }
     return TypResult::new(db, None, vec![]);
   }
-  if let Some(fm) = YamlFrontmatter::cast(node.clone()) {
-    if let Some(mapping) = fm.mapping() {
+  if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
+    if let Some(mapping) = frontmatter.mapping() {
       let mapping_node = ProjectRedNode::new(project, file, mapping.syntax().clone());
       return actual_node_typ(db, mapping_node);
     }
@@ -787,7 +787,7 @@ mod tests {
       FileHandle::Path(schema_file_path.clone(), FileMetadata::default()),
     );
     let files = HashMap::from([(schema_file_path, file)]);
-    let project = Project::new(&db, vault, files);
+    let project = Project::new(&db, vault, files, None);
 
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = actual_node_typ(&db, root_node);

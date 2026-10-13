@@ -252,9 +252,56 @@ Content goes here.
 | `info` | Info callout | `::: info ... :::` |
 | `details` | Collapsible section with title | `::: details Title ... :::` |
 
-::: tip
-User-registered custom components are planned for a future release.
-:::
+### User-defined components
+
+Vue components can be registered for use in the markdown body. Registered components are available by their PascalCase name or its kebab-case equivalent.
+
+#### Registering components
+
+Declare components in `typedown.yaml` under `theme.components`. Each entry is either a folder path (scanned recursively for `.vue` files) or an explicit name-to-source mapping:
+
+```yaml
+theme:
+  components:
+    - "./src/components"
+    - { "Chart": "./src/Chart.vue" }
+```
+
+When multiple entries define the same name, the last one wins.
+
+#### Contract file
+
+Create `.typedown/components.json` alongside your vault. This file declares each component's props and enables the LSP to warn on unknown components, missing required props, and unknown props in the markdown body.
+
+```json
+{
+  "TdAlert": {
+    "source": "./src/components/TdAlert.vue",
+    "props": {
+      "kind": { "type": "string", "required": false }
+    }
+  }
+}
+```
+
+Commit the contract file with your vault. Update it when component props change.
+
+#### Prop types
+
+The `type` field in the contract uses Typedown type names:
+
+| Type | Example |
+| ---- | ------- |
+| `string` | `"type": "string"` |
+| `number` | `"type": "number"` |
+| `boolean` | `"type": "boolean"` |
+| `date` | `"type": "date"` |
+| list | `"type": "list[string]"` |
+| dict | `"type": "dict[string, number]"` |
+| union | `"type": "string \| number"` |
+| unknown | `"type": "any"` |
+
+Required props are enforced: the LSP warns when a required prop is absent at a usage site.
 
 ## Limitations
 

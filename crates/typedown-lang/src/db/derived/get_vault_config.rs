@@ -7,7 +7,7 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_config::evaluate_config;
 use crate::db::types::derived::obj_system::TdRuntimeObj;
-use crate::db::types::{Project, TdObjEnum, VaultConfigResult};
+use crate::db::types::{CustomComponentEntry, Project, TdObjEnum, VaultConfigResult};
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_incremental::QueryDatabase;
 
@@ -50,6 +50,10 @@ pub fn get_vault_config<'db>(
   let author = get_site_string(db, &site, "author");
   let license = get_site_string(db, &site, "license");
   let public_dir = get_site_string(db, &site, "public_dir").unwrap_or_else(|| "public".to_string());
+  // Extract theme.components
+  let theme = get_field(db, &obj, "theme");
+  let component_entries = extract_theme_components(db, &theme);
+
   let nav = extract_nav(db, &site);
   if nav.len() > 4 {
     use std::sync::Once;
@@ -76,6 +80,7 @@ pub fn get_vault_config<'db>(
     license,
     public_dir,
     nav,
+    component_entries,
     diagnostics,
   )
 }
@@ -98,6 +103,7 @@ fn empty_config<'db>(
     None,
     None,
     "public".to_string(),
+    Vec::new(),
     Vec::new(),
     diagnostics,
   )
@@ -174,6 +180,51 @@ fn extract_nav<'db>(
     }
   }
   items
+}
+
+// Extract theme.components entries from the evaluated config object
+fn extract_theme_components<'db>(
+  db: &'db TypedownDatabase,
+  theme: &Option<TdObjEnum<'db>>,
+) -> Vec<CustomComponentEntry> {
+  let Some(theme) = theme else {
+    return Vec::new();
+  };
+  let Some(components) = get_field(db, theme, "components") else {
+    return Vec::new();
+  };
+  let Some(list) = components.as_td_list_obj() else {
+    return Vec::new();
+  };
+
+  let mut entries = Vec::new();
+  let Some(len) = list.len(db) else {
+    return entries;
+  };
+  for i in 0..len {
+    let Some(item) = list.get(db, i) else {
+      continue;
+    };
+
+    // String item: folder path to scan for .vue files
+    if let Some(path) = item.as_td_string_obj().map(|s| s.value(db)) {
+      entries.push(CustomComponentEntry::Dir { path });
+      continue;
+    }
+
+    // Mapping item: single {name: source} entry
+    if let Some(product) = item.as_td_product_obj() {
+      for key in product.fields(db).keys() {
+        if let Some(source) = get_string_field(db, &item, key) {
+          entries.push(CustomComponentEntry::Explicit {
+            name: key.clone(),
+            source,
+          });
+        }
+      }
+    }
+  }
+  entries
 }
 
 // Normalize origin to include scheme, default to https

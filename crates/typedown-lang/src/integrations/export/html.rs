@@ -15,7 +15,10 @@ use crate::syntax::ast::{
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use super::utils::{extract_plain_text, html_escape, resolve_vault_url, slugify, strip_quotes};
+use super::utils::{
+  extract_plain_text, extract_shorthand_name, html_escape, is_callout, resolve_vault_url, slugify,
+  strip_quotes,
+};
 use crate::db::utils::is_external_url;
 
 /// Heading extracted during HTML emission
@@ -480,19 +483,11 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_container_shorthand(&mut self, node: &RedNode) {
-    let mut label = String::new();
-    let mut props = String::new();
-
-    for child in node.children() {
-      match child.kind() {
-        SyntaxKind::Ident => label.push_str(&child.text()),
-        SyntaxKind::MdSymbol if child.text() == "-" => label.push('-'),
-        SyntaxKind::MdContainerPropBlock => {
-          props = extract_props_from_block(&child);
-        }
-        _ => {}
-      }
-    }
+    let label = match extract_shorthand_name(node) {
+      Some(name) => name,
+      None => return,
+    };
+    let props = extract_container_props(node);
 
     if props.is_empty() {
       self.write(&format!("<{label} />\n"));
@@ -730,13 +725,6 @@ impl<'a> HtmlEmitter<'a> {
 
 // HTML-specific helpers
 
-fn is_callout(name: &str) -> bool {
-  matches!(
-    name,
-    "tip" | "info" | "warning" | "danger" | "details" | "note" | "important" | "caution"
-  )
-}
-
 fn callout_default_title(name: &str) -> &'static str {
   match name {
     "tip" => "TIP",
@@ -775,31 +763,50 @@ fn parse_separator_alignments(table_node: &RedNode) -> Vec<Option<&'static str>>
   Vec::new()
 }
 
+// Extract the container label (possibly kebab like `td-alert`) and optional title text
+// (for callouts, e.g. `:::warning My title`) in a single pass.
 fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>) {
   let mut label = String::new();
   let mut title_raw = String::new();
   let mut seen_opening = false;
+  // Once the label is complete we switch to collecting title text
+  let mut label_done = false;
 
   for child in node.children() {
     if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
       seen_opening = true;
       continue;
     }
-    if child.kind() == SyntaxKind::Newline {
-      break;
+    if !seen_opening {
+      continue;
     }
-    if seen_opening {
-      let text = child.text();
-      if label.is_empty() {
-        let trimmed = text.trim();
-        if !trimmed.is_empty() {
-          label = trimmed.to_string();
+    match child.kind() {
+      SyntaxKind::Newline => break,
+      SyntaxKind::MdContainerPropBlock => break,
+      SyntaxKind::Whitespace => {
+        // Whitespace before the label: skip; after: label is done, append to title
+        if !label.is_empty() {
+          label_done = true;
+          title_raw.push_str(&child.text());
         }
-      } else {
-        // Collect remaining tokens as raw text to preserve quotes and spacing
-        title_raw.push_str(&text);
+      }
+      SyntaxKind::Ident if !label_done => {
+        label.push_str(&child.text());
+      }
+      SyntaxKind::MdSymbol if !label_done && child.text() == "-" && !label.is_empty() => {
+        label.push('-');
+      }
+      _ => {
+        if !label.is_empty() {
+          label_done = true;
+          title_raw.push_str(&child.text());
+        }
       }
     }
+  }
+
+  if label.is_empty() {
+    return (String::new(), None);
   }
 
   let title = {

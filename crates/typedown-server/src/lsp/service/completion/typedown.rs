@@ -925,7 +925,7 @@ properties:
       (test_path, test_file),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -1540,7 +1540,7 @@ date: 2024-01-01
       (test_path, editing_file),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -1673,7 +1673,7 @@ vault:
       ),
     ]);
 
-    let project = Project::new(&db, project_root, files);
+    let project = Project::new(&db, project_root, files, None);
     let analysis = Analysis::new(
       db,
       project,
