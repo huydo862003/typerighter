@@ -101,6 +101,11 @@ export type TdComponentEntry =
   | { kind: 'dir'; path: string }
   | { kind: 'explicit'; name: string; source: string };
 
+export interface TdRepoConfig {
+  url: string;
+  root: string;
+}
+
 export interface TdSiteConfig {
   version: string;
   basePath: string;
@@ -109,7 +114,7 @@ export interface TdSiteConfig {
   rootDir: string;
   siteTitle: string;
   siteDescription: string;
-  repo: string | undefined;
+  repo: TdRepoConfig | undefined;
   author: string | undefined;
   license: string | undefined;
   publicDir: string;

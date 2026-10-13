@@ -32,7 +32,10 @@ export interface AppEntryOptions {
   lang?: string;
   siteTitle: string;
   siteDescription: string;
-  repo?: string;
+  repo?: {
+    url: string;
+    root: string;
+  };
   author?: string;
   license?: string;
   nav?: {
@@ -55,8 +58,16 @@ export class VirtualApp {
     const userComponents = await resolveUserComponents(config.components, context.root);
 
     return generate({
-      ...config,
       rootDir: config.rootDir,
+      basePath: config.basePath,
+      origin: config.origin ?? undefined,
+      lang: config.lang,
+      siteTitle: config.siteTitle,
+      siteDescription: config.siteDescription,
+      repo: config.repo ?? undefined,
+      author: config.author ?? undefined,
+      license: config.license ?? undefined,
+      nav: config.nav,
       userComponents,
     });
   }
@@ -89,6 +100,7 @@ export function generate (options: AppEntryOptions): string {
     repo: options.repo,
     author: options.author,
     license: options.license,
+    rootDir: rootDirectory,
     nav: options.nav,
   });
 

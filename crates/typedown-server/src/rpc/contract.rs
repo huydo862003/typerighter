@@ -47,6 +47,16 @@ pub type RpcResult<T> = Result<T, RpcError>;
 
 /* RPC request params and results */
 
+/// Repository configuration, normalized from string or object form
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdRepoConfig {
+  /// Repository URL (e.g. "https://github.com/user/repo")
+  pub url: String,
+  /// Path from the git root to the typedown.yaml directory (e.g. "docs")
+  pub root: String,
+}
+
 /// Site-wide configuration derived from typedown.yaml
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -64,8 +74,8 @@ pub struct TdSiteConfig {
   pub site_title: String,
   /// Site description from typedown.yaml
   pub site_description: String,
-  /// Repository URL from typedown.yaml
-  pub repo: Option<String>,
+  /// Repository config from typedown.yaml (normalized to object)
+  pub repo: Option<TdRepoConfig>,
   /// Site author from typedown.yaml
   pub author: Option<String>,
   /// License name from typedown.yaml

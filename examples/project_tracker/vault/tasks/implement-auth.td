@@ -18,6 +18,10 @@ tags:
   - "api"
 ---
 
+:::td-status-badge{status="blocked"}
+Blocked: awaiting security team sign-off on session token format.
+:::
+
 Covers login, logout, session management, and password reset.
 OAuth integration (GitHub, Google) is out of scope for this iteration.
 

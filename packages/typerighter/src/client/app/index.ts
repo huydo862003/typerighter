@@ -53,12 +53,17 @@ export interface TypedownSiteConfig {
   origin?: string;
   /** HTML lang attribute */
   lang?: string;
-  /** Repository URL */
-  repo?: string;
+  /** Repository config */
+  repo?: {
+    url: string;
+    root: string;
+  };
   /** Site author */
   author?: string;
   /** License name */
   license?: string;
+  /** Vault root directory relative to the project root (e.g. "vault") */
+  rootDir?: string;
   /** Navigation links */
   nav?: {
     title: string;
@@ -107,6 +112,7 @@ export async function createTypedownApp (
     repo: config.repo,
     author: config.author,
     license: config.license,
+    rootDir: config.rootDir,
     nav: config.nav,
   };
 
