@@ -4,8 +4,7 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::{
-  CustomComponentContractResult, CustomComponentProp, CustomComponentTyp,
-  File, FileHandle,
+  CustomComponentContractResult, CustomComponentProp, CustomComponentTyp, File, FileHandle,
 };
 use typedown_incremental::QueryDatabase;
 
@@ -20,8 +19,7 @@ pub fn get_component_contract<'db>(
 
 fn read_handle_content(handle: &FileHandle) -> Option<String> {
   match handle {
-    // Re-reads from disk on each call, but get_component_contract is memoized on the
-    // File input (which includes mtime), so this only runs when the contract file changes
+    // Re-reads from disk on each call, but get_component_contract is memoized on the File input (which includes mtime), so this only runs when the contract file changes
     FileHandle::Path(path, _) => std::fs::read_to_string(path).ok(),
     FileHandle::Content(_, content, _) => Some(content.clone()),
   }

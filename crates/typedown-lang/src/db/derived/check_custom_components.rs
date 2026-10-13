@@ -8,7 +8,7 @@ use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{CustomComponentCheckResult, CustomComponentTyp, File, Project};
 use crate::db::utils::{
   extract_container_name, extract_container_prop_names, extract_shorthand_name,
-  is_builtin_container,
+  is_builtin_container, to_pascal_case,
 };
 use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
@@ -32,11 +32,7 @@ pub fn check_custom_components<'db>(
   CustomComponentCheckResult::new(db, diagnostics)
 }
 
-fn collect(
-  node: &RedNode,
-  contract: &[CustomComponentTyp],
-  diagnostics: &mut Vec<Diagnostic>,
-) {
+fn collect(node: &RedNode, contract: &[CustomComponentTyp], diagnostics: &mut Vec<Diagnostic>) {
   match node.kind() {
     SyntaxKind::MdContainerBlock => {
       if let Some(name) = extract_container_name(node) {
@@ -69,7 +65,8 @@ fn validate(
   let (start_offset, len) = node.trimmed_range();
   let end_offset = start_offset + len;
 
-  let Some(entry) = find_component(contract, name) else {
+  let pascal = to_pascal_case(name);
+  let Some(entry) = contract.iter().find(|e| e.name == name || e.name == pascal) else {
     diagnostics.push(Diagnostic::UnknownComponent {
       name: name.to_string(),
       start_offset,
@@ -103,69 +100,180 @@ fn validate(
   }
 }
 
-// Find by exact name or by converting kebab-case to PascalCase
-fn find_component<'a>(
-  contract: &'a [CustomComponentTyp],
-  name: &str,
-) -> Option<&'a CustomComponentTyp> {
-  let pascal = to_pascal_case(name);
-  contract.iter().find(|e| e.name == name || e.name == pascal)
-}
-
-fn to_pascal_case(name: &str) -> String {
-  name
-    .split('-')
-    .map(|segment| {
-      let mut chars = segment.chars();
-      match chars.next() {
-        Some(first) => {
-          let upper: String = first.to_uppercase().collect();
-          upper + chars.as_str()
-        }
-        None => String::new(),
-      }
-    })
-    .collect()
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::db::types::CustomComponentProp;
+  use crate::db::utils::{
+    extract_container_name, extract_container_prop_names, extract_shorthand_name,
+  };
+  use crate::syntax::red::RedNode;
+  use crate::syntax::syntax_kind::SyntaxKind;
+
+  fn parse_body(input: &str) -> RedNode {
+    use crate::syntax::green::cache::Cache;
+    use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use typedown_types::string_stream::StringStream;
+
+    let full = format!("---\n---\n{}", input);
+    let stream = StringStream::new(&full);
+    let cache = Rc::new(RefCell::new(Cache::new()));
+    let ctx = ParseCtx::new(stream, cache);
+    let ParseResult { ast, .. } = ctx.parse();
+    RedNode::from_green(0, ast)
+  }
+
+  fn find_first(node: &RedNode, kind: SyntaxKind) -> Option<RedNode> {
+    if node.kind() == kind {
+      return Some(node.clone());
+    }
+    for child in node.children() {
+      if let Some(found) = find_first(&child, kind) {
+        return Some(found);
+      }
+    }
+    None
+  }
+
+  // extract_container_name
 
   #[test]
-  fn to_pascal_case_converts_hyphenated() {
-    assert_eq!(to_pascal_case("video-embed"), "VideoEmbed");
-    assert_eq!(to_pascal_case("chart"), "Chart");
-    assert_eq!(to_pascal_case("my-custom-chart"), "MyCustomChart");
+  fn container_name_simple() {
+    let root = parse_body("::: note\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    assert_eq!(extract_container_name(&block), Some("note".to_string()));
   }
 
   #[test]
-  fn to_pascal_case_preserves_pascal() {
-    assert_eq!(to_pascal_case("Chart"), "Chart");
-    assert_eq!(to_pascal_case("VideoEmbed"), "VideoEmbed");
+  fn container_name_kebab() {
+    let root = parse_body("::: td-alert\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    assert_eq!(extract_container_name(&block), Some("td-alert".to_string()));
   }
 
   #[test]
-  fn find_component_by_exact_name() {
-    let contract: Vec<CustomComponentTyp> = vec![CustomComponentTyp {
-      name: "Chart".to_string(),
-      source: "./Chart.vue".to_string(),
-      props: vec![],
-    }];
-    assert!(find_component(&contract, "Chart").is_some());
-    // "chart" -> PascalCase "Chart" -> matches
-    assert!(find_component(&contract, "chart").is_some());
-    assert!(find_component(&contract, "Unknown").is_none());
+  fn container_name_no_space() {
+    let root = parse_body(":::td-alert\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    assert_eq!(extract_container_name(&block), Some("td-alert".to_string()));
+  }
+
+  // extract_shorthand_name
+
+  #[test]
+  fn shorthand_name_kebab() {
+    let root = parse_body("[[directory-index]]\n");
+    let node = find_first(&root, SyntaxKind::MdContainerShorthand).unwrap();
+    assert_eq!(
+      extract_shorthand_name(&node),
+      Some("directory-index".to_string())
+    );
+  }
+
+  // extract_container_prop_names
+
+  #[test]
+  fn prop_names_extracted() {
+    let root = parse_body(":::chart{kind=\"info\" size=\"large\"}\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    let props = extract_container_prop_names(&block);
+    assert_eq!(props, vec!["kind", "size"]);
   }
 
   #[test]
-  fn find_component_by_kebab_to_pascal() {
-    let contract: Vec<CustomComponentTyp> = vec![CustomComponentTyp {
+  fn prop_names_empty_without_block() {
+    let root = parse_body(":::note\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    assert!(extract_container_prop_names(&block).is_empty());
+  }
+
+  // validate — unknown component
+
+  #[test]
+  fn unknown_component_emits_diagnostic() {
+    let root = parse_body(":::my-widget\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    let name = extract_container_name(&block).unwrap();
+    let contract: Vec<CustomComponentTyp> = vec![];
+    let mut diags = Vec::new();
+    validate(&block, &name, &contract, &mut diags);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnknownComponent { .. })),
+      "expected UnknownComponent, got: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn known_component_by_kebab_matches_pascal_contract() {
+    let root = parse_body(":::video-embed\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    let name = extract_container_name(&block).unwrap();
+    let contract = vec![CustomComponentTyp {
       name: "VideoEmbed".to_string(),
       source: "./VideoEmbed.vue".to_string(),
       props: vec![],
     }];
-    assert!(find_component(&contract, "video-embed").is_some());
-    assert!(find_component(&contract, "VideoEmbed").is_some());
+    let mut diags = Vec::new();
+    validate(&block, &name, &contract, &mut diags);
+    assert!(diags.is_empty(), "expected no diagnostics, got: {diags:?}");
+  }
+
+  #[test]
+  fn missing_required_prop_emits_diagnostic() {
+    let root = parse_body(":::chart\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    let name = extract_container_name(&block).unwrap();
+    let contract = vec![CustomComponentTyp {
+      name: "Chart".to_string(),
+      source: "./Chart.vue".to_string(),
+      props: vec![CustomComponentProp {
+        name: "data".to_string(),
+        type_name: "string".to_string(),
+        required: true,
+      }],
+    }];
+    let mut diags = Vec::new();
+    validate(&block, &name, &contract, &mut diags);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::MissingRequiredProp { prop, .. } if prop == "data")),
+      "expected MissingRequiredProp for 'data', got: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn unknown_prop_emits_diagnostic() {
+    let root = parse_body(":::chart{extra=\"val\"}\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    let name = extract_container_name(&block).unwrap();
+    let contract = vec![CustomComponentTyp {
+      name: "Chart".to_string(),
+      source: "./Chart.vue".to_string(),
+      props: vec![],
+    }];
+    let mut diags = Vec::new();
+    validate(&block, &name, &contract, &mut diags);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, Diagnostic::UnknownProp { prop, .. } if prop == "extra")),
+      "expected UnknownProp for 'extra', got: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn builtin_container_skipped() {
+    let root = parse_body("::: note\ncontent\n:::\n");
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    let name = extract_container_name(&block).unwrap();
+    let contract: Vec<CustomComponentTyp> = vec![];
+    let mut diags = Vec::new();
+    validate(&block, &name, &contract, &mut diags);
+    assert!(diags.is_empty(), "builtins should produce no diagnostics");
   }
 }

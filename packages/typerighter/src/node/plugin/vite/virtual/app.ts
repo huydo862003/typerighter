@@ -1,6 +1,13 @@
+import path from 'node:path';
+import {
+  readdir,
+} from 'node:fs/promises';
 import type {
   ViteDevServer,
 } from 'vite';
+import type {
+  TdComponentEntry,
+} from '@typerighter/rpc-client';
 import {
   RESOLVED_VIRTUAL_APP_ID,
   PAGES_ID,
@@ -10,11 +17,10 @@ import {
 } from '../constants';
 import {
   invalidateVirtualModule,
-  type VirtualModule,
 } from './utils';
 import type {
-  TypedownContext,
-} from '@/node/lib/typedown-context';
+  AppContext,
+} from '@/node/context';
 import {
   CONTENT_EXTENSIONS,
 } from '@/shared';
@@ -34,15 +40,24 @@ export interface AppEntryOptions {
     link: string;
     icon?: string;
   }[];
+  userComponents?: UserComponent[];
 }
 
-export class VirtualApp implements VirtualModule {
-  async load (context: TypedownContext): Promise<string> {
-    const config = await context.getConfig();
+export interface UserComponent {
+  name: string;
+  absolutePath: string;
+}
+
+export class VirtualApp {
+  async load (context: AppContext): Promise<string> {
+    const tdContext = await context.getTdContext();
+    const config = await tdContext.getConfig();
+    const userComponents = await resolveUserComponents(config.components, context.root);
 
     return generate({
       ...config,
       rootDir: config.rootDir,
+      userComponents,
     });
   }
 
@@ -54,8 +69,16 @@ export class VirtualApp implements VirtualModule {
 // Also used by SSG build to generate the client entry file
 export function generate (options: AppEntryOptions): string {
   const {
-    rootDir: rootDirectory = '.',
+    rootDir: rootDirectory = '.', userComponents = [],
   } = options;
+
+  const componentImports = userComponents
+    .map((component) => `import ${component.name} from ${JSON.stringify(component.absolutePath)};`)
+    .join('\n');
+
+  const componentRegistrations = userComponents
+    .map((component) => `app.component(${JSON.stringify(component.name)}, ${component.name});`)
+    .join('\n');
 
   const siteConfig = JSON.stringify({
     title: options.siteTitle,
@@ -69,8 +92,15 @@ export function generate (options: AppEntryOptions): string {
     nav: options.nav,
   });
 
+  const header = [
+    componentImports,
+    'import \'typerighter/style.css\';',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
   return `
-import 'typerighter/style.css';
+${header}
 import 'typerighter/fonts.css';
 import('typerighter/math.css');
 import { createTypedownApp } from 'typerighter/client';
@@ -107,6 +137,7 @@ async function loadPageModule(pagePath) {
 }
 
 const { app, router, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme.Layout, ${siteConfig}, initialSiteData);
+${componentRegistrations}
 app.mount('#app');
 
 // Load search index in the background after the app is mounted
@@ -144,4 +175,43 @@ if (import.meta.hot) {
   });
 }
 `;
+}
+
+// Resolve TdComponentEntry list to concrete { name, absolutePath } pairs
+export async function resolveUserComponents (
+  entries: TdComponentEntry[],
+  projectRoot: string,
+): Promise<UserComponent[]> {
+  const components: UserComponent[] = [];
+
+  for (const entry of entries) {
+    if (entry.kind === 'dir') {
+      const directoryPath = path.resolve(projectRoot, entry.path);
+      let files: string[];
+
+      try {
+        files = await readdir(directoryPath);
+      } catch {
+        continue;
+      }
+
+      for (const file of files) {
+        if (!file.endsWith('.vue')) continue;
+
+        const name = file.slice(0, -4);
+
+        components.push({
+          name,
+          absolutePath: path.join(directoryPath, file),
+        });
+      }
+    } else {
+      components.push({
+        name: entry.name,
+        absolutePath: path.resolve(projectRoot, entry.source),
+      });
+    }
+  }
+
+  return components;
 }

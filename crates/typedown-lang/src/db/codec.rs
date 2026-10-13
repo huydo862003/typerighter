@@ -1,6 +1,4 @@
-use crate::db::types::{
-  CustomComponentEntry, CustomComponentProp, CustomComponentTyp,
-};
+use crate::db::types::{CustomComponentEntry, CustomComponentProp, CustomComponentTyp};
 use crate::syntax::diagnostic::{Diagnostic, DiagnosticCode};
 use crate::syntax::green::cache::with_green_cache;
 use crate::syntax::red::RedNode;

@@ -21,9 +21,7 @@ use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{
-  CustomComponentEntry, File, Project, ProjectRedNode, SymbolKind,
-};
+use typedown_lang::db::types::{CustomComponentEntry, File, Project, ProjectRedNode, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
   export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
@@ -106,9 +104,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
       .component_entries(db)
       .iter()
       .map(|decl| match decl {
-        CustomComponentEntry::Dir { path } => {
-          TdComponentEntry::Dir { path: path.clone() }
-        }
+        CustomComponentEntry::Dir { path } => TdComponentEntry::Dir { path: path.clone() },
         CustomComponentEntry::Explicit { name, source } => TdComponentEntry::Explicit {
           name: name.clone(),
           source: source.clone(),

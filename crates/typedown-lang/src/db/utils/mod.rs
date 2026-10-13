@@ -28,24 +28,36 @@ pub fn is_builtin_container(name: &str) -> bool {
 }
 
 // Extract the label (component name) from a ::: container block
+// Handles kebab-case names like `td-alert` which are parsed as multiple tokens
 pub fn extract_container_name(node: &RedNode) -> Option<String> {
   let mut seen_opening = false;
+  let mut name = String::new();
   for child in node.children() {
     if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
       seen_opening = true;
       continue;
     }
-    if child.kind() == SyntaxKind::Newline {
-      break;
+    if !seen_opening {
+      continue;
     }
-    if seen_opening {
-      let trimmed = child.text().trim().to_string();
-      if !trimmed.is_empty() {
-        return Some(trimmed);
+    match child.kind() {
+      SyntaxKind::Whitespace => {
+        // Skip leading whitespace, stop if name already started (whitespace ends the name)
+        if !name.is_empty() {
+          break;
+        }
+      }
+      SyntaxKind::Ident => name.push_str(&child.text()),
+      SyntaxKind::MdSymbol if child.text() == "-" && !name.is_empty() => name.push('-'),
+      SyntaxKind::Newline => break,
+      _ => {
+        if !name.is_empty() {
+          break;
+        }
       }
     }
   }
-  None
+  if name.is_empty() { None } else { Some(name) }
 }
 
 // Extract the component name from a [[shorthand]] container
@@ -62,6 +74,7 @@ pub fn extract_shorthand_name(node: &RedNode) -> Option<String> {
 }
 
 // Extract prop key names from a container's {key=value} block
+// The first Ident child of each MdContainerPropItem is the key
 pub fn extract_container_prop_names(node: &RedNode) -> Vec<String> {
   let prop_block = node
     .children()
@@ -75,13 +88,27 @@ pub fn extract_container_prop_names(node: &RedNode) -> Vec<String> {
     .children()
     .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
     .filter_map(|item| {
-      let text = item.text().trim().to_string();
-      if let Some(eq) = text.find('=') {
-        Some(text[..eq].trim().to_string())
-      } else if !text.is_empty() {
-        Some(text)
-      } else {
-        None
+      item
+        .children()
+        .find(|child| child.kind() == SyntaxKind::Ident)
+        .map(|ident| ident.text().to_string())
+    })
+    .collect()
+}
+
+// Convert a kebab-case string to PascalCase
+// e.g. "video-embed" -> "VideoEmbed", "chart" -> "Chart"
+pub fn to_pascal_case(name: &str) -> String {
+  name
+    .split('-')
+    .map(|segment| {
+      let mut chars = segment.chars();
+      match chars.next() {
+        Some(first) => {
+          let upper: String = first.to_uppercase().collect();
+          upper + chars.as_str()
+        }
+        None => String::new(),
       }
     })
     .collect()
@@ -193,6 +220,19 @@ pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) 
 mod tests {
   use super::*;
   use std::path::Path;
+
+  #[test]
+  fn to_pascal_case_converts_hyphenated() {
+    assert_eq!(to_pascal_case("video-embed"), "VideoEmbed");
+    assert_eq!(to_pascal_case("chart"), "Chart");
+    assert_eq!(to_pascal_case("my-custom-chart"), "MyCustomChart");
+  }
+
+  #[test]
+  fn to_pascal_case_preserves_pascal() {
+    assert_eq!(to_pascal_case("Chart"), "Chart");
+    assert_eq!(to_pascal_case("VideoEmbed"), "VideoEmbed");
+  }
 
   #[test]
   fn is_content_file_accepts_td() {

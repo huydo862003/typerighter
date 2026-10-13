@@ -763,29 +763,44 @@ fn parse_separator_alignments(table_node: &RedNode) -> Vec<Option<&'static str>>
   Vec::new()
 }
 
-// Extract the container label and optional title text (for callouts) in a single pass
+// Extract the container label (possibly kebab like `td-alert`) and optional title text
+// (for callouts, e.g. `:::warning My title`) in a single pass.
 fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>) {
   let mut label = String::new();
   let mut title_raw = String::new();
   let mut seen_opening = false;
+  // Once the label is complete we switch to collecting title text
+  let mut label_done = false;
 
   for child in node.children() {
     if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
       seen_opening = true;
       continue;
     }
-    if child.kind() == SyntaxKind::Newline {
-      break;
+    if !seen_opening {
+      continue;
     }
-    if seen_opening {
-      let text = child.text();
-      if label.is_empty() {
-        let trimmed = text.trim();
-        if !trimmed.is_empty() {
-          label = trimmed.to_string();
+    match child.kind() {
+      SyntaxKind::Newline => break,
+      SyntaxKind::MdContainerPropBlock => break,
+      SyntaxKind::Whitespace => {
+        // Whitespace before the label: skip; after: label is done, append to title
+        if !label.is_empty() {
+          label_done = true;
+          title_raw.push_str(&child.text());
         }
-      } else {
-        title_raw.push_str(&text);
+      }
+      SyntaxKind::Ident if !label_done => {
+        label.push_str(&child.text());
+      }
+      SyntaxKind::MdSymbol if !label_done && child.text() == "-" && !label.is_empty() => {
+        label.push('-');
+      }
+      _ => {
+        if !label.is_empty() {
+          label_done = true;
+          title_raw.push_str(&child.text());
+        }
       }
     }
   }

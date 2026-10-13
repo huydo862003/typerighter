@@ -1,5 +1,7 @@
 ---
-title: "Home"
+title: "Component Fixture"
 ---
 
-Welcome.
+This vault tests custom component rendering.
+
+See the [component demo](/demo) for usage examples.

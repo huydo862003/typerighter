@@ -6,4 +6,4 @@ site:
   description: "Test fixture for custom component e2e tests"
 theme:
   components:
-    - dir: "./components"
+    - "./components"

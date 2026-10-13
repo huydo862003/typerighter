@@ -179,12 +179,12 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         && id !== RESOLVED_VIRTUAL_APP_ID
       ) return;
 
-      const context = await resolveTdContext();
+      const tdContext = await resolveTdContext();
 
-      if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(context);
-      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(context);
-      if (id === RESOLVED_PAGES_ID) return virtualPages.load(context);
-      if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context);
+      if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(tdContext);
+      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(tdContext);
+      if (id === RESOLVED_PAGES_ID) return virtualPages.load(tdContext);
+      if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context!);
     },
 
     async configureServer (devServer) {
@@ -217,6 +217,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         virtualPages.invalidate(server);
         hmrFullReload(server);
         virtualSiteData.fetch(tdContext, server);
+      });
+
+      // Component contract changes require re-registering user components
+      tdContext.rpc.onComponentContractChanged(() => {
+        if (!server) return;
+        virtualApp.invalidate(server);
+        hmrFullReload(server);
       });
 
       // Invalidate a file's modules and send HMR update to the browser

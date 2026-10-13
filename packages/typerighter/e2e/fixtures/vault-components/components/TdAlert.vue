@@ -1,11 +1,17 @@
 <template>
-  <div class="td-alert" :data-kind="kind">
+  <div
+    class="td-alert"
+    :data-kind="kind"
+  >
     <slot />
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  kind?: string
-}>()
+const {
+  kind = undefined,
+} = defineProps<{
+  /** Alert severity */
+  kind?: string;
+}>();
 </script>
