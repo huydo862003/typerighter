@@ -43,7 +43,7 @@ e2e.describe('content', () => {
 
     await expect(editLink).toHaveAttribute(
       'href',
-      'https://github.com/test/repo/edit/main/notes/index.td',
+      'https://github.com/test/repo/edit/main/vault/notes/index.td',
     );
   });
 
