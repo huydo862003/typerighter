@@ -3,108 +3,206 @@
 
 use std::collections::HashSet;
 
+use crate::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use crate::syntax::diagnostic::Diagnostic;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_types::{get_bool_type, get_num_type};
+use crate::db::derived::check_custom_components::check_custom_components;
+use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use crate::db::derived::get_builtin_typs::{get_bool_typ, get_number_typ};
 use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::typechecker::actual_node_type::actual_node_type;
-use crate::db::derived::typechecker::expected_node_type::expected_node_type;
+use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 
-use crate::db::typecheck::utils::{is_nullable, is_subtype_of};
-use crate::db::types::derived::object_system::TdStaticType;
-use crate::db::types::{
-  HirValue, HirValueKind, InterpolatedPart, TdSchemaType, TdTypeEnum, TypecheckResult,
+use crate::db::types::derived::obj_system::TdStaticTyp;
+use crate::db::types::typecheck::{is_nullable, is_subtype_of};
+use crate::db::types::{ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult};
+use crate::syntax::ast::{
+  AstNode, Expr, IdentLit, SourceFile, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
-use crate::syntax::ast::{AstNode, YamlMapping};
 use typedown_incremental::QueryDatabase;
+use typedown_types::either::Either;
 
 #[query_derived(no_hash)]
-pub fn typecheck<'db>(db: &'db TypedownDatabase, hir: HirValue<'db>) -> TypecheckResult<'db> {
-  let type_result = actual_node_type(db, hir);
-  let mut diagnostics = type_result.diagnostics(db).clone();
+pub fn typecheck<'db>(
+  db: &'db TypedownDatabase,
+  project_node: ProjectRedNode,
+) -> TypecheckResult<'db> {
+  // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping for type resolution
+  let node = project_node.node.clone();
+  if let Some(source_file) = SourceFile::cast(node.clone()) {
+    let mut diags = check_custom_components(db, project_node.project, project_node.file)
+      .diagnostics(db)
+      .clone();
+    if let Some(frontmatter) = source_file.frontmatter()
+      && let Some(mapping) = frontmatter.mapping()
+    {
+      let mapping_node = ProjectRedNode::new(
+        project_node.project,
+        project_node.file,
+        mapping.syntax().clone(),
+      );
+      diags.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
+    }
+    return TypecheckResult::new(db, diags);
+  }
+  if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
+    if let Some(mapping) = frontmatter.mapping() {
+      let mapping_node = ProjectRedNode::new(
+        project_node.project,
+        project_node.file,
+        mapping.syntax().clone(),
+      );
+      return typecheck(db, mapping_node);
+    }
+    return TypecheckResult::new(db, vec![]);
+  }
+  let typ_result = actual_node_typ(db, project_node.clone());
+  let mut diagnostics = typ_result.diagnostics(db).clone();
 
   // Use expected type from schema if available, otherwise fall back to inferred type
-  let declared_type = match expected_node_type(db, hir).typ(db) {
+  let declared_typ = match expected_node_typ(db, project_node.clone()).typ(db) {
     Some(typ) => typ,
-    None => match type_result.typ(db) {
+    None => match typ_result.typ(db) {
       Some(typ) => typ,
       None => return TypecheckResult::new(db, diagnostics),
     },
   };
 
-  diagnostics.extend(typecheck_body(db, hir, &declared_type));
+  diagnostics.extend(typecheck_body(db, project_node, &declared_typ));
   TypecheckResult::new(db, diagnostics)
 }
 
-// Typecheck a HIR node against an externally provided expected type
+// Typecheck a node against an externally provided expected type
 pub fn typecheck_with_expected<'db>(
   db: &'db TypedownDatabase,
-  hir: HirValue<'db>,
-  expected_type: &TdTypeEnum<'db>,
+  project_node: ProjectRedNode,
+  expected_typ: &TdTypEnum<'db>,
 ) -> TypecheckResult<'db> {
-  let type_result = actual_node_type(db, hir);
-  let mut diagnostics = type_result.diagnostics(db).clone();
+  let typ_result = actual_node_typ(db, project_node.clone());
+  let mut diagnostics = typ_result.diagnostics(db).clone();
 
-  diagnostics.extend(typecheck_body(db, hir, expected_type));
+  diagnostics.extend(typecheck_body(db, project_node, expected_typ));
   TypecheckResult::new(db, diagnostics)
 }
 
 // Validate structure based on the node kind
 fn typecheck_body<'db>(
   db: &'db TypedownDatabase,
-  hir: HirValue<'db>,
-  declared_type: &TdTypeEnum<'db>,
+  project_node: ProjectRedNode,
+  declared_typ: &TdTypEnum<'db>,
 ) -> Vec<Diagnostic> {
+  let project = project_node.project;
+  let file = project_node.file;
+  let node = project_node.node.clone();
   let mut diagnostics = vec![];
 
-  match hir.kind(db) {
-    // Check mapping fields against declared schema type
-    HirValueKind::Mapping(entries) => {
-      diagnostics.extend(check_mapping_fields(db, hir, &entries, declared_type));
-    }
-    // Check tag inner matches the tag's schema
-    HirValueKind::Tag { inner, .. } => {
-      diagnostics.extend(check_tag(db, declared_type, *inner));
-    }
-    // Check call arity and arg types against function signature
-    HirValueKind::Call { callee, args } => {
-      diagnostics.extend(check_call(db, *callee, args));
-    }
-    // Check each item against the list's element type
-    HirValueKind::Sequence(items) => {
-      diagnostics.extend(check_sequence(db, declared_type, items));
-    }
-    // Typecheck each embedded expression in an interpolated string
-    HirValueKind::Interpolated(parts) | HirValueKind::Markdown(parts) => {
-      for part in parts {
-        if let InterpolatedPart::Expr(expr) = part {
-          let tc_result = typecheck(db, expr);
-          diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+  // Check mapping nodes (YamlMapping or DictLit)
+  if let Some(entries) = project_node.mapping_entries() {
+    return check_mapping_fields(db, project_node, &entries, declared_typ);
+  }
+
+  // Check sequence nodes (YamlSequence or ListLit)
+  if let Some(items) = project_node.sequence_items() {
+    return check_sequence(db, declared_typ, items);
+  }
+
+  // Dispatch on Expr variants
+  let Some(expr) = Expr::cast(node.clone()) else {
+    return diagnostics;
+  };
+
+  match expr {
+    Expr::BinaryExpr(binary) => {
+      let op_kind = binary.op().and_then(|op| op.kind());
+      match op_kind {
+        // Check tag inner matches the tag's schema
+        Some(YamlOpKind::Tag(_)) => {
+          if let Some(inner_expr) = binary.right() {
+            let inner_node = ProjectRedNode::new(project, file, inner_expr.syntax().clone());
+            diagnostics.extend(check_tag(db, declared_typ, inner_node));
+          }
+        }
+        // Check binary operand types
+        _ => {
+          let op_text = binary.op().map(|op| op.syntax().text()).unwrap_or_default();
+          if let (Some(left), Some(right)) = (binary.left(), binary.right()) {
+            let left_node = ProjectRedNode::new(project, file, left.syntax().clone());
+            let right_node = ProjectRedNode::new(project, file, right.syntax().clone());
+            diagnostics.extend(check_binary(db, &op_text, left_node, right_node));
+          }
         }
       }
     }
+    // Check call arity and arg types against function signature
+    Expr::CallExpr(call) => {
+      if let Some(callee_expr) = call.callee() {
+        let callee_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
+        let arg_nodes: Vec<_> = call
+          .args()
+          .into_iter()
+          .map(|arg| ProjectRedNode::new(project, file, arg.syntax().clone()))
+          .collect();
+        diagnostics.extend(check_call(db, callee_node, arg_nodes));
+      }
+    }
     // Check prefix operand type
-    HirValueKind::Prefix { op, operand } => {
-      diagnostics.extend(check_prefix(db, &op, *operand));
+    Expr::PrefixExpr(prefix) => {
+      let op_text = prefix.op().map(|op| op.syntax().text()).unwrap_or_default();
+      if let Some(operand_expr) = prefix.expr() {
+        let operand_node = ProjectRedNode::new(project, file, operand_expr.syntax().clone());
+        diagnostics.extend(check_prefix(db, &op_text, operand_node));
+      }
     }
     // Check postfix operand type
-    HirValueKind::Postfix { op, operand } => {
-      diagnostics.extend(check_postfix(db, &op, *operand));
-    }
-    // Check binary operand types
-    HirValueKind::Binary { op, left, right } => {
-      diagnostics.extend(check_binary(db, &op, *left, *right));
+    Expr::PostfixExpr(postfix) => {
+      let op_text = postfix
+        .op()
+        .map(|op| op.syntax().text())
+        .unwrap_or_default();
+      if let Some(operand_expr) = postfix.expr() {
+        let operand_node = ProjectRedNode::new(project, file, operand_expr.syntax().clone());
+        diagnostics.extend(check_postfix(db, &op_text, operand_node));
+      }
     }
     // Check index types against container key types
-    HirValueKind::Index { expr, indices } => {
-      diagnostics.extend(check_index(db, *expr, indices));
+    Expr::IndexExpr(index) => {
+      if let Some(expr_part) = index.expr() {
+        let expr_node = ProjectRedNode::new(project, file, expr_part.syntax().clone());
+        let index_nodes: Vec<_> = index
+          .indices()
+          .into_iter()
+          .map(|idx| ProjectRedNode::new(project, file, idx.syntax().clone()))
+          .collect();
+        diagnostics.extend(check_index(db, expr_node, index_nodes));
+      }
     }
     // Recurse into closure body
-    HirValueKind::Closure { body, .. } => {
-      let tc_result = typecheck(db, *body);
-      diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+    Expr::ClosureExpr(closure) => {
+      if let Some(body_expr) = closure.body() {
+        let body_node = ProjectRedNode::new(project, file, body_expr.syntax().clone());
+        let typecheck_result = typecheck(db, body_node);
+        diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
+      }
+    }
+    // Recurse into parenthesized expression
+    Expr::ParenExpr(paren) => {
+      if let Some(inner_expr) = paren.expr() {
+        let inner_node = ProjectRedNode::new(project, file, inner_expr.syntax().clone());
+        diagnostics.extend(typecheck_body(db, inner_node, declared_typ));
+      }
+    }
+    // Typecheck each embedded expression in an interpolated string
+    Expr::StrLit(str_lit) => {
+      for fragment in str_lit.fragments() {
+        if let Either::Right(interp) = fragment
+          && let Some(expr) = interp.expr()
+        {
+          let expr_node = ProjectRedNode::new(project, file, expr.syntax().clone());
+          let typecheck_result = typecheck(db, expr_node);
+          diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
+        }
+      }
     }
     _ => {}
   }
@@ -114,121 +212,149 @@ fn typecheck_body<'db>(
 
 fn check_mapping_fields<'db>(
   db: &'db TypedownDatabase,
-  mapping_hir: HirValue<'db>,
-  entries: &[(String, HirValue<'db>)],
-  expected_type: &TdTypeEnum<'db>,
+  mapping_node: ProjectRedNode,
+  entries: &[(String, ProjectRedNode)],
+  expected_typ: &TdTypEnum<'db>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
-  let declared_fields = expected_type.get_fields(db);
+  let declared_fields = expected_typ.get_fields(db);
 
-  for (key, value_hir) in entries {
+  for (key, value_node) in entries {
     // _type requires the value to resolve to a schema symbol
     if key == "_type" {
-      let resolved = referee(db, *value_hir);
+      let resolved = referee(db, value_node.clone());
       if let Some(symbol) = resolved.value(db)
         && !symbol.kind(db).is_schema()
       {
-        let node = value_hir.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypeMismatch {
+        let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
+        diagnostics.push(Diagnostic::FieldTypMismatch {
           field: "_type".to_string(),
           expected: "schema".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
       continue;
     }
     // Built-in fields (_label, _icon) have fixed types
-    if let Some(builtin_type) = TdSchemaType::builtin_field_type(db, key) {
-      let value_result = actual_node_type(db, *value_hir);
-      if let Some(actual_type) = value_result.typ(db)
-        && !is_subtype_of(db, &actual_type, &builtin_type)
+    if let Some(builtin_typ) = TdSchemaTyp::builtin_field_typ(db, key) {
+      let value_result = actual_node_typ(db, value_node.clone());
+      if let Some(actual_typ) = value_result.typ(db)
+        && !is_subtype_of(db, &actual_typ, &builtin_typ)
       {
-        let node = value_hir.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypeMismatch {
+        let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
+        diagnostics.push(Diagnostic::FieldTypMismatch {
           field: key.clone(),
-          expected: builtin_type.display_name(db),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          expected: builtin_typ.display_name(db),
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
       continue;
     }
     if let Some(field_lazy) = declared_fields.get(key) {
-      if let Some(field_type) = field_lazy.resolve(db) {
+      if let Some(field_typ) = field_lazy.resolve(db) {
         // Recursively typecheck the field value
-        let tc_result = typecheck(db, *value_hir);
-        diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+        let typecheck_result = typecheck(db, value_node.clone());
+        diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
         // Check synthesized type against expected field type
-        let value_result = actual_node_type(db, *value_hir);
-        let is_optional = is_nullable(db, &field_type);
+        let value_result = actual_node_typ(db, value_node.clone());
+        let is_optional = is_nullable(db, &field_typ);
+        // Skip structural subtype check for schema declaration fields that hold mappings:
+        // schema metatype fields like `properties` are validated structurally during
+        // schema member resolution, not via subtype comparison here.
+        let is_schema_meta_mapping =
+          expected_typ.as_td_schema_meta_typ().is_some() && value_node.mapping_entries().is_some();
         match value_result.typ(db) {
-          Some(actual_type) if !is_subtype_of(db, &actual_type, &field_type) => {
-            let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypeMismatch {
+          Some(actual_typ)
+            if !is_subtype_of(db, &actual_typ, &field_typ) && !is_schema_meta_mapping =>
+          {
+            let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
+            diagnostics.push(Diagnostic::FieldTypMismatch {
               field: key.clone(),
-              expected: field_type.display_name(db),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
+              expected: field_typ.display_name(db),
+              start_offset: trimmed_offset,
+              end_offset: trimmed_offset + trimmed_len,
             });
           }
           // Unresolved identifier used as a field value
-          None if matches!(value_hir.kind(db), HirValueKind::Ident(_)) => {
-            let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
+          None if IdentLit::cast(value_node.node.clone()).is_some() => {
+            let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
             diagnostics.push(Diagnostic::UnresolvedSchema {
-              name: node.text(),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
+              name: value_node.node.text(),
+              start_offset: trimmed_offset,
+              end_offset: trimmed_offset + trimmed_len,
             });
           }
-          // Null on a non-optional field is a type error
+          // Unknown value type on a required field: treat as type mismatch
           None if !is_optional => {
-            let node = value_hir.node(db);
-            let (tr_offset, tr_len) = node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypeMismatch {
+            let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
+            diagnostics.push(Diagnostic::FieldTypMismatch {
               field: key.clone(),
-              expected: field_type.display_name(db),
-              start_offset: tr_offset,
-              end_offset: tr_offset + tr_len,
+              expected: field_typ.display_name(db),
+              start_offset: trimmed_offset,
+              end_offset: trimmed_offset + trimmed_len,
             });
           }
           Some(_) | None => {}
         }
       }
-    } else if expected_type.as_td_schema_type().is_some() && !key.starts_with('_') {
+    } else if expected_typ.as_td_schema_typ().is_some() && !key.starts_with('_') {
       // Excess property: key not declared on the schema
-      let (start_offset, end_offset) = YamlMapping::cast(mapping_hir.node(db).node.clone())
-        .and_then(|m| m.find_entry(key))
-        .and_then(|e| e.key_node())
-        .map(|n| n.trimmed_range())
-        .unwrap_or_else(|| value_hir.node(db).trimmed_range());
+      let (start_offset, end_offset) = YamlMapping::cast(mapping_node.node.clone())
+        .and_then(|mapping| mapping.find_entry(key))
+        .and_then(|entry| entry.key_node())
+        .map(|node| node.trimmed_range())
+        .unwrap_or_else(|| value_node.node.trimmed_range());
       diagnostics.push(Diagnostic::UnknownField {
         field: key.clone(),
-        on_type: expected_type.display_name(db),
+        on_typ: expected_typ.display_name(db),
         start_offset,
         end_offset,
       });
     }
   }
 
+  // For schema metatype, validate that each property descriptor mapping has a required `type` field.
+  // Full subtype checking against SchemaProperty is skipped because descriptor values use
+  // type-expression syntax (e.g. `string | null`, `list[string]?`) that actual_node_typ
+  // cannot evaluate as plain values.
+  if expected_typ.as_td_schema_meta_typ().is_some() {
+    for (key, value_node) in entries {
+      if key == "properties"
+        && let Some(descriptors) = value_node.mapping_entries()
+      {
+        for (_, descriptor_node) in &descriptors {
+          if let Some(descriptor_entries) = descriptor_node.mapping_entries() {
+            let has_type_field = descriptor_entries.iter().any(|(k, _)| k == "type");
+            if !has_type_field {
+              let (offset, len) = descriptor_node.node.trimmed_range();
+              diagnostics.push(Diagnostic::MissingRequiredField {
+                field: "type".to_string(),
+                start_offset: offset,
+                end_offset: offset + len,
+              });
+            }
+          }
+        }
+      }
+    }
+    return diagnostics;
+  }
+
   // Check required fields are present (null values are checked above)
-  let mapping_node = mapping_hir.node(db);
-  let (tr_offset, tr_len) = mapping_node.trimmed_range();
+  let (trimmed_offset, trimmed_len) = mapping_node.node.trimmed_range();
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
 
-  let default_fields: HashSet<String> = expected_type
-    .as_td_schema_type()
+  let default_fields: HashSet<String> = expected_typ
+    .as_td_schema_typ()
     .map(|p| {
       p.fields(db)
         .iter()
-        .filter_map(|(k, desc)| {
-          if desc.default_value.is_some() {
-            Some(k.clone())
+        .filter_map(|(key, descriptor)| {
+          if descriptor.default_value.is_some() {
+            Some(key.clone())
           } else {
             None
           }
@@ -238,13 +364,15 @@ fn check_mapping_fields<'db>(
     .unwrap_or_default();
 
   for (field_name, field_lazy) in declared_fields {
-    let is_optional = field_lazy.resolve(db).is_some_and(|t| is_nullable(db, &t))
+    let is_optional = field_lazy
+      .resolve(db)
+      .is_some_and(|typ| is_nullable(db, &typ))
       || default_fields.contains(&field_name);
     if !is_optional && !present_keys.contains(field_name.as_str()) {
       diagnostics.push(Diagnostic::MissingRequiredField {
         field: field_name,
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -254,82 +382,78 @@ fn check_mapping_fields<'db>(
 
 fn check_tag<'db>(
   db: &'db TypedownDatabase,
-  expected_type: &TdTypeEnum<'db>,
-  inner: HirValue<'db>,
+  expected_typ: &TdTypEnum<'db>,
+  inner: ProjectRedNode,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
-  let inner_result = actual_node_type(db, inner);
+  let inner_result = actual_node_typ(db, inner.clone());
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
-  if let Some(actual_type) = inner_result.typ(db)
-    && !is_subtype_of(db, &actual_type, expected_type)
+  if let Some(actual_typ) = inner_result.typ(db)
+    && !is_subtype_of(db, &actual_typ, expected_typ)
   {
-    let node = inner.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
-    diagnostics.push(Diagnostic::TagTypeMismatch {
-      expected: expected_type.display_name(db),
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+    let (trimmed_offset, trimmed_len) = inner.node.trimmed_range();
+    diagnostics.push(Diagnostic::TagTypMismatch {
+      expected: expected_typ.display_name(db),
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
   }
   diagnostics
 }
 
-fn check_call<'db>(
-  db: &'db TypedownDatabase,
-  callee: HirValue<'db>,
-  args: Vec<HirValue<'db>>,
+fn check_call(
+  db: &TypedownDatabase,
+  callee: ProjectRedNode,
+  args: Vec<ProjectRedNode>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let callee_result = actual_node_type(db, callee);
+  let callee_result = actual_node_typ(db, callee.clone());
   diagnostics.extend(callee_result.diagnostics(db).iter().cloned());
 
-  let callee_type = match callee_result.typ(db) {
+  let callee_typ = match callee_result.typ(db) {
     Some(typ) => typ,
     None => return diagnostics,
   };
 
-  let arg_types: Vec<TdTypeEnum> = args
+  let arg_typs: Vec<TdTypEnum> = args
     .iter()
-    .filter_map(|arg| actual_node_type(db, *arg).typ(db))
+    .filter_map(|arg| actual_node_typ(db, arg.clone()).typ(db))
     .collect();
 
-  let Some(sig) = callee_type.call_type(db, arg_types) else {
-    let node = callee.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
+  let Some(signature) = callee_typ.call_typ(db, arg_typs) else {
+    let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
     diagnostics.push(Diagnostic::NotCallable {
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
     return diagnostics;
   };
 
-  let params = sig.params(db);
+  let params = signature.params(db);
 
   if params.len() != args.len() {
-    let node = callee.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
+    let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
     diagnostics.push(Diagnostic::WrongArgCount {
       expected: params.len(),
       got: args.len(),
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
     return diagnostics;
   }
 
-  for (param, arg_hir) in params.iter().zip(args.iter()) {
-    let arg_result = actual_node_type(db, *arg_hir);
+  for (param, arg_node) in params.iter().zip(args.iter()) {
+    let arg_result = actual_node_typ(db, arg_node.clone());
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
     if let Some(arg_type) = arg_result.typ(db)
       && !is_subtype_of(db, &arg_type, param)
     {
-      let node = arg_hir.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::ArgTypeMismatch {
+      let (trimmed_offset, trimmed_len) = arg_node.node.trimmed_range();
+      diagnostics.push(Diagnostic::ArgTypMismatch {
         expected: param.display_name(db),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -337,25 +461,38 @@ fn check_call<'db>(
   diagnostics
 }
 
-fn check_index<'db>(
-  db: &'db TypedownDatabase,
-  expr: HirValue<'db>,
-  indices: Vec<HirValue<'db>>,
+fn check_index(
+  db: &TypedownDatabase,
+  expr: ProjectRedNode,
+  indices: Vec<ProjectRedNode>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let expr_result = actual_node_type(db, expr);
+  let expr_result = actual_node_typ(db, expr.clone());
   diagnostics.extend(expr_result.diagnostics(db).iter().cloned());
 
-  let expr_type = match expr_result.typ(db) {
+  let expr_typ = match expr_result.typ(db) {
     Some(typ) => typ,
     None => return diagnostics,
   };
 
   // Unwrap literal types to their underlying type
-  let expr_type = match &expr_type {
-    TdTypeEnum::TdLiteralType(lit) => lit.underlying_type(db),
-    _ => expr_type,
+  let expr_type = match &expr_typ {
+    TdTypEnum::TdLitTyp(lit) => lit.underlying_typ(db),
+    _ => expr_typ,
+  };
+
+  // If the base expr resolves to a type constructor (e.g. `list` in `list[string]`),
+  // use the generic type's arity instead of the metatype (TdTypTyp has arity 0).
+  let expr_type = if expr_type.arity(db) == 0
+    && IdentLit::cast(expr.node.clone()).is_some()
+    && let Some(symbol) = referee(db, expr.clone()).value(db)
+    && let Some(generic_typ) = evaluate_typ(db, symbol).typ(db)
+    && generic_typ.arity(db) > 0
+  {
+    generic_typ
+  } else {
+    expr_type
   };
 
   // Type instantiation: no checking is needed because we do not support type bound, only check arity
@@ -364,19 +501,18 @@ fn check_index<'db>(
   }
 
   // List element access: index must be a number
-  if expr_type.is_td_list_type() {
-    for idx_hir in &indices {
-      let idx_result = actual_node_type(db, *idx_hir);
-      diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
-      if let Some(idx_type) = idx_result.typ(db) {
-        let num_type = get_num_type(db);
-        if !is_subtype_of(db, &idx_type, &num_type.into()) {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypeMismatch {
+  if expr_type.is_td_list_typ() {
+    for index_node in &indices {
+      let index_result = actual_node_typ(db, index_node.clone());
+      diagnostics.extend(index_result.diagnostics(db).iter().cloned());
+      if let Some(index_typ) = index_result.typ(db) {
+        let number_typ = get_number_typ(db);
+        if !is_subtype_of(db, &index_typ, &number_typ.into()) {
+          let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
+          diagnostics.push(Diagnostic::IndexTypMismatch {
             expected: "number".to_string(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
       }
@@ -385,20 +521,19 @@ fn check_index<'db>(
   }
 
   // Dict element access: index must match key type
-  if let TdTypeEnum::TdDictType(dict) = &expr_type {
+  if let TdTypEnum::TdDictTyp(dict) = &expr_type {
     if let Some(key_type) = dict.key(db).and_then(|l| l.resolve(db)) {
-      for idx_hir in &indices {
-        let idx_result = actual_node_type(db, *idx_hir);
-        diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
-        if let Some(idx_type) = idx_result.typ(db)
-          && !is_subtype_of(db, &idx_type, &key_type)
+      for index_node in &indices {
+        let index_result = actual_node_typ(db, index_node.clone());
+        diagnostics.extend(index_result.diagnostics(db).iter().cloned());
+        if let Some(index_type) = index_result.typ(db)
+          && !is_subtype_of(db, &index_type, &key_type)
         {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypeMismatch {
+          let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
+          diagnostics.push(Diagnostic::IndexTypMismatch {
             expected: key_type.display_name(db),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
       }
@@ -407,19 +542,18 @@ fn check_index<'db>(
   }
 
   // String indexing is valid: index must be a number
-  if expr_type.is_td_str_type() {
-    for idx_hir in &indices {
-      let idx_result = actual_node_type(db, *idx_hir);
-      diagnostics.extend(idx_result.diagnostics(db).iter().cloned());
-      if let Some(idx_type) = idx_result.typ(db) {
-        let num_type = get_num_type(db);
-        if !is_subtype_of(db, &idx_type, &num_type.into()) {
-          let node = idx_hir.node(db);
-          let (tr_offset, tr_len) = node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypeMismatch {
+  if expr_type.is_td_string_typ() {
+    for index_node in &indices {
+      let index_result = actual_node_typ(db, index_node.clone());
+      diagnostics.extend(index_result.diagnostics(db).iter().cloned());
+      if let Some(index_type) = index_result.typ(db) {
+        let number_typ = get_number_typ(db);
+        if !is_subtype_of(db, &index_type, &number_typ.into()) {
+          let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
+          diagnostics.push(Diagnostic::IndexTypMismatch {
             expected: "number".to_string(),
-            start_offset: tr_offset,
-            end_offset: tr_offset + tr_len,
+            start_offset: trimmed_offset,
+            end_offset: trimmed_offset + trimmed_len,
           });
         }
       }
@@ -428,74 +562,63 @@ fn check_index<'db>(
   }
 
   // Not indexable
-  let node = expr.node(db);
-  let (tr_offset, tr_len) = node.trimmed_range();
+  let (trimmed_offset, trimmed_len) = expr.node.trimmed_range();
   diagnostics.push(Diagnostic::NotIndexable {
-    start_offset: tr_offset,
-    end_offset: tr_offset + tr_len,
+    start_offset: trimmed_offset,
+    end_offset: trimmed_offset + trimmed_len,
   });
 
   diagnostics
 }
 
-fn check_prefix<'db>(
-  db: &'db TypedownDatabase,
-  op: &str,
-  operand: HirValue<'db>,
-) -> Vec<Diagnostic> {
+fn check_prefix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let tc_result = typecheck(db, operand);
-  diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+  let typecheck_result = typecheck(db, operand.clone());
+  diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
-  let operand_result = actual_node_type(db, operand);
-  let operand_type = match operand_result.typ(db) {
+  let operand_result = actual_node_typ(db, operand.clone());
+  let operand_typ = match operand_result.typ(db) {
     Some(typ) => typ,
     None => return diagnostics,
   };
 
-  let expected_type: TdTypeEnum = match op {
-    "-" | "+" => get_num_type(db).into(),
+  let expected_typ: TdTypEnum = match op {
+    "-" | "+" => get_number_typ(db).into(),
     // ~ is logical not: accepts any type (only null and false are falsy)
     "~" => return diagnostics,
     _ => return diagnostics,
   };
 
-  if !is_subtype_of(db, &operand_type, &expected_type) {
-    let node = operand.node(db);
-    let (tr_offset, tr_len) = node.trimmed_range();
-    diagnostics.push(Diagnostic::OperandTypeMismatch {
+  if !is_subtype_of(db, &operand_typ, &expected_typ) {
+    let (trimmed_offset, trimmed_len) = operand.node.trimmed_range();
+    diagnostics.push(Diagnostic::OperandTypMismatch {
       op: op.to_string(),
-      expected: expected_type.display_name(db),
-      start_offset: tr_offset,
-      end_offset: tr_offset + tr_len,
+      expected: expected_typ.display_name(db),
+      start_offset: trimmed_offset,
+      end_offset: trimmed_offset + trimmed_len,
     });
   }
 
   diagnostics
 }
 
-fn check_postfix<'db>(
-  db: &'db TypedownDatabase,
-  op: &str,
-  operand: HirValue<'db>,
-) -> Vec<Diagnostic> {
+fn check_postfix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
-  let tc_result = typecheck(db, operand);
-  diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+  let typecheck_result = typecheck(db, operand.clone());
+  diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
   if op == "?" {
-    let operand_result = actual_node_type(db, operand);
+    let operand_result = actual_node_typ(db, operand.clone());
     if let Some(operand_type) = operand_result.typ(db)
-      && !operand_type.is_type(db)
+      && !operand_type.is_typ(db)
     {
-      let node = operand.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::OperandTypeMismatch {
+      let (trimmed_offset, trimmed_len) = operand.node.trimmed_range();
+      diagnostics.push(Diagnostic::OperandTypMismatch {
         op: "?".to_string(),
         expected: "type".to_string(),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -503,76 +626,72 @@ fn check_postfix<'db>(
   diagnostics
 }
 
-fn check_binary<'db>(
-  db: &'db TypedownDatabase,
+fn check_binary(
+  db: &TypedownDatabase,
   op: &str,
-  left: HirValue<'db>,
-  right: HirValue<'db>,
+  left: ProjectRedNode,
+  right: ProjectRedNode,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
-  let tc_left = typecheck(db, left);
-  diagnostics.extend(tc_left.diagnostics(db).iter().cloned());
-  let tc_right = typecheck(db, right);
-  diagnostics.extend(tc_right.diagnostics(db).iter().cloned());
+  let typecheck_left = typecheck(db, left.clone());
+  diagnostics.extend(typecheck_left.diagnostics(db).iter().cloned());
+  let typecheck_right = typecheck(db, right.clone());
+  diagnostics.extend(typecheck_right.diagnostics(db).iter().cloned());
 
-  let left_type = actual_node_type(db, left).typ(db);
-  let right_type = actual_node_type(db, right).typ(db);
+  let left_typ_result = actual_node_typ(db, left.clone()).typ(db);
+  let right_typ_result = actual_node_typ(db, right.clone()).typ(db);
 
   match op {
     // Arithmetic: both operands must be number
     "+" | "-" | "*" | "/" | "%" | "**" => {
-      let num_type: TdTypeEnum = get_num_type(db).into();
-      if let Some(lt) = &left_type
-        && !is_subtype_of(db, lt, &num_type)
+      let number_typ: TdTypEnum = get_number_typ(db).into();
+      if let Some(left_typ) = &left_typ_result
+        && !is_subtype_of(db, left_typ, &number_typ)
       {
-        let node = left.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = left.node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "number".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
-      if let Some(rt) = &right_type
-        && !is_subtype_of(db, rt, &num_type)
+      if let Some(right_typ) = &right_typ_result
+        && !is_subtype_of(db, right_typ, &number_typ)
       {
-        let node = right.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = right.node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "number".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
     }
     // Logical: both operands must be boolean
     "&&" | "||" => {
-      let bool_type: TdTypeEnum = get_bool_type(db).into();
-      if let Some(lt) = &left_type
-        && !is_subtype_of(db, lt, &bool_type)
+      let bool_typ: TdTypEnum = get_bool_typ(db).into();
+      if let Some(left_typ) = &left_typ_result
+        && !is_subtype_of(db, left_typ, &bool_typ)
       {
-        let node = left.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = left.node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "boolean".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
-      if let Some(rt) = &right_type
-        && !is_subtype_of(db, rt, &bool_type)
+      if let Some(right_type) = &right_typ_result
+        && !is_subtype_of(db, right_type, &bool_typ)
       {
-        let node = right.node(db);
-        let (tr_offset, tr_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypeMismatch {
+        let (trimmed_offset, trimmed_len) = right.node.trimmed_range();
+        diagnostics.push(Diagnostic::OperandTypMismatch {
           op: op.to_string(),
           expected: "boolean".to_string(),
-          start_offset: tr_offset,
-          end_offset: tr_offset + tr_len,
+          start_offset: trimmed_offset,
+          end_offset: trimmed_offset + trimmed_len,
         });
       }
     }
@@ -586,17 +705,17 @@ fn check_binary<'db>(
 
 fn check_sequence<'db>(
   db: &'db TypedownDatabase,
-  declared_type: &TdTypeEnum<'db>,
-  items: Vec<HirValue<'db>>,
+  declared_typ: &TdTypEnum<'db>,
+  items: Vec<ProjectRedNode>,
 ) -> Vec<Diagnostic> {
   let mut diagnostics = vec![];
 
   // Get the element type from the list type
-  let Some(list) = declared_type.as_td_list_type() else {
+  let Some(list) = declared_typ.as_td_list_typ() else {
     return diagnostics;
   };
 
-  let elem_type = match list.elem(db).and_then(|e| e.resolve(db)) {
+  let element_typ = match list.element(db).and_then(|e| e.resolve(db)) {
     Some(typ) => typ,
     // Uninstantiated list: no element type constraint
     None => return diagnostics,
@@ -604,20 +723,19 @@ fn check_sequence<'db>(
 
   for item in items {
     // Recursively typecheck each item
-    let tc_result = typecheck(db, item);
-    diagnostics.extend(tc_result.diagnostics(db).iter().cloned());
+    let typcheck_result = typecheck(db, item.clone());
+    diagnostics.extend(typcheck_result.diagnostics(db).iter().cloned());
 
     // Check item type against element type
-    let item_result = actual_node_type(db, item);
+    let item_result = actual_node_typ(db, item.clone());
     if let Some(item_type) = item_result.typ(db)
-      && !is_subtype_of(db, &item_type, &elem_type)
+      && !is_subtype_of(db, &item_type, &element_typ)
     {
-      let node = item.node(db);
-      let (tr_offset, tr_len) = node.trimmed_range();
-      diagnostics.push(Diagnostic::ElementTypeMismatch {
-        expected: elem_type.display_name(db),
-        start_offset: tr_offset,
-        end_offset: tr_offset + tr_len,
+      let (trimmed_offset, trimmed_len) = item.node.trimmed_range();
+      diagnostics.push(Diagnostic::ElementTypMismatch {
+        expected: element_typ.display_name(db),
+        start_offset: trimmed_offset,
+        end_offset: trimmed_offset + trimmed_len,
       });
     }
   }
@@ -628,16 +746,17 @@ fn check_sequence<'db>(
 #[cfg(test)]
 mod tests {
   use crate::db::{
-    derived::typechecker::typecheck::typecheck, fixtures::load_vault_fixture, utils::lower_file,
+    derived::parse_file::parse_file, derived::typechecker::typecheck::typecheck,
+    fixtures::load_vault_fixture,
   };
   use crate::syntax::diagnostic::Diagnostic;
 
   // Mapping without _type: infers product type, no validation errors
   #[test]
-  fn typecheck_mapping_without_type_infers_product_no_errors() {
+  fn typecheck_mapping_without_typ_infers_product_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "mapping without _type infers product type, no errors expected: {:?}",
@@ -647,10 +766,10 @@ mod tests {
 
   // _type references a non-existent schema
   #[test]
-  fn typecheck_unresolved_type_has_diagnostics() {
+  fn typecheck_unresolved_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unresolved_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "expected diagnostics for unresolved schema"
@@ -660,8 +779,8 @@ mod tests {
   #[test]
   fn typecheck_mapping_with_ident_value() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "ident_value.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "expected no diagnostics, got: {:?}",
@@ -672,13 +791,13 @@ mod tests {
   #[test]
   fn typecheck_excess_field_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "excess_field.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diags = result.diagnostics(&db);
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::UnknownField { field, on_type, .. } if field == "favorite_color" && on_type == "Person")),
+        .any(|d| matches!(d, Diagnostic::UnknownField { field, on_typ, .. } if field == "favorite_color" && on_typ == "Person")),
       "expected UnknownField for 'favorite_color', got: {:?}",
       diags
     );
@@ -688,14 +807,13 @@ mod tests {
   fn typecheck_schema_missing_properties_has_diagnostics() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "schema_missing_properties.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diags = result.diagnostics(&db);
+    // properties is optional: a schema without it is valid
     assert!(
-      diags.iter().any(
-        |d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "properties")
-      ),
-      "expected MissingRequiredField for 'properties', got: {:?}",
+      diags.is_empty(),
+      "schema without properties should have no errors, got: {:?}",
       diags
     );
   }
@@ -703,8 +821,8 @@ mod tests {
   #[test]
   fn typecheck_valid_person_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "valid Person should have no errors: {:?}",
@@ -713,13 +831,13 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_wrong_field_type_has_diagnostics() {
+  fn typecheck_wrong_field_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "wrong_field_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diags = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, expected, .. } if field == "name" && expected == "string")),
+      diags.iter().any(|d| matches!(d, Diagnostic::FieldTypMismatch { field, expected, .. } if field == "name" && expected == "string")),
       "expected FieldTypeMismatch for 'name' with expected 'string', got: {:?}",
       diags
     );
@@ -728,8 +846,8 @@ mod tests {
   #[test]
   fn typecheck_nested_valid_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "valid nested PersonWithAddress should have no errors: {:?}",
@@ -740,13 +858,13 @@ mod tests {
   #[test]
   fn typecheck_nested_wrong_type_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_wrong_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     let diags = result.diagnostics(&db);
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "address")),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { field, .. } if field == "address")),
       "expected FieldTypeMismatch for 'address', got: {:?}",
       diags
     );
@@ -755,8 +873,8 @@ mod tests {
   #[test]
   fn typecheck_prefix_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "unary minus on number should have no errors: {:?}",
@@ -765,15 +883,15 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_prefix_wrong_type() {
+  fn typecheck_prefix_wrong_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_wrong_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
       "expected OperandTypeMismatch"
     );
   }
@@ -781,8 +899,8 @@ mod tests {
   #[test]
   fn typecheck_binary_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "binary addition should have no errors: {:?}",
@@ -791,15 +909,15 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_binary_wrong_type() {
+  fn typecheck_binary_wrong_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_wrong_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::OperandTypMismatch { .. })),
       "expected OperandTypeMismatch"
     );
   }
@@ -807,8 +925,8 @@ mod tests {
   #[test]
   fn typecheck_math_field_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_math.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "math field should typecheck: {:?}",
@@ -819,8 +937,8 @@ mod tests {
   #[test]
   fn typecheck_markdown_body_with_interpolation() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_markdown.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "markdown body should typecheck: {:?}",
@@ -829,10 +947,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_literal_type_valid() {
+  fn typecheck_literal_typ_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_status.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "state: \"draft\" should match: {:?}",
@@ -841,15 +959,15 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_literal_type_mismatch() {
+  fn typecheck_literal_typ_mismatch() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "invalid_status.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "state")),
+        .any(|d| matches!(d, Diagnostic::FieldTypMismatch { field, .. } if field == "state")),
       "state mismatch expected"
     );
   }
@@ -857,8 +975,8 @@ mod tests {
   #[test]
   fn typecheck_date_time_fields_accept_quoted_strings() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_event.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "date/time fields should accept strings: {:?}",
@@ -869,8 +987,8 @@ mod tests {
   #[test]
   fn typecheck_string_with_inline_math_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "math_in_string.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "string with inline math: {:?}",
@@ -881,8 +999,8 @@ mod tests {
   #[test]
   fn typecheck_string_with_multiple_inline_math_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "math_mixed_string.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "multiple inline math: {:?}",
@@ -893,8 +1011,8 @@ mod tests {
   #[test]
   fn typecheck_math_only_string_as_math_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "math_only_string.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "math-only string: {:?}",
@@ -903,10 +1021,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_list_type_no_errors() {
+  fn typecheck_schema_with_list_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithListType.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "schema with list[string]: {:?}",
@@ -917,8 +1035,8 @@ mod tests {
   #[test]
   fn typecheck_circular_schema_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/CircularA.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "circular schema: {:?}",
@@ -927,10 +1045,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_bare_user_type_ref() {
+  fn typecheck_schema_with_bare_user_typ_ref() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithBareRef.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "bare ref: {:?}",
@@ -941,8 +1059,8 @@ mod tests {
   #[test]
   fn typecheck_schema_with_self_ref() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/SelfRef.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "self ref: {:?}",
@@ -951,10 +1069,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_list_of_user_type_no_errors() {
+  fn typecheck_schema_with_list_of_user_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithRefList.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "list[Person]: {:?}",
@@ -965,8 +1083,8 @@ mod tests {
   #[test]
   fn typecheck_circular_content_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "circular_ref.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "circular ref: {:?}",
@@ -977,8 +1095,8 @@ mod tests {
   #[test]
   fn typecheck_schema_simple_props_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/SimpleProps.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "simple props: {:?}",
@@ -989,9 +1107,9 @@ mod tests {
   #[test]
   fn typecheck_schema_with_optional_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithOptional.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let hir = hir.unwrap();
-    let result = typecheck(&db, hir);
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let root_node = root_node;
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "optional: {:?}",
@@ -1004,8 +1122,8 @@ mod tests {
   fn typecheck_schema_with_postfix_optional_no_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/WithPostfixOptional.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "postfix optional schema: {:?}",
@@ -1017,8 +1135,8 @@ mod tests {
   #[test]
   fn typecheck_content_with_postfix_optional_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "with_postfix_optional.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "content with postfix optional fields should have no errors: {:?}",
@@ -1029,8 +1147,8 @@ mod tests {
   #[test]
   fn typecheck_schema_with_pipe_union_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithPipeUnion.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "pipe union schema: {:?}",
@@ -1041,8 +1159,8 @@ mod tests {
   #[test]
   fn typecheck_content_with_pipe_union_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_pipe_union.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "valid pipe union content: {:?}",
@@ -1053,8 +1171,8 @@ mod tests {
   #[test]
   fn typecheck_content_with_pipe_union_invalid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "invalid_pipe_union.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "invalid pipe union content should have errors"
@@ -1062,11 +1180,11 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_explicit_type_tag_no_errors() {
+  fn typecheck_schema_with_explicit_typ_tag_no_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/WithExplicitTypeTag.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "explicit type tag: {:?}",
@@ -1075,10 +1193,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_union_type_no_errors() {
+  fn typecheck_schema_with_union_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithUnion.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "union: {:?}",
@@ -1087,10 +1205,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_nested_type_no_errors() {
+  fn typecheck_schema_with_nested_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithNestedType.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "nested type: {:?}",
@@ -1099,10 +1217,10 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_with_literal_type_no_errors() {
+  fn typecheck_schema_with_lit_typ_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithLiteralType.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "literal type: {:?}",
@@ -1114,8 +1232,8 @@ mod tests {
   fn typecheck_schema_properties_not_mapping_has_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/PropertiesNotMapping.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "non-mapping properties should error"
@@ -1126,13 +1244,13 @@ mod tests {
   fn typecheck_schema_missing_properties_field() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/MissingProperties.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    // properties is optional: a schema without it is valid
     assert!(
-      result.diagnostics(&db).iter().any(
-        |d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "properties")
-      ),
-      "missing properties"
+      result.diagnostics(&db).is_empty(),
+      "schema without properties should have no errors: {:?}",
+      result.diagnostics(&db)
     );
   }
 
@@ -1140,8 +1258,8 @@ mod tests {
   fn typecheck_schema_prop_descriptor_extra_field_no_typecheck_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/PropDescriptorExtraField.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "extra fields: {:?}",
@@ -1150,11 +1268,11 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_schema_prop_descriptor_missing_type_has_errors() {
+  fn typecheck_schema_prop_descriptor_missing_typ_has_errors() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "_types/PropDescriptorMissingType.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "missing type in prop descriptor should error"
@@ -1164,8 +1282,8 @@ mod tests {
   #[test]
   fn typecheck_valid_list_sum_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "valid_list_sum.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "string | number should accept \"hello\": {:?}",
@@ -1176,16 +1294,16 @@ mod tests {
   #[test]
   fn typecheck_invalid_list_sum_has_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "invalid_list_sum.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(!result.diagnostics(&db).is_empty(), "should reject true");
   }
 
   #[test]
   fn typecheck_valid_dict_sum_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "valid_dict_sum.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "dict sum: {:?}",
@@ -1196,16 +1314,16 @@ mod tests {
   #[test]
   fn typecheck_invalid_dict_sum_has_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "invalid_dict_sum.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(!result.diagnostics(&db).is_empty(), "should reject boolean");
   }
 
   #[test]
   fn typecheck_mixed_union_accepts_string() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "mixed_union_string.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "mixed union string: {:?}",
@@ -1217,8 +1335,8 @@ mod tests {
   fn typecheck_mixed_union_accepts_literal() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "mixed_union_literal.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "mixed union literal: {:?}",
@@ -1229,8 +1347,8 @@ mod tests {
   #[test]
   fn typecheck_mixed_union_accepts_number() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "mixed_union_number.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "mixed union number: {:?}",
@@ -1242,16 +1360,16 @@ mod tests {
   fn typecheck_mixed_union_rejects_bool() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "mixed_union_invalid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(!result.diagnostics(&db).is_empty(), "should reject true");
   }
 
   #[test]
   fn typecheck_nested_product_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "nested_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "nested valid: {:?}",
@@ -1260,18 +1378,18 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_nested_product_wrong_field_type() {
+  fn typecheck_nested_product_wrong_field_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "nested_wrong_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(!result.diagnostics(&db).is_empty(), "should fail");
   }
 
   #[test]
   fn typecheck_contrived_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/narrow_vault", "contrived_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "contrived valid: {:?}",
@@ -1280,11 +1398,11 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_contrived_wrong_literal_num() {
+  fn typecheck_contrived_wrong_lit_number() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_wrong_literal.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "literal_num: 99 should fail"
@@ -1295,8 +1413,8 @@ mod tests {
   fn typecheck_contrived_missing_required_nested() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_missing_required.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result.diagnostics(&db).is_empty(),
       "missing required should fail"
@@ -1304,11 +1422,11 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_contrived_mixed_accepts_literal_num() {
+  fn typecheck_contrived_mixed_accepts_lit_number() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_mixed_num.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "mixed num: {:?}",
@@ -1317,11 +1435,11 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_contrived_mixed_accepts_literal_bool() {
+  fn typecheck_contrived_mixed_accepts_lit_bool() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "contrived_mixed_bool.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "mixed bool: {:?}",
@@ -1333,8 +1451,8 @@ mod tests {
   fn typecheck_fref_narrower_union_field() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "fref narrower: {:?}",
@@ -1346,8 +1464,8 @@ mod tests {
   #[test]
   fn typecheck_binary_expr_in_schema_number_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "binary_schema_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "age: 10 + 20 should pass: {:?}",
@@ -1357,32 +1475,32 @@ mod tests {
 
   // Binary expression with wrong operand type should fail
   #[test]
-  fn typecheck_binary_expr_wrong_operand_type() {
+  fn typecheck_binary_expr_wrong_operand_typ() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "binary_schema_wrong_operand.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::OperandTypMismatch { .. })),
       "1 + true should report operand mismatch"
     );
   }
 
   // Binary expression result assigned to wrong field type should fail
   #[test]
-  fn typecheck_binary_expr_wrong_field_type() {
+  fn typecheck_binary_expr_wrong_field_typ() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "binary_schema_wrong_field_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { field, .. } if field == "name")),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { field, .. } if field == "name")),
       "name: 1 + 2 should report field type mismatch"
     );
   }
@@ -1391,8 +1509,8 @@ mod tests {
   #[test]
   fn typecheck_paren_expr_in_schema_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "paren_schema_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "age: (10 + 20) * 3 should pass: {:?}",
@@ -1404,8 +1522,8 @@ mod tests {
   #[test]
   fn typecheck_unary_expr_in_schema_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "unary_schema_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "age: -42 should pass: {:?}",
@@ -1417,8 +1535,8 @@ mod tests {
   #[test]
   fn typecheck_nested_paren_binary_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_binary_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "(1 + 2) * (3 + 4) should pass: {:?}",
@@ -1430,13 +1548,13 @@ mod tests {
   #[test]
   fn typecheck_nested_paren_binary_wrong() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_binary_wrong.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
       "(1 + true) * 3 should report operand mismatch"
     );
   }
@@ -1445,8 +1563,8 @@ mod tests {
   #[test]
   fn typecheck_comparison_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "comparison_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "1 == 2 should pass: {:?}",
@@ -1458,8 +1576,8 @@ mod tests {
   #[test]
   fn typecheck_logical_with_comparisons_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "logical_valid.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "(1 == 2) && (3 == 4) should pass: {:?}",
@@ -1471,8 +1589,8 @@ mod tests {
   #[test]
   fn typecheck_comparison_null_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "comparison_null.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "1 == null should pass: {:?}",
@@ -1484,8 +1602,8 @@ mod tests {
   #[test]
   fn typecheck_comparison_null_null_valid() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "comparison_null_null.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "null == null should pass: {:?}",
@@ -1497,13 +1615,13 @@ mod tests {
   #[test]
   fn typecheck_logical_wrong_operand() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "logical_wrong_operand.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypeMismatch { .. })),
+        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
       "1 && 2 should report operand mismatch"
     );
   }
@@ -1512,8 +1630,8 @@ mod tests {
   #[test]
   fn typecheck_closure_self_ref() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "closure_self_ref.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "closure referencing self.a should pass: {:?}",
@@ -1525,8 +1643,8 @@ mod tests {
   #[test]
   fn typecheck_internal_file_infers_product() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_partials/colors.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "internal file should typecheck cleanly: {:?}",
@@ -1538,8 +1656,8 @@ mod tests {
   #[test]
   fn typecheck_with_imports_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "with_imports.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
       "file with valid imports should typecheck cleanly: {:?}",
@@ -1549,16 +1667,16 @@ mod tests {
 
   // File with _imports has type error when imported field type mismatches schema
   #[test]
-  fn typecheck_with_imports_wrong_type_has_diagnostics() {
+  fn typecheck_with_imports_wrong_typ_has_diagnostics() {
     let (db, project, file) =
       load_vault_fixture("typecheck/my_vault", "with_imports_wrong_type.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypeMismatch { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { .. })),
       "should have FieldTypeMismatch for string assigned to number field: {:?}",
       result.diagnostics(&db)
     );
@@ -1566,15 +1684,15 @@ mod tests {
 
   // String literal indexing should not produce NotIndexable
   #[test]
-  fn typecheck_str_literal_index_no_errors() {
+  fn typecheck_string_lit_index_no_errors() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "str_literal_index.td");
-    let (hir, _) = lower_file(&db, project, file);
-    let result = typecheck(&db, hir.unwrap());
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
     assert!(
       !result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::NotIndexable { .. })),
+        .any(|diagnostic| matches!(diagnostic, Diagnostic::NotIndexable { .. })),
       "string literal indexing should not be flagged as not indexable: {:?}",
       result.diagnostics(&db)
     );

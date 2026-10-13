@@ -93,8 +93,8 @@
   text-decoration: underline;
 }
 
-/* External link icon (emitted before the <a> as a sibling) */
-.td-content :has(+ .td-external-link) {
+/* External link icon (svg emitted before the <a> as a sibling) */
+.td-content .td-external-link-icon {
   color: var(--color-td-link);
   vertical-align: -1px;
 }
@@ -121,6 +121,11 @@
 .td-content h5:hover .td-header-anchor,
 .td-content h6:hover .td-header-anchor {
   opacity: 1;
+}
+
+.td-content .td-header-anchor--copied::before {
+  content: '\2713';
+  color: var(--color-td-tip);
 }
 
 /* Lists */

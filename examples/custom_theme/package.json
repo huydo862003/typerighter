@@ -1,0 +1,14 @@
+{
+  "name": "custom_theme",
+  "version": "0.43.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "typerighter dev",
+    "build": "typerighter build",
+    "preview": "typerighter preview"
+  },
+  "devDependencies": {
+    "typerighter": "workspace:*"
+  }
+}

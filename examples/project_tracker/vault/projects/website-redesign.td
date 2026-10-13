@@ -33,6 +33,10 @@ The main focus areas are:
 | Implement auth | High | In progress |
 | Write tests | Medium | Todo |
 
+:::td-status-badge{status="active"}
+Website Redesign is actively under development.
+:::
+
 ## Milestones
 
 1. Design sign-off, completed 2026-04-10

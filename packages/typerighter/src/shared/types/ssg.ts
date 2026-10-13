@@ -27,12 +27,23 @@ export interface PageData {
   frontmatter: Record<string, unknown>;
   headings: MarkdownHeading[];
   title: string;
-  metadata?: FileMetadata;
+  /** HTML-rendered title with inline code/math; safe for v-html */
+  titleHtml: string;
+  /** Path of the source file relative to the vault root (e.g. "people/alice.td") */
+  filepath: string;
+  fileMetadata?: FileMetadata;
+  seoMetadata?: SeoMeta;
 }
 
 export interface PageModule {
   pageData: PageData;
   default: Component;
+}
+
+export interface SeoMeta {
+  title?: string;
+  description?: string;
+  image?: string;
 }
 
 export interface TypedownData {

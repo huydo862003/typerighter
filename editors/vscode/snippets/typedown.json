@@ -1,0 +1,12 @@
+{
+  "Code block": {
+    "prefix": "```",
+    "body": ["```${1:lang}", "$0", "```"],
+    "description": "Fenced code block"
+  },
+  "Math block": {
+    "prefix": "$$",
+    "body": ["$$", "$0", "$$"],
+    "description": "Block math"
+  }
+}

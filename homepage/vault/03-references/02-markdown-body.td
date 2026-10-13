@@ -29,7 +29,7 @@ Headings generate anchors and appear in the table of contents.
 
 ## Code blocks
 
-Fenced code blocks with optional language label and line ranges:
+Fenced code blocks with an optional language label:
 
 ````markdown
 ```python
@@ -38,17 +38,64 @@ def greet(name):
 ```
 ````
 
-Line highlighting with ranges:
+The opening and closing fence must have the same number of backticks.
+
+### Line highlighting
+
+Highlight specific lines with `{line-ranges}` after the language:
 
 ````markdown
-```js{1,3,5-8}
+```js{1,3}
 const a = 1;
 const b = 2;
 const c = 3;
 ```
 ````
 
-The opening and closing fence must have the same number of backticks.
+Supports single lines (`1,3`), ranges (`5-8`), and combinations (`1,3,5-8`).
+
+### Title
+
+Display a filename or title above the code block with `title=` inside `{...}`:
+
+````markdown
+```ts{title=vite.config.ts}
+import { defineConfig } from 'vite'
+export default defineConfig({})
+```
+````
+
+Can be combined with line highlighting:
+
+````markdown
+```ts{1,3 title=vite.config.ts}
+import { defineConfig } from 'vite'
+export default defineConfig({})
+```
+````
+
+### Line numbers
+
+Show line numbers with `line-numbers` inside `{...}`:
+
+````markdown
+```js{line-numbers}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+````
+
+Start from a specific number with `line-numbers=N`:
+
+````markdown
+```js{1,3 line-numbers=5}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+````
+
 
 ## Math
 
@@ -205,9 +252,68 @@ Content goes here.
 | `info` | Info callout | `::: info ... :::` |
 | `details` | Collapsible section with title | `::: details Title ... :::` |
 
-::: tip
-User-registered custom components are planned for a future release.
+### User-defined components
+
+Vue components can be registered for use in the markdown body. Registered components are available by their PascalCase name or its kebab-case equivalent.
+
+#### Registering components
+
+Declare components in `typedown.yaml` under `theme.components`. Each entry is either a folder path (scanned recursively for `.vue` files) or an explicit name-to-source mapping:
+
+```yaml
+theme:
+  components:
+    - "./src/components"
+    - { "Chart": "./src/Chart.vue" }
+```
+
+When multiple entries define the same name, the last one wins.
+
+#### Contract file
+
+Create `.typedown/components.json` alongside your vault. This file declares each component's props and enables the LSP to warn on unknown components, missing required props, and unknown props in the markdown body.
+
+```json
+{
+  "TdAlert": {
+    "source": "./src/components/TdAlert.vue",
+    "props": {
+      "kind": { "type": "string", "required": false }
+    }
+  }
+}
+```
+
+Commit the contract file with your vault. Update it when component props change.
+
+#### Example
+
+A `TdAlert` component registered in `typedown.yaml` and declared in the contract can be used as a container block:
+
+```markdown
+:::td-alert{kind="info"}
+Remember to rebuild the contract file after adding new props.
 :::
+```
+
+The component receives `kind` as a prop and the inner markdown as a slot. Any markdown syntax works inside the container, including headings, lists, code blocks, and links.
+
+#### Prop types
+
+The `type` field in the contract uses Typedown type names:
+
+| Type | Example |
+| ---- | ------- |
+| `string` | `"type": "string"` |
+| `number` | `"type": "number"` |
+| `boolean` | `"type": "boolean"` |
+| `date` | `"type": "date"` |
+| list | `"type": "list[string]"` |
+| dict | `"type": "dict[string, number]"` |
+| union | `"type": "string \| number"` |
+| unknown | `"type": "any"` |
+
+Required props are enforced: the LSP warns when a required prop is absent at a usage site.
 
 ## Limitations
 

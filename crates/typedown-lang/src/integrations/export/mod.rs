@@ -1,226 +1,183 @@
 //! Export typedown resources
 
+pub mod file_ref;
 pub mod html;
 pub mod json;
-pub(super) mod utils;
+pub mod markdown;
+pub mod props;
+pub mod types;
+pub mod utils;
 
-use typedown_types::either::Either;
-use typedown_types::string::split_pascal_case;
+pub use file_ref::{
+  FrefTarget, ResolvedRef, resolve_file_ref, resolve_fref_target, resolve_schema_label,
+};
+pub use json::evaluate_lazy_field;
+pub use props::{Widget, export_prop_descriptors};
+pub use types::*;
+
+pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use crate::db::derived::evaluate::evaluate_type::evaluate_type;
 use crate::db::derived::get_vault_config::get_vault_config;
-use crate::db::derived::hir::lower_node;
-use crate::db::derived::name_resolver::file_symbol::file_symbol;
-use crate::db::derived::name_resolver::referee::referee;
-use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::parse_file::parse_file;
-use crate::db::types::derived::object_system::TdStaticType;
-use crate::db::types::{
-  File, FileHandle, FileRedNode, HirValue, LazyType, LiteralValue, Project, Symbol, SymbolKind,
-  TdBlobType, TdObjectEnum, TdRuntimeObject, TdTypeEnum,
-};
-use crate::db::utils::strip_content_extension;
-
-use crate::syntax::ast::{AstNode, InterpFragment, MdBody, SourceFile};
+use crate::db::types::derived::obj_system::TdStaticTyp;
+use crate::db::types::{File, FileHandle, Project, TdBlobTyp, TdObjEnum, TdRuntimeObj};
+use crate::db::utils::is_external_url;
+use crate::syntax::ast::{AstNode, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-/// Structured export result
-#[derive(serde::Serialize)]
-pub struct ExportedResource {
-  /// Schema type name
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema: Option<String>,
-  /// Display label
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub label: Option<String>,
-  /// Page icon
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub icon: Option<ExportedIcon>,
-  /// Frontmatter fields as a JSON object
-  pub header: serde_json::Value,
-  /// Commonmark-compatible markdown body
-  pub content: String,
-  /// File metadata
-  pub metadata: ExportedMetadata,
+// Shared fields extracted before body rendering
+struct ResourceFields {
+  schema: Option<String>,
+  label: Option<String>,
+  icon: Option<ExportedIcon>,
+  seo_metadata: Option<ExportedSeoMeta>,
+  header: serde_json::Value,
+  metadata: ExportedFileMetadata,
+  excerpt: Option<String>,
+  body: MdBody,
 }
 
-/// Exported page icon
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct ExportedIcon {
-  /// Lucide icon name
-  pub name: String,
+// Fields for binary asset files (no body, schema is always blob type)
+struct BlobFields {
+  header: serde_json::Value,
+  metadata: ExportedFileMetadata,
 }
 
-/// File metadata exported alongside a resource
-#[derive(serde::Serialize, Clone)]
-pub struct ExportedMetadata {
-  /// Last modification time as seconds since UNIX epoch
-  pub mtime: u64,
-  /// Creation time as seconds since UNIX epoch
-  pub ctime: u64,
+enum ResourceKind {
+  Blob(BlobFields),
+  Content(ResourceFields),
 }
 
-/// Structured export result with HTML content and extracted headings
-#[derive(serde::Serialize)]
-pub struct ExportedResourceHtml {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub label: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub icon: Option<ExportedIcon>,
-  pub header: serde_json::Value,
-  /// HTML body with placeholders for code/math post-processing
-  pub content: String,
-  pub headings: Vec<html::ExportedHeading>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub title: Option<String>,
-  pub metadata: ExportedMetadata,
-}
-
-/// Summary for content listings (no rendered body)
-pub struct ExportedResourceSummary {
-  pub schema: Option<String>,
-  pub label: Option<String>,
-  pub icon: Option<ExportedIcon>,
-  pub header: serde_json::Value,
-  pub excerpt: Option<String>,
-  pub metadata: ExportedMetadata,
-}
-
+/// Export a content listing entry (no body, includes header)
 pub fn export_resource_summary(
   db: &TypedownDatabase,
   project: Project,
   file: File,
 ) -> Option<ExportedResourceSummary> {
-  match resolve_resource(db, project, file)? {
-    ResourceKind::Blob { .. } => None,
-    ResourceKind::Content(pre) => Some(ExportedResourceSummary {
-      schema: pre.schema,
-      label: pre.label,
-      icon: pre.icon,
-      header: pre.header,
-      excerpt: pre.excerpt,
-      metadata: pre.metadata,
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(_) => None,
+    ResourceKind::Content(fields) => Some(ExportedResourceSummary {
+      schema: fields.schema,
+      label: fields.label,
+      icon: fields.icon,
+      header: fields.header,
+      excerpt: fields.excerpt,
+      metadata: fields.metadata,
     }),
   }
 }
 
-/// Lightweight metadata for sidebar/navigation
-/// Skips json::to_json and body parsing
-pub struct ExportedResourceMeta {
-  pub schema: Option<String>,
-  pub label: Option<String>,
-  pub icon: Option<ExportedIcon>,
-  pub metadata: ExportedMetadata,
-  // From description or summary field only (no body parse)
-  pub excerpt: Option<String>,
-}
-
-pub fn export_resource_meta(
+/// Export a lightweight sidebar nav entry (no header or body)
+pub fn export_resource_nav(
   db: &TypedownDatabase,
   project: Project,
   file: File,
-) -> Option<ExportedResourceMeta> {
-  let symbol = file_symbol(db, project, file).value(db)?;
-  let obj = evaluate_resource(db, symbol).value(db)?;
-
-  if obj.as_td_blob_obj().is_some() {
-    return None;
+) -> Option<ExportedResourceNav> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(_) => None,
+    ResourceKind::Content(fields) => Some(ExportedResourceNav {
+      schema: fields.schema,
+      label: fields.label,
+      icon: fields.icon,
+      metadata: fields.metadata,
+      excerpt: fields.excerpt,
+    }),
   }
-
-  let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
-    Some(schema_obj.schema(db).display_name(db))
-  } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
-    None
-  } else {
-    return None;
-  };
-
-  let label = obj
-    .get_builtin_field(db, "_label")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
-  let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
-    o.as_td_icon_obj().map(|i| ExportedIcon {
-      name: i.lucide_name(db),
-    })
-  });
-
-  // Try description or summary from header, fall back to first paragraph in body
-  let excerpt = obj
-    .get_owned_field(db, "description")
-    .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
-    .or_else(|| {
-      obj
-        .get_owned_field(db, "summary")
-        .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)))
-    })
-    .filter(|s| !s.is_empty())
-    .or_else(|| {
-      let parse_result = parse_file(db, project, file);
-      let root = parse_result.ast(db).node.clone();
-      let source_file = SourceFile::cast(root)?;
-      let body = source_file.body()?;
-      extract_body_excerpt(body.syntax())
-    });
-
-  Some(ExportedResourceMeta {
-    schema,
-    label,
-    icon,
-    metadata: export_metadata(&file.handle(db)),
-    excerpt,
-  })
 }
 
-// Common resource fields extracted before body rendering
-struct ResourcePreamble {
-  schema: Option<String>,
-  label: Option<String>,
-  icon: Option<ExportedIcon>,
-  header: serde_json::Value,
-  metadata: ExportedMetadata,
-  excerpt: Option<String>,
-  body: MdBody,
+/// Export a resource file as structured header and CommonMark body
+pub fn export_resource_markdown(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceMarkdown> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(blob) => Some(ExportedResourceMarkdown {
+      schema: Some(TdBlobTyp::get(db).display_name(db)),
+      label: None,
+      icon: None,
+      header: blob.header,
+      content: String::new(),
+      metadata: blob.metadata,
+    }),
+    ResourceKind::Content(fields) => {
+      let content = markdown::export_markdown_body(db, project, file, &fields.body);
+      Some(ExportedResourceMarkdown {
+        schema: fields.schema,
+        label: fields.label,
+        icon: fields.icon,
+        header: fields.header,
+        content,
+        metadata: fields.metadata,
+      })
+    }
+  }
 }
 
-enum ResourceKind {
-  Blob {
-    schema: String,
-    header: serde_json::Value,
-    metadata: ExportedMetadata,
-  },
-  Content(ResourcePreamble),
+/// Export a resource file as structured header and HTML body
+pub fn export_resource_html(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Option<ExportedResourceHtml> {
+  match extract_resource(db, project, file)? {
+    ResourceKind::Blob(blob) => Some(ExportedResourceHtml {
+      schema: Some(TdBlobTyp::get(db).display_name(db)),
+      label: None,
+      icon: None,
+      header: blob.header,
+      content: String::new(),
+      headings: Vec::new(),
+      title: None,
+      metadata: blob.metadata,
+      seo_metadata: None,
+    }),
+    ResourceKind::Content(fields) => {
+      let content = html::export_html_body(db, project, file, &fields.body);
+      Some(ExportedResourceHtml {
+        schema: fields.schema,
+        label: fields.label,
+        icon: fields.icon,
+        header: fields.header,
+        content: content.html,
+        headings: content.headings,
+        title: content.title,
+        metadata: fields.metadata,
+        seo_metadata: fields.seo_metadata,
+      })
+    }
+  }
 }
 
-fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
+// Internal helpers
+
+// Extract the resource kind and fields for a file, returning None for schema files
+fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
+  // Skip schema type definitions
   let symbol = file_symbol(db, project, file).value(db)?;
-
-  // Schema files are not resources
   if symbol.kind(db).is_schema() {
     return None;
   }
 
-  let metadata = export_metadata(&file.handle(db));
+  let metadata = export_file_metadata(&file.handle(db));
 
-  // Body-only files (no frontmatter) have no evaluated object
+  // Evaluate the runtime object: body-only files have no frontmatter object
   let obj = evaluate_resource(db, symbol).value(db);
 
+  // Blob files (binary assets) have no body or navigation fields
   if let Some(ref obj) = obj
     && obj.as_td_blob_obj().is_some()
   {
-    return Some(ResourceKind::Blob {
-      schema: TdBlobType::get(db).display_name(db),
-      header: json::to_json(db, project, obj).unwrap_or_default(),
+    return Some(ResourceKind::Blob(BlobFields {
+      header: json::serialize_to_json(db, project, obj).unwrap_or_default(),
       metadata,
-    });
+    }));
   }
 
-  let (schema, header, label, icon) = if let Some(ref obj) = obj {
+  let (schema, header, label, icon, seo_metadata) = if let Some(ref obj) = obj {
     let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
       Some(schema_obj.schema(db).display_name(db))
     } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
@@ -229,42 +186,59 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
       return None;
     };
 
-    let mut header = json::to_json(db, project, obj).unwrap_or_default();
+    let mut header = json::serialize_to_json(db, project, obj).unwrap_or_default();
     if let serde_json::Value::Object(ref mut map) = header {
       map.retain(|k, v| !k.starts_with('_') && !v.is_null());
     }
 
     let label = obj
       .get_builtin_field(db, "_label")
-      .and_then(|o| o.as_td_str_obj().map(|s| s.value(db)));
-    let icon = obj.get_builtin_field(db, "_icon").and_then(|o| {
-      o.as_td_icon_obj().map(|i| ExportedIcon {
-        name: i.lucide_name(db),
+      .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
+    let icon = obj.get_builtin_field(db, "_icon").and_then(|obj| {
+      obj.as_td_icon_obj().map(|icon| ExportedIcon {
+        name: icon.lucide_name(db),
       })
     });
 
-    (schema, header, label, icon)
+    let seo_metadata = export_seo_metadata(db, project, obj);
+
+    (schema, header, label, icon, seo_metadata)
   } else {
-    // Body-only file with no frontmatter
+    // Body-only file: no frontmatter, all fields default to empty
     (
       None,
       serde_json::Value::Object(Default::default()),
       None,
       None,
+      None,
     )
   };
 
+  // Parse the markdown body
   let parse_result = parse_file(db, project, file);
   let root = parse_result.ast(db).node.clone();
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
 
-  let excerpt = extract_body_excerpt(body.syntax());
+  // Prefer description or summary fields from the object, fall back to first body paragraph
+  let excerpt = obj
+    .as_ref()
+    .and_then(|o| {
+      o.get_owned_field(db, "description")
+        .and_then(|f| f.as_td_string_obj().map(|s| s.value(db)))
+        .or_else(|| {
+          o.get_owned_field(db, "summary")
+            .and_then(|f| f.as_td_string_obj().map(|s| s.value(db)))
+        })
+        .filter(|s| !s.is_empty())
+    })
+    .or_else(|| export_body_excerpt(body.syntax()));
 
-  Some(ResourceKind::Content(ResourcePreamble {
+  Some(ResourceKind::Content(ResourceFields {
     schema,
     label,
     icon,
+    seo_metadata,
     header,
     metadata,
     excerpt,
@@ -272,837 +246,77 @@ fn resolve_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
   }))
 }
 
-/// Export a resource file as structured header and commonmark content
-pub fn export_resource_markdown(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResource> {
-  match resolve_resource(db, project, file)? {
-    ResourceKind::Blob {
-      schema,
-      header,
-      metadata,
-    } => Some(ExportedResource {
-      schema: Some(schema),
-      label: None,
-      icon: None,
-      header,
-      content: String::new(),
-      metadata,
-    }),
-    ResourceKind::Content(pre) => {
-      let content = export_markdown_body(db, project, file, &pre.body);
-      Some(ExportedResource {
-        schema: pre.schema,
-        label: pre.label,
-        icon: pre.icon,
-        header: pre.header,
-        content,
-        metadata: pre.metadata,
-      })
-    }
-  }
-}
-
-/// Export a resource file as structured header and HTML content
-pub fn export_resource_html(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResourceHtml> {
-  match resolve_resource(db, project, file)? {
-    ResourceKind::Blob {
-      schema,
-      header,
-      metadata,
-    } => Some(ExportedResourceHtml {
-      schema: Some(schema),
-      label: None,
-      icon: None,
-      header,
-      content: String::new(),
-      headings: Vec::new(),
-      title: None,
-      metadata,
-    }),
-    ResourceKind::Content(pre) => {
-      let html_result = html::export_html_body(db, project, file, &pre.body);
-      Some(ExportedResourceHtml {
-        schema: pre.schema,
-        label: pre.label,
-        icon: pre.icon,
-        header: pre.header,
-        content: html_result.html,
-        headings: html_result.headings,
-        title: html_result.title,
-        metadata: pre.metadata,
-      })
-    }
-  }
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Widget {
-  Text,
-  Number,
-  Checkbox,
-  Date,
-  Select,
-  MultiSelect,
-  Relation,
-  List,
-}
-
-/// Export schema property descriptors as structured JSON for the client
-pub fn export_property_descriptors(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<serde_json::Value> {
-  let file_sym = file_symbol(db, project, file);
-  let symbol = file_sym.value(db)?;
-  let eval_result = evaluate_type(db, symbol);
-  let typ = eval_result.typ(db)?;
-
-  let schema = typ.as_td_schema_type()?;
-  let fields = schema.fields(db);
-
-  let mut properties = serde_json::Map::new();
-
-  for (name, prop_desc) in fields {
-    let mut prop_json = lazy_to_descriptor(db, &prop_desc.field_type);
-    if let Some(ref def_obj) = prop_desc.default_value
-      && let Ok(def_json) = json::to_json(db, project, def_obj)
-      && let serde_json::Value::Object(ref mut map) = prop_json
-    {
-      map.insert("default".to_string(), def_json);
-    }
-    properties.insert(name, prop_json);
-  }
-
-  return Some(serde_json::Value::Object(properties));
-
-  // Map a LazyType to a property descriptor with a widget hint
-  fn lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyType) -> serde_json::Value {
-    let Some(typ) = lazy.resolve(db) else {
-      return serde_json::json!({ "type": "string" });
-    };
-
-    // Sum of string literals is a select (filter out TdNullType for nullable `T?` types)
-    if let Some(sum) = typ.as_td_sum_type() {
-      let members = sum.members(db);
-      let non_null_members: Vec<LazyType> = members
-        .iter()
-        .filter(|m| {
-          if let Some(m_typ) = m.resolve(db) {
-            !m_typ.is_td_null_type()
-          } else {
-            true
-          }
-        })
-        .cloned()
-        .collect();
-
-      if non_null_members.len() == 1 {
-        return lazy_to_descriptor(db, &non_null_members[0]);
-      }
-
-      let mut literals: Vec<String> = non_null_members
-        .iter()
-        .filter_map(|m| {
-          if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
-            && let LiteralValue::Str(s) = lit.value(db)
-          {
-            Some(s)
-          } else {
-            None
-          }
-        })
-        .collect();
-      literals.sort();
-
-      if !literals.is_empty() && literals.len() == non_null_members.len() {
-        return serde_json::json!({ "widget": Widget::Select, "options": literals });
-      }
-      return serde_json::json!({ "widget": Widget::Text });
-    }
-
-    // List type: check if elem is a sum of string literals (multi_select)
-    if let Some(list) = typ.as_td_list_type() {
-      if let Some(elem_lazy) = list.elem(db)
-        && let Some(elem_typ) = elem_lazy.resolve(db)
-      {
-        if let Some(sum) = elem_typ.as_td_sum_type() {
-          let members = sum.members(db);
-          let mut literals: Vec<String> = members
-            .iter()
-            .filter_map(|m| {
-              if let Some(TdTypeEnum::TdLiteralType(lit)) = m.resolve(db)
-                && let LiteralValue::Str(s) = lit.value(db)
-              {
-                Some(s)
-              } else {
-                None
-              }
-            })
-            .collect();
-          literals.sort();
-
-          if literals.len() == members.len() && !literals.is_empty() {
-            return serde_json::json!({ "widget": Widget::MultiSelect, "options": literals });
-          }
-          if members.len() == 1 {
-            let first_member = members.iter().next().unwrap();
-            let inner = lazy_to_descriptor(db, first_member);
-            return serde_json::json!({ "widget": Widget::List, "items": inner });
-          }
-        } else {
-          let inner = lazy_to_descriptor(db, &elem_lazy);
-          return serde_json::json!({ "widget": Widget::List, "items": inner });
-        }
-      }
-      return serde_json::json!({ "widget": Widget::Text });
-    }
-
-    simple_type_to_descriptor(db, &typ)
-  }
-
-  fn simple_type_to_descriptor(db: &TypedownDatabase, typ: &TdTypeEnum) -> serde_json::Value {
-    match typ {
-      TdTypeEnum::TdStrType(_) => serde_json::json!({ "widget": Widget::Text }),
-      TdTypeEnum::TdNumType(_) => serde_json::json!({ "widget": Widget::Number }),
-      TdTypeEnum::TdBoolType(_) => serde_json::json!({ "widget": Widget::Checkbox }),
-      TdTypeEnum::TdDateType(_) => serde_json::json!({ "widget": Widget::Date }),
-      TdTypeEnum::TdDateTimeType(_) => serde_json::json!({ "widget": Widget::Date }),
-      TdTypeEnum::TdTimeType(_) => serde_json::json!({ "widget": Widget::Text }),
-      TdTypeEnum::TdListType(list) => match list.elem(db).and_then(|e| e.resolve(db)) {
-        Some(elem) => {
-          let inner = simple_type_to_descriptor(db, &elem);
-          serde_json::json!({ "widget": Widget::List, "items": inner })
-        }
-        None => serde_json::json!({ "widget": Widget::List }),
-      },
-      TdTypeEnum::TdSchemaType(schema) => {
-        serde_json::json!({ "widget": Widget::Relation, "schema": schema.name(db) })
-      }
-      _ => serde_json::json!({ "widget": Widget::Text }),
-    }
-  }
-}
-
-// Extract plain text from the first paragraph in the AST for excerpts
-fn extract_body_excerpt(node: &RedNode) -> Option<String> {
-  find_first_paragraph(node)
-    .map(|p| utils::extract_plain_text(&p))
-    .filter(|s| !s.is_empty())
-}
-
-// Depth-first search for the first MdParagraph in the AST
-fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
-  for child in node.children() {
-    if child.kind() == SyntaxKind::MdParagraph {
-      return Some(child);
-    }
-    if let Some(found) = find_first_paragraph(&child) {
-      return Some(found);
-    }
-  }
-  None
-}
-
-fn export_metadata(handle: &FileHandle) -> ExportedMetadata {
+fn export_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
   let meta = handle.metadata();
-  ExportedMetadata {
+  ExportedFileMetadata {
     mtime: meta.mtime_epoch_secs(),
     ctime: meta.ctime_epoch_secs(),
   }
 }
 
-fn export_markdown_body(
+fn export_seo_metadata(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
-  body: &MdBody,
-) -> String {
-  let mut emitter = MarkdownExporter::new(db, project, file);
+  obj: &TdObjEnum,
+) -> Option<ExportedSeoMeta> {
+  let meta_obj = obj.get_builtin_field(db, "_meta")?;
 
-  emitter.emit_body(body);
-  emitter.finish()
-}
-
-struct MarkdownExporter<'a> {
-  db: &'a TypedownDatabase,
-  project: Project,
-  file: File,
-  out: String,
-  prefix: String,
-  at_line_start: bool,
-}
-
-impl<'a> MarkdownExporter<'a> {
-  fn new(db: &'a TypedownDatabase, project: Project, file: File) -> Self {
-    Self {
-      db,
-      project,
-      file,
-      out: String::new(),
-      prefix: String::new(),
-      at_line_start: true,
-    }
+  if meta_obj.is_td_null_obj() {
+    return None;
   }
 
-  fn finish(mut self) -> String {
-    if !self.out.ends_with('\n') {
-      self.out.push('\n');
-    }
-    self.out
-  }
-
-  fn write(&mut self, text: &str) {
-    for ch in text.chars() {
-      if ch == '\n' {
-        self.out.push('\n');
-        self.at_line_start = true;
+  let title = meta_obj
+    .get_owned_field(db, "title")
+    .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
+  let description = meta_obj
+    .get_owned_field(db, "description")
+    .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
+  let image = meta_obj.get_owned_field(db, "image").and_then(|o| {
+    o.as_td_string_obj().map(|s| {
+      let raw = s.value(db);
+      if is_external_url(&raw) || raw.starts_with('/') {
+        raw
       } else {
-        if self.at_line_start {
-          self.out.push_str(&self.prefix);
-          self.at_line_start = false;
-        }
-        self.out.push(ch);
+        let config = get_vault_config(db, project);
+        utils::prepend_base_path(&config.base_path(db), &raw)
       }
-    }
+    })
+  });
+
+  if title.is_none() && description.is_none() && image.is_none() {
+    return None;
   }
 
-  fn newline(&mut self) {
-    self.out.push('\n');
-    self.at_line_start = true;
-  }
-
-  fn emit_body(&mut self, body: &MdBody) {
-    let mut first = true;
-    for child in body.syntax().children() {
-      if child.kind() == SyntaxKind::Whitespace || child.kind() == SyntaxKind::Newline {
-        continue;
-      }
-      if !first {
-        self.newline();
-      }
-      first = false;
-      self.emit_block(&child);
-    }
-  }
-
-  fn emit_block(&mut self, node: &RedNode) {
-    match node.kind() {
-      SyntaxKind::MdHeading => self.emit_heading(node),
-      SyntaxKind::MdHorizontalRule => self.emit_horizontal_rule(node),
-      SyntaxKind::MdParagraph => self.emit_paragraph(node),
-      SyntaxKind::MdBlockquote => self.emit_blockquote(node),
-      SyntaxKind::MdBulletList => self.emit_list(node),
-      SyntaxKind::MdOrderedList => self.emit_list(node),
-      SyntaxKind::MdContainerBlock => self.emit_container(node),
-      SyntaxKind::MdContainerShorthand => self.emit_container_shorthand(node),
-      SyntaxKind::MdTable => self.emit_passthrough(node),
-      SyntaxKind::CodeBlock | SyntaxKind::MathBlock => self.emit_passthrough(node),
-      _ => self.emit_passthrough(node),
-    }
-  }
-
-  fn emit_child_blocks(&mut self, node: &RedNode) {
-    let mut first = true;
-    for child in node.children() {
-      let kind = child.kind();
-      if kind == SyntaxKind::Whitespace || kind == SyntaxKind::Newline {
-        continue;
-      }
-      if !first {
-        self.newline();
-      }
-      first = false;
-      self.emit_block(&child);
-    }
-  }
-
-  fn emit_heading(&mut self, node: &RedNode) {
-    self.emit_inline_children(node);
-    self.newline();
-  }
-
-  fn emit_horizontal_rule(&mut self, node: &RedNode) {
-    self.write(&node.text());
-    self.newline();
-  }
-
-  fn emit_paragraph(&mut self, node: &RedNode) {
-    self.emit_inline_children(node);
-    self.newline();
-  }
-
-  fn emit_blockquote(&mut self, node: &RedNode) {
-    let old_prefix = self.prefix.clone();
-    self.prefix.push_str("> ");
-
-    let mut first = true;
-    for child in node.children() {
-      let kind = child.kind();
-      if kind == SyntaxKind::MdSymbol
-        || kind == SyntaxKind::Whitespace
-        || kind == SyntaxKind::Newline
-      {
-        continue;
-      }
-      if !first {
-        self.newline();
-      }
-      first = false;
-      self.emit_block(&child);
-    }
-
-    self.prefix = old_prefix;
-  }
-
-  fn emit_list(&mut self, node: &RedNode) {
-    for child in node.children() {
-      match child.kind() {
-        SyntaxKind::MdBulletListItem | SyntaxKind::MdTaskListItem => {
-          self.emit_list_item(&child, "- ");
-        }
-        SyntaxKind::MdOrderedListItem => {
-          let marker = self.extract_ordered_marker(&child);
-          self.emit_list_item(&child, &marker);
-        }
-        _ => {}
-      }
-    }
-  }
-
-  fn extract_ordered_marker(&self, node: &RedNode) -> String {
-    let mut num = String::new();
-    for child in node.children() {
-      match child.kind() {
-        SyntaxKind::MdNumber => num = child.text().to_string(),
-        SyntaxKind::MdSymbol if child.text() == "." => {
-          return format!("{num}. ");
-        }
-        _ => {
-          if !num.is_empty() {
-            break;
-          }
-        }
-      }
-    }
-    "1. ".to_string()
-  }
-
-  fn emit_list_item(&mut self, node: &RedNode, marker: &str) {
-    let old_prefix = self.prefix.clone();
-    let continuation = " ".repeat(marker.len());
-
-    self.write(marker);
-    self.prefix.push_str(&continuation);
-
-    if node.kind() == SyntaxKind::MdTaskListItem {
-      for child in node.children() {
-        if child.kind() == SyntaxKind::MdCheckbox {
-          self.write(&child.text());
-          self.write(" ");
-          break;
-        }
-      }
-    }
-
-    let mut first = true;
-    for child in node.children() {
-      let kind = child.kind();
-      if kind == SyntaxKind::MdSymbol
-        || kind == SyntaxKind::MdNumber
-        || kind == SyntaxKind::Whitespace
-        || kind == SyntaxKind::Newline
-        || kind == SyntaxKind::MdCheckbox
-      {
-        continue;
-      }
-      if !first {
-        self.newline();
-      }
-      first = false;
-      self.emit_block(&child);
-    }
-
-    self.prefix = old_prefix;
-  }
-
-  fn emit_container(&mut self, node: &RedNode) {
-    self.write(":::");
-    let mut seen_opening = false;
-    for child in node.children() {
-      if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
-        seen_opening = true;
-        continue;
-      }
-      if child.kind() == SyntaxKind::Newline {
-        break;
-      }
-      if seen_opening {
-        self.emit_inline(&child);
-      }
-    }
-    self.newline();
-
-    for child in node.children() {
-      match child.kind() {
-        SyntaxKind::MdContainerSlot => {
-          self.emit_child_blocks(&child);
-        }
-        SyntaxKind::MdContainerSlotSeparator => {
-          self.write(&child.text());
-          self.newline();
-        }
-        _ => {}
-      }
-    }
-
-    self.write(":::");
-    self.newline();
-  }
-
-  fn emit_container_shorthand(&mut self, node: &RedNode) {
-    let mut label = String::new();
-    let mut props = String::new();
-
-    for child in node.children() {
-      match child.kind() {
-        SyntaxKind::Ident => label.push_str(&child.text()),
-        SyntaxKind::MdSymbol if child.text() == "-" => label.push('-'),
-        SyntaxKind::MdContainerPropBlock => props = child.text().trim().to_string(),
-        _ => {}
-      }
-    }
-
-    self.write("::: ");
-    self.write(&label);
-    if !props.is_empty() {
-      self.write(" ");
-      self.write(&props);
-    }
-    self.newline();
-    self.write(":::");
-    self.newline();
-  }
-
-  fn emit_passthrough(&mut self, node: &RedNode) {
-    let text = node.text().to_string();
-
-    let mut min_indent = usize::MAX;
-    for line in text.lines() {
-      if !line.trim().is_empty() {
-        let indent = line.len() - line.trim_start().len();
-
-        if indent < min_indent {
-          min_indent = indent;
-        }
-      }
-    }
-    if min_indent == usize::MAX {
-      min_indent = 0;
-    }
-
-    for (index, line) in text.lines().enumerate() {
-      if index > 0 {
-        self.newline();
-      }
-      if line.len() >= min_indent {
-        self.write(&line[min_indent..]);
-      } else {
-        self.write(line.trim_start());
-      }
-    }
-    self.newline();
-  }
-
-  fn emit_inline_children(&mut self, node: &RedNode) {
-    let mut started = false;
-
-    self.emit_inline_children_inner(node, &mut started);
-  }
-
-  fn emit_inline_children_inner(&mut self, node: &RedNode, started: &mut bool) {
-    for child in node.children() {
-      let kind = child.kind();
-      if kind == SyntaxKind::Newline {
-        continue;
-      }
-      if !*started && kind == SyntaxKind::Whitespace {
-        continue;
-      }
-      if !*started && child.as_token().is_none() && kind != SyntaxKind::InterpFragment {
-        self.emit_inline_children_inner(&child, started);
-        continue;
-      }
-      *started = true;
-      self.emit_inline(&child);
-    }
-  }
-
-  fn emit_inline(&mut self, node: &RedNode) {
-    if node.as_token().is_some() {
-      self.write(&node.text());
-      return;
-    }
-
-    if node.kind() == SyntaxKind::InterpFragment {
-      let Some(fragment) = InterpFragment::cast(node.clone()) else {
-        return;
-      };
-      let Some(expr) = fragment.expr() else { return };
-      let expr_node = expr.syntax().clone();
-
-      if let Some(link) = try_resolve_fref(self.db, self.project, self.file, &expr_node) {
-        self.write(&link);
-        return;
-      }
-      let hir = lower_node(
-        self.db,
-        self.project,
-        FileRedNode::new(self.file, expr_node),
-      );
-      let scope = get_file_runtime_scope(self.db, self.project, self.file);
-      let eval = evaluate_node(self.db, hir, scope);
-      let obj = eval.value(self.db);
-      if let Some(obj) = obj
-        && let Some(func) = obj.lookup_method(self.db, "to_string")
-        && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
-        && let Some(str_obj) = result.as_td_str_obj()
-      {
-        self.write(&str_obj.value(self.db));
-      }
-      return;
-    }
-
-    for child in node.children() {
-      self.emit_inline(&child);
-    }
-  }
-}
-
-/// Resolved reference: display name and URL
-pub struct ResolvedRef {
-  pub name: String,
-  pub url: String,
-}
-
-/// Resolve a symbol to a display name and URL
-pub fn resolve_ref(
-  db: &TypedownDatabase,
-  project: Project,
-  symbol: &Symbol,
-) -> Option<ResolvedRef> {
-  let name = resolve_display_name(db, project, symbol);
-
-  match symbol.kind(db) {
-    SymbolKind::UserDefinedResource(_, target_file)
-    | SymbolKind::UserDefinedSchema(_, target_file) => {
-      let handle = target_file.handle(db);
-      let path = handle.path()?;
-      let config = get_vault_config(db, project);
-      let root_dir = config.root_dir(db);
-      let base_path = config.base_path(db);
-      let relative = path.strip_prefix(&root_dir).unwrap_or(path);
-      let path_str = relative.to_string_lossy();
-      let without_ext = strip_content_extension(&path_str);
-      let url = if base_path == "/" {
-        format!("/{without_ext}")
-      } else {
-        format!("{base_path}/{without_ext}")
-      };
-      Some(ResolvedRef { name, url })
-    }
-    SymbolKind::Asset(_, _, target_file) => {
-      let handle = target_file.handle(db);
-      let path = handle.path()?;
-      let config = get_vault_config(db, project);
-      let root_dir = config.root_dir(db);
-      let base_path = config.base_path(db);
-      let relative = path.strip_prefix(&root_dir).unwrap_or(path);
-      let path_str = relative.to_string_lossy();
-      let url = if base_path == "/" {
-        format!("/{path_str}")
-      } else {
-        format!("{base_path}/{path_str}")
-      };
-      Some(ResolvedRef { name, url })
-    }
-    _ => None,
-  }
-}
-
-/// Resolved fref target with display name, URL, optional icon, and image flag
-pub(super) struct FrefTarget {
-  pub name: String,
-  pub url: String,
-  pub icon: Option<String>,
-  pub is_image: bool,
-}
-
-pub(super) fn resolve_fref_target(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-  node: &RedNode,
-) -> Option<FrefTarget> {
-  let hir = lower_node(db, project, FileRedNode::new(file, node.clone()));
-  let referee_result = referee(db, hir);
-  let target_symbol = referee_result.value(db)?;
-  let resolved = resolve_ref(db, project, &target_symbol)?;
-
-  let is_image = matches!(
-    target_symbol.kind(db),
-    SymbolKind::Asset(asset_kind, _, _) if asset_kind.is_image()
-  );
-
-  let icon = if is_image {
-    None
-  } else {
-    resolve_fref_icon(db, project, &target_symbol)
-  };
-
-  Some(FrefTarget {
-    name: resolved.name,
-    url: resolved.url,
-    icon,
-    is_image,
+  Some(ExportedSeoMeta {
+    title,
+    description,
+    image,
   })
 }
 
-/// Resolve a fref interpolation to a markdown link with optional icon
-fn try_resolve_fref(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-  node: &RedNode,
-) -> Option<String> {
-  let target = resolve_fref_target(db, project, file, node)?;
-
-  if target.is_image {
-    return Some(format!("![{}]({})", target.name, target.url));
-  }
-
-  let icon_html = target
-    .icon
-    .map(|name| format!("<LucideIcon name=\"{}\" />", name))
-    .unwrap_or_default();
-
-  Some(format!("{}[{}]({})", icon_html, target.name, target.url))
-}
-
-// Get the lucide icon name for a fref target
-fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> Option<String> {
-  match symbol.kind(db) {
-    SymbolKind::UserDefinedResource(_, target_file) => {
-      let target_symbol = file_symbol(db, project, target_file).value(db)?;
-      let obj = evaluate_resource(db, target_symbol).value(db)?;
-      obj
-        .get_builtin_field(db, "_icon")
-        .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
-    }
-    SymbolKind::UserDefinedSchema(_, _) => {
-      let typ = evaluate_type(db, *symbol).typ(db)?;
-      typ
-        .get_builtin_field(db, "_icon")
-        .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
-    }
-    _ => None,
-  }
-}
-
-pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File) -> String {
-  // Try _label from the schema type
-  if let Some(symbol) = file_symbol(db, project, file).value(db)
-    && let Some(typ) = evaluate_type(db, symbol).typ(db)
-    && let Some(label_obj) = typ.get_builtin_field(db, "_label")
-    && let Some(str_obj) = label_obj.as_td_str_obj()
-  {
-    return str_obj.value(db);
-  }
-
-  // Fall back to PascalCase split of file stem
-  let handle = file.handle(db);
-  let stem = handle
-    .path()
-    .and_then(|p| p.file_stem())
-    .and_then(|s| s.to_str())
-    .unwrap_or("unknown");
-  split_pascal_case(stem)
-}
-
-/// Get a display name for a symbol: Try _label, then file stem
-fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol) -> String {
-  let kind = symbol.kind(db);
-
-  // Try _label from the evaluated resource or schema type
-  match &kind {
-    SymbolKind::UserDefinedResource(_, target_file) => {
-      if let Some(target_symbol) = file_symbol(db, project, *target_file).value(db)
-        && let Some(obj) = evaluate_resource(db, target_symbol).value(db)
-        && let Some(label_obj) = obj.get_builtin_field(db, "_label")
-        && let Some(str_obj) = label_obj.as_td_str_obj()
-      {
-        return str_obj.value(db);
+fn export_body_excerpt(node: &RedNode) -> Option<String> {
+  // Depth-first search for the first MdParagraph in the AST
+  fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
+    for child in node.children() {
+      if child.kind() == SyntaxKind::MdParagraph {
+        return Some(child);
+      }
+      if let Some(found) = find_first_paragraph(&child) {
+        return Some(found);
       }
     }
-    SymbolKind::UserDefinedSchema(_, _) => {
-      if let Some(typ) = evaluate_type(db, *symbol).typ(db)
-        && let Some(label_obj) = typ.get_builtin_field(db, "_label")
-        && let Some(str_obj) = label_obj.as_td_str_obj()
-      {
-        return str_obj.value(db);
-      }
-    }
-    _ => {}
+    None
   }
 
-  // Fallback: file stem, or parent directory name for index files
-  match &kind {
-    SymbolKind::UserDefinedResource(_, target_file)
-    | SymbolKind::UserDefinedSchema(_, target_file) => {
-      let handle = target_file.handle(db);
-      let path = handle.path();
-      let stem = path.and_then(|p| p.file_stem()).and_then(|s| s.to_str());
-
-      match stem {
-        Some("index") => path
-          .and_then(|p| p.parent())
-          .and_then(|p| p.file_name())
-          .and_then(|n| n.to_str())
-          .unwrap_or("index")
-          .to_string(),
-        Some(name) => name.to_string(),
-        None => "unknown".to_string(),
-      }
-    }
-    _ => symbol.name(db).to_string(),
-  }
-}
-
-pub(super) fn evaluate_lazy_field<'db>(
-  db: &'db TypedownDatabase,
-  field: Either<HirValue<'db>, TdObjectEnum<'db>>,
-) -> Option<TdObjectEnum<'db>> {
-  match field {
-    Either::Right(obj) => Some(obj),
-    Either::Left(hir) => {
-      let file_scope = get_file_runtime_scope(db, hir.project(db), hir.node(db).owner_file);
-      evaluate_node(db, hir, file_scope).value(db)
-    }
-  }
+  find_first_paragraph(node)
+    .map(|p| utils::extract_plain_text(&p))
+    .filter(|s| !s.is_empty())
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::derived::evaluate::evaluate_type::evaluate_type;
+  use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
   use crate::db::derived::name_resolver::file_symbol::file_symbol;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{File, FileHandle, FileMetadata, Project};
@@ -1159,7 +373,6 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
-    // Verify key elements are present in the exported content
     assert!(content.contains("# Heading 1"), "should contain h1");
     assert!(content.contains("## Heading 2"), "should contain h2");
     assert!(content.contains("**bold**"), "should contain bold");
@@ -1190,13 +403,11 @@ mod tests {
     );
   }
 
-  // Unresolved interpolation in markdown silently produces empty output
   #[test]
   fn exports_unresolved_interpolation_as_empty() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_unresolved_interp.td");
     let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
-    // ${question} resolves to nothing because `question` is not a field on Person
     assert!(
       !content.contains("question"),
       "unresolved interpolation should not appear in output: {content}",
@@ -1213,29 +424,22 @@ mod tests {
     let exported = export_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
 
-    // No line should have 4+ leading spaces (which markdown-it treats as a code block)
     for line in content.lines() {
       let indent = line.len() - line.trim_start().len();
-
       assert!(
         indent < 4 || line.trim_start().is_empty(),
         "line has {indent} spaces of indentation (would become code block): '{line}'\nfull content:\n{content}",
       );
     }
 
-    // Nested container content should not be indented
     assert!(
       content.contains("nested paragraph\n"),
       "nested paragraph should not have leading whitespace: {content}",
     );
-
-    // Blockquote content should use > prefix
     assert!(
       content.contains("> blockquote content\n"),
       "blockquote should use > prefix: {content}",
     );
-
-    // List item content
     assert!(
       content.contains("- item one\n"),
       "list item should use - marker: {content}",
@@ -1264,7 +468,7 @@ mod tests {
   fn exports_list_field_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/WithListField.td");
     let props =
-      export_property_descriptors(&db, project, file).expect("WithListField schema should export");
+      export_prop_descriptors(&db, project, file).expect("WithListField schema should export");
     assert_eq!(props["tags"]["widget"], "list");
     assert_eq!(props["tags"]["items"]["widget"], "text");
     assert_eq!(props["scores"]["widget"], "list");
@@ -1272,19 +476,17 @@ mod tests {
   }
 
   #[test]
-  fn exports_schema_properties() {
+  fn exports_schema_props() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let props =
-      export_property_descriptors(&db, project, file).expect("Person schema should export");
+    let props = export_prop_descriptors(&db, project, file).expect("Person schema should export");
     assert_eq!(props["name"]["widget"], "text");
     assert_eq!(props["age"]["widget"], "number");
   }
 
   #[test]
-  fn exports_schema_select_property() {
+  fn exports_schema_select_prop() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Status.td");
-    let props =
-      export_property_descriptors(&db, project, file).expect("Status schema should export");
+    let props = export_prop_descriptors(&db, project, file).expect("Status schema should export");
     assert_eq!(props["status"]["widget"], "select");
     assert_eq!(
       props["status"]["options"],
@@ -1293,10 +495,9 @@ mod tests {
   }
 
   #[test]
-  fn exports_schema_relation_property() {
+  fn exports_schema_relation_prop() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Event.td");
-    let props =
-      export_property_descriptors(&db, project, file).expect("Event schema should export");
+    let props = export_prop_descriptors(&db, project, file).expect("Event schema should export");
     assert_eq!(props["title"]["widget"], "text");
     assert_eq!(props["location"]["widget"], "relation");
     assert_eq!(props["location"]["schema"], "Address");
@@ -1305,10 +506,10 @@ mod tests {
   #[test]
   fn returns_none_for_non_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let result = export_property_descriptors(&db, project, file);
+    let result = export_prop_descriptors(&db, project, file);
     assert!(
       result.is_none(),
-      "resource file should return None from export_property_descriptors"
+      "resource file should return None from export_prop_descriptors"
     );
   }
 
@@ -1329,7 +530,6 @@ mod tests {
     assert!(exported.content.is_empty(), "asset has no markdown body");
   }
 
-  // fref links use site.base_path from typedown.yaml
   #[test]
   fn fref_uses_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
@@ -1352,7 +552,6 @@ mod tests {
     );
   }
 
-  // Default base_path is /
   #[test]
   fn fref_default_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
@@ -1368,7 +567,6 @@ mod tests {
   fn export_separates_blocks_with_blank_lines() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
     let exported = export_resource_markdown(&db, project, file).expect("should export");
-    // Block elements should be separated by blank lines
     let lines: Vec<&str> = exported.content.lines().collect();
     let heading_indices: Vec<usize> = lines
       .iter()
@@ -1431,7 +629,7 @@ mod tests {
     assert_eq!(label, "Person");
   }
 
-  // Regression: adding _icon to a schema during dev server hot-reload previously caused a cycle in the incremental query system
+  // Regression: adding _icon to a schema during dev server hot-reload previously caused a cycle
   #[test]
   fn incremental_add_icon_to_schema_no_cycle() {
     let mut db = TypedownDatabase {
@@ -1493,11 +691,11 @@ name: "Alice"
     ]
     .into_iter()
     .collect();
-    let project = Project::new(&db, vault.clone(), files);
+    let project = Project::new(&db, vault.clone(), files, None);
 
     // First evaluation, no icon
     let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();
-    let result = evaluate_type(&db, symbol);
+    let result = evaluate_typ(&db, symbol);
     assert!(
       result.diagnostics(&db).is_empty(),
       "{:?}",
@@ -1534,7 +732,7 @@ properties:
 
     // Re-evaluate, should not panic with a query cycle
     let symbol2 = file_symbol(&db, project, schema_file).value(&db).unwrap();
-    let result2 = evaluate_type(&db, symbol2);
+    let result2 = evaluate_typ(&db, symbol2);
     assert!(
       result2.diagnostics(&db).is_empty(),
       "after adding _icon: {:?}",
@@ -1555,8 +753,6 @@ properties:
   }
 
   // HTML export tests
-  // Uses all_md_elements.td which covers headings, inline markup, code, math,
-  // blockquotes, tables, lists, containers, links
 
   #[test]
   fn html_export_simple_paragraph() {
@@ -1569,6 +765,7 @@ properties:
   fn html_export_headings() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
+    eprintln!("{:?}", exported.content);
     assert!(exported.content.contains(
       "<h1 id=\"heading-1\">Heading 1 <a class=\"td-header-anchor\" href=\"#heading-1\""
     ));
@@ -1584,7 +781,6 @@ properties:
     assert_eq!(exported.title.as_deref(), Some("Heading 1"));
   }
 
-  // Heading titles preserve special characters like dots, colons, plus signs, hash
   #[test]
   fn html_export_heading_titles_preserve_special_chars() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
@@ -1605,6 +801,27 @@ properties:
     assert!(
       titles.contains(&"node.js vs Deno"),
       "dots preserved: {titles:?}"
+    );
+  }
+
+  #[test]
+  fn html_export_heading_with_inline_markup() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"https://example.com\""),
+      "heading should contain rendered link:\n{}",
+      exported.content
+    );
+    assert!(
+      exported.content.contains("`def1`"),
+      "heading should preserve inline code in link:\n{}",
+      exported.content
+    );
+    assert!(
+      exported.content.contains("<strong>bold heading</strong>"),
+      "heading should contain rendered bold:\n{}",
+      exported.content
     );
   }
 
@@ -1639,6 +856,20 @@ properties:
     assert!(exported.content.contains(
       "<pre class=\"td-code-placeholder\" data-lang=\"js\" data-meta=\"js{1,3}\"><code>const x = 1;"
     ));
+  }
+
+  #[test]
+  fn html_export_code_block_with_title() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("data-title=\"config.ts\""));
+  }
+
+  #[test]
+  fn html_export_code_block_with_line_numbers() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(exported.content.contains("data-line-numbers=\"5\""));
   }
 
   #[test]
@@ -1683,14 +914,12 @@ properties:
     assert!(exported.content.contains("Col1"));
     assert!(exported.content.contains("Col2"));
     assert!(exported.content.contains("<td>"));
-    // Cells are now properly split into separate th/td elements
     let th_count = exported.content.matches("<th>").count();
     let td_count = exported.content.matches("<td>").count();
     assert_eq!(th_count, 2, "should have 2 header cells");
     assert_eq!(td_count, 2, "should have 2 data cells");
   }
 
-  // Table cells preserve inline code, math, and interpolation
   #[test]
   fn html_export_table_inline_code() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_table_inline_code.td");
@@ -1772,7 +1001,7 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
-      "<LucideIcon name=\"arrow-up-right\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">link text</a>"
+      "<LucideIcon name=\"arrow-up-right\" class=\"td-external-link-icon\" /><a href=\"https://example.com\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">link text</a>"
     ));
   }
 
@@ -1790,7 +1019,6 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_empty_slot.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
-    // The empty named slot should still produce a closed template tag
     assert!(
       content.contains("<template #key>"),
       "should have named slot: {content}"
@@ -1846,7 +1074,6 @@ properties:
     );
   }
 
-  // Relative fref (./_assets/test.svg) resolves from the file's directory
   #[test]
   fn html_export_relative_fref_image() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "subdir/relative_fref.td");
@@ -1925,9 +1152,9 @@ properties:
   }
 
   #[test]
-  fn meta_export_body_only_file() {
+  fn nav_export_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
-    let exported = export_resource_meta(&db, project, file).expect("body-only file should export");
+    let exported = export_resource_nav(&db, project, file).expect("body-only file should export");
     assert!(exported.schema.is_none());
   }
 
@@ -1965,6 +1192,59 @@ properties:
       exported
         .content
         .contains("<p>This file has no frontmatter.</p>")
+    );
+  }
+
+  #[test]
+  fn html_export_extracts_seo_metadata() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_meta.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let seo = exported.seo_metadata.expect("_meta should be extracted");
+    assert_eq!(seo.title.as_deref(), Some("Custom SEO Title"));
+    assert_eq!(seo.description.as_deref(), Some("Custom SEO description"));
+    assert_eq!(seo.image.as_deref(), Some("/images/og.png"));
+  }
+
+  #[test]
+  fn html_export_preserves_external_url() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"https://example.com\""),
+      "external URL should pass through unchanged: {}",
+      exported.content
+    );
+  }
+
+  #[test]
+  fn html_export_preserves_anchor_url() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"#section\""),
+      "anchor URL should pass through unchanged: {}",
+      exported.content
+    );
+  }
+
+  #[test]
+  fn html_export_resolves_relative_link() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.content.contains("href=\"/other.td\""),
+      "relative link should resolve with base path: {}",
+      exported.content
+    );
+  }
+
+  #[test]
+  fn html_export_no_seo_metadata_when_absent() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert!(
+      exported.seo_metadata.is_none(),
+      "seo_metadata should be None when not set"
     );
   }
 }

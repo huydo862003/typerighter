@@ -11,7 +11,7 @@ import {
 import {
   getPageIcon,
 } from '../utils/pageIcon';
-import TdTreeNode from './TdTreeNode.vue';
+import TdTreeNode from './TdTree/TdTreeNode.vue';
 import {
   formatRelativeTime, getIndexUrl, getTdContentUrl, getTdResourceTitle, isIndexFile,
   type ContentTree,
@@ -43,58 +43,65 @@ function isCurrent (href: string): boolean {
 </script>
 
 <template>
-  <nav class="td-nav">
-    <a
-      :href="withBase(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/'))"
-      class="td-root-link"
-      :class="{
-        'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')),
-      }"
-    >
-      <House
-        :size="14"
-        class="td-root-link-icon"
-      />
-      <span class="td-root-link-text">Overview</span>
-      <span
-        v-if="indexItem"
-        class="td-root-link-time"
-      >{{ indexItem.metadata ? formatRelativeTime(indexItem.metadata.mtime) : '' }}</span>
-    </a>
-    <template
-      v-for="entry in regularEntries"
-      :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
-    >
-      <TdTreeNode
-        v-if="entry.kind === 'dir'"
-        :node="entry.node"
-      />
+  <nav
+    class="td-nav"
+    aria-label="Site navigation"
+  >
+    <div role="tree">
       <a
-        v-else
-        :href="withBase(getTdContentUrl(entry.item.filepath))"
+        :href="withBase(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/'))"
         class="td-root-link"
+        role="treeitem"
         :class="{
-          'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
+          'is-active': isCurrent(indexItem ? getTdContentUrl(indexItem.filepath) : getIndexUrl('/')),
         }"
       >
-        <component
-          :is="getPageIcon(entry.item.icon.name)!"
-          v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+        <House
           :size="14"
           class="td-root-link-icon"
         />
-        <File
-          v-else
-          :size="14"
-          class="td-root-link-icon"
-        />
-        <span class="td-root-link-text">{{ getTdResourceTitle(entry.item.filepath, entry.item.label) }}</span>
+        <span class="td-root-link-text">Overview</span>
         <span
-          v-if="entry.item.metadata"
+          v-if="indexItem"
           class="td-root-link-time"
-        >{{ formatRelativeTime(entry.item.metadata.mtime) }}</span>
+        >{{ indexItem.fileMetadata ? formatRelativeTime(indexItem.fileMetadata.mtime) : '' }}</span>
       </a>
-    </template>
+      <template
+        v-for="entry in regularEntries"
+        :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
+      >
+        <TdTreeNode
+          v-if="entry.kind === 'dir'"
+          :node="entry.node"
+        />
+        <a
+          v-else
+          :href="withBase(getTdContentUrl(entry.item.filepath))"
+          class="td-root-link"
+          role="treeitem"
+          :class="{
+            'is-active': isCurrent(getTdContentUrl(entry.item.filepath)),
+          }"
+        >
+          <component
+            :is="getPageIcon(entry.item.icon.name)!"
+            v-if="entry.item.icon && getPageIcon(entry.item.icon.name)"
+            :size="14"
+            class="td-root-link-icon"
+          />
+          <File
+            v-else
+            :size="14"
+            class="td-root-link-icon"
+          />
+          <span class="td-root-link-text">{{ getTdResourceTitle(entry.item.filepath, entry.item.label) }}</span>
+          <span
+            v-if="entry.item.fileMetadata"
+            class="td-root-link-time"
+          >{{ formatRelativeTime(entry.item.fileMetadata.mtime) }}</span>
+        </a>
+      </template>
+    </div>
   </nav>
 </template>
 

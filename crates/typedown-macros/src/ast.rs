@@ -47,31 +47,55 @@ impl Parse for WrapperAstNodeMacroArgs {
   }
 }
 
-/// Attribute macro for synthetic AST nodes that wrap multiple SyntaxKind variants.
+/// Attribute macro for wrapper AST enums that cover multiple SyntaxKind variants.
+/// The annotated type becomes an enum with one variant per kind.
+/// Pattern matching on the enum is exhaustive with no extra wrapper needed.
+///
+/// Generates:
+/// - The enum with `#[derive(Clone, PartialEq, Eq, Hash)]`
+/// - `AstNode` impl: `cast()` dispatches via O(1) SyntaxKind match; `syntax()` delegates to the variant
+/// - `From<Variant>` and `TryFrom<Self> for Variant` for each variant
+///
 /// Usage:
 /// ```ignore
 /// #[wrapper_ast_node(SyntaxKind = [KindA, KindB])]
-/// pub struct MyNode(RedNode);
+/// pub enum MyNode {}
 /// ```
 pub fn wrapper_ast_node_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
   let args: WrapperAstNodeMacroArgs = syn::parse(attr).unwrap();
   let item_ast: syn::DeriveInput = syn::parse(item).unwrap();
 
   let name = &item_ast.ident;
+  let vis = &item_ast.vis;
   let kinds: Vec<_> = args.kinds.iter().collect();
+
+  // cast() arms: SyntaxKind::X => Some(Name::X(X(syntax)))
+  let cast_arms = kinds.iter().map(|kind| {
+    quote! {
+      crate::syntax::syntax_kind::SyntaxKind::#kind => Some(#name::#kind(#kind(syntax))),
+    }
+  });
+
+  // syntax() arms: Name::X(n) => n.syntax()
+  let syntax_arms = kinds.iter().map(|kind| {
+    quote! { #name::#kind(n) => n.syntax(), }
+  });
 
   let from_impls = kinds.iter().map(|kind| {
     quote! {
       impl From<#kind> for #name {
         fn from(node: #kind) -> Self {
-          Self(node.syntax().clone())
+          #name::#kind(node)
         }
       }
 
       impl TryFrom<#name> for #kind {
         type Error = ();
         fn try_from(node: #name) -> Result<Self, ()> {
-          Self::cast(node.0).ok_or(())
+          match node {
+            #name::#kind(n) => Ok(n),
+            _ => Err(()),
+          }
         }
       }
     }
@@ -79,17 +103,21 @@ pub fn wrapper_ast_node_impl(attr: TokenStream, item: TokenStream) -> TokenStrea
 
   let generated = quote! {
     #[derive(Clone, PartialEq, Eq, Hash)]
-    #item_ast
+    #vis enum #name {
+      #(#kinds(#kinds)),*
+    }
 
     impl AstNode for #name {
       fn cast(syntax: RedNode) -> Option<Self> {
         match syntax.kind() {
-          #(crate::syntax::syntax_kind::SyntaxKind::#kinds)|* => Some(Self(syntax)),
+          #(#cast_arms)*
           _ => None,
         }
       }
       fn syntax(&self) -> &RedNode {
-        &self.0
+        match self {
+          #(#syntax_arms)*
+        }
       }
     }
 

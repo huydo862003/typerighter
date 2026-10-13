@@ -131,7 +131,7 @@ function visible<T> (list: T[]): T[] {
 
 .td-widget-list-icon {
   flex-shrink: 0;
-  color: var(--color-td-ink-4);
+  color: var(--color-td-link);
 }
 
 .td-widget-list li {

@@ -10,12 +10,12 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use typedown_lang::db::TypedownDatabase;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
-use typedown_lang::db::derived::typechecker::get_symbol_type::get_symbol_type;
-use typedown_lang::db::types::derived::object_system::TdStaticType;
+use typedown_lang::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
+use typedown_lang::db::types::derived::obj_system::TdStaticTyp;
 use typedown_lang::db::types::{Project, SymbolKind};
 use typedown_lang::db::types::{Scope, ScopeKind};
 
@@ -204,9 +204,9 @@ fn find_nearest_schema_directory(
     if !matches!(sym.kind(db), SymbolKind::UserDefinedResource(_, _)) {
       continue;
     }
-    if get_symbol_type(db, sym)
+    if get_symbol_typ(db, sym)
       .typ(db)
-      .is_none_or(|t| t.display_name(db) != schema_name)
+      .is_none_or(|typ| typ.display_name(db) != schema_name)
     {
       continue;
     }
@@ -236,9 +236,9 @@ fn build_template(db: &TypedownDatabase, project: Project, schema_name: &str) ->
     .members(db)
     .get(schema_name)
     .copied()
-    .and_then(|sym| evaluate_type(db, sym).typ(db));
+    .and_then(|sym| evaluate_typ(db, sym).typ(db));
 
-  if let Some(schema) = typ.as_ref().and_then(|t| t.as_td_schema_type()) {
+  if let Some(schema) = typ.as_ref().and_then(|t| t.as_td_schema_typ()) {
     for (field_name, _) in schema.fields(db) {
       template.push_str(&format!("{field_name}: \n"));
     }

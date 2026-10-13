@@ -13,23 +13,22 @@ use typedown_incremental::{CacheSession, Cancelled, QueryStorage, SerializableQu
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use typedown_lang::db::derived::evaluate::evaluate_type::evaluate_type;
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::schema_members;
 use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
-use typedown_lang::db::types::{File, FileRedNode, Project, SymbolKind};
-use typedown_lang::db::utils::{is_content_file, is_internal_file, is_type_file};
+use typedown_lang::db::types::{CustomComponentEntry, File, Project, ProjectRedNode, SymbolKind};
+use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
-  export_property_descriptors, export_resource_html, export_resource_meta, export_resource_summary,
+  export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
   resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
-use typedown_lang::integrations::lint::lint_markdown;
+use typedown_lang::integrations::lint::{LintDiagnostic, lint_markdown};
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
 
@@ -37,7 +36,9 @@ use typedown_types::path::normalize_path;
 
 use crate::core::analysis::Analysis;
 use crate::core::analysis_host::AnalysisHost;
-use crate::core::utils::fs::{get_cache_dir, is_asset_file, is_vault_config};
+use crate::core::utils::fs::{
+  get_cache_dir, get_component_contract_path, is_asset_file, is_vault_config,
+};
 
 use super::contract::*;
 
@@ -81,10 +82,15 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
   TdSiteConfig {
     version: config.version(db).to_string(),
     base_path: base_path.to_string(),
+    origin: config.origin(db).clone(),
+    lang: config.lang(db).to_string(),
     root_dir: root_dir_rel,
     site_title: config.site_title(db).to_string(),
     site_description: config.site_description(db).to_string(),
-    repo: config.repo(db).clone(),
+    repo: config.repo_url(db).as_ref().map(|url| TdRepoConfig {
+      url: url.clone(),
+      root: config.repo_root(db).clone().unwrap_or_default(),
+    }),
     author: config.author(db).clone(),
     license: config.license(db).clone(),
     public_dir: config.public_dir(db).to_string(),
@@ -97,6 +103,21 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
         icon: icon.clone(),
       })
       .collect(),
+    components: config
+      .component_entries(db)
+      .iter()
+      .map(|decl| match decl {
+        CustomComponentEntry::Dir { path } => TdComponentEntry::Dir { path: path.clone() },
+        CustomComponentEntry::Explicit { name, source } => TdComponentEntry::Explicit {
+          name: name.clone(),
+          source: source.clone(),
+        },
+      })
+      .collect(),
+    layout: config.layout(db).map(|layout| TdCustomLayout {
+      component: layout.component,
+      slots: layout.slots.into_iter().collect(),
+    }),
   }
 }
 
@@ -275,6 +296,7 @@ impl RpcServer {
     fs_tx: crossbeam_channel::Sender<FsEvent>,
   ) -> anyhow::Result<RecommendedWatcher> {
     let vault_root = vault_root.to_path_buf();
+    let contract_path = get_component_contract_path(root_dir);
     let mut watcher = notify::recommended_watcher(move |result: Result<Event, notify::Error>| {
       let Ok(event) = result else { return };
 
@@ -317,10 +339,15 @@ impl RpcServer {
         return;
       }
 
-      // Only watch vault config at project root and content/assets inside the vault
+      // Only watch vault config, component contract, and content/assets inside the vault
       for path in &event.paths {
-        if is_vault_config(path) {
-          // Accept config file changes regardless of location
+        if is_vault_config(path) || *path == contract_path {
+          // Accept config and contract file changes regardless of location
+        } else if path.starts_with(&vault_root)
+          && path.is_dir()
+          && matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_))
+        {
+          // Accept vault directory create/remove so new folders are scanned
         } else if path.starts_with(&vault_root) && (is_content_file(path) || is_asset_file(path)) {
           // Accept vault content and asset changes
         } else {
@@ -425,6 +452,11 @@ impl RpcServer {
           send_notification(&sender, NOTIF_CONFIG_CHANGED, &config);
         }
 
+        // Notify subscribers when the component contract is updated
+        if affected_paths.contains(&get_component_contract_path(&project.root_dir(db))) {
+          send_notification(&sender, NOTIF_COMPONENT_CONTRACT_CHANGED, &());
+        }
+
         // Stat each path and emit normalized notifications
         for path in &affected_paths {
           if !path.starts_with(&root_dir) {
@@ -433,7 +465,7 @@ impl RpcServer {
 
           let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
 
-          if is_type_file(path) {
+          if is_typ_file(path) {
             let Some(name) = path
               .file_stem()
               .and_then(|s| s.to_str())
@@ -446,7 +478,15 @@ impl RpcServer {
             } else {
               NOTIF_SCHEMA_DELETED
             };
-            send_notification(&sender, method, &TdSchemaNotification { schema: name });
+            let affected_files = collect_affected_files(db, project, path, &root_dir);
+            send_notification(
+              &sender,
+              method,
+              &TdSchemaNotification {
+                schema: name,
+                affected_files,
+              },
+            );
           } else if is_content_file(path) || is_asset_file(path) {
             let method = if path.exists() {
               NOTIF_CONTENT_UPDATED
@@ -551,13 +591,13 @@ fn collect_affected_files(
   root_dir: &Path,
 ) -> Vec<String> {
   let changed_file = match project.files(db).get(changed_path) {
-    Some(f) => *f,
+    Some(file) => *file,
     None => return vec![],
   };
   find_transitive_referrers(db, project, changed_file)
     .into_iter()
-    .filter_map(|f| {
-      let path = f.handle(db).path()?.clone();
+    .filter_map(|file| {
+      let path = file.handle(db).path()?.clone();
       path.strip_prefix(root_dir).ok().map(normalize_path)
     })
     .collect()
@@ -600,18 +640,23 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
       headings: exported
         .headings
         .into_iter()
-        .map(|h| TdHeading {
-          level: h.level,
-          title: h.title,
-          title_html: h.title_html,
-          slug: h.slug,
+        .map(|heading| TdHeading {
+          level: heading.level,
+          title: heading.title,
+          title_html: heading.title_html,
+          slug: heading.slug,
         })
         .collect(),
       title: exported.title,
-      metadata: TdFileMetadata {
+      file_metadata: TdFileMetadata {
         mtime: exported.metadata.mtime,
         ctime: exported.metadata.ctime,
       },
+      seo_metadata: exported.seo_metadata.map(|m| TdSeoMeta {
+        title: m.title,
+        description: m.description,
+        image: m.image,
+      }),
     });
   }
 
@@ -671,7 +716,7 @@ fn list_files_grouped_by_schema(
         icon: summary.icon.map(|icon| TdIcon { name: icon.name }),
         header: summary.header,
         excerpt: summary.excerpt,
-        metadata: TdFileMetadata {
+        file_metadata: TdFileMetadata {
           mtime: summary.metadata.mtime,
           ctime: summary.metadata.ctime,
         },
@@ -696,18 +741,18 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
       continue;
     }
     let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    if let Some(meta) = export_resource_meta(db, project, *file) {
-      let schema_label = get_schema_label(db, project, meta.schema.as_deref());
+    if let Some(nav) = export_resource_nav(db, project, *file) {
+      let schema_label = get_schema_label(db, project, nav.schema.as_deref());
       items.push(TdSidebarItem {
         filepath: relative,
-        schema: meta.schema,
+        schema: nav.schema,
         schema_label,
-        label: meta.label,
-        icon: meta.icon.map(|icon| TdIcon { name: icon.name }),
-        excerpt: meta.excerpt,
-        metadata: TdFileMetadata {
-          mtime: meta.metadata.mtime,
-          ctime: meta.metadata.ctime,
+        label: nav.label,
+        icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
+        excerpt: nav.excerpt,
+        file_metadata: TdFileMetadata {
+          mtime: nav.metadata.mtime,
+          ctime: nav.metadata.ctime,
         },
       });
     }
@@ -732,7 +777,7 @@ fn list_schemas(analysis: &Analysis) -> RpcResult<Vec<String>> {
 
   let mut schemas = Vec::new();
   for (path, file) in &*files {
-    if !path.starts_with(&*root_dir) || !is_type_file(path) {
+    if !path.starts_with(&*root_dir) || !is_typ_file(path) {
       continue;
     }
     let Some(symbol) = file_symbol(db, project, *file).value(db) else {
@@ -762,7 +807,7 @@ fn get_schema(analysis: &Analysis, schema: &str) -> RpcResult<TdSchemaInfo> {
   };
 
   let label = resolve_schema_label(db, project, file);
-  let properties = export_property_descriptors(db, project, file)
+  let properties = export_prop_descriptors(db, project, file)
     .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
 
   Ok(TdSchemaInfo {
@@ -784,14 +829,14 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let mut file_count: u32 = 0;
 
   for (path, &file) in &*files {
-    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_type_file(path) {
+    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_typ_file(path) {
       continue;
     }
     file_count += 1;
 
     let relative_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
     let rope = match analysis.file_rope(path) {
-      Some(r) => r,
+      Some(rope) => rope,
       None => continue,
     };
 
@@ -880,40 +925,40 @@ fn collect_file_diagnostics(
 
   // Parse errors
   let parse_result = parse_file(db, project, file);
-  let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
+  let mut typedown_diagnostics: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
   // Typecheck and name resolution errors
   let root = parse_result.ast(db).node.clone();
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  let typecheck_result = typecheck(db, hir);
-  td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
-  let resolve_result = resolve(db, hir);
-  td_diags.extend(resolve_result.diagnostics(db).iter().cloned());
+  let project_node = ProjectRedNode::new(project, file, root);
+  let typecheck_result = typecheck(db, project_node.clone());
+  typedown_diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
+  let resolve_result = resolve(db, project_node);
+  typedown_diagnostics.extend(resolve_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors
-  if let Some(sym) = file_symbol(db, project, file).value(db) {
-    if sym.kind(db).is_schema() {
-      let eval_result = evaluate_type(db, sym);
-      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+  if let Some(symbol) = file_symbol(db, project, file).value(db) {
+    if symbol.kind(db).is_schema() {
+      let evaluate_result = evaluate_typ(db, symbol);
+      typedown_diagnostics.extend(evaluate_result.diagnostics(db).iter().cloned());
     } else {
-      let eval_result = evaluate_resource(db, sym);
-      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+      let evaluate_result = evaluate_resource(db, symbol);
+      typedown_diagnostics.extend(evaluate_result.diagnostics(db).iter().cloned());
     }
   }
 
   // Deduplicate diagnostics by (code, line, column)
   let mut seen = std::collections::HashSet::new();
-  for diag in &td_diags {
-    let (line, column) = if let Some((start, _)) = diag.offsets() {
+  for diagnostic in &typedown_diagnostics {
+    let (line, column) = if let Some((start, _)) = diagnostic.offsets() {
       let start = start.min(rope.len_chars());
-      let l = rope.char_to_line(start);
-      let c = start - rope.line_to_char(l);
-      (l as u32 + 1, c as u32 + 1)
+      let line = rope.char_to_line(start);
+      let column = start - rope.line_to_char(line);
+      (line as u32 + 1, column as u32 + 1)
     } else {
       (1, 1)
     };
 
-    let code = diag.code().as_str().to_string();
+    let code = diagnostic.code().as_str().to_string();
     let key = (code.clone(), line, column);
     if !seen.insert(key) {
       continue;
@@ -925,27 +970,31 @@ fn collect_file_diagnostics(
       column,
       severity: "error".to_string(),
       code,
-      message: diag.message(),
+      message: diagnostic.message(),
     });
   }
 
   // Lint warnings
-  if let Some(body) = SourceFile::cast(parse_result.ast(db).node.clone()).and_then(|sf| sf.body()) {
-    for lint in lint_markdown(&body) {
-      let start = lint.start_offset.min(rope.len_chars());
-      let l = rope.char_to_line(start);
-      let c = start - rope.line_to_char(l);
-
-      items.push(TdDiagnosticItem {
-        filepath: filepath.to_string(),
-        line: l as u32 + 1,
-        column: c as u32 + 1,
-        severity: "warning".to_string(),
-        code: lint.code.as_str().to_string(),
-        message: lint.message,
-      });
+  let root = parse_result.ast(db).node.clone();
+  if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
+    for diag in lint_markdown(&body) {
+      items.push(lint_diag_to_item(&diag, filepath, rope));
     }
   }
 
   items
+}
+
+fn lint_diag_to_item(lint: &LintDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
+  let start = lint.start_offset.min(rope.len_chars());
+  let line = rope.char_to_line(start);
+  let column = start - rope.line_to_char(line);
+  TdDiagnosticItem {
+    filepath: filepath.to_string(),
+    line: line as u32 + 1,
+    column: column as u32 + 1,
+    severity: "warning".to_string(),
+    code: lint.code.as_str().to_string(),
+    message: lint.message.clone(),
+  }
 }

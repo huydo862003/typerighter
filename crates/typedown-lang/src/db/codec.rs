@@ -1,3 +1,4 @@
+use crate::db::types::{CustomComponentEntry, CustomComponentProp, CustomComponentTyp};
 use crate::syntax::diagnostic::{Diagnostic, DiagnosticCode};
 use crate::syntax::green::cache::with_green_cache;
 use crate::syntax::red::RedNode;
@@ -14,6 +15,10 @@ use typedown_incremental::{
 // GreenNode (interned)
 fn encode_green_node(node: &GreenNode, encoder: &mut Encoder) -> u32 {
   let hint = Some(node.as_ptr() as u32);
+  if let Some(index) = hint.and_then(|hint| encoder.get_intern_blob_index_fast::<GreenNode>(hint)) {
+    return index;
+  }
+
   if node.is_node() {
     let syntax_node = node.as_node().unwrap();
     let children = syntax_node.children();
@@ -25,8 +30,8 @@ fn encode_green_node(node: &GreenNode, encoder: &mut Encoder) -> u32 {
     blob.push(0); // tag: node
     blob.extend_from_slice(&(syntax_node.kind() as u16).to_le_bytes());
     blob.extend_from_slice(&(child_indices.len() as u32).to_le_bytes());
-    for idx in &child_indices {
-      blob.extend_from_slice(&idx.to_le_bytes());
+    for index in &child_indices {
+      blob.extend_from_slice(&index.to_le_bytes());
     }
     encoder.intern_blob::<GreenNode>(blob, hint)
   } else {
@@ -486,7 +491,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::WrongTypeArgCount { expected, got } => {
+      Diagnostic::WrongTypArgCount { expected, got } => {
         expected.encode(buf, encoder);
         got.encode(buf, encoder);
       }
@@ -508,7 +513,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::ArgTypeMismatch {
+      Diagnostic::ArgTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -517,7 +522,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::FieldTypeMismatch {
+      Diagnostic::FieldTypMismatch {
         field,
         expected,
         start_offset,
@@ -535,7 +540,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::IndexTypeMismatch {
+      Diagnostic::IndexTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -544,7 +549,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::TagTypeMismatch {
+      Diagnostic::TagTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -553,7 +558,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::OperandTypeMismatch {
+      Diagnostic::OperandTypMismatch {
         op,
         expected,
         start_offset,
@@ -573,7 +578,7 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
-      Diagnostic::ElementTypeMismatch {
+      Diagnostic::ElementTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -620,7 +625,7 @@ impl Encodable for Diagnostic {
       }
       Diagnostic::UnknownField {
         field,
-        on_type,
+        on_typ: on_type,
         start_offset,
         end_offset,
       } => {
@@ -706,7 +711,7 @@ impl Encodable for Diagnostic {
         encoder.emit_usize(buf, *start_offset);
         encoder.emit_usize(buf, *end_offset);
       }
-      Diagnostic::TypeArgBoundViolation {
+      Diagnostic::TypArgBoundViolation {
         index,
         expected_bound,
         got,
@@ -740,6 +745,37 @@ impl Encodable for Diagnostic {
         parent_schema.encode(buf, encoder);
         expected.encode(buf, encoder);
         got.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::UnknownComponent {
+        name,
+        start_offset,
+        end_offset,
+      } => {
+        name.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::MissingRequiredProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.encode(buf, encoder);
+        component.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::UnknownProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.encode(buf, encoder);
+        component.encode(buf, encoder);
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
@@ -1125,10 +1161,10 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::WrongTypeArgCount => {
+      DiagnosticCode::WrongTypArgCount => {
         let expected = usize::decode(data, decoder);
         let got = usize::decode(data, decoder);
-        Diagnostic::WrongTypeArgCount { expected, got }
+        Diagnostic::WrongTypArgCount { expected, got }
       }
       DiagnosticCode::NotCallable => {
         let start_offset = usize::decode(data, decoder);
@@ -1150,22 +1186,22 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::ArgTypeMismatch => {
+      DiagnosticCode::ArgTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::ArgTypeMismatch {
+        Diagnostic::ArgTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }
-      DiagnosticCode::FieldTypeMismatch => {
+      DiagnosticCode::FieldTypMismatch => {
         let field = String::decode(data, decoder);
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::FieldTypeMismatch {
+        Diagnostic::FieldTypMismatch {
           field,
           expected,
           start_offset,
@@ -1180,32 +1216,32 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::IndexTypeMismatch => {
+      DiagnosticCode::IndexTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::IndexTypeMismatch {
+        Diagnostic::IndexTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }
-      DiagnosticCode::TagTypeMismatch => {
+      DiagnosticCode::TagTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::TagTypeMismatch {
+        Diagnostic::TagTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }
-      DiagnosticCode::OperandTypeMismatch => {
+      DiagnosticCode::OperandTypMismatch => {
         let op = String::decode(data, decoder);
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::OperandTypeMismatch {
+        Diagnostic::OperandTypMismatch {
           op,
           expected,
           start_offset,
@@ -1222,11 +1258,11 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::ElementTypeMismatch => {
+      DiagnosticCode::ElementTypMismatch => {
         let expected = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
-        Diagnostic::ElementTypeMismatch {
+        Diagnostic::ElementTypMismatch {
           expected,
           start_offset,
           end_offset,
@@ -1264,12 +1300,12 @@ impl Decodable for Diagnostic {
       }
       DiagnosticCode::UnknownField => {
         let field = String::decode(data, decoder);
-        let on_type = String::decode(data, decoder);
+        let on_typ = String::decode(data, decoder);
         let start_offset = usize::decode(data, decoder);
         let end_offset = usize::decode(data, decoder);
         Diagnostic::UnknownField {
           field,
-          on_type,
+          on_typ,
           start_offset,
           end_offset,
         }
@@ -1360,11 +1396,11 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
-      DiagnosticCode::TypeArgBoundViolation => {
+      DiagnosticCode::TypArgBoundViolation => {
         let index = usize::decode(data, decoder);
         let expected_bound = String::decode(data, decoder);
         let got = String::decode(data, decoder);
-        Diagnostic::TypeArgBoundViolation {
+        Diagnostic::TypArgBoundViolation {
           index,
           expected_bound,
           got,
@@ -1407,6 +1443,40 @@ impl Decodable for Diagnostic {
         let end_offset = usize::decode(data, decoder);
         Diagnostic::UnresolvedImport {
           path,
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnknownComponent => {
+        let name = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnknownComponent {
+          name,
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::MissingRequiredProp => {
+        let prop = String::decode(data, decoder);
+        let component = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::MissingRequiredProp {
+          prop,
+          component,
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnknownProp => {
+        let prop = String::decode(data, decoder);
+        let component = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnknownProp {
+          prop,
+          component,
           start_offset,
           end_offset,
         }
@@ -1563,7 +1633,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::WrongTypeArgCount { expected, got } => {
+      Diagnostic::WrongTypArgCount { expected, got } => {
         expected.stable_hash(db, hasher);
         got.stable_hash(db, hasher);
       }
@@ -1578,7 +1648,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::ArgTypeMismatch {
+      Diagnostic::ArgTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1587,7 +1657,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::FieldTypeMismatch {
+      Diagnostic::FieldTypMismatch {
         field,
         expected,
         start_offset,
@@ -1598,7 +1668,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::IndexTypeMismatch {
+      Diagnostic::IndexTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1607,7 +1677,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::TagTypeMismatch {
+      Diagnostic::TagTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1616,7 +1686,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::OperandTypeMismatch {
+      Diagnostic::OperandTypMismatch {
         op,
         expected,
         start_offset,
@@ -1636,7 +1706,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::ElementTypeMismatch {
+      Diagnostic::ElementTypMismatch {
         expected,
         start_offset,
         end_offset,
@@ -1683,7 +1753,7 @@ impl StableHash for Diagnostic {
       }
       Diagnostic::UnknownField {
         field,
-        on_type,
+        on_typ: on_type,
         start_offset,
         end_offset,
       } => {
@@ -1872,7 +1942,7 @@ impl StableHash for Diagnostic {
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
       }
-      Diagnostic::TypeArgBoundViolation {
+      Diagnostic::TypArgBoundViolation {
         index,
         expected_bound,
         got,
@@ -1908,6 +1978,139 @@ impl StableHash for Diagnostic {
         got.stable_hash(db, hasher);
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::UnknownComponent {
+        name,
+        start_offset,
+        end_offset,
+      } => {
+        name.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::MissingRequiredProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.stable_hash(db, hasher);
+        component.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::UnknownProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.stable_hash(db, hasher);
+        component.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+    }
+  }
+}
+
+// ComponentProp
+
+impl Encodable for CustomComponentProp {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.name.encode(buf, encoder);
+    self.type_name.encode(buf, encoder);
+    self.required.encode(buf, encoder);
+  }
+}
+
+impl Decodable for CustomComponentProp {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    CustomComponentProp {
+      name: String::decode(data, decoder),
+      type_name: String::decode(data, decoder),
+      required: bool::decode(data, decoder),
+    }
+  }
+}
+
+impl StableHash for CustomComponentProp {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.name.stable_hash(db, hasher);
+    self.type_name.stable_hash(db, hasher);
+    self.required.stable_hash(db, hasher);
+  }
+}
+
+// ComponentEntry
+
+impl Encodable for CustomComponentTyp {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.name.encode(buf, encoder);
+    self.source.encode(buf, encoder);
+    self.props.encode(buf, encoder);
+  }
+}
+
+impl Decodable for CustomComponentTyp {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    CustomComponentTyp {
+      name: String::decode(data, decoder),
+      source: String::decode(data, decoder),
+      props: Option::decode(data, decoder),
+    }
+  }
+}
+
+impl StableHash for CustomComponentTyp {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.name.stable_hash(db, hasher);
+    self.source.stable_hash(db, hasher);
+    self.props.stable_hash(db, hasher);
+  }
+}
+
+// ComponentEntry
+
+impl Encodable for CustomComponentEntry {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    match self {
+      CustomComponentEntry::Dir { path } => {
+        encoder.emit_u8(buf, 0);
+        path.encode(buf, encoder);
+      }
+      CustomComponentEntry::Explicit { name, source } => {
+        encoder.emit_u8(buf, 1);
+        name.encode(buf, encoder);
+        source.encode(buf, encoder);
+      }
+    }
+  }
+}
+
+impl Decodable for CustomComponentEntry {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    match decoder.read_u8(data) {
+      0 => CustomComponentEntry::Dir {
+        path: String::decode(data, decoder),
+      },
+      1 => CustomComponentEntry::Explicit {
+        name: String::decode(data, decoder),
+        source: String::decode(data, decoder),
+      },
+      tag => panic!("unknown ComponentEntry tag: {tag}"),
+    }
+  }
+}
+
+impl StableHash for CustomComponentEntry {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    std::mem::discriminant(self).stable_hash(db, hasher);
+    match self {
+      CustomComponentEntry::Dir { path } => path.stable_hash(db, hasher),
+      CustomComponentEntry::Explicit { name, source } => {
+        name.stable_hash(db, hasher);
+        source.stable_hash(db, hasher);
       }
     }
   }

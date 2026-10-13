@@ -2,12 +2,12 @@
   "$schema": "https://json.schemastore.org/package",
   "name": "typedown",
   "author": "Huy-DNA <huydo862003@gmail.com>",
-  "version": "0.39.0",
+  "version": "0.43.0",
   "private": true,
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@12.3.4",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "cargo build && pnpm -r run build",
+    "build": "cargo build --release && pnpm -r run build",
     "build:local": "cargo build && pnpm -r --if-present run build:local",
     "build:staging": "pnpm -r --if-present run build:staging",
     "dev": "pnpm -r --if-present run dev"
@@ -20,10 +20,10 @@
     "eslint": "^10.11.0",
     "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-n": "^18.3.0",
-    "eslint-plugin-perfectionist": "^5.11.0",
+    "eslint-plugin-perfectionist": "^5.12.1",
     "eslint-plugin-unicorn": "^74.0.0",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.69.0"
+    "typescript-eslint": "^8.70.1"
   }
 }

@@ -55,6 +55,7 @@ site:
 | `repo` | Optional repository URL shown in the site header. |
 | `site.title` | Site title for HTML and the sidebar. |
 | `site.description` | Site description for HTML meta tags. |
+| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](../03-references/02-markdown-body#user-defined-components). |
 
 ## Internal directories
 

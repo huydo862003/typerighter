@@ -72,7 +72,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn advance_yaml(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
   ) -> YamlLexResult {
     loop {
       let mut result = self.lex_ctx.lex();
@@ -94,7 +94,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn advance_md(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
   ) -> MdLexResult {
     loop {
       let mut result = self.lex_ctx.lex();
@@ -110,7 +110,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  pub fn advance(&mut self, children: &mut Vec<GreenNode>, skip: u16, mode: LexMode) -> LexResult {
+  pub fn advance(
+    &mut self,
+    children: &mut Vec<GreenNode>,
+    skip: usize,
+    mode: LexMode,
+  ) -> LexResult {
     debug_assert!(
       self.lex_ctx.mode() == mode,
       "[PeekableLexCtx::advance] Lex mode must be the same as the `mode` argument"
@@ -125,7 +130,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn consume_yaml(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
     expected: SyntaxKind,
     diagnostic: Diagnostic,
   ) -> bool {
@@ -144,7 +149,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn consume_md(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
     expected: SyntaxKind,
     diagnostic: Diagnostic,
   ) -> bool {
@@ -162,7 +167,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub fn consume(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
     mode: LexMode,
     expected: SyntaxKind,
     diagnostic: Diagnostic,
@@ -181,7 +186,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn consume_yaml_if(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
     predicate: impl Fn(&SyntaxToken) -> bool,
     diagnostic: Diagnostic,
   ) -> bool {
@@ -200,7 +205,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn consume_md_if(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
     predicate: impl Fn(&SyntaxToken) -> bool,
     diagnostic: Diagnostic,
   ) -> bool {
@@ -218,7 +223,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub fn consume_if(
     &mut self,
     children: &mut Vec<GreenNode>,
-    skip: u16,
+    skip: usize,
     mode: LexMode,
     predicate: impl Fn(&SyntaxToken) -> bool,
     diagnostic: Diagnostic,

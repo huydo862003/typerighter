@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "typerighter",
-  "version": "0.39.0",
+  "version": "0.43.0",
   "description": "Typedown: A typed content framework.",
   "repository": {
     "type": "git",
@@ -36,6 +36,7 @@
       "import": "./dist/client/theme-default.js"
     },
     "./style.css": "./dist/typerighter.css",
+    "./fonts.css": "./dist/fonts.css",
     "./math.css": "./dist/math.css"
   },
   "sideEffects": [
@@ -70,15 +71,16 @@
     "@tailwindcss/vite": "^4.3.3",
     "@typerighter/rpc-client": "workspace:*",
     "@typerighter/rpc-server": "workspace:*",
-    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitejs/plugin-vue": "^6.0.10",
     "cac": "^7.0.0",
     "picocolors": "^1.1.1",
-    "shiki": "^4.4.3",
+    "shiki": "^4.5.0",
     "striptags": "^3.2.0",
     "tailwindcss": "^4.3.3",
     "temml": "^0.13.5",
-    "vite": "^8.2.2",
-    "vue": "^3.5.42"
+    "vite": "^8.3.4",
+    "vue": "^3.5.43",
+    "vue-component-meta": "^3.3.13"
   },
   "devDependencies": {
     "@hdnax/nuclint": "^0.17.5",

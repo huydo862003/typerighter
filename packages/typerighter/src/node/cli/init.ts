@@ -1,13 +1,23 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  cancel, intro, isCancel, log, outro, select, text,
+  cancel,
+  intro,
+  isCancel,
+  log,
+  outro,
+  select,
+  text,
 } from '@clack/prompts';
 import {
   CONFIG_FILE_NAMES,
 } from '../context';
 import {
-  BRAND_ARROW, BRAND_BORDER, BRAND_COLOR, BRAND_LETTER, BRAND_VIEWBOX,
+  BRAND_ARROW,
+  BRAND_BORDER,
+  BRAND_COLOR,
+  BRAND_LETTER,
+  BRAND_VIEWBOX,
 } from '@/shared/brand';
 
 export interface InitializeFlags {
@@ -17,7 +27,10 @@ export interface InitializeFlags {
   yes?: boolean;
 }
 
-export async function initialize (root: string, flags: InitializeFlags = {}): Promise<void> {
+export async function initialize (
+  root: string,
+  flags: InitializeFlags = {},
+): Promise<void> {
   const interactive = !hasAllFlags(flags);
   const options = interactive
     ? await collectUserInput(root, flags)
@@ -40,6 +53,7 @@ interface InitializeOptions {
   projectName: string;
   siteTitle: string;
   siteDescription: string;
+  siteOrigin: string;
 }
 
 async function collectUserInput (
@@ -54,14 +68,22 @@ async function collectUserInput (
     await confirmExistingProject();
   }
 
-  const projectName = flags.name ?? await prompt('Project name', existing.packageName ?? path.basename(root));
-  const siteTitle = flags.title ?? await prompt('Site title', projectName);
-  const siteDescription = flags.description ?? await prompt('Site description', 'A typedown site');
+  const projectName =
+    flags.name
+    ?? (await prompt('Project name', existing.packageName ?? path.basename(root)));
+  const siteTitle = flags.title ?? (await prompt('Site title', projectName));
+  const siteDescription =
+    flags.description ?? (await prompt('Site description', 'A typedown site'));
+  const siteOrigin = await prompt(
+    'Site origin (used for sitemap and robots.txt)',
+    'https://example.com',
+  );
 
   return {
     projectName,
     siteTitle,
     siteDescription,
+    siteOrigin,
   };
 }
 
@@ -130,20 +152,26 @@ function generateFaviconSvg (): string {
 }
 
 function generatePackageJson (options: InitializeOptions): string {
-  return JSON.stringify({
-    name: options.projectName,
-    version: '0.0.0',
-    private: true,
-    type: 'module',
-    scripts: {
-      dev: 'typerighter dev',
-      build: 'typerighter build',
-      preview: 'typerighter preview',
-    },
-    devDependencies: {
-      typerighter: `^${__VERSION__}`,
-    },
-  }, undefined, 2) + '\n';
+  return (
+    JSON.stringify(
+      {
+        name: options.projectName,
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        scripts: {
+          dev: 'typerighter dev',
+          build: 'typerighter build',
+          preview: 'typerighter preview',
+        },
+        devDependencies: {
+          typerighter: `^${__VERSION__}`,
+        },
+      },
+      undefined,
+      2,
+    ) + '\n'
+  );
 }
 
 function generateRobotsText (): string {
@@ -178,17 +206,27 @@ properties:
 }
 
 function generateTypedownYaml (options: InitializeOptions): string {
-  return `version: "1.0.0"
+  const originLine =
+    options.siteOrigin !== '' ? `\n  origin: "${options.siteOrigin}"` : '';
+
+  return `# yaml-language-server: $schema=./node_modules/typerighter/dist/typedown.schema.json
+version: "1.0.0"
 vault:
   root_dir: "vault"
 site:
   title: "${options.siteTitle}"
-  description: "${options.siteDescription}"
+  description: "${options.siteDescription}"${originLine}
 `;
 }
 
-function hasAllFlags (flags: InitializeFlags): flags is Required<InitializeFlags> {
-  return flags.name !== undefined && flags.title !== undefined && flags.description !== undefined;
+function hasAllFlags (
+  flags: InitializeFlags,
+): flags is Required<InitializeFlags> {
+  return (
+    flags.name !== undefined
+    && flags.title !== undefined
+    && flags.description !== undefined
+  );
 }
 
 function printFurtherSteps (root: string): void {
@@ -220,7 +258,10 @@ async function prompt (message: string, defaultValue: string): Promise<string> {
   return value;
 }
 
-async function scaffold (root: string, options: InitializeOptions): Promise<void> {
+async function scaffold (
+  root: string,
+  options: InitializeOptions,
+): Promise<void> {
   const vaultDirectory = path.join(root, 'vault');
   const typeDirectory = path.join(root, 'vault', '_types');
   const publicDirectory = path.join(root, 'public');
@@ -285,6 +326,7 @@ function toOptions (flags: Required<InitializeFlags>): InitializeOptions {
     projectName: flags.name,
     siteTitle: flags.title,
     siteDescription: flags.description,
+    siteOrigin: '',
   };
 }
 

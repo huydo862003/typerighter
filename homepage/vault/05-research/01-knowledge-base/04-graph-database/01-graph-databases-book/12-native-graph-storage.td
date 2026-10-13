@@ -3,7 +3,7 @@ _label: "Neo4j Internals: Native Graph Storage"
 _icon: icon.document
 ---
 
-Part of the Neo4j internals series: [Native Graph Processing](./11-native-graph-processing.md) | **Native Graph Storage** | [Transactions, Availability, Scale](./13-internals-transactions-availability-scale.md)
+Part of the Neo4j internals series: [Native Graph Processing](./11-native-graph-processing.td) \| **Native Graph Storage** \| [Transactions, Availability, Scale](./13-internals-transactions-availability-scale.td)
 
 - Neo4j stores graph data in a number of different **store files**.
 - Each store file contains the data for a specific part of the graph (nodes, relationships, properties).

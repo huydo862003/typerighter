@@ -2,17 +2,130 @@
 
 pub mod static_type;
 
+use std::path::{Component, Path, PathBuf};
+
+use crate::db::TypedownDatabase;
+use crate::db::derived::parse_file::parse_file;
+use crate::db::types::{File, Project};
 use crate::syntax::ast::{AstNode, SourceFile};
-use crate::syntax::diagnostic::Diagnostic;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use std::path::Path;
+// Whether a container name is a built-in callout type
+pub fn is_callout(name: &str) -> bool {
+  matches!(
+    name,
+    "tip" | "info" | "warning" | "danger" | "details" | "note" | "important" | "caution"
+  )
+}
 
-use crate::db::TypedownDatabase;
-use crate::db::derived::hir::lower_node;
-use crate::db::derived::parse_file::parse_file;
-use crate::db::types::{File, FileRedNode, HirValue, Project};
+// Whether a container name is a built-in callout or built-in component
+pub fn is_builtin_container(name: &str) -> bool {
+  const BUILTIN_COMPONENT_NAMES: &[&str] =
+    &["toc", "directory-index", "glossary-index", "flashcard"];
+
+  is_callout(name) || BUILTIN_COMPONENT_NAMES.contains(&name)
+}
+
+// Extract the label (component name) from a ::: container block
+// Handles kebab-case names like `td-alert` which are parsed as multiple tokens
+pub fn extract_container_name(node: &RedNode) -> Option<String> {
+  let mut seen_opening = false;
+  let mut name = String::new();
+  for child in node.children() {
+    if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
+      seen_opening = true;
+      continue;
+    }
+    if !seen_opening {
+      continue;
+    }
+    match child.kind() {
+      SyntaxKind::Whitespace => {
+        // Skip leading whitespace, stop if name already started (whitespace ends the name)
+        if !name.is_empty() {
+          break;
+        }
+      }
+      SyntaxKind::Ident => name.push_str(&child.text()),
+      SyntaxKind::MdSymbol if child.text() == "-" && !name.is_empty() => name.push('-'),
+      SyntaxKind::Newline => break,
+      _ => {
+        if !name.is_empty() {
+          break;
+        }
+      }
+    }
+  }
+  if name.is_empty() { None } else { Some(name) }
+}
+
+// Extract the component name from a [[shorthand]] container
+pub fn extract_shorthand_name(node: &RedNode) -> Option<String> {
+  let mut name = String::new();
+  for child in node.children() {
+    match child.kind() {
+      SyntaxKind::Ident => name.push_str(&child.text()),
+      SyntaxKind::MdSymbol if child.text() == "-" => name.push('-'),
+      _ => {}
+    }
+  }
+  if name.is_empty() { None } else { Some(name) }
+}
+
+// Extract prop key names from a container's {key=value} block
+// The first Ident child of each MdContainerPropItem is the key
+pub fn extract_container_prop_names(node: &RedNode) -> Vec<String> {
+  let prop_block = node
+    .children()
+    .find(|child| child.kind() == SyntaxKind::MdContainerPropBlock);
+
+  let Some(prop_block) = prop_block else {
+    return Vec::new();
+  };
+
+  prop_block
+    .children()
+    .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
+    .filter_map(|item| {
+      item
+        .children()
+        .find(|child| child.kind() == SyntaxKind::Ident)
+        .map(|ident| ident.text().to_string())
+    })
+    .collect()
+}
+
+// Convert a kebab-case string to PascalCase
+// e.g. "video-embed" -> "VideoEmbed", "chart" -> "Chart"
+pub fn kebab_to_pascal(name: &str) -> String {
+  name
+    .split('-')
+    .map(|segment| {
+      let mut chars = segment.chars();
+      match chars.next() {
+        Some(first) => {
+          let upper: String = first.to_uppercase().collect();
+          upper + chars.as_str()
+        }
+        None => String::new(),
+      }
+    })
+    .collect()
+}
+
+// Convert a snake_case string to kebab-case
+// e.g. "layout_top" -> "layout-top"
+pub fn snake_to_kebab(name: &str) -> String {
+  name.replace('_', "-")
+}
+
+pub fn is_external_url(url: &str) -> bool {
+  url.starts_with("http://")
+    || url.starts_with("https://")
+    || url.starts_with("//")
+    || url.starts_with("mailto:")
+}
 
 /// Whether a path has a content file extension (.td or .md)
 pub fn is_content_file(path: &Path) -> bool {
@@ -33,7 +146,7 @@ pub fn is_internal_file(path: &Path) -> bool {
 }
 
 /// Whether a path is located inside a `_types` directory anywhere in the vault
-pub fn is_type_file(path: &Path) -> bool {
+pub fn is_typ_file(path: &Path) -> bool {
   is_content_file(path) && path.components().any(|c| c.as_os_str() == "_types")
 }
 
@@ -42,21 +155,6 @@ pub fn strip_content_extension(s: &str) -> &str {
   s.strip_suffix(".td")
     .or_else(|| s.strip_suffix(".md"))
     .unwrap_or(s)
-}
-
-pub fn lower_file(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> (Option<HirValue<'_>>, Vec<Diagnostic>) {
-  let parse_result = parse_file(db, project, file);
-  let diagnostics = parse_result.diagnostics(db).to_vec();
-  let root = parse_result.ast(db).node.clone();
-  if SourceFile::cast(root.clone()).is_none() {
-    return (None, diagnostics);
-  }
-  let hir = lower_node(db, project, FileRedNode::new(file, root));
-  (Some(hir), diagnostics)
 }
 
 /// Check if a file has no frontmatter (schemaless)
@@ -97,10 +195,57 @@ pub fn get_mapping_schema_name(mapping: &RedNode) -> Option<String> {
   None
 }
 
+/// Join `base` with `relative` and collapse `.` and `..` components
+pub fn normalize_joined_path(base: &Path, relative: &str) -> PathBuf {
+  let joined = base.join(relative);
+  let mut result = PathBuf::new();
+  for component in joined.components() {
+    match component {
+      Component::CurDir => {}
+      Component::ParentDir => {
+        result.pop();
+      }
+      other => result.push(other),
+    }
+  }
+  result
+}
+
+/// Resolve a fref path string to an absolute file system path
+/// Paths starting with `./` or `../` are resolved relative to `source_file_dir`
+/// All other paths are resolved relative to `vault_root`
+pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) -> PathBuf {
+  if path.starts_with("./") || path.starts_with("../") {
+    normalize_joined_path(source_file_dir, path)
+  } else {
+    vault_root.join(path)
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
   use std::path::Path;
+
+  #[test]
+  fn kebab_to_pascal_converts_hyphenated() {
+    assert_eq!(kebab_to_pascal("video-embed"), "VideoEmbed");
+    assert_eq!(kebab_to_pascal("chart"), "Chart");
+    assert_eq!(kebab_to_pascal("my-custom-chart"), "MyCustomChart");
+  }
+
+  #[test]
+  fn kebab_to_pascal_preserves_pascal() {
+    assert_eq!(kebab_to_pascal("Chart"), "Chart");
+    assert_eq!(kebab_to_pascal("VideoEmbed"), "VideoEmbed");
+  }
+
+  #[test]
+  fn snake_to_kebab_converts() {
+    assert_eq!(snake_to_kebab("layout_top"), "layout-top");
+    assert_eq!(snake_to_kebab("doc_content_after"), "doc-content-after");
+    assert_eq!(snake_to_kebab("sidebar"), "sidebar");
+  }
 
   #[test]
   fn is_content_file_accepts_td() {

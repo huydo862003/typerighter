@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 /// Server-defined JSON-RPC error code for query cancellation
@@ -25,6 +27,7 @@ pub const NOTIF_CONTENT_DELETED: &str = "typedown_build.content_deleted";
 pub const NOTIF_SCHEMA_UPDATED: &str = "typedown_build.schema_updated";
 pub const NOTIF_SCHEMA_DELETED: &str = "typedown_build.schema_deleted";
 pub const NOTIF_CONFIG_CHANGED: &str = "typedown_build.config_changed";
+pub const NOTIF_COMPONENT_CONTRACT_CHANGED: &str = "typedown_build.component_contract_changed";
 
 /* RPC error types */
 
@@ -46,6 +49,24 @@ pub type RpcResult<T> = Result<T, RpcError>;
 
 /* RPC request params and results */
 
+/// Repository configuration, normalized from string or object form
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdRepoConfig {
+  /// Repository URL (e.g. "https://github.com/user/repo")
+  pub url: String,
+  /// Path from the git root to the typedown.yaml directory (e.g. "docs")
+  pub root: String,
+}
+
+/// A custom layout config
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdCustomLayout {
+  pub component: Option<String>,
+  pub slots: HashMap<String, String>,
+}
+
 /// Site-wide configuration derived from typedown.yaml
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -53,20 +74,38 @@ pub struct TdSiteConfig {
   pub version: String,
   /// URL base path (e.g. "/" or "/docs")
   pub base_path: String,
+  /// Absolute site URL (e.g. "https://example.com")
+  pub origin: Option<String>,
+  /// HTML lang attribute (default "en")
+  pub lang: String,
   /// Vault root directory path relative to the project root
   pub root_dir: String,
   /// Site title from typedown.yaml
   pub site_title: String,
   /// Site description from typedown.yaml
   pub site_description: String,
-  /// Repository URL from typedown.yaml
-  pub repo: Option<String>,
+  /// Repository config from typedown.yaml (normalized to object)
+  pub repo: Option<TdRepoConfig>,
   /// Site author from typedown.yaml
   pub author: Option<String>,
   /// License name from typedown.yaml
   pub license: Option<String>,
   pub public_dir: String,
   pub nav: Vec<TdNavItem>,
+  /// Custom component entries from theme.components
+  pub components: Vec<TdComponentEntry>,
+  /// Custom layout
+  pub layout: Option<TdCustomLayout>,
+}
+
+/// A component entry: either a folder to scan or an explicit name-to-source mapping
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TdComponentEntry {
+  /// Folder path scanned for .vue files
+  Dir { path: String },
+  /// Explicit component with name and source path
+  Explicit { name: String, source: String },
 }
 
 /// Navigation link from typedown.yaml
@@ -103,7 +142,7 @@ pub struct TdContentSummary {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
   /// File metadata
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
 }
 
 /// Lightweight sidebar item (no header/content/excerpt)
@@ -121,7 +160,7 @@ pub struct TdSidebarItem {
   pub icon: Option<TdIcon>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
 }
 
 /// Structured build result: header (frontmatter), HTML content, and extracted headings
@@ -148,7 +187,22 @@ pub struct TdBuiltResource {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
   /// File metadata
-  pub metadata: TdFileMetadata,
+  pub file_metadata: TdFileMetadata,
+  /// SEO metadata from _meta builtin
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub seo_metadata: Option<TdSeoMeta>,
+}
+
+/// SEO fields from the _meta builtin field
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdSeoMeta {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub image: Option<String>,
 }
 
 /// Heading extracted from page content
@@ -241,6 +295,9 @@ pub struct TdContentNotification {
 
 /// Schema file event: A schema file was created, changed, or deleted
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TdSchemaNotification {
   pub schema: String,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub affected_files: Vec<String>,
 }

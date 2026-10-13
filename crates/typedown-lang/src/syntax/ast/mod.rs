@@ -162,14 +162,15 @@ impl MdBody {
   MdBold, MdItalic, MdBoldItalic, MdStrikethrough,
   MdText, MdHtmlEntity,
 ])]
-pub struct MdNode(RedNode);
+pub enum MdNode {}
 
 #[wrapper_ast_node(SyntaxKind = [
   MdHeading, MdParagraph, MdBlockquote, MdTable,
   MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
   MathBlock, CodeBlock,
+  MdMedia,
 ])]
-pub struct MdBlockElement(RedNode);
+pub enum MdBlockElement {}
 
 #[wrapper_ast_node(SyntaxKind = [
   MdLink, MdMedia,
@@ -179,7 +180,7 @@ pub struct MdBlockElement(RedNode);
   CodeLit, MathLit,
   InterpFragment,
 ])]
-pub struct MdInlineElement(RedNode);
+pub enum MdInlineElement {}
 
 /// The Markdown heading
 /// Represented by: ## Heading
@@ -205,6 +206,10 @@ impl MdHeading {
       })
       .unwrap_or(0)
   }
+
+  pub fn inline_elements(&self) -> impl Iterator<Item = MdInlineElement> {
+    children::<MdInlineElement>(&self.0)
+  }
 }
 
 /// The Markdown paragraph
@@ -215,6 +220,10 @@ pub struct MdParagraph(RedNode);
 impl MdParagraph {
   pub fn inline_elements(&self) -> impl Iterator<Item = MdInlineElement> {
     children::<MdInlineElement>(&self.0)
+  }
+
+  pub fn block_elements(&self) -> impl Iterator<Item = MdBlockElement> {
+    children::<MdBlockElement>(&self.0)
   }
 }
 
@@ -564,17 +573,7 @@ impl MdHtmlEntity {
   ClosureExpr,
   YamlMapping, YamlSequence,
 ])]
-pub struct Expr(RedNode);
-
-pub enum LitKind {
-  NumberLit(NumberLit),
-  StrLit(StrLit),
-  CodeLit(CodeLit),
-  MathLit(MathLit),
-  IdentLit(IdentLit),
-  ListLit(ListLit),
-  DictLit(DictLit),
-}
+pub enum Expr {}
 
 pub enum LitValue {
   Number(f64),
@@ -590,39 +589,18 @@ pub enum LitValue {
   NumberLit, StrLit, CodeLit, MathLit, IdentLit,
   ListLit, DictLit,
 ])]
-pub struct Lit(RedNode);
+pub enum Lit {}
 
 impl Lit {
-  pub fn kind(&self) -> Option<LitKind> {
-    match self.0.kind() {
-      SyntaxKind::NumberLit => Some(LitKind::NumberLit(NumberLit::cast(self.0.clone())?)),
-      SyntaxKind::StrLit => Some(LitKind::StrLit(StrLit::cast(self.0.clone())?)),
-      SyntaxKind::CodeLit => Some(LitKind::CodeLit(CodeLit::cast(self.0.clone())?)),
-      SyntaxKind::MathLit => Some(LitKind::MathLit(MathLit::cast(self.0.clone())?)),
-      SyntaxKind::IdentLit => Some(LitKind::IdentLit(IdentLit::cast(self.0.clone())?)),
-      SyntaxKind::ListLit => Some(LitKind::ListLit(ListLit::cast(self.0.clone())?)),
-      SyntaxKind::DictLit => Some(LitKind::DictLit(DictLit::cast(self.0.clone())?)),
-      _ => None,
-    }
-  }
-
   pub fn value(&self) -> Option<LitValue> {
-    match self.0.kind() {
-      SyntaxKind::NumberLit => Some(LitValue::Number(NumberLit::cast(self.0.clone())?.value()?)),
-      SyntaxKind::StrLit => {
-        let fragments = StrLit::cast(self.0.clone())?.fragments().collect();
-        Some(LitValue::Str(fragments))
-      }
-      SyntaxKind::CodeLit => Some(LitValue::Code(CodeLit::cast(self.0.clone())?.value()?)),
-      SyntaxKind::MathLit => Some(LitValue::Math(MathLit::cast(self.0.clone())?.value()?)),
-      SyntaxKind::IdentLit => Some(LitValue::Ident(IdentLit::cast(self.0.clone())?.value()?)),
-      SyntaxKind::ListLit => Some(LitValue::List(
-        ListLit::cast(self.0.clone())?.items().collect(),
-      )),
-      SyntaxKind::DictLit => Some(LitValue::Dict(
-        DictLit::cast(self.0.clone())?.entries().collect(),
-      )),
-      _ => None,
+    match self {
+      Lit::NumberLit(n) => Some(LitValue::Number(n.value()?)),
+      Lit::StrLit(s) => Some(LitValue::Str(s.fragments().collect())),
+      Lit::CodeLit(c) => Some(LitValue::Code(c.value()?)),
+      Lit::MathLit(m) => Some(LitValue::Math(m.value()?)),
+      Lit::IdentLit(i) => Some(LitValue::Ident(i.value()?)),
+      Lit::ListLit(l) => Some(LitValue::List(l.items().collect())),
+      Lit::DictLit(d) => Some(LitValue::Dict(d.entries().collect())),
     }
   }
 }
@@ -646,6 +624,7 @@ pub enum YamlOpKind {
   Not,
   And,
   Or,
+  Pipe,
   Eq,
   NotEq,
   Lt,
@@ -670,6 +649,7 @@ impl YamlOp {
       "!" => YamlOpKind::Not,
       "&&" => YamlOpKind::And,
       "||" => YamlOpKind::Or,
+      "|" => YamlOpKind::Pipe,
       "==" => YamlOpKind::Eq,
       "!=" => YamlOpKind::NotEq,
       "<" => YamlOpKind::Lt,
@@ -875,6 +855,21 @@ impl StrLit {
       .any(|c| c.kind() == SyntaxKind::InterpFragment)
   }
 
+  pub fn plain_value(&self) -> Option<String> {
+    if self.is_interpolated() {
+      return None;
+    }
+    Some(
+      self
+        .fragments()
+        .filter_map(|f| match f {
+          Either::Left(s) => Some(s),
+          _ => None,
+        })
+        .collect::<String>(),
+    )
+  }
+
   pub fn fragments(&self) -> impl Iterator<Item = Either<String, InterpFragment>> {
     self.0.children().filter_map(|child| match child.kind() {
       SyntaxKind::DqStrContent | SyntaxKind::SqStrContent => {
@@ -884,6 +879,15 @@ impl StrLit {
       SyntaxKind::YamlLiteralBlockStrLit => Some(Either::Left(extract_literal_block(&child))),
       SyntaxKind::YamlFoldedBlockStrLit => Some(Either::Left(extract_folded_block(&child))),
       SyntaxKind::InterpFragment => Some(Either::Right(InterpFragment(child))),
+      // Inline math/code inside a string is preserved as display text
+      SyntaxKind::MathLit => {
+        let val = MathLit(child).value()?;
+        Some(Either::Left(format!("${}$", val)))
+      }
+      SyntaxKind::CodeLit => {
+        let val = CodeLit(child).value()?;
+        Some(Either::Left(val))
+      }
       _ => None,
     })
   }
@@ -1064,6 +1068,46 @@ impl CodeBlock {
     }
 
     Some(ranges)
+  }
+
+  // Extract named props from {}, skipping numeric ranges
+  // e.g. {1,3 title=foo.ts line-numbers} -> [("title", Some("foo.ts")), ("line-numbers", None)]
+  pub fn props(&self) -> Vec<(String, Option<String>)> {
+    let label = match self.label() {
+      Some(l) => l,
+      None => return Vec::new(),
+    };
+    let start = match label.find('{') {
+      Some(i) => i,
+      None => return Vec::new(),
+    };
+    let end = match label.find('}') {
+      Some(i) => i,
+      None => return Vec::new(),
+    };
+    let inner = match label.get(start + 1..end) {
+      Some(s) => s.trim(),
+      None => return Vec::new(),
+    };
+    if inner.is_empty() {
+      return Vec::new();
+    }
+
+    let mut props = Vec::new();
+    for part in inner.split_whitespace() {
+      // Skip numeric ranges like "1,3" or "5-8"
+      if part.chars().next().is_none_or(|c| c.is_ascii_digit()) {
+        continue;
+      }
+      if let Some(eq) = part.find('=') {
+        let key = &part[..eq];
+        let value = &part[eq + 1..];
+        props.push((key.to_string(), Some(value.to_string())));
+      } else {
+        props.push((part.to_string(), None));
+      }
+    }
+    props
   }
 
   pub fn value(&self) -> Option<String> {

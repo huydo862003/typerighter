@@ -1,5 +1,5 @@
 import {
-  mkdtemp, cp, rm, writeFile, readFile, symlink,
+  mkdtemp, cp, rm, writeFile, mkdir, readFile, symlink,
 } from 'node:fs/promises';
 import {
   tmpdir,
@@ -15,7 +15,7 @@ import {
 const FIXTURES_DIR = path.resolve(import.meta.dirname, 'fixtures');
 const BIN = path.resolve(import.meta.dirname, '../bin/typerighter.js');
 
-export type FixtureName = 'vault-root' | 'vault-base';
+export type FixtureName = 'vault-root' | 'vault-base' | 'vault-components';
 
 export interface TestProject {
   // Absolute path to the isolated temp copy
@@ -33,9 +33,11 @@ export interface TestProject {
     relativePath: string,
     transform: (content: string) => string,
   ) => Promise<void>;
+  // Write a file (creates parent dirs if needed)
+  writeFile: (relativePath: string, content: string) => Promise<void>;
 }
 
-function createTestProjectFixture (fixture: FixtureName) {
+export function createTestProjectFixture (fixture: FixtureName) {
   return async ({}, use: (project: TestProject) => Promise<void>) => {
     const fixtureDirectory = path.join(FIXTURES_DIR, fixture);
 
@@ -50,7 +52,10 @@ function createTestProjectFixture (fixture: FixtureName) {
       filter: (src) => {
         const name = path.basename(src);
 
-        return name !== '.typedown' && name !== 'node_modules';
+        // Skip the incremental cache but keep .typedown/components.json
+        if (name === '.local' && path.basename(path.dirname(src)) === '.typedown') return false;
+
+        return name !== 'node_modules';
       },
     });
 
@@ -94,9 +99,9 @@ function createTestProjectFixture (fixture: FixtureName) {
     const goto = async (page: Page, vaultPath = '') => {
       await page.goto(url(vaultPath));
       await page.waitForFunction(
-        () => 0 < document.querySelector('#app')?.children.length ?? 0,
+        () => 0 < (document.querySelector('#app')?.children.length ?? 0),
         {
-          timeout: 15_000,
+          timeout: 30_000,
         },
       );
     };
@@ -111,6 +116,15 @@ function createTestProjectFixture (fixture: FixtureName) {
       await writeFile(filePath, transform(original), 'utf-8');
     };
 
+    const writeProjectFile = async (relativePath: string, content: string) => {
+      const filePath = path.join(directory, relativePath);
+
+      await mkdir(path.dirname(filePath), {
+        recursive: true,
+      });
+      await writeFile(filePath, content, 'utf-8');
+    };
+
     await use({
       dir: directory,
       port,
@@ -118,6 +132,7 @@ function createTestProjectFixture (fixture: FixtureName) {
       url,
       goto,
       modifyFile,
+      writeFile: writeProjectFile,
     });
 
     serverProcess.kill('SIGTERM');

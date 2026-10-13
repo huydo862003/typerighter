@@ -1,12 +1,13 @@
+pub mod check_custom_components;
 pub mod check_schemas;
 pub mod evaluate;
-pub mod get_builtin_types;
+pub mod get_builtin_typs;
+pub mod get_component_contract;
 pub mod get_vault_config;
-pub mod hir;
 pub mod icon;
 pub mod name_resolver;
 pub mod parse_file;
 pub mod parse_schemas;
-pub mod schema_property;
+pub mod schema_prop;
 pub mod typechecker;
 pub mod vault;

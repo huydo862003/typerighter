@@ -1,23 +1,25 @@
 //! Emit HTML directly from the typedown AST, with placeholders for shiki and KaTeX
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
-use crate::db::derived::hir::lower_node;
+
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{File, FileRedNode, Project, TdRuntimeObject};
+use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
 use crate::syntax::ast::{
-  AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdHeading,
-  MdTable, MdTableCell,
+  AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
+  MdBoldItalic, MdHeading, MdItalic, MdLink, MdStrikethrough, MdTable, MdTableCell,
 };
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
 use super::utils::{
-  collect_inline_children, extract_plain_text, html_escape, is_delimiter, is_external_url, slugify,
+  extract_plain_text, extract_shorthand_name, html_escape, is_callout, resolve_vault_url, slugify,
   strip_quotes,
 };
+use crate::db::utils::is_external_url;
 
 /// Heading extracted during HTML emission
 #[derive(Debug, Clone)]
@@ -68,6 +70,20 @@ impl<'a> HtmlEmitter<'a> {
       title: None,
       slug_counts: BTreeMap::new(),
     }
+  }
+
+  fn resolve_url(&self, url: &str) -> String {
+    let config = crate::db::derived::get_vault_config::get_vault_config(self.db, self.project);
+    let handle = self.file.handle(self.db);
+    let empty = PathBuf::new();
+    let file_dir = handle
+      .path()
+      .unwrap_or(&empty)
+      .parent()
+      .and_then(|p| p.strip_prefix(config.root_dir(self.db)).ok())
+      .unwrap_or(Path::new(""));
+
+    resolve_vault_url(url, &config.base_path(self.db), file_dir)
   }
 
   fn finish(self) -> HtmlBodyResult {
@@ -123,17 +139,11 @@ impl<'a> HtmlEmitter<'a> {
       return;
     }
 
-    // Extract text from inline content, skipping the leading heading marker (# through ######)
+    // Extract plain text for slug and title metadata
     let plain_text = {
       let mut text = String::new();
-      for child in node.children() {
-        if child
-          .as_token()
-          .is_some_and(|t| t.text().unwrap_or("").chars().all(|c| c == '#'))
-        {
-          continue;
-        }
-        text.push_str(&extract_plain_text(&child));
+      for child in heading.inline_elements() {
+        text.push_str(&extract_plain_text(child.syntax()));
       }
       text.trim().to_string()
     };
@@ -146,7 +156,10 @@ impl<'a> HtmlEmitter<'a> {
     let escaped_slug = html_escape(&slug);
     self.write(&format!("<h{level} id=\"{escaped_slug}\">"));
     let title_html_start = self.out.len();
-    self.emit_inline_children(node);
+    // Emit rich inline content (links, bold, etc) not just plain text
+    for child in heading.inline_elements() {
+      self.emit_inline(child.syntax());
+    }
     let title_html = self.out[title_html_start..].to_string();
 
     self.headings.push(ExportedHeading {
@@ -164,7 +177,7 @@ impl<'a> HtmlEmitter<'a> {
 
   fn emit_paragraph(&mut self, node: &RedNode) {
     self.write("<p>");
-    self.emit_inline_children(node);
+    self.emit_inline(node);
     self.write("</p>\n");
   }
 
@@ -241,7 +254,7 @@ impl<'a> HtmlEmitter<'a> {
         }
       }
     } else {
-      self.emit_inline_children(node);
+      self.emit_inline(node);
     }
 
     self.write("</li>\n");
@@ -275,7 +288,7 @@ impl<'a> HtmlEmitter<'a> {
       }
       if kind == SyntaxKind::MdParagraph && first_paragraph {
         first_paragraph = false;
-        self.emit_inline_children(&child);
+        self.emit_inline(&child);
       } else if kind.is_md_block() {
         blocks.push(child);
       } else {
@@ -326,7 +339,7 @@ impl<'a> HtmlEmitter<'a> {
     } else {
       self.write(&format!("<{tag}>"));
     }
-    self.emit_inline_children(cell.syntax());
+    self.emit_inline(cell.syntax());
     self.write(&format!("</{tag}>\n"));
   }
 
@@ -355,6 +368,13 @@ impl<'a> HtmlEmitter<'a> {
     if !label.is_empty() {
       self.write(" data-meta=\"");
       self.write_escaped(&label);
+      self.write("\"");
+    }
+    for (key, value) in block.props() {
+      self.write(" data-");
+      self.write_escaped(&key);
+      self.write("=\"");
+      self.write_escaped(&value.unwrap_or_default());
       self.write("\"");
     }
     self.write("><code>");
@@ -463,19 +483,11 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_container_shorthand(&mut self, node: &RedNode) {
-    let mut label = String::new();
-    let mut props = String::new();
-
-    for child in node.children() {
-      match child.kind() {
-        SyntaxKind::Ident => label.push_str(&child.text()),
-        SyntaxKind::MdSymbol if child.text() == "-" => label.push('-'),
-        SyntaxKind::MdContainerPropBlock => {
-          props = extract_props_from_block(&child);
-        }
-        _ => {}
-      }
-    }
+    let label = match extract_shorthand_name(node) {
+      Some(name) => name,
+      None => return,
+    };
+    let props = extract_container_props(node);
 
     if props.is_empty() {
       self.write(&format!("<{label} />\n"));
@@ -496,36 +508,37 @@ impl<'a> HtmlEmitter<'a> {
 
   // Inline emission
 
-  // Emit inline children, skipping leading whitespace and heading markers
-  fn emit_inline_children(&mut self, node: &RedNode) {
-    let children: Vec<_> = collect_inline_children(node);
-    // Skip leading whitespace
-    let start = children
-      .iter()
-      .position(|c| {
-        let kind = c.kind();
-        kind != SyntaxKind::Whitespace && kind != SyntaxKind::MdSymbol
-      })
-      .unwrap_or(children.len());
-
-    for child in &children[start..] {
-      if child.kind() == SyntaxKind::Newline {
-        continue;
-      }
-      self.emit_inline(child);
-    }
-  }
-
   fn emit_inline(&mut self, node: &RedNode) {
     match node.kind() {
-      SyntaxKind::MdBold => self.emit_wrapped("strong", node),
-      SyntaxKind::MdItalic => self.emit_wrapped("em", node),
+      SyntaxKind::MdBold => self.emit_wrapped(
+        "strong",
+        MdBold::cast(node.clone())
+          .unwrap()
+          .inline_elements()
+          .map(|e| e.syntax().clone()),
+      ),
+      SyntaxKind::MdItalic => self.emit_wrapped(
+        "em",
+        MdItalic::cast(node.clone())
+          .unwrap()
+          .inline_elements()
+          .map(|e| e.syntax().clone()),
+      ),
       SyntaxKind::MdBoldItalic => {
         self.write("<strong><em>");
-        self.emit_content_children(node);
+        MdBoldItalic::cast(node.clone())
+          .unwrap()
+          .inline_elements()
+          .for_each(|c| self.emit_inline(c.syntax()));
         self.write("</em></strong>");
       }
-      SyntaxKind::MdStrikethrough => self.emit_wrapped("s", node),
+      SyntaxKind::MdStrikethrough => self.emit_wrapped(
+        "s",
+        MdStrikethrough::cast(node.clone())
+          .unwrap()
+          .inline_elements()
+          .map(|e| e.syntax().clone()),
+      ),
       SyntaxKind::MdLink => self.emit_link(node),
       SyntaxKind::MdMedia => self.emit_media(node),
       SyntaxKind::MdText => self.write_escaped(&node.text()),
@@ -538,9 +551,7 @@ impl<'a> HtmlEmitter<'a> {
       _ => {
         if node.as_token().is_some() {
           let text = node.text();
-          if !is_delimiter(&text) {
-            self.write_escaped(&text);
-          }
+          self.write_escaped(&text);
         } else {
           for child in node.children() {
             self.emit_inline(&child);
@@ -550,27 +561,18 @@ impl<'a> HtmlEmitter<'a> {
     }
   }
 
-  fn emit_wrapped(&mut self, tag: &str, node: &RedNode) {
+  fn emit_wrapped(&mut self, tag: &str, children: impl Iterator<Item = RedNode>) {
     self.write(&format!("<{tag}>"));
-    self.emit_content_children(node);
+    children.for_each(|c| self.emit_inline(&c));
     self.write(&format!("</{tag}>"));
   }
 
-  // Emit children skipping delimiter tokens like ** * ~~ etc
-  fn emit_content_children(&mut self, node: &RedNode) {
-    for child in node.children() {
-      if child.as_token().is_some() && is_delimiter(&child.text()) {
-        continue;
-      }
-      self.emit_inline(&child);
-    }
-  }
-
   fn emit_link(&mut self, node: &RedNode) {
-    let Some(link) = crate::syntax::ast::MdLink::cast(node.clone()) else {
+    let Some(link) = MdLink::cast(node.clone()) else {
       return;
     };
-    let url = link.url().map(|t| t.value()).unwrap_or_default();
+    let raw_url = link.url().map(|t| t.value()).unwrap_or_default();
+    let url = self.resolve_url(&raw_url);
 
     // Check for an embedded image (linked image / badge syntax)
     let has_media = node
@@ -578,7 +580,7 @@ impl<'a> HtmlEmitter<'a> {
       .any(|child| child.kind() == SyntaxKind::MdMedia);
 
     if is_external_url(&url) && !url.starts_with("mailto:") && !has_media {
-      self.write("<LucideIcon name=\"arrow-up-right\" />");
+      self.write("<LucideIcon name=\"arrow-up-right\" class=\"td-external-link-icon\" />");
       self.write(&format!(
         "<a href=\"{}\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">",
         html_escape(&url)
@@ -599,7 +601,7 @@ impl<'a> HtmlEmitter<'a> {
         }
       }
     } else if let Some(alt_node) = link.alt() {
-      self.emit_inline_children(alt_node.syntax());
+      self.emit_inline(alt_node.syntax());
     }
     self.write("</a>");
   }
@@ -609,7 +611,8 @@ impl<'a> HtmlEmitter<'a> {
       return;
     };
     let alt = media.alt().map(|t| t.value()).unwrap_or_default();
-    let url = media.url().map(|t| t.value()).unwrap_or_default();
+    let raw_url = media.url().map(|t| t.value()).unwrap_or_default();
+    let url = self.resolve_url(&raw_url);
 
     self.write(&format!(
       "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
@@ -674,19 +677,11 @@ impl<'a> HtmlEmitter<'a> {
     }
 
     // Fall back to expression evaluation
-    let hir = lower_node(
-      self.db,
-      self.project,
-      FileRedNode::new(self.file, expr_node),
-    );
+    let project_node = ProjectRedNode::new(self.project, self.file, expr_node);
     let scope = get_file_runtime_scope(self.db, self.project, self.file);
-    let eval = evaluate_node(self.db, hir, scope);
-    if let Some(obj) = eval.value(self.db)
-      && let Some(func) = obj.lookup_method(self.db, "to_string")
-      && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])
-      && let Some(str_obj) = result.as_td_str_obj()
-    {
-      self.write_escaped(&str_obj.value(self.db));
+    let eval = evaluate_node(self.db, project_node, scope);
+    if let Some(obj) = eval.value(self.db) {
+      self.write_escaped(&obj.to_display_string(self.db));
     }
   }
 
@@ -730,13 +725,6 @@ impl<'a> HtmlEmitter<'a> {
 
 // HTML-specific helpers
 
-fn is_callout(name: &str) -> bool {
-  matches!(
-    name,
-    "tip" | "info" | "warning" | "danger" | "details" | "note" | "important" | "caution"
-  )
-}
-
 fn callout_default_title(name: &str) -> &'static str {
   match name {
     "tip" => "TIP",
@@ -775,31 +763,50 @@ fn parse_separator_alignments(table_node: &RedNode) -> Vec<Option<&'static str>>
   Vec::new()
 }
 
+// Extract the container label (possibly kebab like `td-alert`) and optional title text
+// (for callouts, e.g. `:::warning My title`) in a single pass.
 fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>) {
   let mut label = String::new();
   let mut title_raw = String::new();
   let mut seen_opening = false;
+  // Once the label is complete we switch to collecting title text
+  let mut label_done = false;
 
   for child in node.children() {
     if child.kind() == SyntaxKind::MdSymbol && child.text() == ":::" && !seen_opening {
       seen_opening = true;
       continue;
     }
-    if child.kind() == SyntaxKind::Newline {
-      break;
+    if !seen_opening {
+      continue;
     }
-    if seen_opening {
-      let text = child.text();
-      if label.is_empty() {
-        let trimmed = text.trim();
-        if !trimmed.is_empty() {
-          label = trimmed.to_string();
+    match child.kind() {
+      SyntaxKind::Newline => break,
+      SyntaxKind::MdContainerPropBlock => break,
+      SyntaxKind::Whitespace => {
+        // Whitespace before the label: skip; after: label is done, append to title
+        if !label.is_empty() {
+          label_done = true;
+          title_raw.push_str(&child.text());
         }
-      } else {
-        // Collect remaining tokens as raw text to preserve quotes and spacing
-        title_raw.push_str(&text);
+      }
+      SyntaxKind::Ident if !label_done => {
+        label.push_str(&child.text());
+      }
+      SyntaxKind::MdSymbol if !label_done && child.text() == "-" && !label.is_empty() => {
+        label.push('-');
+      }
+      _ => {
+        if !label.is_empty() {
+          label_done = true;
+          title_raw.push_str(&child.text());
+        }
       }
     }
+  }
+
+  if label.is_empty() {
+    return (String::new(), None);
   }
 
   let title = {

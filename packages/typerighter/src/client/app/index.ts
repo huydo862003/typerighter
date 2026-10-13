@@ -41,6 +41,9 @@ export {
 export {
   Content,
 } from './components/Content';
+export {
+  useTheme,
+} from './composables/useTheme';
 
 export interface TypedownSiteConfig {
   /** Site title */
@@ -49,12 +52,21 @@ export interface TypedownSiteConfig {
   description: string;
   /** URL base path (e.g. "/" or "/blog") */
   basePath: string;
-  /** Repository URL */
-  repo?: string;
+  /** Absolute site URL (e.g. "https://example.com") */
+  origin?: string;
+  /** HTML lang attribute */
+  lang?: string;
+  /** Repository config */
+  repo?: {
+    url: string;
+    root: string;
+  };
   /** Site author */
   author?: string;
   /** License name */
   license?: string;
+  /** Vault root directory relative to the project root (e.g. "vault") */
+  rootDir?: string;
   /** Navigation links */
   nav?: {
     title: string;
@@ -76,6 +88,20 @@ export interface TypedownSiteData {
   directoryListings: Record<string, DirectoryListing>;
 }
 
+export interface TypedownTheme {
+  /** Root layout component */
+  Layout: Component;
+  /** Optional 404 not-found component */
+  NotFound?: Component;
+  /** Called after app creation, before mount */
+  enhanceApp?: (context: {
+    app: App;
+    router: Router;
+    siteConfig: TypedownSiteConfig;
+    siteData: Ref<TypedownSiteData>;
+  }) => void | Promise<void>;
+}
+
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
 
 const siteConfigSymbol: InjectionKey<TypedownSiteConfig> = Symbol('typedown-site-config');
@@ -85,7 +111,7 @@ const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol('
 
 export async function createTypedownApp (
   loadPageModule: (path: string) => Promise<PageModule | undefined>,
-  Layout: Component,
+  theme: TypedownTheme,
   config: Partial<TypedownSiteConfig> = {},
   data: Partial<TypedownSiteData> = {},
 ): Promise<{
@@ -98,11 +124,18 @@ export async function createTypedownApp (
     title: config.title ?? '',
     description: config.description ?? '',
     basePath: config.basePath ?? '/',
+    origin: config.origin,
+    lang: config.lang,
     repo: config.repo,
     author: config.author,
     license: config.license,
+    rootDir: config.rootDir,
     nav: config.nav,
   };
+
+  if (typeof document !== 'undefined' && siteConfig.lang) {
+    document.documentElement.lang = siteConfig.lang;
+  }
 
   const siteData = shallowRef<TypedownSiteData>({
     ready: data.ready ?? false,
@@ -122,7 +155,7 @@ export async function createTypedownApp (
     setup () {
       provideTdContent(router.route);
 
-      return () => h(Layout);
+      return () => h(theme.Layout);
     },
   });
 
@@ -144,6 +177,15 @@ export async function createTypedownApp (
   app.component('Flashcard', TdFlashcard);
   app.component('LucideIcon', TdLucideIcon);
   /* eslint-enable vue/multi-word-component-names */
+
+  if (theme.enhanceApp) {
+    await theme.enhanceApp({
+      app,
+      router,
+      siteConfig,
+      siteData,
+    });
+  }
 
   if (typeof window !== 'undefined') {
     await router.go(location.href, {

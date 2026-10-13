@@ -6,38 +6,34 @@ import type {
 } from '@/node/lib/typedown-context';
 
 export interface VirtualModule {
-  load (context: TypedownContext): string | Promise<string>;
-  invalidate (server: ViteDevServer): void;
+  load(context: TypedownContext): string | Promise<string>;
+  invalidate(server: ViteDevServer): void;
 }
 
 // Invalidate a virtual module and push an HMR update to the client
-export function invalidateVirtualModule (server: ViteDevServer, resolvedId: string): void {
+export function invalidateVirtualModule (
+  server: ViteDevServer,
+  resolvedId: string,
+): void {
   const module_ = server.moduleGraph.getModuleById(resolvedId);
 
   if (!module_) return;
   server.moduleGraph.invalidateModule(module_);
 
-  const depUrl = encodeVirtualUrl(module_.url);
-
+  // PITFALL:
+  //  - Vite 8.3 removed normalizeHmrUrl from import analysis, so `hot.accept` deps are stored as raw '\0...' module URLs instead of the browser-encoded '/@id/__x00__...' form used in Vite 8.2
+  //  - Send module_.url directly so the acceptedPath matches what the browser registered in hotModulesMap
   for (const importer of module_.importers) {
     server.hot.send({
       type: 'update',
       updates: [
         {
           type: 'js-update',
-          path: encodeVirtualUrl(importer.url),
-          acceptedPath: depUrl,
+          path: importer.url,
+          acceptedPath: module_.url,
           timestamp: Date.now(),
         },
       ],
     });
   }
-}
-
-// PITFALL: \0 virtual modules are /@id/__x00__ in browser, HMR paths must match
-// Ref: https://vite.dev/guide/api-plugin.html#virtual-modules-convention
-function encodeVirtualUrl (url: string): string {
-  return url.startsWith('\0')
-    ? '/@id/__x00__' + url.slice(1)
-    : url;
 }

@@ -75,6 +75,20 @@ author: fref("bob.td")
           (string))))))
 
 ================
+File reference empty parens
+================
+author: fref()
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (fref)))))
+
+================
 Tag expression
 ================
 name: !string "Bob"

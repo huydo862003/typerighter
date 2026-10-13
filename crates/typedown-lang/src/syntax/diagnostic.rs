@@ -45,17 +45,17 @@ pub enum DiagnosticCode {
   VaultConfigUnknownField = 36,
   MissingSchemaField = 37,
   UnresolvedSchema = 38,
-  WrongTypeArgCount = 39,
+  WrongTypArgCount = 39,
   NotCallable = 40,
   WrongArgCount = 41,
-  ArgTypeMismatch = 42,
-  FieldTypeMismatch = 43,
+  ArgTypMismatch = 42,
+  FieldTypMismatch = 43,
   NotIndexable = 44,
-  IndexTypeMismatch = 45,
-  TagTypeMismatch = 46,
-  OperandTypeMismatch = 47,
+  IndexTypMismatch = 45,
+  TagTypMismatch = 46,
+  OperandTypMismatch = 47,
   MissingRequiredField = 48,
-  ElementTypeMismatch = 49,
+  ElementTypMismatch = 49,
   DuplicateKey = 50,
   UnresolvedFileRef = 51,
   UnknownField = 52,
@@ -74,11 +74,14 @@ pub enum DiagnosticCode {
   UnclosedParamList = 65,
   InvalidSelfClosureParams = 66,
   NotConstructible = 67,
-  TypeArgBoundViolation = 68,
+  TypArgBoundViolation = 68,
   UnresolvedExtends = 69,
   CircularExtension = 70,
   FieldRefinementViolation = 71,
   UnresolvedImport = 72,
+  UnknownComponent = 73,
+  MissingRequiredProp = 74,
+  UnknownProp = 75,
 }
 
 impl DiagnosticCode {
@@ -132,17 +135,17 @@ impl DiagnosticCode {
       DiagnosticCode::VaultConfigUnknownField => "vault-config-unknown-field",
       DiagnosticCode::MissingSchemaField => "missing-schema-field",
       DiagnosticCode::UnresolvedSchema => "unresolved-schema",
-      DiagnosticCode::WrongTypeArgCount => "wrong-type-arg-count",
+      DiagnosticCode::WrongTypArgCount => "wrong-type-arg-count",
       DiagnosticCode::NotCallable => "not-callable",
       DiagnosticCode::WrongArgCount => "wrong-arg-count",
-      DiagnosticCode::ArgTypeMismatch => "arg-type-mismatch",
-      DiagnosticCode::FieldTypeMismatch => "field-type-mismatch",
+      DiagnosticCode::ArgTypMismatch => "arg-type-mismatch",
+      DiagnosticCode::FieldTypMismatch => "field-type-mismatch",
       DiagnosticCode::NotIndexable => "not-indexable",
-      DiagnosticCode::IndexTypeMismatch => "index-type-mismatch",
-      DiagnosticCode::TagTypeMismatch => "tag-type-mismatch",
-      DiagnosticCode::OperandTypeMismatch => "operand-type-mismatch",
+      DiagnosticCode::IndexTypMismatch => "index-type-mismatch",
+      DiagnosticCode::TagTypMismatch => "tag-type-mismatch",
+      DiagnosticCode::OperandTypMismatch => "operand-type-mismatch",
       DiagnosticCode::MissingRequiredField => "missing-required-field",
-      DiagnosticCode::ElementTypeMismatch => "element-type-mismatch",
+      DiagnosticCode::ElementTypMismatch => "element-type-mismatch",
       DiagnosticCode::DuplicateKey => "duplicate-key",
       DiagnosticCode::UnresolvedFileRef => "unresolved-file-ref",
       DiagnosticCode::UnresolvedIdentifier => "unresolved-identifier",
@@ -151,7 +154,7 @@ impl DiagnosticCode {
       DiagnosticCode::UnclosedParamList => "unclosed-param-list",
       DiagnosticCode::InvalidSelfClosureParams => "invalid-self-closure-params",
       DiagnosticCode::NotConstructible => "not-constructible",
-      DiagnosticCode::TypeArgBoundViolation => "type-arg-bound-violation",
+      DiagnosticCode::TypArgBoundViolation => "type-arg-bound-violation",
       DiagnosticCode::UnresolvedExtends => "unresolved-extends",
       DiagnosticCode::CircularExtension => "circular-extension",
       DiagnosticCode::FieldRefinementViolation => "field-refinement-violation",
@@ -161,6 +164,9 @@ impl DiagnosticCode {
       DiagnosticCode::VaultConfigInvalidValue => "vault-config-invalid-value",
       DiagnosticCode::InvalidCodeRangeIndicator => "invalid-code-range-indicator",
       DiagnosticCode::UnresolvedImport => "unresolved-import",
+      DiagnosticCode::UnknownComponent => "unknown-component",
+      DiagnosticCode::MissingRequiredProp => "missing-required-prop",
+      DiagnosticCode::UnknownProp => "unknown-prop",
     }
   }
 }
@@ -438,10 +444,10 @@ pub enum Diagnostic {
   },
 
   /// Wrong number of type arguments passed to a type constructor.
-  WrongTypeArgCount { expected: usize, got: usize },
+  WrongTypArgCount { expected: usize, got: usize },
 
   /// Type argument violates parameter bound.
-  TypeArgBoundViolation {
+  TypArgBoundViolation {
     index: usize,
     expected_bound: String,
     got: String,
@@ -482,14 +488,14 @@ pub enum Diagnostic {
   },
 
   /// Argument type does not match the expected parameter type.
-  ArgTypeMismatch {
+  ArgTypMismatch {
     expected: String,
     start_offset: usize,
     end_offset: usize,
   },
 
   /// A field value does not match the expected type declared by the schema.
-  FieldTypeMismatch {
+  FieldTypMismatch {
     field: String,
     expected: String,
     start_offset: usize,
@@ -503,21 +509,21 @@ pub enum Diagnostic {
   },
 
   /// Index type does not match the container's key type.
-  IndexTypeMismatch {
+  IndexTypMismatch {
     expected: String,
     start_offset: usize,
     end_offset: usize,
   },
 
   /// Tag inner expression does not match the schema.
-  TagTypeMismatch {
+  TagTypMismatch {
     expected: String,
     start_offset: usize,
     end_offset: usize,
   },
 
   /// Operand type does not match the expected type for the operator.
-  OperandTypeMismatch {
+  OperandTypMismatch {
     op: String,
     expected: String,
     start_offset: usize,
@@ -532,7 +538,7 @@ pub enum Diagnostic {
   },
 
   /// A sequence element does not match the declared element type.
-  ElementTypeMismatch {
+  ElementTypMismatch {
     expected: String,
     start_offset: usize,
     end_offset: usize,
@@ -569,7 +575,7 @@ pub enum Diagnostic {
   /// A field does not exist on the given type.
   UnknownField {
     field: String,
-    on_type: String,
+    on_typ: String,
     start_offset: usize,
     end_offset: usize,
   },
@@ -616,6 +622,26 @@ pub enum Diagnostic {
   },
   /// Parameter list is missing closing `)`
   UnclosedParamList {
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// A custom component name is not registered in the component contract
+  UnknownComponent {
+    name: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// A required prop is missing on a custom component usage
+  MissingRequiredProp {
+    prop: String,
+    component: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// A prop is provided that is not declared in the component contract
+  UnknownProp {
+    prop: String,
+    component: String,
     start_offset: usize,
     end_offset: usize,
   },
@@ -795,12 +821,12 @@ impl Diagnostic {
         end_offset,
         ..
       }
-      | Diagnostic::ArgTypeMismatch {
+      | Diagnostic::ArgTypMismatch {
         start_offset,
         end_offset,
         ..
       }
-      | Diagnostic::FieldTypeMismatch {
+      | Diagnostic::FieldTypMismatch {
         start_offset,
         end_offset,
         ..
@@ -809,17 +835,17 @@ impl Diagnostic {
         start_offset,
         end_offset,
       }
-      | Diagnostic::IndexTypeMismatch {
+      | Diagnostic::IndexTypMismatch {
         start_offset,
         end_offset,
         ..
       }
-      | Diagnostic::TagTypeMismatch {
+      | Diagnostic::TagTypMismatch {
         start_offset,
         end_offset,
         ..
       }
-      | Diagnostic::OperandTypeMismatch {
+      | Diagnostic::OperandTypMismatch {
         start_offset,
         end_offset,
         ..
@@ -829,7 +855,7 @@ impl Diagnostic {
         end_offset,
         ..
       }
-      | Diagnostic::ElementTypeMismatch {
+      | Diagnostic::ElementTypMismatch {
         start_offset,
         end_offset,
         ..
@@ -920,12 +946,27 @@ impl Diagnostic {
         start_offset,
         end_offset,
         ..
+      }
+      | Diagnostic::UnknownComponent {
+        start_offset,
+        end_offset,
+        ..
+      }
+      | Diagnostic::MissingRequiredProp {
+        start_offset,
+        end_offset,
+        ..
+      }
+      | Diagnostic::UnknownProp {
+        start_offset,
+        end_offset,
+        ..
       } => Some((*start_offset, *end_offset)),
       Diagnostic::MissingVaultConfig { .. }
       | Diagnostic::VaultConfigReadError { .. }
       | Diagnostic::VaultConfigEmpty { .. }
-      | Diagnostic::WrongTypeArgCount { .. }
-      | Diagnostic::TypeArgBoundViolation { .. }
+      | Diagnostic::WrongTypArgCount { .. }
+      | Diagnostic::TypArgBoundViolation { .. }
       | Diagnostic::DuplicateSchemaName { .. }
       | Diagnostic::CircularExtension { .. } => None,
     }
@@ -1036,35 +1077,35 @@ impl Diagnostic {
       Diagnostic::UnresolvedSchema { name, .. } => {
         format!("cannot resolve type '{name}'")
       }
-      Diagnostic::WrongTypeArgCount { expected, got } => {
+      Diagnostic::WrongTypArgCount { expected, got } => {
         format!("wrong number of type arguments: expected {expected}, got {got}")
       }
       Diagnostic::NotCallable { .. } => "this value is not a function".into(),
       Diagnostic::WrongArgCount { expected, got, .. } => {
         format!("wrong number of arguments: expected {expected}, got {got}")
       }
-      Diagnostic::ArgTypeMismatch { expected, .. } => {
+      Diagnostic::ArgTypMismatch { expected, .. } => {
         format!("argument type mismatch: expected {expected}")
       }
-      Diagnostic::FieldTypeMismatch {
+      Diagnostic::FieldTypMismatch {
         field, expected, ..
       } => {
         format!("field '{field}' type mismatch: expected {expected}")
       }
       Diagnostic::NotIndexable { .. } => "this value does not support indexing".into(),
-      Diagnostic::IndexTypeMismatch { expected, .. } => {
+      Diagnostic::IndexTypMismatch { expected, .. } => {
         format!("index type mismatch: expected {expected}")
       }
-      Diagnostic::TagTypeMismatch { expected, .. } => {
+      Diagnostic::TagTypMismatch { expected, .. } => {
         format!("tag type mismatch: expected {expected}")
       }
-      Diagnostic::OperandTypeMismatch { op, expected, .. } => {
+      Diagnostic::OperandTypMismatch { op, expected, .. } => {
         format!("operand type mismatch for '{op}': expected {expected}")
       }
       Diagnostic::MissingRequiredField { field, .. } => {
         format!("missing required field '{field}'")
       }
-      Diagnostic::ElementTypeMismatch { expected, .. } => {
+      Diagnostic::ElementTypMismatch { expected, .. } => {
         format!("element type mismatch: expected {expected}")
       }
       Diagnostic::DuplicateKey { key, .. } => {
@@ -1079,7 +1120,11 @@ impl Diagnostic {
       Diagnostic::UnresolvedImport { path, .. } => {
         format!("cannot resolve import '{path}'")
       }
-      Diagnostic::UnknownField { field, on_type, .. } => {
+      Diagnostic::UnknownField {
+        field,
+        on_typ: on_type,
+        ..
+      } => {
         format!("unknown field '{field}' on type '{on_type}'")
       }
       Diagnostic::DuplicateSchemaName {
@@ -1112,7 +1157,7 @@ impl Diagnostic {
       Diagnostic::NotConstructible { type_name, .. } => {
         format!("type '{type_name}' is not constructible at runtime")
       }
-      Diagnostic::TypeArgBoundViolation {
+      Diagnostic::TypArgBoundViolation {
         index,
         expected_bound,
         got,
@@ -1138,6 +1183,19 @@ impl Diagnostic {
         format!(
           "field '{field}' redefined with type '{got}' which is not a subtype of '{expected}' from parent schema '{parent_schema}'"
         )
+      }
+      Diagnostic::UnknownComponent { name, .. } => {
+        format!("unknown component \"{name}\"")
+      }
+      Diagnostic::MissingRequiredProp {
+        prop, component, ..
+      } => {
+        format!("missing required prop \"{prop}\" on component \"{component}\"")
+      }
+      Diagnostic::UnknownProp {
+        prop, component, ..
+      } => {
+        format!("unknown prop \"{prop}\" on component \"{component}\"")
       }
     }
   }
@@ -1197,17 +1255,17 @@ impl Diagnostic {
       Diagnostic::VaultConfigUnknownField { .. } => DiagnosticCode::VaultConfigUnknownField,
       Diagnostic::MissingSchemaField { .. } => DiagnosticCode::MissingSchemaField,
       Diagnostic::UnresolvedSchema { .. } => DiagnosticCode::UnresolvedSchema,
-      Diagnostic::WrongTypeArgCount { .. } => DiagnosticCode::WrongTypeArgCount,
+      Diagnostic::WrongTypArgCount { .. } => DiagnosticCode::WrongTypArgCount,
       Diagnostic::NotCallable { .. } => DiagnosticCode::NotCallable,
       Diagnostic::WrongArgCount { .. } => DiagnosticCode::WrongArgCount,
-      Diagnostic::ArgTypeMismatch { .. } => DiagnosticCode::ArgTypeMismatch,
-      Diagnostic::FieldTypeMismatch { .. } => DiagnosticCode::FieldTypeMismatch,
+      Diagnostic::ArgTypMismatch { .. } => DiagnosticCode::ArgTypMismatch,
+      Diagnostic::FieldTypMismatch { .. } => DiagnosticCode::FieldTypMismatch,
       Diagnostic::NotIndexable { .. } => DiagnosticCode::NotIndexable,
-      Diagnostic::IndexTypeMismatch { .. } => DiagnosticCode::IndexTypeMismatch,
-      Diagnostic::TagTypeMismatch { .. } => DiagnosticCode::TagTypeMismatch,
-      Diagnostic::OperandTypeMismatch { .. } => DiagnosticCode::OperandTypeMismatch,
+      Diagnostic::IndexTypMismatch { .. } => DiagnosticCode::IndexTypMismatch,
+      Diagnostic::TagTypMismatch { .. } => DiagnosticCode::TagTypMismatch,
+      Diagnostic::OperandTypMismatch { .. } => DiagnosticCode::OperandTypMismatch,
       Diagnostic::MissingRequiredField { .. } => DiagnosticCode::MissingRequiredField,
-      Diagnostic::ElementTypeMismatch { .. } => DiagnosticCode::ElementTypeMismatch,
+      Diagnostic::ElementTypMismatch { .. } => DiagnosticCode::ElementTypMismatch,
       Diagnostic::DuplicateKey { .. } => DiagnosticCode::DuplicateKey,
       Diagnostic::UnresolvedFileRef { .. } => DiagnosticCode::UnresolvedFileRef,
       Diagnostic::UnresolvedIdentifier { .. } => DiagnosticCode::UnresolvedIdentifier,
@@ -1221,11 +1279,14 @@ impl Diagnostic {
       Diagnostic::InvalidSelfClosureParams { .. } => DiagnosticCode::InvalidSelfClosureParams,
       Diagnostic::UnclosedParamList { .. } => DiagnosticCode::UnclosedParamList,
       Diagnostic::NotConstructible { .. } => DiagnosticCode::NotConstructible,
-      Diagnostic::TypeArgBoundViolation { .. } => DiagnosticCode::TypeArgBoundViolation,
+      Diagnostic::TypArgBoundViolation { .. } => DiagnosticCode::TypArgBoundViolation,
       Diagnostic::UnresolvedExtends { .. } => DiagnosticCode::UnresolvedExtends,
       Diagnostic::CircularExtension { .. } => DiagnosticCode::CircularExtension,
       Diagnostic::FieldRefinementViolation { .. } => DiagnosticCode::FieldRefinementViolation,
       Diagnostic::UnresolvedImport { .. } => DiagnosticCode::UnresolvedImport,
+      Diagnostic::UnknownComponent { .. } => DiagnosticCode::UnknownComponent,
+      Diagnostic::MissingRequiredProp { .. } => DiagnosticCode::MissingRequiredProp,
+      Diagnostic::UnknownProp { .. } => DiagnosticCode::UnknownProp,
     }
   }
 }

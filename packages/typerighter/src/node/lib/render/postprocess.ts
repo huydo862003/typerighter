@@ -5,7 +5,7 @@ import {
   createHighlighter,
 } from './highlight';
 import {
-  unescapeHtml,
+  escapeHtml, unescapeHtml,
 } from '@/shared';
 
 let highlighterPromise: Promise<(code: string, language: string, attrs: string) => Promise<string>> | undefined;
@@ -27,9 +27,20 @@ function getHighlighter () {
 }
 
 // Code block placeholder format from Rust:
-// <pre class="td-code-placeholder" data-lang="js" data-meta="js{1,3}"><code>escaped code</code></pre>
+// <pre class="td-code-placeholder" data-lang="js" data-meta="js{1,3}" data-title="foo.ts" data-line-numbers="5"><code>escaped code</code></pre>
 // Safe: Rust HTML-escapes the code content, so </code> cannot appear inside the placeholder
-const CODE_PLACEHOLDER_RE = /<pre class="td-code-placeholder"(?: data-lang="([^"]*)")?(?: data-meta="([^"]*)")?><code>([\s\S]*?)<\/code><\/pre>/g;
+const CODE_PLACEHOLDER_RE = /<pre class="td-code-placeholder"([^>]*)><code>([\s\S]*?)<\/code><\/pre>/g;
+
+interface CodeBlockOptions {
+  title?: string;
+  lineNumbers?: string;
+}
+
+function getAttribute (attrs: string, name: string): string | undefined {
+  const match = attrs.match(new RegExp(`${name}="([^"]*)"`));
+
+  return match?.[1];
+}
 
 async function highlightCodeBlocks (html: string): Promise<string> {
   const highlight = await getHighlighter();
@@ -40,13 +51,19 @@ async function highlightCodeBlocks (html: string): Promise<string> {
   // Highlight all blocks in parallel
   const replacements = await Promise.all(
     matches.map(async (match) => {
-      const language = match[1] || '';
-      const meta = match[2] || '';
-      const code = unescapeHtml(match[3]);
+      const attrs = match[1];
+      const language = getAttribute(attrs, 'data-lang') ?? '';
+      const meta = getAttribute(attrs, 'data-meta') ?? '';
+      const title = getAttribute(attrs, 'data-title');
+      const lineNumbers = getAttribute(attrs, 'data-line-numbers');
+      const code = unescapeHtml(match[2]);
 
       const highlighted = await highlight(code, language, meta);
 
-      return wrapCodeBlock(highlighted, language, meta);
+      return wrapCodeBlock(highlighted, language, {
+        title,
+        lineNumbers,
+      });
     }),
   );
 
@@ -61,27 +78,23 @@ async function highlightCodeBlocks (html: string): Promise<string> {
   return result;
 }
 
-// Wrap shiki output with language div, copy button, and language label
-function wrapCodeBlock (highlighted: string, language: string, meta: string): string {
+function wrapCodeBlock (highlighted: string, language: string, options: CodeBlockOptions): string {
   language ||= 'txt';
-  const label = language.replace(/_/g, ' ');
+  const label = options.title ?? language.replace(/_/g, ' ');
+
+  const classes = ['language-' + language];
+
+  if (options.title) classes.push('has-title');
+  if (options.lineNumbers !== undefined) classes.push('line-numbers-mode');
 
   let result =
-    `<div class="language-${language}">`
+    `<div class="${classes.join(' ')}">`
     + '<button title="Copy code" data-copied="Copied" class="copy"></button>'
-    + `<span class="lang">${label}</span>`
-    + highlighted
-    + '</div>';
+    + `<span class="lang">${escapeHtml(label)}</span>`
+    + highlighted;
 
-  // Line numbers if :line-numbers is in the meta
-  if (/:line-numbers\b/.test(meta)) {
-    let startLineNumber = 1;
-    const startMatch = meta.match(/=(\d+)/);
-
-    if (startMatch?.[1]) {
-      startLineNumber = parseInt(startMatch[1]);
-    }
-
+  if (options.lineNumbers !== undefined) {
+    const startLineNumber = parseInt(options.lineNumbers) || 1;
     const codeSection = result.slice(result.indexOf('<code>'), result.indexOf('</code>'));
     const lineCount = codeSection.split('\n').length;
 
@@ -89,10 +102,10 @@ function wrapCodeBlock (highlighted: string, language: string, meta: string): st
       .map((_, index) => `<span class="line-number">${index + startLineNumber}</span><br>`)
       .join('');
 
-    result = result
-      .replace(/<\/div>$/, `<div class="line-numbers-wrapper" aria-hidden="true">${lineNumbersHtml}</div></div>`)
-      .replace(/"(language-[^"]*?)"/, '"$1 line-numbers-mode"');
+    result += `<div class="line-numbers-wrapper" aria-hidden="true">${lineNumbersHtml}</div>`;
   }
+
+  result += '</div>';
 
   return result;
 }
@@ -108,6 +121,38 @@ function renderMathBlocks (html: string): string {
   html = html.replace(MATH_BLOCK_RE, (_, tex) => renderTex(tex, true));
 
   return html;
+}
+
+// Matches `code` and $math$ in plain-text strings (e.g. page titles, labels)
+const INLINE_MARKUP_RE = /`([^`]+)`|\$([^$]+)\$/g;
+
+// Render inline code and math in a plain-text string to HTML
+// Used server-side to pre-render titles so clients do not need temml
+export function renderInlineTitleHtml (text: string): string {
+  let lastIndex = 0;
+  let result = '';
+
+  for (const match of text.matchAll(INLINE_MARKUP_RE)) {
+    result += escapeHtml(text.slice(lastIndex, match.index!));
+
+    if (match[1] !== undefined) {
+      result += `<code>${escapeHtml(match[1])}</code>`;
+    } else if (match[2] !== undefined) {
+      try {
+        result += temml.renderToString(match[2], {
+          throwOnError: false,
+        });
+      } catch {
+        result += escapeHtml(match[0]);
+      }
+    }
+
+    lastIndex = match.index! + match[0].length;
+  }
+
+  result += escapeHtml(text.slice(lastIndex));
+
+  return result;
 }
 
 function renderTex (escapedTex: string, displayMode: boolean): string {

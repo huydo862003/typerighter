@@ -35,6 +35,8 @@ const notFoundPageData: PageData = {
   frontmatter: {},
   headings: [],
   title: 'Not Found',
+  titleHtml: 'Not Found',
+  filepath: '',
 };
 
 // Create a client-side router that loads .td page modules on navigation

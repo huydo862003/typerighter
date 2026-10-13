@@ -179,13 +179,13 @@ export const expr_rules = {
 
   self_expression: () => 'self',
 
-  // File reference: fref("filename.td")
+  // File reference: fref("filename.td") or fref() (empty, during editing)
 
   fref: ($) =>
     seq(
       'fref',
       '(',
-      $.string,
+      optional($.string),
       ')',
     ),
 

@@ -297,7 +297,7 @@ impl Arbitrary for Diagnostic {
         }
       }),
       (any::<usize>(), any::<usize>())
-        .prop_map(|(expected, got)| Diagnostic::WrongTypeArgCount { expected, got }),
+        .prop_map(|(expected, got)| Diagnostic::WrongTypArgCount { expected, got }),
       arb_offsets().prop_map(|(start_offset, end_offset)| Diagnostic::NotCallable {
         start_offset,
         end_offset
@@ -313,14 +313,14 @@ impl Arbitrary for Diagnostic {
         }
       ),
       (".*", arb_offsets()).prop_map(|(expected, (start_offset, end_offset))| {
-        Diagnostic::ArgTypeMismatch {
+        Diagnostic::ArgTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }),
       (".*", ".*", arb_offsets()).prop_map(|(field, expected, (start_offset, end_offset))| {
-        Diagnostic::FieldTypeMismatch {
+        Diagnostic::FieldTypMismatch {
           field,
           expected,
           start_offset,
@@ -332,21 +332,21 @@ impl Arbitrary for Diagnostic {
         end_offset
       }),
       (".*", arb_offsets()).prop_map(|(expected, (start_offset, end_offset))| {
-        Diagnostic::IndexTypeMismatch {
+        Diagnostic::IndexTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }),
       (".*", arb_offsets()).prop_map(|(expected, (start_offset, end_offset))| {
-        Diagnostic::TagTypeMismatch {
+        Diagnostic::TagTypMismatch {
           expected,
           start_offset,
           end_offset,
         }
       }),
       (".*", ".*", arb_offsets()).prop_map(|(op, expected, (start_offset, end_offset))| {
-        Diagnostic::OperandTypeMismatch {
+        Diagnostic::OperandTypMismatch {
           op,
           expected,
           start_offset,
@@ -361,7 +361,7 @@ impl Arbitrary for Diagnostic {
         }
       }),
       (".*", arb_offsets()).prop_map(|(expected, (start_offset, end_offset))| {
-        Diagnostic::ElementTypeMismatch {
+        Diagnostic::ElementTypMismatch {
           expected,
           start_offset,
           end_offset,
@@ -381,10 +381,10 @@ impl Arbitrary for Diagnostic {
           end_offset,
         }
       }),
-      (".*", ".*", arb_offsets()).prop_map(|(field, on_type, (start_offset, end_offset))| {
+      (".*", ".*", arb_offsets()).prop_map(|(field, on_typ, (start_offset, end_offset))| {
         Diagnostic::UnknownField {
           field,
-          on_type,
+          on_typ,
           start_offset,
           end_offset,
         }

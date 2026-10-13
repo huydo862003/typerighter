@@ -3,10 +3,11 @@ use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
 
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
-use typedown_lang::db::derived::hir::lower_node;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
-use typedown_lang::db::types::{File, FileRedNode, HirValueKind, Project};
+use typedown_lang::db::types::Project;
+use typedown_lang::syntax::ast::StrLit;
+use typedown_lang::syntax::ast::{AstNode, CallExpr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -15,7 +16,7 @@ use crate::core::utils::position::text_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::utils::symbol::get_resource_label;
 
-pub fn inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Option<Vec<InlayHint>> {
+pub fn resolve_inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Option<Vec<InlayHint>> {
   let db = &analysis.db;
   let project = analysis.project;
 
@@ -25,34 +26,32 @@ pub fn inlay_hints(analysis: &Analysis, params: InlayHintParams) -> Option<Vec<I
   let root = parse_file(db, project, file).ast(db).node.clone();
 
   let mut hints = Vec::new();
-  collect_fref_hints(db, project, file, &root, &rope, &mut hints);
+  collect_fref_hints(db, project, &root, &rope, &mut hints);
   Some(hints)
 }
 
 fn collect_fref_hints(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
   node: &RedNode,
   rope: &ropey::Rope,
   hints: &mut Vec<InlayHint>,
 ) {
   if node.kind() == SyntaxKind::CallExpr
-    && let Some(hint) = fref_hint(db, project, file, node, rope)
+    && let Some(hint) = build_fref_hint(db, project, node, rope)
   {
     hints.push(hint);
     return;
   }
 
   for child in node.children() {
-    collect_fref_hints(db, project, file, &child, rope, hints);
+    collect_fref_hints(db, project, &child, rope, hints);
   }
 }
 
-fn fref_hint(
+fn build_fref_hint(
   db: &TypedownDatabase,
   project: Project,
-  file: File,
   call_node: &RedNode,
   rope: &ropey::Rope,
 ) -> Option<InlayHint> {
@@ -61,14 +60,12 @@ fn fref_hint(
     return None;
   }
 
-  let hir = lower_node(db, project, FileRedNode::new(file, call_node.clone()));
-  let HirValueKind::Call { args, .. } = hir.kind(db) else {
-    return None;
-  };
-  let arg = args.first()?;
-  let HirValueKind::Str(path_str) = arg.kind(db) else {
-    return None;
-  };
+  let call = CallExpr::cast(call_node.clone())?;
+  let path_str = call
+    .args()
+    .into_iter()
+    .next()
+    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|s| s.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
@@ -105,7 +102,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
 
-  use super::inlay_hints;
+  use super::resolve_inlay_hints;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
@@ -191,7 +188,7 @@ friend: fref("alice.td")
       ),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -206,7 +203,7 @@ friend: fref("alice.td")
       work_done_progress_params: WorkDoneProgressParams::default(),
     };
 
-    let hints = inlay_hints(&analysis, params).expect("should return hints");
+    let hints = resolve_inlay_hints(&analysis, params).expect("should return hints");
     assert!(
       hints
         .iter()

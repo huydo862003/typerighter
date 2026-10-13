@@ -20,6 +20,16 @@ const y = 2;
 const z = 3;
 ```
 
+```ts{title=config.ts}
+export default {}
+```
+
+```js{1,3 line-numbers=5}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+
 $E = mc^2$
 
 $$
