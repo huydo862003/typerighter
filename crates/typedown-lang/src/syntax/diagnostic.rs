@@ -79,6 +79,9 @@ pub enum DiagnosticCode {
   CircularExtension = 70,
   FieldRefinementViolation = 71,
   UnresolvedImport = 72,
+  UnknownComponent = 73,
+  MissingRequiredProp = 74,
+  UnknownProp = 75,
 }
 
 impl DiagnosticCode {
@@ -161,6 +164,9 @@ impl DiagnosticCode {
       DiagnosticCode::VaultConfigInvalidValue => "vault-config-invalid-value",
       DiagnosticCode::InvalidCodeRangeIndicator => "invalid-code-range-indicator",
       DiagnosticCode::UnresolvedImport => "unresolved-import",
+      DiagnosticCode::UnknownComponent => "unknown-component",
+      DiagnosticCode::MissingRequiredProp => "missing-required-prop",
+      DiagnosticCode::UnknownProp => "unknown-prop",
     }
   }
 }
@@ -619,6 +625,26 @@ pub enum Diagnostic {
     start_offset: usize,
     end_offset: usize,
   },
+  /// A custom component name is not registered in the component contract
+  UnknownComponent {
+    name: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// A required prop is missing on a custom component usage
+  MissingRequiredProp {
+    prop: String,
+    component: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
+  /// A prop is provided that is not declared in the component contract
+  UnknownProp {
+    prop: String,
+    component: String,
+    start_offset: usize,
+    end_offset: usize,
+  },
   /// Type cannot be constructed into a runtime value.
   NotConstructible {
     type_name: String,
@@ -920,6 +946,21 @@ impl Diagnostic {
         start_offset,
         end_offset,
         ..
+      }
+      | Diagnostic::UnknownComponent {
+        start_offset,
+        end_offset,
+        ..
+      }
+      | Diagnostic::MissingRequiredProp {
+        start_offset,
+        end_offset,
+        ..
+      }
+      | Diagnostic::UnknownProp {
+        start_offset,
+        end_offset,
+        ..
       } => Some((*start_offset, *end_offset)),
       Diagnostic::MissingVaultConfig { .. }
       | Diagnostic::VaultConfigReadError { .. }
@@ -1143,6 +1184,19 @@ impl Diagnostic {
           "field '{field}' redefined with type '{got}' which is not a subtype of '{expected}' from parent schema '{parent_schema}'"
         )
       }
+      Diagnostic::UnknownComponent { name, .. } => {
+        format!("unknown component \"{name}\"")
+      }
+      Diagnostic::MissingRequiredProp {
+        prop, component, ..
+      } => {
+        format!("missing required prop \"{prop}\" on component \"{component}\"")
+      }
+      Diagnostic::UnknownProp {
+        prop, component, ..
+      } => {
+        format!("unknown prop \"{prop}\" on component \"{component}\"")
+      }
     }
   }
 
@@ -1230,6 +1284,9 @@ impl Diagnostic {
       Diagnostic::CircularExtension { .. } => DiagnosticCode::CircularExtension,
       Diagnostic::FieldRefinementViolation { .. } => DiagnosticCode::FieldRefinementViolation,
       Diagnostic::UnresolvedImport { .. } => DiagnosticCode::UnresolvedImport,
+      Diagnostic::UnknownComponent { .. } => DiagnosticCode::UnknownComponent,
+      Diagnostic::MissingRequiredProp { .. } => DiagnosticCode::MissingRequiredProp,
+      Diagnostic::UnknownProp { .. } => DiagnosticCode::UnknownProp,
     }
   }
 }

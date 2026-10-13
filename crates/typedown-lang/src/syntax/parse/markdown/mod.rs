@@ -972,14 +972,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     let container_ctx = ExprCtx::MdContainerBlock(parent_prefix_count);
     self.expr_ctx_stack.enter(container_ctx);
 
-    // Require a space between `:::` and the label
-    let next = self.lex_ctx.peek_md(SKIP_NONE);
-    if next.token.kind() != SyntaxKind::Whitespace {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
-    } else {
+    // Consume optional space between `:::` and the label
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
       self.advance_md(&mut children, SKIP_NONE);
     }
 

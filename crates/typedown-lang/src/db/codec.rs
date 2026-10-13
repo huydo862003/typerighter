@@ -1,3 +1,4 @@
+use crate::db::types::{CustomComponentEntry, CustomComponentProp, CustomComponentTyp};
 use crate::syntax::diagnostic::{Diagnostic, DiagnosticCode};
 use crate::syntax::green::cache::with_green_cache;
 use crate::syntax::red::RedNode;
@@ -747,6 +748,37 @@ impl Encodable for Diagnostic {
         start_offset.encode(buf, encoder);
         end_offset.encode(buf, encoder);
       }
+      Diagnostic::UnknownComponent {
+        name,
+        start_offset,
+        end_offset,
+      } => {
+        name.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::MissingRequiredProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.encode(buf, encoder);
+        component.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
+      Diagnostic::UnknownProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.encode(buf, encoder);
+        component.encode(buf, encoder);
+        start_offset.encode(buf, encoder);
+        end_offset.encode(buf, encoder);
+      }
     }
   }
 }
@@ -1415,6 +1447,40 @@ impl Decodable for Diagnostic {
           end_offset,
         }
       }
+      DiagnosticCode::UnknownComponent => {
+        let name = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnknownComponent {
+          name,
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::MissingRequiredProp => {
+        let prop = String::decode(data, decoder);
+        let component = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::MissingRequiredProp {
+          prop,
+          component,
+          start_offset,
+          end_offset,
+        }
+      }
+      DiagnosticCode::UnknownProp => {
+        let prop = String::decode(data, decoder);
+        let component = String::decode(data, decoder);
+        let start_offset = usize::decode(data, decoder);
+        let end_offset = usize::decode(data, decoder);
+        Diagnostic::UnknownProp {
+          prop,
+          component,
+          start_offset,
+          end_offset,
+        }
+      }
     }
   }
 }
@@ -1912,6 +1978,139 @@ impl StableHash for Diagnostic {
         got.stable_hash(db, hasher);
         start_offset.stable_hash(db, hasher);
         end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::UnknownComponent {
+        name,
+        start_offset,
+        end_offset,
+      } => {
+        name.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::MissingRequiredProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.stable_hash(db, hasher);
+        component.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+      Diagnostic::UnknownProp {
+        prop,
+        component,
+        start_offset,
+        end_offset,
+      } => {
+        prop.stable_hash(db, hasher);
+        component.stable_hash(db, hasher);
+        start_offset.stable_hash(db, hasher);
+        end_offset.stable_hash(db, hasher);
+      }
+    }
+  }
+}
+
+// ComponentProp
+
+impl Encodable for CustomComponentProp {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.name.encode(buf, encoder);
+    self.type_name.encode(buf, encoder);
+    self.required.encode(buf, encoder);
+  }
+}
+
+impl Decodable for CustomComponentProp {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    CustomComponentProp {
+      name: String::decode(data, decoder),
+      type_name: String::decode(data, decoder),
+      required: bool::decode(data, decoder),
+    }
+  }
+}
+
+impl StableHash for CustomComponentProp {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.name.stable_hash(db, hasher);
+    self.type_name.stable_hash(db, hasher);
+    self.required.stable_hash(db, hasher);
+  }
+}
+
+// ComponentEntry
+
+impl Encodable for CustomComponentTyp {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.name.encode(buf, encoder);
+    self.source.encode(buf, encoder);
+    self.props.encode(buf, encoder);
+  }
+}
+
+impl Decodable for CustomComponentTyp {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    CustomComponentTyp {
+      name: String::decode(data, decoder),
+      source: String::decode(data, decoder),
+      props: Vec::decode(data, decoder),
+    }
+  }
+}
+
+impl StableHash for CustomComponentTyp {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    self.name.stable_hash(db, hasher);
+    self.source.stable_hash(db, hasher);
+    self.props.stable_hash(db, hasher);
+  }
+}
+
+// ComponentEntry
+
+impl Encodable for CustomComponentEntry {
+  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+    match self {
+      CustomComponentEntry::Dir { path } => {
+        encoder.emit_u8(buf, 0);
+        path.encode(buf, encoder);
+      }
+      CustomComponentEntry::Explicit { name, source } => {
+        encoder.emit_u8(buf, 1);
+        name.encode(buf, encoder);
+        source.encode(buf, encoder);
+      }
+    }
+  }
+}
+
+impl Decodable for CustomComponentEntry {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    match decoder.read_u8(data) {
+      0 => CustomComponentEntry::Dir {
+        path: String::decode(data, decoder),
+      },
+      1 => CustomComponentEntry::Explicit {
+        name: String::decode(data, decoder),
+        source: String::decode(data, decoder),
+      },
+      tag => panic!("unknown ComponentEntry tag: {tag}"),
+    }
+  }
+}
+
+impl StableHash for CustomComponentEntry {
+  fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
+    std::mem::discriminant(self).stable_hash(db, hasher);
+    match self {
+      CustomComponentEntry::Dir { path } => path.stable_hash(db, hasher),
+      CustomComponentEntry::Explicit { name, source } => {
+        name.stable_hash(db, hasher);
+        source.stable_hash(db, hasher);
       }
     }
   }

@@ -397,7 +397,7 @@ age: 30
       (test_path, editing_file),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -530,7 +530,7 @@ vault:
       ),
     ]);
 
-    let project = Project::new(&db, project_root, files);
+    let project = Project::new(&db, project_root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -658,7 +658,7 @@ agency: "Acme"
       ),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,
@@ -854,7 +854,7 @@ properties:
       ),
     ]);
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
       project,

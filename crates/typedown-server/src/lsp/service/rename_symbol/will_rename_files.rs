@@ -162,7 +162,7 @@ avatar: fref("icon.svg")
       files.insert(path, file);
     }
 
-    let project = Project::new(&db, root, files);
+    let project = Project::new(&db, root, files, None);
     Analysis::new(
       db,
       project,

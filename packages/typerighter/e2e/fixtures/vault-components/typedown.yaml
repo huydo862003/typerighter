@@ -1,0 +1,9 @@
+version: "1"
+vault:
+  root_dir: "vault"
+site:
+  title: "E2E Component Vault"
+  description: "Test fixture for custom component e2e tests"
+theme:
+  components:
+    - "./components"

@@ -5,6 +5,10 @@ use std::{fs, io};
 use typedown_lang::db::types::{AssetKind, FileHandle, FileMetadata};
 use typedown_lang::db::utils::is_content_file;
 
+pub fn get_component_contract_path(root: &Path) -> PathBuf {
+  root.join(".typedown/components.json")
+}
+
 pub fn get_cache_dir(root: &Path) -> PathBuf {
   root.join(".typedown/.local/cache")
 }
@@ -31,6 +35,13 @@ pub fn scan_project_files(root: &Path) -> io::Result<HashSet<PathBuf>> {
     if p.exists() {
       files.insert(p);
     }
+  }
+
+  // Include the component contract if it exists
+  // .typedown/ is relative to the project root, not vault_root_dir, regardless of root_dir config
+  let contract = get_component_contract_path(root);
+  if contract.exists() {
+    files.insert(contract);
   }
 
   Ok(files)

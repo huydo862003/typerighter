@@ -636,7 +636,7 @@ mod tests {
   }
 
   fn make_project(db: &TypedownDatabase) -> Project {
-    Project::new(db, PathBuf::from("/test"), HashMap::new())
+    Project::new(db, PathBuf::from("/test"), HashMap::new(), None)
   }
 
   #[test]
@@ -1172,7 +1172,7 @@ mod tests {
         FileMetadata::default(),
       ),
     );
-    let project = Project::new(db, PathBuf::new(), HashMap::new());
+    let project = Project::new(db, PathBuf::new(), HashMap::new(), None);
 
     parse_file(db, project, file).ast(db)
   }

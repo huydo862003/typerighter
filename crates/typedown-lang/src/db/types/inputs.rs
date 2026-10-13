@@ -174,4 +174,5 @@ pub struct Project {
   root_dir: PathBuf,
   #[return_ref]
   files: HashMap<PathBuf, File>,
+  custom_component_contract: Option<File>,
 }

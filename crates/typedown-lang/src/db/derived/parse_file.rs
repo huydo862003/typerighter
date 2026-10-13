@@ -76,7 +76,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), HashMap::new(), None);
 
     let file = File::new(
       &db,
@@ -110,7 +110,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), HashMap::new(), None);
     let file = File::new(
       &db,
       FileHandle::Path(fixture.path.clone(), FileMetadata::default()),
@@ -141,7 +141,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), HashMap::new(), None);
     let file = File::new(
       &db,
       FileHandle::Content(
@@ -176,7 +176,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let project = Project::new(&db, PathBuf::from("/"), HashMap::new());
+    let project = Project::new(&db, PathBuf::from("/"), HashMap::new(), None);
     let file = File::new(
       &db,
       FileHandle::Path(fixture.path.clone(), FileMetadata::default()),

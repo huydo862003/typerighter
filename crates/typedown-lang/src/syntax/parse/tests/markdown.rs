@@ -1523,6 +1523,47 @@ fn parse_container_block_kebab_case() {
   );
 }
 
+// Space after ::: is optional: ::: td-alert and :::td-alert are both valid
+#[test]
+fn parse_container_block_kebab_case_with_space() {
+  let (_, diags) = parse_body_with_diags(
+    r#"::: td-alert
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics for '::: td-alert', got: {diags:?}"
+  );
+}
+
+#[test]
+fn parse_container_block_kebab_case_no_space() {
+  let (_, diags) = parse_body_with_diags(
+    r#":::td-alert
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics for ':::td-alert', got: {diags:?}"
+  );
+}
+
+// Props can appear directly after label with no space: :::td-alert{kind="info"}
+#[test]
+fn parse_container_block_no_space_with_props() {
+  let (_, diags) = parse_body_with_diags(
+    r#":::td-alert{kind="info"}
+:::
+"#,
+  );
+  assert!(
+    diags.is_empty(),
+    "should produce no diagnostics for ':::td-alert{{kind=\"info\"}}', got: {diags:?}"
+  );
+}
+
 #[test]
 fn parse_container_shorthand_kebab_case() {
   let (tree, diags) = parse_body_with_diags(

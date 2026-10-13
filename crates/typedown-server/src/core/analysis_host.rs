@@ -13,7 +13,9 @@ use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
 use typedown_lang::db::utils::is_content_file;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::fs::{disk_handle, is_asset_file, is_vault_config, scan_project_files};
+use crate::core::utils::fs::{
+  disk_handle, get_component_contract_path, is_asset_file, is_vault_config, scan_project_files,
+};
 use crate::core::utils::uri::{uri_scheme, uri_to_path};
 
 pub struct AnalysisHost {
@@ -57,14 +59,19 @@ impl AnalysisHost {
       files.insert(path.clone(), file);
     }
 
+    let contract = file_map
+      .get(&get_component_contract_path(&project_dir))
+      .copied();
+
     let cached_project = Project::iter(&db)
       .into_iter()
       .find(|proj| *proj.root_dir(&db) == project_dir);
     let project = if let Some(proj) = cached_project {
       proj.set_files(&mut db, files);
+      proj.set_custom_component_contract(&mut db, contract);
       proj
     } else {
-      Project::new(&db, project_dir.clone(), files)
+      Project::new(&db, project_dir.clone(), files, contract)
     };
 
     Ok(Self {
@@ -160,7 +167,11 @@ impl AnalysisHost {
         file_map.insert(path, file);
       }
 
+      let contract = file_map
+        .get(&get_component_contract_path(&project.root_dir(db)))
+        .copied();
       project.set_files(db, files);
+      project.set_custom_component_contract(db, contract);
       file_map
     });
 
@@ -220,6 +231,7 @@ impl AnalysisHost {
     if is_content_file(&path)
       || is_asset_file(&path)
       || (path.parent().is_some_and(|p| p == self.project_dir) && is_vault_config(&path))
+      || path == get_component_contract_path(&self.project_dir)
     {
       self.project_files.insert(path);
       self.sync_files();
@@ -267,7 +279,11 @@ impl AnalysisHost {
       let mut files = project.files(db).clone();
       files.remove(&old_path);
       files.insert(new_path.clone(), file);
+      let contract = files
+        .get(&get_component_contract_path(&project.root_dir(db)))
+        .copied();
       project.set_files(db, files);
+      project.set_custom_component_contract(db, contract);
       file
     });
 

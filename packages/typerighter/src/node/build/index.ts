@@ -10,6 +10,10 @@ import {
   generateClientAppEntry, typedown,
 } from '../plugin/vite';
 import {
+  resolveUserComponents,
+  type UserComponent,
+} from '../plugin/vite/virtual/app';
+import {
   ProgressLogger,
 } from '../lib/progress';
 import {
@@ -80,6 +84,8 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   const clientEntryPath = path.join(tempDir, 'client-entry.js');
   const ssrEntryPath = path.join(tempDir, 'ssr-entry.js');
 
+  const userComponents = await resolveUserComponents(config.components, root);
+
   await Promise.all([
     fs.writeFile(clientEntryPath, generateClientAppEntry({
       rootDir: config.rootDir,
@@ -92,12 +98,14 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       author,
       license,
       nav: config.nav,
+      userComponents,
     })),
     fs.writeFile(ssrEntryPath, generateSsrEntry({
       rootDir: config.rootDir,
       layoutImport: DEFAULT_LAYOUT_IMPORT,
       siteConfig,
       siteData,
+      userComponents,
     })),
   ]);
 
@@ -242,6 +250,7 @@ interface SsrEntryOptions {
   layoutImport: string;
   siteConfig: string;
   siteData: string;
+  userComponents?: UserComponent[];
 }
 
 // Generate the SSR entry module used for pre-rendering
@@ -253,8 +262,21 @@ function generateSsrEntry (options: SsrEntryOptions): string {
   const directoryListingMap = buildDirectoryListingMap(contentTree.entries ?? [], parsedConfig.title ?? '');
   const siteDataWithListings = JSON.stringify({ ...parsedData, directoryListings: directoryListingMap });
 
+  const userComponents = options.userComponents ?? [];
+  const componentImports = userComponents
+    .map((c) => `import ${c.name} from ${JSON.stringify(c.absolutePath)};`)
+    .join('\n');
+  const componentRegistrations = userComponents
+    .map((c) => `app.component(${JSON.stringify(c.name)}, ${c.name});`)
+    .join('\n');
+
+  const ssrHeader = [
+    componentImports,
+    `import { createTypedownApp } from 'typerighter/client';`,
+  ].filter(Boolean).join('\n');
+
   return `
-import { createTypedownApp } from 'typerighter/client';
+${ssrHeader}
 import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
@@ -291,6 +313,7 @@ function loadPageModule(pagePath) {
 
 export async function createRenderer() {
   const { app, router } = await createTypedownApp(loadPageModule, theme.Layout, ${options.siteConfig}, siteData);
+  ${componentRegistrations}
   return async function render(url) {
     await router.go(url, { replace: true });
     const html = await renderToString(app);

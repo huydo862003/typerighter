@@ -593,6 +593,7 @@ mod tests {
       &db,
       PathBuf::from("/vault"),
       [(path, file)].into_iter().collect(),
+      None,
     );
     let symbol = Symbol::new(
       &db,
