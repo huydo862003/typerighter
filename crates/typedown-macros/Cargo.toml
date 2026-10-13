@@ -11,6 +11,6 @@ repository = "https://github.com/Huy-DNA/typerighter"
 authors = ["Huy-DNA <huydo862003@gmail.com>"]
 
 [dependencies]
-syn = { version = "2.0", features = ["full"] }
+syn = { version = "3.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
