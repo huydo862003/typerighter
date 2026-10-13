@@ -378,8 +378,10 @@ mod tests {
   fn layout_slots_form() {
     let (db, project, _) = load_vault_fixture("evaluate/layout_slots_vault", "page.td");
     let config = get_vault_config(&db, project);
-    assert_eq!(config.layout(&db).as_ref(), None);
-    let slots = config.layout(&db).unwrap().slots;
+    let binding = config.layout(&db);
+    let layout = binding.as_ref().expect("layout should be Some");
+    assert!(layout.component.is_none());
+    let slots = &layout.slots;
     assert_eq!(slots.len(), 2);
     assert_eq!(
       slots.get("layout_top"),
