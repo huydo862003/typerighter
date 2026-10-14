@@ -248,7 +248,7 @@ mod tests {
       source: "./Chart.vue".to_string(),
       props: Some(vec![CustomComponentProp {
         name: "data".to_string(),
-        type_name: "string".to_string(),
+        typ_name: "string".to_string(),
         required: true,
       }]),
     }];

@@ -35,9 +35,16 @@ export interface TestProject {
   ) => Promise<void>;
   // Write a file (creates parent dirs if needed)
   writeFile: (relativePath: string, content: string) => Promise<void>;
+  // Collected stderr lines from the dev server
+  serverStderr: string[];
 }
 
-export function createTestProjectFixture (fixture: FixtureName) {
+export interface TestProjectFixtureOptions {
+  // Do not copy .typedown/components.json - tests the plugin generates it from scratch
+  withoutContract?: boolean;
+}
+
+export function createTestProjectFixture (fixture: FixtureName, options: TestProjectFixtureOptions = {}) {
   return async ({}, use: (project: TestProject) => Promise<void>) => {
     const fixtureDirectory = path.join(FIXTURES_DIR, fixture);
 
@@ -52,8 +59,15 @@ export function createTestProjectFixture (fixture: FixtureName) {
       filter: (src) => {
         const name = path.basename(src);
 
-        // Skip the incremental cache but keep .typedown/components.json
+        // Skip the incremental cache
         if (name === '.local' && path.basename(path.dirname(src)) === '.typedown') return false;
+
+        // Optionally skip components.json so the plugin must generate it from scratch
+        if (
+          options.withoutContract
+          && name === 'components.json'
+          && path.basename(path.dirname(src)) === '.typedown'
+        ) return false;
 
         return name !== 'node_modules';
       },
@@ -79,11 +93,11 @@ export function createTestProjectFixture (fixture: FixtureName) {
       ],
       {
         cwd: directory,
-        // Inherit stderr for debug, ignore stdout to avoid pipe buffer blocking
+        // Pipe stderr to capture diagnostics, ignore stdout to avoid pipe buffer blocking
         stdio: [
           'ignore',
           'ignore',
-          'inherit',
+          'pipe',
         ],
         env: {
           ...process.env,
@@ -91,6 +105,27 @@ export function createTestProjectFixture (fixture: FixtureName) {
         },
       },
     );
+
+    // Collect stderr lines for diagnostic assertions
+    const serverStderr: string[] = [];
+
+    if (serverProcess.stderr) {
+      let buffer = '';
+
+      serverProcess.stderr.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+
+        // Also print to test output for debugging
+        process.stderr.write(text);
+        buffer += text;
+
+        const lines = buffer.split('\n');
+
+        // Keep incomplete last line in the buffer
+        buffer = lines.pop() ?? '';
+        serverStderr.push(...lines.filter((line) => 0 < line.length));
+      });
+    }
 
     await waitForServer(`http://localhost:${port}${basePath}/`, 30_000);
 
@@ -133,6 +168,7 @@ export function createTestProjectFixture (fixture: FixtureName) {
       goto,
       modifyFile,
       writeFile: writeProjectFile,
+      serverStderr,
     });
 
     serverProcess.kill('SIGTERM');

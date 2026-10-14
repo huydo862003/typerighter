@@ -235,7 +235,7 @@ pub struct CustomComponentTyp {
 #[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
 pub struct CustomComponentProp {
   pub name: String,
-  pub type_name: String,
+  pub typ_name: String,
   pub required: bool,
 }
 

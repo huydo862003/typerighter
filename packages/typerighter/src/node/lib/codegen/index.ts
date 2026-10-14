@@ -6,7 +6,3 @@ export {
 export {
   generateThemeModule,
 } from './theme';
-export {
-  resolveUserComponents,
-  type UserComponent,
-} from './components';

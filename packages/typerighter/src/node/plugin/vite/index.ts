@@ -5,8 +5,7 @@ import pc from 'picocolors';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import {
-  normalizePath,
-  type Plugin, type ViteDevServer,
+  normalizePath, type Plugin, type ViteDevServer,
 } from 'vite';
 import {
   buildSite,
@@ -15,17 +14,25 @@ import {
   renderToVueSfc,
 } from '../../lib/render';
 import {
-  createAppContext, resolveProjectRoot, type AppContext,
+  createAppContext,
+  resolveProjectRoot,
+  type AppContext,
 } from '../../context';
 import {
   isRpcCancelled,
 } from '../../lib/typedown-context';
 import {
-  VIRTUAL_APP_ID, RESOLVED_VIRTUAL_APP_ID,
-  PAGES_ID, RESOLVED_PAGES_ID, PAGE_DATA_PREFIX,
-  SITE_DATA_ID, RESOLVED_SITE_DATA_ID,
-  SEARCH_INDEX_ID, RESOLVED_SEARCH_INDEX_ID,
-  THEME_ID, RESOLVED_THEME_ID,
+  VIRTUAL_APP_ID,
+  RESOLVED_VIRTUAL_APP_ID,
+  PAGES_ID,
+  RESOLVED_PAGES_ID,
+  PAGE_DATA_PREFIX,
+  SITE_DATA_ID,
+  RESOLVED_SITE_DATA_ID,
+  SEARCH_INDEX_ID,
+  RESOLVED_SEARCH_INDEX_ID,
+  THEME_ID,
+  RESOLVED_THEME_ID,
 } from './constants';
 import {
   VirtualApp,
@@ -49,11 +56,18 @@ import {
   vaultAssets, virtualHtml,
 } from './middleware';
 import {
+  componentContractPlugin,
+} from './subplugins/component-contract';
+import {
   path,
 } from '@/shared';
 
 export {
-  THEME_ID, PAGES_ID, SITE_DATA_ID, SEARCH_INDEX_ID, PAGE_DATA_EVENT,
+  THEME_ID,
+  PAGES_ID,
+  SITE_DATA_ID,
+  SEARCH_INDEX_ID,
+  PAGE_DATA_EVENT,
 } from './constants';
 
 export interface TypedownPluginCache {
@@ -88,7 +102,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   };
 
   function resolveTdContext () {
-    if (context === undefined) throw new Error('typedown plugin not initialized');
+    if (context === undefined)
+      throw new Error('typedown plugin not initialized');
 
     return context.getTdContext();
   }
@@ -152,7 +167,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       if (0 < report.errorCount) {
         const lines = report.diagnostics
           .filter((diagnostic) => diagnostic.severity === 'error')
-          .map((diagnostic) => `  ${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} - ${diagnostic.message} (${diagnostic.code})`);
+          .map(
+            (diagnostic) =>
+              `  ${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} - ${diagnostic.message} (${diagnostic.code})`,
+          );
 
         this.error(
           `Vault check failed with ${report.errorCount} error(s):\n${lines.join('\n')}`,
@@ -162,9 +180,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
     // Resolve virtual module IDs
     resolveId (id) {
-      if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID) return RESOLVED_VIRTUAL_APP_ID;
+      if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID)
+        return RESOLVED_VIRTUAL_APP_ID;
       if (id === PAGES_ID) return RESOLVED_PAGES_ID;
-      if (id.startsWith(PAGE_DATA_PREFIX)) return virtualPages.resolvePageData(id);
+      if (id.startsWith(PAGE_DATA_PREFIX))
+        return virtualPages.resolvePageData(id);
       if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
       if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
       if (id === THEME_ID) return RESOLVED_THEME_ID;
@@ -182,11 +202,13 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         && id !== RESOLVED_PAGES_ID
         && id !== RESOLVED_VIRTUAL_APP_ID
         && id !== RESOLVED_THEME_ID
-      ) return;
+      )
+        return;
 
       const tdContext = await resolveTdContext();
 
-      if (id === RESOLVED_SEARCH_INDEX_ID) return virtualSearchIndex.load(tdContext);
+      if (id === RESOLVED_SEARCH_INDEX_ID)
+        return virtualSearchIndex.load(tdContext);
       if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(tdContext);
       if (id === RESOLVED_PAGES_ID) return virtualPages.load(tdContext);
       if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context!);
@@ -236,7 +258,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       // Invalidate a file's modules and send HMR update to the browser
       function invalidateFileModules (...filepaths: string[]) {
         if (!server) return;
-        tdContext.getConfig()
+        tdContext
+          .getConfig()
           .then((config) => {
             if (!server) return;
             const updates: ReturnType<typeof makeHmrUpdate>[] = [];
@@ -264,7 +287,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
               });
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
 
       // Content updated: file was created, modified, or renamed
@@ -308,14 +331,16 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       cache.basePath = initialConfig.basePath;
       cache.rootDirectory = initialConfig.rootDir;
 
-      tdContext.rpc.onConfigChanged((updated: {
-        basePath: string;
-        rootDir: string;
-      }) => {
-        cache.basePath = updated.basePath;
-        cache.rootDirectory = updated.rootDir;
-        cache.devHtml = undefined;
-      });
+      tdContext.rpc.onConfigChanged(
+        (updated: {
+          basePath: string;
+          rootDir: string;
+        }) => {
+          cache.basePath = updated.basePath;
+          cache.rootDirectory = updated.rootDir;
+          cache.devHtml = undefined;
+        },
+      );
 
       devServer.middlewares.use(vaultAssets(devServer, cache));
       devServer.middlewares.use(virtualHtml(devServer, tdContext, cache));
@@ -341,7 +366,11 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
         const resource = await tdContext.getFile(relativePath);
         const {
           vueSrc,
-        } = await renderToVueSfc(tdContext, resource, relativePath);
+        } = await renderToVueSfc(
+          tdContext,
+          resource,
+          relativePath,
+        );
 
         return {
           code: vueSrc,
@@ -353,7 +382,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
         const message = error instanceof Error ? error.message : String(error);
 
-        this.error(`[typedown] Failed to transform ${relativePath}: ${message}`);
+        this.error(
+          `[typedown] Failed to transform ${relativePath}: ${message}`,
+        );
       }
     },
 
@@ -388,7 +419,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
   const vuePlugin = vue({
     include: options.root
-      ? new RegExp(`${options.root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/.*\\.(?:vue|td)$`)
+      ? new RegExp(
+        `${options.root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/.*\\.(?:vue|td)$`,
+      )
       : /\.(?:vue|td)$/,
     template: {
       transformAssetUrls: false,
@@ -397,6 +430,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
   return [
     typedownPlugin,
+    componentContractPlugin(() => context),
     vuePlugin,
     ...tailwindcss(),
   ];
@@ -452,18 +486,23 @@ function makeHmrUpdate (module_: {
 }
 
 // Print vault diagnostics to stderr with severity prefix and location
-function printDiagnostics (diagnostics: Array<{
-  severity: string;
-  filepath: string;
-  line: number;
-  column: number;
-  message: string;
-  code: string;
-}>) {
+function printDiagnostics (
+  diagnostics: Array<{
+    severity: string;
+    filepath: string;
+    line: number;
+    column: number;
+    message: string;
+    code: string;
+  }>,
+) {
   for (const diagnostic of diagnostics) {
     const location = `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column}`;
-    const prefix = diagnostic.severity === 'error' ? pc.red('error') : pc.yellow('warn');
+    const prefix =
+      diagnostic.severity === 'error' ? pc.red('error') : pc.yellow('warn');
 
-    console.error(`  ${prefix} ${location} ${diagnostic.message} ${pc.dim(`(${diagnostic.code})`)}`);
+    console.error(
+      `  ${prefix} ${location} ${diagnostic.message} ${pc.dim(`(${diagnostic.code})`)}`,
+    );
   }
 }
