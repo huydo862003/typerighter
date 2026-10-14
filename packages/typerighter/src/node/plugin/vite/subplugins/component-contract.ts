@@ -138,7 +138,7 @@ function isComponentFile (
 }
 
 function writeContract (projectRoot: string, components: UserComponent[]): void {
-  // Skip when no components are configured - no contract file needed
+  // Skip when no components are configured
   if (components.length === 0) return;
 
   const contract = buildComponentContract(components, projectRoot);

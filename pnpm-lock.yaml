@@ -314,6 +314,9 @@ importers:
       typerighter:
         specifier: workspace:*
         version: link:../../..
+      vue:
+        specifier: ^3.5.43
+        version: 3.5.43
 
   packages/typerighter/e2e/fixtures/vault-root:
     devDependencies:

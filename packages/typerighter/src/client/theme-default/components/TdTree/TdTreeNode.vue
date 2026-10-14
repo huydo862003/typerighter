@@ -3,7 +3,7 @@ import {
   computed, ref, watch,
 } from 'vue';
 import {
-  ChevronDown, File, Folder, FolderOpen,
+  BookOpen, ChevronDown, File, Folder, FolderOpen,
 } from '@lucide/vue';
 import {
   getPageIcon,
@@ -133,43 +133,48 @@ function toggle () {
     role="treeitem"
     :aria-expanded="!collapsed"
   >
-    <div class="td-tree-label">
-      <button
-        type="button"
-        class="td-tree-toggle"
-        @click="toggle"
-        @keydown="onToggleKeydown"
-      >
-        <ChevronDown
-          :size="14"
-          class="td-tree-caret"
-          :class="{
-            'is-collapsed': collapsed,
-          }"
-        />
-        <span class="td-tree-label-text">{{ folderLabel }}</span>
-      </button>
-      <a
-        :href="folderHref"
-        class="td-tree-index-btn"
+    <div
+      class="td-tree-label"
+      role="button"
+      tabindex="0"
+      @click="toggle"
+      @keydown="onToggleKeydown"
+    >
+      <ChevronDown
+        :size="14"
+        class="td-tree-caret"
         :class="{
-          'is-active': isCurrent(folderPath),
+          'is-collapsed': collapsed,
         }"
+      />
+      <span class="td-tree-label-text">{{ folderLabel }}</span>
+      <TdTooltip
+        text="Open index page"
+        always
       >
-        <component
-          :is="folderIcon"
-          v-if="folderIcon"
-          :size="12"
-        />
-        <FolderOpen
-          v-else-if="isCurrent(folderPath)"
-          :size="12"
-        />
-        <Folder
-          v-else
-          :size="12"
-        />
-      </a>
+        <a
+          :href="folderHref"
+          class="td-tree-index-btn"
+          :class="{
+            'is-active': isCurrent(folderPath),
+          }"
+          @click.stop
+        >
+          <component
+            :is="folderIcon"
+            v-if="folderIcon"
+            :size="12"
+          />
+          <FolderOpen
+            v-else-if="isCurrent(folderPath)"
+            :size="12"
+          />
+          <Folder
+            v-else
+            :size="12"
+          />
+        </a>
+      </TdTooltip>
       <span class="td-tree-count">{{ totalCount }}</span>
     </div>
     <div
@@ -180,6 +185,21 @@ function toggle () {
       }"
     >
       <div>
+        <!-- Virtual entry linking to the directory index page -->
+        <a
+          v-if="indexItem"
+          :href="folderHref"
+          class="td-tree-link td-tree-index-entry"
+          :class="{
+            'is-active': isCurrent(folderPath),
+          }"
+        >
+          <BookOpen
+            :size="14"
+            class="td-tree-file-icon"
+          />
+          <span class="td-tree-link-text">Overview</span>
+        </a>
         <template
           v-for="entry in visibleEntries"
           :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
@@ -248,22 +268,7 @@ function toggle () {
   letter-spacing: var(--tracking-td-wide);
   text-transform: uppercase;
   color: var(--color-td-ink-4);
-}
-
-.td-tree-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  background: none;
-  border: none;
   cursor: pointer;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  color: inherit;
-  padding: 0;
-  overflow: hidden;
 }
 
 .td-tree-label:hover {
@@ -362,6 +367,15 @@ function toggle () {
   border-left-color: var(--color-td-accent);
   color: var(--color-td-accent);
   font-weight: 600;
+}
+
+.td-tree-index-entry {
+  font-size: var(--font-size-td-xs);
+  color: var(--color-td-ink-4);
+}
+
+.td-tree-index-entry:hover {
+  color: var(--color-td-ink-3);
 }
 
 .td-tree-more {

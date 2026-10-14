@@ -11,10 +11,12 @@ defineOptions({
 });
 
 const {
-  text,
+  text, always = false,
 } = defineProps<{
-  /** Tooltip text, shown only when the slot content is truncated */
+  /** Tooltip text */
   text: string;
+  /** Show even when content is not truncated */
+  always?: boolean;
 }>();
 
 const trigger = useTemplateRef<HTMLElement>('trigger');
@@ -54,7 +56,8 @@ function clearTimeouts () {
 function show () {
   const element = trigger.value;
 
-  if (!element || element.scrollWidth <= element.clientWidth) return;
+  // Skip if content fits and always mode is off
+  if (!always && (!element || element.scrollWidth <= element.clientWidth)) return;
 
   clearTimeouts();
   showTimeout = setTimeout(() => {
