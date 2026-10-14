@@ -1,3 +1,7 @@
+---
+_icon: icon.image
+---
+
 The `icon` module provides a curated set of page icons based on [Lucide](https://lucide.dev). Use them with the `_icon` built-in field.
 
 ## Usage

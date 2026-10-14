@@ -72,7 +72,6 @@ function flattenHeadings(items: MarkdownHeading[], depth = 2) {
 }
 ```
 
----
 
 ## useSiteConfig
 
@@ -106,7 +105,6 @@ const { withBase } = useSiteConfig()
 withBase('/guide/index')  // returns "/docs/guide/index" if basePath is "/docs"
 ```
 
----
 
 ## useSiteData
 
@@ -128,21 +126,12 @@ interface TypedownSiteData {
   schemas: Record<string, SchemaInfo>
   directoryListings: Record<string, DirectoryListing>
 }
-
-interface ContentTree {
-  entries: ContentTreeEntry[]
-}
-
-type ContentTreeEntry =
-  | { kind: 'file'; node: ContentFile }
-  | { kind: 'dir'; node: ContentDir }
 ```
 
----
 
 ## useTdContent
 
-Provides reactive page bindings and sets up the context required by `<Content />`. **Must be called once in your layout's `setup` function.**
+Sets up the provide/inject context required by `<Content />` and returns reactive page bindings. **Must be called once in your layout's `setup` function.**
 
 ```ts
 const { page, title, frontmatter, isDark } = useTdContent()
@@ -157,11 +146,8 @@ interface TypedownData {
 }
 ```
 
-`isDark` reflects the current theme state. It is derived from `useTheme()` internally.
+`isDark` reflects the current theme state, derived from `useTheme()` internally.
 
-If `useTdContent()` is called without a parent having called it first (which happens automatically in the framework), it throws. This only matters if you try to use it outside of a layout component.
-
----
 
 ## useTheme
 
@@ -183,10 +169,6 @@ const { isDark, toggle, setTheme, effectiveTheme, theme } = useTheme()
 
 `'system'` is the default. It reads `prefers-color-scheme` and updates reactively when the OS setting changes.
 
-```ts
-const { toggle } = useTheme()
-```
-
 ```vue
 <button @click="toggle">Toggle dark mode</button>
 ```
@@ -198,7 +180,6 @@ To style for dark mode in CSS, target the `.dark` class on `<html>`:
 .dark       { --bg: #111; --fg: #eee; }
 ```
 
----
 
 ## useRouter
 
@@ -220,8 +201,6 @@ interface Router {
 }
 ```
 
----
-
 ## Content
 
 The `<Content />` component renders the compiled markdown body of the current page. It has no props.
@@ -234,7 +213,7 @@ The `<Content />` component renders the compiled markdown body of the current pa
 </template>
 ```
 
-`useTdContent()` must be called before `<Content />` renders. It establishes the provide/inject context the component reads from.
+`useTdContent()` must be called before `<Content />` renders.
 
 Rendered output consists of standard HTML elements (`h1`-`h6`, `p`, `ul`, `pre`, `table`, etc.). Style them by wrapping with a class:
 
@@ -242,35 +221,4 @@ Rendered output consists of standard HTML elements (`h1`-`h6`, `p`, `ul`, `pre`,
 .prose h1 { font-size: 2rem; font-weight: 800; }
 .prose p  { line-height: 1.7; color: #555; }
 .prose pre { background: #f5f5f5; border-radius: 8px; padding: 16px; }
-```
-
----
-
-## TypedownTheme
-
-The interface your theme object must satisfy:
-
-```ts
-interface TypedownTheme {
-  Layout: Component
-  NotFound?: Component
-  enhanceApp?: (ctx: {
-    app: App
-    router: Router
-    siteConfig: TypedownSiteConfig
-    siteData: Ref<TypedownSiteData>
-  }) => void | Promise<void>
-}
-```
-
-`enhanceApp` runs after the Vue app is created but before it mounts. Register global plugins, directives, or components here:
-
-```ts
-export default {
-  Layout,
-  enhanceApp({ app }) {
-    app.use(MyPlugin)
-    app.component('MyWidget', MyWidget)
-  },
-} satisfies TypedownTheme
 ```

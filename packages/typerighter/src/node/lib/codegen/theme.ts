@@ -6,7 +6,6 @@ import {
 const DEFAULT_THEME = 'typerighter/client/theme-default';
 
 // Generate the theme module source code
-// Used by VirtualTheme (dev) and the SSG build (temp file)
 export function generateThemeModule (
   layout: {
     component: string | undefined;

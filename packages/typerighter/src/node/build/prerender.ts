@@ -10,7 +10,7 @@ import type {
 } from '../lib/progress';
 import {
   renderHtmlDocument,
-} from '../lib/htmlTemplate';
+} from '../lib/html-template';
 import {
   WorkerPool,
 } from '../lib/worker-pool';

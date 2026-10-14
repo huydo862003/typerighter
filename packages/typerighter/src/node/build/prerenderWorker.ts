@@ -8,7 +8,7 @@ import {
 } from 'node:worker_threads';
 import {
   renderHtmlDocument,
-} from '../lib/htmlTemplate';
+} from '../lib/html-template';
 import type {
   PrerenderWorkerConfig, PrerenderWorkerResult,
 } from './prerender';

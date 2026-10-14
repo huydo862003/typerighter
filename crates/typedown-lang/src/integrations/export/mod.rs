@@ -1011,7 +1011,7 @@ properties:
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains("<toc />\n"));
     assert!(exported.content.contains("<directory-index />\n"));
-    assert!(exported.content.contains("<grid cols=\"2\" />\n"));
+    assert!(exported.content.contains("<grid :cols=\"2\" />\n"));
   }
 
   #[test]

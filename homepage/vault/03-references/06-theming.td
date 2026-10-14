@@ -1,7 +1,7 @@
 ---
 _label: "Theming"
 _icon: icon.brush
-description: "Custom layouts, layout slots, and the theme API."
+description: "Custom layouts, layout slots, dark mode, and custom components."
 ---
 
 Typerighter ships a default theme optimized for documentation. You can customize it incrementally with layout slots, or replace it entirely with your own layout component.
@@ -54,7 +54,7 @@ A minimal custom layout:
 import { Content, useTdContent, useRoute } from 'typerighter/client'
 
 const route = useRoute()
-useTdContent() // no argument - call once in layout setup
+useTdContent()
 </script>
 
 <template>
@@ -65,60 +65,51 @@ useTdContent() // no argument - call once in layout setup
 </template>
 ```
 
-### Client API
-
-All composables and the `<Content />` component are imported from `typerighter/client`. See the [Client API reference](07-client-api) for full details.
-
-| Composable | Notes |
-|---|---|
-| `useRoute()` | Reactive current route with `path`, `hash`, `data` |
-| `useSiteConfig()` | Site title, nav, repo, `withBase(path)` |
-| `useSiteData()` | Content tree, schemas, directory listings |
-| `useTdContent()` | Must call in layout setup |
-| `useTheme()` | Dark mode: `isDark`, `toggle()`, `setTheme()` |
-| `useRouter()` | Programmatic navigation with `router.go(path)` |
-
-`useTdContent()` must be called before `<Content />` renders. It establishes the provide/inject context the content component depends on.
+`useTdContent()` must be called in your layout's `setup` before `<Content />` renders. See the [Client API reference](07-client-api) for all available composables and components.
 
 ### Reusing default components
 
-Import individual components from the default theme:
+You can import individual components from the default theme:
 
 ```ts
 import { TdLayout, TdContentNav, TdThemeToggle } from 'typerighter/client/theme-default'
 ```
 
-## Theme API
+## Custom components
 
-Both layout forms use the `TypedownTheme` interface:
-
-```ts
-interface TypedownTheme {
-  Layout: Component
-  NotFound?: Component
-  enhanceApp?: (ctx: {
-    app: App
-    router: Router
-    siteConfig: TypedownSiteConfig
-    siteData: Ref<TypedownSiteData>
-  }) => void | Promise<void>
-}
-```
-
-`enhanceApp` runs after the Vue app is created but before it mounts. Use it to register global plugins, directives, or additional components.
-
-## Repository config
-
-The `repo` field links the edit page button to your repository. It accepts a string shorthand or an object:
+Register components globally for use in `.td` files and layout slots:
 
 ```yaml
-# String shorthand (typedown.yaml at repo root)
-repo: "https://github.com/user/repo"
-
-# Object form (typedown.yaml nested in a subdirectory)
-repo:
-  url: "https://github.com/user/repo"
-  root: "docs"
+theme:
+  components:
+    - "./components"        # scan directory for .vue files
+    - name: MyCard          # explicit entry
+      source: "./ui/Card.vue"
 ```
 
-The `root` field is the path from the git root to the directory containing `typedown.yaml`. The edit link is constructed as `{repo.url}/edit/main/{repo.root}/{vault.root_dir}/{filepath}`.
+Components registered this way are available in any `.td` file without importing, and can be referenced by name in `layout.slots`.
+
+## Dark mode
+
+Typerighter manages dark mode with the `useTheme()` composable. It persists the user's preference in `localStorage` and toggles a `.dark` class on `<html>`.
+
+```vue
+<script setup>
+import { useTheme } from 'typerighter/client'
+
+const { isDark, toggle, setTheme } = useTheme()
+</script>
+
+<template>
+  <button @click="toggle">
+    {{ isDark ? 'Light' : 'Dark' }}
+  </button>
+</template>
+```
+
+To style for dark mode in CSS, target the `.dark` class:
+
+```css
+:root  { --bg: #fff; --fg: #111; }
+.dark  { --bg: #111; --fg: #eee; }
+```

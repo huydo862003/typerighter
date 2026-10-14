@@ -20,7 +20,7 @@ Alert without props.
 
 Striped table with a caption:
 
-:::td-data-table{caption="Monthly sales" striped="true"}
+:::td-data-table{caption="Monthly sales" striped=true}
 | month | revenue |
 | ----- | ------- |
 | jan   | \$1,200  |
@@ -32,7 +32,7 @@ Striped table with a caption:
 
 Tabs with three labels and a default active tab:
 
-:::td-tabs{labels="Overview, Details, Notes" active="1"}
+:::td-tabs{labels="Overview, Details, Notes" active=1}
 This is the tab panel content.
 It contains **bold text** and a list:
 

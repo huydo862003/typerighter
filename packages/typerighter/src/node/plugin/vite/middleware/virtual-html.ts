@@ -11,7 +11,7 @@ import type {
 } from '..';
 import {
   renderHtmlDocument,
-} from '@/node/lib/htmlTemplate';
+} from '@/node/lib/html-template';
 import {
   VIRTUAL_APP_ID,
 } from '@/node/plugin/vite/constants';

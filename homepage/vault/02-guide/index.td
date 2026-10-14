@@ -9,3 +9,4 @@ This section walks through setting up your editor, understanding the core concep
 - [Vault and documents](02-vault-and-documents): the project structure, file anatomy, and the content graph
 - [Schemas and types](03-schemas-and-types): defining node types, field types, inheritance, expressions, and references
 - [Deploying](04-deploying): build a static site and deploy it
+- [Theming](05-theming): custom components, layout slots, and full layout replacement

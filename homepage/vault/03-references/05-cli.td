@@ -1,5 +1,6 @@
 ---
 _label: "CLI"
+_icon: icon.terminal
 ---
 
 Command-line interface for the `typerighter` package.
