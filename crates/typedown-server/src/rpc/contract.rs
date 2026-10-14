@@ -65,6 +65,7 @@ pub struct TdRepoConfig {
 pub struct TdCustomLayout {
   pub component: Option<String>,
   pub slots: HashMap<String, String>,
+  pub not_found: Option<String>,
 }
 
 /// Site-wide configuration derived from typedown.yaml

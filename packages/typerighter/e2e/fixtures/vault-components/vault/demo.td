@@ -20,7 +20,7 @@ Alert without props.
 
 Striped table with a caption:
 
-:::td-data-table{caption="Monthly sales" striped=true}
+:::td-data-table{caption="Monthly sales" striped}
 | month | revenue |
 | ----- | ------- |
 | jan   | \$1,200  |

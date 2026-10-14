@@ -328,7 +328,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
 
       if (path.isTypeFile(cleanId)) {
         return {
-          code: '<script>import { TdNotFound } from \'typerighter/client/theme-default\'; export default TdNotFound; export const pageData = { frontmatter: {}, headings: [], title: \'\' };</script>',
+          code: `<script>import theme from '${THEME_ID}'; import { TdNotFound } from 'typerighter/client/theme-default'; export default theme.NotFound || TdNotFound; export const pageData = { frontmatter: {}, headings: [], title: '' };</script>`,
           map: null,
         };
       }

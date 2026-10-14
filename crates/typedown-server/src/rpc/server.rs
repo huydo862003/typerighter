@@ -117,6 +117,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
     layout: config.layout(db).map(|layout| TdCustomLayout {
       component: layout.component,
       slots: layout.slots.into_iter().collect(),
+      not_found: layout.not_found,
     }),
   }
 }

@@ -1,0 +1,7 @@
+version: "1"
+vault:
+  root_dir: "."
+theme:
+  layout:
+    component: "./theme/MyLayout.vue"
+    not_found: "./theme/NotFound.vue"

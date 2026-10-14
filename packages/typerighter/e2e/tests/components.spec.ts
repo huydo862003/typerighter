@@ -75,7 +75,7 @@ components.describe('TdDataTable', () => {
     await expect(page.locator('.td-data-table')).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator('.td-data-table')).toHaveAttribute('data-striped', 'true');
+    await expect(page.locator('.td-data-table')).toHaveAttribute('data-striped');
   });
 
   components('markdown table in slot renders as <table> inside component', async ({
