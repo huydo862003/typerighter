@@ -1,6 +1,14 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.44.1] - 2026-10-15
+
+### Changed
+
+- packages/typerighter
+  - Make index entry of folder more visible
+  - Increase hit area of folder toggle in sidebar
+
 ## [0.44.0] - 2026-10-14
 
 ### Added
