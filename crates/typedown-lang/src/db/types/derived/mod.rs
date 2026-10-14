@@ -160,12 +160,15 @@ pub struct CustomLayoutConfig {
   pub component: Option<String>,
   // Slot name -> registered component name
   pub slots: BTreeMap<String, String>,
+  // Custom not-found page component path
+  pub not_found: Option<String>,
 }
 
 impl StableHash for CustomLayoutConfig {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.component.stable_hash(db, hasher);
     self.slots.stable_hash(db, hasher);
+    self.not_found.stable_hash(db, hasher);
   }
 }
 
@@ -173,6 +176,7 @@ impl Encodable for CustomLayoutConfig {
   fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     self.component.encode(buffer, encoder);
     self.slots.encode(buffer, encoder);
+    self.not_found.encode(buffer, encoder);
   }
 }
 
@@ -180,7 +184,12 @@ impl Decodable for CustomLayoutConfig {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let component = <Option<String> as Decodable>::decode(data, decoder);
     let slots = <BTreeMap<String, String> as Decodable>::decode(data, decoder);
-    Self { component, slots }
+    let not_found = <Option<String> as Decodable>::decode(data, decoder);
+    Self {
+      component,
+      slots,
+      not_found,
+    }
   }
 }
 

@@ -109,6 +109,7 @@ export interface TdRepoConfig {
 export interface TdCustomLayout {
   component: string | undefined;
   slots: Record<string, string>;
+  notFound: string | undefined;
 }
 
 export interface TdSiteConfig {

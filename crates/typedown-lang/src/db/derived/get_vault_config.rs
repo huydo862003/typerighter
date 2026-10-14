@@ -262,11 +262,14 @@ fn extract_theme_layout<'db>(
   if let Some(path) = layout.as_td_string_obj().map(|s| s.value(db)) {
     return CustomLayoutConfig {
       component: Some(path),
-      slots: BTreeMap::new(),
+      ..CustomLayoutConfig::default()
     };
   }
 
-  // Object form: theme.layout = { slots: { name: "Component" } }
+  // Object form: theme.layout = { component, slots, not_found }
+  let component = get_string_field(db, &layout, "component");
+  let not_found = get_string_field(db, &layout, "not_found");
+
   let mut slots = BTreeMap::new();
   if let Some(slots_obj) = get_field(db, &layout, "slots") {
     // Try as dict first (dynamic keys), then as product (typed fields)
@@ -279,15 +282,16 @@ fn extract_theme_layout<'db>(
     };
 
     for key in keys {
-      if let Some(component) = get_string_field(db, &slots_obj, &key) {
-        slots.insert(key, component);
+      if let Some(comp) = get_string_field(db, &slots_obj, &key) {
+        slots.insert(key, comp);
       }
     }
   }
 
   CustomLayoutConfig {
-    component: None,
+    component,
     slots,
+    not_found,
   }
 }
 
@@ -388,6 +392,17 @@ mod tests {
       Some(&"AnnouncementBar".to_string())
     );
     assert_eq!(slots.get("doc_after"), Some(&"CommentSection".to_string()));
+  }
+
+  #[test]
+  fn layout_not_found() {
+    let (db, project, _) = load_vault_fixture("evaluate/layout_not_found_vault", "page.td");
+    let config = get_vault_config(&db, project);
+    let binding = config.layout(&db);
+    let layout = binding.as_ref().expect("layout should be Some");
+    assert_eq!(layout.component.as_deref(), Some("./theme/MyLayout.vue"));
+    assert_eq!(layout.not_found.as_deref(), Some("./theme/NotFound.vue"));
+    assert!(layout.slots.is_empty());
   }
 
   #[test]
