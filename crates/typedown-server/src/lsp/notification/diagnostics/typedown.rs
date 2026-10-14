@@ -15,9 +15,9 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{File, Project, ProjectRedNode};
 use typedown_lang::db::utils::is_content_file;
-use typedown_lang::integrations::lint::{LintDiagnostic, lint_markdown};
+use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
-use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
+use typedown_lang::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::position::text_offset_to_lsp_position;
@@ -46,8 +46,8 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
 
   // Config file diagnostics (typedown.yaml)
   let config_result = evaluate_config(db, project);
-  let config_diags = config_result.diagnostics(db);
-  if !config_diags.is_empty() {
+  let config_diagnostics = config_result.diagnostics(db);
+  if !config_diagnostics.is_empty() {
     let root_dir = project.root_dir(db);
     let config_path = root_dir.join("typedown.yaml");
     let alt_path = root_dir.join("typedown.yml");
@@ -59,15 +59,15 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
     let scheme = analysis
       .scheme_map
       .get(path)
-      .map(|s| s.as_str())
+      .map(|scheme| scheme.as_str())
       .unwrap_or("file");
     let uri = path_to_uri(path, scheme);
-    let diags: Vec<Diagnostic> = config_diags
+    let diagnostics: Vec<Diagnostic> = config_diagnostics
       .iter()
       .map(|diag| Diagnostic {
         range: lsp_types::Range::default(),
         severity: Some(lsp_types::DiagnosticSeverity::ERROR),
-        code: Some(NumberOrString::String(diag.code().as_str().into())),
+        code: Some(NumberOrString::String(diag.code_str().into())),
         source: Some("typedown".into()),
         message: diag.message(),
         ..Default::default()
@@ -77,7 +77,7 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
       PublishDiagnostics::METHOD.to_string(),
       PublishDiagnosticsParams {
         uri,
-        diagnostics: diags,
+        diagnostics,
         version: None,
       },
     ));
@@ -86,7 +86,11 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
   // Check for duplicate schema files
   let schema_check = check_schemas(db, project);
   for diag in schema_check.diagnostics(db) {
-    if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
+    if let TdDiagnostic {
+      kind: TdDiagnosticKind::DuplicateSchemaName { ref path, .. },
+      ..
+    } = diag
+    {
       let root_dir = get_vault_config(db, project).root_dir(db);
       let full_path = root_dir.join(path);
       let scheme = analysis
@@ -102,9 +106,7 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
           diagnostics: vec![Diagnostic {
             range: lsp_types::Range::default(),
             severity: Some(lsp_types::DiagnosticSeverity::ERROR),
-            code: Some(lsp_types::NumberOrString::String(
-              diag.code().as_str().into(),
-            )),
+            code: Some(lsp_types::NumberOrString::String(diag.code_str().into())),
             source: Some("typedown".into()),
             message: diag.message(),
             ..Default::default()
@@ -195,18 +197,19 @@ fn get_diagnostics_for_file(
   Notification::new(PublishDiagnostics::METHOD.to_string(), params)
 }
 
-fn lint_diag_to_lsp(lint: &LintDiagnostic, rope: &Rope) -> Diagnostic {
-  let start = lint.start_offset.min(rope.len_chars());
-  let end = lint.end_offset.min(rope.len_chars());
+fn lint_diag_to_lsp(lint: &TdDiagnostic, rope: &Rope) -> Diagnostic {
+  let (start, end) = lint.offsets();
+  let start = start.min(rope.len_chars());
+  let end = end.min(rope.len_chars());
   Diagnostic {
     range: lsp_types::Range {
       start: text_offset_to_lsp_position(rope, start),
       end: text_offset_to_lsp_position(rope, end),
     },
     severity: Some(lsp_types::DiagnosticSeverity::WARNING),
-    code: Some(NumberOrString::String(lint.code.as_str().into())),
+    code: Some(NumberOrString::String(lint.code_str().into())),
     source: Some("typedown".into()),
-    message: lint.message.clone(),
+    message: lint.message(),
     ..Default::default()
   }
 }

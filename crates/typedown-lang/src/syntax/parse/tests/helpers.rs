@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_types::string_stream::StringStream;
 
 use crate::syntax::green::{GreenNode, cache::Cache};
 use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
 
-pub(crate) fn parse(input: &str) -> (GreenNode, Vec<Diagnostic>) {
+pub(crate) fn parse(input: &str) -> (GreenNode, Vec<TdDiagnostic>) {
   let stream = StringStream::new(input);
   let cache = Rc::new(RefCell::new(Cache::new()));
   let ctx = ParseCtx::new(stream, cache);
@@ -16,7 +16,7 @@ pub(crate) fn parse(input: &str) -> (GreenNode, Vec<Diagnostic>) {
 }
 
 // Parse a bare YAML file (no --- delimiters, EOF-terminated)
-pub(crate) fn parse_yaml_document(input: &str) -> (GreenNode, Vec<Diagnostic>) {
+pub(crate) fn parse_yaml_document(input: &str) -> (GreenNode, Vec<TdDiagnostic>) {
   let stream = StringStream::new(input);
   let cache = Rc::new(RefCell::new(Cache::new()));
   let ctx = ParseCtx::new(stream, cache);

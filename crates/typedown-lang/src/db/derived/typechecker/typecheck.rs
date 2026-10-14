@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use crate::db::derived::typechecker::expected_node_typ::expected_node_typ;
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
@@ -91,7 +91,7 @@ fn typecheck_body<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
   declared_typ: &TdTypEnum<'db>,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let project = project_node.project;
   let file = project_node.file;
   let node = project_node.node.clone();
@@ -215,7 +215,7 @@ fn check_mapping_fields<'db>(
   mapping_node: ProjectRedNode,
   entries: &[(String, ProjectRedNode)],
   expected_typ: &TdTypEnum<'db>,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
   let declared_fields = expected_typ.get_fields(db);
 
@@ -227,12 +227,13 @@ fn check_mapping_fields<'db>(
         && !symbol.kind(db).is_schema()
       {
         let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypMismatch {
-          field: "_type".to_string(),
-          expected: "schema".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::FieldTypMismatch {
+            field: "_type".to_string(),
+            expected: "schema".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
       continue;
     }
@@ -243,12 +244,13 @@ fn check_mapping_fields<'db>(
         && !is_subtype_of(db, &actual_typ, &builtin_typ)
       {
         let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypMismatch {
-          field: key.clone(),
-          expected: builtin_typ.display_name(db),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::FieldTypMismatch {
+            field: key.clone(),
+            expected: builtin_typ.display_name(db),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
       continue;
     }
@@ -271,31 +273,34 @@ fn check_mapping_fields<'db>(
             if !is_subtype_of(db, &actual_typ, &field_typ) && !is_schema_meta_mapping =>
           {
             let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypMismatch {
-              field: key.clone(),
-              expected: field_typ.display_name(db),
-              start_offset: trimmed_offset,
-              end_offset: trimmed_offset + trimmed_len,
-            });
+            diagnostics.push(
+              TdDiagnosticKind::FieldTypMismatch {
+                field: key.clone(),
+                expected: field_typ.display_name(db),
+              }
+              .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+            );
           }
           // Unresolved identifier used as a field value
           None if IdentLit::cast(value_node.node.clone()).is_some() => {
             let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
-            diagnostics.push(Diagnostic::UnresolvedSchema {
-              name: value_node.node.text(),
-              start_offset: trimmed_offset,
-              end_offset: trimmed_offset + trimmed_len,
-            });
+            diagnostics.push(
+              TdDiagnosticKind::UnresolvedSchema {
+                name: value_node.node.text(),
+              }
+              .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+            );
           }
           // Unknown value type on a required field: treat as type mismatch
           None if !is_optional => {
             let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
-            diagnostics.push(Diagnostic::FieldTypMismatch {
-              field: key.clone(),
-              expected: field_typ.display_name(db),
-              start_offset: trimmed_offset,
-              end_offset: trimmed_offset + trimmed_len,
-            });
+            diagnostics.push(
+              TdDiagnosticKind::FieldTypMismatch {
+                field: key.clone(),
+                expected: field_typ.display_name(db),
+              }
+              .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+            );
           }
           Some(_) | None => {}
         }
@@ -307,12 +312,13 @@ fn check_mapping_fields<'db>(
         .and_then(|entry| entry.key_node())
         .map(|node| node.trimmed_range())
         .unwrap_or_else(|| value_node.node.trimmed_range());
-      diagnostics.push(Diagnostic::UnknownField {
-        field: key.clone(),
-        on_typ: expected_typ.display_name(db),
-        start_offset,
-        end_offset,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::UnknownField {
+          field: key.clone(),
+          on_typ: expected_typ.display_name(db),
+        }
+        .into_error(start_offset, end_offset),
+      );
     }
   }
 
@@ -330,11 +336,12 @@ fn check_mapping_fields<'db>(
             let has_type_field = descriptor_entries.iter().any(|(k, _)| k == "type");
             if !has_type_field {
               let (offset, len) = descriptor_node.node.trimmed_range();
-              diagnostics.push(Diagnostic::MissingRequiredField {
-                field: "type".to_string(),
-                start_offset: offset,
-                end_offset: offset + len,
-              });
+              diagnostics.push(
+                TdDiagnosticKind::MissingRequiredField {
+                  field: "type".to_string(),
+                }
+                .into_error(offset, offset + len),
+              );
             }
           }
         }
@@ -369,11 +376,10 @@ fn check_mapping_fields<'db>(
       .is_some_and(|typ| is_nullable(db, &typ))
       || default_fields.contains(&field_name);
     if !is_optional && !present_keys.contains(field_name.as_str()) {
-      diagnostics.push(Diagnostic::MissingRequiredField {
-        field: field_name,
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::MissingRequiredField { field: field_name }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
   }
 
@@ -384,7 +390,7 @@ fn check_tag<'db>(
   db: &'db TypedownDatabase,
   expected_typ: &TdTypEnum<'db>,
   inner: ProjectRedNode,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
   let inner_result = actual_node_typ(db, inner.clone());
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
@@ -392,11 +398,12 @@ fn check_tag<'db>(
     && !is_subtype_of(db, &actual_typ, expected_typ)
   {
     let (trimmed_offset, trimmed_len) = inner.node.trimmed_range();
-    diagnostics.push(Diagnostic::TagTypMismatch {
-      expected: expected_typ.display_name(db),
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::TagTypMismatch {
+        expected: expected_typ.display_name(db),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
   }
   diagnostics
 }
@@ -405,7 +412,7 @@ fn check_call(
   db: &TypedownDatabase,
   callee: ProjectRedNode,
   args: Vec<ProjectRedNode>,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
 
   let callee_result = actual_node_typ(db, callee.clone());
@@ -423,10 +430,8 @@ fn check_call(
 
   let Some(signature) = callee_typ.call_typ(db, arg_typs) else {
     let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
-    diagnostics.push(Diagnostic::NotCallable {
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics
+      .push(TdDiagnosticKind::NotCallable.into_error(trimmed_offset, trimmed_offset + trimmed_len));
     return diagnostics;
   };
 
@@ -434,12 +439,13 @@ fn check_call(
 
   if params.len() != args.len() {
     let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
-    diagnostics.push(Diagnostic::WrongArgCount {
-      expected: params.len(),
-      got: args.len(),
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::WrongArgCount {
+        expected: params.len(),
+        got: args.len(),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
     return diagnostics;
   }
 
@@ -450,11 +456,12 @@ fn check_call(
       && !is_subtype_of(db, &arg_type, param)
     {
       let (trimmed_offset, trimmed_len) = arg_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::ArgTypMismatch {
-        expected: param.display_name(db),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::ArgTypMismatch {
+          expected: param.display_name(db),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
   }
 
@@ -465,7 +472,7 @@ fn check_index(
   db: &TypedownDatabase,
   expr: ProjectRedNode,
   indices: Vec<ProjectRedNode>,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
 
   let expr_result = actual_node_typ(db, expr.clone());
@@ -509,11 +516,12 @@ fn check_index(
         let number_typ = get_number_typ(db);
         if !is_subtype_of(db, &index_typ, &number_typ.into()) {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypMismatch {
-            expected: "number".to_string(),
-            start_offset: trimmed_offset,
-            end_offset: trimmed_offset + trimmed_len,
-          });
+          diagnostics.push(
+            TdDiagnosticKind::IndexTypMismatch {
+              expected: "number".to_string(),
+            }
+            .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+          );
         }
       }
     }
@@ -530,11 +538,12 @@ fn check_index(
           && !is_subtype_of(db, &index_type, &key_type)
         {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypMismatch {
-            expected: key_type.display_name(db),
-            start_offset: trimmed_offset,
-            end_offset: trimmed_offset + trimmed_len,
-          });
+          diagnostics.push(
+            TdDiagnosticKind::IndexTypMismatch {
+              expected: key_type.display_name(db),
+            }
+            .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+          );
         }
       }
     }
@@ -550,11 +559,12 @@ fn check_index(
         let number_typ = get_number_typ(db);
         if !is_subtype_of(db, &index_type, &number_typ.into()) {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
-          diagnostics.push(Diagnostic::IndexTypMismatch {
-            expected: "number".to_string(),
-            start_offset: trimmed_offset,
-            end_offset: trimmed_offset + trimmed_len,
-          });
+          diagnostics.push(
+            TdDiagnosticKind::IndexTypMismatch {
+              expected: "number".to_string(),
+            }
+            .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+          );
         }
       }
     }
@@ -563,15 +573,13 @@ fn check_index(
 
   // Not indexable
   let (trimmed_offset, trimmed_len) = expr.node.trimmed_range();
-  diagnostics.push(Diagnostic::NotIndexable {
-    start_offset: trimmed_offset,
-    end_offset: trimmed_offset + trimmed_len,
-  });
+  diagnostics
+    .push(TdDiagnosticKind::NotIndexable.into_error(trimmed_offset, trimmed_offset + trimmed_len));
 
   diagnostics
 }
 
-fn check_prefix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec<Diagnostic> {
+fn check_prefix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
 
   let typecheck_result = typecheck(db, operand.clone());
@@ -592,18 +600,19 @@ fn check_prefix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec
 
   if !is_subtype_of(db, &operand_typ, &expected_typ) {
     let (trimmed_offset, trimmed_len) = operand.node.trimmed_range();
-    diagnostics.push(Diagnostic::OperandTypMismatch {
-      op: op.to_string(),
-      expected: expected_typ.display_name(db),
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::OperandTypMismatch {
+        op: op.to_string(),
+        expected: expected_typ.display_name(db),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
   }
 
   diagnostics
 }
 
-fn check_postfix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec<Diagnostic> {
+fn check_postfix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
   let typecheck_result = typecheck(db, operand.clone());
   diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
@@ -614,12 +623,13 @@ fn check_postfix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Ve
       && !operand_type.is_typ(db)
     {
       let (trimmed_offset, trimmed_len) = operand.node.trimmed_range();
-      diagnostics.push(Diagnostic::OperandTypMismatch {
-        op: "?".to_string(),
-        expected: "type".to_string(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::OperandTypMismatch {
+          op: "?".to_string(),
+          expected: "type".to_string(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
   }
 
@@ -631,7 +641,7 @@ fn check_binary(
   op: &str,
   left: ProjectRedNode,
   right: ProjectRedNode,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
 
   let typecheck_left = typecheck(db, left.clone());
@@ -650,23 +660,25 @@ fn check_binary(
         && !is_subtype_of(db, left_typ, &number_typ)
       {
         let (trimmed_offset, trimmed_len) = left.node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypMismatch {
-          op: op.to_string(),
-          expected: "number".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::OperandTypMismatch {
+            op: op.to_string(),
+            expected: "number".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
       if let Some(right_typ) = &right_typ_result
         && !is_subtype_of(db, right_typ, &number_typ)
       {
         let (trimmed_offset, trimmed_len) = right.node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypMismatch {
-          op: op.to_string(),
-          expected: "number".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::OperandTypMismatch {
+            op: op.to_string(),
+            expected: "number".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
     }
     // Logical: both operands must be boolean
@@ -676,23 +688,25 @@ fn check_binary(
         && !is_subtype_of(db, left_typ, &bool_typ)
       {
         let (trimmed_offset, trimmed_len) = left.node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypMismatch {
-          op: op.to_string(),
-          expected: "boolean".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::OperandTypMismatch {
+            op: op.to_string(),
+            expected: "boolean".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
       if let Some(right_type) = &right_typ_result
         && !is_subtype_of(db, right_type, &bool_typ)
       {
         let (trimmed_offset, trimmed_len) = right.node.trimmed_range();
-        diagnostics.push(Diagnostic::OperandTypMismatch {
-          op: op.to_string(),
-          expected: "boolean".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::OperandTypMismatch {
+            op: op.to_string(),
+            expected: "boolean".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
     }
     // Comparison: any type can be compared
@@ -707,7 +721,7 @@ fn check_sequence<'db>(
   db: &'db TypedownDatabase,
   declared_typ: &TdTypEnum<'db>,
   items: Vec<ProjectRedNode>,
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
 
   // Get the element type from the list type
@@ -732,11 +746,12 @@ fn check_sequence<'db>(
       && !is_subtype_of(db, &item_type, &element_typ)
     {
       let (trimmed_offset, trimmed_len) = item.node.trimmed_range();
-      diagnostics.push(Diagnostic::ElementTypMismatch {
-        expected: element_typ.display_name(db),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::ElementTypMismatch {
+          expected: element_typ.display_name(db),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
   }
 
@@ -749,7 +764,7 @@ mod tests {
     derived::parse_file::parse_file, derived::typechecker::typecheck::typecheck,
     fixtures::load_vault_fixture,
   };
-  use crate::syntax::diagnostic::Diagnostic;
+  use crate::syntax::diagnostic::*;
 
   // Mapping without _type: infers product type, no validation errors
   #[test]
@@ -797,7 +812,7 @@ mod tests {
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::UnknownField { field, on_typ, .. } if field == "favorite_color" && on_typ == "Person")),
+        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::UnknownField { field, on_typ, ..}, .. } if field == "favorite_color" && on_typ == "Person")),
       "expected UnknownField for 'favorite_color', got: {:?}",
       diags
     );
@@ -837,7 +852,7 @@ mod tests {
     let result = typecheck(&db, root_node);
     let diags = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(d, Diagnostic::FieldTypMismatch { field, expected, .. } if field == "name" && expected == "string")),
+      diags.iter().any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. } if field == "name" && expected == "string")),
       "expected FieldTypeMismatch for 'name' with expected 'string', got: {:?}",
       diags
     );
@@ -864,7 +879,7 @@ mod tests {
     assert!(
       diags
         .iter()
-        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { field, .. } if field == "address")),
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "address")),
       "expected FieldTypeMismatch for 'address', got: {:?}",
       diags
     );
@@ -888,10 +903,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result
-        .diagnostics(&db)
-        .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
+      result.diagnostics(&db).iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
       "expected OperandTypeMismatch"
     );
   }
@@ -914,10 +932,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result
-        .diagnostics(&db)
-        .iter()
-        .any(|diagnostic| matches!(diagnostic, Diagnostic::OperandTypMismatch { .. })),
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
       "expected OperandTypeMismatch"
     );
   }
@@ -967,7 +988,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, Diagnostic::FieldTypMismatch { field, .. } if field == "state")),
+        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "state")),
       "state mismatch expected"
     );
   }
@@ -1481,10 +1502,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result
-        .diagnostics(&db)
-        .iter()
-        .any(|diagnostic| matches!(diagnostic, Diagnostic::OperandTypMismatch { .. })),
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
       "1 + true should report operand mismatch"
     );
   }
@@ -1500,7 +1524,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { field, .. } if field == "name")),
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "name")),
       "name: 1 + 2 should report field type mismatch"
     );
   }
@@ -1551,10 +1575,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result
-        .diagnostics(&db)
-        .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
+      result.diagnostics(&db).iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
       "(1 + true) * 3 should report operand mismatch"
     );
   }
@@ -1618,10 +1645,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result
-        .diagnostics(&db)
-        .iter()
-        .any(|d| matches!(d, Diagnostic::OperandTypMismatch { .. })),
+      result.diagnostics(&db).iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
       "1 && 2 should report operand mismatch"
     );
   }
@@ -1673,10 +1703,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result
-        .diagnostics(&db)
-        .iter()
-        .any(|diagnostic| matches!(diagnostic, Diagnostic::FieldTypMismatch { .. })),
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::FieldTypMismatch { .. },
+          ..
+        }
+      )),
       "should have FieldTypeMismatch for string assigned to number field: {:?}",
       result.diagnostics(&db)
     );
@@ -1689,10 +1722,13 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      !result
-        .diagnostics(&db)
-        .iter()
-        .any(|diagnostic| matches!(diagnostic, Diagnostic::NotIndexable { .. })),
+      !result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::NotIndexable,
+          ..
+        }
+      )),
       "string literal indexing should not be flagged as not indexable: {:?}",
       result.diagnostics(&db)
     );

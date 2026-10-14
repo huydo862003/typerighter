@@ -22,7 +22,7 @@ use crate::syntax::ast::{
   PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping, YamlOpKind,
   YamlSequence,
 };
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_types::either::Either;
 
@@ -30,7 +30,7 @@ pub(crate) fn construct_from_node<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let project = project_node.project;
   let file = project_node.file;
@@ -144,7 +144,7 @@ fn construct_from_non_expr<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let project = project_node.project;
   let file = project_node.file;
@@ -345,7 +345,7 @@ fn construct_from_mapping_expr<'db>(
   db: &'db TypedownDatabase,
   mapping_project_node: ProjectRedNode,
   entries: Vec<(String, ProjectRedNode)>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let typ_result = actual_node_typ(db, mapping_project_node.clone());
   if typ_result
@@ -370,11 +370,12 @@ fn construct_from_mapping_expr<'db>(
     Some(typ) => typ,
     None => {
       let (start, len) = mapping_project_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::NotConstructible {
-        type_name: raw_typ.display_name(db),
-        start_offset: start,
-        end_offset: start + len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::NotConstructible {
+          type_name: raw_typ.display_name(db),
+        }
+        .into_error(start, start + len),
+      );
       return None;
     }
   };
@@ -388,7 +389,7 @@ fn construct_from_sequence<'db>(
   file: crate::db::types::File,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let items: Vec<_> = seq
     .values()
@@ -404,7 +405,7 @@ fn construct_from_list<'db>(
   file: crate::db::types::File,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let items: Vec<_> = list
     .items()
@@ -419,7 +420,7 @@ fn construct_sequence_items<'db>(
   items: Vec<ProjectRedNode>,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let typ_result = actual_node_typ(db, project_node.clone());
   let raw_typ = typ_result.typ(db)?;
@@ -427,11 +428,12 @@ fn construct_sequence_items<'db>(
     Some(t) => t,
     None => {
       let (start, len) = project_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::NotConstructible {
-        type_name: raw_typ.display_name(db),
-        start_offset: start,
-        end_offset: start + len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::NotConstructible {
+          type_name: raw_typ.display_name(db),
+        }
+        .into_error(start, start + len),
+      );
       return None;
     }
   };
@@ -453,7 +455,7 @@ fn construct_from_str_lit<'db>(
   file: crate::db::types::File,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let typ_result = actual_node_typ(db, project_node.clone());
   let raw_typ = typ_result.typ(db)?;
@@ -461,11 +463,12 @@ fn construct_from_str_lit<'db>(
     Some(t) => t,
     None => {
       let (start, len) = project_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::NotConstructible {
-        type_name: raw_typ.display_name(db),
-        start_offset: start,
-        end_offset: start + len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::NotConstructible {
+          type_name: raw_typ.display_name(db),
+        }
+        .into_error(start, start + len),
+      );
       return None;
     }
   };
@@ -503,7 +506,7 @@ fn construct_from_number<'db>(
   db: &'db TypedownDatabase,
   num: NumberLit,
   project_node: ProjectRedNode,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let val = num.value()?;
   let typ_result = actual_node_typ(db, project_node.clone());
@@ -512,11 +515,12 @@ fn construct_from_number<'db>(
     Some(t) => t,
     None => {
       let (start, len) = project_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::NotConstructible {
-        type_name: raw_typ.display_name(db),
-        start_offset: start,
-        end_offset: start + len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::NotConstructible {
+          type_name: raw_typ.display_name(db),
+        }
+        .into_error(start, start + len),
+      );
       return None;
     }
   };
@@ -531,7 +535,7 @@ fn construct_from_math<'db>(
   db: &'db TypedownDatabase,
   math: MathLit,
   project_node: ProjectRedNode,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let val = math.value()?;
   let typ_result = actual_node_typ(db, project_node.clone());
@@ -540,11 +544,12 @@ fn construct_from_math<'db>(
     Some(t) => t,
     None => {
       let (start, len) = project_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::NotConstructible {
-        type_name: raw_typ.display_name(db),
-        start_offset: start,
-        end_offset: start + len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::NotConstructible {
+          type_name: raw_typ.display_name(db),
+        }
+        .into_error(start, start + len),
+      );
       return None;
     }
   };
@@ -710,7 +715,7 @@ fn evaluate_index<'db>(
   project: crate::db::types::Project,
   file: crate::db::types::File,
   runtime_scope: RuntimeScope<'db>,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
   let indices = index.indices();
   if indices.len() != 1 {
@@ -729,12 +734,13 @@ fn evaluate_index<'db>(
     let idx = number.value(db) as usize;
     if idx >= len {
       let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::IndexOutOfBounds {
-        index: idx,
-        length: len,
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::IndexOutOfBounds {
+          index: idx,
+          length: len,
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
       return None;
     }
   }

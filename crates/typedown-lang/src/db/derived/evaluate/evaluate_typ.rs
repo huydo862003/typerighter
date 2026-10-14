@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
@@ -94,12 +94,13 @@ fn evaluate_user_defined_schema<'db>(
       Some(entries) => entries,
       None => {
         let (trimmed_offset, trimmed_len) = props_node.node.trimmed_range();
-        diagnostics.push(Diagnostic::FieldTypMismatch {
-          field: "properties".to_string(),
-          expected: "mapping".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::FieldTypMismatch {
+            field: "properties".to_string(),
+            expected: "mapping".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
         return TypResult::new(db, None, diagnostics);
       }
     },
@@ -131,11 +132,12 @@ fn evaluate_user_defined_schema<'db>(
     let (trimmed_offset, trimmed_len) = prop_node.node.trimmed_range();
 
     if !seen_child_props.insert(prop_name.as_str()) {
-      diagnostics.push(Diagnostic::DuplicateKey {
-        key: prop_name.clone(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::DuplicateKey {
+          key: prop_name.clone(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
       continue;
     }
     if let Some(child_descriptor) =
@@ -154,14 +156,15 @@ fn evaluate_user_defined_schema<'db>(
           .and_then(|typ| typ.as_td_schema_typ())
           .map(|schema| schema.name(db))
           .unwrap_or_default();
-        diagnostics.push(Diagnostic::FieldRefinementViolation {
-          field: prop_name.clone(),
-          parent_schema: parent_name,
-          expected: parent_field_typ.display_name(db),
-          got: child_field_typ.display_name(db),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::FieldRefinementViolation {
+            field: prop_name.clone(),
+            parent_schema: parent_name,
+            expected: parent_field_typ.display_name(db),
+            got: child_field_typ.display_name(db),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
       child_fields.insert(prop_name.clone(), child_descriptor);
     }
@@ -189,7 +192,7 @@ fn resolve_parent_schema<'db>(
   db: &'db TypedownDatabase,
   child_name: &str,
   child_entries: &[(String, ProjectRedNode)],
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> (
   BTreeMap<String, PropertyDescriptor<'db>>, // Inherited fields
   Option<TdTypEnum<'db>>,                    // The parent schema
@@ -202,31 +205,36 @@ fn resolve_parent_schema<'db>(
   let Some(parent_symbol) = resolved_parent_symbol_result.value(db) else {
     let red_node = &extends_node.node;
     let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
-    diagnostics.push(Diagnostic::UnresolvedExtends {
-      name: red_node.text(),
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::UnresolvedExtends {
+        name: red_node.text(),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
     return (BTreeMap::new(), None);
   };
 
   if !matches!(parent_symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
     let red_node = &extends_node.node;
     let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
-    diagnostics.push(Diagnostic::UnresolvedExtends {
-      name: red_node.text(),
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::UnresolvedExtends {
+        name: red_node.text(),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
     return (BTreeMap::new(), None);
   }
 
   // Pre-walk the _extends chain to detect cycles before calling evaluate_typ
   if let Some(cycle) = detect_extends_cycle(db, child_name, parent_symbol) {
-    diagnostics.push(Diagnostic::CircularExtension {
-      name: child_name.to_string(),
-      cycle,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::CircularExtension {
+        name: child_name.to_string(),
+        cycle,
+      }
+      .into_error(0, 0),
+    );
     return (BTreeMap::new(), None);
   }
 
@@ -284,7 +292,7 @@ fn detect_extends_cycle(
 pub(crate) fn resolve_property_descriptor<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<PropertyDescriptor<'db>> {
   let entries = project_node.mapping_entries()?;
 
@@ -311,12 +319,13 @@ pub(crate) fn resolve_property_descriptor<'db>(
     && let Some(ref computed_node) = computed_func_value
   {
     let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-    diagnostics.push(Diagnostic::FieldTypMismatch {
-      field: "computed".to_string(),
-      expected: "property cannot specify both default and computed".to_string(),
-      start_offset: trimmed_offset,
-      end_offset: trimmed_offset + trimmed_len,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::FieldTypMismatch {
+        field: "computed".to_string(),
+        expected: "property cannot specify both default and computed".to_string(),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
     return None;
   }
 
@@ -330,12 +339,13 @@ pub(crate) fn resolve_property_descriptor<'db>(
       .is_some_and(|actual_typ| !is_subtype_of(db, &actual_typ, &declared_typ))
     {
       let (trimmed_offset, trimmed_len) = definition_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::FieldTypMismatch {
-        field: "default".to_string(),
-        expected: declared_typ.display_name(db),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "default".to_string(),
+          expected: declared_typ.display_name(db),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
   }
 
@@ -351,12 +361,13 @@ pub(crate) fn resolve_property_descriptor<'db>(
     let value = result.value(db)?;
     let Some(func_obj) = value.as_td_func_obj() else {
       let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::FieldTypMismatch {
-        field: "computed".to_string(),
-        expected: "function".to_string(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "computed".to_string(),
+          expected: "function".to_string(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
       return None;
     };
 
@@ -373,12 +384,13 @@ pub(crate) fn resolve_property_descriptor<'db>(
 
     if param_count != 1 {
       let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::FieldTypMismatch {
-        field: "computed".to_string(),
-        expected: "function expecting 1 parameter".to_string(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "computed".to_string(),
+          expected: "function expecting 1 parameter".to_string(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
       return None;
     }
 
@@ -401,12 +413,13 @@ pub(crate) fn resolve_property_descriptor<'db>(
       && !is_subtype_of(db, &ret_typ, &declared_typ)
     {
       let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::FieldTypMismatch {
-        field: "computed".to_string(),
-        expected: declared_typ.display_name(db),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "computed".to_string(),
+          expected: declared_typ.display_name(db),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
     Some(value)
   });
@@ -428,7 +441,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
 fn resolve_typ_lazy<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<LazyTyp<'db>> {
   let node = project_node.node.clone();
   let project = project_node.project;
@@ -491,11 +504,10 @@ fn resolve_typ_lazy<'db>(
       },
       None => {
         let (trimmed_offset, trimmed_len) = node.trimmed_range();
-        diagnostics.push(Diagnostic::UnresolvedSchema {
-          name: node.text(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        });
+        diagnostics.push(
+          TdDiagnosticKind::UnresolvedSchema { name: node.text() }
+            .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        );
         None
       }
     };
@@ -593,12 +605,13 @@ fn resolve_typ_lazy<'db>(
   }
 
   let (trimmed_offset, trimmed_len) = node.trimmed_range();
-  diagnostics.push(Diagnostic::FieldTypMismatch {
-    field: "type".to_string(),
-    expected: "type expression".to_string(),
-    start_offset: trimmed_offset,
-    end_offset: trimmed_offset + trimmed_len,
-  });
+  diagnostics.push(
+    TdDiagnosticKind::FieldTypMismatch {
+      field: "type".to_string(),
+      expected: "type expression".to_string(),
+    }
+    .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+  );
   None
 }
 
@@ -607,7 +620,6 @@ mod tests {
   use super::*;
   use crate::db::types::typecheck::{is_subtype_of, validate_typ_params};
   use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, TypVariable};
-  use crate::syntax::diagnostic::Diagnostic;
 
   use std::collections::{BTreeMap, HashMap};
   use std::path::PathBuf;
@@ -723,7 +735,7 @@ mod tests {
     let diags = evaluate_typ(&db, symbol).diagnostics(&db);
     assert!(
       diags.iter().any(
-        |diagnostic| matches!(diagnostic, Diagnostic::DuplicateKey { key, .. } if key == "name")
+        |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::DuplicateKey { key, ..}, .. } if key == "name")
       ),
       "expected DuplicateKey diagnostic for 'name': {diags:?}"
     );
@@ -752,7 +764,7 @@ mod tests {
     assert!(
       matches!(
         &diags[0],
-        Diagnostic::FieldTypMismatch { field, expected, .. }
+        TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. }
           if field == "default" && expected == "string"
       ),
       "expected FieldTypeMismatch for 'default', got {:?}",
@@ -860,9 +872,13 @@ mod tests {
     let result = evaluate_typ(&db, symbol);
     let diags = result.diagnostics(&db);
     assert!(
-      diags
-        .iter()
-        .any(|d| matches!(d, Diagnostic::UnresolvedExtends { .. })),
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnresolvedExtends { .. },
+          ..
+        }
+      )),
       "expected UnresolvedExtends diagnostic, got {diags:?}"
     );
   }
@@ -874,9 +890,13 @@ mod tests {
     let result = evaluate_typ(&db, symbol);
     let diags = result.diagnostics(&db);
     assert!(
-      diags
-        .iter()
-        .any(|d| matches!(d, Diagnostic::CircularExtension { .. })),
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::CircularExtension { .. },
+          ..
+        }
+      )),
       "expected CircularExtension diagnostic, got {diags:?}"
     );
   }
@@ -889,7 +909,7 @@ mod tests {
     let diags = result.diagnostics(&db);
     assert!(
       diags.iter().any(
-        |d| matches!(d, Diagnostic::FieldRefinementViolation { field, .. } if field == "status")
+        |d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::FieldRefinementViolation { field, ..}, .. } if field == "status")
       ),
       "expected FieldRefinementViolation for status, got {diags:?}"
     );
@@ -957,9 +977,13 @@ mod tests {
     let result = evaluate_typ(&db, symbol);
     let diags = result.diagnostics(&db);
     assert!(
-      diags
-        .iter()
-        .any(|d| matches!(d, Diagnostic::UnresolvedExtends { .. })),
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnresolvedExtends { .. },
+          ..
+        }
+      )),
       "expected UnresolvedExtends for builtin _extends, got {diags:?}"
     );
   }
@@ -1133,7 +1157,10 @@ mod tests {
     assert!(
       matches!(
         diagnostics[0],
-        Diagnostic::TypArgBoundViolation { index: 0, .. }
+        TdDiagnostic {
+          kind: TdDiagnosticKind::TypArgBoundViolation { index: 0, .. },
+          ..
+        }
       ),
       "expected TypeArgBoundViolation diagnostic in evaluate_typ"
     );
@@ -1671,12 +1698,13 @@ properties:
     assert!(lazy.is_some());
     assert_eq!(
       diagnostics,
-      vec![Diagnostic::FieldTypMismatch {
-        field: "default".to_string(),
-        expected: "number".to_string(),
-        start_offset: 67,
-        end_offset: 81,
-      }]
+      vec![
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "default".to_string(),
+          expected: "number".to_string(),
+        }
+        .into_error(67, 81)
+      ]
     );
   }
 
@@ -1718,12 +1746,13 @@ properties:
     assert!(descriptor.is_some());
     assert_eq!(
       diagnostics,
-      vec![Diagnostic::FieldTypMismatch {
-        field: "computed".to_string(),
-        expected: "number".to_string(),
-        start_offset: 72,
-        end_offset: 87,
-      }]
+      vec![
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "computed".to_string(),
+          expected: "number".to_string(),
+        }
+        .into_error(72, 87)
+      ]
     );
   }
 
@@ -1750,12 +1779,13 @@ properties:
     assert!(descriptor.is_some());
     assert_eq!(
       diagnostics,
-      vec![Diagnostic::FieldTypMismatch {
-        field: "computed".to_string(),
-        expected: "function expecting 1 parameter".to_string(),
-        start_offset: 72,
-        end_offset: 88,
-      }]
+      vec![
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "computed".to_string(),
+          expected: "function expecting 1 parameter".to_string(),
+        }
+        .into_error(72, 88)
+      ]
     );
   }
 
@@ -1783,12 +1813,13 @@ properties:
     assert!(descriptor.is_none());
     assert_eq!(
       diagnostics,
-      vec![Diagnostic::FieldTypMismatch {
-        field: "computed".to_string(),
-        expected: "property cannot specify both default and computed".to_string(),
-        start_offset: 93,
-        end_offset: 108,
-      }]
+      vec![
+        TdDiagnosticKind::FieldTypMismatch {
+          field: "computed".to_string(),
+          expected: "property cannot specify both default and computed".to_string(),
+        }
+        .into_error(93, 108)
+      ]
     );
   }
 }

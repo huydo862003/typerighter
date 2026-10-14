@@ -11,7 +11,7 @@ use crate::db::types::derived::obj_system::TdRuntimeObj;
 use crate::db::types::{
   CustomComponentEntry, CustomLayoutConfig, Project, TdObjEnum, VaultConfigResult,
 };
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -105,7 +105,7 @@ pub fn get_vault_config<'db>(
 fn empty_config<'db>(
   db: &'db TypedownDatabase,
   root: &Path,
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 ) -> VaultConfigResult<'db> {
   VaultConfigResult::new(
     db,

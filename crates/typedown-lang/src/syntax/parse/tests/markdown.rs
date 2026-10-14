@@ -1,5 +1,5 @@
 use super::helpers::*;
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 
 fn parse_body(input: &str) -> String {
   let full_input = format!("---\n---\n{}", input);
@@ -7,7 +7,7 @@ fn parse_body(input: &str) -> String {
   render_tree(&ast)
 }
 
-fn parse_body_with_diags(input: &str) -> (String, Vec<Diagnostic>) {
+fn parse_body_with_diags(input: &str) -> (String, Vec<TdDiagnostic>) {
   let full_input = format!("---\n---\n{}", input);
   let (ast, diags) = parse(&full_input);
   (render_tree(&ast), diags)
@@ -866,9 +866,13 @@ content
 "#,
   );
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::UnexpectedContainerPropItem { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::UnexpectedContainerPropItem,
+        ..
+      }
+    )),
     "decimal prop values are not supported, got: {diags:?}"
   );
 }
@@ -1110,9 +1114,13 @@ content
 "#,
   );
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::UnclosedContainerPropBlock { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::UnclosedContainerPropBlock,
+        ..
+      }
+    )),
     "should report UnclosedContainerPropBlock, got: {diags:?}"
   );
 }
@@ -1127,9 +1135,13 @@ content
 "#,
   );
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::UnexpectedContainerPropItem { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::UnexpectedContainerPropItem,
+        ..
+      }
+    )),
     "should report UnexpectedContainerPropItem, got: {diags:?}"
   );
 }
@@ -1144,9 +1156,13 @@ content
 "#,
   );
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::MissingContainerPropValueAfterEq { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
+        ..
+      }
+    )),
     "should report MissingContainerPropValueAfterEq, got: {diags:?}"
   );
 }
@@ -1210,9 +1226,13 @@ more
 "#,
   );
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::UnexpectedContainerSlotSeparatorToken { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::UnexpectedContainerSlotSeparatorToken,
+        ..
+      }
+    )),
     "should report UnexpectedContainerSlotSeparatorToken, got: {diags:?}"
   );
 }
@@ -1660,7 +1680,7 @@ code
       "```json{2,5}\n{\n  \"sub\": \"user-id\",\n  \"exp\": 1720000000,\n  \"iat\": 1719996400,\n  \"scope\": \"read write\"\n}\n```")
     "\n"))"####
   );
-  assert_eq!(diags, &[] as &[Diagnostic], "expected no diagnostics");
+  assert_eq!(diags, &[] as &[TdDiagnostic], "expected no diagnostics");
 }
 
 // Parses an empty body
@@ -2053,13 +2073,13 @@ fn parse_inline_code_with_braces_object() {
         "`{ a: b }`"))
     "\n"))"####
   );
-  assert_eq!(diags, &[] as &[Diagnostic]);
+  assert_eq!(diags, &[] as &[TdDiagnostic]);
 }
 
 #[test]
 fn parse_inline_code_with_range_like_braces() {
   let (_, diags) = parse_body_with_diags("`a{1,3}`\n");
-  assert_eq!(diags, &[] as &[Diagnostic]);
+  assert_eq!(diags, &[] as &[TdDiagnostic]);
 }
 
 #[test]
@@ -2068,7 +2088,7 @@ fn parse_inline_code_json_object() {
     r#"`{"key": "value"}`
 "#,
   );
-  assert_eq!(diags, &[] as &[Diagnostic]);
+  assert_eq!(diags, &[] as &[TdDiagnostic]);
 }
 
 // Inline elements inside block elements
@@ -4119,10 +4139,7 @@ fn recover_unclosed_bold() {
   );
   assert_eq!(
     diags,
-    vec![Diagnostic::UnclosedBold {
-      start_offset: 10,
-      end_offset: 24
-    },]
+    vec![TdDiagnosticKind::UnclosedBold {}.into_error(10, 24),]
   );
 }
 
@@ -4164,18 +4181,9 @@ fn recover_mismatched_inline_formatting() {
   assert_eq!(
     diags,
     vec![
-      Diagnostic::UnclosedItalic {
-        start_offset: 27,
-        end_offset: 28
-      },
-      Diagnostic::UnclosedBold {
-        start_offset: 18,
-        end_offset: 28
-      },
-      Diagnostic::UnclosedItalic {
-        start_offset: 15,
-        end_offset: 28
-      },
+      TdDiagnosticKind::UnclosedItalic {}.into_error(27, 28),
+      TdDiagnosticKind::UnclosedBold {}.into_error(18, 28),
+      TdDiagnosticKind::UnclosedItalic {}.into_error(15, 28),
     ]
   );
 }
@@ -4269,7 +4277,15 @@ $$
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
+    .filter(|d| {
+      matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::MissingRequiredSpace,
+          ..
+        }
+      )
+    })
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -4289,7 +4305,15 @@ fn parse_arrow_not_list() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
+    .filter(|d| {
+      matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::MissingRequiredSpace,
+          ..
+        }
+      )
+    })
     .collect();
   assert!(
     heading_diags.is_empty(),
@@ -4312,7 +4336,15 @@ fn parse_arrow_inside_list_no_error() {
   );
   let heading_diags: Vec<_> = diags
     .iter()
-    .filter(|d| matches!(d, Diagnostic::MissingRequiredSpace { .. }))
+    .filter(|d| {
+      matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::MissingRequiredSpace,
+          ..
+        }
+      )
+    })
     .collect();
   assert!(
     heading_diags.is_empty(),

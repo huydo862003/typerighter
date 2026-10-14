@@ -20,7 +20,7 @@ use crate::db::derived::schema_prop::get_schema_prop_typ;
 use crate::db::types::{
   FuncKind, FuncSignature, LazyTyp, NativeFuncKind, Project, ProjectRedNode, Symbol,
 };
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_types::either::Either;
 
 // The metatype of all schema types
@@ -358,7 +358,7 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
     project: Project,
     this: Option<TdObjEnum<'db>>,
     args: Vec<TdObjEnum<'db>>,
-  ) -> Result<TdObjEnum<'db>, Vec<Diagnostic>> {
+  ) -> Result<TdObjEnum<'db>, Vec<TdDiagnostic>> {
     let Some(func) = self.lookup_method(db, PROTOCOL_CALL) else {
       return Err(vec![]);
     };

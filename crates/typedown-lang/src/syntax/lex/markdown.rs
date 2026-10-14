@@ -1,4 +1,4 @@
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_types::stream::{Utf8Result, Utf8Stream};
 
 use super::ctx::{InterpContext, LexCtx, LexResult};
@@ -188,10 +188,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           let end = self.stream.offset();
           return self.emit_with(
             SyntaxKind::Error,
-            Diagnostic::UnterminatedMathBlock {
-              start_offset: start,
-              end_offset: end,
-            },
+            TdDiagnosticKind::UnterminatedMathBlock {}.into_error(start, end),
           );
         }
         Utf8Result::Char('\n') | Utf8Result::Char('\r') => {
@@ -200,10 +197,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           if !is_block {
             return self.emit_with(
               SyntaxKind::Error,
-              Diagnostic::UnterminatedMathBlock {
-                start_offset: start,
-                end_offset: end,
-              },
+              TdDiagnosticKind::UnterminatedMathBlock {}.into_error(start, end),
             );
           }
           self.advance_avoid_invalid_utf8();
@@ -383,7 +377,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
 
     // Consume optional line range indicator like {1,3,5-8}
-    let mut range_diagnostic: Option<Diagnostic> = None;
+    let mut range_diagnostic: Option<TdDiagnostic> = None;
     if let Utf8Result::Char('{') = self.peek() {
       let range_start = self.stream.offset();
       self.advance_avoid_invalid_utf8();
@@ -405,20 +399,18 @@ impl<S: Utf8Stream> LexCtx<S> {
           _ => {
             // Invalid character in range indicator
             let offset = self.stream.offset();
-            range_diagnostic = Some(Diagnostic::InvalidCodeRangeIndicator {
-              start_offset: range_start,
-              end_offset: offset,
-            });
+            range_diagnostic =
+              Some(TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(range_start, offset));
             self.advance_avoid_invalid_utf8();
           }
         }
       }
 
       if !closed {
-        range_diagnostic = Some(Diagnostic::InvalidCodeRangeIndicator {
-          start_offset: range_start,
-          end_offset: self.stream.offset(),
-        });
+        range_diagnostic = Some(
+          TdDiagnosticKind::InvalidCodeRangeIndicator {}
+            .into_error(range_start, self.stream.offset()),
+        );
       }
     }
 
@@ -464,10 +456,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           let end = self.stream.offset();
           return self.emit_with(
             SyntaxKind::Error,
-            Diagnostic::UnterminatedCodeBlock {
-              start_offset: start,
-              end_offset: end,
-            },
+            TdDiagnosticKind::UnterminatedCodeBlock {}.into_error(start, end),
           );
         }
         Utf8Result::Char('\n') | Utf8Result::Char('\r') => {
@@ -476,10 +465,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           if !is_block {
             return self.emit_with(
               SyntaxKind::Error,
-              Diagnostic::UnterminatedCodeBlock {
-                start_offset: start,
-                end_offset: end,
-              },
+              TdDiagnosticKind::UnterminatedCodeBlock {}.into_error(start, end),
             );
           }
           self.advance_avoid_invalid_utf8();
@@ -513,10 +499,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       let offset = self.stream.offset();
       return self.emit_with(
         SyntaxKind::Error,
-        Diagnostic::UnterminatedInterpolation {
-          start_offset: offset,
-          end_offset: offset,
-        },
+        TdDiagnosticKind::UnterminatedInterpolation {}.into_error(offset, offset),
       );
     }
 
@@ -715,10 +698,7 @@ impl<S: Utf8Stream> LexCtx<S> {
               self.markdown_lex_ctx.interp_stack.pop();
               return self.emit_with(
                 SyntaxKind::Error,
-                Diagnostic::UnterminatedString {
-                  start_offset: start,
-                  end_offset: end,
-                },
+                TdDiagnosticKind::UnterminatedString {}.into_error(start, end),
               );
             }
             _ => {
@@ -732,10 +712,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           self.markdown_lex_ctx.interp_stack.pop();
           return self.emit_with(
             SyntaxKind::Error,
-            Diagnostic::UnterminatedString {
-              start_offset: start,
-              end_offset: end,
-            },
+            TdDiagnosticKind::UnterminatedString {}.into_error(start, end),
           );
         }
         _ => {

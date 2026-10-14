@@ -5,7 +5,7 @@ pub(in crate::syntax::parse) mod peekable_lex_ctx;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_types::stream::Utf8Stream;
 
@@ -20,13 +20,13 @@ use peekable_lex_ctx::{MdLexResult, PeekableLexCtx, YamlLexResult};
 pub struct ParseCtx<S: Utf8Stream> {
   pub(in crate::syntax::parse) cache: Rc<RefCell<Cache>>,
   pub(in crate::syntax::parse) lex_ctx: PeekableLexCtx<S>,
-  pub(in crate::syntax::parse) diagnostics: Vec<Diagnostic>,
+  pub(in crate::syntax::parse) diagnostics: Vec<TdDiagnostic>,
   pub(in crate::syntax::parse) expr_ctx_stack: ExprCtxStack,
 }
 
 pub struct ParseResult {
   pub ast: GreenNode,
-  pub diagnostics: Vec<Diagnostic>,
+  pub diagnostics: Vec<TdDiagnostic>,
 }
 
 impl<S: Utf8Stream> ParseCtx<S> {
@@ -132,7 +132,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     children: &mut Vec<GreenNode>,
     skip: usize,
     expected: SyntaxKind,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     let result = self.advance_yaml(children, skip);
     if result.token.kind() != expected {
@@ -151,7 +151,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     children: &mut Vec<GreenNode>,
     skip: usize,
     expected: SyntaxKind,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     let result = self.advance_md(children, skip);
     if result.token.kind() != expected {
@@ -170,7 +170,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     skip: usize,
     mode: LexMode,
     expected: SyntaxKind,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     debug_assert!(
       self.lex_ctx.mode() == mode,
@@ -188,7 +188,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     children: &mut Vec<GreenNode>,
     skip: usize,
     predicate: impl Fn(&SyntaxToken) -> bool,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     let result = self.advance_yaml(children, skip);
     if !predicate(&result.token) {
@@ -207,7 +207,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     children: &mut Vec<GreenNode>,
     skip: usize,
     predicate: impl Fn(&SyntaxToken) -> bool,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     let result = self.advance_md(children, skip);
     if !predicate(&result.token) {
@@ -226,7 +226,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     skip: usize,
     mode: LexMode,
     predicate: impl Fn(&SyntaxToken) -> bool,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     debug_assert!(
       self.lex_ctx.mode() == mode,
@@ -242,7 +242,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   pub(in crate::syntax::parse) fn expect_end_of_line(
     &mut self,
     children: &mut Vec<GreenNode>,
-    diagnostic: Diagnostic,
+    diagnostic: TdDiagnostic,
   ) -> bool {
     let mut has_error = false;
     loop {
@@ -276,7 +276,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Push a diagnostic.
-  pub(in crate::syntax::parse) fn emit_diagnostic(&mut self, diagnostic: Diagnostic) {
+  pub(in crate::syntax::parse) fn emit_diagnostic(&mut self, diagnostic: TdDiagnostic) {
     self.diagnostics.push(diagnostic);
   }
 

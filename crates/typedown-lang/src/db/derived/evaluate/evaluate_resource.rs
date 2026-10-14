@@ -102,7 +102,7 @@ mod tests {
   use crate::db::types::{
     AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdObjEnum, TdRuntimeObj,
   };
-  use crate::syntax::diagnostic::Diagnostic;
+  use crate::syntax::diagnostic::*;
 
   use crate::db::{
     QueryStorage, TypedownDatabase,
@@ -469,9 +469,12 @@ mod tests {
         .iter()
         .any(|diagnostic| matches!(
           diagnostic,
-          Diagnostic::IndexOutOfBounds {
-            index: 99,
-            length: 3,
+          TdDiagnostic {
+            kind: TdDiagnosticKind::IndexOutOfBounds {
+              index: 99,
+              length: 3,
+              ..
+            },
             ..
           }
         )),
@@ -490,9 +493,12 @@ mod tests {
         .iter()
         .any(|diagnostic| matches!(
           diagnostic,
-          Diagnostic::IndexOutOfBounds {
-            index: 99,
-            length: 5,
+          TdDiagnostic {
+            kind: TdDiagnosticKind::IndexOutOfBounds {
+              index: 99,
+              length: 5,
+              ..
+            },
             ..
           }
         )),
@@ -754,9 +760,13 @@ mod tests {
     let result = typecheck(&db, root_node);
     let diagnostics = result.diagnostics(&db);
     assert!(
-      diagnostics
-        .iter()
-        .any(|d| matches!(d, Diagnostic::UnresolvedSchema { .. })),
+      diagnostics.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnresolvedSchema { .. },
+          ..
+        }
+      )),
       "_type: Schema? should produce UnresolvedSchema: {:?}",
       diagnostics
     );
@@ -772,7 +782,7 @@ mod tests {
     assert!(
       diagnostics
         .iter()
-        .any(|d| matches!(d, Diagnostic::MissingRequiredField { field, .. } if field == "name")),
+        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredField { field, ..}, .. } if field == "name")),
       "missing required field 'name' should produce diagnostic: {:?}",
       diagnostics
     );
@@ -787,7 +797,7 @@ mod tests {
     let diagnostics = result.diagnostics(&db);
     assert!(
       !diagnostics.iter().any(
-        |diagnostic| matches!(diagnostic, Diagnostic::MissingRequiredField { field, .. } if field == "nickname")
+        |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredField { field, ..}, .. } if field == "nickname")
       ),
       "missing nullable field should not produce diagnostic: {:?}",
       diagnostics

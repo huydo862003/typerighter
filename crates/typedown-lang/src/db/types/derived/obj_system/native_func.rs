@@ -10,14 +10,14 @@ use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 
 pub type NativeFunc<'db> = fn(
   &'db TypedownDatabase,
   Project,
   Option<TdObjEnum<'db>>,
   Vec<TdObjEnum<'db>>,
-) -> Result<TdObjEnum<'db>, Vec<Diagnostic>>;
+) -> Result<TdObjEnum<'db>, Vec<TdDiagnostic>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]
 #[repr(u8)]
@@ -57,7 +57,7 @@ fn to_string_method<'db>(
   _project: Project,
   this: Option<TdObjEnum<'db>>,
   _args: Vec<TdObjEnum<'db>>,
-) -> Result<TdObjEnum<'db>, Vec<Diagnostic>> {
+) -> Result<TdObjEnum<'db>, Vec<TdDiagnostic>> {
   let Some(this) = this else {
     return Err(vec![]);
   };

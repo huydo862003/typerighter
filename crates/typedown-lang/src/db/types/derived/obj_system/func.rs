@@ -8,7 +8,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::get_func_typ;
 use crate::db::types::{FuncSignature, Project, ProjectRedNode, RuntimeScope};
 use crate::syntax::ast::{AstNode, ClosureExpr, IdentLit};
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_types::either::Either;
 
 #[query_derived]
@@ -104,7 +104,7 @@ impl<'db> TdRuntimeObj<'db> for TdFuncObj<'db> {
     project: Project,
     this: Option<TdObjEnum<'db>>,
     args: Vec<TdObjEnum<'db>>,
-  ) -> Result<TdObjEnum<'db>, Vec<Diagnostic>> {
+  ) -> Result<TdObjEnum<'db>, Vec<TdDiagnostic>> {
     match self.func(db) {
       FuncKind::Native(kind) => (kind.resolve())(db, project, this, args),
       FuncKind::UserDefined(closure_project_node, defining_scope) => {

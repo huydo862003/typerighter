@@ -6,7 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::utils::construct_from_node;
 use crate::db::derived::typechecker::typecheck::{typecheck, typecheck_with_expected};
 use crate::db::types::{ProjectRedNode, ResourceResult, RuntimeScope, TdTypEnum};
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_incremental::QueryDatabase;
 
 // Evaluate with schema-resolved expected type
@@ -37,7 +37,7 @@ fn evaluate_body<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
-  mut diagnostics: Vec<Diagnostic>,
+  mut diagnostics: Vec<TdDiagnostic>,
 ) -> ResourceResult<'db> {
   let obj = construct_from_node(db, project_node, runtime_scope, &mut diagnostics);
   ResourceResult::new(db, obj, diagnostics)

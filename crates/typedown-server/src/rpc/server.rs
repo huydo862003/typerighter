@@ -28,9 +28,9 @@ use typedown_lang::integrations::export::{
   resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
-use typedown_lang::integrations::lint::{LintDiagnostic, lint_markdown};
+use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
-use typedown_lang::syntax::diagnostic::Diagnostic as TdDiagnostic;
+use typedown_lang::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
 
 use typedown_types::path::normalize_path;
 
@@ -848,7 +848,11 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   // Check for duplicate schema files
   let schema_check = check_schemas(db, project);
   for diag in schema_check.diagnostics(db) {
-    let filepath = if let TdDiagnostic::DuplicateSchemaName { ref path, .. } = diag {
+    let filepath = if let TdDiagnostic {
+      kind: TdDiagnosticKind::DuplicateSchemaName { ref path, .. },
+      ..
+    } = diag
+    {
       path.clone()
     } else {
       String::new()
@@ -858,7 +862,7 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
       line: 0,
       column: 0,
       severity: "error".to_string(),
-      code: diag.code().as_str().to_string(),
+      code: diag.code_str().to_string(),
       message: diag.message(),
     });
   }
@@ -950,16 +954,13 @@ fn collect_file_diagnostics(
   // Deduplicate diagnostics by (code, line, column)
   let mut seen = std::collections::HashSet::new();
   for diagnostic in &typedown_diagnostics {
-    let (line, column) = if let Some((start, _)) = diagnostic.offsets() {
-      let start = start.min(rope.len_chars());
-      let line = rope.char_to_line(start);
-      let column = start - rope.line_to_char(line);
-      (line as u32 + 1, column as u32 + 1)
-    } else {
-      (1, 1)
-    };
+    let (start, _) = diagnostic.offsets();
+    let start = start.min(rope.len_chars());
+    let line = rope.char_to_line(start);
+    let column = start - rope.line_to_char(line);
+    let (line, column) = (line as u32 + 1, column as u32 + 1);
 
-    let code = diagnostic.code().as_str().to_string();
+    let code = diagnostic.code_str().to_string();
     let key = (code.clone(), line, column);
     if !seen.insert(key) {
       continue;
@@ -986,8 +987,9 @@ fn collect_file_diagnostics(
   items
 }
 
-fn lint_diag_to_item(lint: &LintDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
-  let start = lint.start_offset.min(rope.len_chars());
+fn lint_diag_to_item(lint: &TdDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
+  let (start, _) = lint.offsets();
+  let start = start.min(rope.len_chars());
   let line = rope.char_to_line(start);
   let column = start - rope.line_to_char(line);
   TdDiagnosticItem {
@@ -995,7 +997,7 @@ fn lint_diag_to_item(lint: &LintDiagnostic, filepath: &str, rope: &Rope) -> TdDi
     line: line as u32 + 1,
     column: column as u32 + 1,
     severity: "warning".to_string(),
-    code: lint.code.as_str().to_string(),
-    message: lint.message.clone(),
+    code: lint.code_str().to_string(),
+    message: lint.message(),
   }
 }

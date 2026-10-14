@@ -1,1297 +1,240 @@
-use strum::FromRepr;
-use typedown_macros::StableCompare;
+use typedown_macros::{Decodable, Encodable, StableCompare, StableHash, typedown_diagnostic_kind};
 
 use crate::syntax::syntax_kind::SyntaxKind;
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr, StableCompare)]
-pub enum DiagnosticCode {
-  UnexpectedEof = 0,
-  UnexpectedChar = 1,
-  UnterminatedString = 2,
-  UnterminatedInterpolation = 3,
-  UnterminatedCodeBlock = 4,
-  UnterminatedInlineCode = 5,
-  UnterminatedMathBlock = 6,
-  UnterminatedInlineMath = 7,
-  MissingCodeBlockNewline = 8,
-  MissingMathBlockNewline = 9,
-  InvalidChar = 10,
-  InvalidUtf8 = 11,
-  MixedIndentation = 12,
-  InconsistentIndentation = 13,
-  UnmatchedDedent = 14,
-  MissingExponentDigits = 15,
-  UnexpectedTokensOnFrontmatterMarkerLine = 16,
-  MissingFrontmatterMarker = 17,
-  MissingMarkdownHeadingHash = 18,
-  MissingRequiredSpace = 19,
-  MissingSyntaxNode = 20,
-  UnclosedLink = 21,
-  UnclosedBold = 22,
-  UnclosedItalic = 23,
-  UnclosedStrikethrough = 24,
-  UnclosedBoldItalic = 25,
-  MismatchedItalicDelimiter = 26,
-  MissingExpectMdPrefix = 27,
-  MissingTableSeparatorRow = 28,
-  TableColumnCountMismatch = 29,
-  InsufficientBlockIndent = 30,
-  MissingVaultConfig = 31,
-  VaultConfigReadError = 32,
-  VaultConfigParseError = 33,
-  VaultConfigEmpty = 34,
-  VaultConfigMissingField = 35,
-  VaultConfigUnknownField = 36,
-  MissingSchemaField = 37,
-  UnresolvedSchema = 38,
-  WrongTypArgCount = 39,
-  NotCallable = 40,
-  WrongArgCount = 41,
-  ArgTypMismatch = 42,
-  FieldTypMismatch = 43,
-  NotIndexable = 44,
-  IndexTypMismatch = 45,
-  TagTypMismatch = 46,
-  OperandTypMismatch = 47,
-  MissingRequiredField = 48,
-  ElementTypMismatch = 49,
-  DuplicateKey = 50,
-  UnresolvedFileRef = 51,
-  UnknownField = 52,
-  IndexOutOfBounds = 53,
-  DuplicateSchemaName = 54,
-  VaultConfigInvalidValue = 55,
-  InvalidCodeRangeIndicator = 56, // {abc} or unclosed { in code block
-  UnexpectedContainerPropItem = 57,
-  UnexpectedContainerPropValue = 58,
-  MissingContainerPropValueAfterEq = 59,
-  UnclosedContainerPropBlock = 60,
-  UnexpectedContainerSlotSeparatorToken = 61,
-  UnresolvedIdentifier = 62,
-  DanglingParamList = 63,
-  InvalidClosureParams = 64,
-  UnclosedParamList = 65,
-  InvalidSelfClosureParams = 66,
-  NotConstructible = 67,
-  TypArgBoundViolation = 68,
-  UnresolvedExtends = 69,
-  CircularExtension = 70,
-  FieldRefinementViolation = 71,
-  UnresolvedImport = 72,
-  UnknownComponent = 73,
-  MissingRequiredProp = 74,
-  UnknownProp = 75,
-}
+#[typedown_diagnostic_kind]
+pub enum TdDiagnosticKind {
+  /* Lexer */
+  #[message("unexpected end of input, expected '{expected}'")]
+  UnexpectedEof { expected: char },
+  #[message("expected '{expected}', found '{encountered}'")]
+  UnexpectedChar { expected: char, encountered: char },
+  #[message("unterminated string literal")]
+  UnterminatedString,
+  #[message("unterminated interpolation '${{'")] // escaped brace
+  UnterminatedInterpolation,
+  #[message("unterminated code block '```'")]
+  UnterminatedCodeBlock,
+  #[message("unterminated inline code '`'")]
+  UnterminatedInlineCode,
+  #[message("unterminated math block '$$'")]
+  UnterminatedMathBlock,
+  #[message("unterminated inline math '$'")]
+  UnterminatedInlineMath,
+  #[message("missing newline after code block fence")]
+  MissingCodeBlockNewline,
+  #[message("missing newline after math block delimiter")]
+  MissingMathBlockNewline,
+  #[message("invalid character '{encountered}' in this context")]
+  InvalidChar { encountered: char },
+  #[message("invalid UTF-8 byte sequence")]
+  InvalidUtf8,
+  #[message("mixed tabs and spaces in indentation")]
+  MixedIndentation,
+  #[message("inconsistent indentation: expected '{expected}', found '{encountered}'")]
+  InconsistentIndentation { expected: char, encountered: char },
+  #[message("indentation does not match any outer block")]
+  UnmatchedDedent { indent: usize },
+  #[message("expected digits after 'e' in number")]
+  MissingExponentDigits,
 
-impl DiagnosticCode {
-  pub fn as_str(&self) -> &'static str {
-    match self {
-      DiagnosticCode::UnexpectedEof => "unexpected-eof",
-      DiagnosticCode::UnexpectedChar => "unexpected-char",
-      DiagnosticCode::UnterminatedString => "unterminated-string",
-      DiagnosticCode::UnterminatedInterpolation => "unterminated-interpolation",
-      DiagnosticCode::UnterminatedCodeBlock => "unterminated-code-block",
-      DiagnosticCode::UnterminatedInlineCode => "unterminated-inline-code",
-      DiagnosticCode::UnterminatedMathBlock => "unterminated-math-block",
-      DiagnosticCode::UnterminatedInlineMath => "unterminated-inline-math",
-      DiagnosticCode::MissingCodeBlockNewline => "missing-code-block-newline",
-      DiagnosticCode::MissingMathBlockNewline => "missing-math-block-newline",
-      DiagnosticCode::InvalidChar => "invalid-char",
-      DiagnosticCode::InvalidUtf8 => "invalid-utf8",
-      DiagnosticCode::MixedIndentation => "mixed-indentation",
-      DiagnosticCode::InconsistentIndentation => "inconsistent-indentation",
-      DiagnosticCode::UnmatchedDedent => "unmatched-dedent",
-      DiagnosticCode::MissingExponentDigits => "missing-exponent-digits",
-      DiagnosticCode::UnexpectedTokensOnFrontmatterMarkerLine => {
-        "unexpected-tokens-on-frontmatter-marker"
-      }
-      DiagnosticCode::UnexpectedContainerPropItem => "unexpected-container-prop-item",
-      DiagnosticCode::UnexpectedContainerPropValue => "unexpected-container-prop-value",
-      DiagnosticCode::UnexpectedContainerSlotSeparatorToken => {
-        "unexpected-container-slot-separator-token"
-      }
-      DiagnosticCode::MissingContainerPropValueAfterEq => "missing-container-prop-value-after-eq",
-      DiagnosticCode::UnclosedContainerPropBlock => "unclosed-container-prop-block",
-      DiagnosticCode::MissingFrontmatterMarker => "missing-frontmatter-marker",
-      DiagnosticCode::MissingMarkdownHeadingHash => "missing-heading-hash",
-      DiagnosticCode::MissingRequiredSpace => "missing-required-space",
-      DiagnosticCode::MissingSyntaxNode => "missing-syntax-node",
-      DiagnosticCode::UnclosedLink => "unclosed-link",
-      DiagnosticCode::UnclosedBold => "unclosed-bold",
-      DiagnosticCode::UnclosedItalic => "unclosed-italic",
-      DiagnosticCode::UnclosedStrikethrough => "unclosed-strikethrough",
-      DiagnosticCode::UnclosedBoldItalic => "unclosed-bold-italic",
-      DiagnosticCode::MismatchedItalicDelimiter => "mismatched-italic-delimiter",
-      DiagnosticCode::MissingExpectMdPrefix => "missing-md-prefix",
-      DiagnosticCode::MissingTableSeparatorRow => "missing-table-separator",
-      DiagnosticCode::TableColumnCountMismatch => "table-column-mismatch",
-      DiagnosticCode::InsufficientBlockIndent => "insufficient-block-indent",
-      DiagnosticCode::MissingVaultConfig => "missing-vault-config",
-      DiagnosticCode::VaultConfigReadError => "vault-config-read-error",
-      DiagnosticCode::VaultConfigParseError => "vault-config-parse-error",
-      DiagnosticCode::VaultConfigEmpty => "vault-config-empty",
-      DiagnosticCode::VaultConfigMissingField => "vault-config-missing-field",
-      DiagnosticCode::VaultConfigUnknownField => "vault-config-unknown-field",
-      DiagnosticCode::MissingSchemaField => "missing-schema-field",
-      DiagnosticCode::UnresolvedSchema => "unresolved-schema",
-      DiagnosticCode::WrongTypArgCount => "wrong-type-arg-count",
-      DiagnosticCode::NotCallable => "not-callable",
-      DiagnosticCode::WrongArgCount => "wrong-arg-count",
-      DiagnosticCode::ArgTypMismatch => "arg-type-mismatch",
-      DiagnosticCode::FieldTypMismatch => "field-type-mismatch",
-      DiagnosticCode::NotIndexable => "not-indexable",
-      DiagnosticCode::IndexTypMismatch => "index-type-mismatch",
-      DiagnosticCode::TagTypMismatch => "tag-type-mismatch",
-      DiagnosticCode::OperandTypMismatch => "operand-type-mismatch",
-      DiagnosticCode::MissingRequiredField => "missing-required-field",
-      DiagnosticCode::ElementTypMismatch => "element-type-mismatch",
-      DiagnosticCode::DuplicateKey => "duplicate-key",
-      DiagnosticCode::UnresolvedFileRef => "unresolved-file-ref",
-      DiagnosticCode::UnresolvedIdentifier => "unresolved-identifier",
-      DiagnosticCode::DanglingParamList => "dangling-param-list",
-      DiagnosticCode::InvalidClosureParams => "invalid-closure-params",
-      DiagnosticCode::UnclosedParamList => "unclosed-param-list",
-      DiagnosticCode::InvalidSelfClosureParams => "invalid-self-closure-params",
-      DiagnosticCode::NotConstructible => "not-constructible",
-      DiagnosticCode::TypArgBoundViolation => "type-arg-bound-violation",
-      DiagnosticCode::UnresolvedExtends => "unresolved-extends",
-      DiagnosticCode::CircularExtension => "circular-extension",
-      DiagnosticCode::FieldRefinementViolation => "field-refinement-violation",
-      DiagnosticCode::UnknownField => "unknown-field",
-      DiagnosticCode::IndexOutOfBounds => "index-out-of-bounds",
-      DiagnosticCode::DuplicateSchemaName => "duplicate-schema-name",
-      DiagnosticCode::VaultConfigInvalidValue => "vault-config-invalid-value",
-      DiagnosticCode::InvalidCodeRangeIndicator => "invalid-code-range-indicator",
-      DiagnosticCode::UnresolvedImport => "unresolved-import",
-      DiagnosticCode::UnknownComponent => "unknown-component",
-      DiagnosticCode::MissingRequiredProp => "missing-required-prop",
-      DiagnosticCode::UnknownProp => "unknown-prop",
-    }
-  }
-}
-
-/// Compilation diagnostics.
-/// When multiple variants match, use the first (most specific) one.
-#[derive(Debug, Clone, PartialEq, Eq, StableCompare)]
-pub enum Diagnostic {
-  /* Lexer diagnostics */
-  /// Expected a specific character but reached end of input.
-  UnexpectedEof {
-    expected: char,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Expected a specific character but found a different one.
-  UnexpectedChar {
-    expected: char,
-    encountered: char,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A "..." or '...' string literal was opened but never closed.
-  UnterminatedString {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A ${...} interpolation was opened but never closed.
-  UnterminatedInterpolation {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A fenced code block (```) was opened but never closed.
-  UnterminatedCodeBlock {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An inline code span (`) was opened but never closed.
-  UnterminatedInlineCode {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A block math ($$) was opened but never closed.
-  UnterminatedMathBlock {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An inline math ($) was opened but never closed.
-  UnterminatedInlineMath {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A code block fence is missing a newline after the opening fence or before the closing fence.
-  MissingCodeBlockNewline {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A math block delimiter is missing a newline after the opening $$ or before the closing $$.
-  MissingMathBlockNewline {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Encountered a character that is not valid in the current lexing context.
-  InvalidChar {
-    encountered: char,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Encountered an invalid UTF-8 byte sequence.
-  InvalidUtf8 {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Mixed tabs and spaces on the same indentation line.
-  MixedIndentation {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Indentation uses a different character than what was established earlier.
-  InconsistentIndentation {
-    expected: char,
-    encountered: char,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Dedent to an indentation level that was never established.
-  UnmatchedDedent {
-    indent: usize,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Missing digits after exponent in scientific notation (e.g. 2.5E+, 1e).
-  MissingExponentDigits {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /* Parser diagnostics */
-  /// Unexpected tokens found before/after the frontmatter marker ---
-  UnexpectedTokensOnFrontmatterMarkerLine {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Unexpected tokens inside a container prop block
-  UnexpectedContainerPropItem {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Unexpected value of a prop
-  UnexpectedContainerPropValue {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Missing value of a prop afetr =
-  MissingContainerPropValueAfterEq { offset: usize },
-  /// Unclosed container prop block
-  UnclosedContainerPropBlock {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  UnexpectedContainerSlotSeparatorToken {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Missing frontmatter marker ---
-  MissingFrontmatterMarker { offset: usize },
-
-  /// Expected a specific syntax node or token but it was missing.
-  MissingMarkdownHeadingHash {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Expected a specific syntax node or token but it was missing.
-  MissingRequiredSpace {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Expected a specific syntax node or token but it was missing.
-  MissingSyntaxNode {
-    expected: SyntaxKind,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A link was opened with `[` but never closed with `](url)`.
-  UnclosedLink {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A bold span was opened but never closed before a blank line, block boundary, or EOF.
-  UnclosedBold {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An italic span was opened but never closed before a blank line, block boundary, or EOF.
-  UnclosedItalic {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A strikethrough span was opened but never closed before a blank line, block boundary, or EOF.
-  UnclosedStrikethrough {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A bolditalic span was opened but never closed before a blank line, block boundary, or EOF.
-  UnclosedBoldItalic {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// The closing delimiter of an italic span does not match the opening delimiter (`*` vs `_`).
-  MismatchedItalicDelimiter {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// The expected line prefix (e.g. `> ` for blockquotes) was not found after a newline.
-  MissingExpectMdPrefix {
-    expected_prefix: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A table is missing the required separator row after the header.
-  MissingTableSeparatorRow {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A table row has a different number of columns than the header row.
-  TableColumnCountMismatch {
-    expected: usize,
-    found: usize,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// The indent of a block string content is not greater than the enclosing block indent.
+  /* Parser */
+  #[message("frontmatter '---' line should not contain other text")]
+  UnexpectedTokensOnFrontmatterMarkerLine,
+  #[message("unexpected token in container properties")]
+  UnexpectedContainerPropItem,
+  #[message("unexpected token in container properties")]
+  UnexpectedContainerPropValue,
+  #[message("expected a value after '='")]
+  MissingContainerPropValueAfterEq,
+  #[message("unclosed '{{' in container properties")] // escaped brace
+  UnclosedContainerPropBlock,
+  #[message("slot separator '---' line should not contain other text")]
+  UnexpectedContainerSlotSeparatorToken,
+  #[message("missing frontmatter marker '---'")]
+  MissingFrontmatterMarker,
+  #[message("missing '#' for markdown heading")]
+  MissingMarkdownHeadingHash,
+  #[message("missing required space after block marker")]
+  MissingRequiredSpace,
+  #[message("expected {}", syntax_kind_label(*expected))]
+  MissingSyntaxNode { expected: SyntaxKind },
+  #[message("unclosed link '[', expected '](url)'")]
+  UnclosedLink,
+  #[message("unclosed bold span")]
+  UnclosedBold,
+  #[message("unclosed italic span")]
+  UnclosedItalic,
+  #[message("unclosed strikethrough span")]
+  UnclosedStrikethrough,
+  #[message("unclosed bold-italic span")]
+  UnclosedBoldItalic,
+  #[message("italic closing delimiter does not match opening delimiter")]
+  MismatchedItalicDelimiter,
+  #[message("expected '{expected_prefix}' at start of line")]
+  MissingExpectMdPrefix { expected_prefix: String },
+  #[message("missing separator row after table header")]
+  MissingTableSeparatorRow,
+  #[message("table row has {found} columns, expected {expected}")]
+  TableColumnCountMismatch { expected: usize, found: usize },
+  #[message("block content must be indented further than its parent")]
   InsufficientBlockIndent {
     expected_more_than: usize,
     found: usize,
-    start_offset: usize,
-    end_offset: usize,
   },
 
-  /* Vault config diagnostics */
-  /// No typedown.yaml or typedown.yml found in the project root.
+  /* Vault config */
+  #[message("no typedown.yaml or typedown.yml found in '{root_dir}'")]
   MissingVaultConfig { root_dir: String },
-
-  /// Failed to read the vault config file.
+  #[message("failed to read vault config '{path}': {message}")]
   VaultConfigReadError { path: String, message: String },
-
-  /// Failed to parse the vault config file as YAML.
-  VaultConfigParseError {
-    path: String,
-    message: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// The vault config file is empty.
+  #[message("failed to parse vault config '{path}': {message}")]
+  VaultConfigParseError { path: String, message: String },
+  #[message("vault config '{path}' is empty")]
   VaultConfigEmpty { path: String },
+  #[message("vault config '{path}' is missing required field '{field}'")]
+  VaultConfigMissingField { path: String, field: String },
+  #[message("vault config '{path}' has unknown field '{field}'")]
+  VaultConfigUnknownField { path: String, field: String },
 
-  /// A required field is missing from the vault config.
-  VaultConfigMissingField {
-    path: String,
-    field: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An unknown field is present in the vault config.
-  VaultConfigUnknownField {
-    path: String,
-    field: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /* Typechecker diagnostics */
-  /// Missing _type field in top-level mapping.
-  MissingSchemaField {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Could not resolve _type reference.
-  UnresolvedSchema {
-    name: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Wrong number of type arguments passed to a type constructor.
+  /* Typechecker */
+  #[message("missing '_type' field in top-level mapping")]
+  MissingSchemaField,
+  #[message("cannot resolve type '{name}'")]
+  UnresolvedSchema { name: String },
+  #[message("wrong number of type arguments: expected {expected}, got {got}")]
   WrongTypArgCount { expected: usize, got: usize },
-
-  /// Type argument violates parameter bound.
+  #[message("type argument at index {index} violates bound '{expected_bound}': got '{got}'")]
   TypArgBoundViolation {
     index: usize,
     expected_bound: String,
     got: String,
   },
-
-  /// `_extends` references a schema that cannot be resolved
-  UnresolvedExtends {
-    name: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// `_extends` chain forms a cycle
+  #[message("cannot resolve extended schema '{name}'")]
+  UnresolvedExtends { name: String },
+  #[message("circular extension chain involving '{}': {}", name, cycle.join(" -> "))]
   CircularExtension { name: String, cycle: Vec<String> },
-
-  /// A child schema redefines a field with a type that is not a subtype of the parent field type
+  #[message(
+    "field '{field}' redefined with type '{got}' which is not a subtype of '{expected}' from parent schema '{parent_schema}'"
+  )]
   FieldRefinementViolation {
     field: String,
     parent_schema: String,
     expected: String,
     got: String,
-    start_offset: usize,
-    end_offset: usize,
   },
-
-  /// Callee expression is not callable.
-  NotCallable {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Wrong number of arguments in a function call.
-  WrongArgCount {
-    expected: usize,
-    got: usize,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Argument type does not match the expected parameter type.
-  ArgTypMismatch {
-    expected: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A field value does not match the expected type declared by the schema.
-  FieldTypMismatch {
-    field: String,
-    expected: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Expression is not indexable.
-  NotIndexable {
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Index type does not match the container's key type.
-  IndexTypMismatch {
-    expected: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Tag inner expression does not match the schema.
-  TagTypMismatch {
-    expected: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// Operand type does not match the expected type for the operator.
-  OperandTypMismatch {
-    op: String,
-    expected: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A required field declared by the schema is absent in the mapping.
-  MissingRequiredField {
-    field: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A sequence element does not match the declared element type.
-  ElementTypMismatch {
-    expected: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A mapping has duplicate keys.
-  DuplicateKey {
-    key: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A file reference could not be resolved
-  UnresolvedFileRef {
-    path: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An identifier could not be resolved to any known name
-  UnresolvedIdentifier {
-    name: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An import path could not be resolved to any file
-  UnresolvedImport {
-    path: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// A field does not exist on the given type.
-  UnknownField {
-    field: String,
-    on_typ: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-
-  /// An index is out of bounds for the container.
-  IndexOutOfBounds {
-    index: usize,
-    length: usize,
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Multiple schema files have the same name
+  #[message("this value is not a function")]
+  NotCallable,
+  #[message("wrong number of arguments: expected {expected}, got {got}")]
+  WrongArgCount { expected: usize, got: usize },
+  #[message("argument type mismatch: expected {expected}")]
+  ArgTypMismatch { expected: String },
+  #[message("field '{field}' type mismatch: expected {expected}")]
+  FieldTypMismatch { field: String, expected: String },
+  #[message("this value does not support indexing")]
+  NotIndexable,
+  #[message("index type mismatch: expected {expected}")]
+  IndexTypMismatch { expected: String },
+  #[message("tag type mismatch: expected {expected}")]
+  TagTypMismatch { expected: String },
+  #[message("operand type mismatch for '{op}': expected {expected}")]
+  OperandTypMismatch { op: String, expected: String },
+  #[message("missing required field '{field}'")]
+  MissingRequiredField { field: String },
+  #[message("element type mismatch: expected {expected}")]
+  ElementTypMismatch { expected: String },
+  #[message("duplicate key '{key}'")]
+  DuplicateKey { key: String },
+  #[message("cannot resolve file reference '{path}'")]
+  UnresolvedFileRef { path: String },
+  #[message("cannot resolve identifier '{name}'")]
+  UnresolvedIdentifier { name: String },
+  #[message("cannot resolve import '{path}'")]
+  UnresolvedImport { path: String },
+  #[message("unknown field '{field}' on type '{on_typ}'")]
+  UnknownField { field: String, on_typ: String },
+  #[message("index {index} is out of bounds for length {length}")]
+  IndexOutOfBounds { index: usize, length: usize },
+  #[message("duplicate schema name '{name}' in '{path}', already defined in '{duplicate_of}'")]
   DuplicateSchemaName {
     name: String,
     path: String,
     duplicate_of: String,
   },
-  /// A vault config field has an invalid value
+  #[message("vault config '{path}' field '{field}': {message}")]
   VaultConfigInvalidValue {
     path: String,
     field: String,
     message: String,
-    start_offset: usize,
-    end_offset: usize,
   },
-  InvalidCodeRangeIndicator {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Parameter list must be followed by `->`
-  DanglingParamList {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Closure parameters must be identifiers
-  InvalidClosureParams {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// `self` cannot be used as a closure parameter name
-  InvalidSelfClosureParams {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Parameter list is missing closing `)`
-  UnclosedParamList {
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// A custom component name is not registered in the component contract
-  UnknownComponent {
-    name: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// A required prop is missing on a custom component usage
-  MissingRequiredProp {
-    prop: String,
-    component: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// A prop is provided that is not declared in the component contract
-  UnknownProp {
-    prop: String,
-    component: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
-  /// Type cannot be constructed into a runtime value.
-  NotConstructible {
-    type_name: String,
-    start_offset: usize,
-    end_offset: usize,
-  },
+  #[message("invalid code block line range indicator")]
+  InvalidCodeRangeIndicator,
+  #[message("parameter list must be followed by `->`")]
+  DanglingParamList,
+  #[message("closure parameters must be identifiers")]
+  InvalidClosureParams,
+  #[message("self cannot be used as a closure parameter name")]
+  InvalidSelfClosureParams,
+  #[message("unclosed parameter list")]
+  UnclosedParamList,
+  #[message("unknown component \"{name}\"")]
+  UnknownComponent { name: String },
+  #[message("missing required prop \"{prop}\" on component \"{component}\"")]
+  MissingRequiredProp { prop: String, component: String },
+  #[message("unknown prop \"{prop}\" on component \"{component}\"")]
+  UnknownProp { prop: String, component: String },
+  #[message("type '{type_name}' is not constructible at runtime")]
+  NotConstructible { type_name: String },
+
+  /* Lint */
+  #[message("image is missing alt text")]
+  MissingAltText,
+  #[message("avoid generic link text \"{text}\"; use a descriptive phrase")]
+  GenericLinkText { text: String },
+  #[message("multiple H1 headings; a document should have only one")]
+  MultipleH1,
+  #[message("duplicate heading \"{text}\"")]
+  DuplicateHeading { text: String },
+  #[message("trailing whitespace")]
+  TrailingWhitespace,
+  #[message("missing space after # in heading")]
+  HeadingMissingSpace,
+  #[message("extra spaces after # in heading; use exactly one")]
+  HeadingExtraSpaces,
+  #[message("missing blank line before block")]
+  BlockBlankLine,
+  #[message("multiple consecutive blank lines")]
+  ConsecutiveBlankLines,
 }
 
-impl Diagnostic {
-  /// Return the `(start, end)` char offsets for file-level diagnostics.
-  /// Returns `None` for project-level diagnostics that have no file position.
-  pub fn offsets(&self) -> Option<(usize, usize)> {
-    match self {
-      Diagnostic::UnexpectedEof {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnexpectedChar {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnterminatedString {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnterminatedInterpolation {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnterminatedCodeBlock {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnterminatedInlineCode {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnterminatedMathBlock {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnterminatedInlineMath {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MissingCodeBlockNewline {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MissingMathBlockNewline {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::InvalidChar {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::InvalidUtf8 {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MixedIndentation {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::InconsistentIndentation {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnmatchedDedent {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::MissingExponentDigits {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnexpectedContainerPropItem {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnexpectedContainerPropValue {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnexpectedContainerSlotSeparatorToken {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnclosedContainerPropBlock {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MissingMarkdownHeadingHash {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MissingRequiredSpace {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MissingSyntaxNode {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnclosedLink {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnclosedBold {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnclosedItalic {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnclosedStrikethrough {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnclosedBoldItalic {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MismatchedItalicDelimiter {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::MissingExpectMdPrefix {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::MissingTableSeparatorRow {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::TableColumnCountMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::InsufficientBlockIndent {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::MissingSchemaField {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnresolvedSchema {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::NotCallable {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::WrongArgCount {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::ArgTypMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::FieldTypMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::NotIndexable {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::IndexTypMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::TagTypMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::OperandTypMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::MissingRequiredField {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::ElementTypMismatch {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::DuplicateKey {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnresolvedFileRef {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnresolvedIdentifier {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnresolvedImport {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnknownField {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::IndexOutOfBounds {
-        start_offset,
-        end_offset,
-        ..
-      } => Some((*start_offset, *end_offset)),
-      Diagnostic::MissingFrontmatterMarker { offset }
-      | Diagnostic::MissingContainerPropValueAfterEq { offset } => Some((*offset, *offset)),
-      Diagnostic::VaultConfigParseError {
-        start_offset,
-        end_offset,
-        ..
-      } => Some((*start_offset, *end_offset)),
-      Diagnostic::VaultConfigMissingField {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::VaultConfigUnknownField {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::VaultConfigInvalidValue {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::InvalidCodeRangeIndicator {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::DanglingParamList {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::InvalidClosureParams {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::InvalidSelfClosureParams {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::UnclosedParamList {
-        start_offset,
-        end_offset,
-      }
-      | Diagnostic::NotConstructible {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnresolvedExtends {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::FieldRefinementViolation {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnknownComponent {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::MissingRequiredProp {
-        start_offset,
-        end_offset,
-        ..
-      }
-      | Diagnostic::UnknownProp {
-        start_offset,
-        end_offset,
-        ..
-      } => Some((*start_offset, *end_offset)),
-      Diagnostic::MissingVaultConfig { .. }
-      | Diagnostic::VaultConfigReadError { .. }
-      | Diagnostic::VaultConfigEmpty { .. }
-      | Diagnostic::WrongTypArgCount { .. }
-      | Diagnostic::TypArgBoundViolation { .. }
-      | Diagnostic::DuplicateSchemaName { .. }
-      | Diagnostic::CircularExtension { .. } => None,
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encodable, Decodable, StableHash, StableCompare)]
+pub enum Severity {
+  Error,
+  Warning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encodable, Decodable, StableHash, StableCompare)]
+pub struct TdDiagnostic {
+  pub kind: TdDiagnosticKind,
+  pub severity: Severity,
+  pub start_offset: usize,
+  pub end_offset: usize,
+}
+
+impl TdDiagnostic {
+  pub fn code_str(&self) -> &'static str {
+    self.kind.code_str()
   }
 
-  /// A human-readable message for this diagnostic.
+  pub fn offsets(&self) -> (usize, usize) {
+    (self.start_offset, self.end_offset)
+  }
+
   pub fn message(&self) -> String {
-    match self {
-      Diagnostic::UnexpectedEof { expected, .. } => {
-        format!("unexpected end of input, expected '{expected}'")
-      }
-      Diagnostic::UnexpectedChar {
-        expected,
-        encountered,
-        ..
-      } => {
-        format!("expected '{expected}', found '{encountered}'")
-      }
-      Diagnostic::UnterminatedString { .. } => "unterminated string literal".into(),
-      Diagnostic::UnterminatedInterpolation { .. } => "unterminated interpolation '${'".into(),
-      Diagnostic::UnterminatedCodeBlock { .. } => "unterminated code block '```'".into(),
-      Diagnostic::UnterminatedInlineCode { .. } => "unterminated inline code '`'".into(),
-      Diagnostic::UnterminatedMathBlock { .. } => "unterminated math block '$$'".into(),
-      Diagnostic::UnterminatedInlineMath { .. } => "unterminated inline math '$'".into(),
-      Diagnostic::MissingCodeBlockNewline { .. } => "missing newline after code block fence".into(),
-      Diagnostic::MissingMathBlockNewline { .. } => {
-        "missing newline after math block delimiter".into()
-      }
-      Diagnostic::InvalidChar { encountered, .. } => {
-        format!("invalid character '{encountered}' in this context")
-      }
-      Diagnostic::InvalidUtf8 { .. } => "invalid UTF-8 byte sequence".into(),
-      Diagnostic::MixedIndentation { .. } => "mixed tabs and spaces in indentation".into(),
-      Diagnostic::InconsistentIndentation {
-        expected,
-        encountered,
-        ..
-      } => {
-        format!("inconsistent indentation: expected '{expected}', found '{encountered}'")
-      }
-      Diagnostic::UnmatchedDedent { .. } => "indentation does not match any outer block".into(),
-      Diagnostic::MissingExponentDigits { .. } => "expected digits after 'e' in number".into(),
-      Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine { .. } => {
-        "frontmatter '---' line should not contain other text".into()
-      }
-      Diagnostic::UnexpectedContainerPropItem { .. } => {
-        "unexpected token in container properties".into()
-      }
-      Diagnostic::UnexpectedContainerPropValue { .. } => {
-        "unexpected token in container properties".into()
-      }
-      Diagnostic::UnexpectedContainerSlotSeparatorToken { .. } => {
-        "slot separator '---' line should not contain other text".into()
-      }
-      Diagnostic::MissingContainerPropValueAfterEq { .. } => "expected a value after '='".into(),
-      Diagnostic::UnclosedContainerPropBlock { .. } => {
-        "unclosed '{' in container properties".into()
-      }
-      Diagnostic::MissingFrontmatterMarker { .. } => "missing frontmatter marker '---'".into(),
-      Diagnostic::MissingMarkdownHeadingHash { .. } => "missing '#' for markdown heading".into(),
-      Diagnostic::MissingRequiredSpace { .. } => "missing required space after block marker".into(),
-      Diagnostic::MissingSyntaxNode { expected, .. } => {
-        format!("expected {}", syntax_kind_label(*expected))
-      }
-      Diagnostic::UnclosedLink { .. } => "unclosed link '[', expected '](url)'".into(),
-      Diagnostic::UnclosedBold { .. } => "unclosed bold span".into(),
-      Diagnostic::UnclosedItalic { .. } => "unclosed italic span".into(),
-      Diagnostic::UnclosedStrikethrough { .. } => "unclosed strikethrough span".into(),
-      Diagnostic::UnclosedBoldItalic { .. } => "unclosed bold-italic span".into(),
-      Diagnostic::MismatchedItalicDelimiter { .. } => {
-        "italic closing delimiter does not match opening delimiter".into()
-      }
-      Diagnostic::MissingExpectMdPrefix {
-        expected_prefix, ..
-      } => {
-        format!("expected '{expected_prefix}' at start of line")
-      }
-      Diagnostic::MissingTableSeparatorRow { .. } => {
-        "missing separator row after table header".into()
-      }
-      Diagnostic::TableColumnCountMismatch {
-        expected, found, ..
-      } => {
-        format!("table row has {found} columns, expected {expected}")
-      }
-      Diagnostic::InsufficientBlockIndent { .. } => {
-        "block content must be indented further than its parent".into()
-      }
-      Diagnostic::MissingVaultConfig { root_dir } => {
-        format!("no typedown.yaml or typedown.yml found in '{root_dir}'")
-      }
-      Diagnostic::VaultConfigReadError { path, message } => {
-        format!("failed to read vault config '{path}': {message}")
-      }
-      Diagnostic::VaultConfigParseError { path, message, .. } => {
-        format!("failed to parse vault config '{path}': {message}")
-      }
-      Diagnostic::VaultConfigEmpty { path } => {
-        format!("vault config '{path}' is empty")
-      }
-      Diagnostic::VaultConfigMissingField { path, field, .. } => {
-        format!("vault config '{path}' is missing required field '{field}'")
-      }
-      Diagnostic::VaultConfigUnknownField { path, field, .. } => {
-        format!("vault config '{path}' has unknown field '{field}'")
-      }
-      Diagnostic::MissingSchemaField { .. } => "missing '_type' field in top-level mapping".into(),
-      Diagnostic::UnresolvedSchema { name, .. } => {
-        format!("cannot resolve type '{name}'")
-      }
-      Diagnostic::WrongTypArgCount { expected, got } => {
-        format!("wrong number of type arguments: expected {expected}, got {got}")
-      }
-      Diagnostic::NotCallable { .. } => "this value is not a function".into(),
-      Diagnostic::WrongArgCount { expected, got, .. } => {
-        format!("wrong number of arguments: expected {expected}, got {got}")
-      }
-      Diagnostic::ArgTypMismatch { expected, .. } => {
-        format!("argument type mismatch: expected {expected}")
-      }
-      Diagnostic::FieldTypMismatch {
-        field, expected, ..
-      } => {
-        format!("field '{field}' type mismatch: expected {expected}")
-      }
-      Diagnostic::NotIndexable { .. } => "this value does not support indexing".into(),
-      Diagnostic::IndexTypMismatch { expected, .. } => {
-        format!("index type mismatch: expected {expected}")
-      }
-      Diagnostic::TagTypMismatch { expected, .. } => {
-        format!("tag type mismatch: expected {expected}")
-      }
-      Diagnostic::OperandTypMismatch { op, expected, .. } => {
-        format!("operand type mismatch for '{op}': expected {expected}")
-      }
-      Diagnostic::MissingRequiredField { field, .. } => {
-        format!("missing required field '{field}'")
-      }
-      Diagnostic::ElementTypMismatch { expected, .. } => {
-        format!("element type mismatch: expected {expected}")
-      }
-      Diagnostic::DuplicateKey { key, .. } => {
-        format!("duplicate key '{key}'")
-      }
-      Diagnostic::UnresolvedFileRef { path, .. } => {
-        format!("cannot resolve file reference '{path}'")
-      }
-      Diagnostic::UnresolvedIdentifier { name, .. } => {
-        format!("cannot resolve identifier '{name}'")
-      }
-      Diagnostic::UnresolvedImport { path, .. } => {
-        format!("cannot resolve import '{path}'")
-      }
-      Diagnostic::UnknownField {
-        field,
-        on_typ: on_type,
-        ..
-      } => {
-        format!("unknown field '{field}' on type '{on_type}'")
-      }
-      Diagnostic::DuplicateSchemaName {
-        name,
-        path,
-        duplicate_of,
-      } => {
-        format!("duplicate schema name '{name}' in '{path}', already defined in '{duplicate_of}'")
-      }
-      Diagnostic::VaultConfigInvalidValue {
-        path,
-        field,
-        message,
-        ..
-      } => {
-        format!("vault config '{path}' field '{field}': {message}")
-      }
-      Diagnostic::IndexOutOfBounds { index, length, .. } => {
-        format!("index {index} is out of bounds for length {length}")
-      }
-      Diagnostic::InvalidCodeRangeIndicator { .. } => {
-        "invalid code block line range indicator".into()
-      }
-      Diagnostic::DanglingParamList { .. } => "parameter list must be followed by `->`".into(),
-      Diagnostic::InvalidClosureParams { .. } => "closure parameters must be identifiers".into(),
-      Diagnostic::InvalidSelfClosureParams { .. } => {
-        "self cannot be used as a closure parameter name".into()
-      }
-      Diagnostic::UnclosedParamList { .. } => "unclosed parameter list".into(),
-      Diagnostic::NotConstructible { type_name, .. } => {
-        format!("type '{type_name}' is not constructible at runtime")
-      }
-      Diagnostic::TypArgBoundViolation {
-        index,
-        expected_bound,
-        got,
-      } => {
-        format!("type argument at index {index} violates bound '{expected_bound}': got '{got}'")
-      }
-      Diagnostic::UnresolvedExtends { name, .. } => {
-        format!("cannot resolve extended schema '{name}'")
-      }
-      Diagnostic::CircularExtension { name, cycle } => {
-        format!(
-          "circular extension chain involving '{name}': {}",
-          cycle.join(" -> ")
-        )
-      }
-      Diagnostic::FieldRefinementViolation {
-        field,
-        parent_schema,
-        expected,
-        got,
-        ..
-      } => {
-        format!(
-          "field '{field}' redefined with type '{got}' which is not a subtype of '{expected}' from parent schema '{parent_schema}'"
-        )
-      }
-      Diagnostic::UnknownComponent { name, .. } => {
-        format!("unknown component \"{name}\"")
-      }
-      Diagnostic::MissingRequiredProp {
-        prop, component, ..
-      } => {
-        format!("missing required prop \"{prop}\" on component \"{component}\"")
-      }
-      Diagnostic::UnknownProp {
-        prop, component, ..
-      } => {
-        format!("unknown prop \"{prop}\" on component \"{component}\"")
-      }
-    }
-  }
-
-  /// A short kebab-case code identifying the diagnostic kind.
-  pub fn code(&self) -> DiagnosticCode {
-    match self {
-      Diagnostic::UnexpectedEof { .. } => DiagnosticCode::UnexpectedEof,
-      Diagnostic::UnexpectedChar { .. } => DiagnosticCode::UnexpectedChar,
-      Diagnostic::UnterminatedString { .. } => DiagnosticCode::UnterminatedString,
-      Diagnostic::UnterminatedInterpolation { .. } => DiagnosticCode::UnterminatedInterpolation,
-      Diagnostic::UnterminatedCodeBlock { .. } => DiagnosticCode::UnterminatedCodeBlock,
-      Diagnostic::UnterminatedInlineCode { .. } => DiagnosticCode::UnterminatedInlineCode,
-      Diagnostic::UnterminatedMathBlock { .. } => DiagnosticCode::UnterminatedMathBlock,
-      Diagnostic::UnterminatedInlineMath { .. } => DiagnosticCode::UnterminatedInlineMath,
-      Diagnostic::MissingCodeBlockNewline { .. } => DiagnosticCode::MissingCodeBlockNewline,
-      Diagnostic::MissingMathBlockNewline { .. } => DiagnosticCode::MissingMathBlockNewline,
-      Diagnostic::InvalidChar { .. } => DiagnosticCode::InvalidChar,
-      Diagnostic::InvalidUtf8 { .. } => DiagnosticCode::InvalidUtf8,
-      Diagnostic::MixedIndentation { .. } => DiagnosticCode::MixedIndentation,
-      Diagnostic::InconsistentIndentation { .. } => DiagnosticCode::InconsistentIndentation,
-      Diagnostic::UnmatchedDedent { .. } => DiagnosticCode::UnmatchedDedent,
-      Diagnostic::MissingExponentDigits { .. } => DiagnosticCode::MissingExponentDigits,
-      Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine { .. } => {
-        DiagnosticCode::UnexpectedTokensOnFrontmatterMarkerLine
-      }
-      Diagnostic::UnexpectedContainerPropItem { .. } => DiagnosticCode::UnexpectedContainerPropItem,
-      Diagnostic::UnexpectedContainerPropValue { .. } => {
-        DiagnosticCode::UnexpectedContainerPropValue
-      }
-      Diagnostic::MissingContainerPropValueAfterEq { .. } => {
-        DiagnosticCode::MissingContainerPropValueAfterEq
-      }
-      Diagnostic::UnclosedContainerPropBlock { .. } => DiagnosticCode::UnclosedContainerPropBlock,
-      Diagnostic::UnexpectedContainerSlotSeparatorToken { .. } => {
-        DiagnosticCode::UnexpectedContainerSlotSeparatorToken
-      }
-      Diagnostic::MissingFrontmatterMarker { .. } => DiagnosticCode::MissingFrontmatterMarker,
-      Diagnostic::MissingMarkdownHeadingHash { .. } => DiagnosticCode::MissingMarkdownHeadingHash,
-      Diagnostic::MissingRequiredSpace { .. } => DiagnosticCode::MissingRequiredSpace,
-      Diagnostic::MissingSyntaxNode { .. } => DiagnosticCode::MissingSyntaxNode,
-      Diagnostic::UnclosedLink { .. } => DiagnosticCode::UnclosedLink,
-      Diagnostic::UnclosedBold { .. } => DiagnosticCode::UnclosedBold,
-      Diagnostic::UnclosedItalic { .. } => DiagnosticCode::UnclosedItalic,
-      Diagnostic::UnclosedStrikethrough { .. } => DiagnosticCode::UnclosedStrikethrough,
-      Diagnostic::UnclosedBoldItalic { .. } => DiagnosticCode::UnclosedBoldItalic,
-      Diagnostic::MismatchedItalicDelimiter { .. } => DiagnosticCode::MismatchedItalicDelimiter,
-      Diagnostic::MissingExpectMdPrefix { .. } => DiagnosticCode::MissingExpectMdPrefix,
-      Diagnostic::MissingTableSeparatorRow { .. } => DiagnosticCode::MissingTableSeparatorRow,
-      Diagnostic::TableColumnCountMismatch { .. } => DiagnosticCode::TableColumnCountMismatch,
-      Diagnostic::InsufficientBlockIndent { .. } => DiagnosticCode::InsufficientBlockIndent,
-      Diagnostic::MissingVaultConfig { .. } => DiagnosticCode::MissingVaultConfig,
-      Diagnostic::VaultConfigReadError { .. } => DiagnosticCode::VaultConfigReadError,
-      Diagnostic::VaultConfigParseError { .. } => DiagnosticCode::VaultConfigParseError,
-      Diagnostic::VaultConfigEmpty { .. } => DiagnosticCode::VaultConfigEmpty,
-      Diagnostic::VaultConfigMissingField { .. } => DiagnosticCode::VaultConfigMissingField,
-      Diagnostic::VaultConfigUnknownField { .. } => DiagnosticCode::VaultConfigUnknownField,
-      Diagnostic::MissingSchemaField { .. } => DiagnosticCode::MissingSchemaField,
-      Diagnostic::UnresolvedSchema { .. } => DiagnosticCode::UnresolvedSchema,
-      Diagnostic::WrongTypArgCount { .. } => DiagnosticCode::WrongTypArgCount,
-      Diagnostic::NotCallable { .. } => DiagnosticCode::NotCallable,
-      Diagnostic::WrongArgCount { .. } => DiagnosticCode::WrongArgCount,
-      Diagnostic::ArgTypMismatch { .. } => DiagnosticCode::ArgTypMismatch,
-      Diagnostic::FieldTypMismatch { .. } => DiagnosticCode::FieldTypMismatch,
-      Diagnostic::NotIndexable { .. } => DiagnosticCode::NotIndexable,
-      Diagnostic::IndexTypMismatch { .. } => DiagnosticCode::IndexTypMismatch,
-      Diagnostic::TagTypMismatch { .. } => DiagnosticCode::TagTypMismatch,
-      Diagnostic::OperandTypMismatch { .. } => DiagnosticCode::OperandTypMismatch,
-      Diagnostic::MissingRequiredField { .. } => DiagnosticCode::MissingRequiredField,
-      Diagnostic::ElementTypMismatch { .. } => DiagnosticCode::ElementTypMismatch,
-      Diagnostic::DuplicateKey { .. } => DiagnosticCode::DuplicateKey,
-      Diagnostic::UnresolvedFileRef { .. } => DiagnosticCode::UnresolvedFileRef,
-      Diagnostic::UnresolvedIdentifier { .. } => DiagnosticCode::UnresolvedIdentifier,
-      Diagnostic::UnknownField { .. } => DiagnosticCode::UnknownField,
-      Diagnostic::DuplicateSchemaName { .. } => DiagnosticCode::DuplicateSchemaName,
-      Diagnostic::IndexOutOfBounds { .. } => DiagnosticCode::IndexOutOfBounds,
-      Diagnostic::VaultConfigInvalidValue { .. } => DiagnosticCode::VaultConfigInvalidValue,
-      Diagnostic::InvalidCodeRangeIndicator { .. } => DiagnosticCode::InvalidCodeRangeIndicator,
-      Diagnostic::DanglingParamList { .. } => DiagnosticCode::DanglingParamList,
-      Diagnostic::InvalidClosureParams { .. } => DiagnosticCode::InvalidClosureParams,
-      Diagnostic::InvalidSelfClosureParams { .. } => DiagnosticCode::InvalidSelfClosureParams,
-      Diagnostic::UnclosedParamList { .. } => DiagnosticCode::UnclosedParamList,
-      Diagnostic::NotConstructible { .. } => DiagnosticCode::NotConstructible,
-      Diagnostic::TypArgBoundViolation { .. } => DiagnosticCode::TypArgBoundViolation,
-      Diagnostic::UnresolvedExtends { .. } => DiagnosticCode::UnresolvedExtends,
-      Diagnostic::CircularExtension { .. } => DiagnosticCode::CircularExtension,
-      Diagnostic::FieldRefinementViolation { .. } => DiagnosticCode::FieldRefinementViolation,
-      Diagnostic::UnresolvedImport { .. } => DiagnosticCode::UnresolvedImport,
-      Diagnostic::UnknownComponent { .. } => DiagnosticCode::UnknownComponent,
-      Diagnostic::MissingRequiredProp { .. } => DiagnosticCode::MissingRequiredProp,
-      Diagnostic::UnknownProp { .. } => DiagnosticCode::UnknownProp,
-    }
+    self.kind.message()
   }
 }
 
-// Human-readable labels for syntax kinds used in diagnostic messages
 fn syntax_kind_label(kind: SyntaxKind) -> &'static str {
   match kind {
     SyntaxKind::PrimaryExpr => "an expression",

@@ -426,7 +426,7 @@ mod tests {
   use crate::db::types::typecheck::is_nullable;
   use crate::db::types::typecheck::validate_typ_params;
   use crate::db::types::{LazyTyp, TdTypEnum, TypParams, TypVariable};
-  use crate::syntax::diagnostic::Diagnostic;
+  use crate::syntax::diagnostic::*;
 
   use crate::db::{
     QueryStorage, TypedownDatabase,
@@ -496,9 +496,12 @@ mod tests {
     assert!(
       matches!(
         diagnostics[0],
-        Diagnostic::WrongTypArgCount {
-          expected: 1,
-          got: 0
+        TdDiagnostic {
+          kind: TdDiagnosticKind::WrongTypArgCount {
+            expected: 1,
+            got: 0
+          },
+          ..
         }
       ),
       "expected WrongTypeArgCount diagnostic"
@@ -519,9 +522,12 @@ mod tests {
     assert!(
       matches!(
         diagnostics[0],
-        Diagnostic::WrongTypArgCount {
-          expected: 2,
-          got: 1
+        TdDiagnostic {
+          kind: TdDiagnosticKind::WrongTypArgCount {
+            expected: 2,
+            got: 1
+          },
+          ..
         }
       ),
       "expected WrongTypeArgCount diagnostic"
@@ -559,9 +565,12 @@ mod tests {
     assert!(
       matches!(
         diagnostics[0],
-        Diagnostic::WrongTypArgCount {
-          expected: 0,
-          got: 1
+        TdDiagnostic {
+          kind: TdDiagnosticKind::WrongTypArgCount {
+            expected: 0,
+            got: 1
+          },
+          ..
         }
       ),
       "expected WrongTypeArgCount diagnostic"
@@ -584,7 +593,10 @@ mod tests {
     assert!(
       matches!(
         diagnostics[0],
-        Diagnostic::TypArgBoundViolation { index: 0, .. }
+        TdDiagnostic {
+          kind: TdDiagnosticKind::TypArgBoundViolation { index: 0, .. },
+          ..
+        }
       ),
       "expected TypeArgBoundViolation diagnostic"
     );
