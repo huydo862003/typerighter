@@ -34,12 +34,6 @@ Absolutely required dependencies to author the core crates (Rust) & packages (No
 - **clang** (21+): C compiler for tree-sitter external scanners
 - **wasi-sdk** (25+): Compile tree-sitter grammars to WASM. Must target wasm32-wasip1 (Zed requires this for grammar loading)
 
-### Docs Authoring
-
-- Rust
-  - **mdbook**: Build design documentation
-  - **mdbook-mermaid**: Mermaid diagram support in mdbook
-
 ### Recommended Editors (for testing extensions locally)
 
 - **Neovim**
@@ -88,12 +82,6 @@ Install each dependency manually:
 
    ```bash
    cargo install cargo-edit cargo-watch
-   ```
-
-7. **mdbook** and **mdbook-mermaid** (only needed for docs):
-
-   ```bash
-   cargo install mdbook mdbook-mermaid
    ```
 
 ## Building
