@@ -1,3 +1,15 @@
+## [0.43.1] - 2026-10-14
+
+### Fixed
+
+- crates/typedown-lang
+  - Generate type-safe props for number/boolean for custom container (TODO: datetime)
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - Support not found component config
+
 ## [0.43.0] - 2026-10-13
 
 ### Added
