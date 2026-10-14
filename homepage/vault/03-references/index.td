@@ -12,6 +12,7 @@ Exact syntax for every part of Typedown. Use these pages as a lookup when you kn
 - [CLI](05-cli): `typerighter init`, `dev`, `build`, `preview`, and `check`
 - [Theming](06-theming): custom layouts, layout slots, and the theme API
 - [Client API](07-client-api): composables and components from `typerighter/client`
+- [Configuration](08-configuration): all `typedown.yaml` fields and their defaults
 
 ## Changelog
 

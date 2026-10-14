@@ -114,6 +114,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       rootDir: config.rootDir,
       siteConfig,
       siteData,
+      themeModulePath,
       userComponents,
     })),
     fs.writeFile(themeModulePath, themeModule),
@@ -259,6 +260,7 @@ interface SsrEntryOptions {
   rootDir: string;
   siteConfig: string;
   siteData: string;
+  themeModulePath: string;
   userComponents?: UserComponent[];
 }
 
@@ -273,10 +275,10 @@ function generateSsrEntry (options: SsrEntryOptions): string {
 
   const userComponents = options.userComponents ?? [];
   const componentImports = userComponents
-    .map((c) => `import ${c.name} from ${JSON.stringify(c.absolutePath)};`)
+    .map((component) => `import ${component.name} from ${JSON.stringify(component.absolutePath)};`)
     .join('\n');
   const componentRegistrations = userComponents
-    .map((c) => `app.component(${JSON.stringify(c.name)}, ${c.name});`)
+    .map((component) => `app.component(${JSON.stringify(component.name)}, ${component.name});`)
     .join('\n');
 
   const ssrHeader = [
@@ -290,7 +292,7 @@ import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-defa
 import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
 import { h } from 'vue';
-import theme from './theme.js';
+import theme from ${JSON.stringify(options.themeModulePath)};
 
 const pages = import.meta.glob('${glob}', { eager: true });
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};

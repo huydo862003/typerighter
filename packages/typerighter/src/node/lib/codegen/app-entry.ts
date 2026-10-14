@@ -36,7 +36,6 @@ export interface VirtualModuleIds {
 }
 
 // Generate the client app entry module source code
-// Used by VirtualApp (dev) and the SSG build
 export function generateAppEntry (options: AppEntryOptions, ids: VirtualModuleIds): string {
   const {
     rootDir: rootDirectory = '.',

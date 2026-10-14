@@ -838,8 +838,17 @@ fn extract_props_from_block(node: &RedNode) -> String {
       if !text.is_empty() {
         if let Some(eq) = text.find('=') {
           let key = &text[..eq];
-          let value = strip_quotes(&text[eq + 1..]);
-          props.push(format!("{key}=\"{}\"", html_escape(value)));
+          let raw_value = &text[eq + 1..];
+          let was_quoted = is_quoted(raw_value);
+          let value = strip_quotes(raw_value);
+
+          if was_quoted {
+            // Quoted: pass as string attribute
+            props.push(format!("{key}=\"{}\"", html_escape(value)));
+          } else {
+            // Unquoted: use v-bind so Vue preserves the JS type
+            props.push(format!(":{key}=\"{}\"", html_escape(value)));
+          }
         } else {
           props.push(text);
         }
@@ -847,6 +856,10 @@ fn extract_props_from_block(node: &RedNode) -> String {
     }
   }
   props.join(" ")
+}
+
+fn is_quoted(s: &str) -> bool {
+  (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\''))
 }
 
 fn extract_slot_name(node: &RedNode) -> Option<String> {
