@@ -72,6 +72,8 @@ export default defineConfig({
         '@vueuse/core',
         '@vueuse/shared',
         'picocolors',
+        'vue-component-meta',
+        'typescript',
         /^node:/,
       ],
     },
