@@ -1,6 +1,34 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.44.0] - 2026-10-14
+
+### Added
+
+- packages/typerighter
+  - Component contract uses JSON Schema notation for prop types (`{ "type": "string" }`, `{ "type": ["string", "null"] }` for optional)
+  - `json-schema.ts` shared types: `JsonSchema`, `PrimitiveSchema`, `OptionalSchema`, `ArraySchema`, `DictSchema`, `ProductSchema`
+  - Component contract sub-plugin: generates `.typedown/components.json` on dev server startup and watches for `.vue` file changes
+  - `buildComponentContract` extracts prop schemas from Vue components via `vue-component-meta`
+  - `serverStderr` exposed on test fixture for diagnostic assertions in e2e tests
+  - E2e tests for component check diagnostics: unknown component, missing required prop, unknown prop
+
+- crates/typedown-lang
+  - `integrations/json_schema` module: `parse_json_schema` translates JSON Schema into typedown type objects (`TdTypEnum`)
+  - `is_optional` and `unwrap_optional` helpers for Sum([T, null]) types
+  - Support for array, dict, and product type schemas in the component contract
+
+### Changed
+
+- packages/typerighter
+  - Component contract format: replaced `{ "type": "string", "required": false }` with JSON Schema `{ "type": ["string", "null"] }`
+  - Moved `resolveUserComponents` and `buildComponentContract` from `codegen/components.ts` to `lib/components.ts`
+
+- crates/typedown-lang
+  - `get_component_contract` parses JSON Schema via `parse_json_schema` instead of reading flat type strings
+  - `CustomComponentProp.type_name` renamed to `typ_name`
+  - Removed empty `integrations/types.rs`
+
 ## [0.43.1] - 2026-10-14
 
 ### Fixed
