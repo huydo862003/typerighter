@@ -23,7 +23,7 @@
   "version": "0.43.1",
   "icon": "icons/typedown.png",
   "engines": {
-    "vscode": "^1.125.0"
+    "vscode": "^1.140.0"
   },
   "keywords": [
     "typedown",
