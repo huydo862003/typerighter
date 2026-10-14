@@ -64,9 +64,10 @@ pub fn unwrap_optional<'db>(db: &'db TypedownDatabase, typ: TdTypEnum<'db>) -> T
     .filter(|member| !member.resolve(db).is_some_and(|typ| typ.is_td_null_typ()))
     .collect();
   if non_null.len() == 1
-    && let Some(inner) = non_null[0].resolve(db) {
-      return inner;
-    }
+    && let Some(inner) = non_null[0].resolve(db)
+  {
+    return inner;
+  }
   typ
 }
 
