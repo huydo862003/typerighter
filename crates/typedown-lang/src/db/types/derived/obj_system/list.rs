@@ -11,7 +11,7 @@ use crate::db::derived::get_builtin_typs::{get_list_typ, get_number_typ, get_obj
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams, TypVariable};
 use crate::db::types::{Project, ProjectRedNode};
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 
 #[query_derived]
 pub struct TdListTyp<'db> {
@@ -93,10 +93,15 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
     let self_type: TdTypEnum = (*self).into();
     let params = self.typ_params(db);
     let diagnostics = validate_typ_params(db, params.as_ref(), &args);
-    if diagnostics
-      .iter()
-      .any(|d| matches!(d, Diagnostic::WrongTypArgCount { .. }))
-    {
+    if diagnostics.iter().any(|d| {
+      matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::WrongTypArgCount { .. },
+          ..
+        }
+      )
+    }) {
       return InstantiateResult::new(db, self_type, diagnostics);
     }
     if args.len() == 1 {

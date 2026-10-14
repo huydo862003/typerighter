@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use typedown_types::string_stream::StringStream;
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::green::cache::Cache;
 use crate::syntax::lex::ctx::{LexCtx, LexMode};
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -30,7 +30,7 @@ fn lex_markdown(input: &str) -> Vec<(SyntaxKind, String)> {
   tokens
 }
 
-fn lex_markdown_with_diags(input: &str) -> (Vec<(SyntaxKind, String)>, Vec<Diagnostic>) {
+fn lex_markdown_with_diags(input: &str) -> (Vec<(SyntaxKind, String)>, Vec<TdDiagnostic>) {
   let stream = StringStream::new(input);
   let cache = Rc::new(RefCell::new(Cache::new()));
   let mut lexer = LexCtx::new(stream, cache);
@@ -556,9 +556,13 @@ fn md_code_block_invalid_range_chars() {
   let (tokens, diags) = lex_markdown_with_diags("```js{abc}\ncode\n```");
   assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::InvalidCodeRangeIndicator { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::InvalidCodeRangeIndicator,
+        ..
+      }
+    )),
     "should have InvalidCodeRangeIndicator: {diags:?}",
   );
 }
@@ -568,9 +572,13 @@ fn md_code_block_unclosed_range() {
   let (tokens, diags) = lex_markdown_with_diags("```js{1,3\ncode\n```");
   assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
   assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::InvalidCodeRangeIndicator { .. })),
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::InvalidCodeRangeIndicator,
+        ..
+      }
+    )),
     "should have InvalidCodeRangeIndicator: {diags:?}",
   );
 }

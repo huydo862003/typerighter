@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_types::stream::{Utf8Result, Utf8Stream};
 
 use crate::syntax::green::cache::Cache;
@@ -16,7 +16,7 @@ use crate::syntax::syntax_kind::SyntaxKind;
 
 pub struct LexResult {
   pub token: SyntaxToken,
-  pub diagnostic: Option<Diagnostic>,
+  pub diagnostic: Option<TdDiagnostic>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -186,10 +186,10 @@ impl<S: Utf8Stream> LexCtx<S> {
           .cache
           .borrow_mut()
           .token(SyntaxKind::Error, &bytes[..len]),
-        diagnostic: Some(Diagnostic::InvalidUtf8 {
-          start_offset: self.stream.offset() - len,
-          end_offset: self.stream.offset(),
-        }),
+        diagnostic: Some(
+          TdDiagnosticKind::InvalidUtf8 {}
+            .into_error(self.stream.offset() - len, self.stream.offset()),
+        ),
       })
     } else {
       None
@@ -206,7 +206,7 @@ impl<S: Utf8Stream> LexCtx<S> {
   }
 
   /// Finalize the current token with a diagnostic.
-  pub(super) fn emit_with(&mut self, kind: SyntaxKind, diagnostic: Diagnostic) -> LexResult {
+  pub(super) fn emit_with(&mut self, kind: SyntaxKind, diagnostic: TdDiagnostic) -> LexResult {
     let text = std::mem::take(&mut self.text_buffer);
     LexResult {
       token: self.cache.borrow_mut().token(kind, text.as_bytes()),
@@ -249,10 +249,7 @@ impl<S: Utf8Stream> LexCtx<S> {
         let end = self.stream.offset();
         return self.emit_with(
           SyntaxKind::Error,
-          Diagnostic::MissingExponentDigits {
-            start_offset: start,
-            end_offset: end,
-          },
+          TdDiagnosticKind::MissingExponentDigits {}.into_error(start, end),
         );
       }
       loop {
@@ -282,10 +279,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           let end = self.stream.offset();
           return self.emit_with(
             SyntaxKind::Error,
-            Diagnostic::UnterminatedInlineMath {
-              start_offset: start,
-              end_offset: end,
-            },
+            TdDiagnosticKind::UnterminatedInlineMath {}.into_error(start, end),
           );
         }
         _ => {

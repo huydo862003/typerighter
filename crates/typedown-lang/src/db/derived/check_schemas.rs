@@ -10,12 +10,12 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::types::Project;
 use crate::db::utils::is_typ_file;
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
 pub struct SchemaCheckResult<'db> {
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
 /// Check all files in _types for duplicate schema names
@@ -47,11 +47,14 @@ pub fn check_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> Schema
       let existing_relative = existing_path
         .strip_prefix(&root_dir)
         .unwrap_or(existing_path);
-      diagnostics.push(Diagnostic::DuplicateSchemaName {
-        name: name.clone(),
-        path: normalized_path,
-        duplicate_of: normalize_path(existing_relative),
-      });
+      diagnostics.push(
+        TdDiagnosticKind::DuplicateSchemaName {
+          name: name.clone(),
+          path: normalized_path,
+          duplicate_of: normalize_path(existing_relative),
+        }
+        .into_error(0, 0),
+      );
     } else {
       seen_schemas.insert(name, path.clone());
     }
@@ -95,7 +98,7 @@ mod tests {
     assert_eq!(diags.len(), 1);
     assert!(matches!(
       &diags[0],
-      Diagnostic::DuplicateSchemaName { name, path, duplicate_of }
+      TdDiagnostic { kind: TdDiagnosticKind::DuplicateSchemaName { name, path, duplicate_of }, .. }
         if name == "Item" && path == "_types/nested/Item.td" && duplicate_of == "_types/Item.td"
     ));
   }

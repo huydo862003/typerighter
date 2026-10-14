@@ -26,7 +26,7 @@ use crate::syntax::ast::{
   AstNode, CallExpr, ClosureExpr, DictLit, Expr, IdentLit, IndexExpr, MathLit, NumberLit,
   PostfixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
@@ -254,11 +254,12 @@ fn get_mapping_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
       return TypResult::new(
         db,
         None,
-        vec![Diagnostic::UnresolvedSchema {
-          name: red_node.text(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        }],
+        vec![
+          TdDiagnosticKind::UnresolvedSchema {
+            name: red_node.text(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        ],
       );
     }
   }
@@ -290,11 +291,12 @@ fn get_tag_typ<'db>(db: &'db TypedownDatabase, tag_node: ProjectRedNode) -> TypR
       TypResult::new(
         db,
         None,
-        vec![Diagnostic::UnresolvedSchema {
-          name: red_node.text(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        }],
+        vec![
+          TdDiagnosticKind::UnresolvedSchema {
+            name: red_node.text(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        ],
       )
     }
   }
@@ -349,12 +351,13 @@ fn get_field_access_typ<'db>(
     None => {
       let red_node = &right_node.node;
       let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
-      diagnostics.push(Diagnostic::UnknownField {
-        field: field_name,
-        on_typ: left_typ.display_name(db),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::UnknownField {
+          field: field_name,
+          on_typ: left_typ.display_name(db),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
       TypResult::new(db, None, diagnostics)
     }
   }
@@ -468,12 +471,13 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
     return TypResult::new(
       db,
       None,
-      vec![Diagnostic::WrongArgCount {
-        expected: 1,
-        got: args.len(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      }],
+      vec![
+        TdDiagnosticKind::WrongArgCount {
+          expected: 1,
+          got: args.len(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      ],
     );
   }
 
@@ -495,11 +499,12 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
       return TypResult::new(
         db,
         None,
-        vec![Diagnostic::ArgTypMismatch {
-          expected: "string".to_string(),
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        }],
+        vec![
+          TdDiagnosticKind::ArgTypMismatch {
+            expected: "string".to_string(),
+          }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        ],
       );
     }
   };
@@ -521,11 +526,10 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
       return TypResult::new(
         db,
         None,
-        vec![Diagnostic::UnresolvedFileRef {
-          path: path_string,
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-        }],
+        vec![
+          TdDiagnosticKind::UnresolvedFileRef { path: path_string }
+            .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        ],
       );
     }
   };
@@ -536,11 +540,10 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
     None => TypResult::new(
       db,
       None,
-      vec![Diagnostic::UnresolvedSchema {
-        name: path_string,
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      }],
+      vec![
+        TdDiagnosticKind::UnresolvedSchema { name: path_string }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      ],
     ),
   }
 }
@@ -641,12 +644,13 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     return TypResult::new(
       db,
       None,
-      vec![Diagnostic::WrongArgCount {
-        expected: param_typs.len(),
-        got: params.len(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      }],
+      vec![
+        TdDiagnosticKind::WrongArgCount {
+          expected: param_typs.len(),
+          got: params.len(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      ],
     );
   }
 
@@ -682,7 +686,7 @@ mod tests {
 
   use crate::db::derived::parse_file::parse_file;
   use crate::db::{QueryStorage, TypedownDatabase};
-  use crate::syntax::diagnostic::Diagnostic;
+  use crate::syntax::diagnostic::*;
 
   use crate::db::fixtures::load_vault_fixture;
 
@@ -945,10 +949,15 @@ mod tests {
       .map(|(_, v)| v)
       .expect("should have 'related' field");
     let result = actual_node_typ(&db, related_node);
-    let has_unresolved = result
-      .diagnostics(&db)
-      .iter()
-      .any(|d| matches!(d, Diagnostic::UnresolvedFileRef { .. }));
+    let has_unresolved = result.diagnostics(&db).iter().any(|d| {
+      matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnresolvedFileRef { .. },
+          ..
+        }
+      )
+    });
     assert!(
       !has_unresolved,
       "fref(\"./peer.td\") should resolve relative to subdir/, not vault root: {:?}",

@@ -1,4 +1,4 @@
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_types::stream::{Utf8Result, Utf8Stream};
 
 use super::ctx::{InterpContext, LexCtx, LexResult};
@@ -184,10 +184,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     // Detect mixed or inconsistent indentation
     let diagnostic = if indent > 0 {
       if saw_space && saw_tab {
-        Some(Diagnostic::MixedIndentation {
-          start_offset: start,
-          end_offset: self.stream.offset(),
-        })
+        Some(TdDiagnosticKind::MixedIndentation {}.into_error(start, self.stream.offset()))
       } else {
         let char = if saw_tab { '\t' } else { ' ' };
         match self.yaml_lex_ctx.indent_char {
@@ -195,12 +192,13 @@ impl<S: Utf8Stream> LexCtx<S> {
             self.yaml_lex_ctx.indent_char = Some(char);
             None
           }
-          Some(established) if established != char => Some(Diagnostic::InconsistentIndentation {
-            expected: established,
-            encountered: char,
-            start_offset: start,
-            end_offset: self.stream.offset(),
-          }),
+          Some(established) if established != char => Some(
+            TdDiagnosticKind::InconsistentIndentation {
+              expected: established,
+              encountered: char,
+            }
+            .into_error(start, self.stream.offset()),
+          ),
           _ => None,
         }
       }
@@ -407,10 +405,7 @@ impl<S: Utf8Stream> LexCtx<S> {
               self.yaml_lex_ctx.interp_stack.pop();
               return self.emit_with(
                 SyntaxKind::Error,
-                Diagnostic::UnterminatedString {
-                  start_offset: start,
-                  end_offset: end,
-                },
+                TdDiagnosticKind::UnterminatedString {}.into_error(start, end),
               );
             }
             _ => {
@@ -424,10 +419,7 @@ impl<S: Utf8Stream> LexCtx<S> {
           self.yaml_lex_ctx.interp_stack.pop();
           return self.emit_with(
             SyntaxKind::Error,
-            Diagnostic::UnterminatedString {
-              start_offset: start,
-              end_offset: end,
-            },
+            TdDiagnosticKind::UnterminatedString {}.into_error(start, end),
           );
         }
         _ => {
@@ -445,10 +437,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       let offset = self.stream.offset();
       return self.emit_with(
         SyntaxKind::Error,
-        Diagnostic::UnterminatedInterpolation {
-          start_offset: offset,
-          end_offset: offset,
-        },
+        TdDiagnosticKind::UnterminatedInterpolation {}.into_error(offset, offset),
       );
     }
     self.lex_yaml_token()

@@ -7,7 +7,7 @@ use crate::db::types::fields_compatible;
 use crate::db::types::{
   LazyTyp, TdExistentialTyp, TdSchemaTyp, TdSumTyp, TdTypEnum, TypParams, TypVariable,
 };
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use std::collections::{HashMap, HashSet};
 use typedown_incremental::Id;
 
@@ -16,13 +16,16 @@ pub fn validate_typ_params(
   db: &TypedownDatabase,
   type_params: Option<&TypParams>,
   args: &[LazyTyp],
-) -> Vec<Diagnostic> {
+) -> Vec<TdDiagnostic> {
   let expected_arity = type_params.map_or(0, |p| p.len(db));
   if expected_arity != args.len() {
-    return vec![Diagnostic::WrongTypArgCount {
-      expected: expected_arity,
-      got: args.len(),
-    }];
+    return vec![
+      TdDiagnosticKind::WrongTypArgCount {
+        expected: expected_arity,
+        got: args.len(),
+      }
+      .into_error(0, 0),
+    ];
   }
 
   let mut diagnostics = Vec::new();
@@ -34,11 +37,14 @@ pub fn validate_typ_params(
         && let Some(arg_type) = arg.resolve(db)
         && !is_subtype_of(db, &arg_type, &bound)
       {
-        diagnostics.push(Diagnostic::TypArgBoundViolation {
-          index,
-          expected_bound: bound.display_name(db),
-          got: arg_type.display_name(db),
-        });
+        diagnostics.push(
+          TdDiagnosticKind::TypArgBoundViolation {
+            index,
+            expected_bound: bound.display_name(db),
+            got: arg_type.display_name(db),
+          }
+          .into_error(0, 0),
+        );
       }
     }
   }

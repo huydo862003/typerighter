@@ -10,43 +10,9 @@
 use std::collections::BTreeMap;
 
 use crate::syntax::ast::{AstNode, MdBody, MdHeading, MdLink, MdMedia};
+use crate::syntax::diagnostic::*;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LintDiagnostic {
-  pub start_offset: usize,
-  pub end_offset: usize,
-  pub code: LintCode,
-  pub message: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LintCode {
-  MissingAltText,
-  GenericLinkText,
-  MultipleH1,
-  DuplicateHeading,
-  TrailingWhitespace,
-  HeadingSpacing,
-  BlockBlankLine,
-  ConsecutiveBlankLines,
-}
-
-impl LintCode {
-  pub fn as_str(self) -> &'static str {
-    match self {
-      LintCode::MissingAltText => "missing-alt-text",
-      LintCode::GenericLinkText => "generic-link-text",
-      LintCode::MultipleH1 => "multiple-h1",
-      LintCode::DuplicateHeading => "duplicate-heading",
-      LintCode::TrailingWhitespace => "trailing-whitespace",
-      LintCode::HeadingSpacing => "heading-spacing",
-      LintCode::BlockBlankLine => "block-blank-line",
-      LintCode::ConsecutiveBlankLines => "consecutive-blank-lines",
-    }
-  }
-}
 
 const GENERIC_LINK_TEXTS: &[&str] = &[
   "click here",
@@ -59,7 +25,7 @@ const GENERIC_LINK_TEXTS: &[&str] = &[
 ];
 
 /// Lint the markdown body of a Typedown file.
-pub fn lint_markdown(body: &MdBody) -> Vec<LintDiagnostic> {
+pub fn lint_markdown(body: &MdBody) -> Vec<TdDiagnostic> {
   let mut diagnostics = Vec::new();
 
   lint_headings(body, &mut diagnostics);
@@ -73,7 +39,7 @@ pub fn lint_markdown(body: &MdBody) -> Vec<LintDiagnostic> {
 }
 
 /// Check for multiple H1 headings and duplicate heading text
-fn lint_headings(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
+fn lint_headings(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let mut h1_count = 0;
   // heading text -> (level, first offset)
   let mut seen_headings: BTreeMap<String, usize> = BTreeMap::new();
@@ -94,24 +60,17 @@ fn lint_headings(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
     if level == 1 {
       h1_count += 1;
       if h1_count > 1 {
-        diagnostics.push(LintDiagnostic {
-          start_offset: offset,
-          end_offset: offset + len,
-          code: LintCode::MultipleH1,
-          message: "Multiple H1 headings; a document should have only one".to_string(),
-        });
+        diagnostics.push(TdDiagnosticKind::MultipleH1 {}.into_warning(offset, offset + len));
       }
     }
 
     // Duplicate heading
     if let Some(&first_offset) = seen_headings.get(&text) {
       if first_offset != offset {
-        diagnostics.push(LintDiagnostic {
-          start_offset: offset,
-          end_offset: offset + len,
-          code: LintCode::DuplicateHeading,
-          message: format!("Duplicate heading \"{}\"", text),
-        });
+        diagnostics.push(
+          TdDiagnosticKind::DuplicateHeading { text: text.clone() }
+            .into_warning(offset, offset + len),
+        );
       }
     } else {
       seen_headings.insert(text, offset);
@@ -128,19 +87,14 @@ fn heading_text(heading: &MdHeading) -> String {
 }
 
 /// Walk the tree recursively to find links and images
-fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<LintDiagnostic>) {
+fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<TdDiagnostic>) {
   match node.kind() {
     SyntaxKind::MdMedia => {
       if let Some(media) = MdMedia::cast(node.clone()) {
         let alt = media.alt().map(|t| t.value()).unwrap_or_default();
         if alt.trim().is_empty() {
           let (offset, len) = node.trimmed_range();
-          diagnostics.push(LintDiagnostic {
-            start_offset: offset,
-            end_offset: offset + len,
-            code: LintCode::MissingAltText,
-            message: "Image is missing alt text".to_string(),
-          });
+          diagnostics.push(TdDiagnosticKind::MissingAltText {}.into_warning(offset, offset + len));
         }
       }
     }
@@ -150,15 +104,12 @@ fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<LintDiagnostic>) {
         let lower = text.trim().to_lowercase();
         if GENERIC_LINK_TEXTS.contains(&lower.as_str()) {
           let (offset, len) = node.trimmed_range();
-          diagnostics.push(LintDiagnostic {
-            start_offset: offset,
-            end_offset: offset + len,
-            code: LintCode::GenericLinkText,
-            message: format!(
-              "Avoid generic link text \"{}\"; use a descriptive phrase",
-              text.trim()
-            ),
-          });
+          diagnostics.push(
+            TdDiagnosticKind::GenericLinkText {
+              text: text.trim().to_string(),
+            }
+            .into_warning(offset, offset + len),
+          );
         }
       }
     }
@@ -171,26 +122,22 @@ fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<LintDiagnostic>) {
 }
 
 /// Check for trailing whitespace on any line in the body
-fn lint_trailing_whitespace(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
+fn lint_trailing_whitespace(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let source = body.syntax().text();
   let body_offset = body.syntax().offset();
 
   let mut offset = body_offset;
   for line in source.lines() {
     if line != line.trim_end() {
-      diagnostics.push(LintDiagnostic {
-        start_offset: offset,
-        end_offset: offset + line.len(),
-        code: LintCode::TrailingWhitespace,
-        message: "Trailing whitespace".to_string(),
-      });
+      diagnostics
+        .push(TdDiagnosticKind::TrailingWhitespace {}.into_warning(offset, offset + line.len()));
     }
     offset += line.len() + 1; // +1 for newline
   }
 }
 
 /// Check that headings have exactly one space after `#` symbols
-fn lint_heading_spacing(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
+fn lint_heading_spacing(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   for block in body.block_elements() {
     if block.syntax().kind() != SyntaxKind::MdHeading {
       continue;
@@ -205,26 +152,16 @@ fn lint_heading_spacing(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
     // Should be exactly one space, then content (or empty heading)
     if !after_hashes.is_empty() && !after_hashes.starts_with(' ') {
       let (offset, len) = block.syntax().trimmed_range();
-      diagnostics.push(LintDiagnostic {
-        start_offset: offset,
-        end_offset: offset + len,
-        code: LintCode::HeadingSpacing,
-        message: "Missing space after # in heading".to_string(),
-      });
+      diagnostics.push(TdDiagnosticKind::HeadingMissingSpace {}.into_warning(offset, offset + len));
     } else if after_hashes.starts_with("  ") {
       let (offset, len) = block.syntax().trimmed_range();
-      diagnostics.push(LintDiagnostic {
-        start_offset: offset,
-        end_offset: offset + len,
-        code: LintCode::HeadingSpacing,
-        message: "Extra spaces after # in heading; use exactly one".to_string(),
-      });
+      diagnostics.push(TdDiagnosticKind::HeadingExtraSpaces {}.into_warning(offset, offset + len));
     }
   }
 }
 
 // Check that blocks have blank lines between them
-fn lint_block_blank_lines(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
+fn lint_block_blank_lines(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let source = body.syntax().text();
   let body_offset = body.syntax().offset();
   let blocks: Vec<_> = body.block_elements().collect();
@@ -238,19 +175,17 @@ fn lint_block_blank_lines(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) 
     if idx > 0 && rel_start > 0 {
       let before = &source[..rel_start];
       if !before.trim().is_empty() && !before.ends_with("\n\n") {
-        diagnostics.push(LintDiagnostic {
-          start_offset: trimmed_offset,
-          end_offset: trimmed_offset + trimmed_len,
-          code: LintCode::BlockBlankLine,
-          message: "Missing blank line before block".to_string(),
-        });
+        diagnostics.push(
+          TdDiagnosticKind::BlockBlankLine {}
+            .into_warning(trimmed_offset, trimmed_offset + trimmed_len),
+        );
       }
     }
   }
 }
 
 /// Check for multiple consecutive blank lines
-fn lint_consecutive_blank_lines(body: &MdBody, diagnostics: &mut Vec<LintDiagnostic>) {
+fn lint_consecutive_blank_lines(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let source = body.syntax().text();
   let body_offset = body.syntax().offset();
 
@@ -259,12 +194,10 @@ fn lint_consecutive_blank_lines(body: &MdBody, diagnostics: &mut Vec<LintDiagnos
     if ch == '\n' {
       consecutive_newlines += 1;
       if consecutive_newlines == 3 {
-        diagnostics.push(LintDiagnostic {
-          start_offset: body_offset + idx,
-          end_offset: body_offset + idx + 1,
-          code: LintCode::ConsecutiveBlankLines,
-          message: "Multiple consecutive blank lines".to_string(),
-        });
+        diagnostics.push(
+          TdDiagnosticKind::ConsecutiveBlankLines {}
+            .into_warning(body_offset + idx, body_offset + idx + 1),
+        );
       }
     } else {
       consecutive_newlines = 0;
@@ -279,7 +212,7 @@ mod tests {
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
 
-  fn lint(source: &str) -> Vec<LintDiagnostic> {
+  fn lint(source: &str) -> Vec<TdDiagnostic> {
     let (green, _) = parse(source);
     let red = RedNode::from_green(0, green);
     let file = SourceFile::cast(red).expect("should parse as SourceFile");
@@ -287,8 +220,8 @@ mod tests {
     lint_markdown(&body)
   }
 
-  fn codes(diags: &[LintDiagnostic]) -> Vec<&str> {
-    diags.iter().map(|d| d.code.as_str()).collect()
+  fn codes(diags: &[TdDiagnostic]) -> Vec<&str> {
+    diags.iter().map(|d| d.code_str()).collect()
   }
 
   #[test]
@@ -414,7 +347,7 @@ Hello
 ##Heading
 "#,
     );
-    assert!(codes(&diags).contains(&"heading-spacing"));
+    assert!(codes(&diags).contains(&"heading-missing-space"));
   }
 
   #[test]

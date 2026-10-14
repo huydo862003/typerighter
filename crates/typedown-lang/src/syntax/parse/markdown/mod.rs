@@ -1,6 +1,6 @@
 //! Markdown body parsing
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_types::stream::Utf8Stream;
 
@@ -187,18 +187,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       is_hash,
-      Diagnostic::MissingMarkdownHeadingHash {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      TdDiagnosticKind::MissingMarkdownHeadingHash {}.into_error(self.offset(), self.offset()),
     );
 
     let next_token = &self.lex_ctx.peek_md(SKIP_NONE).token;
     if next_token.kind() != SyntaxKind::Whitespace {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingRequiredSpace {}.into_error(self.offset(), self.offset()),
+      );
     } else {
       self.advance_md(&mut children, SKIP_NONE);
     }
@@ -209,11 +205,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
       !matches!(next.token.kind(), SyntaxKind::Newline | SyntaxKind::Eof)
     };
     if !has_inline {
-      self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::MdText,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::MdText,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
     } else {
       // Parse inline elements until newline or EOF
       loop {
@@ -381,10 +378,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Newline
       || !self.consume_md_newline_and_prefix(&mut children)
     {
-      self.emit_diagnostic(Diagnostic::MissingTableSeparatorRow {
-        start_offset: sep_start,
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingTableSeparatorRow {}.into_error(sep_start, self.offset()),
+      );
       self.expr_ctx_stack.exit(ExprCtx::MdTable);
       return (self.emit(SyntaxKind::MdTable, &children), None);
     }
@@ -396,10 +392,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
       && next2.token.kind() == SyntaxKind::MdSymbol
       && next2.token.chars().collect::<String>().starts_with('-');
     if !is_separator {
-      self.emit_diagnostic(Diagnostic::MissingTableSeparatorRow {
-        start_offset: sep_start,
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingTableSeparatorRow {}.into_error(sep_start, self.offset()),
+      );
       self.expr_ctx_stack.exit(ExprCtx::MdTable);
       return (self.emit(SyntaxKind::MdTable, &children), None);
     }
@@ -435,12 +430,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
       let row_start = self.offset();
       let (row, col_count, early_exit) = self.parse_table_row(true);
       if col_count != expected_cols {
-        self.emit_diagnostic(Diagnostic::TableColumnCountMismatch {
-          expected: expected_cols,
-          found: col_count,
-          start_offset: row_start,
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::TableColumnCountMismatch {
+            expected: expected_cols,
+            found: col_count,
+          }
+          .into_error(row_start, self.offset()),
+        );
       }
       children.push(row);
       if early_exit.is_some_and(|ctx| ctx != ExprCtx::MdTable) {
@@ -680,10 +676,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if after_bullet == SyntaxKind::Whitespace {
       self.advance_md(&mut children, SKIP_NONE);
     } else if !matches!(after_bullet, SyntaxKind::Newline | SyntaxKind::Eof) {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingRequiredSpace {}.into_error(self.offset(), self.offset()),
+      );
     }
 
     // Parse block elements until end of list item
@@ -881,11 +876,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       |token| token.kind() == SyntaxKind::MdSymbol && token.chars().collect::<String>() == ".",
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdOrderedListItem,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(self.offset(), self.offset()),
     );
 
     // Require a space after `.`
@@ -893,10 +887,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if after_dot == SyntaxKind::Whitespace {
       self.advance_md(&mut children, SKIP_NONE);
     } else if !matches!(after_dot, SyntaxKind::Newline | SyntaxKind::Eof) {
-      self.emit_diagnostic(Diagnostic::MissingRequiredSpace {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingRequiredSpace {}.into_error(self.offset(), self.offset()),
+      );
     }
 
     // Parse block elements until end of list item
@@ -979,11 +972,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Require a label identifier (supports kebab-case like directory-index)
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
-      self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::Ident,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::Ident,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
     } else {
       self.consume_kebab_ident(&mut children);
     }
@@ -1025,11 +1019,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::Newline,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::Newline,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(self.offset(), self.offset()),
     );
 
     // Parse block elements until closing `:::` or EOF
@@ -1107,11 +1100,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
           &mut sep_children,
           SKIP_WS,
           |token| token.kind() == SyntaxKind::Ident,
-          Diagnostic::MissingSyntaxNode {
+          TdDiagnosticKind::MissingSyntaxNode {
             expected: SyntaxKind::Ident,
-            start_offset,
-            end_offset,
-          },
+          }
+          .into_error(start_offset, end_offset),
         );
 
         // Consume redundant tokens till end of line
@@ -1123,10 +1115,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
           let start_offset = self.offset();
           let end_offset = start_offset + self.lex_ctx.peek_md(SKIP_WS).token.text_len();
           self.advance_md(&mut error_children, SKIP_WS);
-          self.emit_diagnostic(Diagnostic::UnexpectedContainerSlotSeparatorToken {
-            start_offset,
-            end_offset,
-          })
+          self.emit_diagnostic(
+            TdDiagnosticKind::UnexpectedContainerSlotSeparatorToken {}
+              .into_error(start_offset, end_offset),
+          )
         }
         if !error_children.is_empty() {
           let error_node = self.emit(SyntaxKind::Error, &error_children);
@@ -1153,11 +1145,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_WS,
       |token| token.kind() == SyntaxKind::MdSymbol && token.chars().collect::<String>() == ":::",
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdContainerBlock,
-        start_offset: open_offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(open_offset, self.offset()),
     );
 
     self.expr_ctx_stack.exit(container_ctx);
@@ -1183,11 +1174,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Require a label identifier (supports kebab-case like directory-index)
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
-      self.emit_diagnostic(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::Ident,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::Ident,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
     } else {
       self.consume_kebab_ident(&mut children);
     }
@@ -1203,21 +1195,19 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::RBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::RBracket,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(self.offset(), self.offset()),
     );
     self.consume_md(
       &mut children,
       SKIP_NONE,
       SyntaxKind::RBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::RBracket,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(self.offset(), self.offset()),
     );
 
     (self.emit(SyntaxKind::MdContainerShorthand, &children), None)
@@ -1291,10 +1281,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
           self.consume_or_delegate_md(ExprCtx::MdContainerPropBlock, &mut error_children);
 
         // No match, emit diagnostic
-        self.emit_diagnostic(Diagnostic::UnexpectedContainerPropItem {
-          start_offset,
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::UnexpectedContainerPropItem {}.into_error(start_offset, self.offset()),
+        );
 
         let error_node = self.emit(SyntaxKind::Error, &error_children);
 
@@ -1303,10 +1292,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         if early_exit.is_some() {
           let start_offset = self.offset();
           let end_offset = self.offset() + self.lex_ctx.peek_md(SKIP_WCN).token.text_len();
-          self.emit_diagnostic(Diagnostic::UnclosedContainerPropBlock {
-            start_offset,
-            end_offset,
-          });
+          self.emit_diagnostic(
+            TdDiagnosticKind::UnclosedContainerPropBlock {}.into_error(start_offset, end_offset),
+          );
 
           self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
           return (
@@ -1331,10 +1319,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
       {
         let start_offset = self.offset();
         let end_offset = self.offset() + self.lex_ctx.peek_md(SKIP_WCN).token.text_len();
-        self.emit_diagnostic(Diagnostic::UnclosedContainerPropBlock {
-          start_offset,
-          end_offset,
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::UnclosedContainerPropBlock {}.into_error(start_offset, end_offset),
+        );
 
         self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
         return (
@@ -1350,10 +1337,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_WCN,
       SyntaxKind::RBrace,
-      Diagnostic::UnclosedContainerPropBlock {
-        start_offset,
-        end_offset,
-      },
+      TdDiagnosticKind::UnclosedContainerPropBlock {}.into_error(start_offset, end_offset),
     );
 
     self.expr_ctx_stack.exit(ExprCtx::MdContainerPropBlock);
@@ -1420,10 +1404,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
           kind,
           SyntaxKind::Eof | SyntaxKind::Newline | SyntaxKind::RBrace
         ) {
-          self.emit_diagnostic(Diagnostic::UnexpectedContainerPropValue {
-            start_offset: value_start,
-            end_offset: self.offset(),
-          });
+          self.emit_diagnostic(
+            TdDiagnosticKind::UnexpectedContainerPropValue {}
+              .into_error(value_start, self.offset()),
+          );
           break;
         }
         self.advance_md(&mut children, SKIP_NONE);
@@ -1433,9 +1417,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
     }
 
-    self.emit_diagnostic(Diagnostic::MissingContainerPropValueAfterEq {
-      offset: self.offset(),
-    });
+    self.emit_diagnostic(
+      TdDiagnosticKind::MissingContainerPropValueAfterEq {}
+        .into_error(self.offset(), self.offset()),
+    );
     self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
 
     (self.emit(SyntaxKind::MdContainerPropItem, &children), None)
@@ -1514,11 +1499,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::LBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdLink,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     if !ok {
       let handler = self
@@ -1580,11 +1564,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::RBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdLink,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
     if !ok {
@@ -1604,11 +1587,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::LParen,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdLink,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     if !ok {
       let handler = self
@@ -1641,11 +1623,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::RParen,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdLink,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     self.expr_ctx_stack.exit(ExprCtx::MdLinkUrl);
     if !ok {
@@ -1685,11 +1666,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       |token| token.kind() == SyntaxKind::MdSymbol && token.chars().collect::<String>() == "!",
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdMedia,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     if !ok {
       let handler = self
@@ -1703,11 +1683,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::LBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdMedia,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     if !ok {
       let handler = self
@@ -1750,11 +1729,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::RBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdMedia,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
     if !ok {
@@ -1769,11 +1747,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::LParen,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdMedia,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     if !ok {
       let handler = self
@@ -1806,11 +1783,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NONE,
       SyntaxKind::RParen,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::MdMedia,
-        start_offset: open_offset,
-        end_offset: open_offset,
-      },
+      }
+      .into_error(open_offset, open_offset),
     );
     self.expr_ctx_stack.exit(ExprCtx::MdLinkUrl);
     if !ok {
@@ -1853,10 +1829,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       if self.should_end_inline_element(&mut children) {
-        self.emit_diagnostic(Diagnostic::UnclosedBold {
-          start_offset: open_offset,
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::UnclosedBold {}.into_error(open_offset, self.offset()),
+        );
         break;
       }
       if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline {
@@ -1934,18 +1909,16 @@ impl<S: Utf8Stream> ParseCtx<S> {
       {
         self.advance_md(&mut children, SKIP_NONE);
         if text != opening {
-          self.emit_diagnostic(Diagnostic::MismatchedItalicDelimiter {
-            start_offset: open_offset,
-            end_offset: self.offset(),
-          });
+          self.emit_diagnostic(
+            TdDiagnosticKind::MismatchedItalicDelimiter {}.into_error(open_offset, self.offset()),
+          );
         }
         break;
       }
       if self.should_end_inline_element(&mut children) {
-        self.emit_diagnostic(Diagnostic::UnclosedItalic {
-          start_offset: open_offset,
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::UnclosedItalic {}.into_error(open_offset, self.offset()),
+        );
         break;
       }
       if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline {
@@ -2032,10 +2005,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       if self.should_end_inline_element(&mut children) {
-        self.emit_diagnostic(Diagnostic::UnclosedBoldItalic {
-          start_offset: open_offset,
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::UnclosedBoldItalic {}.into_error(open_offset, self.offset()),
+        );
         break;
       }
       if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline {
@@ -2113,10 +2085,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         break;
       }
       if self.should_end_inline_element(&mut children) {
-        self.emit_diagnostic(Diagnostic::UnclosedStrikethrough {
-          start_offset: open_offset,
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::UnclosedStrikethrough {}.into_error(open_offset, self.offset()),
+        );
         break;
       }
       if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline {
@@ -2221,11 +2192,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     for expected_token in &expected_tokens {
       let peek = self.lex_ctx.peek_md(SKIP_NONE);
       if peek.token != *expected_token {
-        self.emit_diagnostic(Diagnostic::MissingExpectMdPrefix {
-          expected_prefix: format!("{:?}", expected_tokens),
-          start_offset: self.offset(),
-          end_offset: self.offset(),
-        });
+        self.emit_diagnostic(
+          TdDiagnosticKind::MissingExpectMdPrefix {
+            expected_prefix: format!("{:?}", expected_tokens),
+          }
+          .into_error(self.offset(), self.offset()),
+        );
         return false;
       }
       self.advance_md(children, SKIP_NONE);

@@ -1,6 +1,6 @@
 //! YAML parsing for frontmatter (--- delimited) and bare documents (EOF terminated)
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use typedown_types::stream::Utf8Stream;
 
 use super::constants::*;
@@ -33,10 +33,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Expect newline after opening ---
     self.expect_end_of_line(
       &mut children,
-      Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      TdDiagnosticKind::UnexpectedTokensOnFrontmatterMarkerLine {}
+        .into_error(self.offset(), self.offset()),
     );
 
     // Parse body
@@ -45,12 +43,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if let Some(ctx) = early_exit
       && ctx != ExprCtx::YamlFrontmatter
     {
-      self
-        .diagnostics
-        .push(Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine {
-          start_offset: self.offset(),
-          end_offset: self.offset(),
-        });
+      self.diagnostics.push(
+        TdDiagnosticKind::UnexpectedTokensOnFrontmatterMarkerLine {}
+          .into_error(self.offset(), self.offset()),
+      );
     }
 
     // Consume closing ---
@@ -61,18 +57,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       &mut children,
       SKIP_NEWLINE | SKIP_WS | SKIP_INDENT,
       |token| token.kind() == SyntaxKind::YamlOp && token.chars().collect::<String>() == "---",
-      Diagnostic::MissingFrontmatterMarker {
-        offset: start_offset,
-      },
+      TdDiagnosticKind::MissingFrontmatterMarker {}.into_error(start_offset, start_offset),
     );
 
     // Expect newline after closing ---
     self.expect_end_of_line(
       &mut children,
-      Diagnostic::UnexpectedTokensOnFrontmatterMarkerLine {
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      },
+      TdDiagnosticKind::UnexpectedTokensOnFrontmatterMarkerLine {}
+        .into_error(self.offset(), self.offset()),
     );
 
     self.emit(SyntaxKind::YamlFrontmatter, &children)

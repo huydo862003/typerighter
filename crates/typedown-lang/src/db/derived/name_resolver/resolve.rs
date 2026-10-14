@@ -1,6 +1,6 @@
 use typedown_macros::query_derived;
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
@@ -20,7 +20,7 @@ pub fn resolve<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> 
 fn collect_unresolved(
   db: &TypedownDatabase,
   project_node: ProjectRedNode,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) {
   let project = project_node.project;
   let file = project_node.file;
@@ -56,11 +56,12 @@ fn collect_unresolved(
     let resolved = referee(db, project_node.clone());
     if resolved.value(db).is_none() {
       let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::UnresolvedIdentifier {
-        name: project_node.node.text(),
-        start_offset: trimmed_offset,
-        end_offset: trimmed_offset + trimmed_len,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::UnresolvedIdentifier {
+          name: project_node.node.text(),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
     }
     return;
   }
@@ -185,7 +186,7 @@ fn check_imports(
   db: &TypedownDatabase,
   mapping_node: ProjectRedNode,
   imports_node: ProjectRedNode,
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) {
   let Some(entries) = imports_node.mapping_entries() else {
     return;
@@ -200,11 +201,7 @@ fn check_imports(
     let target_path = root_dir.join(&path);
     if !project.files(db).contains_key(&target_path) {
       let (start, len) = path_node.node.trimmed_range();
-      diagnostics.push(Diagnostic::UnresolvedImport {
-        path,
-        start_offset: start,
-        end_offset: start + len,
-      });
+      diagnostics.push(TdDiagnosticKind::UnresolvedImport { path }.into_error(start, start + len));
     }
   }
 }
@@ -264,7 +261,10 @@ fn: (a) -> a + missing_variable
     let diags = res.diagnostics(&db);
     assert_eq!(diags.len(), 1);
     match &diags[0] {
-      Diagnostic::UnresolvedIdentifier { name, .. } => {
+      TdDiagnostic {
+        kind: TdDiagnosticKind::UnresolvedIdentifier { name, .. },
+        ..
+      } => {
         assert_eq!(name.trim(), "missing_variable");
       }
       d => panic!("expected UnresolvedIdentifier diagnostic, got: {:?}", d),
@@ -288,9 +288,13 @@ name: missing.foo
     let res = resolve(&db, project_node);
     let diags = res.diagnostics(&db);
     assert!(
-      diags
-        .iter()
-        .any(|d| matches!(d, Diagnostic::UnresolvedImport { .. })),
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnresolvedImport { .. },
+          ..
+        }
+      )),
       "should have UnresolvedImport diagnostic, got: {:?}",
       diags
     );

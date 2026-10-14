@@ -59,7 +59,7 @@ use typedown_macros::StableCompare;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams};
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_incremental::{DepId, Id};
 
 // Use this instead of dyn

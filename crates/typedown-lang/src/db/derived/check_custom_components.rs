@@ -10,7 +10,7 @@ use crate::db::utils::{
   extract_container_name, extract_container_prop_names, extract_shorthand_name,
   is_builtin_container, kebab_to_pascal,
 };
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
@@ -35,7 +35,7 @@ pub fn check_custom_components<'db>(
   CustomComponentCheckResult::new(db, diagnostics)
 }
 
-fn collect(node: &RedNode, contract: &[CustomComponentTyp], diagnostics: &mut Vec<Diagnostic>) {
+fn collect(node: &RedNode, contract: &[CustomComponentTyp], diagnostics: &mut Vec<TdDiagnostic>) {
   match node.kind() {
     SyntaxKind::MdContainerBlock => {
       if let Some(name) = extract_container_name(node) {
@@ -59,7 +59,7 @@ fn validate(
   node: &RedNode,
   name: &str,
   contract: &[CustomComponentTyp],
-  diagnostics: &mut Vec<Diagnostic>,
+  diagnostics: &mut Vec<TdDiagnostic>,
 ) {
   if is_builtin_container(name) {
     return;
@@ -70,11 +70,12 @@ fn validate(
 
   let pascal = kebab_to_pascal(name);
   let Some(entry) = contract.iter().find(|e| e.name == name || e.name == pascal) else {
-    diagnostics.push(Diagnostic::UnknownComponent {
-      name: name.to_string(),
-      start_offset,
-      end_offset,
-    });
+    diagnostics.push(
+      TdDiagnosticKind::UnknownComponent {
+        name: name.to_string(),
+      }
+      .into_warning(start_offset, end_offset),
+    );
     return;
   };
 
@@ -87,23 +88,25 @@ fn validate(
 
   for prop in props {
     if prop.required && !provided.iter().any(|p| p == &prop.name) {
-      diagnostics.push(Diagnostic::MissingRequiredProp {
-        prop: prop.name.clone(),
-        component: name.to_string(),
-        start_offset,
-        end_offset,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::MissingRequiredProp {
+          prop: prop.name.clone(),
+          component: name.to_string(),
+        }
+        .into_warning(start_offset, end_offset),
+      );
     }
   }
 
   for prop_name in &provided {
     if !props.iter().any(|p| &p.name == prop_name) {
-      diagnostics.push(Diagnostic::UnknownProp {
-        prop: prop_name.clone(),
-        component: name.to_string(),
-        start_offset,
-        end_offset,
-      });
+      diagnostics.push(
+        TdDiagnosticKind::UnknownProp {
+          prop: prop_name.clone(),
+          component: name.to_string(),
+        }
+        .into_warning(start_offset, end_offset),
+      );
     }
   }
 }
@@ -197,7 +200,8 @@ mod tests {
     assert!(extract_container_prop_names(&block).is_empty());
   }
 
-  // validate: unknown component
+  // validate unknown component
+
 
   #[test]
   fn unknown_component_emits_diagnostic() {
@@ -208,9 +212,13 @@ mod tests {
     let mut diags = Vec::new();
     validate(&block, &name, &contract, &mut diags);
     assert!(
-      diags
-        .iter()
-        .any(|d| matches!(d, Diagnostic::UnknownComponent { .. })),
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnknownComponent { .. },
+          ..
+        }
+      )),
       "expected UnknownComponent, got: {diags:?}"
     );
   }
@@ -249,7 +257,7 @@ mod tests {
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::MissingRequiredProp { prop, .. } if prop == "data")),
+        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredProp { prop, .. }, .. } if prop == "data")),
       "expected MissingRequiredProp for 'data', got: {diags:?}"
     );
   }
@@ -269,7 +277,7 @@ mod tests {
     assert!(
       diags
         .iter()
-        .any(|d| matches!(d, Diagnostic::UnknownProp { prop, .. } if prop == "extra")),
+        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::UnknownProp { prop, .. }, .. } if prop == "extra")),
       "expected UnknownProp for 'extra', got: {diags:?}"
     );
   }

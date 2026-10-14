@@ -7,7 +7,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node_with_expected;
 use crate::db::derived::get_builtin_typs::get_config_typ;
 use crate::db::derived::name_resolver::scope::get_builtin_runtime_scope;
 use crate::db::types::{Project, ProjectRedNode, ResourceResult, TdTypEnum};
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::green::cache::green_cache;
 use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
 use crate::syntax::red::RedNode;
@@ -29,9 +29,12 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
     return ResourceResult::new(
       db,
       None,
-      vec![Diagnostic::MissingVaultConfig {
-        root_dir: root_dir.display().to_string(),
-      }],
+      vec![
+        TdDiagnosticKind::MissingVaultConfig {
+          root_dir: root_dir.display().to_string(),
+        }
+        .into_error(0, 0),
+      ],
     );
   };
 
@@ -46,10 +49,13 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
       return ResourceResult::new(
         db,
         None,
-        vec![Diagnostic::VaultConfigReadError {
-          path,
-          message: err.to_string(),
-        }],
+        vec![
+          TdDiagnosticKind::VaultConfigReadError {
+            path,
+            message: err.to_string(),
+          }
+          .into_error(0, 0),
+        ],
       );
     }
   };

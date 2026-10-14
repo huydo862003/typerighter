@@ -1,6 +1,6 @@
 //! Parser method for parsing many kinds of expressions
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_types::stream::Utf8Stream;
 
@@ -149,10 +149,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
         let is_arrow =
           peek.token.kind() == SyntaxKind::YamlOp && peek.token.chars().collect::<String>() == "->";
         if !is_arrow {
-          self.diagnostics.push(Diagnostic::DanglingParamList {
-            start_offset: self.offset() - lhs.text_len(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::DanglingParamList {}
+              .into_error(self.offset() - lhs.text_len(), self.offset()),
+          );
         }
       }
     }
@@ -236,10 +236,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
             SyntaxKind::IdentLit => {}
             // Anything else is invalid
             _ => {
-              self.diagnostics.push(Diagnostic::InvalidClosureParams {
-                start_offset: self.offset() - children[0].text_len(),
-                end_offset: self.offset(),
-              });
+              self.diagnostics.push(
+                TdDiagnosticKind::InvalidClosureParams {}
+                  .into_error(self.offset() - children[0].text_len(), self.offset()),
+              );
             }
           }
 
@@ -296,11 +296,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     let (arg, early_exit) = self.parse_formula_expr(vec![], block_indent);
     children.push(arg);
     if early_exit.is_some_and(|ctx| ctx != ExprCtx::Call) {
-      self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::RParen,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.diagnostics.push(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::RParen,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
       self.expr_ctx_stack.exit(ExprCtx::Call);
       return (self.emit(SyntaxKind::CallExpr, &children), early_exit);
     }
@@ -326,31 +327,34 @@ impl<S: Utf8Stream> ParseCtx<S> {
           let (arg, early_exit) = self.parse_formula_expr(vec![], block_indent);
           children.push(arg);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::Call) {
-            self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-              expected: SyntaxKind::RParen,
-              start_offset: self.offset(),
-              end_offset: self.offset(),
-            });
+            self.diagnostics.push(
+              TdDiagnosticKind::MissingSyntaxNode {
+                expected: SyntaxKind::RParen,
+              }
+              .into_error(self.offset(), self.offset()),
+            );
             self.expr_ctx_stack.exit(ExprCtx::Call);
             return (self.emit(SyntaxKind::CallExpr, &children), early_exit);
           }
         }
         SyntaxKind::Eof => {
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::RParen,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::RParen,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           break;
         }
         _ => {
           let handler = self.expr_ctx_stack.find_handler(&peek.token);
           if handler.is_some_and(|ctx| ctx != ExprCtx::Call) {
-            self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-              expected: SyntaxKind::RParen,
-              start_offset: self.offset(),
-              end_offset: self.offset(),
-            });
+            self.diagnostics.push(
+              TdDiagnosticKind::MissingSyntaxNode {
+                expected: SyntaxKind::RParen,
+              }
+              .into_error(self.offset(), self.offset()),
+            );
             self.expr_ctx_stack.exit(ExprCtx::Call);
             return (self.emit(SyntaxKind::CallExpr, &children), handler);
           }
@@ -452,11 +456,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
           }
         }
         SyntaxKind::Eof => {
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::RBracket,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::RBracket,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           break;
         }
         _ => {
@@ -521,11 +526,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
         let handler = self.expr_ctx_stack.find_handler(&peek.token);
         if handler.is_some() {
           // Don't consume: let the caller handle it
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::PrimaryExpr,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::PrimaryExpr,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           (self.emit(SyntaxKind::PrimaryExpr, &children), handler)
         } else {
           // No one can handle it: consume as error
@@ -533,11 +539,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
           self.advance(&mut children, self.formula_expr_skip_flags(), mode);
           let bad = children.pop().unwrap();
           children.push(self.emit(SyntaxKind::Error, &[bad]));
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::PrimaryExpr,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::PrimaryExpr,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           (self.emit(SyntaxKind::PrimaryExpr, &children), None)
         }
       }
@@ -571,11 +578,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_ALL_TRIVIA,
       mode,
       SyntaxKind::LParen,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::LParen,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     // Empty parens `()` -> ParamListExpr
@@ -608,11 +614,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_ALL_TRIVIA,
       mode,
       SyntaxKind::RParen,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::RParen,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     self.expr_ctx_stack.exit(ExprCtx::Paren);
@@ -653,10 +658,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::Paren) {
             self.expr_ctx_stack.exit(ExprCtx::Paren);
             let node = self.emit(SyntaxKind::ParamListExpr, &children);
-            self.diagnostics.push(Diagnostic::UnclosedParamList {
-              start_offset: self.offset() - node.text_len(),
-              end_offset: self.offset(),
-            });
+            self.diagnostics.push(
+              TdDiagnosticKind::UnclosedParamList {}
+                .into_error(self.offset() - node.text_len(), self.offset()),
+            );
             return (node, early_exit);
           }
         }
@@ -668,10 +673,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
           if handler.is_some_and(|ctx| ctx != ExprCtx::Paren) {
             self.expr_ctx_stack.exit(ExprCtx::Paren);
             let node = self.emit(SyntaxKind::ParamListExpr, &children);
-            self.diagnostics.push(Diagnostic::UnclosedParamList {
-              start_offset: self.offset() - node.text_len(),
-              end_offset: self.offset(),
-            });
+            self.diagnostics.push(
+              TdDiagnosticKind::UnclosedParamList {}
+                .into_error(self.offset() - node.text_len(), self.offset()),
+            );
             return (node, handler);
           }
           // Consume unexpected token as error
@@ -684,10 +689,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     if !closed {
       let total_len: usize = children.iter().map(|c| c.text_len()).sum();
-      self.diagnostics.push(Diagnostic::UnclosedParamList {
-        start_offset: self.offset() - total_len,
-        end_offset: self.offset(),
-      });
+      self.diagnostics.push(
+        TdDiagnosticKind::UnclosedParamList {}.into_error(self.offset() - total_len, self.offset()),
+      );
     }
 
     self.expr_ctx_stack.exit(ExprCtx::Paren);
@@ -711,10 +715,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
         | SyntaxKind::YamlComment => continue,
         SyntaxKind::IdentLit => continue,
         _ => {
-          self.diagnostics.push(Diagnostic::InvalidClosureParams {
-            start_offset: self.offset() - param_list.text_len(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::InvalidClosureParams {}
+              .into_error(self.offset() - param_list.text_len(), self.offset()),
+          );
           return;
         }
       }
@@ -754,11 +758,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       outer_skip,
       mode,
       SyntaxKind::LBracket,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::LBracket,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     // Check for empty list `[]`
@@ -806,11 +809,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
         }
         // EOF
         SyntaxKind::Eof => {
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::RBracket,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::RBracket,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           break;
         }
         // Unexpected token: check handler context
@@ -875,11 +879,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_WCN,
       mode,
       SyntaxKind::YamlIndent,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::YamlIndent,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     // Peek to decide: `-` means sequence, `ident` means mapping
@@ -1056,11 +1059,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       outer_skip,
       mode,
       SyntaxKind::LBrace,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::LBrace,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     // Check for empty mapping `{}`
@@ -1108,11 +1110,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
         }
         // EOF
         SyntaxKind::Eof => {
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::RBrace,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::RBrace,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           break;
         }
         // Unexpected token
@@ -1143,11 +1146,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Missing key: `:` seen immediately
     if peek.token.kind() == SyntaxKind::Colon {
-      self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::DictEntryKey,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.diagnostics.push(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::DictEntryKey,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
       // Emit empty MappingEntryKey as error
       children.push(self.emit(SyntaxKind::DictEntryKey, &[]));
     } else {
@@ -1158,11 +1162,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
         SKIP_ALL_TRIVIA,
         mode,
         SyntaxKind::Ident,
-        Diagnostic::MissingSyntaxNode {
+        TdDiagnosticKind::MissingSyntaxNode {
           expected: SyntaxKind::Ident,
-          start_offset: offset,
-          end_offset: self.offset(),
-        },
+        }
+        .into_error(offset, self.offset()),
       );
       let key_token = children.pop().unwrap();
       children.push(self.emit(SyntaxKind::DictEntryKey, &[key_token]));
@@ -1174,11 +1177,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.advance(&mut children, SKIP_WS, mode);
     } else {
       // Missing colon: emit diagnostic but continue to parse value
-      self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::Colon,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.diagnostics.push(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::Colon,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
     }
 
     // Value
@@ -1186,11 +1190,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     match peek.token.kind() {
       SyntaxKind::Comma | SyntaxKind::RBrace | SyntaxKind::Eof => {
         // Missing value
-        self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-          expected: SyntaxKind::DictEntryValue,
-          start_offset: self.offset(),
-          end_offset: self.offset(),
-        });
+        self.diagnostics.push(
+          TdDiagnosticKind::MissingSyntaxNode {
+            expected: SyntaxKind::DictEntryValue,
+          }
+          .into_error(self.offset(), self.offset()),
+        );
         children.push(self.emit(SyntaxKind::DictEntryValue, &[]));
         (self.emit(SyntaxKind::DictEntry, &children), None)
       }
@@ -1294,11 +1299,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_WS | SKIP_COMMENT,
       mode,
       SyntaxKind::Newline,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::Newline,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     // Expect indent
@@ -1308,21 +1312,21 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_NONE,
       mode,
       SyntaxKind::YamlIndent,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::YamlIndent,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
     let content_indent = self.lex_ctx.token_indent();
 
     if content_indent <= block_indent {
-      self.emit_diagnostic(Diagnostic::InsufficientBlockIndent {
-        expected_more_than: block_indent,
-        found: content_indent,
-        start_offset: offset,
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::InsufficientBlockIndent {
+          expected_more_than: block_indent,
+          found: content_indent,
+        }
+        .into_error(offset, self.offset()),
+      );
     }
 
     // Consume content until dedent or EOF
@@ -1368,11 +1372,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_WS | SKIP_COMMENT,
       mode,
       SyntaxKind::Newline,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::Newline,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     // Expect indent
@@ -1382,21 +1385,21 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_NONE,
       mode,
       SyntaxKind::YamlIndent,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::YamlIndent,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
     let content_indent = self.lex_ctx.token_indent();
 
     if content_indent <= block_indent {
-      self.emit_diagnostic(Diagnostic::InsufficientBlockIndent {
-        expected_more_than: block_indent,
-        found: content_indent,
-        start_offset: offset,
-        end_offset: self.offset(),
-      });
+      self.emit_diagnostic(
+        TdDiagnosticKind::InsufficientBlockIndent {
+          expected_more_than: block_indent,
+          found: content_indent,
+        }
+        .into_error(offset, self.offset()),
+      );
     }
 
     // Consume content until dedent or EOF
@@ -1532,11 +1535,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     // Missing key: `:` seen immediately
     if peek.token.kind() == SyntaxKind::Colon {
-      self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::YamlMappingEntryKey,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.diagnostics.push(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::YamlMappingEntryKey,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
       children.push(self.emit(SyntaxKind::YamlMappingEntryKey, &[]));
     } else {
       // Key (identifier)
@@ -1547,11 +1551,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
         SKIP_WCN,
         mode,
         SyntaxKind::Ident,
-        Diagnostic::MissingSyntaxNode {
+        TdDiagnosticKind::MissingSyntaxNode {
           expected: SyntaxKind::YamlMappingEntryKey,
-          start_offset: offset,
-          end_offset: self.offset(),
-        },
+        }
+        .into_error(offset, self.offset()),
       );
       children.push(self.emit(SyntaxKind::YamlMappingEntryKey, &key_children));
     }
@@ -1561,11 +1564,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     if peek.token.kind() == SyntaxKind::Colon {
       self.advance(&mut children, SKIP_WS, mode);
     } else {
-      self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-        expected: SyntaxKind::Colon,
-        start_offset: self.offset(),
-        end_offset: self.offset(),
-      });
+      self.diagnostics.push(
+        TdDiagnosticKind::MissingSyntaxNode {
+          expected: SyntaxKind::Colon,
+        }
+        .into_error(self.offset(), self.offset()),
+      );
     }
 
     // Value: check for newline + indent (nested block) or inline expression
@@ -1587,21 +1591,23 @@ impl<S: Utf8Stream> ParseCtx<S> {
           );
         } else {
           self.advance(&mut children, SKIP_WCN, mode);
-          self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-            expected: SyntaxKind::YamlMappingEntryValue,
-            start_offset: self.offset(),
-            end_offset: self.offset(),
-          });
+          self.diagnostics.push(
+            TdDiagnosticKind::MissingSyntaxNode {
+              expected: SyntaxKind::YamlMappingEntryValue,
+            }
+            .into_error(self.offset(), self.offset()),
+          );
           children.push(self.emit(SyntaxKind::YamlMappingEntryValue, &[]));
         }
       }
       // EOF: missing value
       SyntaxKind::Eof => {
-        self.diagnostics.push(Diagnostic::MissingSyntaxNode {
-          expected: SyntaxKind::YamlMappingEntryValue,
-          start_offset: self.offset(),
-          end_offset: self.offset(),
-        });
+        self.diagnostics.push(
+          TdDiagnosticKind::MissingSyntaxNode {
+            expected: SyntaxKind::YamlMappingEntryValue,
+          }
+          .into_error(self.offset(), self.offset()),
+        );
         children.push(self.emit(SyntaxKind::YamlMappingEntryValue, &[]));
       }
       // Inline value
@@ -1767,11 +1773,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SKIP_ALL_TRIVIA,
       mode,
       SyntaxKind::InterpEnd,
-      Diagnostic::MissingSyntaxNode {
+      TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::InterpEnd,
-        start_offset: offset,
-        end_offset: self.offset(),
-      },
+      }
+      .into_error(offset, self.offset()),
     );
 
     self.expr_ctx_stack.exit(ExprCtx::Interp);

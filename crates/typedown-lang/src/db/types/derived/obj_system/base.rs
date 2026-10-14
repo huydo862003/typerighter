@@ -15,7 +15,7 @@ use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams};
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::TdDiagnostic;
 
 /// Special protocol method names (bracketed)
 pub const PROTOCOL_INDEX: &str = "[[index]]";
@@ -189,7 +189,7 @@ pub trait TdRuntimeObj<'x0>: Id {
     _project: ::typedown_lang::db::types::Project,
     _this: Option<TdObjEnum<'x0>>,
     _args: Vec<TdObjEnum<'x0>>,
-  ) -> Result<TdObjEnum<'x0>, Vec<Diagnostic>> {
+  ) -> Result<TdObjEnum<'x0>, Vec<TdDiagnostic>> {
     Err(vec![])
   }
 

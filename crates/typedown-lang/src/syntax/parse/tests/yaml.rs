@@ -1,5 +1,5 @@
 use super::helpers::*;
-use crate::syntax::diagnostic::Diagnostic;
+use crate::syntax::diagnostic::*;
 
 fn parse_frontmatter(input: &str) -> String {
   let full = format!("---\n{}\n---\n", input);
@@ -9,7 +9,7 @@ fn parse_frontmatter(input: &str) -> String {
   render_tree(frontmatter)
 }
 
-fn parse_frontmatter_with_diagnostics(input: &str) -> (String, Vec<Diagnostic>) {
+fn parse_frontmatter_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
   let full = format!("---\n{}\n---\n", input);
   let (ast, diagnostics) = parse(&full);
   let root = ast.as_node().unwrap();
@@ -63,7 +63,7 @@ key: 1
   );
   assert_eq!(
     diags,
-    vec![Diagnostic::MissingFrontmatterMarker { offset: 11 },]
+    vec![TdDiagnosticKind::MissingFrontmatterMarker {}.into_error(11, 11)]
   );
 }
 
@@ -1080,11 +1080,13 @@ fn literal_block_str_insufficient_indent() {
   line one
 "#,
   );
-  assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::InsufficientBlockIndent { .. }))
-  );
+  assert!(diags.iter().any(|d| matches!(
+    d,
+    TdDiagnostic {
+      kind: TdDiagnosticKind::InsufficientBlockIndent { .. },
+      ..
+    }
+  )));
 }
 
 // Folded block string with insufficient indent emits InsufficientBlockIndent
@@ -1096,11 +1098,13 @@ fn folded_block_str_insufficient_indent() {
   line one
 "#,
   );
-  assert!(
-    diags
-      .iter()
-      .any(|d| matches!(d, Diagnostic::InsufficientBlockIndent { .. }))
-  );
+  assert!(diags.iter().any(|d| matches!(
+    d,
+    TdDiagnostic {
+      kind: TdDiagnosticKind::InsufficientBlockIndent { .. },
+      ..
+    }
+  )));
 }
 
 // Unquoted multi-word value should produce a parse error
@@ -1122,7 +1126,7 @@ fn parse_document(input: &str) -> String {
   render_tree(frontmatter)
 }
 
-fn parse_document_with_diagnostics(input: &str) -> (String, Vec<Diagnostic>) {
+fn parse_document_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
   let (ast, diagnostics) = parse_yaml_document(input);
   let root = ast.as_node().unwrap();
   let frontmatter = &root.children()[0];

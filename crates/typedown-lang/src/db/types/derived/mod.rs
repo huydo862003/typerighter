@@ -9,8 +9,8 @@ pub use symbol::*;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::syntax::diagnostic::Diagnostic;
-use typedown_macros::{StableCompare, query_derived};
+use crate::syntax::diagnostic::TdDiagnostic;
+use typedown_macros::{Decodable, Encodable, StableCompare, StableHash, query_derived};
 
 use crate::syntax::ast::{
   AstNode, DictLit, ListLit, SourceFile, YamlFrontmatter, YamlMapping, YamlSequence,
@@ -211,7 +211,7 @@ pub struct VaultConfigResult<'db> {
   nav_items: Vec<(String, String, Option<String>)>,
   component_entries: Vec<CustomComponentEntry>,
   layout: Option<CustomLayoutConfig>,
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
 #[query_derived]
@@ -221,10 +221,10 @@ pub struct CustomComponentContractResult<'db> {
 
 #[query_derived]
 pub struct CustomComponentCheckResult<'db> {
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, StableCompare)]
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
 pub struct CustomComponentTyp {
   pub name: String,
   pub source: String,
@@ -232,14 +232,14 @@ pub struct CustomComponentTyp {
   pub props: Option<Vec<CustomComponentProp>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, StableCompare)]
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
 pub struct CustomComponentProp {
   pub name: String,
   pub type_name: String,
   pub required: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, StableCompare)]
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
 pub enum CustomComponentEntry {
   Dir { path: String },
   Explicit { name: String, source: String },
@@ -252,7 +252,7 @@ pub struct FileAstResult<'db> {
   project: Project,
   file: File,
   ast: ProjectRedNode,
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
 #[query_derived]
@@ -262,28 +262,28 @@ pub struct SchemaAstResults<'db> {
 
 #[query_derived]
 pub struct TypecheckResult<'db> {
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
 #[query_derived]
 pub struct ResolveResult<'db> {
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
 #[query_derived]
 pub struct TypResult<'db> {
   typ: Option<TdTypEnum<'db>>,
-  diagnostics: Vec<Diagnostic>,
+  diagnostics: Vec<TdDiagnostic>,
 }
 
 #[query_derived]
 pub struct InstantiateResult<'db> {
   pub typ: TdTypEnum<'db>,
-  pub diagnostics: Vec<Diagnostic>,
+  pub diagnostics: Vec<TdDiagnostic>,
 }
 
 #[query_derived]
 pub struct ResourceResult<'db> {
   pub value: Option<TdObjEnum<'db>>,
-  pub diagnostics: Vec<Diagnostic>,
+  pub diagnostics: Vec<TdDiagnostic>,
 }
