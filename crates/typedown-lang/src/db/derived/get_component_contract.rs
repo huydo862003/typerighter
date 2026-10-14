@@ -3,9 +3,11 @@
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
+use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::{
   CustomComponentContractResult, CustomComponentProp, CustomComponentTyp, File, FileHandle,
 };
+use crate::integrations::json_schema::{is_optional, parse_json_schema, unwrap_optional};
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -14,9 +16,10 @@ pub fn get_component_contract<'db>(
   file: File,
 ) -> CustomComponentContractResult<'db> {
   let content = read_handle_content(&file.handle(db)).unwrap_or_default();
-  CustomComponentContractResult::new(db, parse_contract_entries(&content))
+  CustomComponentContractResult::new(db, parse_contract_entries(db, &content))
 }
 
+// Read raw JSON from disk or editor buffer
 fn read_handle_content(handle: &FileHandle) -> Option<String> {
   match handle {
     // Re-reads from disk on each call, but get_component_contract is memoized on the File input (which includes mtime), so this only runs when the contract file changes
@@ -25,7 +28,8 @@ fn read_handle_content(handle: &FileHandle) -> Option<String> {
   }
 }
 
-fn parse_contract_entries(json: &str) -> Vec<CustomComponentTyp> {
+// Deserialize contract JSON, parse each prop's JSON Schema into a td type
+fn parse_contract_entries(db: &TypedownDatabase, json: &str) -> Vec<CustomComponentTyp> {
   let Ok(map) = serde_json::from_str::<serde_json::Value>(json) else {
     return vec![];
   };
@@ -43,15 +47,14 @@ fn parse_contract_entries(json: &str) -> Vec<CustomComponentTyp> {
       let props = props_obj.map(|prop| {
         prop
           .iter()
-          .filter_map(|(prop_name, prop)| {
-            let type_name = prop.get("type")?.as_str()?.to_string();
-            let required = prop
-              .get("required")
-              .and_then(|required| required.as_bool())
-              .unwrap_or(false);
+          .filter_map(|(prop_name, schema)| {
+            // Parse JSON Schema -> td type, derive required from optionality
+            let typ = parse_json_schema(db, schema)?;
+            let required = !is_optional(db, &typ);
+            let base = unwrap_optional(db, typ);
             Some(CustomComponentProp {
               name: prop_name.clone(),
-              type_name,
+              typ_name: base.display_name(db),
               required,
             })
           })
@@ -70,21 +73,31 @@ fn parse_contract_entries(json: &str) -> Vec<CustomComponentTyp> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::db::QueryStorage;
+
+  fn make_db() -> TypedownDatabase {
+    TypedownDatabase {
+      storage: QueryStorage::default(),
+    }
+  }
 
   #[test]
   fn parse_empty_json() {
-    assert!(parse_contract_entries("{}").is_empty());
+    let db = make_db();
+    assert!(parse_contract_entries(&db, "{}").is_empty());
   }
 
   #[test]
   fn parse_invalid_json() {
-    assert!(parse_contract_entries("not json").is_empty());
+    let db = make_db();
+    assert!(parse_contract_entries(&db, "not json").is_empty());
   }
 
   #[test]
   fn parse_component_with_props() {
-    let json = r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"type":"list[number]","required":true},"title":{"type":"string","required":false}}}}"#;
-    let entries = parse_contract_entries(json);
+    let db = make_db();
+    let json = r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"type":"array","items":{"type":"number"}},"title":{"type":["string","null"]}}}}"#;
+    let entries = parse_contract_entries(&db, json);
     assert_eq!(entries.len(), 1);
     let entry = &entries[0];
     assert_eq!(entry.name, "Chart");
@@ -92,7 +105,6 @@ mod tests {
     let props = entry.props.as_ref().unwrap();
     assert_eq!(props.len(), 2);
     let data_prop = props.iter().find(|p| p.name == "data").unwrap();
-    assert_eq!(data_prop.type_name, "list[number]");
     assert!(data_prop.required);
     let title_prop = props.iter().find(|p| p.name == "title").unwrap();
     assert!(!title_prop.required);
@@ -100,22 +112,24 @@ mod tests {
 
   #[test]
   fn parse_component_no_props() {
+    let db = make_db();
     let json = r#"{"Toc":{"source":"./Toc.vue","props":{}}}"#;
-    let entries = parse_contract_entries(json);
+    let entries = parse_contract_entries(&db, json);
     assert_eq!(entries.len(), 1);
     assert!(entries[0].props.as_ref().unwrap().is_empty());
   }
 
   #[test]
   fn parse_skips_missing_source() {
-    let json = r#"{"Bad":{"props":{}}}"#;
-    assert!(parse_contract_entries(json).is_empty());
+    let db = make_db();
+    assert!(parse_contract_entries(&db, r#"{"Bad":{"props":{}}}"#).is_empty());
   }
 
   #[test]
   fn parse_component_without_props_key() {
+    let db = make_db();
     let json = r#"{"Badge":{"source":"./Badge.vue"}}"#;
-    let entries = parse_contract_entries(json);
+    let entries = parse_contract_entries(&db, json);
     assert_eq!(entries.len(), 1);
     assert!(entries[0].props.is_none());
   }

@@ -16,34 +16,43 @@ import type {
   AppContext,
 } from '@/node/context';
 import {
-  generateAppEntry, resolveUserComponents,
+  generateAppEntry,
 } from '@/node/lib/codegen';
+import {
+  resolveUserComponents,
+} from '@/node/lib/components';
 
 export class VirtualApp {
   async load (context: AppContext): Promise<string> {
     const tdContext = await context.getTdContext();
     const config = await tdContext.getConfig();
-    const userComponents = await resolveUserComponents(config.components, context.root);
+    const userComponents = await resolveUserComponents(
+      config.components,
+      context.root,
+    );
 
-    return generateAppEntry({
-      rootDir: config.rootDir,
-      basePath: config.basePath,
-      origin: config.origin ?? undefined,
-      lang: config.lang,
-      siteTitle: config.siteTitle,
-      siteDescription: config.siteDescription,
-      repo: config.repo ?? undefined,
-      author: config.author ?? undefined,
-      license: config.license ?? undefined,
-      nav: config.nav,
-      userComponents,
-    }, {
-      theme: THEME_ID,
-      pages: PAGES_ID,
-      siteData: SITE_DATA_ID,
-      searchIndex: SEARCH_INDEX_ID,
-      pageDataEvent: PAGE_DATA_EVENT,
-    });
+    return generateAppEntry(
+      {
+        rootDir: config.rootDir,
+        basePath: config.basePath,
+        origin: config.origin ?? undefined,
+        lang: config.lang,
+        siteTitle: config.siteTitle,
+        siteDescription: config.siteDescription,
+        repo: config.repo ?? undefined,
+        author: config.author ?? undefined,
+        license: config.license ?? undefined,
+        nav: config.nav,
+        userComponents,
+      },
+      {
+        theme: THEME_ID,
+        pages: PAGES_ID,
+        siteData: SITE_DATA_ID,
+        searchIndex: SEARCH_INDEX_ID,
+        pageDataEvent: PAGE_DATA_EVENT,
+      },
+    );
   }
 
   invalidate (server: ViteDevServer): void {

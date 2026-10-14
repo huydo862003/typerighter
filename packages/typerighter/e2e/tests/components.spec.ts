@@ -1,4 +1,7 @@
 import {
+  readFile, access,
+} from 'node:fs/promises';
+import {
   test,
 } from '@playwright/test';
 import {
@@ -199,27 +202,178 @@ components.describe('TdCard', () => {
 });
 
 components.describe('contract', () => {
-  components('components.json has expected shape for all components', async ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let contract: Record<string, any>;
+
+  components.beforeEach(async ({
     testProject,
   }) => {
-    const {
-      readFile,
-    } = await import('node:fs/promises');
-    const contract = JSON.parse(
+    contract = JSON.parse(
       await readFile(`${testProject.dir}/.typedown/components.json`, 'utf-8'),
     );
+  });
 
+  components('components.json contains all registered components', async () => {
     expect(Object.keys(contract)).toEqual(
       expect.arrayContaining([
         'TdAlert',
         'TdDataTable',
         'TdTabs',
         'TdCard',
+        'TdComplex',
       ]),
     );
-    expect(contract.TdTabs.props.labels.required).toBe(true);
-    expect(contract.TdCard.props.title.required).toBe(true);
-    expect(contract.TdDataTable.props.caption.required).toBe(false);
+  });
+
+  components('string prop type is mapped correctly', async () => {
+    // Required props: { type: "string" }; optional props: { type: ["string", "null"] }
+    expect(contract.TdCard.props.title).toEqual({
+      type: 'string',
+    });
+    expect(contract.TdCard.props.icon).toEqual({
+      type: [
+        'string',
+        'null',
+      ],
+    });
+  });
+
+  components('boolean prop type is mapped correctly', async () => {
+    expect(contract.TdDataTable.props.striped).toEqual({
+      type: [
+        'boolean',
+        'null',
+      ],
+    });
+  });
+
+  components('number prop type is mapped correctly', async () => {
+    expect(contract.TdTabs.props.active).toEqual({
+      type: [
+        'number',
+        'null',
+      ],
+    });
+    expect(contract.TdTabs.props.labels).toEqual({
+      type: 'string',
+    });
+  });
+
+  components('unsupported prop type is omitted, component still registered', async () => {
+    // TdComplex has title: string (kept) and data: Record<string, unknown> (omitted)
+    expect(contract.TdComplex).toBeDefined();
+    expect(contract.TdComplex.props.title).toEqual({
+      type: 'string',
+    });
+    expect(contract.TdComplex.props.data).toBeUndefined();
+  });
+});
+
+// Fixture variant that starts without a pre-existing components.json
+const componentsFresh = test.extend<{
+  testProject: TestProject;
+}>({
+  testProject: [
+    createTestProjectFixture('vault-components', {
+      withoutContract: true,
+    }),
+    {
+      scope: 'test',
+    },
+  ],
+});
+
+// Wait for the plugin to write the file (it writes async during configureServer)
+async function waitForContract (filePath: string, timeoutMs = 15_000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      return await readFile(filePath, 'utf-8');
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+  throw new Error(`components.json not created within ${timeoutMs}ms`);
+}
+
+componentsFresh.describe('contract (fresh)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let contract: Record<string, any>;
+
+  componentsFresh.beforeEach(async ({
+    testProject,
+  }) => {
+    const raw = await waitForContract(`${testProject.dir}/.typedown/components.json`);
+
+    contract = JSON.parse(raw);
+  });
+
+  componentsFresh('plugin generates components.json from scratch on startup', async () => {
+    expect(Object.keys(contract)).toEqual(
+      expect.arrayContaining([
+        'TdAlert',
+        'TdDataTable',
+        'TdTabs',
+        'TdCard',
+        'TdComplex',
+      ]),
+    );
+  });
+
+  componentsFresh('generated contract has correct prop types', async () => {
+    expect(contract.TdTabs.props.labels).toEqual({
+      type: 'string',
+    });
+    expect(contract.TdTabs.props.active).toEqual({
+      type: [
+        'number',
+        'null',
+      ],
+    });
+    expect(contract.TdDataTable.props.striped).toEqual({
+      type: [
+        'boolean',
+        'null',
+      ],
+    });
+    expect(contract.TdCard.props.title).toEqual({
+      type: 'string',
+    });
+    expect(contract.TdCard.props.footer).toEqual({
+      type: [
+        'string',
+        'null',
+      ],
+    });
+  });
+
+  componentsFresh('unsupported prop type omitted in generated contract', async () => {
+    expect(contract.TdComplex.props.title).toEqual({
+      type: 'string',
+    });
+    expect(contract.TdComplex.props.data).toBeUndefined();
+  });
+});
+
+// Vault with no theme.components config - plugin should not create components.json
+const componentsNone = test.extend<{
+  testProject: TestProject;
+}>({
+  testProject: [
+    createTestProjectFixture('vault-root'),
+    {
+      scope: 'test',
+    },
+  ],
+});
+
+componentsNone.describe('contract (no components)', () => {
+  componentsNone('components.json is not created when no components are configured', async ({
+    testProject,
+  }) => {
+    // Server is already responsive by the time the test runs, so any contract write has occurred
+    await expect(access(`${testProject.dir}/.typedown/components.json`)).rejects.toThrow();
   });
 });
 
@@ -234,9 +388,6 @@ components.describe('HMR', () => {
     );
 
     // Read existing contract and add TdBadge without clobbering other entries
-    const {
-      readFile,
-    } = await import('node:fs/promises');
     const existing = JSON.parse(
       await readFile(`${testProject.dir}/.typedown/components.json`, 'utf-8'),
     );
@@ -263,6 +414,75 @@ components.describe('HMR', () => {
       timeout: 15_000,
     });
     await expect(page.locator('.td-badge')).toContainText('New badge');
+  });
+});
+
+components.describe('component check', () => {
+  // Positive: correct usage renders without issues
+  components('known component with required prop renders correctly', async ({
+    page,
+  }) => {
+    await expect(page.locator('.td-card .td-card__title')).toHaveText('Getting started');
+  });
+
+  // Negative: unknown component emits diagnostic, page still renders
+  // Uses check-unknown-component.td in the fixture (checked at startup)
+  components('unknown component emits warning', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/check-unknown-component');
+    await expect(page.locator('.td-content')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const hasWarning = testProject.serverStderr.some(
+      (line) => line.includes('td-nonexistent'),
+    );
+
+    expect(hasWarning).toBe(true);
+  });
+
+  // Negative: missing required prop emits diagnostic, component still renders
+  // Uses check-missing-prop.td in the fixture (TdCard without title)
+  components('missing required prop emits warning', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/check-missing-prop');
+    await expect(page.locator('.td-content')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('.td-card')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const hasWarning = testProject.serverStderr.some(
+      (line) => line.includes('title'),
+    );
+
+    expect(hasWarning).toBe(true);
+  });
+
+  // Negative: unknown prop emits diagnostic, component still renders
+  // Uses check-unknown-prop.td in the fixture (TdAlert with severity prop)
+  components('unknown prop emits warning', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/check-unknown-prop');
+    await expect(page.locator('.td-content')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('.td-alert')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const hasWarning = testProject.serverStderr.some(
+      (line) => line.includes('severity'),
+    );
+
+    expect(hasWarning).toBe(true);
   });
 });
 

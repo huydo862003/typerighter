@@ -1,6 +1,6 @@
 import type {
   UserComponent,
-} from './components';
+} from '@/node/lib/components';
 import {
   CONTENT_EXTENSIONS,
 } from '@/shared';

@@ -2,53 +2,35 @@
   "TdAlert": {
     "source": "./components/TdAlert.vue",
     "props": {
-      "kind": {
-        "type": "string",
-        "required": false
-      }
+      "kind": { "type": ["string", "null"] }
     }
   },
   "TdDataTable": {
     "source": "./components/TdDataTable.vue",
     "props": {
-      "caption": {
-        "type": "string",
-        "required": false
-      },
-      "striped": {
-        "type": "boolean",
-        "required": false
-      }
+      "caption": { "type": ["string", "null"] },
+      "striped": { "type": ["boolean", "null"] }
     }
   },
   "TdTabs": {
     "source": "./components/TdTabs.vue",
     "props": {
-      "labels": {
-        "type": "string",
-        "required": true
-      },
-      "active": {
-        "type": "number",
-        "required": false
-      }
+      "labels": { "type": "string" },
+      "active": { "type": ["number", "null"] }
     }
   },
   "TdCard": {
     "source": "./components/TdCard.vue",
     "props": {
-      "title": {
-        "type": "string",
-        "required": true
-      },
-      "icon": {
-        "type": "string",
-        "required": false
-      },
-      "footer": {
-        "type": "string",
-        "required": false
-      }
+      "title": { "type": "string" },
+      "icon": { "type": ["string", "null"] },
+      "footer": { "type": ["string", "null"] }
+    }
+  },
+  "TdComplex": {
+    "source": "./components/TdComplex.vue",
+    "props": {
+      "title": { "type": "string" }
     }
   }
 }

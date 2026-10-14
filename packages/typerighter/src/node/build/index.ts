@@ -11,8 +11,11 @@ import {
   THEME_ID, PAGES_ID, SITE_DATA_ID, SEARCH_INDEX_ID, PAGE_DATA_EVENT,
 } from '../plugin/vite';
 import {
-  generateAppEntry, generateThemeModule, resolveUserComponents, type UserComponent,
+  generateAppEntry, generateThemeModule,
 } from '../lib/codegen';
+import {
+  resolveUserComponents, type UserComponent,
+} from '../lib/components';
 import {
   ProgressLogger,
 } from '../lib/progress';
