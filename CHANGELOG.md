@@ -306,8 +306,9 @@
   - Zero-type-error regression test for cache corruption bug
   - Cache roundtrip tests assert export headers are non-null and parse results have content
 
-* CI
-  - E2E workflow with Playwright on GitHub Actions
+### Internal
+
+- E2E workflow with Playwright on GitHub Actions
 
 ## [0.37.1] - 2026-09-19 (retracted)
 
