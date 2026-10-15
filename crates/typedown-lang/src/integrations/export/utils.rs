@@ -9,9 +9,9 @@ pub fn slugify(text: &str) -> String {
   let mut slug = String::new();
   let mut prev_hyphen = false;
 
-  for ch in text.chars() {
-    if ch.is_alphanumeric() {
-      slug.push(ch.to_ascii_lowercase());
+  for char in text.chars() {
+    if char.is_alphanumeric() {
+      slug.push(char.to_ascii_lowercase());
       prev_hyphen = false;
     } else if !slug.is_empty() && !prev_hyphen {
       slug.push('-');
@@ -20,6 +20,10 @@ pub fn slugify(text: &str) -> String {
   }
 
   slug.trim_end_matches('-').to_string()
+}
+
+pub fn is_string_quoted(string: &str) -> bool {
+  (string.starts_with('"') && string.ends_with('"')) || (string.starts_with('\'') && string.ends_with('\''))
 }
 
 pub fn html_escape(text: &str) -> String {
