@@ -64,7 +64,7 @@ _icon: icon.book
 _icon: icon.lightbulb
 ```
 
-See [Icons reference](04-icons) for the full list of available icons.
+See [Icons reference](05-icons) for the full list of available icons.
 
 ## Schema inheritance: `_extends`
 

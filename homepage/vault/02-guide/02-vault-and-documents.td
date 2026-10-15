@@ -55,7 +55,7 @@ site:
 | `repo` | Optional repository URL shown in the site header. |
 | `site.title` | Site title for HTML and the sidebar. |
 | `site.description` | Site description for HTML meta tags. |
-| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](../03-references/02-markdown-body#user-defined-components). |
+| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](../03-references/03-markdown-body#user-defined-components). |
 
 ## Internal directories
 
@@ -156,7 +156,7 @@ The expression is evaluated at build time and replaced with the result.
 
 **Container shorthands** like `[[toc]]` and `[[directory-index]]` insert built-in components.
 
-See the [Markdown reference](../03-references/02-markdown-body) for the full syntax.
+See the [Markdown reference](../03-references/03-markdown-body) for the full syntax.
 
 ## Next steps
 

@@ -65,7 +65,7 @@ useTdContent()
 </template>
 ```
 
-`useTdContent()` must be called in your layout's `setup` before `<Content />` renders. See the [Client API reference](07-client-api) for all available composables and components.
+`useTdContent()` must be called in your layout's `setup` before `<Content />` renders. See the [Client API reference](08-client-api) for all available composables and components.
 
 ### Reusing default components
 

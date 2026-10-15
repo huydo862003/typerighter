@@ -45,7 +45,7 @@ theme:
       doc_after: "FeedbackWidget"
 ```
 
-Each slot name maps to a position in the default theme (see the [slot reference](../03-references/06-theming)). The value is the name of a registered component.
+Each slot name maps to a position in the default theme (see the [slot reference](../03-references/07-theming)). The value is the name of a registered component.
 
 ## Custom layout
 

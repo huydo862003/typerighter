@@ -8,6 +8,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
+use crate::integrations::export::utils::is_string_quoted;
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
   MdBoldItalic, MdHeading, MdItalic, MdLink, MdStrikethrough, MdTable, MdTableCell,
@@ -218,7 +219,7 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_ordered_list(&mut self, node: &RedNode) {
-    let start = extract_ordered_start(node);
+    let start = extract_ordered_list_start_number(node);
     if start > 1 {
       self.write(&format!("<ol start=\"{start}\">\n"));
     } else {
@@ -826,42 +827,34 @@ fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>)
 fn extract_container_props(node: &RedNode) -> String {
   for child in node.children() {
     if child.kind() == SyntaxKind::MdContainerPropBlock {
-      return extract_props_from_block(&child);
+      let mut props = Vec::new();
+      for item in child.children() {
+        if item.kind() == SyntaxKind::MdContainerPropItem {
+          let text = item.text().trim().to_string();
+          if !text.is_empty() {
+            if let Some(eq) = text.find('=') {
+              let key = &text[..eq];
+              let raw_value = &text[eq + 1..];
+              let was_quoted = is_string_quoted(raw_value);
+              let value = strip_quotes(raw_value);
+
+              if was_quoted {
+                // Quoted: pass as string attribute
+                props.push(format!("{key}=\"{}\"", html_escape(value)));
+              } else {
+                // Unquoted: use v-bind so Vue preserves the JS type
+                props.push(format!(":{key}=\"{}\"", html_escape(value)));
+              }
+            } else {
+              props.push(text);
+            }
+          }
+        }
+      }
+      return props.join(" ");
     }
   }
   String::new()
-}
-
-fn extract_props_from_block(node: &RedNode) -> String {
-  let mut props = Vec::new();
-  for item in node.children() {
-    if item.kind() == SyntaxKind::MdContainerPropItem {
-      let text = item.text().trim().to_string();
-      if !text.is_empty() {
-        if let Some(eq) = text.find('=') {
-          let key = &text[..eq];
-          let raw_value = &text[eq + 1..];
-          let was_quoted = is_quoted(raw_value);
-          let value = strip_quotes(raw_value);
-
-          if was_quoted {
-            // Quoted: pass as string attribute
-            props.push(format!("{key}=\"{}\"", html_escape(value)));
-          } else {
-            // Unquoted: use v-bind so Vue preserves the JS type
-            props.push(format!(":{key}=\"{}\"", html_escape(value)));
-          }
-        } else {
-          props.push(text);
-        }
-      }
-    }
-  }
-  props.join(" ")
-}
-
-fn is_quoted(s: &str) -> bool {
-  (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\''))
 }
 
 fn extract_slot_name(node: &RedNode) -> Option<String> {
@@ -875,7 +868,7 @@ fn extract_slot_name(node: &RedNode) -> Option<String> {
   }
 }
 
-fn extract_ordered_start(node: &RedNode) -> usize {
+fn extract_ordered_list_start_number(node: &RedNode) -> usize {
   for child in node.children() {
     if child.kind() == SyntaxKind::MdOrderedListItem {
       for c in child.children() {
