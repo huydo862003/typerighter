@@ -230,6 +230,10 @@ pub struct CustomComponentTyp {
   pub source: String,
   // None means props were not declared in the contract: skip prop validation
   pub props: Option<Vec<CustomComponentProp>>,
+  // Named slots (excluding default)
+  pub slots: Vec<String>,
+  // If set, the component is deprecated with this message
+  pub deprecated: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
@@ -237,6 +241,7 @@ pub struct CustomComponentProp {
   pub name: String,
   pub typ_name: String,
   pub required: bool,
+  pub description: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]

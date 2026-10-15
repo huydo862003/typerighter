@@ -546,8 +546,13 @@ age: 30
   #[test]
   fn missing_required_prop_produces_diagnostic() {
     let contract =
-      r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"type":"string","required":true}}}}"#;
-    let analysis = setup_with_contract(":::chart\n:::\n", contract);
+      r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"schema":{"type":"string"}}}}}"#;
+    let analysis = setup_with_contract(
+      r#":::chart
+:::
+"#,
+      contract,
+    );
     let notifications = publish_diagnostics_for_project(&analysis);
     let notif = notifications
       .iter()

@@ -1,5 +1,7 @@
 //! Markdown body parsing
 
+mod prop;
+
 use crate::syntax::diagnostic::*;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_types::stream::Utf8Stream;
@@ -1376,6 +1378,24 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Number value
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdNumber {
       self.advance_md(&mut children, SKIP_NONE);
+
+      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
+
+      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
+    }
+
+    // Prop value: literal, list, or unary minus
+    let peek = self.lex_ctx.peek_md(SKIP_NONE);
+    let is_unary_minus =
+      peek.token.kind() == SyntaxKind::MdSymbol && peek.token.text().is_some_and(|t| t == "-");
+    if matches!(
+      peek.token.kind(),
+      SyntaxKind::Ident | SyntaxKind::LBracket | SyntaxKind::LBrace
+    ) || is_unary_minus
+    {
+      self.lex_ctx.enter_prop_value_mode();
+      children.push(self.parse_js_prop_value());
+      self.lex_ctx.exit_prop_value_mode();
 
       self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
 

@@ -4,6 +4,9 @@ import {
   readdir,
 } from 'node:fs/promises';
 import {
+  createRequire,
+} from 'node:module';
+import {
   createChecker, createCheckerByJson,
 } from 'vue-component-meta';
 import type {
@@ -23,11 +26,17 @@ export function createComponentChecker (projectRoot: string) {
     return createChecker(tsconfig);
   }
 
+  // When node_modules is symlinked (e.g. pnpm workspace or temp dirs), TS cannot resolve vue through the symlink. Resolve the real path and add it via paths
+  const vuePaths = resolveVuePaths(projectRoot);
+
   return createCheckerByJson(projectRoot, {
     compilerOptions: {
       strict: false,
       jsx: 'preserve',
       jsxImportSource: 'vue',
+      ...(vuePaths && {
+        paths: vuePaths,
+      }),
     },
   });
 }
@@ -42,23 +51,37 @@ export async function resolveUserComponents (
   for (const entry of entries) {
     if (entry.kind === 'dir') {
       const directoryPath = path.resolve(projectRoot, entry.path);
-      let files: string[];
+      let entries: fs.Dirent[];
 
       try {
-        files = await readdir(directoryPath);
+        entries = await readdir(directoryPath, {
+          withFileTypes: true,
+        });
       } catch {
         continue;
       }
 
-      for (const file of files) {
-        if (!file.endsWith('.vue')) continue;
+      for (const child of entries) {
+        // Direct .vue file: ComponentName.vue
+        if (child.isFile() && child.name.endsWith('.vue')) {
+          components.push({
+            name: child.name.slice(0, -4),
+            absolutePath: path.join(directoryPath, child.name),
+          });
+          continue;
+        }
 
-        const name = file.slice(0, -4);
+        // Subdirectory with index.vue: ComponentName/index.vue
+        if (child.isDirectory()) {
+          const indexPath = path.join(directoryPath, child.name, 'index.vue');
 
-        components.push({
-          name,
-          absolutePath: path.join(directoryPath, file),
-        });
+          if (fs.existsSync(indexPath)) {
+            components.push({
+              name: child.name,
+              absolutePath: indexPath,
+            });
+          }
+        }
       }
     } else {
       components.push({
@@ -69,4 +92,18 @@ export async function resolveUserComponents (
   }
 
   return components;
+}
+
+function resolveVuePaths (projectRoot: string): Record<string, string[]> | undefined {
+  try {
+    const require = createRequire(path.join(projectRoot, 'package.json'));
+    const vueDirectory = path.dirname(require.resolve('vue/package.json'));
+
+    return {
+      vue: [vueDirectory],
+      'vue/*': [path.join(vueDirectory, '*')],
+    };
+  } catch {
+    return undefined;
+  }
 }

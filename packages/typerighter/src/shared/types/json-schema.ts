@@ -1,6 +1,9 @@
-// JSON Schema types and builders used for the component contract
-// Covers the subset of JSON Schema that typedown component props can express:
-// primitives, arrays, objects (dict and product), and optional (nullable) variants
+// JSON Schema subset for component prop contracts
+
+// { anyOf: [<schema>, ...] }
+export interface AnyOfSchema {
+  anyOf: JsonSchema[];
+}
 
 // { type: "array", items: <schema> }
 export interface ArraySchema {
@@ -8,31 +11,43 @@ export interface ArraySchema {
   items: JsonSchema;
 }
 
-// { type: "object", additionalProperties: <value schema> }
+// { type: "object", additionalProperties: <schema> }
 export interface DictSchema {
   type: 'object';
   additionalProperties: JsonSchema;
 }
 
-// A JSON Schema object node
-export type JsonSchema =
-  | PrimitiveSchema
-  | OptionalSchema
-  | ArraySchema
-  | DictSchema
-  | ProductSchema;
-
-// Nullable type: { type: ["T", "null"] } or with "undefined" when TypeScript optional surfaces it
-// JSON Schema uses "null"; TypeScript optional also surfaces "undefined"
-export interface OptionalSchema {
-  type: [string, 'null' | 'undefined'] | [string, 'null', 'undefined'] | [string, 'undefined', 'null'];
+// { enum: ["info", "warning", null] }
+export interface EnumSchema {
+  enum: (string | number | boolean | null)[];
 }
 
+export type JsonSchema =
+  | PrimitiveSchema
+  | MultiTypeSchema
+  | EnumSchema
+  | ArraySchema
+  | ProductSchema
+  | DictSchema
+  | OneOfSchema
+  | AnyOfSchema;
+
+// { type: ["string", "null"] } or { type: ["string", "number"] }
+export interface MultiTypeSchema {
+  type: string[];
+}
+
+// { oneOf: [<schema>, ...] }
+export interface OneOfSchema {
+  oneOf: JsonSchema[];
+}
+
+// { type: "string" }
 export interface PrimitiveSchema {
   type: 'string' | 'number' | 'boolean';
 }
 
-// { type: "object", properties: {...}, required?: [...], additionalProperties: false }
+// { type: "object", properties: {...}, required: [...], additionalProperties: false }
 export interface ProductSchema {
   type: 'object';
   properties: Record<string, JsonSchema>;
@@ -41,22 +56,44 @@ export interface ProductSchema {
 }
 
 export function isOptional (schema: JsonSchema): boolean {
-  return Array.isArray(schema.type);
+  if ('enum' in schema) return schema.enum.includes(null);
+  if ('type' in schema && Array.isArray(schema.type)) return schema.type.includes('null');
+
+  return false;
 }
 
-// Wrap any schema in a nullable (optional) variant
-// No-op if already optional (type is already an array)
 export function makeOptional (schema: JsonSchema): JsonSchema {
-  const baseType = schema.type;
+  if ('enum' in schema) {
+    if (schema.enum.includes(null)) return schema;
 
-  if (typeof baseType === 'string') {
     return {
-      ...schema,
-      type: [
-        baseType,
-        'null',
+      enum: [
+        ...schema.enum,
+        null,
       ],
     };
+  }
+
+  if ('type' in schema) {
+    if (typeof schema.type === 'string') {
+      return {
+        ...schema,
+        type: [
+          schema.type,
+          'null',
+        ],
+      };
+    }
+
+    if (Array.isArray(schema.type) && !schema.type.includes('null')) {
+      return {
+        ...schema,
+        type: [
+          ...schema.type,
+          'null',
+        ],
+      };
+    }
   }
 
   return schema;

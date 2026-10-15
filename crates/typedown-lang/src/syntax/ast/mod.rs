@@ -426,6 +426,45 @@ impl MdContainerBlock {
     if title.is_empty() { None } else { Some(title) }
   }
 
+  pub fn prop_names(&self) -> Vec<String> {
+    let Some(prop_block) = self
+      .0
+      .children()
+      .find(|child| child.kind() == SyntaxKind::MdContainerPropBlock)
+    else {
+      return Vec::new();
+    };
+
+    prop_block
+      .children()
+      .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
+      .filter_map(|item| {
+        item
+          .children()
+          .find(|child| child.kind() == SyntaxKind::Ident)
+          .map(|ident| ident.text().to_string())
+      })
+      .collect()
+  }
+
+  pub fn slot_names(&self) -> Vec<String> {
+    self
+      .0
+      .children()
+      .filter(|child| child.kind() == SyntaxKind::MdContainerSlotSeparator)
+      .filter_map(|sep| {
+        let text = sep.text();
+        let rest = text.trim().strip_prefix("===")?;
+        let name = rest.trim();
+        if name.is_empty() {
+          None
+        } else {
+          Some(name.to_string())
+        }
+      })
+      .collect()
+  }
+
   pub fn value(&self) -> impl Iterator<Item = MdNode> {
     self.0.children().filter_map(MdNode::cast)
   }
@@ -454,6 +493,27 @@ impl MdContainerShorthand {
     }
 
     if label.is_empty() { None } else { Some(label) }
+  }
+
+  pub fn prop_names(&self) -> Vec<String> {
+    let Some(prop_block) = self
+      .0
+      .children()
+      .find(|child| child.kind() == SyntaxKind::MdContainerPropBlock)
+    else {
+      return Vec::new();
+    };
+
+    prop_block
+      .children()
+      .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
+      .filter_map(|item| {
+        item
+          .children()
+          .find(|child| child.kind() == SyntaxKind::Ident)
+          .map(|ident| ident.text().to_string())
+      })
+      .collect()
   }
 }
 

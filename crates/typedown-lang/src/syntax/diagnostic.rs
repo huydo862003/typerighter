@@ -183,6 +183,10 @@ pub enum TdDiagnosticKind {
   MissingRequiredProp { prop: String, component: String },
   #[message("unknown prop \"{prop}\" on component \"{component}\"")]
   UnknownProp { prop: String, component: String },
+  #[message("unknown slot \"{slot}\" on component \"{component}\"")]
+  UnknownSlot { slot: String, component: String },
+  #[message("component \"{component}\" is deprecated: {message}")]
+  DeprecatedComponent { component: String, message: String },
   #[message("type '{type_name}' is not constructible at runtime")]
   NotConstructible { type_name: String },
 
