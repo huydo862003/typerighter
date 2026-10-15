@@ -25,7 +25,7 @@ import {
 import TdMenuButton from './components/TdMenuButton.vue';
 import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
-import TdToc from './components/TdToc.vue';
+import TdToc from './components/custom/TdToc.vue';
 import TdSidebarNav from './components/TdSidebarNav.vue';
 import TdSkeleton from './components/TdSkeleton.vue';
 import TdSiteSearch from './components/TdSiteSearch/TdSiteSearch.vue';

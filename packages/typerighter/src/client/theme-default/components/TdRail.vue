@@ -2,7 +2,7 @@
 import {
   TdFrontmatter,
 } from './TdFrontmatter';
-import TdToc from './TdToc.vue';
+import TdToc from './custom/TdToc.vue';
 import {
   useTdContent,
 } from '@/client/app';

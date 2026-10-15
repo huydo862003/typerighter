@@ -275,9 +275,7 @@ defineExpose({
   border: 1px solid var(--color-td-line);
   border-radius: 6px;
   background: var(--color-td-pg);
-  transition:
-    border-color var(--duration-td-fast) var(--ease-td-out-quart),
-    background var(--duration-td-fast) var(--ease-td-out-quart);
+  transition: border-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-input-wrap:hover {

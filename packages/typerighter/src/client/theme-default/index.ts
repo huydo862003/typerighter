@@ -34,7 +34,7 @@ export {
 } from './components/TdThemeToggle.vue';
 export {
   default as TdToc,
-} from './components/TdToc.vue';
+} from './components/custom/TdToc.vue';
 export {
   useCopyCode,
 } from './composables/useCopyCode';

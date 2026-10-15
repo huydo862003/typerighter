@@ -9,6 +9,9 @@ import {
   defineConfig,
   type Plugin,
 } from 'vitest/config';
+import {
+  buildBuiltinContract,
+} from './src/node/build/builtin-contract';
 
 const package_ = createRequire(import.meta.url)('./package.json');
 
@@ -32,6 +35,32 @@ function emitCssAssets (assets: Record<string, string>): Plugin {
   };
 }
 
+// Generate builtin-components.json from the builtin .vue files and emit it into dist/
+function emitBuiltinComponentContract (): Plugin {
+  let cached: string | undefined;
+
+  const generate = () => {
+    cached = JSON.stringify(buildBuiltinContract(), null, 2);
+  };
+
+  return {
+    name: 'emit-builtin-component-contract',
+
+    buildStart () {
+      generate();
+    },
+
+    generateBundle () {
+      if (!cached) return;
+      this.emitFile({
+        type: 'asset',
+        fileName: 'builtin-components.json',
+        source: cached,
+      });
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __VERSION__: JSON.stringify(package_.version),
@@ -45,6 +74,7 @@ export default defineConfig({
       'fonts.css': 'src/client/theme-default/styles/fonts.css',
       'typedown.schema.json': 'src/node/cli/typedown.schema.json',
     }),
+    emitBuiltinComponentContract(),
   ],
   build: {
     lib: {

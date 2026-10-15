@@ -1,4 +1,7 @@
 import fs from 'node:fs';
+import {
+  fileURLToPath,
+} from 'node:url';
 import path from 'node:path';
 import {
   normalizePath, type Plugin, type ViteDevServer,
@@ -8,9 +11,12 @@ import type {
 } from '@typerighter/rpc-client';
 import {
   resolveUserComponents,
-  buildComponentContract,
+  createComponentChecker,
   type UserComponent,
 } from '@/node/lib/components';
+import {
+  buildContractWithChecker,
+} from '@/node/lib/prop-schema';
 import type {
   AppContext,
 } from '@/node/context';
@@ -137,11 +143,33 @@ function isComponentFile (
   return false;
 }
 
-function writeContract (projectRoot: string, components: UserComponent[]): void {
-  // Skip when no components are configured
-  if (components.length === 0) return;
+// Read builtin-components.json bundled alongside this plugin in dist/
+function loadBuiltinContract (): Record<string, unknown> {
+  try {
+    const contractPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'builtin-components.json');
 
-  const contract = buildComponentContract(components, projectRoot);
+    return JSON.parse(fs.readFileSync(contractPath, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
+const BUILTIN_CONTRACT = loadBuiltinContract();
+
+function writeContract (projectRoot: string, components: UserComponent[]): void {
+  const hasBuiltins = 0 < Object.keys(BUILTIN_CONTRACT).length;
+
+  // Skip when neither builtins nor user components exist
+  if (!hasBuiltins && components.length === 0) return;
+
+  const userContract = components.length > 0
+    ? buildContractWithChecker(components, projectRoot, createComponentChecker(projectRoot))
+    : {};
+  // User entries win over builtins on name collision
+  const contract = {
+    ...BUILTIN_CONTRACT,
+    ...userContract,
+  };
   const outputPath = path.join(projectRoot, CONTRACT_PATH);
 
   fs.mkdirSync(path.dirname(outputPath), {
