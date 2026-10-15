@@ -8,6 +8,7 @@ use lsp_types::{
 };
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use typedown_lang::db::derived::get_component_contract::get_component_contract;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::{all_visible_members, members};
@@ -20,8 +21,10 @@ use typedown_lang::db::types::typecheck::{is_nullable, is_subtype_of};
 use typedown_lang::db::types::{
   File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
 };
-use typedown_lang::db::utils::get_mapping_schema_name;
-use typedown_lang::syntax::ast::{AstNode, BinaryExpr, Expr, YamlOpKind};
+use typedown_lang::db::utils::{get_mapping_schema_name, kebab_to_pascal};
+use typedown_lang::syntax::ast::{
+  AstNode, BinaryExpr, Expr, MdContainerBlock, MdContainerShorthand, YamlOpKind,
+};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -55,6 +58,16 @@ pub fn resolve_completion(
     SyntaxKind::CodeBlock | SyntaxKind::InlineCode | SyntaxKind::InlineMath | SyntaxKind::MathBlock
   ) {
     return None;
+  }
+
+  // Cursor inside container prop block: suggest prop names from the component contract
+  if let Some(items) = collect_container_prop_completions(db, project, &node) {
+    return Some(CompletionResponse::Array(items));
+  }
+
+  // Cursor on a === slot separator: suggest slot names from the component contract
+  if let Some(items) = collect_container_slot_completions(db, project, &node) {
+    return Some(CompletionResponse::Array(items));
   }
 
   // Cursor in a _typ value: suggest schema names
@@ -749,6 +762,116 @@ fn collect_field_completions_from_typ(
   }
 
   items
+}
+
+// Suggest prop names when the cursor is inside a container's prop block ({...})
+fn collect_container_prop_completions(
+  db: &TypedownDatabase,
+  project: Project,
+  node: &RedNode,
+) -> Option<Vec<CompletionItem>> {
+  // Must be inside a MdContainerPropBlock
+  let prop_block = find_ancestor(node, SyntaxKind::MdContainerPropBlock)?;
+  // Walk up to the container block
+  let container = prop_block.parent()?;
+  if container.kind() != SyntaxKind::MdContainerBlock
+    && container.kind() != SyntaxKind::MdContainerShorthand
+  {
+    return None;
+  }
+
+  let (component_name, existing) = if let Some(block) = MdContainerBlock::cast(container.clone()) {
+    (block.label()?, block.prop_names())
+  } else {
+    let shorthand = MdContainerShorthand::cast(container)?;
+    (shorthand.label()?, shorthand.prop_names())
+  };
+  let pascal = kebab_to_pascal(&component_name);
+
+  let contract_file = project.custom_component_contract(db)?;
+  let contract = get_component_contract(db, contract_file);
+  let entries = contract.entries(db).clone();
+  let entry = entries
+    .iter()
+    .find(|e| e.name == component_name || e.name == pascal)?;
+
+  let props = entry.props.as_ref()?;
+
+  let items = props
+    .iter()
+    .filter(|p| !existing.iter().any(|e| e == &p.name))
+    .map(|p| {
+      let insert = if p.required {
+        format!("{}=", p.name)
+      } else {
+        p.name.clone()
+      };
+      CompletionItem {
+        label: p.name.clone(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        detail: Some(format!(
+          "{}{}",
+          p.typ_name,
+          if p.required { "" } else { "?" }
+        )),
+        documentation: p.description.as_ref().map(|d| {
+          lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
+            kind: lsp_types::MarkupKind::Markdown,
+            value: d.clone(),
+          })
+        }),
+        insert_text: Some(insert),
+        ..Default::default()
+      }
+    })
+    .collect();
+
+  Some(items)
+}
+
+// Suggest slot names when the cursor is on a === separator line inside a container
+fn collect_container_slot_completions(
+  db: &TypedownDatabase,
+  project: Project,
+  node: &RedNode,
+) -> Option<Vec<CompletionItem>> {
+  // Must be inside or adjacent to a MdContainerSlotSeparator
+  let separator = if node.kind() == SyntaxKind::MdContainerSlotSeparator {
+    node.clone()
+  } else {
+    find_ancestor(node, SyntaxKind::MdContainerSlotSeparator)?
+  };
+
+  let container = separator.parent()?;
+  let block = MdContainerBlock::cast(container)?;
+  let component_name = block.label()?;
+  let pascal = kebab_to_pascal(&component_name);
+
+  let contract_file = project.custom_component_contract(db)?;
+  let contract = get_component_contract(db, contract_file);
+  let entries = contract.entries(db).clone();
+  let entry = entries
+    .iter()
+    .find(|e| e.name == component_name || e.name == pascal)?;
+
+  if entry.slots.is_empty() {
+    return None;
+  }
+
+  let existing = block.slot_names();
+  let items = entry
+    .slots
+    .iter()
+    .filter(|s| !existing.iter().any(|e| e == *s))
+    .map(|s| CompletionItem {
+      label: s.clone(),
+      kind: Some(CompletionItemKind::ENUM_MEMBER),
+      detail: Some("slot".to_string()),
+      ..Default::default()
+    })
+    .collect();
+
+  Some(items)
 }
 
 #[cfg(test)]
@@ -2816,6 +2939,137 @@ $$
     assert!(
       response.is_none(),
       "should not suggest completions inside a math block"
+    );
+  }
+
+  fn setup_with_contract(content: &str, contract_json: &str) -> (Analysis, Uri) {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        root.join("typedown.yaml"),
+        VAULT_CONFIG.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let contract_path = root.join(".typedown/components.json");
+    let contract_file = File::new(
+      &db,
+      FileHandle::Content(
+        contract_path.clone(),
+        contract_json.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let test_file = File::new(
+      &db,
+      FileHandle::Content(
+        test_path.clone(),
+        content.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+
+    let files = HashMap::from([
+      (root.join("typedown.yaml"), config_file),
+      (contract_path, contract_file),
+      (test_path, test_file),
+    ]);
+
+    let project = Project::new(&db, root, files, Some(contract_file));
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    (analysis, uri)
+  }
+
+  #[test]
+  fn prop_completion_includes_description_as_documentation() {
+    let contract_json = r#"{
+      "TdAlert": {
+        "source": "./TdAlert.vue",
+        "props": {
+          "kind": {
+            "schema": { "type": ["string", "null"] },
+            "description": "The alert variant to display"
+          }
+        }
+      }
+    }"#;
+    let (content, offset) = cursor(
+      r#"---
+---
+:::td-alert{|}
+:::
+"#,
+    );
+    let (analysis, uri) = setup_with_contract(&content, contract_json);
+    let params = make_params(uri, &content, offset);
+    let Some(CompletionResponse::Array(items)) = completion(&analysis, params) else {
+      panic!("expected completion items");
+    };
+    let kind_item = items
+      .iter()
+      .find(|i| i.label == "kind")
+      .expect("should suggest 'kind' prop");
+    let doc = kind_item
+      .documentation
+      .as_ref()
+      .expect("'kind' should have documentation");
+    let doc_text = match doc {
+      lsp_types::Documentation::MarkupContent(m) => m.value.as_str(),
+      _ => panic!("expected markup content"),
+    };
+    assert!(
+      doc_text.contains("The alert variant to display"),
+      "documentation should contain the prop description: {doc_text}"
+    );
+  }
+
+  #[test]
+  fn prop_completion_without_description_has_no_documentation() {
+    let contract_json = r#"{
+      "TdAlert": {
+        "source": "./TdAlert.vue",
+        "props": {
+          "kind": {
+            "schema": { "type": ["string", "null"] }
+          }
+        }
+      }
+    }"#;
+    let (content, offset) = cursor(
+      r#"---
+---
+:::td-alert{|}
+:::
+"#,
+    );
+    let (analysis, uri) = setup_with_contract(&content, contract_json);
+    let params = make_params(uri, &content, offset);
+    let Some(CompletionResponse::Array(items)) = completion(&analysis, params) else {
+      panic!("expected completion items");
+    };
+    let kind_item = items
+      .iter()
+      .find(|i| i.label == "kind")
+      .expect("should suggest 'kind' prop");
+    assert!(
+      kind_item.documentation.is_none(),
+      "prop without description should have no documentation, got: {:?}",
+      kind_item.documentation
     );
   }
 }

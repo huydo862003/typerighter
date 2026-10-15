@@ -47,8 +47,13 @@ fn parse_contract_entries(db: &TypedownDatabase, json: &str) -> Vec<CustomCompon
       let props = props_obj.map(|prop| {
         prop
           .iter()
-          .filter_map(|(prop_name, schema)| {
-            // Parse JSON Schema -> td type, derive required from optionality
+          .filter_map(|(prop_name, prop_entry)| {
+            let schema = prop_entry.get("schema")?;
+            let description = prop_entry
+              .get("description")
+              .and_then(|description| description.as_str())
+              .map(String::from);
+
             let typ = parse_json_schema(db, schema)?;
             let required = !is_optional(db, &typ);
             let base = unwrap_optional(db, typ);
@@ -56,15 +61,34 @@ fn parse_contract_entries(db: &TypedownDatabase, json: &str) -> Vec<CustomCompon
               name: prop_name.clone(),
               typ_name: base.display_name(db),
               required,
+              description,
             })
           })
           .collect()
       });
 
+      let slots = entry
+        .get("slots")
+        .and_then(|s| s.as_array())
+        .map(|arr| {
+          arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect()
+        })
+        .unwrap_or_default();
+
+      let deprecated = entry
+        .get("deprecated")
+        .and_then(|d| d.as_str())
+        .map(String::from);
+
       Some(CustomComponentTyp {
         name: name.clone(),
         source,
         props,
+        slots,
+        deprecated,
       })
     })
     .collect()
@@ -96,7 +120,7 @@ mod tests {
   #[test]
   fn parse_component_with_props() {
     let db = make_db();
-    let json = r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"type":"array","items":{"type":"number"}},"title":{"type":["string","null"]}}}}"#;
+    let json = r#"{"Chart":{"source":"./Chart.vue","props":{"data":{"schema":{"type":"array","items":{"type":"number"}}},"title":{"schema":{"type":["string","null"]}}}}}"#;
     let entries = parse_contract_entries(&db, json);
     assert_eq!(entries.len(), 1);
     let entry = &entries[0];
@@ -132,5 +156,62 @@ mod tests {
     let entries = parse_contract_entries(&db, json);
     assert_eq!(entries.len(), 1);
     assert!(entries[0].props.is_none());
+  }
+
+  #[test]
+  fn parse_component_with_slots() {
+    let db = make_db();
+    let json = r#"{"Flashcard":{"source":"./Flashcard.vue","props":{},"slots":["key"]}}"#;
+    let entries = parse_contract_entries(&db, json);
+    assert_eq!(entries[0].slots, vec!["key"]);
+  }
+
+  #[test]
+  fn parse_component_with_deprecated() {
+    let db = make_db();
+    let json =
+      r#"{"OldWidget":{"source":"./OldWidget.vue","props":{},"deprecated":"use NewWidget"}}"#;
+    let entries = parse_contract_entries(&db, json);
+    assert_eq!(entries[0].deprecated.as_deref(), Some("use NewWidget"));
+  }
+
+  #[test]
+  fn parse_prop_description_stored() {
+    let db = make_db();
+    let json = r#"{"Alert":{"source":"./Alert.vue","props":{"kind":{"schema":{"type":"string"},"description":"The alert variant"}}}}"#;
+    let entries = parse_contract_entries(&db, json);
+    let prop = entries[0]
+      .props
+      .as_ref()
+      .unwrap()
+      .iter()
+      .find(|p| p.name == "kind")
+      .unwrap();
+    assert_eq!(prop.description.as_deref(), Some("The alert variant"));
+  }
+
+  #[test]
+  fn parse_prop_without_description_is_none() {
+    let db = make_db();
+    let json =
+      r#"{"Alert":{"source":"./Alert.vue","props":{"kind":{"schema":{"type":"string"}}}}}"#;
+    let entries = parse_contract_entries(&db, json);
+    let prop = entries[0]
+      .props
+      .as_ref()
+      .unwrap()
+      .iter()
+      .find(|p| p.name == "kind")
+      .unwrap();
+    assert!(prop.description.is_none());
+  }
+
+  #[test]
+  fn parse_component_without_slots_defaults_empty() {
+    let db = make_db();
+    let json = r#"{"Chart":{"source":"./Chart.vue","props":{}}}"#;
+    let entries = parse_contract_entries(&db, json);
+    assert!(entries[0].slots.is_empty());
+    assert!(entries[0].deprecated.is_none());
   }
 }

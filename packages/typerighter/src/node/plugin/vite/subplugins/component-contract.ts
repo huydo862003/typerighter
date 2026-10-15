@@ -162,7 +162,7 @@ function writeContract (projectRoot: string, components: UserComponent[]): void 
   // Skip when neither builtins nor user components exist
   if (!hasBuiltins && components.length === 0) return;
 
-  const userContract = components.length > 0
+  const userContract = 0 < components.length
     ? buildContractWithChecker(components, projectRoot, createComponentChecker(projectRoot))
     : {};
   // User entries win over builtins on name collision

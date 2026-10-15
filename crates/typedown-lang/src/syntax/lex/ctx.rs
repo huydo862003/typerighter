@@ -66,6 +66,8 @@ pub(super) enum InterpContext {
   MdDqString,
   // Inside '...' in markdown body (no interpolation, content lexed as normal markdown tokens)
   MdSqString,
+  // Wraps a prop value in a container heading prop block
+  PropValue,
 }
 
 /* Markdown state */

@@ -2,6 +2,7 @@ use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use typedown_lang::db::derived::get_component_contract::get_component_contract;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
@@ -13,9 +14,11 @@ use typedown_lang::db::types::derived::obj_system::TdStaticTyp;
 use typedown_lang::db::types::{
   File, Project, ProjectRedNode, Scope, ScopeKind, Symbol, TdTypEnum,
 };
-use typedown_lang::db::utils::is_external_url;
+use typedown_lang::db::utils::{is_external_url, kebab_to_pascal};
 use typedown_lang::syntax::ast::StrLit;
-use typedown_lang::syntax::ast::{AstNode, Expr, MdLink, MdMedia};
+use typedown_lang::syntax::ast::{
+  AstNode, Expr, MdContainerBlock, MdContainerShorthand, MdLink, MdMedia,
+};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -54,6 +57,11 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
 
   // Markdown link/image hover: show target info
   if let Some(text) = build_link_hover(db, project, file, &hovered_node) {
+    return Some(create_hover(text));
+  }
+
+  // Container component name hover: show props and slots
+  if let Some(text) = build_component_hover(db, project, &hovered_node) {
     return Some(create_hover(text));
   }
 
@@ -256,6 +264,72 @@ fn build_link_hover(
     symbol,
     &target_path.display().to_string(),
   ))
+}
+
+// Hover over a container component name: show props, slots, and deprecation info
+fn build_component_hover(
+  db: &TypedownDatabase,
+  project: Project,
+  node: &RedNode,
+) -> Option<String> {
+  // Only trigger on the opening line: the node must be an Ident (component name token)
+  // or MdSymbol (the ::: marker) that is a direct child of the container block
+  if !matches!(node.kind(), SyntaxKind::Ident | SyntaxKind::MdSymbol) {
+    return None;
+  }
+  let container = node.parent()?;
+  if container.kind() != SyntaxKind::MdContainerBlock
+    && container.kind() != SyntaxKind::MdContainerShorthand
+  {
+    return None;
+  }
+
+  let component_name = MdContainerBlock::cast(container.clone())
+    .and_then(|b| b.label())
+    .or_else(|| MdContainerShorthand::cast(container).and_then(|s| s.label()))?;
+  let pascal = kebab_to_pascal(&component_name);
+
+  let contract_file = project.custom_component_contract(db)?;
+  let contract = get_component_contract(db, contract_file);
+  let entries = contract.entries(db).clone();
+  let entry = entries
+    .iter()
+    .find(|e| e.name == component_name || e.name == pascal)?;
+
+  let mut lines = vec![format!("**{}**", component_name)];
+
+  if let Some(msg) = &entry.deprecated {
+    lines.push(format!("\n**Deprecated:** {}", msg));
+  }
+
+  lines.push(format!("\nSource: `{}`", entry.source));
+
+  if let Some(props) = &entry.props
+    && !props.is_empty()
+  {
+    lines.push("\n**Props:**".to_string());
+    for p in props {
+      let suffix = if p.required { "" } else { "?" };
+      let desc = p
+        .description
+        .as_ref()
+        .map(|d| format!(" — {d}"))
+        .unwrap_or_default();
+      lines.push(format!(
+        "- `{}`: `{}{}`{}",
+        p.name, p.typ_name, suffix, desc
+      ));
+    }
+  }
+
+  if !entry.slots.is_empty() {
+    lines.push("\n**Slots:**".to_string());
+    for s in &entry.slots {
+      lines.push(format!("- `{}`", s));
+    }
+  }
+
+  Some(lines.join("\n"))
 }
 
 #[cfg(test)]
@@ -689,5 +763,125 @@ Some plain te|xt.
 "#,
     );
     assert!(text.is_none(), "plain markdown body should not show hover");
+  }
+
+  fn setup_with_contract(content: &str, contract_json: &str) -> (Analysis, Uri) {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        root.join("typedown.yaml"),
+        VAULT_CONFIG.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let contract_path = root.join(".typedown/components.json");
+    let contract_file = File::new(
+      &db,
+      FileHandle::Content(
+        contract_path.clone(),
+        contract_json.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let test_file = File::new(
+      &db,
+      FileHandle::Content(
+        test_path.clone(),
+        content.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+
+    let files = HashMap::from([
+      (root.join("typedown.yaml"), config_file),
+      (contract_path, contract_file),
+      (test_path, test_file),
+    ]);
+
+    let project = Project::new(&db, root, files, Some(contract_file));
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    (analysis, uri)
+  }
+
+  #[test]
+  fn hover_on_component_shows_prop_description() {
+    let contract_json = r#"{
+      "TdAlert": {
+        "source": "./TdAlert.vue",
+        "props": {
+          "kind": {
+            "schema": { "type": ["string", "null"] },
+            "description": "The alert variant to display"
+          }
+        }
+      }
+    }"#;
+    let (content, offset) = cursor(
+      r#"---
+---
+::: td-al|ert
+:::
+"#,
+    );
+    let (analysis, uri) = setup_with_contract(&content, contract_json);
+    let params = make_params(uri, &content, offset);
+    let result = hover(&analysis, params).expect("expected hover on component name");
+    let text = match result.contents {
+      HoverContents::Markup(m) => m.value,
+      _ => panic!("expected markup"),
+    };
+    assert!(text.contains("kind"), "should show prop name: {text}");
+    assert!(
+      text.contains("The alert variant to display"),
+      "should show prop description: {text}"
+    );
+  }
+
+  #[test]
+  fn hover_on_component_without_description_shows_no_description_text() {
+    let contract_json = r#"{
+      "TdAlert": {
+        "source": "./TdAlert.vue",
+        "props": {
+          "kind": {
+            "schema": { "type": ["string", "null"] }
+          }
+        }
+      }
+    }"#;
+    let (content, offset) = cursor(
+      r#"---
+---
+::: td-al|ert
+:::
+"#,
+    );
+    let (analysis, uri) = setup_with_contract(&content, contract_json);
+    let params = make_params(uri, &content, offset);
+    let result = hover(&analysis, params).expect("expected hover on component name");
+    let text = match result.contents {
+      HoverContents::Markup(m) => m.value,
+      _ => panic!("expected markup"),
+    };
+    assert!(text.contains("kind"), "should still show prop name: {text}");
+    assert!(
+      !text.contains(" — "),
+      "should not show description separator when no description: {text}"
+    );
   }
 }

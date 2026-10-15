@@ -6,13 +6,10 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{CustomComponentCheckResult, CustomComponentTyp, File, Project};
-use crate::db::utils::{
-  extract_container_name, extract_container_prop_names, extract_shorthand_name, is_callout,
-  kebab_to_pascal,
-};
+use crate::db::utils::{is_callout, kebab_to_pascal};
+use crate::syntax::ast::{AstNode, MdContainerBlock, MdContainerShorthand};
 use crate::syntax::diagnostic::*;
 use crate::syntax::red::RedNode;
-use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 
 #[query_derived]
@@ -36,18 +33,14 @@ pub fn check_custom_components<'db>(
 }
 
 fn collect(node: &RedNode, contract: &[CustomComponentTyp], diagnostics: &mut Vec<TdDiagnostic>) {
-  match node.kind() {
-    SyntaxKind::MdContainerBlock => {
-      if let Some(name) = extract_container_name(node) {
-        validate(node, &name, contract, diagnostics);
-      }
+  if let Some(block) = MdContainerBlock::cast(node.clone()) {
+    if let Some(name) = block.label() {
+      validate(node, &name, contract, diagnostics);
     }
-    SyntaxKind::MdContainerShorthand => {
-      if let Some(name) = extract_shorthand_name(node) {
-        validate(node, &name, contract, diagnostics);
-      }
-    }
-    _ => {}
+  } else if let Some(shorthand) = MdContainerShorthand::cast(node.clone())
+    && let Some(name) = shorthand.label()
+  {
+    validate(node, &name, contract, diagnostics);
   }
 
   for child in node.children() {
@@ -69,7 +62,8 @@ fn validate(
     .iter()
     .find(|component_entry| component_entry.name == name || component_entry.name == pascal_name)
   else {
-    // Callouts are valid without a contract entry
+    // Callouts (e.g. "note", "warning") are valid without a contract entry.
+    // If a callout name is registered in the contract, it falls through and is validated normally.
     if is_callout(name) {
       return;
     }
@@ -87,10 +81,13 @@ fn validate(
     return;
   };
 
-  let provided = extract_container_prop_names(node);
+  let provided_props = MdContainerBlock::cast(node.clone())
+    .map(|b| b.prop_names())
+    .or_else(|| MdContainerShorthand::cast(node.clone()).map(|s| s.prop_names()))
+    .unwrap_or_default();
 
   for prop in props {
-    if prop.required && !provided.iter().any(|p| p == &prop.name) {
+    if prop.required && !provided_props.iter().any(|p| p == &prop.name) {
       diagnostics.push(
         TdDiagnosticKind::MissingRequiredProp {
           prop: prop.name.clone(),
@@ -101,7 +98,7 @@ fn validate(
     }
   }
 
-  for prop_name in &provided {
+  for prop_name in &provided_props {
     if !props.iter().any(|p| &p.name == prop_name) {
       diagnostics.push(
         TdDiagnosticKind::UnknownProp {
@@ -112,15 +109,42 @@ fn validate(
       );
     }
   }
+
+  // Deprecation warning
+  if let Some(message) = &entry.deprecated {
+    diagnostics.push(
+      TdDiagnosticKind::DeprecatedComponent {
+        component: name.to_string(),
+        message: message.clone(),
+      }
+      .into_warning(start_offset, end_offset),
+    );
+  }
+
+  // Slot validation (only container blocks have slots, not shorthands)
+  if !entry.slots.is_empty() {
+    let used_slots = MdContainerBlock::cast(node.clone())
+      .map(|b| b.slot_names())
+      .unwrap_or_default();
+    for slot in &used_slots {
+      if !entry.slots.iter().any(|s| s == slot) {
+        diagnostics.push(
+          TdDiagnosticKind::UnknownSlot {
+            slot: slot.clone(),
+            component: name.to_string(),
+          }
+          .into_warning(start_offset, end_offset),
+        );
+      }
+    }
+  }
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
   use crate::db::types::CustomComponentProp;
-  use crate::db::utils::{
-    extract_container_name, extract_container_prop_names, extract_shorthand_name,
-  };
+  use crate::syntax::ast::{AstNode, MdContainerBlock, MdContainerShorthand};
   use crate::syntax::red::RedNode;
   use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -151,68 +175,169 @@ mod tests {
     None
   }
 
-  // extract_container_name
+  fn find_block(root: &RedNode) -> MdContainerBlock {
+    let node = find_first(root, SyntaxKind::MdContainerBlock).unwrap();
+    MdContainerBlock::cast(node).unwrap()
+  }
+
+  fn find_shorthand(root: &RedNode) -> MdContainerShorthand {
+    let node = find_first(root, SyntaxKind::MdContainerShorthand).unwrap();
+    MdContainerShorthand::cast(node).unwrap()
+  }
+
+  // label
 
   #[test]
   fn container_name_simple() {
-    let root = parse_body("::: note\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    assert_eq!(extract_container_name(&block), Some("note".to_string()));
+    let root = parse_body(
+      r#"
+::: note
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).label(), Some("note".to_string()));
   }
 
   #[test]
   fn container_name_kebab() {
-    let root = parse_body("::: td-alert\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    assert_eq!(extract_container_name(&block), Some("td-alert".to_string()));
+    let root = parse_body(
+      r#"
+::: td-alert
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).label(), Some("td-alert".to_string()));
   }
 
   #[test]
   fn container_name_no_space() {
-    let root = parse_body(":::td-alert\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    assert_eq!(extract_container_name(&block), Some("td-alert".to_string()));
+    let root = parse_body(
+      r#"
+:::td-alert
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).label(), Some("td-alert".to_string()));
   }
-
-  // extract_shorthand_name
 
   #[test]
   fn shorthand_name_kebab() {
-    let root = parse_body("[[directory-index]]\n");
-    let node = find_first(&root, SyntaxKind::MdContainerShorthand).unwrap();
+    let root = parse_body(
+      r#"
+[[directory-index]]
+"#,
+    );
     assert_eq!(
-      extract_shorthand_name(&node),
+      find_shorthand(&root).label(),
       Some("directory-index".to_string())
     );
   }
 
-  // extract_container_prop_names
+  // prop_names
 
   #[test]
   fn prop_names_extracted() {
-    let root = parse_body(":::chart{kind=\"info\" size=\"large\"}\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    let props = extract_container_prop_names(&block);
-    assert_eq!(props, vec!["kind", "size"]);
+    let root = parse_body(
+      r#"
+:::chart{kind="info" size="large"}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["kind", "size"]);
+  }
+
+  #[test]
+  fn prop_value_bare_ident() {
+    let root = parse_body(
+      r#"
+:::flashcard{revealed=true disabled=false}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["revealed", "disabled"]);
+  }
+
+  #[test]
+  fn prop_value_array() {
+    let root = parse_body(
+      r#"
+:::chart{data=[1, 2, 3]}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["data"]);
+  }
+
+  #[test]
+  fn prop_value_dict() {
+    let root = parse_body(
+      r#"
+:::chart{config={color: "red", size: 10}}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["config"]);
+  }
+
+  #[test]
+  fn prop_value_nested_array() {
+    let root = parse_body(
+      r#"
+:::chart{matrix=[[1, 2], [3, 4]]}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["matrix"]);
+  }
+
+  #[test]
+  fn prop_value_negative_number() {
+    let root = parse_body(
+      r#"
+:::widget{offset=-1}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["offset"]);
+  }
+
+  #[test]
+  fn prop_value_mixed() {
+    let root = parse_body(
+      r#"
+:::comp{a=true b="hello" c=[1, 2] d=42}
+:::
+"#,
+    );
+    assert_eq!(find_block(&root).prop_names(), vec!["a", "b", "c", "d"]);
   }
 
   #[test]
   fn prop_names_empty_without_block() {
-    let root = parse_body(":::note\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    assert!(extract_container_prop_names(&block).is_empty());
+    let root = parse_body(
+      r#"
+:::note
+:::
+"#,
+    );
+    assert!(find_block(&root).prop_names().is_empty());
   }
 
   // validate unknown component
 
   #[test]
   fn unknown_component_emits_diagnostic() {
-    let root = parse_body(":::my-widget\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    let name = extract_container_name(&block).unwrap();
+    let root = parse_body(
+      r#"
+:::my-widget
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
     let contract: Vec<CustomComponentTyp> = vec![];
     let mut diags = Vec::new();
-    validate(&block, &name, &contract, &mut diags);
+    validate(block.syntax(), &name, &contract, &mut diags);
     assert!(
       diags.iter().any(|d| matches!(
         d,
@@ -227,24 +352,36 @@ mod tests {
 
   #[test]
   fn known_component_by_kebab_matches_pascal_contract() {
-    let root = parse_body(":::video-embed\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    let name = extract_container_name(&block).unwrap();
+    let root = parse_body(
+      r#"
+:::video-embed
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
     let contract = vec![CustomComponentTyp {
       name: "VideoEmbed".to_string(),
       source: "./VideoEmbed.vue".to_string(),
       props: Some(vec![]),
+      slots: vec![],
+      deprecated: None,
     }];
     let mut diags = Vec::new();
-    validate(&block, &name, &contract, &mut diags);
+    validate(block.syntax(), &name, &contract, &mut diags);
     assert!(diags.is_empty(), "expected no diagnostics, got: {diags:?}");
   }
 
   #[test]
   fn missing_required_prop_emits_diagnostic() {
-    let root = parse_body(":::chart\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    let name = extract_container_name(&block).unwrap();
+    let root = parse_body(
+      r#"
+:::chart
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
     let contract = vec![CustomComponentTyp {
       name: "Chart".to_string(),
       source: "./Chart.vue".to_string(),
@@ -252,10 +389,13 @@ mod tests {
         name: "data".to_string(),
         typ_name: "string".to_string(),
         required: true,
+        description: None,
       }]),
+      slots: vec![],
+      deprecated: None,
     }];
     let mut diags = Vec::new();
-    validate(&block, &name, &contract, &mut diags);
+    validate(block.syntax(), &name, &contract, &mut diags);
     assert!(
       diags
         .iter()
@@ -266,16 +406,23 @@ mod tests {
 
   #[test]
   fn unknown_prop_emits_diagnostic() {
-    let root = parse_body(":::chart{extra=\"val\"}\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    let name = extract_container_name(&block).unwrap();
+    let root = parse_body(
+      r#"
+:::chart{extra="val"}
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
     let contract = vec![CustomComponentTyp {
       name: "Chart".to_string(),
       source: "./Chart.vue".to_string(),
       props: Some(vec![]),
+      slots: vec![],
+      deprecated: None,
     }];
     let mut diags = Vec::new();
-    validate(&block, &name, &contract, &mut diags);
+    validate(block.syntax(), &name, &contract, &mut diags);
     assert!(
       diags
         .iter()
@@ -286,12 +433,137 @@ mod tests {
 
   #[test]
   fn callout_skipped() {
-    let root = parse_body("::: note\ncontent\n:::\n");
-    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
-    let name = extract_container_name(&block).unwrap();
+    let root = parse_body(
+      r#"
+::: note
+content
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
     let contract: Vec<CustomComponentTyp> = vec![];
     let mut diags = Vec::new();
-    validate(&block, &name, &contract, &mut diags);
+    validate(block.syntax(), &name, &contract, &mut diags);
     assert!(diags.is_empty(), "callouts should produce no diagnostics");
+  }
+
+  #[test]
+  fn callout_with_contract_entry_is_validated() {
+    // A callout name registered in the contract should be validated like any other component.
+    let root = parse_body(
+      r#"
+::: note{extra="val"}
+content
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
+    let contract = vec![CustomComponentTyp {
+      name: "note".to_string(),
+      source: "./Note.vue".to_string(),
+      props: Some(vec![]),
+      slots: vec![],
+      deprecated: None,
+    }];
+    let mut diags = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diags);
+    assert!(
+      diags
+        .iter()
+        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::UnknownProp { prop, .. }, .. } if prop == "extra")),
+      "callout with contract entry should be validated; expected UnknownProp, got: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn deprecated_component_emits_warning() {
+    let root = parse_body(
+      r#"
+::: old-widget
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
+    let contract = vec![CustomComponentTyp {
+      name: "old-widget".to_string(),
+      source: "./OldWidget.vue".to_string(),
+      props: Some(vec![]),
+      slots: vec![],
+      deprecated: Some("use new-widget instead".to_string()),
+    }];
+    let mut diags = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diags);
+    assert!(
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::DeprecatedComponent { .. },
+          ..
+        }
+      )),
+      "expected DeprecatedComponent, got: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn unknown_slot_emits_warning() {
+    let root = parse_body(
+      r#"
+::: flashcard
+question
+=== answer
+the answer
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
+    let contract = vec![CustomComponentTyp {
+      name: "flashcard".to_string(),
+      source: "./TdFlashcard.vue".to_string(),
+      props: Some(vec![]),
+      slots: vec!["key".to_string()],
+      deprecated: None,
+    }];
+    let mut diags = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diags);
+    assert!(
+      diags.iter().any(|d| matches!(
+        d,
+        TdDiagnostic { kind: TdDiagnosticKind::UnknownSlot { slot, .. }, .. } if slot == "answer"
+      )),
+      "expected UnknownSlot for 'answer', got: {diags:?}"
+    );
+  }
+
+  #[test]
+  fn valid_slot_no_diagnostic() {
+    let root = parse_body(
+      r#"
+::: flashcard
+question
+=== key
+the answer
+:::
+"#,
+    );
+    let block = find_block(&root);
+    let name = block.label().unwrap();
+    let contract = vec![CustomComponentTyp {
+      name: "flashcard".to_string(),
+      source: "./TdFlashcard.vue".to_string(),
+      props: Some(vec![]),
+      slots: vec!["key".to_string()],
+      deprecated: None,
+    }];
+    let mut diags = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diags);
+    assert!(
+      diags.is_empty(),
+      "valid slot should produce no diagnostics, got: {diags:?}"
+    );
   }
 }

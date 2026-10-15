@@ -15,26 +15,6 @@ import {
 
 const package_ = createRequire(import.meta.url)('./package.json');
 
-// Emit extra CSS files as unresolved manifests into dist
-// Consumer builds (Vite) resolve the @imports at their build time
-function emitCssAssets (assets: Record<string, string>): Plugin {
-  return {
-    name: 'emit-css-assets',
-    generateBundle () {
-      for (const [
-        fileName,
-        sourcePath,
-      ] of Object.entries(assets)) {
-        this.emitFile({
-          type: 'asset',
-          fileName,
-          source: fs.readFileSync(path.resolve(__dirname, sourcePath), 'utf-8'),
-        });
-      }
-    },
-  };
-}
-
 // Generate builtin-components.json from the builtin .vue files and emit it into dist/
 function emitBuiltinComponentContract (): Plugin {
   let cached: string | undefined;
@@ -57,6 +37,26 @@ function emitBuiltinComponentContract (): Plugin {
         fileName: 'builtin-components.json',
         source: cached,
       });
+    },
+  };
+}
+
+// Emit extra CSS files as unresolved manifests into dist
+// Consumer builds (Vite) resolve the @imports at their build time
+function emitCssAssets (assets: Record<string, string>): Plugin {
+  return {
+    name: 'emit-css-assets',
+    generateBundle () {
+      for (const [
+        fileName,
+        sourcePath,
+      ] of Object.entries(assets)) {
+        this.emitFile({
+          type: 'asset',
+          fileName,
+          source: fs.readFileSync(path.resolve(__dirname, sourcePath), 'utf-8'),
+        });
+      }
     },
   };
 }

@@ -4,6 +4,7 @@ use typedown_lang::db::types::ScopeKind;
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Range};
 
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::get_component_contract::get_component_contract;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::name_resolver::referee::referee;
@@ -11,9 +12,12 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{
   File, FileHandle, Project, ProjectRedNode, Scope, Symbol, SymbolKind,
 };
+use typedown_lang::db::utils::kebab_to_pascal;
 use typedown_lang::db::utils::{get_mapping_schema_name, is_external_url};
 use typedown_lang::syntax::ast::StrLit;
-use typedown_lang::syntax::ast::{AstNode, MdLink, MdMedia};
+use typedown_lang::syntax::ast::{
+  AstNode, MdContainerBlock, MdContainerShorthand, MdLink, MdMedia,
+};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -59,6 +63,11 @@ pub fn resolve_definition(
       range: Range::default(),
     };
     return Some(GotoDefinitionResponse::Scalar(location));
+  }
+
+  // Container component name: jump to the component source file
+  if let Some(response) = resolve_component_definition(analysis, db, project, &node) {
+    return Some(response);
   }
 
   // Markdown link or image: resolve the URL to a file path
@@ -212,6 +221,50 @@ fn find_property_key_offset(root: &RedNode, field_name: &str) -> Option<usize> {
     .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
   let field_entry = find_entry_by_key(&props_value, field_name)?;
   get_entry_key_offset(&field_entry)
+}
+
+// Go to definition for container component names
+fn resolve_component_definition(
+  analysis: &Analysis,
+  db: &TypedownDatabase,
+  project: Project,
+  node: &RedNode,
+) -> Option<GotoDefinitionResponse> {
+  // Must be an Ident that is a direct child of a container block
+  if node.kind() != SyntaxKind::Ident {
+    return None;
+  }
+  let parent = node.parent()?;
+  let component_name = MdContainerBlock::cast(parent.clone())
+    .and_then(|b| b.label())
+    .or_else(|| MdContainerShorthand::cast(parent).and_then(|s| s.label()))?;
+  let pascal = kebab_to_pascal(&component_name);
+
+  let contract_file = project.custom_component_contract(db)?;
+  let contract = get_component_contract(db, contract_file);
+  let entries = contract.entries(db).clone();
+  let entry = entries
+    .iter()
+    .find(|e| e.name == component_name || e.name == pascal)?;
+
+  // Resolve source path relative to project root
+  let source = entry.source.trim_start_matches("./");
+  let target_path = project.root_dir(db).join(source);
+  if !target_path.exists() {
+    return None;
+  }
+
+  let scheme = analysis
+    .scheme_map
+    .get(&target_path)
+    .map(String::as_str)
+    .unwrap_or("file");
+  let target_uri = path_to_uri(&target_path, scheme);
+
+  Some(GotoDefinitionResponse::Scalar(Location {
+    uri: target_uri,
+    range: Range::default(),
+  }))
 }
 
 // Go to definition for URLs in markdown links and images

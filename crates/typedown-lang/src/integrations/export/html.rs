@@ -16,10 +16,10 @@ use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
 use super::utils::{
-  extract_plain_text, extract_shorthand_name, html_escape, is_callout, resolve_vault_url, slugify,
-  strip_quotes,
+  extract_plain_text, html_escape, is_callout, resolve_vault_url, slugify, strip_quotes,
 };
 use crate::db::utils::is_external_url;
+use crate::syntax::ast::MdContainerShorthand;
 
 /// Heading extracted during HTML emission
 #[derive(Debug, Clone)]
@@ -483,9 +483,11 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_container_shorthand(&mut self, node: &RedNode) {
-    let label = match extract_shorthand_name(node) {
-      Some(name) => name,
-      None => return,
+    let Some(shorthand) = MdContainerShorthand::cast(node.clone()) else {
+      return;
+    };
+    let Some(label) = shorthand.label() else {
+      return;
     };
     let props = extract_container_props(node);
 
@@ -888,7 +890,14 @@ fn extract_ordered_start(node: &RedNode) -> usize {
 
 #[cfg(test)]
 mod tests {
+  use std::cell::RefCell;
+  use std::rc::Rc;
+
+  use typedown_types::string_stream::StringStream;
+
   use super::*;
+  use crate::syntax::green::cache::Cache;
+  use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
 
   // Colon position in separator cells determines alignment
   #[test]
@@ -935,5 +944,151 @@ mod tests {
     assert_eq!(make(&mut counts, "Foo"), "foo-1");
     assert_eq!(make(&mut counts, "Foo"), "foo-2");
     assert_eq!(make(&mut counts, "Bar"), "bar");
+  }
+
+  fn parse_body(input: &str) -> RedNode {
+    let full = format!("---\n---\n{}", input);
+    let stream = StringStream::new(&full);
+    let cache = Rc::new(RefCell::new(Cache::new()));
+    let ctx = ParseCtx::new(stream, cache);
+    let ParseResult { ast, .. } = ctx.parse();
+    RedNode::from_green(0, ast)
+  }
+
+  fn find_first(node: &RedNode, kind: SyntaxKind) -> Option<RedNode> {
+    if node.kind() == kind {
+      return Some(node.clone());
+    }
+    for child in node.children() {
+      if let Some(found) = find_first(&child, kind) {
+        return Some(found);
+      }
+    }
+    None
+  }
+
+  fn export_props(input: &str) -> String {
+    let root = parse_body(input);
+    let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
+    extract_container_props(&block)
+  }
+
+  #[test]
+  fn export_bare_ident_as_vbind() {
+    assert_eq!(
+      export_props(
+        r#"
+:::flashcard{revealed=true}
+:::
+"#
+      ),
+      r#":revealed="true""#
+    );
+  }
+
+  #[test]
+  fn export_number_as_vbind() {
+    assert_eq!(
+      export_props(
+        r#"
+:::chart{count=42}
+:::
+"#
+      ),
+      r#":count="42""#
+    );
+  }
+
+  #[test]
+  fn export_quoted_string_as_attribute() {
+    assert_eq!(
+      export_props(
+        r#"
+:::card{title="hello"}
+:::
+"#
+      ),
+      r#"title="hello""#
+    );
+  }
+
+  #[test]
+  fn export_array_as_vbind() {
+    assert_eq!(
+      export_props(
+        r#"
+:::chart{data=[1, 2, 3]}
+:::
+"#
+      ),
+      r#":data="[1, 2, 3]""#
+    );
+  }
+
+  #[test]
+  fn export_nested_array_as_vbind() {
+    assert_eq!(
+      export_props(
+        r#"
+:::chart{matrix=[[1, 2], [3, 4]]}
+:::
+"#
+      ),
+      r#":matrix="[[1, 2], [3, 4]]""#
+    );
+  }
+
+  #[test]
+  fn export_negative_number_as_vbind() {
+    assert_eq!(
+      export_props(
+        r#"
+:::widget{offset=-1}
+:::
+"#
+      ),
+      r#":offset="-1""#
+    );
+  }
+
+  #[test]
+  fn export_dict_as_vbind() {
+    // Inner quotes become &quot; via HTML attribute escaping
+    // Vue decodes them back to " before evaluating the v-bind expression
+    assert_eq!(
+      export_props(
+        r#"
+:::chart{config={color: "red", size: 10}}
+:::
+"#,
+      ),
+      r#":config="{color: &quot;red&quot;, size: 10}""#
+    );
+  }
+
+  #[test]
+  fn export_mixed_props() {
+    assert_eq!(
+      export_props(
+        r#"
+:::comp{a=true b="hello" c=[1, 2] d=42}
+:::
+"#
+      ),
+      r#":a="true" b="hello" :c="[1, 2]" :d="42""#
+    );
+  }
+
+  #[test]
+  fn export_flag_prop() {
+    assert_eq!(
+      export_props(
+        r#"
+:::flashcard{disabled}
+:::
+"#
+      ),
+      "disabled"
+    );
   }
 }

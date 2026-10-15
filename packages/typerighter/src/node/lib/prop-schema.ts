@@ -11,10 +11,16 @@ import type {
   JsonSchema,
 } from '../../shared/types/json-schema';
 
+export interface ComponentPropertyEntry {
+  schema: JsonSchema;
+  description?: string;
+}
+
 export interface ContractEntry {
   source: string;
-  // Each prop value is a JSON Schema object; absent means skip prop validation
-  props?: Record<string, JsonSchema>;
+  props?: Record<string, ComponentPropertyEntry>;
+  slots?: string[];
+  deprecated?: string;
 }
 
 // Build a component contract from a list of components using a pre-created checker
@@ -33,25 +39,36 @@ export function buildContractWithChecker (
 
     try {
       const meta = checker.getComponentMeta(component.absolutePath);
-      const props: Record<string, JsonSchema> = {};
+      const props: Record<string, ComponentPropertyEntry> = {};
       let hasAnyProperty = false;
 
       for (const property of meta.props) {
         // Skip global HTML attributes injected by vue-component-meta
         if (property.global) continue;
 
-        const schema = toJsonSchema(property.schema);
+        const schema = convertPropertyMetaToSchema(property.schema);
 
         if (schema !== undefined) {
-          // Wrap in optional (["T","null"]) if the prop is not required and not already nullable
-          props[property.name] = property.required ? schema : makeOptional(schema);
+          const entry: ComponentPropertyEntry = {
+            schema: property.required ? schema : makeOptional(schema),
+          };
+
+          if (property.description) {
+            entry.description = property.description;
+          }
+          props[property.name] = entry;
           hasAnyProperty = true;
         }
       }
 
+      const slotNames = meta.slots
+        .map((slot) => slot.name)
+        .filter((name) => name !== 'default');
+
       contract[component.name] = {
         source,
         props: hasAnyProperty ? props : undefined,
+        slots: 0 < slotNames.length ? slotNames : undefined,
       };
     } catch {
       // Component failed to parse: register without props so the name is still known
@@ -65,10 +82,10 @@ export function buildContractWithChecker (
 }
 
 // Homogeneous array -> { type: "array", items: <element> }
-function toArray (elements: PropertyMetaSchema[] | undefined): JsonSchema | undefined {
+function convertArrayElementsToSchema (elements: PropertyMetaSchema[] | undefined): JsonSchema | undefined {
   if (!elements || elements.length !== 1) return undefined;
 
-  const inner = toJsonSchema(elements[0]);
+  const inner = convertPropertyMetaToSchema(elements[0]);
 
   return inner !== undefined
     ? {
@@ -78,46 +95,14 @@ function toArray (elements: PropertyMetaSchema[] | undefined): JsonSchema | unde
     : undefined;
 }
 
-// Strip undefined/null from union, wrap result as optional if they were present
-function toEnum (members: PropertyMetaSchema[] | undefined): JsonSchema | undefined {
-  const all = members ?? [];
-  const isOptional = all.some((member) => member === 'undefined' || member === 'null');
-  const concrete = all.filter((member) => member !== 'undefined' && member !== 'null');
-
-  // Only single-member unions after stripping are supported
-  if (concrete.length !== 1) return undefined;
-
-  const inner = toJsonSchema(concrete[0]);
-
-  if (inner === undefined) return undefined;
-
-  return isOptional ? makeOptional(inner) : inner;
-}
-
-// Dispatch on PropertyMetaSchema kind: string -> primitive, enum/array/object -> recurse
-function toJsonSchema (schema: PropertyMetaSchema): JsonSchema | undefined {
-  if (typeof schema === 'string') return toPrimitive(schema);
-
-  switch (schema.kind) {
-    case 'enum':
-      return toEnum(schema.schema);
-    case 'array':
-      return toArray(schema.schema);
-    case 'object':
-      return toObject(schema.type, schema.schema);
-    default:
-      return undefined;
-  }
-}
-
 // Named fields -> product schema, index signature -> dict schema
-function toObject (
+function convertObjectToSchema (
   type: string,
   propertySchema: Record<string, PropertyMeta> | undefined,
 ): JsonSchema | undefined {
   // Has named properties -> product type
   if (propertySchema && 0 < Object.keys(propertySchema).length) {
-    return toProductSchema(propertySchema);
+    return convertPropertiesToProductSchema(propertySchema);
   }
 
   // Regex fallback for index signatures (vue-component-meta lacks structured info)
@@ -126,7 +111,7 @@ function toObject (
 
   if (!match) return undefined;
 
-  const valueSchema = toPrimitive((match[1] ?? match[2])!);
+  const valueSchema = convertPrimitiveTypeToSchema((match[1] ?? match[2])!);
 
   return valueSchema !== undefined
     ? {
@@ -137,7 +122,7 @@ function toObject (
 }
 
 // Map TS primitive name to JSON Schema leaf
-function toPrimitive (type: string): JsonSchema | undefined {
+function convertPrimitiveTypeToSchema (type: string): JsonSchema | undefined {
   switch (type) {
     case 'string':
       return {
@@ -157,7 +142,7 @@ function toPrimitive (type: string): JsonSchema | undefined {
 }
 
 // Recursively map each field, collect required list
-function toProductSchema (
+function convertPropertiesToProductSchema (
   propertySchema: Record<string, PropertyMeta>,
 ): JsonSchema | undefined {
   const properties: Record<string, JsonSchema> = {};
@@ -167,7 +152,7 @@ function toProductSchema (
     key,
     property,
   ] of Object.entries(propertySchema)) {
-    const valueSchema = toJsonSchema(property.schema);
+    const valueSchema = convertPropertyMetaToSchema(property.schema);
 
     if (valueSchema === undefined) return undefined;
 
@@ -186,4 +171,60 @@ function toProductSchema (
   }
 
   return schema;
+}
+
+// Dispatch on PropertyMetaSchema kind: string -> primitive, enum/array/object -> recurse
+function convertPropertyMetaToSchema (schema: PropertyMetaSchema): JsonSchema | undefined {
+  if (typeof schema === 'string') return convertPrimitiveTypeToSchema(schema);
+
+  switch (schema.kind) {
+    case 'enum':
+      return convertUnionMembersToSchema(schema.schema);
+    case 'array':
+      return convertArrayElementsToSchema(schema.schema);
+    case 'object':
+      return convertObjectToSchema(schema.type, schema.schema);
+    default:
+      return undefined;
+  }
+}
+
+// Strip undefined/null from union, handle single-type and literal enum unions
+function convertUnionMembersToSchema (members: PropertyMetaSchema[] | undefined): JsonSchema | undefined {
+  const all = members ?? [];
+  const isNullable = all.some((member) => member === 'undefined' || member === 'null');
+  const concrete = all.filter((member) => member !== 'undefined' && member !== 'null');
+
+  if (concrete.length === 0) return undefined;
+
+  // Single-member union after stripping nullability
+  if (concrete.length === 1) {
+    const inner = convertPropertyMetaToSchema(concrete[0]);
+
+    if (inner === undefined) return undefined;
+
+    return isNullable ? makeOptional(inner) : inner;
+  }
+
+  // All members are literal values: emit { enum: [...] }
+  const literals = concrete.every(
+    (member) => typeof member === 'object' && member.kind === 'literal',
+  );
+
+  if (literals) {
+    const values: (string | number | boolean)[] = [];
+
+    for (const member of concrete) {
+      // kind === 'literal' always has value, but guard defensively
+      if (typeof member === 'string' || !('value' in member)) return undefined;
+      values.push(member.value as string | number | boolean);
+    }
+    const schema: JsonSchema = {
+      enum: values,
+    };
+
+    return isNullable ? makeOptional(schema) : schema;
+  }
+
+  return undefined;
 }

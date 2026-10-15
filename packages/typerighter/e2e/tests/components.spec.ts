@@ -227,36 +227,40 @@ components.describe('contract', () => {
 
   components('components.json includes builtin flashcard with prop types', async () => {
     expect(contract.flashcard).toBeDefined();
-    expect(contract.flashcard.props.revealed).toEqual({
+    expect(contract.flashcard.props.revealed.schema).toEqual({
       type: [
         'boolean',
         'null',
       ],
     });
-    expect(contract.flashcard.props.disabled).toEqual({
+    expect(contract.flashcard.props.disabled.schema).toEqual({
       type: [
         'boolean',
         'null',
       ],
     });
-    expect(contract.flashcard.props.id).toEqual({
+    expect(contract.flashcard.props.id.schema).toEqual({
       type: [
         'string',
         'null',
       ],
     });
-    expect(contract.flashcard.props.questionLabel).toEqual({
+    expect(contract.flashcard.props.questionLabel.schema).toEqual({
       type: [
         'string',
         'null',
       ],
     });
-    expect(contract.flashcard.props.keyLabel).toEqual({
+    expect(contract.flashcard.props.keyLabel.schema).toEqual({
       type: [
         'string',
         'null',
       ],
     });
+  });
+
+  components('components.json includes flashcard slots', async () => {
+    expect(contract.flashcard.slots).toEqual(['key']);
   });
 
   components('components.json includes all auto-discovered builtins', async () => {
@@ -267,10 +271,10 @@ components.describe('contract', () => {
 
   components('string prop type is mapped correctly', async () => {
     // Required props: { type: "string" }; optional props: { type: ["string", "null"] }
-    expect(contract.TdCard.props.title).toEqual({
+    expect(contract.TdCard.props.title.schema).toEqual({
       type: 'string',
     });
-    expect(contract.TdCard.props.icon).toEqual({
+    expect(contract.TdCard.props.icon.schema).toEqual({
       type: [
         'string',
         'null',
@@ -279,7 +283,7 @@ components.describe('contract', () => {
   });
 
   components('boolean prop type is mapped correctly', async () => {
-    expect(contract.TdDataTable.props.striped).toEqual({
+    expect(contract.TdDataTable.props.striped.schema).toEqual({
       type: [
         'boolean',
         'null',
@@ -288,13 +292,13 @@ components.describe('contract', () => {
   });
 
   components('number prop type is mapped correctly', async () => {
-    expect(contract.TdTabs.props.active).toEqual({
+    expect(contract.TdTabs.props.active.schema).toEqual({
       type: [
         'number',
         'null',
       ],
     });
-    expect(contract.TdTabs.props.labels).toEqual({
+    expect(contract.TdTabs.props.labels.schema).toEqual({
       type: 'string',
     });
   });
@@ -302,7 +306,7 @@ components.describe('contract', () => {
   components('unsupported prop type is omitted, component still registered', async () => {
     // TdComplex has title: string (kept) and data: Record<string, unknown> (omitted)
     expect(contract.TdComplex).toBeDefined();
-    expect(contract.TdComplex.props.title).toEqual({
+    expect(contract.TdComplex.props.title.schema).toEqual({
       type: 'string',
     });
     expect(contract.TdComplex.props.data).toBeUndefined();
@@ -362,25 +366,25 @@ componentsFresh.describe('contract (fresh)', () => {
   });
 
   componentsFresh('generated contract has correct prop types', async () => {
-    expect(contract.TdTabs.props.labels).toEqual({
+    expect(contract.TdTabs.props.labels.schema).toEqual({
       type: 'string',
     });
-    expect(contract.TdTabs.props.active).toEqual({
+    expect(contract.TdTabs.props.active.schema).toEqual({
       type: [
         'number',
         'null',
       ],
     });
-    expect(contract.TdDataTable.props.striped).toEqual({
+    expect(contract.TdDataTable.props.striped.schema).toEqual({
       type: [
         'boolean',
         'null',
       ],
     });
-    expect(contract.TdCard.props.title).toEqual({
+    expect(contract.TdCard.props.title.schema).toEqual({
       type: 'string',
     });
-    expect(contract.TdCard.props.footer).toEqual({
+    expect(contract.TdCard.props.footer.schema).toEqual({
       type: [
         'string',
         'null',
@@ -389,14 +393,15 @@ componentsFresh.describe('contract (fresh)', () => {
   });
 
   componentsFresh('unsupported prop type omitted in generated contract', async () => {
-    expect(contract.TdComplex.props.title).toEqual({
+    expect(contract.TdComplex.props.title.schema).toEqual({
       type: 'string',
     });
     expect(contract.TdComplex.props.data).toBeUndefined();
   });
 });
 
-// Vault with no theme.components config - plugin writes builtins-only contract
+// Vault with no theme.components config
+// Plugin writes builtins-only contract
 const componentsNone = test.extend<{
   testProject: TestProject;
 }>({

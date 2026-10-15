@@ -12,14 +12,23 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, '../../..');
 const CUSTOM_DIR = path.resolve(PACKAGE_ROOT, 'src/client/theme-default/components/custom');
 
-// Auto-discover builtin components: direct Td*.vue children of the custom/ folder
+// Auto-discover builtin components: Td*.vue files in custom/ and its immediate subdirectories
 function discoverBuiltinComponents (): Array<{ name: string; absolutePath: string }> {
-  return fs.readdirSync(CUSTOM_DIR)
-    .filter((file) => file.startsWith('Td') && file.endsWith('.vue'))
-    .map((file) => ({
-      name: pascalToKebab(file.replace(/^Td/, '').replace(/\.vue$/, '')),
-      absolutePath: path.join(CUSTOM_DIR, file),
-    }));
+  const dirs = [
+    CUSTOM_DIR,
+    ...fs.readdirSync(CUSTOM_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(CUSTOM_DIR, entry.name)),
+  ];
+
+  return dirs.flatMap((dir) =>
+    fs.readdirSync(dir)
+      .filter((file) => file.startsWith('Td') && file.endsWith('.vue'))
+      .map((file) => ({
+        name: pascalToKebab(file.replace(/^Td/, '').replace(/\.vue$/, '')),
+        absolutePath: path.join(dir, file),
+      })),
+  );
 }
 
 export function buildBuiltinContract (): Record<string, ContractEntry> {

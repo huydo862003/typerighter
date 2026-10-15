@@ -11,7 +11,9 @@ impl<S: Utf8Stream> LexCtx<S> {
   pub(in crate::syntax::lex) fn lex_markdown_body(&mut self) -> LexResult {
     // If inside a formula/string context, dispatch accordingly
     match self.markdown_lex_ctx.interp_stack.last() {
-      Some(InterpContext::Interpolation) | Some(InterpContext::Brace) => {
+      Some(InterpContext::Interpolation)
+      | Some(InterpContext::Brace)
+      | Some(InterpContext::PropValue) => {
         return self.lex_markdown_formula();
       }
       Some(InterpContext::DqString) | Some(InterpContext::SqString) => {
@@ -137,6 +139,26 @@ impl<S: Utf8Stream> LexCtx<S> {
       /* Everything else is text */
       _ => self.lex_markdown_text(),
     }
+  }
+
+  /// Enter formula-mode lexing for a prop value in a container heading
+  pub(in crate::syntax) fn enter_prop_value_mode(&mut self) {
+    self
+      .markdown_lex_ctx
+      .interp_stack
+      .push(InterpContext::PropValue);
+  }
+
+  /// Exit formula-mode lexing after a prop value is fully parsed
+  pub(in crate::syntax) fn exit_prop_value_mode(&mut self) {
+    debug_assert!(
+      matches!(
+        self.markdown_lex_ctx.interp_stack.last(),
+        Some(InterpContext::PropValue)
+      ),
+      "[LexCtx::exit_prop_value_mode] Expected PropValue on top of interp stack"
+    );
+    self.markdown_lex_ctx.interp_stack.pop();
   }
 
   /* Dollar */

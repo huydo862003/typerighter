@@ -2,13 +2,23 @@ use super::helpers::*;
 use crate::syntax::diagnostic::*;
 
 fn parse_body(input: &str) -> String {
-  let full_input = format!("---\n---\n{}", input);
+  let full_input = format!(
+    "---
+---
+{}",
+    input
+  );
   let (ast, _) = parse(&full_input);
   render_tree(&ast)
 }
 
 fn parse_body_with_diags(input: &str) -> (String, Vec<TdDiagnostic>) {
-  let full_input = format!("---\n---\n{}", input);
+  let full_input = format!(
+    "---
+---
+{}",
+    input
+  );
   let (ast, diags) = parse(&full_input);
   (render_tree(&ast), diags)
 }
@@ -887,8 +897,8 @@ content
 "#,
   );
   assert!(
-    !diags.is_empty(),
-    "negative prop values are not supported, expected a diagnostic"
+    diags.is_empty(),
+    "negative prop values should parse without diagnostics, got: {diags:?}"
   );
 }
 
@@ -5315,7 +5325,10 @@ fn parse_horizontal_rule_underscores() {
 
 #[test]
 fn parse_not_horizontal_rule_with_text() {
-  let (tree, _) = parse_body_with_diags("--- some text\n");
+  let (tree, _) = parse_body_with_diags(
+    "--- some text
+",
+  );
   assert!(
     !tree.contains("MdHorizontalRule"),
     "should not be hr:\n{tree}"
@@ -5325,7 +5338,120 @@ fn parse_not_horizontal_rule_with_text() {
 // Link with inline code as link text
 #[test]
 fn parse_link_with_inline_code_text() {
-  let tree = parse_body("# [`def1`](http://example.com)\n");
+  let tree = parse_body(
+    "# [`def1`](http://example.com)
+",
+  );
   eprintln!("{tree}");
   assert!(tree.contains("MdLink"), "should parse as a link:\n{tree}");
+}
+
+// JS prop value error recovery
+
+// Invalid token inside a list synchronizes to the next delimiter, no crash
+#[test]
+fn prop_list_invalid_element_synchronizes() {
+  let (tree, diags) = parse_body_with_diags(":::card{data=[@bad]}\n:::\n");
+  assert!(
+    tree.contains("ListLit"),
+    "should still emit ListLit node: {tree}"
+  );
+  assert!(
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
+        ..
+      }
+    )),
+    "should report MissingContainerPropValueAfterEq, got: {diags:?}"
+  );
+}
+
+// Error mid-list: synchronizes to next comma/bracket, parses what it can
+#[test]
+fn prop_list_error_mid_list_synchronizes() {
+  let (tree, diags) = parse_body_with_diags(":::card{data=[1, @, 3]}\n:::\n");
+  assert!(
+    tree.contains("ListLit"),
+    "should still emit ListLit node: {tree}"
+  );
+  assert!(
+    !diags.is_empty(),
+    "should report at least one diagnostic, got: {diags:?}"
+  );
+}
+
+// List terminated early by `}`: closes the list without crash
+#[test]
+fn prop_list_terminated_by_rbrace_no_crash() {
+  let (tree, _) = parse_body_with_diags(":::card{data=[1, 2}\n:::\n");
+  assert!(
+    tree.contains("ListLit"),
+    "should still emit ListLit node: {tree}"
+  );
+}
+
+// Unterminated list at newline: closes gracefully
+#[test]
+fn prop_list_unterminated_at_newline_no_crash() {
+  let (tree, _) = parse_body_with_diags(":::card{data=[1, 2\n:::\n");
+  assert!(
+    tree.contains("ListLit"),
+    "should still emit ListLit node: {tree}"
+  );
+}
+
+// Invalid value in a dict entry: synchronizes, no crash
+#[test]
+fn prop_dict_invalid_value_synchronizes() {
+  let (tree, diags) = parse_body_with_diags(":::card{config={color: @bad}}\n:::\n");
+  assert!(
+    tree.contains("DictLit"),
+    "should still emit DictLit node: {tree}"
+  );
+  assert!(
+    diags.iter().any(|d| matches!(
+      d,
+      TdDiagnostic {
+        kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
+        ..
+      }
+    )),
+    "should report MissingContainerPropValueAfterEq, got: {diags:?}"
+  );
+}
+
+// Dict entry missing colon: synchronizes, no crash
+#[test]
+fn prop_dict_missing_colon_synchronizes() {
+  let (tree, _) = parse_body_with_diags(":::card{config={color \"red\"}}\n:::\n");
+  assert!(
+    tree.contains("DictLit"),
+    "should still emit DictLit node: {tree}"
+  );
+}
+
+// Unterminated dict at newline: closes gracefully
+#[test]
+fn prop_dict_unterminated_at_newline_no_crash() {
+  let (tree, _) = parse_body_with_diags(":::card{config={color: \"red\"\n:::\n");
+  assert!(
+    tree.contains("DictLit"),
+    "should still emit DictLit node: {tree}"
+  );
+}
+
+// Error in nested list inside a dict value: recovers without crash
+#[test]
+fn prop_dict_nested_list_invalid_element_no_crash() {
+  let (tree, _) = parse_body_with_diags(":::card{config={a: [@bad]}}\n:::\n");
+  assert!(
+    tree.contains("DictLit"),
+    "should still emit DictLit node: {tree}"
+  );
+  assert!(
+    tree.contains("ListLit"),
+    "should still emit ListLit node: {tree}"
+  );
 }
