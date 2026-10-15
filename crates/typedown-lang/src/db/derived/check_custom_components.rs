@@ -7,8 +7,8 @@ use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{CustomComponentCheckResult, CustomComponentTyp, File, Project};
 use crate::db::utils::{
-  extract_container_name, extract_container_prop_names, extract_shorthand_name,
-  is_builtin_container, kebab_to_pascal,
+  extract_container_name, extract_container_prop_names, extract_shorthand_name, is_callout,
+  kebab_to_pascal,
 };
 use crate::syntax::diagnostic::*;
 use crate::syntax::red::RedNode;
@@ -61,15 +61,18 @@ fn validate(
   contract: &[CustomComponentTyp],
   diagnostics: &mut Vec<TdDiagnostic>,
 ) {
-  if is_builtin_container(name) {
-    return;
-  }
-
   let (start_offset, len) = node.trimmed_range();
   let end_offset = start_offset + len;
 
-  let pascal = kebab_to_pascal(name);
-  let Some(entry) = contract.iter().find(|e| e.name == name || e.name == pascal) else {
+  let pascal_name = kebab_to_pascal(name);
+  let Some(entry) = contract
+    .iter()
+    .find(|component_entry| component_entry.name == name || component_entry.name == pascal_name)
+  else {
+    // Callouts are valid without a contract entry
+    if is_callout(name) {
+      return;
+    }
     diagnostics.push(
       TdDiagnosticKind::UnknownComponent {
         name: name.to_string(),
@@ -283,13 +286,13 @@ mod tests {
   }
 
   #[test]
-  fn builtin_container_skipped() {
+  fn callout_skipped() {
     let root = parse_body("::: note\ncontent\n:::\n");
     let block = find_first(&root, SyntaxKind::MdContainerBlock).unwrap();
     let name = extract_container_name(&block).unwrap();
     let contract: Vec<CustomComponentTyp> = vec![];
     let mut diags = Vec::new();
     validate(&block, &name, &contract, &mut diags);
-    assert!(diags.is_empty(), "builtins should produce no diagnostics");
+    assert!(diags.is_empty(), "callouts should produce no diagnostics");
   }
 }

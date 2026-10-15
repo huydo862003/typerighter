@@ -1,5 +1,5 @@
 import {
-  readFile, access,
+  readFile,
 } from 'node:fs/promises';
 import {
   test,
@@ -225,6 +225,46 @@ components.describe('contract', () => {
     );
   });
 
+  components('components.json includes builtin flashcard with prop types', async () => {
+    expect(contract.flashcard).toBeDefined();
+    expect(contract.flashcard.props.revealed).toEqual({
+      type: [
+        'boolean',
+        'null',
+      ],
+    });
+    expect(contract.flashcard.props.disabled).toEqual({
+      type: [
+        'boolean',
+        'null',
+      ],
+    });
+    expect(contract.flashcard.props.id).toEqual({
+      type: [
+        'string',
+        'null',
+      ],
+    });
+    expect(contract.flashcard.props.questionLabel).toEqual({
+      type: [
+        'string',
+        'null',
+      ],
+    });
+    expect(contract.flashcard.props.keyLabel).toEqual({
+      type: [
+        'string',
+        'null',
+      ],
+    });
+  });
+
+  components('components.json includes all auto-discovered builtins', async () => {
+    expect(contract['glossary-index']).toBeDefined();
+    expect(contract['toc']).toBeDefined();
+    expect(contract['directory-index']).toBeDefined();
+  });
+
   components('string prop type is mapped correctly', async () => {
     // Required props: { type: "string" }; optional props: { type: ["string", "null"] }
     expect(contract.TdCard.props.title).toEqual({
@@ -356,7 +396,7 @@ componentsFresh.describe('contract (fresh)', () => {
   });
 });
 
-// Vault with no theme.components config - plugin should not create components.json
+// Vault with no theme.components config - plugin writes builtins-only contract
 const componentsNone = test.extend<{
   testProject: TestProject;
 }>({
@@ -368,12 +408,34 @@ const componentsNone = test.extend<{
   ],
 });
 
-componentsNone.describe('contract (no components)', () => {
-  componentsNone('components.json is not created when no components are configured', async ({
+componentsNone.describe('contract (no user components)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let contract: Record<string, any>;
+
+  componentsNone.beforeEach(async ({
     testProject,
   }) => {
-    // Server is already responsive by the time the test runs, so any contract write has occurred
-    await expect(access(`${testProject.dir}/.typedown/components.json`)).rejects.toThrow();
+    // Server is already responsive so the contract file has been written
+    const raw = await waitForContract(`${testProject.dir}/.typedown/components.json`);
+
+    contract = JSON.parse(raw);
+  });
+
+  componentsNone('components.json is created with builtins even without user components', async () => {
+    expect(contract.flashcard).toBeDefined();
+    expect(contract['glossary-index']).toBeDefined();
+    expect(contract['toc']).toBeDefined();
+    expect(contract['directory-index']).toBeDefined();
+  });
+
+  componentsNone('components.json contains only builtins when no user components are configured', async () => {
+    const keys = Object.keys(contract);
+
+    expect(keys).toContain('flashcard');
+    expect(keys).toContain('glossary-index');
+    expect(keys).toContain('toc');
+    expect(keys).toContain('directory-index');
+    expect(keys).not.toContain('TdAlert');
   });
 });
 
@@ -480,6 +542,24 @@ components.describe('component check', () => {
 
     const hasWarning = testProject.serverStderr.some(
       (line) => line.includes('severity'),
+    );
+
+    expect(hasWarning).toBe(true);
+  });
+
+  // Negative: unknown prop on builtin flashcard emits diagnostic
+  // Uses check-builtin-unknown-prop.td (flashcard with severity prop)
+  components('unknown prop on builtin flashcard emits warning', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/check-builtin-unknown-prop');
+    await expect(page.locator('.td-content')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const hasWarning = testProject.serverStderr.some(
+      (line) => line.includes('unknown prop'),
     );
 
     expect(hasWarning).toBe(true);

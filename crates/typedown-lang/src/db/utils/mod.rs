@@ -19,14 +19,6 @@ pub fn is_callout(name: &str) -> bool {
   )
 }
 
-// Whether a container name is a built-in callout or built-in component
-pub fn is_builtin_container(name: &str) -> bool {
-  const BUILTIN_COMPONENT_NAMES: &[&str] =
-    &["toc", "directory-index", "glossary-index", "flashcard"];
-
-  is_callout(name) || BUILTIN_COMPONENT_NAMES.contains(&name)
-}
-
 // Extract the label (component name) from a ::: container block
 // Handles kebab-case names like `td-alert` which are parsed as multiple tokens
 pub fn extract_container_name(node: &RedNode) -> Option<String> {

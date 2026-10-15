@@ -1,4 +1,7 @@
 import fs from 'node:fs/promises';
+import {
+  existsSync,
+} from 'node:fs';
 import path from 'node:path';
 import {
   cancel,
@@ -142,6 +145,66 @@ async function detectExistingProject (root: string): Promise<ExistingProject> {
   return result;
 }
 
+function detectPackageManager (root: string): string {
+  // Prefer the manager whose lockfile is already present in the project root
+  if (existsSync(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (existsSync(path.join(root, 'yarn.lock'))) return 'yarn';
+  if (existsSync(path.join(root, 'bun.lock')) || existsSync(path.join(root, 'bun.lockb'))) return 'bun';
+
+  return 'npm';
+}
+
+function generateComponentsDocs (): string {
+  return `---
+_type: Article
+title: "Built-in components"
+description: "Components that ship with the default theme"
+---
+
+Typedown's default theme ships two built-in Vue components you can use in any \`.td\` file.
+
+## Flashcard
+
+Use a \`flashcard\` container fence to create a flip card for study or review.
+
+\`\`\`
+::: flashcard
+What does \`fref\` stand for in Typedown?
+=== key
+File reference: a typed link from one \`.td\` node to another.
+:::
+\`\`\`
+
+The rendered result is interactive: click or press Space to reveal the answer.
+
+::: flashcard
+What does \`fref\` stand for in Typedown?
+=== key
+File reference: a typed link from one \`.td\` node to another.
+:::
+
+The card starts face-down. Pass \`revealed\` to start with the answer visible, or \`disabled\` to prevent flipping.
+
+## Glossary index
+
+\`TdGlossaryIndex\` renders all sibling pages in the current directory as a searchable, alphabetical index. Place it on a folder's \`index.td\` page.
+
+Informative mode (default) shows the \`description\` and \`tags\` from each page's frontmatter:
+
+\`\`\`html
+<TdGlossaryIndex />
+\`\`\`
+
+Dense mode renders a compact three-column link list suited for large directories:
+
+\`\`\`html
+<TdGlossaryIndex mode="dense" />
+\`\`\`
+
+For each entry the component reads the \`description\` and \`tags\` fields from the page's schema, so make sure your schema exposes them.
+`;
+}
+
 function generateFaviconSvg (): string {
   return `<svg fill="none" viewBox="${BRAND_VIEWBOX}" xmlns="http://www.w3.org/2000/svg">
   <path clip-rule="evenodd" d="${BRAND_BORDER}" fill-rule="evenodd" fill="${BRAND_COLOR}"/>
@@ -163,9 +226,12 @@ function generatePackageJson (options: InitializeOptions): string {
           dev: 'typerighter dev',
           build: 'typerighter build',
           preview: 'typerighter preview',
+          check: 'typerighter check',
         },
         devDependencies: {
           typerighter: `^${__VERSION__}`,
+          // typescript is a peer required by vue-component-meta at build time
+          typescript: '^5.0.0',
         },
       },
       undefined,
@@ -186,9 +252,12 @@ function generateSampleTdContent (): string {
   return `---
 _type: Article
 title: "Hello, world"
+description: "The starting point of your vault"
 ---
 
 Welcome to your new typedown site.
+
+Read \`components.td\` to learn about the built-in components.
 `;
 }
 
@@ -198,9 +267,10 @@ _type: schema
 properties:
   title:
     type: string
+  description:
+    type: string?
   tags:
-    type: list[string]
-    optional: true
+    type: list[string]?
 ---
 `;
 }
@@ -230,15 +300,17 @@ function hasAllFlags (
 }
 
 function printFurtherSteps (root: string): void {
+  const pm = detectPackageManager(root);
+  // npm uses "npm run <script>" while the others use "<pm> <script>" directly
+  const runDev = pm === 'npm' ? 'npm run dev' : `${pm} dev`;
   const steps = ['Done scaffolding.'];
 
   if (root !== '.') {
     steps.push(`cd ${root}`);
   }
 
-  steps.push('pnpm install');
-
-  steps.push('pnpm dev');
+  steps.push(`${pm} install`);
+  steps.push(runDev);
 
   outro(steps.join('\n'));
 }
@@ -305,6 +377,9 @@ async function scaffold (
       silent: true,
     }),
     writeIfMissing(vaultDirectory, 'hello.td', generateSampleTdContent(), {
+      silent: true,
+    }),
+    writeIfMissing(vaultDirectory, 'components.td', generateComponentsDocs(), {
       silent: true,
     }),
   ]);

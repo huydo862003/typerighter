@@ -4,8 +4,7 @@ use crate::db::utils::{is_external_url, normalize_joined_path};
 use crate::syntax::red::RedNode;
 
 pub use crate::db::utils::{
-  extract_container_name, extract_container_prop_names, extract_shorthand_name,
-  is_builtin_container, is_callout,
+  extract_container_name, extract_container_prop_names, extract_shorthand_name, is_callout,
 };
 
 pub fn slugify(text: &str) -> String {

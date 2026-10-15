@@ -24,6 +24,12 @@ export function parseNumericPrefix (name: string): {
   };
 }
 
+// Convert PascalCase to kebab-case
+// e.g. "GlossaryIndex" -> "glossary-index"
+export function pascalToKebab (string_: string): string {
+  return string_.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
 // Convert snake_case to kebab-case
 // e.g. "layout_top" -> "layout-top"
 export function snakeToKebab (string_: string): string {

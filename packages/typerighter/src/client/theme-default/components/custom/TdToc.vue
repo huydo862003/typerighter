@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   useActiveTocHeading,
-} from '../composables/useActiveTocHeading';
+} from '../../composables/useActiveTocHeading';
 import {
   sanitizeInlineHtml,
   type MarkdownHeading,
