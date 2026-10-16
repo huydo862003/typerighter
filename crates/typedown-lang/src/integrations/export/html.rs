@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 
+use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
 use crate::integrations::export::utils::is_string_quoted;
@@ -396,7 +397,20 @@ impl<'a> HtmlEmitter<'a> {
   fn emit_container(&mut self, node: &RedNode) {
     let (label, title) = extract_container_label_and_title(node);
 
-    if is_callout(&label) {
+    let contract = self
+      .project
+      .custom_component_contract(self.db)
+      .map(|file| get_component_contract(self.db, file));
+
+    if is_callout(&label)
+      && !contract.is_some_and(|result| {
+        result
+          .entries(self.db)
+          .iter()
+          .find(|entry| entry.name == label)
+          .is_some()
+      })
+    {
       self.emit_callout_container(node, &label, title.as_deref());
     } else {
       self.emit_component_container(node, &label);
@@ -441,13 +455,13 @@ impl<'a> HtmlEmitter<'a> {
 
   fn emit_component_container(&mut self, node: &RedNode, label: &str) {
     let props = extract_container_props(node);
-    let prop_str = if props.is_empty() {
+    let prop_string = if props.is_empty() {
       String::new()
     } else {
       format!(" {props}")
     };
 
-    self.write(&format!("<{label}{prop_str}>\n"));
+    self.write(&format!("<{label}{prop_string}>\n"));
 
     let mut saw_separator = false;
     let mut current_slot_name: Option<String> = None;
@@ -829,26 +843,28 @@ fn extract_container_props(node: &RedNode) -> String {
     if child.kind() == SyntaxKind::MdContainerPropBlock {
       let mut props = Vec::new();
       for item in child.children() {
-        if item.kind() == SyntaxKind::MdContainerPropItem {
-          let text = item.text().trim().to_string();
-          if !text.is_empty() {
-            if let Some(eq) = text.find('=') {
-              let key = &text[..eq];
-              let raw_value = &text[eq + 1..];
-              let was_quoted = is_string_quoted(raw_value);
-              let value = strip_quotes(raw_value);
+        if item.kind() != SyntaxKind::MdContainerPropItem {
+          continue;
+        }
+        let text = item.text().trim().to_string();
+        if text.is_empty() {
+          continue;
+        }
+        let Some(eq) = text.find('=') else {
+          props.push(text);
+          continue;
+        };
+        let key = &text[..eq];
 
-              if was_quoted {
-                // Quoted: pass as string attribute
-                props.push(format!("{key}=\"{}\"", html_escape(value)));
-              } else {
-                // Unquoted: use v-bind so Vue preserves the JS type
-                props.push(format!(":{key}=\"{}\"", html_escape(value)));
-              }
-            } else {
-              props.push(text);
-            }
-          }
+        let raw_value = &text[eq + 1..];
+        let value = strip_quotes(raw_value);
+
+        if is_string_quoted(raw_value) {
+          // Quoted: pass as string attribute
+          props.push(format!("{key}=\"{}\"", html_escape(value)));
+        } else {
+          // Unquoted: use v-bind so Vue preserves the JS type
+          props.push(format!(":{key}=\"{}\"", html_escape(value)));
         }
       }
       return props.join(" ");

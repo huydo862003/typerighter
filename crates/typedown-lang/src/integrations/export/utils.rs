@@ -23,7 +23,8 @@ pub fn slugify(text: &str) -> String {
 }
 
 pub fn is_string_quoted(string: &str) -> bool {
-  (string.starts_with('"') && string.ends_with('"')) || (string.starts_with('\'') && string.ends_with('\''))
+  (string.starts_with('"') && string.ends_with('"'))
+    || (string.starts_with('\'') && string.ends_with('\''))
 }
 
 pub fn html_escape(text: &str) -> String {
