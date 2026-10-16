@@ -1,3 +1,12 @@
+## [0.44.2] - 2026-10-16
+
+### Added
+
+- packages/typerighter
+  - Typecheck prop value
+  - Support various JS expressions in prop value
+  - Add autocompletion/go to definition for container
+
 ## [0.44.1] - 2026-10-15
 
 ### Changed
