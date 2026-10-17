@@ -294,8 +294,8 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       playwright:
-        specifier: ^1.61.1
-        version: 1.61.1
+        specifier: ^1.64.0
+        version: 1.64.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -316,7 +316,7 @@ importers:
         version: link:../../..
       vue:
         specifier: ^3.5.43
-        version: 3.5.43
+        version: 3.5.43(typescript@6.0.3)
 
   packages/typerighter/e2e/fixtures/vault-root:
     devDependencies:
@@ -3104,9 +3104,19 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  playwright-core@1.64.0:
+    resolution: {integrity: sha512-T9r+MZkTECl2+oUcZ26YgZzTrYidTsIhYYkJix+6iDOymOb1FB2RLLSOxRGnZGv5DStt+aduIVbt+E8WygXYpg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   playwright@1.61.1:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.64.0:
+    resolution: {integrity: sha512-kVzTnYFYEyQ9RGzBjNCd2+yEqWmVbxl3AHPynv3qQ6JTjv4a+kwRcnqQwIpuP3NnrnIrE/Q6wWAIAvMfIE2/Yg==}
+    engines: {node: '>=20'}
     hasBin: true
 
   pluralize@2.0.0:
@@ -6833,11 +6843,17 @@ snapshots:
 
   playwright-core@1.61.1: {}
 
+  playwright-core@1.64.0: {}
+
   playwright@1.61.1:
     dependencies:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  playwright@1.64.0:
+    dependencies:
+      playwright-core: 1.64.0
 
   pluralize@2.0.0: {}
 
