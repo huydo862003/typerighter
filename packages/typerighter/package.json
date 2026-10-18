@@ -82,13 +82,15 @@
     "vue": "^3.5.43",
     "vue-component-meta": "^3.3.13"
   },
+  "peerDependencies": {
+    "typescript": "^6.0.3"
+  },
   "devDependencies": {
     "@hdnax/nuclint": "^0.17.5",
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.4.1",
     "minisearch": "^7.2.0",
     "playwright": "^1.61.1",
-    "typescript": "^6.0.3",
     "vitest": "^5.0.1"
   }
 }

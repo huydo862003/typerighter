@@ -271,6 +271,9 @@ importers:
       temml:
         specifier: ^0.13.5
         version: 0.13.5
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
       vite:
         specifier: ^8.3.4
         version: 8.3.4(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)
@@ -296,9 +299,6 @@ importers:
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@types/node@26.4.1)(vite@8.3.4(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
@@ -316,7 +316,7 @@ importers:
         version: link:../../..
       vue:
         specifier: ^3.5.43
-        version: 3.5.43
+        version: 3.5.43(typescript@6.0.3)
 
   packages/typerighter/e2e/fixtures/vault-root:
     devDependencies:
