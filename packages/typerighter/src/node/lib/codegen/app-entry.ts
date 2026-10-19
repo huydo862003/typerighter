@@ -7,6 +7,8 @@ import {
 
 export interface AppEntryOptions {
   rootDir?: string;
+  // Path within the host Vite project where typedown is mounted (e.g. 'api-reference')
+  mountPath?: string;
   basePath?: string;
   origin?: string;
   lang?: string;
@@ -39,8 +41,15 @@ export interface VirtualModuleIds {
 export function generateAppEntry (options: AppEntryOptions, ids: VirtualModuleIds): string {
   const {
     rootDir: rootDirectory = '.',
+    mountPath = '',
     userComponents = [],
   } = options;
+
+  // Full path from Vite project root to the vault directory
+  const fullRootDirectory = [
+    mountPath,
+    rootDirectory === '.' ? '' : rootDirectory,
+  ].filter(Boolean).join('/');
 
   const componentImports = userComponents
     .map((component) => `import ${component.name} from ${JSON.stringify(component.absolutePath)};`)
@@ -92,7 +101,7 @@ function findPage(base) {
 }
 
 async function loadPageModule(pagePath) {
-  const loader = findPage(path.join('/', '${rootDirectory}', pagePath));
+  const loader = findPage(path.join('/', '${fullRootDirectory}', pagePath));
   if (loader) return loader();
 
   if (isIndexUrl(pagePath)) {
@@ -118,7 +127,7 @@ import('${ids.searchIndex}').then((m) => { searchIndexRef.value = m.default; });
 if (import.meta.hot) {
   import.meta.hot.accept('${ids.pages}', (m) => {
     if (!m) return;
-    const base = path.join('/', '${rootDirectory}', router.route.path);
+    const base = path.join('/', '${fullRootDirectory}', router.route.path);
     const hadPage = !!findPage(base);
     pages = m.pages;
     const hasPage = !!findPage(base);
@@ -138,8 +147,8 @@ if (import.meta.hot) {
 
   // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
   import.meta.hot.on('${ids.pageDataEvent}', ({ filepath, pageData }) => {
-    const eventBase = path.join('/', '${rootDirectory}', path.stripExtension(filepath));
-    const routeBase = path.join('/', '${rootDirectory}', router.route.path);
+    const eventBase = path.join('/', '${fullRootDirectory}', path.stripExtension(filepath));
+    const routeBase = path.join('/', '${fullRootDirectory}', router.route.path);
     if (eventBase === routeBase) {
       router.route.data = pageData;
     }

@@ -17,10 +17,17 @@ import {
 } from '@/node/lib/render/vue';
 
 export class VirtualPages implements VirtualModule {
+  // Path within the host Vite project where typedown is mounted (empty when typedown is at the Vite root)
+  constructor (private readonly mountPath: string = '') {}
+
   async load (context: TypedownContext): Promise<string> {
     const config = await context.getConfig();
     const rootDirectory = config.rootDir ?? '.';
-    const glob = rootDirectory === '.' ? '/**/*.{td,md}' : `/${rootDirectory}/**/*.{td,md}`;
+    const segments = [
+      this.mountPath,
+      rootDirectory === '.' ? '' : rootDirectory,
+    ].filter(Boolean);
+    const glob = 0 < segments.length ? `/${segments.join('/')}/**/*.{td,md}` : '/**/*.{td,md}';
 
     return `export const pages = import.meta.glob('${glob}');`;
   }

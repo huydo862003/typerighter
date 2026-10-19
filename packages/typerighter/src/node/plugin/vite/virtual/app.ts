@@ -23,6 +23,8 @@ import {
 } from '@/node/lib/components';
 
 export class VirtualApp {
+  constructor (private readonly mountPath: string = '') {}
+
   async load (context: AppContext): Promise<string> {
     const tdContext = await context.getTdContext();
     const config = await tdContext.getConfig();
@@ -34,6 +36,7 @@ export class VirtualApp {
     return generateAppEntry(
       {
         rootDir: config.rootDir,
+        mountPath: this.mountPath,
         basePath: config.basePath,
         origin: config.origin ?? undefined,
         lang: config.lang,
