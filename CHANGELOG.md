@@ -1,3 +1,10 @@
+## [0.45.0] - 2026-10-19
+
+### Changed
+
+- packages/typerighter
+  - Fix broken mounted nested app
+
 ## [0.44.2] - 2026-10-16
 
 ### Added
