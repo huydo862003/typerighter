@@ -1,3 +1,16 @@
+## [0.45.0] - 2026-10-19
+
+### Fixed
+
+- packages/typerighter
+  - `typedown({ root })` now correctly serves pages in dev mode when the vault lives in a subdirectory of the host Vite project, previously the pages glob and `loadPageModule` path lookup were relative to Vite's project root rather than the typedown context root, causing all pages to show "Not Found"
+  - Builtin component source paths in `.typedown/components.json` are now written as `typerighter/src/...` instead of `./src/...`, preventing them from being misread as paths relative to the consumer project
+
+### Added
+
+- packages/typerighter
+  - E2e test fixture `vault-mounted` and `mounted.spec.ts` covering the `root` option: page content loads, titles resolve, unknown paths render the Vue app
+
 ## [0.44.2] - 2026-10-16
 
 ### Added
