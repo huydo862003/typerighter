@@ -89,9 +89,9 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   let hostOutDirectory: string;
   let hostBase: string;
 
-  const virtualApp = new VirtualApp();
+  const virtualApp = new VirtualApp(options.root ?? '');
   const virtualTheme = new VirtualTheme();
-  const virtualPages = new VirtualPages();
+  const virtualPages = new VirtualPages(options.root ?? '');
   const virtualSiteData = new VirtualSiteData();
   const virtualSearchIndex = new VirtualSearchIndex();
 

@@ -144,11 +144,28 @@ function isComponentFile (
 }
 
 // Read builtin-components.json bundled alongside this plugin in dist/
+// Source paths in the JSON are relative to the typerighter package root; rewrite them to
+// typerighter/... so they aren't misinterpreted as relative to the consumer project
 function loadBuiltinContract (): Record<string, unknown> {
   try {
-    const contractPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'builtin-components.json');
+    const distDirectory = path.dirname(fileURLToPath(import.meta.url));
+    const contractPath = path.resolve(distDirectory, 'builtin-components.json');
+    const raw = JSON.parse(fs.readFileSync(contractPath, 'utf-8')) as Record<
+      string,
+      unknown
+    >;
 
-    return JSON.parse(fs.readFileSync(contractPath, 'utf-8'));
+    for (const _entry of Object.values(raw)) {
+      if (_entry !== null && typeof _entry === 'object' && 'source' in _entry) {
+        const entry = _entry as Record<string, unknown>;
+
+        if (typeof entry.source === 'string' && entry.source.startsWith('./')) {
+          entry.source = `typerighter/${entry.source.slice('./'.length)}`;
+        }
+      }
+    }
+
+    return raw;
   } catch {
     return {};
   }
@@ -162,9 +179,14 @@ function writeContract (projectRoot: string, components: UserComponent[]): void 
   // Skip when neither builtins nor user components exist
   if (!hasBuiltins && components.length === 0) return;
 
-  const userContract = 0 < components.length
-    ? buildContractWithChecker(components, projectRoot, createComponentChecker(projectRoot))
-    : {};
+  const userContract =
+    0 < components.length
+      ? buildContractWithChecker(
+        components,
+        projectRoot,
+        createComponentChecker(projectRoot),
+      )
+      : {};
   // User entries win over builtins on name collision
   const contract = {
     ...BUILTIN_CONTRACT,
