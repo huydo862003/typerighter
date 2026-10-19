@@ -1,0 +1,6 @@
+version: "1"
+vault:
+  root_dir: "vault"
+site:
+  title: "Mounted E2E Test"
+  description: "Test fixture for typedown mounted inside a host Vite app"

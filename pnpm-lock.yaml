@@ -318,6 +318,12 @@ importers:
         specifier: ^3.5.43
         version: 3.5.43(typescript@6.0.3)
 
+  packages/typerighter/e2e/fixtures/vault-mounted:
+    devDependencies:
+      typerighter:
+        specifier: workspace:*
+        version: link:../../..
+
   packages/typerighter/e2e/fixtures/vault-root:
     devDependencies:
       typerighter:
