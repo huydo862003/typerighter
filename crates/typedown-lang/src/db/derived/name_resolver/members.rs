@@ -6,6 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::builtin_scope::builtin_scope;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
+use crate::db::derived::name_resolver::scope::parent_scope;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{File, MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
 use crate::db::utils::{is_content_file, is_typ_file};
@@ -18,20 +19,20 @@ use typedown_types::either::Either;
 pub fn schema_members<'db>(db: &'db TypedownDatabase, project: Project) -> MembersResult<'db> {
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
-  let proj_files = project.files(db);
+  let project_files = project.files(db);
 
   let mut members = BTreeMap::new();
-  for (path, file) in &*proj_files {
+  for (path, file) in &*project_files {
     if !path.starts_with(&root_dir) || !is_typ_file(path) {
       continue;
     }
-    if let Some(sym) = file_symbol(db, project, *file).value(db) {
+    if let Some(symbol) = file_symbol(db, project, *file).value(db) {
       let name = path
         .file_stem()
-        .and_then(|s| s.to_str())
+        .and_then(|stem| stem.to_str())
         .unwrap_or_default()
         .to_string();
-      members.insert(name, sym);
+      members.insert(name, symbol);
     }
   }
 
@@ -45,21 +46,21 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope) -> MembersResult<'d
     ScopeKind::File(project, file) => {
       let mut members = BTreeMap::new();
 
-      if let Some(sym) = file_symbol(db, project, file).value(db) {
+      if let Some(symbol) = file_symbol(db, project, file).value(db) {
         let name = file
           .handle(db)
           .path()
-          .and_then(|p| p.file_stem())
-          .and_then(|s| s.to_str())
+          .and_then(|path| path.file_stem())
+          .and_then(|string| string.to_str())
           .unwrap_or_default()
           .to_string();
 
         if !name.is_empty() {
-          members.insert(name, sym);
+          members.insert(name, symbol);
         }
 
         // self resolves to the file's own resource symbol
-        members.insert("self".to_string(), sym);
+        members.insert("self".to_string(), symbol);
       }
 
       // Resolve _imports aliases into the file scope
@@ -68,21 +69,21 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope) -> MembersResult<'d
       MembersResult::new(db, members)
     }
     ScopeKind::Project(project) => {
-      let proj_files = project.files(db);
+      let project_files = project.files(db);
 
       let mut members = BTreeMap::new();
 
-      for (path, file) in &*proj_files {
+      for (path, file) in &*project_files {
         if !is_content_file(path) {
           continue;
         }
-        if let Some(sym) = file_symbol(db, project, *file).value(db) {
+        if let Some(symbol) = file_symbol(db, project, *file).value(db) {
           let name = path
             .file_stem()
-            .and_then(|s| s.to_str())
+            .and_then(|stem| stem.to_str())
             .unwrap_or_default()
             .to_string();
-          members.insert(name, sym);
+          members.insert(name, symbol);
         }
       }
 
@@ -103,13 +104,13 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope) -> MembersResult<'d
           if let Some(name) = ident.value()
             && name != "self"
           {
-            let sym = Symbol::new(
+            let symbol = Symbol::new(
               db,
               SymbolKind::FuncParam(project, file, value.clone()),
               name.clone(),
               format!("@param::{}", name),
             );
-            members.insert(name, sym);
+            members.insert(name, symbol);
           }
         }
       }
@@ -122,8 +123,6 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope) -> MembersResult<'d
 // Collect all members visible at a scope by walking up the scope chain
 // Inner scopes shadow outer scopes
 pub fn all_visible_members(db: &TypedownDatabase, start: Scope) -> BTreeMap<String, Symbol> {
-  use super::scope::parent_scope;
-
   let mut result = BTreeMap::new();
   let mut current = Some(start);
 
@@ -135,8 +134,8 @@ pub fn all_visible_members(db: &TypedownDatabase, start: Scope) -> BTreeMap<Stri
   }
 
   for scope in chain.into_iter().rev() {
-    for (name, sym) in members(db, scope).members(db).iter() {
-      result.insert(name.clone(), *sym);
+    for (name, symbol) in members(db, scope).members(db).iter() {
+      result.insert(name.clone(), *symbol);
     }
   }
 
@@ -164,7 +163,8 @@ fn resolve_import_members(
   let root_dir = config.root_dir(db);
 
   for (alias, path_node) in import_entries {
-    let Some(path) = StrLit::cast(path_node.node.clone()).and_then(|s| s.plain_value()) else {
+    let Some(path) = StrLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
+    else {
       continue;
     };
     let target_path = root_dir.join(&path);

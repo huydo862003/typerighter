@@ -134,7 +134,7 @@ impl RedNode {
   pub fn leading_trivia(&self) -> Vec<RedNode> {
     self
       .children()
-      .take_while(|c| c.kind().is_trivia())
+      .take_while(|child| child.kind().is_trivia())
       .collect()
   }
 
@@ -144,7 +144,7 @@ impl RedNode {
     children
       .into_iter()
       .rev()
-      .take_while(|c| c.kind().is_trivia())
+      .take_while(|child| child.kind().is_trivia())
       .collect::<Vec<_>>()
       .into_iter()
       .rev()
@@ -157,14 +157,14 @@ impl RedNode {
     // Find first non-trivia children
     let start = children
       .iter()
-      .find(|c| !c.kind().is_trivia())
-      .map(|c| c.offset())
+      .find(|child| !child.kind().is_trivia())
+      .map(|child| child.offset())
       .unwrap_or(self.offset());
     // Find last non-trivia children
     let end = children
       .iter()
-      .rfind(|c| !c.kind().is_trivia())
-      .map(|c| c.offset() + c.text_len())
+      .rfind(|child| !child.kind().is_trivia())
+      .map(|child| child.offset() + child.text_len())
       .unwrap_or(self.offset() + self.text_len());
     (start, end - start)
   }

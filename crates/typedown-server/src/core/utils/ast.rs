@@ -41,9 +41,8 @@ pub fn ident_is_mapping_key(node: &RedNode) -> bool {
     .is_some_and(|parent| parent.kind() == SyntaxKind::YamlMappingEntryKey)
 }
 
-/// Returns true if this `Ident` token is used as a type reference (inside an `IdentLit` that is
-/// the value of a `_type` mapping entry, or inside a `CallExpr`/`IndexExpr` type position).
-pub fn ident_is_type_ref(node: &RedNode) -> bool {
+/// Returns true if this `Ident` token is used as a type reference (inside an `IdentLit` that is the value of a `_type` mapping entry, or inside a `CallExpr`/`IndexExpr` type position)
+pub fn ident_is_typ_reference(node: &RedNode) -> bool {
   let Some(parent) = node.parent() else {
     return false;
   };
@@ -52,12 +51,12 @@ pub fn ident_is_type_ref(node: &RedNode) -> bool {
   }
   // Walk up through wrapping expression nodes (e.g. PostfixExpr for string?)
   let mut ancestor = parent.parent();
-  while let Some(ref n) = ancestor {
-    if n.kind() == SyntaxKind::YamlMappingEntryValue {
+  while let Some(ref node) = ancestor {
+    if node.kind() == SyntaxKind::YamlMappingEntryValue {
       break;
     }
-    if n.kind() == SyntaxKind::PostfixExpr {
-      ancestor = n.parent();
+    if node.kind() == SyntaxKind::PostfixExpr {
+      ancestor = node.parent();
       continue;
     }
     return false;
@@ -81,32 +80,32 @@ pub fn ident_is_type_ref(node: &RedNode) -> bool {
   }
 }
 
-/// Check if a mapping entry is nested inside the `properties` mapping of a schema.
+/// Check if a mapping entry is nested inside the `properties` mapping of a schema
 fn is_inside_schema_properties(entry: &RedNode) -> bool {
-  // Walk up: entry -> mapping (prop descriptor) -> value -> entry (prop name)
-  //       -> mapping (properties) -> value -> entry (properties key)
+  // Walk up:
+  // entry -> mapping (prop descriptor) -> value -> entry (prop name) -> mapping (properties) -> value -> entry (properties key)
   let prop_descriptor_mapping = match entry.parent() {
-    Some(m) if m.kind() == SyntaxKind::YamlMapping => m,
+    Some(mapping) if mapping.kind() == SyntaxKind::YamlMapping => mapping,
     _ => return false,
   };
   let properties_entry_value = match prop_descriptor_mapping.parent() {
-    Some(v) if v.kind() == SyntaxKind::YamlMappingEntryValue => v,
+    Some(value) if value.kind() == SyntaxKind::YamlMappingEntryValue => value,
     _ => return false,
   };
   let prop_name_entry = match properties_entry_value.parent() {
-    Some(e) if e.kind() == SyntaxKind::YamlMappingEntry => e,
+    Some(entry) if entry.kind() == SyntaxKind::YamlMappingEntry => entry,
     _ => return false,
   };
   let properties_mapping = match prop_name_entry.parent() {
-    Some(m) if m.kind() == SyntaxKind::YamlMapping => m,
+    Some(mapping) if mapping.kind() == SyntaxKind::YamlMapping => mapping,
     _ => return false,
   };
   let properties_value = match properties_mapping.parent() {
-    Some(v) if v.kind() == SyntaxKind::YamlMappingEntryValue => v,
+    Some(value) if value.kind() == SyntaxKind::YamlMappingEntryValue => value,
     _ => return false,
   };
   let properties_entry = match properties_value.parent() {
-    Some(e) if e.kind() == SyntaxKind::YamlMappingEntry => e,
+    Some(entry) if entry.kind() == SyntaxKind::YamlMappingEntry => entry,
     _ => return false,
   };
   properties_entry
@@ -141,9 +140,9 @@ pub fn get_nearest_expr_ancestor(node: &RedNode) -> Option<Expr> {
 /// fref("...")
 ///       ^^^
 pub fn containing_fref_expr(node: &RedNode) -> Option<CallExpr> {
-  let str_lit = find_ancestor(node, SyntaxKind::StrLit);
+  let string_lit = find_ancestor(node, SyntaxKind::StrLit);
 
-  let call = match str_lit {
+  let call = match string_lit {
     Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),
     None => find_ancestor(node, SyntaxKind::CallExpr),
   }?;

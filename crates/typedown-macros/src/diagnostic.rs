@@ -50,7 +50,7 @@ pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> T
     // message() arm
     match &variant.fields {
       Fields::Named(fields) => {
-        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+        let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
         message_arms.push(quote! {
           #name::#variant_name { #(#field_names,)* } => { #message_body }
         });
@@ -161,11 +161,11 @@ fn parse_message_attr(attr: &syn::Attribute, fields: &Fields) -> TokenStream2 {
       let used_fields: Vec<_> = named
         .named
         .iter()
-        .filter(|f| {
-          let name = f.ident.as_ref().unwrap().to_string();
+        .filter(|field| {
+          let name = field.ident.as_ref().unwrap().to_string();
           template.contains(&format!("{{{name}}}")) || template.contains(&format!("{{{name}:"))
         })
-        .map(|f| &f.ident)
+        .map(|field| &field.ident)
         .collect();
 
       if used_fields.is_empty() {
@@ -181,19 +181,19 @@ fn parse_message_attr(attr: &syn::Attribute, fields: &Fields) -> TokenStream2 {
 fn pascal_to_kebab(name: &str) -> String {
   let mut result = String::new();
   let mut chars = name.chars().peekable();
-  while let Some(c) = chars.next() {
-    if c.is_uppercase() {
+  while let Some(char) = chars.next() {
+    if char.is_uppercase() {
       if !result.is_empty() {
-        let next_is_lower = chars.peek().is_some_and(|n| n.is_lowercase());
+        let next_is_lower = chars.peek().is_some_and(|name| name.is_lowercase());
         let prev_is_lower_or_digit =
           result.ends_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit());
         if prev_is_lower_or_digit || next_is_lower {
           result.push('-');
         }
       }
-      result.push(c.to_ascii_lowercase());
+      result.push(char.to_ascii_lowercase());
     } else {
-      result.push(c);
+      result.push(char);
     }
   }
   result

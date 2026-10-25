@@ -375,7 +375,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
     // Count params from the closure AST node if available
     let param_count = ClosureExpr::cast(computed_node.node.clone())
       .and_then(|closure| {
-        closure.params().map(|p| match p {
+        closure.params().map(|params| match params {
           Either::Left(param_list) => param_list.params().count(),
           Either::Right(_) => 1,
         })
@@ -532,7 +532,10 @@ fn resolve_typ_lazy<'db>(
 
   // NumberLit: lit type like `type: 42`
   if let Some(number) = NumberLit::cast(node.clone()) {
-    let value = number.value().map(|v| v.to_string()).unwrap_or_default();
+    let value = number
+      .value()
+      .map(|value| value.to_string())
+      .unwrap_or_default();
     return Some(LazyTyp::eager(
       get_lit_typ(db, LitValue::Number(value)).into(),
     ));
@@ -789,7 +792,7 @@ mod tests {
   }
 
   #[test]
-  fn evaluate_typ_circular_schema_refs() {
+  fn evaluate_typ_circular_schema_references() {
     let (db, project, file_a) = load_vault_fixture("evaluate/my_vault", "_types/SchemaA.td");
     let symbol_a = file_symbol(&db, project, file_a).value(&db).unwrap();
     assert!(evaluate_typ(&db, symbol_a).diagnostics(&db).is_empty());
@@ -838,7 +841,10 @@ mod tests {
     let schema = typ.as_td_schema_typ().unwrap();
     let parent = schema.parent_typ(&db);
     assert!(parent.is_some(), "Student should have a parent type");
-    let parent_name = parent.unwrap().as_td_schema_typ().map(|p| p.name(&db));
+    let parent_name = parent
+      .unwrap()
+      .as_td_schema_typ()
+      .map(|parent| parent.name(&db));
     assert_eq!(parent_name.as_deref(), Some("Person"));
   }
 
@@ -848,8 +854,8 @@ mod tests {
     let person_file = project
       .files(&db)
       .iter()
-      .find(|(p, _)| p.ends_with("Person.td"))
-      .map(|(_, f)| *f)
+      .find(|(path, _)| path.ends_with("Person.td"))
+      .map(|(_, file)| *file)
       .unwrap();
     let student_symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
@@ -870,16 +876,16 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/Child.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::UnresolvedExtends { .. },
           ..
         }
       )),
-      "expected UnresolvedExtends diagnostic, got {diags:?}"
+      "expected UnresolvedExtends diagnostic, got {diagnostics:?}"
     );
   }
 
@@ -888,16 +894,16 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/CycleA.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::CircularExtension { .. },
           ..
         }
       )),
-      "expected CircularExtension diagnostic, got {diags:?}"
+      "expected CircularExtension diagnostic, got {diagnostics:?}"
     );
   }
 
@@ -906,12 +912,12 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/WidenChild.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags.iter().any(
-        |d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::FieldRefinementViolation { field, ..}, .. } if field == "status")
+      diagnostics.iter().any(
+        |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldRefinementViolation { field, ..}, .. } if field == "status")
       ),
-      "expected FieldRefinementViolation for status, got {diags:?}"
+      "expected FieldRefinementViolation for status, got {diagnostics:?}"
     );
   }
 
@@ -975,16 +981,16 @@ mod tests {
       load_vault_fixture("evaluate/extends_vault", "_types/ExtendsBuiltin.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::UnresolvedExtends { .. },
           ..
         }
       )),
-      "expected UnresolvedExtends for builtin _extends, got {diags:?}"
+      "expected UnresolvedExtends for builtin _extends, got {diagnostics:?}"
     );
   }
 
@@ -1326,7 +1332,7 @@ mod tests {
     assert!(
       obj
         .as_td_typ_obj()
-        .and_then(|t| t.as_td_schema_typ())
+        .and_then(|typ| typ.as_td_schema_typ())
         .unwrap()
         .fields(&db)
         .contains_key("name")
@@ -1402,9 +1408,10 @@ mod tests {
     let typ = value_field.field_typ.resolve(&db).unwrap();
     let sum = typ.as_td_sum_typ().expect("value should be a sum type");
     assert_eq!(sum.members(&db).len(), 3, "should have 3 members");
-    let has_draft = sum.members(&db).iter().any(|m| {
-      m.resolve(&db).is_some_and(|t| {
-        t.as_td_lit_typ()
+    let has_draft = sum.members(&db).iter().any(|member| {
+      member.resolve(&db).is_some_and(|typ| {
+        typ
+          .as_td_lit_typ()
           .is_some_and(|lit| lit.value(&db) == LitValue::String("draft".to_string()))
       })
     });

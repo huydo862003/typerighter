@@ -10,11 +10,12 @@ use crate::db::derived::icon::{ICON_ENTRIES, get_icon_module_typ};
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
+use crate::db::types::File;
 use crate::db::types::{
-  BuiltinGlobalKind, BuiltinMacroKind, FuncKind, LazyTyp, ProjectRedNode, PropertyDescriptor,
-  RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncTyp, TdIconObj, TdListObj,
-  TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdProductTyp, TdRuntimeObj,
-  TdSchemaObj, TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
+  BuiltinGlobalKind, BuiltinMacroKind, FuncKind, LazyTyp, Project, ProjectRedNode,
+  PropertyDescriptor, RuntimeScope, SymbolKind, TdBoolObj, TdDictObj, TdFuncObj, TdFuncTyp,
+  TdIconObj, TdListObj, TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdProductTyp,
+  TdRuntimeObj, TdSchemaObj, TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
 };
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, DictLit, Expr, IdentLit, IndexExpr,
@@ -23,6 +24,7 @@ use crate::syntax::ast::{
   YamlSequence,
 };
 use crate::syntax::diagnostic::*;
+use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_types::either::Either;
 
@@ -36,7 +38,7 @@ pub(crate) fn construct_from_node<'db>(
   let file = project_node.file;
 
   let expr = match Expr::cast(project_node.node.clone()) {
-    Some(e) => e,
+    Some(expr) => expr,
     None => {
       // Non-Expr root nodes (SourceFile/YamlFrontmatter) - fall through to mapping/construct
       return construct_from_non_expr(db, project_node, runtime_scope, diagnostics);
@@ -101,9 +103,9 @@ pub(crate) fn construct_from_node<'db>(
       diagnostics,
     ),
     // Sequence nodes
-    Expr::YamlSequence(seq) => construct_from_sequence(
+    Expr::YamlSequence(sequence) => construct_from_sequence(
       db,
-      seq,
+      sequence,
       project,
       file,
       project_node,
@@ -120,16 +122,16 @@ pub(crate) fn construct_from_node<'db>(
       diagnostics,
     ),
     // String / interpolated
-    Expr::StrLit(str_lit) => construct_from_str_lit(
+    Expr::StrLit(string_lit) => construct_from_str_lit(
       db,
-      str_lit,
+      string_lit,
       project,
       file,
       project_node,
       runtime_scope,
       diagnostics,
     ),
-    Expr::NumberLit(num) => construct_from_number(db, num, project_node, diagnostics),
+    Expr::NumberLit(number) => construct_from_number(db, number, project_node, diagnostics),
     Expr::MathLit(math) => construct_from_math(db, math, project_node, diagnostics),
     Expr::ParenExpr(paren) => {
       let inner = paren.expr()?;
@@ -152,8 +154,8 @@ fn construct_from_non_expr<'db>(
 
   // SourceFile: descend to the frontmatter mapping, or return empty product for body-only files
   if let Some(source_file) = SourceFile::cast(node.clone()) {
-    if let Some(fm) = source_file.frontmatter()
-      && let Some(mapping) = fm.mapping()
+    if let Some(frontmatter) = source_file.frontmatter()
+      && let Some(mapping) = frontmatter.mapping()
     {
       let mapping_node = ProjectRedNode::new(project, file, mapping.syntax().clone());
       let mut entries = mapping_entries_from_yaml_mapping(mapping, project, file);
@@ -385,8 +387,8 @@ fn construct_from_mapping_expr<'db>(
 fn construct_from_sequence<'db>(
   db: &'db TypedownDatabase,
   seq: YamlSequence,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<TdDiagnostic>,
@@ -401,8 +403,8 @@ fn construct_from_sequence<'db>(
 fn construct_from_list<'db>(
   db: &'db TypedownDatabase,
   list: ListLit,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<TdDiagnostic>,
@@ -425,7 +427,7 @@ fn construct_sequence_items<'db>(
   let typ_result = actual_node_typ(db, project_node.clone());
   let raw_typ = typ_result.typ(db)?;
   let typ = match raw_typ.runtime_typ(db) {
-    Some(t) => t,
+    Some(typ) => typ,
     None => {
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
@@ -450,9 +452,9 @@ fn construct_sequence_items<'db>(
 
 fn construct_from_str_lit<'db>(
   db: &'db TypedownDatabase,
-  str_lit: StrLit,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  string_lit: StrLit,
+  project: Project,
+  file: File,
   project_node: ProjectRedNode,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<TdDiagnostic>,
@@ -460,7 +462,7 @@ fn construct_from_str_lit<'db>(
   let typ_result = actual_node_typ(db, project_node.clone());
   let raw_typ = typ_result.typ(db)?;
   let typ = match raw_typ.runtime_typ(db) {
-    Some(t) => t,
+    Some(typ) => typ,
     None => {
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
@@ -472,29 +474,30 @@ fn construct_from_str_lit<'db>(
       return None;
     }
   };
-  if str_lit.is_interpolated() {
-    let obj = evaluate_interpolated(db, runtime_scope, str_lit, project, file)?;
+  if string_lit.is_interpolated() {
+    let obj = evaluate_interpolated(db, runtime_scope, string_lit, project, file)?;
     typ.construct(db, project, vec![obj])
   } else {
     // A string containing only a math literal (e.g. "$E = mc^2$") evaluates as TdMathObj
     let children: Vec<_> = project_node.node.children().collect();
-    let has_text = children.iter().any(|c| {
-      use crate::syntax::syntax_kind::SyntaxKind;
+    let has_text = children.iter().any(|child| {
       matches!(
-        c.kind(),
+        child.kind(),
         SyntaxKind::DqStrContent | SyntaxKind::SqStrContent
-      ) && !c.text().trim().is_empty()
+      ) && !child.text().trim().is_empty()
     });
     if !has_text
-      && let Some(math_node) = children.iter().find_map(|c| MathLit::cast(c.clone()))
-      && let Some(val) = math_node.value()
+      && let Some(math_node) = children
+        .iter()
+        .find_map(|child| MathLit::cast(child.clone()))
+      && let Some(value) = math_node.value()
     {
-      return typ.construct(db, project, vec![TdMathObj::new(db, val).into()]);
+      return typ.construct(db, project, vec![TdMathObj::new(db, value).into()]);
     }
-    let text: String = str_lit
+    let text: String = string_lit
       .fragments()
-      .filter_map(|f| match f {
-        Either::Left(s) => Some(s),
+      .filter_map(|fragment| match fragment {
+        Either::Left(string) => Some(string),
         _ => None,
       })
       .collect::<String>();
@@ -508,11 +511,11 @@ fn construct_from_number<'db>(
   project_node: ProjectRedNode,
   diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
-  let val = num.value()?;
+  let value = num.value()?;
   let typ_result = actual_node_typ(db, project_node.clone());
   let raw_typ = typ_result.typ(db)?;
   let typ = match raw_typ.runtime_typ(db) {
-    Some(t) => t,
+    Some(typ) => typ,
     None => {
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
@@ -527,7 +530,7 @@ fn construct_from_number<'db>(
   typ.construct(
     db,
     project_node.project,
-    vec![TdNumberObj::new(db, val).into()],
+    vec![TdNumberObj::new(db, value).into()],
   )
 }
 
@@ -537,11 +540,11 @@ fn construct_from_math<'db>(
   project_node: ProjectRedNode,
   diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
-  let val = math.value()?;
+  let value = math.value()?;
   let typ_result = actual_node_typ(db, project_node.clone());
   let raw_typ = typ_result.typ(db)?;
   let typ = match raw_typ.runtime_typ(db) {
-    Some(t) => t,
+    Some(typ) => typ,
     None => {
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
@@ -556,36 +559,38 @@ fn construct_from_math<'db>(
   typ.construct(
     db,
     project_node.project,
-    vec![TdMathObj::new(db, val).into()],
+    vec![TdMathObj::new(db, value).into()],
   )
 }
 
 fn evaluate_prefix<'db>(
   db: &'db TypedownDatabase,
   prefix: PrefixExpr,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
   runtime_scope: RuntimeScope<'db>,
 ) -> Option<TdObjEnum<'db>> {
   let op = prefix.op()?.kind()?;
-  let op_str = match &op {
-    crate::syntax::ast::YamlOpKind::Minus => "-",
-    crate::syntax::ast::YamlOpKind::Plus => "+",
-    crate::syntax::ast::YamlOpKind::Tilde => "~",
+  let op_string = match &op {
+    YamlOpKind::Minus => "-",
+    YamlOpKind::Plus => "+",
+    YamlOpKind::Tilde => "~",
     _ => return None,
   };
   let operand_expr = prefix.expr()?;
   let operand_node = ProjectRedNode::new(project, file, operand_expr.syntax().clone());
   let operand_obj = evaluate_node(db, operand_node, runtime_scope).value(db)?;
-  match op_str {
+  match op_string {
     "-" | "+" => {
-      let num = operand_obj.as_td_number_obj()?;
-      let val = num.value(db);
-      let result = if op_str == "-" { -val } else { val };
+      let number = operand_obj.as_td_number_obj()?;
+      let value = number.value(db);
+      let result = if op_string == "-" { -value } else { value };
       Some(TdNumberObj::new(db, result).into())
     }
     "~" => {
-      let is_falsy = operand_obj.as_td_bool_obj().is_some_and(|b| !b.value(db));
+      let is_falsy = operand_obj
+        .as_td_bool_obj()
+        .is_some_and(|bool| !bool.value(db));
       Some(TdBoolObj::new(db, is_falsy).into())
     }
     _ => None,
@@ -595,12 +600,12 @@ fn evaluate_prefix<'db>(
 fn evaluate_postfix<'db>(
   db: &'db TypedownDatabase,
   postfix: PostfixExpr,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
   runtime_scope: RuntimeScope<'db>,
 ) -> Option<TdObjEnum<'db>> {
   let op = postfix.op()?.kind()?;
-  if !matches!(op, crate::syntax::ast::YamlOpKind::Not) {
+  if !matches!(op, YamlOpKind::Not) {
     // `?` is represented by YamlOp::Not in the AST? Let me handle it by op text
     // Actually check what ? postfix maps to
     return None;
@@ -624,43 +629,50 @@ fn evaluate_postfix<'db>(
 fn evaluate_binary<'db>(
   db: &'db TypedownDatabase,
   binary: BinaryExpr,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
   runtime_scope: RuntimeScope<'db>,
 ) -> Option<TdObjEnum<'db>> {
   let op_kind = binary.op()?.kind()?;
-  let op_str = yaml_op_to_str(&op_kind)?;
+  let op_string = yaml_op_to_str(&op_kind)?;
+
   let left_expr = binary.left()?;
   let right_expr = binary.right()?;
+
   let left_node = ProjectRedNode::new(project, file, left_expr.syntax().clone());
   let right_node = ProjectRedNode::new(project, file, right_expr.syntax().clone());
+
   let left_obj = evaluate_node(db, left_node, runtime_scope).value(db)?;
   let right_obj = evaluate_node(db, right_node, runtime_scope).value(db)?;
-  match op_str {
+
+  match op_string {
     "+" | "-" | "*" | "/" | "%" | "**" => {
-      let lnum = left_obj.as_td_number_obj()?;
-      let rnum = right_obj.as_td_number_obj()?;
-      let lval = lnum.value(db);
-      let rval = rnum.value(db);
-      let result = match op_str {
-        "+" => lval + rval,
-        "-" => lval - rval,
-        "*" => lval * rval,
-        "/" => lval / rval,
-        "%" => lval % rval,
-        "**" => lval.powf(rval),
+      let lnumber = left_obj.as_td_number_obj()?;
+      let rnumber = right_obj.as_td_number_obj()?;
+
+      let lvalue = lnumber.value(db);
+      let rvalue = rnumber.value(db);
+
+      let result = match op_string {
+        "+" => lvalue + rvalue,
+        "-" => lvalue - rvalue,
+        "*" => lvalue * rvalue,
+        "/" => lvalue / rvalue,
+        "%" => lvalue % rvalue,
+        "**" => lvalue.powf(rvalue),
         _ => unreachable!(),
       };
       Some(TdNumberObj::new(db, result).into())
     }
     "==" | "!=" | "<" | ">" | "<=" | ">=" => {
-      let result = compare_objects(db, op_str, &left_obj, &right_obj);
+      let result = compare_objects(db, op_string, &left_obj, &right_obj);
       Some(TdBoolObj::new(db, result).into())
     }
     "&&" | "||" => {
       let lbool = left_obj.as_td_bool_obj()?;
       let rbool = right_obj.as_td_bool_obj()?;
-      let result = match op_str {
+
+      let result = match op_string {
         "&&" => lbool.value(db) && rbool.value(db),
         "||" => lbool.value(db) || rbool.value(db),
         _ => unreachable!(),
@@ -671,8 +683,7 @@ fn evaluate_binary<'db>(
   }
 }
 
-fn yaml_op_to_str(op: &crate::syntax::ast::YamlOpKind) -> Option<&'static str> {
-  use crate::syntax::ast::YamlOpKind;
+fn yaml_op_to_str(op: &YamlOpKind) -> Option<&'static str> {
   Some(match op {
     YamlOpKind::Plus => "+",
     YamlOpKind::Minus => "-",
@@ -712,8 +723,8 @@ fn compare_objects<'db>(
 fn evaluate_index<'db>(
   db: &'db TypedownDatabase,
   index: IndexExpr,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
   runtime_scope: RuntimeScope<'db>,
   diagnostics: &mut Vec<TdDiagnostic>,
 ) -> Option<TdObjEnum<'db>> {
@@ -721,25 +732,25 @@ fn evaluate_index<'db>(
   if indices.len() != 1 {
     return None;
   }
+
   let index_expr_node = &indices[0];
   let expr = index.expr()?;
+
   let container_node = ProjectRedNode::new(project, file, expr.syntax().clone());
   let index_node = ProjectRedNode::new(project, file, index_expr_node.syntax().clone());
+
   let container = evaluate_node(db, container_node, runtime_scope).value(db)?;
   let index_obj = evaluate_node(db, index_node.clone(), runtime_scope).value(db)?;
 
   if let Some(number) = index_obj.as_td_number_obj()
     && let Some(len) = container.len(db)
   {
-    let idx = number.value(db) as usize;
-    if idx >= len {
+    let index = number.value(db) as usize;
+    if index >= len {
       let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
       diagnostics.push(
-        TdDiagnosticKind::IndexOutOfBounds {
-          index: idx,
-          length: len,
-        }
-        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        TdDiagnosticKind::IndexOutOfBounds { index, length: len }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
       );
       return None;
     }
@@ -760,12 +771,12 @@ fn construct_macro<'db>(
 fn evaluate_interpolated<'db>(
   db: &'db TypedownDatabase,
   runtime_scope: RuntimeScope<'db>,
-  str_lit: StrLit,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  string_lit: StrLit,
+  project: Project,
+  file: File,
 ) -> Option<TdObjEnum<'db>> {
   let mut value = String::new();
-  for fragment in str_lit.fragments() {
+  for fragment in string_lit.fragments() {
     match fragment {
       Either::Left(text) => value.push_str(&text),
       Either::Right(interp) => {
@@ -793,26 +804,27 @@ fn evaluate_markdown_text<'db>(
 ) -> String {
   fn collect(
     db: &TypedownDatabase,
-    project: crate::db::types::Project,
-    file: crate::db::types::File,
-    node: crate::syntax::red::RedNode,
+    project: Project,
+    file: File,
+    node: RedNode,
     runtime_scope: RuntimeScope<'_>,
     out: &mut String,
   ) {
     // Interp fragment: evaluate the inner expression and stringify
     if node.kind() == SyntaxKind::InterpFragment {
-      if let Some(frag) = InterpFragment::cast(node.clone())
-        && let Some(expr) = frag.expr()
+      if let Some(fragment) = InterpFragment::cast(node.clone())
+        && let Some(expr) = fragment.expr()
       {
         let inner_node = ProjectRedNode::new(project, file, expr.syntax().clone());
+
         if let Some(obj) = evaluate_node(db, inner_node, runtime_scope).value(db)
           && let Some(to_string) = obj.lookup_method(db, "to_string")
         {
           let call_project = runtime_scope.scope(db).project(db);
-          if let Ok(s) = to_string.call(db, call_project, Some(obj), vec![])
-            && let Some(sv) = s.as_td_string_obj()
+          if let Ok(string) = to_string.call(db, call_project, Some(obj), vec![])
+            && let Some(string_value) = string.as_td_string_obj()
           {
-            out.push_str(&sv.value(db));
+            out.push_str(&string_value.value(db));
             return;
           }
         }
@@ -855,8 +867,8 @@ fn evaluate_markdown_text<'db>(
 
 fn mapping_entries_from_yaml_mapping(
   mapping: YamlMapping,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
 ) -> Vec<(String, ProjectRedNode)> {
   mapping
     .entries()
@@ -866,15 +878,18 @@ fn mapping_entries_from_yaml_mapping(
 
 fn mapping_entries_from_dict_lit(
   dict: DictLit,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
 ) -> Vec<(String, ProjectRedNode)> {
   dict
     .entries()
-    .filter_map(|e| {
-      let k = e.key()?;
-      let v = e.value()?;
-      Some((k, ProjectRedNode::new(project, file, v.syntax().clone())))
+    .filter_map(|entry| {
+      let key = entry.key()?;
+      let value = entry.value()?;
+      Some((
+        key,
+        ProjectRedNode::new(project, file, value.syntax().clone()),
+      ))
     })
     .collect()
 }
@@ -886,22 +901,26 @@ fn evaluate_mapping<'db>(
 ) -> Option<TdObjEnum<'db>> {
   // Schema meta type: build schema type
   if typ.is_td_schema_meta_typ() {
-    let properties_entries = entries
+    let prop_entries = entries
       .iter()
       .find(|(key, _)| key == "properties")
       .and_then(|(_, props_node)| {
         let node = props_node.node.clone();
-        let mapping = crate::syntax::ast::YamlMapping::cast(node.clone()).or_else(|| {
-          crate::syntax::ast::DictLit::cast(node.clone()).and_then(|_| {
+        let mapping = YamlMapping::cast(node.clone()).or_else(|| {
+          DictLit::cast(node.clone()).and_then(|_| {
             // DictLit can also act as a mapping
             None // handle below
           })
-        });
-        mapping.map(|m| mapping_entries_from_yaml_mapping(m, props_node.project, props_node.file))
+        })?;
+        Some(mapping_entries_from_yaml_mapping(
+          mapping,
+          props_node.project,
+          props_node.file,
+        ))
       })
       .unwrap_or_default();
     let mut fields = BTreeMap::new();
-    for (prop_name, prop_node) in properties_entries {
+    for (prop_name, prop_node) in prop_entries {
       if prop_name.starts_with('_') && TdSchemaTyp::builtin_field_typ(db, &prop_name).is_none() {
         fields.insert(
           prop_name,
@@ -913,8 +932,8 @@ fn evaluate_mapping<'db>(
         );
         continue;
       }
-      if let Some(desc) = resolve_property_descriptor(db, prop_node, &mut vec![]) {
-        fields.insert(prop_name, desc);
+      if let Some(descriptor) = resolve_property_descriptor(db, prop_node, &mut vec![]) {
+        fields.insert(prop_name, descriptor);
       }
     }
     return Some(
@@ -934,14 +953,14 @@ fn evaluate_mapping<'db>(
   if let TdTypEnum::TdSchemaTyp(schema_typ) = &typ {
     let mut builtins = BTreeMap::new();
     let mut fields = BTreeMap::new();
-    for (key, val_node) in &entries {
+    for (key, value_node) in &entries {
       if key.starts_with('_') {
-        builtins.insert(key.clone(), Either::Left(val_node.clone()));
+        builtins.insert(key.clone(), Either::Left(value_node.clone()));
       } else {
-        fields.insert(key.clone(), Either::Left(val_node.clone()));
+        fields.insert(key.clone(), Either::Left(value_node.clone()));
       }
     }
-    let project = entries.first().map(|(_, n)| n.project)?;
+    let project = entries.first().map(|(_, node)| node.project)?;
     return Some(
       TdSchemaObj::new(db, (*schema_typ).into(), project, None, builtins, fields).into(),
     );
@@ -951,11 +970,11 @@ fn evaluate_mapping<'db>(
   if let TdTypEnum::TdProductTyp(product_typ) = &typ {
     let mut builtins = BTreeMap::new();
     let mut fields = BTreeMap::new();
-    for (key, val_node) in entries {
+    for (key, value_node) in entries {
       if key.starts_with('_') {
-        builtins.insert(key, Either::Left(val_node));
+        builtins.insert(key, Either::Left(value_node));
       } else {
-        fields.insert(key, Either::Left(val_node));
+        fields.insert(key, Either::Left(value_node));
       }
     }
     return Some(TdProductObj::new(db, (*product_typ).into(), None, builtins, fields).into());
@@ -963,7 +982,7 @@ fn evaluate_mapping<'db>(
 
   let dict_entries: BTreeMap<_, _> = entries
     .into_iter()
-    .map(|(key, val_node)| (key, Either::Left(val_node)))
+    .map(|(key, value_node)| (key, Either::Left(value_node)))
     .collect();
   Some(TdDictObj::new(db, dict_entries).into())
 }

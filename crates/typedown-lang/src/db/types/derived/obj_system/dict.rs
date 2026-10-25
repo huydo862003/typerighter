@@ -87,9 +87,9 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
         return None;
       }
       let key_obj = pair.get(db, 0)?;
-      let key_str = key_obj.as_td_string_obj()?.value(db);
-      let val = pair.get(db, 1)?;
-      entries.insert(key_str, Either::Right(val));
+      let key_string = key_obj.as_td_string_obj()?.value(db);
+      let value = pair.get(db, 1)?;
+      entries.insert(key_string, Either::Right(value));
     }
     Some(TdDictObj::new(db, entries).into())
   }

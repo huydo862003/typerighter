@@ -16,7 +16,7 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::fs::{
   disk_handle, get_component_contract_path, is_asset_file, is_vault_config, scan_project_files,
 };
-use crate::core::utils::uri::{uri_scheme, uri_to_path};
+use crate::core::utils::uri::{get_uri_scheme, uri_to_path};
 
 pub struct AnalysisHost {
   db: TypedownDatabase,
@@ -141,7 +141,7 @@ impl AnalysisHost {
           FileMetadata {
             mtime: SystemTime::now(),
             ctime: fs::metadata(path)
-              .and_then(|m| m.created())
+              .and_then(|metadata| metadata.created())
               .unwrap_or_else(|_| SystemTime::now()),
           },
         ),
@@ -181,7 +181,7 @@ impl AnalysisHost {
   /// Called on textDocument/didOpen.
   pub fn on_editor_open_file(&mut self, uri: &Uri, content: String) {
     if let Some(path) = uri_to_path(uri) {
-      let scheme = uri_scheme(uri).to_string();
+      let scheme = get_uri_scheme(uri).to_string();
       Arc::make_mut(&mut self.scheme_map).insert(path.clone(), scheme);
       Arc::make_mut(&mut self.open_files).insert(path, Rope::from(content));
       self.sync_files();
@@ -194,7 +194,7 @@ impl AnalysisHost {
     let ctime = self
       .file_map
       .get(&path)
-      .map(|f| f.handle(&self.db).metadata().ctime)
+      .map(|file| file.handle(&self.db).metadata().ctime)
       .unwrap_or_else(SystemTime::now);
     let handle = FileHandle::Content(
       path.clone(),
@@ -230,7 +230,7 @@ impl AnalysisHost {
     }
     if is_content_file(&path)
       || is_asset_file(&path)
-      || (path.parent().is_some_and(|p| p == self.project_dir) && is_vault_config(&path))
+      || (path.parent().is_some_and(|path| path == self.project_dir) && is_vault_config(&path))
       || path == get_component_contract_path(&self.project_dir)
     {
       self.project_files.insert(path);
@@ -255,7 +255,7 @@ impl AnalysisHost {
 
     let handle = if let Some(rope) = self.open_files.get(&new_path) {
       let ctime = fs::metadata(&new_path)
-        .and_then(|m| m.created())
+        .and_then(|metadata| metadata.created())
         .unwrap_or_else(|_| SystemTime::now());
       FileHandle::Content(
         new_path.clone(),
@@ -310,5 +310,123 @@ impl AnalysisHost {
 
   pub fn project_dir(&self) -> &PathBuf {
     &self.project_dir
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use typedown_lang::db::derived::get_vault_config::get_vault_config;
+  use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
+  use typedown_lang::db::derived::parse_file::parse_file;
+
+  const VAULT_CONFIG: &str = "version: \"1\"\nvault:\n  root_dir: \".\"\n";
+  const CONTENT: &str = "---\n_type: schema\nproperties:\n  name:\n    type: string\n---\n";
+
+  fn setup() -> (tempfile::TempDir, AnalysisHost) {
+    let dir = tempfile::TempDir::new().unwrap();
+    let root = dir.path().to_path_buf();
+
+    std::fs::write(root.join("typedown.yaml"), VAULT_CONFIG).unwrap();
+    std::fs::create_dir_all(root.join("_types")).unwrap();
+    std::fs::write(root.join("_types/Person.td"), CONTENT).unwrap();
+
+    let db = TypedownDatabase {
+      storage: typedown_lang::db::QueryStorage::default(),
+    };
+    let host = AnalysisHost::new(db, root).unwrap();
+    (dir, host)
+  }
+
+  // After on_did_rename_file, the new path is tracked and old path is gone
+  #[test]
+  fn did_rename_updates_tracked_paths() {
+    let (dir, mut host) = setup();
+    let root = dir.path().to_path_buf();
+    let old = root.join("_types/Person.td");
+    let new = root.join("_types/Human.td");
+
+    std::fs::rename(&old, &new).unwrap();
+    host.on_did_rename_file(old.clone(), new.clone());
+
+    let analysis = host.snapshot();
+    let files = analysis.project.files(&analysis.db);
+    assert!(files.contains_key(&new), "new path should be tracked");
+    assert!(!files.contains_key(&old), "old path should be removed");
+  }
+
+  // After rename, parse_file works on the new path with the new name
+  #[test]
+  fn did_rename_new_file_is_queryable() {
+    let (dir, mut host) = setup();
+    let root = dir.path().to_path_buf();
+    let old = root.join("_types/Person.td");
+    let new = root.join("_types/Human.td");
+
+    std::fs::rename(&old, &new).unwrap();
+    host.on_did_rename_file(old.clone(), new.clone());
+
+    let analysis = host.snapshot();
+    let db = &analysis.db;
+    let project = analysis.project;
+    let files = project.files(db);
+    let file = *files.get(&new).expect("new path should exist");
+    let parse = parse_file(db, project, file);
+    assert!(
+      !parse.ast(db).text().is_empty(),
+      "renamed file should be parseable"
+    );
+
+    let symbol = file_symbol(db, project, file).value(db);
+    assert!(symbol.is_some(), "renamed file should resolve to a symbol");
+  }
+
+  // After rename, vault config root_dir is still accessible
+  #[test]
+  fn did_rename_vault_config_unaffected() {
+    let (dir, mut host) = setup();
+    let root = dir.path().to_path_buf();
+    let old = root.join("_types/Person.td");
+    let new = root.join("_types/Human.td");
+
+    std::fs::rename(&old, &new).unwrap();
+    host.on_did_rename_file(old, new);
+
+    let analysis = host.snapshot();
+    let root_dir = get_vault_config(&analysis.db, analysis.project).root_dir(&analysis.db);
+    assert_eq!(
+      *root_dir,
+      dir.path().to_path_buf(),
+      "vault config root_dir should be unchanged after rename"
+    );
+  }
+
+  // Renaming a file while it's open in the editor preserves the in-memory rope
+  #[test]
+  fn did_rename_open_file_rope_is_transferred() {
+    let (dir, mut host) = setup();
+    let root = dir.path().to_path_buf();
+    let old = root.join("_types/Person.td");
+    let new = root.join("_types/Human.td");
+
+    // Simulate editor opening the file with modified content
+    let edited =
+      "---\n_type: schema\nproperties:\n  name:\n    type: string\n  age:\n    type: number\n---\n";
+    let rope = ropey::Rope::from_str(edited);
+    Arc::make_mut(&mut host.open_files).insert(old.clone(), rope);
+
+    std::fs::rename(&old, &new).unwrap();
+    host.on_did_rename_file(old, new.clone());
+
+    // The rope should be accessible under the new path
+    assert!(
+      host.open_files.contains_key(&new),
+      "rope should be transferred to new path"
+    );
+    assert_eq!(
+      host.open_files[&new].to_string(),
+      edited,
+      "rope content should be preserved after rename"
+    );
   }
 }

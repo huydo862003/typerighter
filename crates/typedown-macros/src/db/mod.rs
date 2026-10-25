@@ -28,7 +28,10 @@ pub(crate) struct CacheModifiers {
 }
 
 pub(crate) fn has_return_ref(field: &syn::Field) -> bool {
-  field.attrs.iter().any(|a| a.path().is_ident("return_ref"))
+  field
+    .attrs
+    .iter()
+    .any(|attribute| attribute.path().is_ident("return_ref"))
 }
 
 pub(crate) fn parse_cache_modifiers(attr: proc_macro::TokenStream) -> CacheModifiers {

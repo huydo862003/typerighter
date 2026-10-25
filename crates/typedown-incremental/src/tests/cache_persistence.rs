@@ -14,10 +14,10 @@ fn interned_entries_preserved_across_roundtrip() {
   let input = identity::IdInput::new(&db1, 7);
   identity::identity(&db1, input);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 7,
+    |input| input.n(&db2) == 7,
     "IdInput(7)",
   );
   assert_eq!(input2.n(&db2), 7);
@@ -32,10 +32,10 @@ fn no_recomputation_after_roundtrip() {
   let input = identity::IdInput::new(&db1, 3);
   identity::identity(&db1, input);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 3,
+    |input| input.n(&db2) == 3,
     "IdInput(3)",
   );
 
@@ -59,10 +59,10 @@ fn derived_field_values_preserved_across_roundtrip() {
   let result1 = identity::identity(&db1, input);
   assert_eq!(result1.value(&db1), 42);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 42,
+    |input| input.n(&db2) == 42,
     "IdInput(42)",
   );
   let result2 = identity::identity(&db2, input2);
@@ -80,9 +80,13 @@ fn all_subqueries_cached_after_roundtrip() {
   let input = FibInput::new(&db1, 5);
   fibonacci(&db1, input);
 
-  let db2 = dump_and_reload(&db1, |s| Database { storage: s });
+  let db2 = dump_and_reload(&db1, |storage| Database { storage });
 
-  let input2 = find_entry(FibInput::iter(&db2), |i| i.n(&db2) == 5, "FibInput(5)");
+  let input2 = find_entry(
+    FibInput::iter(&db2),
+    |input| input.n(&db2) == 5,
+    "FibInput(5)",
+  );
   take_log();
   fibonacci(&db2, input2);
   let log = take_log();
@@ -102,12 +106,12 @@ fn double_roundtrip_preserves_cache() {
   let input = identity::IdInput::new(&db1, 9);
   identity::identity(&db1, input);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let db3 = identity::dump_and_reload(&db2, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
+  let db3 = identity::dump_and_reload(&db2, |storage| IdDb { storage });
 
   let input3 = identity::find_entry(
     identity::IdInput::iter(&db3),
-    |i| i.n(&db3) == 9,
+    |input| input.n(&db3) == 9,
     "IdInput(9)",
   );
   identity::take_log();
@@ -123,7 +127,7 @@ fn empty_database_roundtrip() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   // Verify the db is usable after loading from an empty dump
   let input = identity::IdInput::new(&db2, 1);
   let result = identity::identity(&db2, input);
@@ -136,18 +140,26 @@ fn fibonacci_base_cases_cached_after_roundtrip() {
   let db1 = Database {
     storage: QueryStorage::default(),
   };
-  let i0 = FibInput::new(&db1, 0);
-  let i1 = FibInput::new(&db1, 1);
-  fibonacci(&db1, i0);
-  fibonacci(&db1, i1);
+  let input0 = FibInput::new(&db1, 0);
+  let input1 = FibInput::new(&db1, 1);
+  fibonacci(&db1, input0);
+  fibonacci(&db1, input1);
 
-  let db2 = dump_and_reload(&db1, |s| Database { storage: s });
-  let i0b = find_entry(FibInput::iter(&db2), |i| i.n(&db2) == 0, "FibInput(0)");
-  let i1b = find_entry(FibInput::iter(&db2), |i| i.n(&db2) == 1, "FibInput(1)");
+  let db2 = dump_and_reload(&db1, |storage| Database { storage });
+  let input0b = find_entry(
+    FibInput::iter(&db2),
+    |input| input.n(&db2) == 0,
+    "FibInput(0)",
+  );
+  let input1b = find_entry(
+    FibInput::iter(&db2),
+    |input| input.n(&db2) == 1,
+    "FibInput(1)",
+  );
 
   take_log();
-  fibonacci(&db2, i0b);
-  fibonacci(&db2, i1b);
+  fibonacci(&db2, input0b);
+  fibonacci(&db2, input1b);
   let log = take_log();
 
   assert!(
@@ -166,10 +178,10 @@ fn interned_ret_typ_roundtrip() {
   let pair = identity::make_pair(&db1, input);
   assert_eq!(pair.a(&db1).value(&db1), 4);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 4,
+    |input| input.n(&db2) == 4,
     "IdInput(4)",
   );
 
@@ -196,10 +208,10 @@ fn derived_field_containing_derived_struct_cached_after_roundtrip() {
   let result1 = identity::outer_query(&db1, input);
   assert_eq!(result1.value(&db1), 5);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 5,
+    |input| input.n(&db2) == 5,
     "IdInput(5)",
   );
 
@@ -224,12 +236,12 @@ fn derived_field_containing_derived_struct_double_roundtrip() {
   let input = identity::IdInput::new(&db1, 8);
   identity::outer_query(&db1, input);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let db3 = identity::dump_and_reload(&db2, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
+  let db3 = identity::dump_and_reload(&db2, |storage| IdDb { storage });
 
   let input3 = identity::find_entry(
     identity::IdInput::iter(&db3),
-    |i| i.n(&db3) == 8,
+    |input| input.n(&db3) == 8,
     "IdInput(8)",
   );
 
@@ -257,10 +269,10 @@ fn interned_key_with_derived_struct_fields_cached_after_roundtrip() {
   let result1 = identity::use_pair(&db1, pair);
   assert_eq!(result1.value(&db1), 6);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 6,
+    |input| input.n(&db2) == 6,
     "IdInput(6)",
   );
 
@@ -287,23 +299,23 @@ fn reused_entry_ids_after_cross_session_stale_dep_recompute() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
-  let _vc = identity::VersionConfig::new(&db1, 1);
+  let _version_config = identity::VersionConfig::new(&db1, 1);
   let input = identity::IdInput::new(&db1, 5);
   identity::versioned_identity(&db1, input);
   identity::versioned_identity_downstream(&db1, input);
 
-  let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let mut db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
 
-  let vc2 = identity::find_entry(
+  let version_config2 = identity::find_entry(
     identity::VersionConfig::iter(&db2),
-    |v| v.version(&db2) == 1,
+    |version| version.version(&db2) == 1,
     "VersionConfig(1)",
   );
-  vc2.set_version(&mut db2, 2);
+  version_config2.set_version(&mut db2, 2);
 
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 5,
+    |input| input.n(&db2) == 5,
     "IdInput(5)",
   );
 
@@ -328,62 +340,59 @@ fn no_id_drift_after_unchanged_roundtrip() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
-  let _vc = identity::VersionConfig::new(&db1, 1);
+  let _verson_config = identity::VersionConfig::new(&db1, 1);
   let input = identity::IdInput::new(&db1, 5);
-  let r1 = identity::versioned_identity(&db1, input);
-  let r2 = identity::versioned_identity_downstream(&db1, input);
-  let id_before: u32 = r1.into();
-  let downstream_before: u32 = r2.into();
+  let result1 = identity::versioned_identity(&db1, input);
+  let result2 = identity::versioned_identity_downstream(&db1, input);
+  let id_before: u32 = result1.into();
+  let downstream_before: u32 = result2.into();
   assert_eq!(id_before, downstream_before);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 5,
+    |input| input.n(&db2) == 5,
     "IdInput(5)",
   );
 
   identity::take_log();
-  let r3 = identity::versioned_identity(&db2, input2);
-  let r4 = identity::versioned_identity_downstream(&db2, input2);
+  let result3 = identity::versioned_identity(&db2, input2);
+  let result4 = identity::versioned_identity_downstream(&db2, input2);
   let log = identity::take_log();
 
   assert!(log.is_empty(), "no recomputation expected: {log:?}");
-  let id_after: u32 = r3.into();
-  let downstream_after: u32 = r4.into();
+  let id_after: u32 = result3.into();
+  let downstream_after: u32 = result4.into();
   assert_eq!(
     id_after, downstream_after,
     "IDs must match after unchanged roundtrip"
   );
-  assert_eq!(r3.n(&db2), 5);
-  assert_eq!(r3.value(&db2), 5);
+  assert_eq!(result3.n(&db2), 5);
+  assert_eq!(result3.value(&db2), 5);
 }
 
-// After re-execution due to a stale side dep, the cached downstream result must return
-// a struct whose fields are accessible with correct values.
-// If the bug exists: re-execution creates a new entry_id, the cached downstream holds the old
-// entry_id whose field data is stale or cleaned up -> field access panics or returns wrong value.
-// Mirrors the integration test: zero_spurious_errors_after_file_change.
+// After re-execution due to a stale side dep, the cached downstream result must return a struct whose fields are accessible with correct values
+// If the bug exists: re-execution creates a new entry_id, the cached downstream holds the old entry_id whose field data is stale or cleaned up -> field access panics or returns wrong value.
 #[test]
 fn cached_downstream_fields_accessible_after_stale_dep_recompute() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
-  let _vc = identity::VersionConfig::new(&db1, 1);
+  let _version_config = identity::VersionConfig::new(&db1, 1);
   let input = identity::IdInput::new(&db1, 5);
   identity::versioned_identity(&db1, input);
   identity::versioned_identity_downstream(&db1, input);
 
-  let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
-  let vc2 = identity::find_entry(
+  let mut db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
+  let version_config2 = identity::find_entry(
     identity::VersionConfig::iter(&db2),
-    |v| v.version(&db2) == 1,
+    |version| version.version(&db2) == 1,
     "VersionConfig(1)",
   );
-  vc2.set_version(&mut db2, 2);
+  version_config2.set_version(&mut db2, 2);
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 5,
+    |input| input.n(&db2) == 5,
     "IdInput(5)",
   );
 
@@ -410,10 +419,10 @@ fn interned_no_lifetime_ret_typ_roundtrip() {
   let doubled = identity::double_input(&db1, input);
   assert_eq!(doubled.n(&db1), 12);
 
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 6,
+    |input| input.n(&db2) == 6,
     "IdInput(6)",
   );
 

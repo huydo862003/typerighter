@@ -54,11 +54,14 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
     );
   }
 
-  let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
-  let field_types_static: Vec<proc_macro2::TokenStream> =
-    field_types.iter().map(erase_db_lifetime_tokens).collect();
-  let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
-  let intern_key_ty = quote! { (#(#field_types_static,)*) };
+  let field_typs: Vec<_> = fields.iter().map(|field| &field.ty).collect();
+  let field_typs_static: Vec<proc_macro2::TokenStream> =
+    field_typs.iter().map(erase_db_lifetime_tokens).collect();
+  let field_names: Vec<_> = fields
+    .iter()
+    .map(|field| field.ident.as_ref().unwrap())
+    .collect();
+  let intern_key_typ = quote! { (#(#field_typs_static,)*) };
 
   // Register via InternedInventory
   output.extend::<TokenStream>(
@@ -68,7 +71,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           register: |factories| {
             let index = factories.len() as u32;
             factories.push(|ingredient_id| {
-              Box::new(::typedown_incremental::InternedIngredientStore::<#intern_key_ty>::new(
+              Box::new(::typedown_incremental::InternedIngredientStore::<#intern_key_typ>::new(
                 ingredient_id,
                 stringify!(#struct_name),
                 #struct_name::id_counter(),
@@ -85,21 +88,21 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
   // Generate getters
   let mut getter_tokens = quote! {};
-  for (idx, field) in fields.iter().enumerate() {
+  for (index, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
-    let field_ty = &field.ty;
-    let tuple_index = syn::Index::from(idx);
+    let field_typ = &field.ty;
+    let tuple_index = syn::Index::from(index);
     let try_field_name = quote::format_ident!("try_{}", field_name);
-    let is_return_ref = has_return_ref(field);
+    let is_return_reference = has_return_ref(field);
 
-    let getter = if is_return_ref {
+    let getter = if is_return_reference {
       quote! {
-        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInternedValue<#intern_key_ty>, #field_ty> {
+        pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInternedValue<#intern_key_typ>, #field_typ> {
           let id = self.0;
           let storage = unsafe { db.storage() };
           let ingredient_id = Self::ingredient_id() as usize;
           let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_typ>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id).expect("invalid interned id");
 
           // Safety: transmute 'static to 'db on the projected type (same as the clone path)
@@ -108,12 +111,12 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       }
     } else {
       quote! {
-        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_ty {
+        pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_typ {
           let id = self.0;
           let storage = unsafe { db.storage() };
           let ingredient_id = Self::ingredient_id() as usize;
           let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_typ>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id).expect("invalid interned id");
 
           // Safety: transmute 'static stored value to 'db at the boundary
@@ -124,14 +127,14 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
     getter_tokens.extend(getter);
 
-    let try_getter = if is_return_ref {
+    let try_getter = if is_return_reference {
       quote! {
-        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInternedValue<#intern_key_ty>, #field_ty>> {
+        pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInternedValue<#intern_key_typ>, #field_typ>> {
           let id = self.0;
           let storage = unsafe { db.storage() };
           let ingredient_id = Self::ingredient_id() as usize;
           let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_typ>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id)?;
 
           // Safety: transmute 'static to 'db on the projected type (same as the clone path)
@@ -140,12 +143,12 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       }
     } else {
       quote! {
-        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_ty> {
+        pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> Option<#field_typ> {
           let id = self.0;
           let storage = unsafe { db.storage() };
           let ingredient_id = Self::ingredient_id() as usize;
           let ingredient = (&*storage.interned[ingredient_id] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_typ>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&id)?;
 
           // Safety: transmute 'static stored value to 'db at the boundary
@@ -210,15 +213,15 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
           Self::id_counter().fetch_add(1, ::std::sync::atomic::Ordering::Relaxed)
         }
 
-        fn intern_map() -> &'static dashmap::DashMap<#intern_key_ty, u32> {
-          static MAP: ::std::sync::OnceLock<dashmap::DashMap<#intern_key_ty, u32>> = ::std::sync::OnceLock::new();
+        fn intern_map() -> &'static dashmap::DashMap<#intern_key_typ, u32> {
+          static MAP: ::std::sync::OnceLock<dashmap::DashMap<#intern_key_typ, u32>> = ::std::sync::OnceLock::new();
           MAP.get_or_init(|| dashmap::DashMap::new())
         }
 
         #[allow(clippy::too_many_arguments)]
-        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_types),*) -> Self {
+        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_typs),*) -> Self {
           // Safety: transmute field values from 'db to 'static for storage
-          let intern_key: #intern_key_ty = unsafe {
+          let intern_key: #intern_key_typ = unsafe {
             ::std::mem::transmute((#(#field_names.clone(),)*))
           };
           let map = Self::intern_map();
@@ -232,7 +235,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
 
           let storage = unsafe { db.storage() };
           let ingredient = (&*storage.interned[Self::ingredient_id() as usize] as &dyn ::std::any::Any)
-            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_ty>>().expect("ingredient type mismatch");
+            .downcast_ref::<::typedown_incremental::InternedIngredientStore<#intern_key_typ>>().expect("ingredient type mismatch");
           ingredient.data.entry(id).or_insert(::typedown_incremental::StampedInternedValue {
             value: intern_key,
             fingerprint: ::typedown_incremental::LazyFingerprint::new(),
@@ -276,7 +279,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types_static as ::typedown_incremental::Decodable>::field_decode(data, decoder);
+            let _ = <#field_typs_static as ::typedown_incremental::Decodable>::field_decode(data, decoder);
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");
@@ -297,7 +300,7 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
         fn from(id: u32) -> Self { #self_constructor }
       }
       #impl_trait_prefix From<#impl_trait_for> for u32 {
-        fn from(val: #impl_trait_for) -> u32 { val.0 }
+        fn from(value: #impl_trait_for) -> u32 { value.0 }
       }
 
       #impl_trait_prefix ::typedown_incremental::InternedId for #impl_trait_for {

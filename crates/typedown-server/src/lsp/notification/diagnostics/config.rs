@@ -17,7 +17,7 @@ pub fn publish_diagnostics(analysis: &Analysis) -> Vec<Notification> {
   // Find the vault config file path
   let config_path = [root.join("typedown.yaml"), root.join("typedown.yml")]
     .into_iter()
-    .find(|p| project.files(db).contains_key(p));
+    .find(|path| project.files(db).contains_key(path));
 
   let Some(config_path) = config_path else {
     return vec![];
@@ -29,10 +29,10 @@ pub fn publish_diagnostics(analysis: &Analysis) -> Vec<Notification> {
   };
 
   let config_result = get_vault_config(db, project);
-  let lsp_diags = config_result
+  let lsp_diagnostics = config_result
     .diagnostics(db)
     .iter()
-    .map(|diag| to_lsp_diagnostic(diag, &rope))
+    .map(|diagnostic| to_lsp_diagnostic(diagnostic, &rope))
     .collect();
 
   let scheme = analysis
@@ -46,7 +46,7 @@ pub fn publish_diagnostics(analysis: &Analysis) -> Vec<Notification> {
     PublishDiagnostics::METHOD.to_string(),
     PublishDiagnosticsParams {
       uri,
-      diagnostics: lsp_diags,
+      diagnostics: lsp_diagnostics,
       version: None,
     },
   )]

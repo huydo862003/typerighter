@@ -1,3 +1,5 @@
+use std::hash::Hasher;
+
 use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
@@ -35,22 +37,22 @@ impl<'db> TdRuntimeObj<'db> for TdListTyp<'db> {
     None
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
-    match self.element(db).and_then(|e| e.resolve(db)) {
-      Some(elem) => format!("@builtin::list[{}]", elem.source_path(db)),
+    match self.element(db).and_then(|element| element.resolve(db)) {
+      Some(element) => format!("@builtin::list[{}]", element.source_path(db)),
       None => "@builtin::list".to_string(),
     }
   }
   // Type instantiation: list[string] at runtime
   fn index(&self, db: &'db TypedownDatabase, key: &TdObjEnum<'db>) -> Option<TdObjEnum<'db>> {
-    let arg_type = key.as_td_typ_obj()?.clone();
-    let result = self.instantiate(db, vec![LazyTyp::eager(arg_type)]).typ(db);
+    let arg_typ = key.as_td_typ_obj()?.clone();
+    let result = self.instantiate(db, vec![LazyTyp::eager(arg_typ)]).typ(db);
     Some(TdObjEnum::from(result))
   }
 }
 
 impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
-    match self.element(db).and_then(|e| e.resolve(db)) {
+    match self.element(db).and_then(|element| element.resolve(db)) {
       Some(elem) => format!("list[{}]", elem.display_name(db)),
       None => "list".to_string(),
     }
@@ -75,8 +77,8 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   }
 
   fn get_typ_args(&self, db: &'db TypedownDatabase) -> Vec<TdTypEnum<'db>> {
-    match self.element(db).and_then(|e| e.resolve(db)) {
-      Some(elem) => vec![elem],
+    match self.element(db).and_then(|element| element.resolve(db)) {
+      Some(element) => vec![element],
       None => vec![],
     }
   }
@@ -90,19 +92,19 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
     db: &'db TypedownDatabase,
     args: Vec<LazyTyp<'db>>,
   ) -> InstantiateResult<'db> {
-    let self_type: TdTypEnum = (*self).into();
+    let self_typ: TdTypEnum = (*self).into();
     let params = self.typ_params(db);
     let diagnostics = validate_typ_params(db, params.as_ref(), &args);
-    if diagnostics.iter().any(|d| {
+    if diagnostics.iter().any(|diagnostic| {
       matches!(
-        d,
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::WrongTypArgCount { .. },
           ..
         }
       )
     }) {
-      return InstantiateResult::new(db, self_type, diagnostics);
+      return InstantiateResult::new(db, self_typ, diagnostics);
     }
     if args.len() == 1 {
       InstantiateResult::new(
@@ -111,7 +113,7 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
         diagnostics,
       )
     } else {
-      InstantiateResult::new(db, self_type, diagnostics)
+      InstantiateResult::new(db, self_typ, diagnostics)
     }
   }
 
@@ -124,11 +126,11 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   fn index_typ(
     &self,
     db: &'db TypedownDatabase,
-    _key_type: &TdTypEnum<'db>,
+    _key_typ: &TdTypEnum<'db>,
   ) -> Option<FuncSignature<'db>> {
-    let elem = self.element(db).and_then(|e| e.resolve(db))?;
-    let key_type: TdTypEnum = get_number_typ(db).into();
-    Some(FuncSignature::new(db, vec![key_type], elem))
+    let element = self.element(db).and_then(|element| element.resolve(db))?;
+    let key_typ: TdTypEnum = get_number_typ(db).into();
+    Some(FuncSignature::new(db, vec![key_typ], element))
   }
 }
 
@@ -149,7 +151,7 @@ impl<'db> StableHash for TdListObj<'db> {
     let storage = unsafe { db.storage() };
     let cache_key = (Self::ingredient_start_index(), self.0);
     if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
-      ::std::hash::Hasher::write(hasher, &cached.0);
+      Hasher::write(hasher, &cached.0);
       return;
     }
     let mut inner_hasher = StableHasher::new();
@@ -158,7 +160,7 @@ impl<'db> StableHash for TdListObj<'db> {
     }
     let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
     storage.derived_fingerprints.insert(cache_key, fingerprint);
-    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+    Hasher::write(hasher, &fingerprint.0);
   }
 }
 
@@ -177,9 +179,9 @@ impl<'db> TdRuntimeObj<'db> for TdListObj<'db> {
     self.get_typ(db).source_path(db)
   }
   fn index(&self, db: &'db TypedownDatabase, key: &TdObjEnum<'db>) -> Option<TdObjEnum<'db>> {
-    let num = key.as_td_number_obj()?;
-    let idx = num.value(db) as usize;
-    self.get(db, idx)
+    let number = key.as_td_number_obj()?;
+    let index = number.value(db) as usize;
+    self.get(db, index)
   }
   fn len(&self, db: &'db TypedownDatabase) -> Option<usize> {
     Some(self.items(db).len())

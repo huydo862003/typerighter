@@ -42,8 +42,8 @@ pub fn setup_db_cached(cache_dir: &Path, project_dir: &Path) -> TypedownDatabase
 // Child processes get clean statics, which is needed for incremental cache tests
 pub fn run_child_test(test_name: &str, envs: &[(&str, &str)]) {
   let mut cmd = Command::new(std::env::current_exe().unwrap());
-  for (key, val) in envs {
-    cmd.env(key, val);
+  for (key, value) in envs {
+    cmd.env(key, value);
   }
   let output = cmd
     .arg(test_name)
@@ -67,11 +67,11 @@ fn register_project_fresh(db: &TypedownDatabase, project_dir: &Path) {
     let meta = std::fs::metadata(&path).ok();
     let mtime = meta
       .as_ref()
-      .and_then(|m| m.modified().ok())
+      .and_then(|metadata| metadata.modified().ok())
       .unwrap_or(SystemTime::UNIX_EPOCH);
     let ctime = meta
       .as_ref()
-      .and_then(|m| m.created().ok())
+      .and_then(|metadata| metadata.created().ok())
       .unwrap_or(mtime);
     let handle = FileHandle::Path(path.clone(), FileMetadata { mtime, ctime });
     let file = File::new(db, handle);
@@ -94,11 +94,11 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
     let meta = std::fs::metadata(&path).ok();
     let mtime = meta
       .as_ref()
-      .and_then(|m| m.modified().ok())
+      .and_then(|metadata| metadata.modified().ok())
       .unwrap_or(SystemTime::UNIX_EPOCH);
     let ctime = meta
       .as_ref()
-      .and_then(|m| m.created().ok())
+      .and_then(|metadata| metadata.created().ok())
       .unwrap_or(mtime);
     let handle = FileHandle::Path(path.clone(), FileMetadata { mtime, ctime });
     let file = if let Some(&cached) = cached_files.get(&path) {
@@ -112,9 +112,9 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
 
   let cached_project = Project::iter(db)
     .into_iter()
-    .find(|proj| *proj.root_dir(db) == project_dir);
-  if let Some(proj) = cached_project {
-    proj.set_files(db, files);
+    .find(|project| *project.root_dir(db) == project_dir);
+  if let Some(project) = cached_project {
+    project.set_files(db, files);
   } else {
     Project::new(db, project_dir.to_path_buf(), files, None);
   }
@@ -133,10 +133,10 @@ pub fn scan_project_files(dir: &Path) -> Vec<PathBuf> {
       if path.is_dir() {
         stack.push(path);
       } else {
-        let ext = path.extension().and_then(|e| e.to_str());
-        let name = path.file_name().and_then(|n| n.to_str());
-        let is_asset = ext.and_then(AssetKind::from_extension).is_some();
-        if ext == Some("td")
+        let extension = path.extension().and_then(|extension| extension.to_str());
+        let name = path.file_name().and_then(|name| name.to_str());
+        let is_asset = extension.and_then(AssetKind::from_extension).is_some();
+        if extension == Some("td")
           || is_asset
           || (dir == root && matches!(name, Some("typedown.yaml") | Some("typedown.yml")))
         {
@@ -146,6 +146,25 @@ pub fn scan_project_files(dir: &Path) -> Vec<PathBuf> {
     }
   }
   result
+}
+
+// Like copy_dir_recursive but includes .typedown cache directory
+pub fn copy_dir_recursive_all(src: &Path, dst: &Path) {
+  std::fs::create_dir_all(dst).unwrap();
+  for entry in std::fs::read_dir(src).unwrap().flatten() {
+    let src_path = entry.path();
+    let dst_path = dst.join(entry.file_name());
+    if src_path.is_dir() {
+      copy_dir_recursive_all(&src_path, &dst_path);
+    } else {
+      std::fs::copy(&src_path, &dst_path).unwrap();
+      if let Ok(meta) = entry.metadata()
+        && let Ok(mtime) = meta.modified()
+      {
+        let _ = filetime::set_file_mtime(&dst_path, filetime::FileTime::from_system_time(mtime));
+      }
+    }
+  }
 }
 
 // Preserves file modification times so incremental cache sees unchanged files

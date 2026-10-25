@@ -112,11 +112,11 @@ pub fn resolution_index<'db>(
 ) -> ResolutionIndex<'db> {
   let mut map: BTreeMap<String, Vec<Reference>> = BTreeMap::new();
   let root = parse_file(db, project, file).ast(db);
-  collect_refs_in_source(db, root, &mut map);
+  collect_references_in_source(db, root, &mut map);
   ResolutionIndex::new(db, map)
 }
 
-fn collect_refs_in_source(
+fn collect_references_in_source(
   db: &TypedownDatabase,
   project_node: ProjectRedNode,
   map: &mut BTreeMap<String, Vec<Reference>>,
@@ -126,7 +126,7 @@ fn collect_refs_in_source(
     None => return,
   };
   if let Some(frontmatter) = source_file.frontmatter() {
-    collect_refs_in_frontmatter(
+    collect_references_in_frontmatter(
       db,
       frontmatter,
       project_node.project,
@@ -135,11 +135,11 @@ fn collect_refs_in_source(
     );
   }
   if let Some(body) = source_file.body() {
-    collect_refs_in_md_body(db, body, project_node.project, project_node.file, map);
+    collect_references_in_md_body(db, body, project_node.project, project_node.file, map);
   }
 }
 
-fn collect_refs_in_frontmatter(
+fn collect_references_in_frontmatter(
   db: &TypedownDatabase,
   frontmatter: YamlFrontmatter,
   project: Project,
@@ -147,11 +147,11 @@ fn collect_refs_in_frontmatter(
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
   if let Some(mapping) = frontmatter.mapping() {
-    collect_refs_in_mapping(db, mapping, project, file, map);
+    collect_references_in_mapping(db, mapping, project, file, map);
   }
 }
 
-fn collect_refs_in_mapping(
+fn collect_references_in_mapping(
   db: &TypedownDatabase,
   mapping: YamlMapping,
   project: Project,
@@ -160,11 +160,11 @@ fn collect_refs_in_mapping(
 ) {
   for (_, value_expr) in mapping.entries() {
     let child = ProjectRedNode::new(project, file, value_expr.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
-fn collect_refs_in_md_body(
+fn collect_references_in_md_body(
   db: &TypedownDatabase,
   body: MdBody,
   project: Project,
@@ -172,11 +172,11 @@ fn collect_refs_in_md_body(
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
   for block in body.block_elements() {
-    collect_refs_in_md_block(db, block, project, file, map);
+    collect_references_in_md_block(db, block, project, file, map);
   }
 }
 
-fn collect_refs_in_md_block(
+fn collect_references_in_md_block(
   db: &TypedownDatabase,
   block: MdBlockElement,
   project: Project,
@@ -186,24 +186,24 @@ fn collect_refs_in_md_block(
   match block {
     MdBlockElement::MdParagraph(p) => {
       for inline in p.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdBlockElement::MdHeading(h) => {
       for inline in h.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdBlockElement::MdBlockquote(bq) => {
       for inner_block in bq.block_elements() {
-        collect_refs_in_md_block(db, inner_block, project, file, map);
+        collect_references_in_md_block(db, inner_block, project, file, map);
       }
     }
     MdBlockElement::MdTable(table) => {
       for row in table.rows() {
         for cell in row.cells() {
           for inline in cell.inline_elements() {
-            collect_refs_in_md_inline(db, inline, project, file, map);
+            collect_references_in_md_inline(db, inline, project, file, map);
           }
         }
       }
@@ -211,20 +211,20 @@ fn collect_refs_in_md_block(
     MdBlockElement::MdBulletList(list) => {
       for item in list.items() {
         for inner_block in item.block_elements() {
-          collect_refs_in_md_block(db, inner_block, project, file, map);
+          collect_references_in_md_block(db, inner_block, project, file, map);
         }
       }
     }
     MdBlockElement::MdOrderedList(list) => {
       for item in list.items() {
         for inner_block in item.block_elements() {
-          collect_refs_in_md_block(db, inner_block, project, file, map);
+          collect_references_in_md_block(db, inner_block, project, file, map);
         }
       }
     }
     MdBlockElement::MdContainerBlock(container) => {
       for node in container.value() {
-        collect_refs_in_md_node(db, node, project, file, map);
+        collect_references_in_md_node(db, node, project, file, map);
       }
     }
     MdBlockElement::MdContainerShorthand(_)
@@ -234,7 +234,7 @@ fn collect_refs_in_md_block(
   }
 }
 
-fn collect_refs_in_md_node(
+fn collect_references_in_md_node(
   db: &TypedownDatabase,
   node: MdNode,
   project: Project,
@@ -244,42 +244,42 @@ fn collect_refs_in_md_node(
   match node {
     MdNode::MdHeading(h) => {
       for inline in h.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdNode::MdParagraph(p) => {
       for inline in p.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdNode::MdBlockquote(bq) => {
       for block in bq.block_elements() {
-        collect_refs_in_md_block(db, block, project, file, map);
+        collect_references_in_md_block(db, block, project, file, map);
       }
     }
     MdNode::MdContainerBlock(container) => {
       for inner in container.value() {
-        collect_refs_in_md_node(db, inner, project, file, map);
+        collect_references_in_md_node(db, inner, project, file, map);
       }
     }
     MdNode::MdBold(b) => {
       for inline in b.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdNode::MdItalic(i) => {
       for inline in i.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdNode::MdBoldItalic(bi) => {
       for inline in bi.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdNode::MdStrikethrough(s) => {
       for inline in s.inline_elements() {
-        collect_refs_in_md_inline(db, inline, project, file, map);
+        collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
     MdNode::MdBulletList(_)
@@ -293,7 +293,7 @@ fn collect_refs_in_md_node(
   }
 }
 
-fn collect_refs_in_md_inline(
+fn collect_references_in_md_inline(
   db: &TypedownDatabase,
   inline: MdInlineElement,
   project: Project,
@@ -304,27 +304,27 @@ fn collect_refs_in_md_inline(
     MdInlineElement::InterpFragment(frag) => {
       if let Some(expr) = frag.expr() {
         let child = ProjectRedNode::new(project, file, expr.syntax().clone());
-        collect_refs_in_expr(db, child, map);
+        collect_references_in_expr(db, child, map);
       }
     }
     MdInlineElement::MdBold(b) => {
       for inner in b.inline_elements() {
-        collect_refs_in_md_inline(db, inner, project, file, map);
+        collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
     MdInlineElement::MdItalic(i) => {
       for inner in i.inline_elements() {
-        collect_refs_in_md_inline(db, inner, project, file, map);
+        collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
     MdInlineElement::MdBoldItalic(bi) => {
       for inner in bi.inline_elements() {
-        collect_refs_in_md_inline(db, inner, project, file, map);
+        collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
     MdInlineElement::MdStrikethrough(s) => {
       for inner in s.inline_elements() {
-        collect_refs_in_md_inline(db, inner, project, file, map);
+        collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
     MdInlineElement::MdLink(_)
@@ -338,7 +338,7 @@ fn collect_refs_in_md_inline(
   }
 }
 
-fn collect_refs_in_expr(
+fn collect_references_in_expr(
   db: &TypedownDatabase,
   project_node: ProjectRedNode,
   map: &mut BTreeMap<String, Vec<Reference>>,
@@ -353,63 +353,63 @@ fn collect_refs_in_expr(
 
   match expr {
     Expr::IdentLit(ident) => {
-      collect_refs_in_ident(db, ident, project_node, map);
+      collect_references_in_ident(db, ident, project_node, map);
     }
     Expr::StrLit(str_lit) => {
-      collect_refs_in_str_lit(db, str_lit, project, file, map);
+      collect_references_in_string_lit(db, str_lit, project, file, map);
     }
     Expr::CallExpr(call) => {
-      collect_refs_in_call(db, call, project_node, map);
+      collect_references_in_call(db, call, project_node, map);
     }
     Expr::YamlMapping(mapping) => {
-      collect_refs_in_mapping(db, mapping, project, file, map);
+      collect_references_in_mapping(db, mapping, project, file, map);
     }
     Expr::YamlSequence(seq) => {
       for value in seq.values() {
         let child = ProjectRedNode::new(project, file, value.syntax().clone());
-        collect_refs_in_expr(db, child, map);
+        collect_references_in_expr(db, child, map);
       }
     }
     Expr::DictLit(dict) => {
       for value in dict.values() {
         let child = ProjectRedNode::new(project, file, value.syntax().clone());
-        collect_refs_in_expr(db, child, map);
+        collect_references_in_expr(db, child, map);
       }
     }
     Expr::ListLit(list) => {
       for item in list.items() {
         if let Some(value) = item.value() {
           let child = ProjectRedNode::new(project, file, value.syntax().clone());
-          collect_refs_in_expr(db, child, map);
+          collect_references_in_expr(db, child, map);
         }
       }
     }
     Expr::BinaryExpr(binary) => {
-      collect_refs_in_binary(db, binary, project, file, map);
+      collect_references_in_binary(db, binary, project, file, map);
     }
     Expr::PrefixExpr(prefix) => {
-      collect_refs_in_prefix(db, prefix, project, file, map);
+      collect_references_in_prefix(db, prefix, project, file, map);
     }
     Expr::PostfixExpr(postfix) => {
-      collect_refs_in_postfix(db, postfix, project, file, map);
+      collect_references_in_postfix(db, postfix, project, file, map);
     }
     Expr::IndexExpr(index) => {
-      collect_refs_in_index(db, index, project, file, map);
+      collect_references_in_index(db, index, project, file, map);
     }
     Expr::ClosureExpr(closure) => {
-      collect_refs_in_closure(db, closure, project, file, map);
+      collect_references_in_closure(db, closure, project, file, map);
     }
     Expr::ParenExpr(paren) => {
       if let Some(inner) = paren.expr() {
         let child = ProjectRedNode::new(project, file, inner.syntax().clone());
-        collect_refs_in_expr(db, child, map);
+        collect_references_in_expr(db, child, map);
       }
     }
     Expr::NumberLit(_) | Expr::CodeLit(_) | Expr::MathLit(_) => {}
   }
 }
 
-fn collect_refs_in_ident(
+fn collect_references_in_ident(
   db: &TypedownDatabase,
   ident: IdentLit,
   project_node: ProjectRedNode,
@@ -431,7 +431,7 @@ fn collect_refs_in_ident(
   }
 }
 
-fn collect_refs_in_str_lit(
+fn collect_references_in_string_lit(
   db: &TypedownDatabase,
   str_lit: StrLit,
   project: Project,
@@ -443,12 +443,12 @@ fn collect_refs_in_str_lit(
       && let Some(inner_expr) = interp.expr()
     {
       let child = ProjectRedNode::new(project, file, inner_expr.syntax().clone());
-      collect_refs_in_expr(db, child, map);
+      collect_references_in_expr(db, child, map);
     }
   }
 }
 
-fn collect_refs_in_call(
+fn collect_references_in_call(
   db: &TypedownDatabase,
   call: CallExpr,
   call_project_node: ProjectRedNode,
@@ -478,14 +478,14 @@ fn collect_refs_in_call(
       });
   }
 
-  collect_refs_in_expr(db, callee_project_node, map);
+  collect_references_in_expr(db, callee_project_node, map);
   for arg in call.args() {
     let child = ProjectRedNode::new(project, file, arg.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
-fn collect_refs_in_binary(
+fn collect_references_in_binary(
   db: &TypedownDatabase,
   binary: BinaryExpr,
   project: Project,
@@ -494,15 +494,15 @@ fn collect_refs_in_binary(
 ) {
   if let Some(left) = binary.left() {
     let child = ProjectRedNode::new(project, file, left.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
   if let Some(right) = binary.right() {
     let child = ProjectRedNode::new(project, file, right.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
-fn collect_refs_in_prefix(
+fn collect_references_in_prefix(
   db: &TypedownDatabase,
   prefix: PrefixExpr,
   project: Project,
@@ -511,11 +511,11 @@ fn collect_refs_in_prefix(
 ) {
   if let Some(operand) = prefix.expr() {
     let child = ProjectRedNode::new(project, file, operand.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
-fn collect_refs_in_postfix(
+fn collect_references_in_postfix(
   db: &TypedownDatabase,
   postfix: PostfixExpr,
   project: Project,
@@ -524,11 +524,11 @@ fn collect_refs_in_postfix(
 ) {
   if let Some(operand) = postfix.expr() {
     let child = ProjectRedNode::new(project, file, operand.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
-fn collect_refs_in_index(
+fn collect_references_in_index(
   db: &TypedownDatabase,
   index: IndexExpr,
   project: Project,
@@ -537,15 +537,15 @@ fn collect_refs_in_index(
 ) {
   if let Some(expr) = index.expr() {
     let child = ProjectRedNode::new(project, file, expr.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
   for idx in index.indices() {
     let child = ProjectRedNode::new(project, file, idx.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
-fn collect_refs_in_closure(
+fn collect_references_in_closure(
   db: &TypedownDatabase,
   closure: ClosureExpr,
   project: Project,
@@ -554,21 +554,21 @@ fn collect_refs_in_closure(
 ) {
   if let Some(body) = closure.body() {
     let child = ProjectRedNode::new(project, file, body.syntax().clone());
-    collect_refs_in_expr(db, child, map);
+    collect_references_in_expr(db, child, map);
   }
 }
 
 /// Find all references to a symbol across the project
 pub fn references(db: &TypedownDatabase, project: Project, symbol: Symbol) -> Vec<Reference> {
-  let mut refs = vec![];
+  let mut references = vec![];
   for (path, file) in project.files(db).iter() {
     if !is_content_file(path) {
       continue;
     }
-    let idx = resolution_index(db, project, *file);
-    refs.extend(idx.get_references(db, symbol));
+    let index = resolution_index(db, project, *file);
+    references.extend(index.get_references(db, symbol));
   }
-  refs
+  references
 }
 
 const MAX_AFFECTED_DEPTH: usize = 5;
@@ -576,7 +576,7 @@ const MAX_AFFECTED_DEPTH: usize = 5;
 // Collect files that transitively reference the given file, up to MAX_AFFECTED_DEPTH levels
 pub fn find_transitive_referrers(db: &TypedownDatabase, project: Project, file: File) -> Vec<File> {
   let symbol = match file_symbol(db, project, file).value(db) {
-    Some(s) => s,
+    Some(symbol) => symbol,
     None => return vec![],
   };
 
@@ -585,16 +585,16 @@ pub fn find_transitive_referrers(db: &TypedownDatabase, project: Project, file: 
 
   for _ in 0..MAX_AFFECTED_DEPTH {
     let mut next_level = vec![];
-    for sym in &current_level {
-      for reference in references(db, project, *sym) {
+    for symbol in &current_level {
+      for reference in references(db, project, *symbol) {
         let ref_file = reference.node.file;
         if ref_file == file {
           continue;
         }
         if affected.insert(ref_file)
-          && let Some(ref_sym) = file_symbol(db, project, ref_file).value(db)
+          && let Some(ref_symbol) = file_symbol(db, project, ref_file).value(db)
         {
-          next_level.push(ref_sym);
+          next_level.push(ref_symbol);
         }
       }
     }
@@ -617,28 +617,28 @@ mod tests {
   #[test]
   fn resolution_index_finds_type_reference() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
-    let idx = resolution_index(&db, project, file);
+    let index = resolution_index(&db, project, file);
     // valid_person.td has _type: Person, so "Person" should be in the index
-    let def_ids = idx.def_ids(&db);
-    assert!(!def_ids.is_empty(), "should have symbols");
+    let definition_ids = index.def_ids(&db);
+    assert!(!definition_ids.is_empty(), "should have symbols");
     // Look up the first symbol by def_id
-    let refs: Vec<_> = idx
+    let references: Vec<_> = index
       .references(&db)
       .values()
       .next()
       .cloned()
       .unwrap_or_default();
-    assert!(!refs.is_empty(), "should have references");
-    assert_eq!(refs[0].kind, ReferenceKind::Ident);
+    assert!(!references.is_empty(), "should have references");
+    assert_eq!(references[0].kind, ReferenceKind::Ident);
   }
 
   // resolution_index returns empty for a file with no references
   #[test]
   fn resolution_index_empty_for_untyped() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
-    let idx = resolution_index(&db, project, file);
+    let index = resolution_index(&db, project, file);
     assert!(
-      idx.def_ids(&db).is_empty(),
+      index.def_ids(&db).is_empty(),
       "untyped file with no identifiers should have no symbols"
     );
   }
@@ -659,9 +659,9 @@ mod tests {
       .expect("Person.td should have a symbol");
 
     // valid_person.td references Person via _type
-    let refs = references(&db, project, person_symbol);
+    let references = references(&db, project, person_symbol);
     assert!(
-      !refs.is_empty(),
+      !references.is_empty(),
       "Person should have at least one reference"
     );
   }
@@ -672,19 +672,23 @@ mod tests {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
     // article_fref_status.td has fref("summary.td") which resolves to a symbol
-    let idx = resolution_index(&db, project, file);
-    let all_refs: Vec<_> = idx
+    let index = resolution_index(&db, project, file);
+    let all_references: Vec<_> = index
       .references(&db)
       .values()
-      .flat_map(|refs| refs.iter().cloned())
+      .flat_map(|references| references.iter().cloned())
       .collect();
     assert!(
-      all_refs.len() >= 2,
+      all_references.len() >= 2,
       "should have at least 2 references, got {}",
-      all_refs.len()
+      all_references.len()
     );
-    let has_ident = all_refs.iter().any(|r| r.kind == ReferenceKind::Ident);
-    let has_fref = all_refs.iter().any(|r| r.kind == ReferenceKind::Fref);
+    let has_ident = all_references
+      .iter()
+      .any(|reference| reference.kind == ReferenceKind::Ident);
+    let has_fref = all_references
+      .iter()
+      .any(|reference| reference.kind == ReferenceKind::Fref);
     assert!(has_ident, "should have an Ident reference (Article)");
     assert!(has_fref, "should have a Fref reference");
   }
@@ -694,7 +698,7 @@ mod tests {
   fn get_references_filters_correctly() {
     let (db, project, file) =
       load_vault_fixture("typecheck/narrow_vault", "article_fref_status.td");
-    let idx = resolution_index(&db, project, file);
+    let index = resolution_index(&db, project, file);
 
     // Get the Article schema symbol
     let schema_files = project.files(&db);
@@ -707,9 +711,12 @@ mod tests {
       .value(&db)
       .expect("Article.td should have a symbol");
 
-    let article_refs = idx.get_references(&db, article_symbol);
-    assert!(!article_refs.is_empty(), "should find Article reference");
-    assert_eq!(article_refs[0].kind, ReferenceKind::Ident);
+    let article_references = index.get_references(&db, article_symbol);
+    assert!(
+      !article_references.is_empty(),
+      "should find Article reference"
+    );
+    assert_eq!(article_references[0].kind, ReferenceKind::Ident);
 
     // Fref references summary.td
     let summary_path = schema_files
@@ -721,12 +728,12 @@ mod tests {
       .value(&db)
       .expect("summary.td should have a symbol");
 
-    let summary_refs = idx.get_references(&db, summary_symbol);
+    let summary_references = index.get_references(&db, summary_symbol);
     assert!(
-      !summary_refs.is_empty(),
+      !summary_references.is_empty(),
       "should find summary reference via fref"
     );
-    assert_eq!(summary_refs[0].kind, ReferenceKind::Fref);
+    assert_eq!(summary_references[0].kind, ReferenceKind::Fref);
   }
 
   // references() on an asset symbol finds content files that fref it without panicking
@@ -736,11 +743,11 @@ mod tests {
     let symbol = file_symbol(&db, project, file)
       .value(&db)
       .expect("asset should have a symbol");
-    let refs = references(&db, project, symbol);
+    let references = references(&db, project, symbol);
     assert!(
-      !refs.is_empty(),
+      !references.is_empty(),
       "icon.svg is referenced by with_asset_fref.td"
     );
-    assert_eq!(refs[0].kind, ReferenceKind::Fref);
+    assert_eq!(references[0].kind, ReferenceKind::Fref);
   }
 }

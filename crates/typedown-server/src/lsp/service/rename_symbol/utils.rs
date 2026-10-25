@@ -18,27 +18,31 @@ use crate::lsp::service::utils::symbol::str_content_node;
 /// Build text edits for all references to a symbol.
 pub fn collect_reference_edits(
   analysis: &Analysis,
-  refs: &[Reference],
+  references: &[Reference],
   new_stem: &str,
   new_absolute: &Path,
   root_dir: &Path,
-) -> Option<BTreeMap<PathBuf, Vec<TextEdit>>> {
+) -> BTreeMap<PathBuf, Vec<TextEdit>> {
   let db = &analysis.db;
   let mut edits: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
 
-  for r in refs {
-    let ref_path = r.node.file.handle(db).path()?.clone();
-    let ref_rope = analysis.file_rope(&ref_path)?;
+  for reference in references {
+    let Some(ref_path) = reference.node.file.handle(db).path().cloned() else {
+      continue;
+    };
+    let Some(ref_rope) = analysis.file_rope(&ref_path) else {
+      continue;
+    };
 
-    let text_edit = match r.kind {
+    let text_edit = match reference.kind {
       // Ident references get replaced with `new_stem`
       ReferenceKind::Ident => TextEdit {
-        range: node_trimmed_range(&ref_rope, &r.node.node),
+        range: node_trimmed_range(&ref_rope, &reference.node.node),
         new_text: new_stem.to_string(),
       },
       // Fref references get their path argument replaced with the new relative path
       ReferenceKind::Fref => {
-        let Some(call) = CallExpr::cast(r.node.node.clone()) else {
+        let Some(call) = CallExpr::cast(reference.node.node.clone()) else {
           continue;
         };
         let Some(arg) = call.args().into_iter().next() else {
@@ -48,14 +52,16 @@ pub fn collect_reference_edits(
         // Skip interpolated string arguments
         if arg_node
           .children()
-          .any(|c| c.kind() == SyntaxKind::InterpFragment)
+          .any(|child| child.kind() == SyntaxKind::InterpFragment)
         {
           continue;
         }
         let Some(content) = str_content_node(&arg_node) else {
           continue;
         };
-        let new_relative = new_absolute.strip_prefix(root_dir).ok()?;
+        let Some(new_relative) = new_absolute.strip_prefix(root_dir).ok() else {
+          continue;
+        };
         TextEdit {
           range: node_trimmed_range(&ref_rope, &content),
           new_text: normalize_path(new_relative).to_string(),
@@ -66,7 +72,7 @@ pub fn collect_reference_edits(
     edits.entry(ref_path).or_default().push(text_edit);
   }
 
-  Some(edits)
+  edits
 }
 
 /// Assemble text edits and file renames into a WorkspaceEdit
@@ -81,7 +87,7 @@ pub fn build_workspace_edit(
     let scheme = analysis
       .scheme_map
       .get(&file_path)
-      .map(|s| s.as_str())
+      .map(|string| string.as_str())
       .unwrap_or("file");
     changes.push(DocumentChangeOperation::Edit(TextDocumentEdit {
       text_document: OptionalVersionedTextDocumentIdentifier {
@@ -99,7 +105,7 @@ pub fn build_workspace_edit(
     let scheme = analysis
       .scheme_map
       .get(old_path)
-      .map(|s| s.as_str())
+      .map(|string| string.as_str())
       .unwrap_or("file");
     changes.push(DocumentChangeOperation::Op(ResourceOp::Rename(
       RenameFile {

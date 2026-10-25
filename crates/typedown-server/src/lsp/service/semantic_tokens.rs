@@ -8,7 +8,7 @@ use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::ast::ident_is_type_ref;
+use crate::core::utils::ast::ident_is_typ_reference;
 use crate::core::utils::position::text_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 
@@ -18,14 +18,14 @@ use typedown_lang::db::{
   types::{File, FileHandle, Project},
 };
 
-pub fn list_token_types() -> Vec<SemanticTokenType> {
+pub fn list_token_typs() -> Vec<SemanticTokenType> {
   vec![SemanticTokenType::TYPE]
 }
 
-fn get_token_type_index(token_type: &SemanticTokenType) -> u32 {
-  list_token_types()
+fn get_token_type_index(token_typ: &SemanticTokenType) -> u32 {
+  list_token_typs()
     .iter()
-    .position(|t| t == token_type)
+    .position(|typ| typ == token_typ)
     .expect("token type not in legend") as u32
 }
 
@@ -57,13 +57,13 @@ pub fn resolve_semantic_tokens_full(
 // Push a span only if it has non-zero length
 fn emit(
   node: &RedNode,
-  token_type: SemanticTokenType,
+  token_typ: SemanticTokenType,
   modifiers: u32,
   out: &mut Vec<(usize, usize, SemanticTokenType, u32)>,
 ) {
   let len = node.text_len();
   if len > 0 {
-    out.push((node.offset(), len, token_type, modifiers));
+    out.push((node.offset(), len, token_typ, modifiers));
   }
 }
 
@@ -75,8 +75,8 @@ fn collect_tokens(node: RedNode, out: &mut Vec<(usize, usize, SemanticTokenType,
     }
     return;
   }
-  if let Some(token_type) = classify_token(&node) {
-    emit(&node, token_type, 0, out);
+  if let Some(token_typ) = classify_token(&node) {
+    emit(&node, token_typ, 0, out);
   }
 }
 
@@ -86,7 +86,7 @@ pub fn list_token_modifiers() -> Vec<SemanticTokenModifier> {
 
 fn classify_token(node: &RedNode) -> Option<SemanticTokenType> {
   match node.kind() {
-    SyntaxKind::Ident if ident_is_type_ref(node) => Some(SemanticTokenType::TYPE),
+    SyntaxKind::Ident if ident_is_typ_reference(node) => Some(SemanticTokenType::TYPE),
     _ => None,
   }
 }
@@ -97,19 +97,19 @@ fn delta_encode(
   rope: &Rope,
 ) -> Vec<SemanticToken> {
   let mut result = Vec::with_capacity(raw.len());
-  let mut prev_line = 0u32;
-  let mut prev_start = 0u32;
+  let mut previous_line = 0u32;
+  let mut previous_start = 0u32;
 
   for (offset, length, token_type, modifiers) in raw {
     // Convert char offset to line/character position
-    let pos = text_offset_to_lsp_position(rope, offset);
-    let line = pos.line;
-    let start = pos.character;
+    let position = text_offset_to_lsp_position(rope, offset);
+    let line = position.line;
+    let start = position.character;
 
     // Compute deltas relative to the previous token
-    let delta_line = line - prev_line;
+    let delta_line = line - previous_line;
     let delta_start = if delta_line == 0 {
-      start - prev_start
+      start - previous_start
     } else {
       start
     };
@@ -122,8 +122,8 @@ fn delta_encode(
       token_modifiers_bitset: modifiers,
     });
 
-    prev_line = line;
-    prev_start = start;
+    previous_line = line;
+    previous_start = start;
   }
 
   result
@@ -163,21 +163,21 @@ mod tests {
   }
 
   #[test]
-  fn type_ref_in_type_field() {
-    let types = parse_tokens(
+  fn typ_reference_in_type_field() {
+    let typs = parse_tokens(
       r#"---
 _type: Person
 name: "Alice"
 ---
 "#,
     );
-    assert!(types.contains(&SemanticTokenType::TYPE));
-    assert_eq!(types.len(), 1, "only Person should be a TYPE token");
+    assert!(typs.contains(&SemanticTokenType::TYPE));
+    assert_eq!(typs.len(), 1, "only Person should be a TYPE token");
   }
 
   #[test]
-  fn schema_property_type_ref_highlighted_as_type() {
-    let types = parse_tokens(
+  fn schema_property_type_ref_highlighted_as_typ() {
+    let typs = parse_tokens(
       r#"---
 _type: schema
 properties:
@@ -188,20 +188,20 @@ properties:
 ---
 "#,
     );
-    let type_count = types
+    let typ_count = typs
       .iter()
-      .filter(|t| **t == SemanticTokenType::TYPE)
+      .filter(|typ| **typ == SemanticTokenType::TYPE)
       .count();
     assert_eq!(
-      type_count, 3,
-      "expected 3 TYPE tokens (schema, string, number), got: {type_count}"
+      typ_count, 3,
+      "expected 3 TYPE tokens (schema, string, number), got: {typ_count}"
     );
   }
 
   // string? should highlight "string" as a TYPE token via the postfix expression
   #[test]
-  fn schema_property_postfix_optional_type_highlighted() {
-    let types = parse_tokens(
+  fn schema_property_postfix_optional_typ_highlighted() {
+    let typs = parse_tokens(
       r#"---
 _type: schema
 properties:
@@ -212,19 +212,19 @@ properties:
 ---
 "#,
     );
-    let type_count = types
+    let typ_count = typs
       .iter()
-      .filter(|t| **t == SemanticTokenType::TYPE)
+      .filter(|typ| **typ == SemanticTokenType::TYPE)
       .count();
     assert_eq!(
-      type_count, 3,
-      "expected 3 TYPE tokens (schema, string, date), got: {type_count}"
+      typ_count, 3,
+      "expected 3 TYPE tokens (schema, string, date), got: {typ_count}"
     );
   }
 
   #[test]
-  fn non_type_identifiers_not_emitted() {
-    let types = parse_tokens(
+  fn non_typ_identifiers_not_emitted() {
+    let typs = parse_tokens(
       r#"---
 active: true
 value: self.name
@@ -232,7 +232,7 @@ value: self.name
 "#,
     );
     assert!(
-      types.is_empty(),
+      typs.is_empty(),
       "no semantic tokens for non-type identifiers"
     );
   }

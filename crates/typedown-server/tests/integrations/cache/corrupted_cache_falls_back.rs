@@ -8,14 +8,14 @@ fn corrupted_cache_falls_back() {
 
   let finalized_dirs: Vec<_> = std::fs::read_dir(&cache_dir)
     .unwrap()
-    .filter_map(|e| e.ok())
-    .map(|e| e.path())
-    .filter(|p| {
-      p.is_dir()
-        && p
+    .filter_map(|entry| entry.ok())
+    .map(|entry| entry.path())
+    .filter(|path| {
+      path.is_dir()
+        && path
           .file_name()
-          .and_then(|n| n.to_str())
-          .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+          .and_then(|name| name.to_str())
+          .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
     })
     .collect();
   assert!(!finalized_dirs.is_empty(), "should have finalized sessions");

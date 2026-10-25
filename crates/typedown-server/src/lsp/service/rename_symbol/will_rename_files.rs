@@ -22,13 +22,25 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
   let mut all_edits: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
 
   for file_rename in &params.files {
-    let old_uri: lsp_types::Uri = file_rename.old_uri.parse().ok()?;
-    let new_uri: lsp_types::Uri = file_rename.new_uri.parse().ok()?;
-    let old_path = uri_to_path(&old_uri)?;
-    let new_path = uri_to_path(&new_uri)?;
+    let Some(old_uri) = file_rename.old_uri.parse::<lsp_types::Uri>().ok() else {
+      continue;
+    };
+    let Some(new_uri) = file_rename.new_uri.parse::<lsp_types::Uri>().ok() else {
+      continue;
+    };
+    let Some(old_path) = uri_to_path(&old_uri) else {
+      continue;
+    };
+    let Some(new_path) = uri_to_path(&new_uri) else {
+      continue;
+    };
 
-    let file = *project.files(db).get(&old_path)?;
-    let symbol = file_symbol(db, project, file).value(db)?;
+    let Some(file) = project.files(db).get(&old_path).copied() else {
+      continue;
+    };
+    let Some(symbol) = file_symbol(db, project, file).value(db) else {
+      continue;
+    };
 
     // Schema rename: ensure new path stays inside a _types directory
     if matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _)) && !is_typ_file(&new_path) {
@@ -37,11 +49,11 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
 
     let new_stem = new_path
       .file_stem()
-      .and_then(|s| s.to_str())
+      .and_then(|stem| stem.to_str())
       .unwrap_or_default();
 
-    let refs = references(db, project, symbol);
-    let edits = collect_reference_edits(analysis, &refs, new_stem, &new_path, &root_dir)?;
+    let references = references(db, project, symbol);
+    let edits = collect_reference_edits(analysis, &references, new_stem, &new_path, &root_dir);
     for (path, file_edits) in edits {
       all_edits.entry(path).or_default().extend(file_edits);
     }
@@ -108,7 +120,7 @@ avatar: fref("icon.svg")
 
   fn setup_with_extra_files(editing_content: &str, extra_files: Vec<(PathBuf, &str)>) -> Analysis {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
@@ -125,7 +137,7 @@ avatar: fref("icon.svg")
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -178,17 +190,17 @@ avatar: fref("icon.svg")
       for op in ops {
         if let DocumentChangeOperation::Edit(doc_edit) = op {
           let uri = doc_edit.text_document.uri.as_str();
-          let short = uri.rfind("/vault/").map_or(uri, |i| &uri[i..]);
+          let short = uri.rfind("/vault/").map_or(uri, |index| &uri[index..]);
           for edit in &doc_edit.edits {
             if let lsp_types::OneOf::Left(text_edit) = edit {
-              let r = &text_edit.range;
+              let range = &text_edit.range;
               lines.push(format!(
                 "EDIT {} [{}:{}-{}:{}] -> {:?}",
                 short,
-                r.start.line,
-                r.start.character,
-                r.end.line,
-                r.end.character,
+                range.start.line,
+                range.start.character,
+                range.end.line,
+                range.end.character,
                 text_edit.new_text
               ));
             }
@@ -216,22 +228,22 @@ avatar: fref("icon.svg")
 
   // Renaming a schema file updates _type references
   #[test]
-  fn will_rename_schema_updates_type_refs() {
+  fn will_rename_schema_updates_type_references() {
     let analysis = setup(CONTENT_ALICE);
     let params = make_params("_types/Person.td", "_types/Human.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
-    let snap = snapshot(&edit);
+    let snapshot = snapshot(&edit);
 
     assert!(
-      snap.contains("\"Human\""),
+      snapshot.contains("\"Human\""),
       "should rename idents to Human:\n{}",
-      snap
+      snapshot
     );
     assert_eq!(
-      snap.matches("EDIT").count(),
+      snapshot.matches("EDIT").count(),
       2,
       "should edit 2 files:\n{}",
-      snap
+      snapshot
     );
   }
 
@@ -244,6 +256,21 @@ avatar: fref("icon.svg")
     let snap = snapshot(&edit);
 
     assert!(snap.contains("bob"), "should update fref to bob:\n{}", snap);
+  }
+
+  // Renaming a content file to a nested directory updates fref references with full path
+  #[test]
+  fn will_rename_content_to_nested_dir_updates_fref() {
+    let analysis = setup(CONTENT_WITH_FREF);
+    let params = make_params("alice.td", "people/alice.td");
+    let edit = will_rename_files(&analysis, params).expect("should produce edits");
+    let snap = snapshot(&edit);
+
+    assert!(
+      snap.contains("people/alice.td"),
+      "should update fref to people/alice.td:\n{}",
+      snap
+    );
   }
 
   // Renaming schema to outside _types directory produces no edits
@@ -259,18 +286,18 @@ avatar: fref("icon.svg")
     );
   }
 
-  // Renaming schema to nested dir updates type refs if name changes
+  // Renaming schema to nested dir updates type references if name changes
   #[test]
-  fn will_rename_schema_to_nested_dir_updates_type_refs() {
+  fn will_rename_schema_to_nested_dir_updates_type_references() {
     let analysis = setup(CONTENT_ALICE);
     let params = make_params("_types/Person.td", "_types/nested/Human.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
-    let snap = snapshot(&edit);
+    let snapshot = snapshot(&edit);
 
     assert!(
-      snap.contains("\"Human\""),
+      snapshot.contains("\"Human\""),
       "should rename idents to Human in nested dir:\n{}",
-      snap
+      snapshot
     );
   }
 
@@ -283,12 +310,12 @@ avatar: fref("icon.svg")
       setup_with_extra_files(CONTENT_WITH_ASSET_FREF, vec![(asset_path, "<svg></svg>")]);
     let params = make_params("_assets/icon.svg", "_assets/logo.svg");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
-    let snap = snapshot(&edit);
+    let snapshot = snapshot(&edit);
 
     assert!(
-      snap.contains("logo"),
+      snapshot.contains("logo"),
       "should update fref to logo:\n{}",
-      snap
+      snapshot
     );
   }
 
@@ -303,12 +330,12 @@ avatar: fref("icon.svg")
     );
     let params = make_params("icon.svg", "logo.svg");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
-    let snap = snapshot(&edit);
+    let snapshot = snapshot(&edit);
 
     assert!(
-      snap.contains("logo"),
+      snapshot.contains("logo"),
       "should update fref to logo:\n{}",
-      snap
+      snapshot
     );
   }
 

@@ -235,8 +235,8 @@ impl<T1: StableHash, T2: StableHash> StableHash for Result<T1, T2> {
     // TIL: You can access the discriminant of an enum this way
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
-      Ok(val) => val.stable_hash(db, hasher),
-      Err(val) => val.stable_hash(db, hasher),
+      Ok(value) => value.stable_hash(db, hasher),
+      Err(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -353,8 +353,8 @@ impl<L: StableHash, R: StableHash> StableHash for Either<L, R> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
-      Either::Left(val) => val.stable_hash(db, hasher),
-      Either::Right(val) => val.stable_hash(db, hasher),
+      Either::Left(value) => value.stable_hash(db, hasher),
+      Either::Right(value) => value.stable_hash(db, hasher),
     }
   }
 }

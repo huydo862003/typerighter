@@ -467,12 +467,12 @@ mod tests {
     }
   }
 
-  fn create_lit_string<'a>(db: &'a TypedownDatabase, val: &str) -> TdTypEnum<'a> {
-    get_lit_typ(db, LitValue::String(val.to_string())).into()
+  fn create_lit_string<'a>(db: &'a TypedownDatabase, value: &str) -> TdTypEnum<'a> {
+    get_lit_typ(db, LitValue::String(value.to_string())).into()
   }
 
-  fn create_lit_number<'a>(db: &'a TypedownDatabase, val: &str) -> TdTypEnum<'a> {
-    get_lit_typ(db, LitValue::Number(val.to_string())).into()
+  fn create_lit_number<'a>(db: &'a TypedownDatabase, value: &str) -> TdTypEnum<'a> {
+    get_lit_typ(db, LitValue::Number(value.to_string())).into()
   }
 
   fn create_sum_typ<'a>(db: &'a TypedownDatabase, members: Vec<TdTypEnum<'a>>) -> TdTypEnum<'a> {

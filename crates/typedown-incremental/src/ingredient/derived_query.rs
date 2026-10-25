@@ -196,7 +196,7 @@ impl<
           let is_cycle = storage.with_context(|ctx| {
             ctx
               .as_ref()
-              .is_some_and(|ctx| ctx.query_stack.iter().any(|e| e.dep_id == dep_id))
+              .is_some_and(|ctx| ctx.query_stack.iter().any(|entry| entry.dep_id == dep_id))
           });
           if is_cycle {
             panic!("cycle detected in derived query");

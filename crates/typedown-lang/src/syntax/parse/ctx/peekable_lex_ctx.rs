@@ -42,8 +42,8 @@ impl std::ops::Deref for YamlLexResult {
 }
 
 impl From<YamlLexResult> for LexResult {
-  fn from(val: YamlLexResult) -> Self {
-    val.result
+  fn from(value: YamlLexResult) -> Self {
+    value.result
   }
 }
 
@@ -66,8 +66,8 @@ impl std::ops::Deref for MdLexResult {
 }
 
 impl From<MdLexResult> for LexResult {
-  fn from(val: MdLexResult) -> Self {
-    val.result
+  fn from(value: MdLexResult) -> Self {
+    value.result
   }
 }
 

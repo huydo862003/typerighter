@@ -9,7 +9,7 @@ use dashmap::mapref::entry::Entry;
 use typedown_incremental::{CacheSession, QueryStorage};
 use typedown_lang::db::TypedownDatabase;
 
-use crate::core::analysis_host::AnalysisHost;
+use crate::core::{analysis_host::AnalysisHost, utils};
 
 pub struct ProjectEntry {
   pub root_dir: PathBuf,
@@ -49,7 +49,7 @@ impl Drop for Multiproject {
 
 impl Multiproject {
   pub fn projects(&self) -> impl Iterator<Item = Arc<ProjectEntry>> {
-    self.projects.iter().map(|e| e.value().clone())
+    self.projects.iter().map(|entry| entry.value().clone())
   }
 
   /// Load or return an existing project for the nearest vault root above `nested_dir`.
@@ -112,9 +112,9 @@ impl Multiproject {
 /// Create a new project entry for the given directory.
 fn load_project(project_dir: &Path) -> anyhow::Result<Arc<ProjectEntry>> {
   log::info!("Loading project: {}", project_dir.display());
-  let cache_dir = super::utils::fs::get_cache_dir(project_dir);
+  let cache_dir = utils::fs::get_cache_dir(project_dir);
 
-  let fresh = std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+  let fresh = std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|value| value == "1" || value == "true");
   let (session, serialized) = if fresh {
     (CacheSession::empty(), None)
   } else {

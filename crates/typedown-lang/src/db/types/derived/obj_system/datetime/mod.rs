@@ -45,9 +45,9 @@ impl<'db> TdStaticTyp<'db> for TdDateTimeTyp<'db> {
   ) -> Option<TdObjEnum<'db>> {
     let arg = args.into_iter().next()?;
     let string_obj = arg.as_td_string_obj()?;
-    let val = string_obj.value(db);
-    if is_valid_iso_datetime(&val) {
-      return Some(TdDateTimeObj::new(db, val).into());
+    let value = string_obj.value(db);
+    if is_valid_iso_datetime(&value) {
+      return Some(TdDateTimeObj::new(db, value).into());
     }
     None
   }
@@ -152,9 +152,9 @@ impl<'db> TdStaticTyp<'db> for TdDateTyp<'db> {
   ) -> Option<TdObjEnum<'db>> {
     let arg = args.into_iter().next()?;
     let string_obj = arg.as_td_string_obj()?;
-    let val = string_obj.value(db);
-    if is_valid_iso_date(&val) {
-      return Some(TdDateObj::new(db, val).into());
+    let value = string_obj.value(db);
+    if is_valid_iso_date(&value) {
+      return Some(TdDateObj::new(db, value).into());
     }
     None
   }
@@ -259,9 +259,9 @@ impl<'db> TdStaticTyp<'db> for TdTimeTyp<'db> {
   ) -> Option<TdObjEnum<'db>> {
     let arg = args.into_iter().next()?;
     let string_obj = arg.as_td_string_obj()?;
-    let val = string_obj.value(db);
-    if is_valid_iso_time(&val) {
-      return Some(TdTimeObj::new(db, val).into());
+    let value = string_obj.value(db);
+    if is_valid_iso_time(&value) {
+      return Some(TdTimeObj::new(db, value).into());
     }
     None
   }

@@ -1,3 +1,5 @@
+use std::hash::Hasher;
+
 use crate::syntax::green::cache::with_green_cache;
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -54,16 +56,16 @@ impl Encodable for GreenNode {
 fn decode_green_blob(index: usize, decoder: &Decoder) -> GreenNode {
   let blob = decoder.get_intern_blob(index as u32);
   let tag = blob[0];
-  let kind_val = u16::from_le_bytes(blob[1..3].try_into().unwrap());
+  let kind_value = u16::from_le_bytes(blob[1..3].try_into().unwrap());
 
-  let kind = SyntaxKind::from_repr(kind_val).expect("unknown SyntaxKind");
+  let kind = SyntaxKind::from_repr(kind_value).expect("unknown SyntaxKind");
 
   match tag {
     0 => {
       let child_count = u32::from_le_bytes(blob[3..7].try_into().unwrap()) as usize;
       let mut children = Vec::with_capacity(child_count);
-      for idx in 0..child_count {
-        let offset = 7 + idx * 4;
+      for index in 0..child_count {
+        let offset = 7 + index * 4;
         let child_index = u32::from_le_bytes(blob[offset..offset + 4].try_into().unwrap()) as usize;
         let child = decode_green_blob(child_index, decoder);
         children.push(child);
@@ -143,14 +145,14 @@ impl Encodable for SyntaxKind {
 
 impl Decodable for SyntaxKind {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let val = decoder.read_u16(data);
-    SyntaxKind::from_repr(val).expect("unknown SyntaxKind")
+    let value = decoder.read_u16(data);
+    SyntaxKind::from_repr(value).expect("unknown SyntaxKind")
   }
 }
 
 impl StableHash for SyntaxKind {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
-    std::hash::Hasher::write_u16(hasher, *self as u16);
+    Hasher::write_u16(hasher, *self as u16);
   }
 }
 

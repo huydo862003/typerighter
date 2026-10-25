@@ -40,7 +40,10 @@ pub fn uri_to_path(uri: &Uri) -> Option<PathBuf> {
   Some(PathBuf::from(path))
 }
 
-pub fn uri_scheme(uri: &Uri) -> &str {
-  let s = uri.as_str();
-  s.find(':').map(|i| &s[..i]).unwrap_or("file")
+pub fn get_uri_scheme(uri: &Uri) -> &str {
+  let scheme = uri.as_str();
+  scheme
+    .find(':')
+    .map(|index| &scheme[..index])
+    .unwrap_or("file")
 }

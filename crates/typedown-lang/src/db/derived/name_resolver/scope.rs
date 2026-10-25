@@ -357,22 +357,22 @@ ${(a) -> (b) -> a + b}
     let outer_closure_node = inner_closure_node
       .node
       .parent()
-      .map(|p| ProjectRedNode::new(project, file, p))
+      .map(|parent| ProjectRedNode::new(project, file, parent))
       .expect("inner closure should have outer closure as parent");
     let innermost_body = bodies[1].clone();
 
     // Innermost scope is Fn scope for inner_closure
     let inner_scope = scope(&db, innermost_body);
-    let inner_scope_val = match inner_scope.kind(&db) {
-      ScopeKind::Func(_, _, val) => val,
+    let inner_scope_value = match inner_scope.kind(&db) {
+      ScopeKind::Func(_, _, value) => value,
       _ => panic!("expected Fn scope for inner closure"),
     };
-    assert_eq!(inner_scope_val, inner_closure_node);
+    assert_eq!(inner_scope_value, inner_closure_node);
 
     // Parent of inner scope is Fn scope for outer_closure
     let outer_scope = parent_scope(&db, inner_scope).value(&db).unwrap();
     let outer_scope_value = match outer_scope.kind(&db) {
-      ScopeKind::Func(_, _, val) => val,
+      ScopeKind::Func(_, _, value) => value,
       _ => panic!("expected Fn scope for outer closure"),
     };
     assert_eq!(outer_scope_value, outer_closure_node);

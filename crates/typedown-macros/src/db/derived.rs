@@ -109,8 +109,8 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
   let db_arg = &all_args[0];
 
   let db_typ = if let syn::FnArg::Typed(pattern_type) = db_arg {
-    if let syn::Type::Reference(typ_ref) = pattern_type.ty.as_ref() {
-      let has_db_lifetime = typ_ref
+    if let syn::Type::Reference(typ_reference) = pattern_type.ty.as_ref() {
+      let has_db_lifetime = typ_reference
         .lifetime
         .as_ref()
         .is_some_and(|lifetime| lifetime.ident == "db");
@@ -122,7 +122,7 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
         .to_compile_error()
         .into();
       }
-      typ_ref.elem.as_ref().clone()
+      typ_reference.elem.as_ref().clone()
     } else {
       return syn::Error::new_spanned(db_arg, "first argument must be a reference to a database")
         .to_compile_error()
@@ -280,7 +280,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let internal_field_typs: Vec<syn::Type> = if has_phantom {
     vec![syn::parse_quote! { () }]
   } else {
-    fields.iter().map(|f| f.ty.clone()).collect()
+    fields.iter().map(|field| field.ty.clone()).collect()
   };
   let internal_field_typs_static: Vec<proc_macro2::TokenStream> = internal_field_typs
     .iter()
@@ -290,10 +290,13 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let field_typs: Vec<_> = fields.iter().map(|field| &field.ty).collect();
   let field_typs_static: Vec<proc_macro2::TokenStream> =
     field_typs.iter().map(erase_db_lifetime_tokens).collect();
-  let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
+  let field_names: Vec<_> = fields
+    .iter()
+    .map(|field| field.ident.as_ref().unwrap())
+    .collect();
   let try_field_names: Vec<_> = field_names
     .iter()
-    .map(|n| quote::format_ident!("try_{}", n))
+    .map(|name| quote::format_ident!("try_{}", name))
     .collect();
   let id_fields: Vec<_> = fields
     .iter()
@@ -352,6 +355,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedDerivedField<#field_typ_static>, #field_typ> {
           let id = self.0;
           debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
+
           let storage = unsafe { db.storage() };
           let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
@@ -382,6 +386,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(self, db: &DB) -> #field_typ {
           let id = self.0;
           debug_assert!(id != ::typedown_incremental::TOMBSTONE_ENTRY_ID, "accessed evicted derived struct");
+
           let storage = unsafe { db.storage() };
           let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
@@ -419,6 +424,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
           if id == ::typedown_incremental::TOMBSTONE_ENTRY_ID {
             return None;
           }
+
           let storage = unsafe { db.storage() };
           let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.fields[ingredient_id] as &dyn ::std::any::Any)
@@ -457,7 +463,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
     let id = storage.with_context(|ctx| {
       let ctx = ctx.as_mut()?;
       let store = ctx.identity_maps.as_ref()?;
-      let parent_entry_id = ctx.query_stack.last().map(|e| e.dep_id.entry_id())?;
+      let parent_entry_id = ctx.query_stack.last().map(|expr| expr.dep_id.entry_id())?;
       let map = store
         .entry((parent_entry_id, start_index))
         .or_insert_with(|| ::std::sync::Arc::new(dashmap::DashMap::new()))
@@ -680,7 +686,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
         fn from(id: u32) -> Self { Self(id, ::std::marker::PhantomData) }
       }
       impl<'db> From<#struct_name<'db>> for u32 {
-        fn from(val: #struct_name<'db>) -> u32 { val.0 }
+        fn from(value: #struct_name<'db>) -> u32 { value.0 }
       }
 
       impl<'db> ::typedown_incremental::DerivedId for #struct_name<'db> {}

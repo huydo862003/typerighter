@@ -69,11 +69,11 @@ fn get_func_param_typ<'db>(
   };
 
   // Find param position in the closure's param list
-  if let Some(idx) = param_names
+  if let Some(index) = param_names
     .iter()
-    .filter_map(|p| p.value())
-    .position(|n| n == param_name)
-    && let Some(typ) = params.get(idx)
+    .filter_map(|param| param.value())
+    .position(|name| name == param_name)
+    && let Some(typ) = params.get(index)
   {
     return TypResult::new(db, Some(typ.clone()), vec![]);
   }

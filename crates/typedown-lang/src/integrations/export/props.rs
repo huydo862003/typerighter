@@ -25,19 +25,19 @@ pub fn export_prop_descriptors(
   project: Project,
   file: File,
 ) -> Option<serde_json::Value> {
-  let file_sym = file_symbol(db, project, file);
-  let symbol = file_sym.value(db)?;
-  let eval_result = evaluate_typ(db, symbol);
-  let typ = eval_result.typ(db)?;
+  let file_symbol = file_symbol(db, project, file);
+  let symbol = file_symbol.value(db)?;
+  let evaluated_result = evaluate_typ(db, symbol);
+  let typ = evaluated_result.typ(db)?;
 
   let schema = typ.as_td_schema_typ()?;
   let fields = schema.fields(db);
 
   let mut props = serde_json::Map::new();
 
-  for (name, prop_desc) in fields {
-    let mut prop_json = export_lazy_to_descriptor(db, &prop_desc.field_typ);
-    if let Some(ref definition_obj) = prop_desc.default_value
+  for (name, prop_descriptor) in fields {
+    let mut prop_json = export_lazy_to_descriptor(db, &prop_descriptor.field_typ);
+    if let Some(ref definition_obj) = prop_descriptor.default_value
       && let Ok(definition_json) = json::serialize_to_json(db, project, definition_obj)
       && let serde_json::Value::Object(ref mut map) = prop_json
     {
@@ -60,9 +60,9 @@ fn export_lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyTyp) -> serde_jso
     let members = sum.members(db);
     let non_null_members: Vec<LazyTyp> = members
       .iter()
-      .filter(|m| {
-        if let Some(m_typ) = m.resolve(db) {
-          !m_typ.is_td_null_typ()
+      .filter(|member| {
+        if let Some(member_typ) = member.resolve(db) {
+          !member_typ.is_td_null_typ()
         } else {
           true
         }
@@ -78,9 +78,9 @@ fn export_lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyTyp) -> serde_jso
       .iter()
       .filter_map(|m| {
         if let Some(TdTypEnum::TdLitTyp(lit)) = m.resolve(db)
-          && let LitValue::String(s) = lit.value(db)
+          && let LitValue::String(string) = lit.value(db)
         {
-          Some(s)
+          Some(string)
         } else {
           None
         }
@@ -103,11 +103,11 @@ fn export_lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyTyp) -> serde_jso
         let members = sum.members(db);
         let mut lits: Vec<String> = members
           .iter()
-          .filter_map(|m| {
-            if let Some(TdTypEnum::TdLitTyp(lit)) = m.resolve(db)
-              && let LitValue::String(s) = lit.value(db)
+          .filter_map(|member| {
+            if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
+              && let LitValue::String(string) = lit.value(db)
             {
-              Some(s)
+              Some(string)
             } else {
               None
             }

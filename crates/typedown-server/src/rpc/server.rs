@@ -62,8 +62,8 @@ fn get_schema_label(
 ) -> Option<String> {
   let name = schema?;
   let members = schema_members(db, project);
-  let sym = members.members(db).get(name).copied()?;
-  if let SymbolKind::UserDefinedSchema(_, file) = sym.kind(db) {
+  let symbol = members.members(db).get(name).copied()?;
+  if let SymbolKind::UserDefinedSchema(_, file) = symbol.kind(db) {
     Some(resolve_schema_label(db, project, file))
   } else {
     None
@@ -137,7 +137,8 @@ pub struct RpcServer {
 impl RpcServer {
   pub fn new(connection: Connection, root_dir: PathBuf) -> anyhow::Result<Self> {
     let cache_dir = get_cache_dir(&root_dir);
-    let fresh = std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+    let fresh =
+      std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|value| value == "1" || value == "true");
     let (cache_session, serialized) = if fresh {
       (CacheSession::empty(), None)
     } else {
@@ -448,7 +449,7 @@ impl RpcServer {
         let root_dir = config.root_dir(db);
 
         // Notify subscribers if any pending event is a config file change
-        if affected_paths.iter().any(|p| is_vault_config(p)) {
+        if affected_paths.iter().any(|path| is_vault_config(path)) {
           let config = build_site_config(db, project);
           send_notification(&sender, NOTIF_CONFIG_CHANGED, &config);
         }
@@ -469,7 +470,7 @@ impl RpcServer {
           if is_typ_file(path) {
             let Some(name) = path
               .file_stem()
-              .and_then(|s| s.to_str())
+              .and_then(|stem| stem.to_str())
               .map(str::to_string)
             else {
               continue;
@@ -653,10 +654,10 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         mtime: exported.metadata.mtime,
         ctime: exported.metadata.ctime,
       },
-      seo_metadata: exported.seo_metadata.map(|m| TdSeoMeta {
-        title: m.title,
-        description: m.description,
-        image: m.image,
+      seo_metadata: exported.seo_metadata.map(|metadata| TdSeoMeta {
+        title: metadata.title,
+        description: metadata.description,
+        image: metadata.image,
       }),
     });
   }
@@ -798,12 +799,12 @@ fn get_schema(analysis: &Analysis, schema: &str) -> RpcResult<TdSchemaInfo> {
   let project = analysis.project;
 
   let schema_members = schema_members(db, project);
-  let sym = schema_members
+  let symbol = schema_members
     .members(db)
     .get(schema)
     .copied()
     .ok_or_else(|| RpcError::invalid_params("Schema not found"))?;
-  let SymbolKind::UserDefinedSchema(_, file) = sym.kind(db) else {
+  let SymbolKind::UserDefinedSchema(_, file) = symbol.kind(db) else {
     return Err(RpcError::invalid_params("Schema not found"));
   };
 
@@ -869,11 +870,11 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
 
   let error_count = all_diagnostics
     .iter()
-    .filter(|d| d.severity == "error")
+    .filter(|diagnostic| diagnostic.severity == "error")
     .count() as u32;
   let warning_count = all_diagnostics
     .iter()
-    .filter(|d| d.severity == "warning")
+    .filter(|diagnostic| diagnostic.severity == "warning")
     .count() as u32;
 
   Ok(TdDiagnosticReport {

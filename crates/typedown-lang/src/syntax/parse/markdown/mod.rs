@@ -1375,72 +1375,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.advance_md(&mut children, SKIP_NONE); // Consume eq
 
-    // Number value
-    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdNumber {
-      self.advance_md(&mut children, SKIP_NONE);
+    // Enter prop_value_mode BEFORE peeking so the formula lexer (lex_number)
+    // handles full numbers (2.5, 1e3) as single tokens.
+    // parse_js_prop_value handles all value types: numbers, strings, keywords,
+    // lists, dicts, unary minus, and emits MissingContainerPropValueAfterEq for errors.
+    self.lex_ctx.enter_prop_value_mode();
+    children.push(self.parse_js_prop_value());
+    self.lex_ctx.exit_prop_value_mode();
 
-      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
-
-      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
-    }
-
-    // Prop value: literal, list, or unary minus
-    let peek = self.lex_ctx.peek_md(SKIP_NONE);
-    let is_unary_minus =
-      peek.token.kind() == SyntaxKind::MdSymbol && peek.token.text().is_some_and(|t| t == "-");
-    if matches!(
-      peek.token.kind(),
-      SyntaxKind::Ident | SyntaxKind::LBracket | SyntaxKind::LBrace
-    ) || is_unary_minus
-    {
-      self.lex_ctx.enter_prop_value_mode();
-      children.push(self.parse_js_prop_value());
-      self.lex_ctx.exit_prop_value_mode();
-
-      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
-
-      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
-    }
-
-    // Double quoted and single quoted string
-    let quote = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
-    if matches!(quote, SyntaxKind::DqStrStart | SyntaxKind::SqStrStart) {
-      let closing = if quote == SyntaxKind::DqStrStart {
-        SyntaxKind::DqStrEnd
-      } else {
-        SyntaxKind::SqStrEnd
-      };
-      self.advance_md(&mut children, SKIP_NONE); // opening quote
-
-      // Consume everything up to the matching closing quote
-      let value_start = self.offset();
-      loop {
-        let kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
-        if kind == closing {
-          self.advance_md(&mut children, SKIP_NONE);
-          break;
-        }
-        if matches!(
-          kind,
-          SyntaxKind::Eof | SyntaxKind::Newline | SyntaxKind::RBrace
-        ) {
-          self.emit_diagnostic(
-            TdDiagnosticKind::UnexpectedContainerPropValue {}
-              .into_error(value_start, self.offset()),
-          );
-          break;
-        }
-        self.advance_md(&mut children, SKIP_NONE);
-      }
-
-      self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
-      return (self.emit(SyntaxKind::MdContainerPropItem, &children), None);
-    }
-
-    self.emit_diagnostic(
-      TdDiagnosticKind::MissingContainerPropValueAfterEq {}
-        .into_error(self.offset(), self.offset()),
-    );
     self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
 
     (self.emit(SyntaxKind::MdContainerPropItem, &children), None)

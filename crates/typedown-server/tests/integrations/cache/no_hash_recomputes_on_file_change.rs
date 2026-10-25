@@ -15,8 +15,8 @@ fn no_hash_recomputes_on_file_change() {
     let stats = db.storage.ingredient_stats();
     let no_hash_recomputes: usize = stats
       .iter()
-      .filter(|s| s.no_hash)
-      .map(|s| s.recompute_count)
+      .filter(|stat| stat.no_hash)
+      .map(|stat| stat.recompute_count)
       .sum();
     // no_hash queries must recompute since file content changed
     assert!(
@@ -30,7 +30,15 @@ fn no_hash_recomputes_on_file_change() {
 
   let target = project_dir.join("vault/people/alice.td");
   let original = std::fs::read_to_string(&target).unwrap();
-  std::fs::write(&target, format!("{original}\n<!-- changed -->\n")).unwrap();
+  std::fs::write(
+    &target,
+    format!(
+      "{original}
+<!-- changed -->
+"
+    ),
+  )
+  .unwrap();
 
   run_child_test(
     "cache::no_hash_recomputes_on_file_change::no_hash_recomputes_on_file_change",

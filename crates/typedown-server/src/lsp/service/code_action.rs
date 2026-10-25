@@ -14,6 +14,7 @@ use typedown_lang::db::types::{
   File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
 };
 use typedown_lang::db::types::{Scope, ScopeKind};
+use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -41,13 +42,24 @@ pub fn resolve_code_action(
   let requested_kinds = &params.context.only;
 
   // Schema initialization for empty frontmatter
-  if source.frontmatter().is_none_or(|fm| fm.mapping().is_none()) {
+  if source
+    .frontmatter()
+    .is_none_or(|frontmatter| frontmatter.mapping().is_none())
+  {
     let has_delimiters = source.frontmatter().is_some();
     for (name, template) in collect_schemas(db, project) {
       let new_text = if has_delimiters {
-        format!("_type: {name}\n{template}")
+        format!(
+          "_type: {name}
+{template}"
+        )
       } else {
-        format!("---\n_type: {name}\n{template}---\n")
+        format!(
+          "---
+_type: {name}
+{template}---
+"
+        )
       };
       let edit = TextEdit {
         range: params.range,
@@ -79,13 +91,17 @@ pub fn resolve_code_action(
   }
 
   // Filter by requested kinds if the client specified any
-  if let Some(only) = requested_kinds {
+  if let Some(only_kind) = requested_kinds {
     actions.retain(|action| {
       let kind = match action {
-        lsp_types::CodeActionOrCommand::CodeAction(a) => a.kind.as_ref(),
+        lsp_types::CodeActionOrCommand::CodeAction(action) => action.kind.as_ref(),
         _ => None,
       };
-      kind.is_some_and(|k| only.iter().any(|o| k.as_str().starts_with(o.as_str())))
+      kind.is_some_and(|kind| {
+        only_kind
+          .iter()
+          .any(|only_kind| kind.as_str().starts_with(only_kind.as_str()))
+      })
     });
   }
 
@@ -107,7 +123,7 @@ fn create_linked_action(
   let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
   let entry_key = entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)?;
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)?;
   let key_text = entry_key.text().trim().to_string();
 
   // Resolve the field's declared type
@@ -118,10 +134,11 @@ fn create_linked_action(
 
   // Detect if the field is a list
   let is_list = typ.is_td_list_typ()
-    || typ.as_td_sum_typ().is_some_and(|s| {
-      s.members(db)
+    || typ.as_td_sum_typ().is_some_and(|sum| {
+      sum
+        .members(db)
         .iter()
-        .any(|m| m.resolve(db).is_some_and(|t| t.is_td_list_typ()))
+        .any(|member| member.resolve(db).is_some_and(|typ| typ.is_td_list_typ()))
     });
 
   let args = CreateLinkedResourceArgs {
@@ -172,12 +189,12 @@ fn resolve_entry_type<'db>(
   // Fall back to schema field lookup
   let key_text = entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)?
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)?
     .text()
     .trim()
     .to_string();
   let mapping = find_ancestor(entry, SyntaxKind::YamlMapping)?;
-  let schema_name = typedown_lang::db::utils::get_mapping_schema_name(&mapping)?;
+  let schema_name = get_mapping_schema_name(&mapping)?;
   let scope = Scope::new(db, ScopeKind::Project(project));
   let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let typ = evaluate_typ(db, symbol).typ(db)?;
@@ -218,9 +235,9 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
   members(db, scope)
     .members(db)
     .iter()
-    .filter(|(_, sym)| matches!(sym.kind(db), SymbolKind::UserDefinedSchema(..)))
-    .filter_map(|(name, sym)| {
-      let typ = evaluate_typ(db, *sym).typ(db)?;
+    .filter(|(_, symbol)| matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(..)))
+    .filter_map(|(name, symbol)| {
+      let typ = evaluate_typ(db, *symbol).typ(db)?;
       let schema = typ.as_td_schema_typ()?;
       let fields = schema.fields(db);
 
@@ -235,7 +252,7 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
         let optional = prop_descriptor
           .field_typ
           .resolve(db)
-          .is_some_and(|t| is_nullable(db, &t));
+          .is_some_and(|typ| is_nullable(db, &typ));
 
         if optional {
           template.push_str(&format!("# {field_name}: {default}\n"));
@@ -276,7 +293,11 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
       // Optional type: use non-null member's default
       let non_null: Vec<_> = members
         .iter()
-        .filter(|m| m.resolve(db).is_none_or(|t| t.as_td_null_typ().is_none()))
+        .filter(|member| {
+          member
+            .resolve(db)
+            .is_none_or(|typ| typ.as_td_null_typ().is_none())
+        })
         .collect();
       if non_null.len() == 1 {
         return format_default_value(db, non_null[0]);
@@ -284,8 +305,8 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
       // Enum: use first literal as default
       members
         .iter()
-        .find_map(|m| {
-          if let Some(TdTypEnum::TdLitTyp(lit)) = m.resolve(db)
+        .find_map(|member| {
+          if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
             && let LitValue::String(s) = lit.value(db)
           {
             return Some(format!("\"{s}\""));
@@ -452,18 +473,18 @@ properties:
 
     let titles: Vec<&str> = response
       .iter()
-      .filter_map(|a| match a {
-        lsp_types::CodeActionOrCommand::CodeAction(ca) => Some(ca.title.as_str()),
+      .filter_map(|action| match action {
+        lsp_types::CodeActionOrCommand::CodeAction(code_action) => Some(code_action.title.as_str()),
         _ => None,
       })
       .collect();
 
     assert!(
-      titles.iter().any(|t| t.contains("Task")),
+      titles.iter().any(|title| title.contains("Task")),
       "should offer Task: {titles:?}"
     );
     assert!(
-      titles.iter().any(|t| t.contains("Person")),
+      titles.iter().any(|title| title.contains("Person")),
       "should offer Person: {titles:?}"
     );
   }
@@ -481,7 +502,7 @@ title: "hello"
     let response = code_action(&analysis, params);
 
     let has_init = response.as_ref().is_some_and(|actions| {
-      actions.iter().any(|a| match a {
+      actions.iter().any(|action| match action {
         lsp_types::CodeActionOrCommand::CodeAction(ca) => ca.title.starts_with("Initialize"),
         _ => false,
       })
@@ -507,18 +528,20 @@ assignee:
     let response = code_action(&analysis, params);
 
     let has_create = response.as_ref().is_some_and(|actions| {
-      actions.iter().any(|a| match a {
-        lsp_types::CodeActionOrCommand::CodeAction(ca) => ca.title.contains("Create new Person"),
+      actions.iter().any(|action| match action {
+        lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
+          code_action.title.contains("Create new Person")
+        }
         _ => false,
       })
     });
     assert!(
       has_create,
       "should offer create linked action on Person-typed field: {:?}",
-      response.as_ref().map(|a| a
+      response.as_ref().map(|action| action
         .iter()
-        .map(|x| match x {
-          lsp_types::CodeActionOrCommand::CodeAction(ca) => ca.title.clone(),
+        .map(|action| match action {
+          lsp_types::CodeActionOrCommand::CodeAction(code_action) => code_action.title.clone(),
           _ => String::new(),
         })
         .collect::<Vec<_>>())
@@ -539,8 +562,10 @@ title: "hello"
     let response = code_action(&analysis, params);
 
     let has_create = response.as_ref().is_some_and(|actions| {
-      actions.iter().any(|a| match a {
-        lsp_types::CodeActionOrCommand::CodeAction(ca) => ca.title.contains("Create new"),
+      actions.iter().any(|action| match action {
+        lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
+          code_action.title.contains("Create new")
+        }
         _ => false,
       })
     });
@@ -552,14 +577,20 @@ title: "hello"
 
   #[test]
   fn context_only_filters_actions() {
-    let (analysis, uri) = setup("---\n---\n");
+    let (analysis, uri) = setup(
+      "---
+---
+",
+    );
     // Request only refactor actions, should not return quickfix (init) actions
     let params = make_params_with_only(uri, 0, 0, vec![lsp_types::CodeActionKind::REFACTOR]);
     let response = code_action(&analysis, params);
 
     let has_init = response.as_ref().is_some_and(|actions| {
-      actions.iter().any(|a| match a {
-        lsp_types::CodeActionOrCommand::CodeAction(ca) => ca.title.starts_with("Initialize"),
+      actions.iter().any(|action| match action {
+        lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
+          code_action.title.starts_with("Initialize")
+        }
         _ => false,
       })
     });
@@ -571,24 +602,27 @@ title: "hello"
 
   #[test]
   fn generated_template_includes_fields() {
-    let (analysis, uri) = setup("---\n---\n");
+    let (analysis, uri) = setup(
+      "---
+---",
+    );
     let params = make_params(uri);
     let response = code_action(&analysis, params).expect("should return actions");
 
     let task_action = response
       .iter()
-      .filter_map(|a| match a {
-        lsp_types::CodeActionOrCommand::CodeAction(ca) => Some(ca),
+      .filter_map(|action| match action {
+        lsp_types::CodeActionOrCommand::CodeAction(code_action) => Some(code_action),
         _ => None,
       })
-      .find(|ca| ca.title.contains("Task"))
+      .find(|code_action| code_action.title.contains("Task"))
       .expect("should have Task action");
 
     let text = &task_action
       .edit
       .as_ref()
-      .and_then(|e| e.changes.as_ref())
-      .and_then(|c| c.values().next())
+      .and_then(|edit| edit.changes.as_ref())
+      .and_then(|changes| changes.values().next())
       .expect("should have file edits")[0]
       .new_text;
 

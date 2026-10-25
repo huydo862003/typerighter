@@ -27,7 +27,7 @@ fn export_pipeline_roundtrip() {
       .next()
       .expect("project should exist");
     for (path, file) in &*project.files(&db) {
-      if path.extension().and_then(|e| e.to_str()) != Some("td") {
+      if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
         continue;
       }
       if let Some(exported) = export_resource_html(&db, project, *file) {
@@ -52,12 +52,12 @@ fn export_pipeline_roundtrip() {
   let db = setup_db_fresh(&project_dir);
   let project = Project::iter(&db).into_iter().next().unwrap();
   for (path, file) in &*project.files(&db) {
-    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
     let _ = parse_file(&db, project, *file);
-    if let Some(sym) = file_symbol(&db, project, *file).value(&db) {
-      let _ = evaluate_resource(&db, sym);
+    if let Some(symbol) = file_symbol(&db, project, *file).value(&db) {
+      let _ = evaluate_resource(&db, symbol);
       let _ = export_resource_html(&db, project, *file);
       let _ = export_resource_summary(&db, project, *file);
     }

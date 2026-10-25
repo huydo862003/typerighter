@@ -68,8 +68,8 @@ impl<'a> MarkdownExporter<'a> {
   }
 
   fn write(&mut self, text: &str) {
-    for ch in text.chars() {
-      if ch == '\n' {
+    for char in text.chars() {
+      if char == '\n' {
         self.out.push('\n');
         self.at_line_start = true;
       } else {
@@ -77,7 +77,7 @@ impl<'a> MarkdownExporter<'a> {
           self.out.push_str(&self.prefix);
           self.at_line_start = false;
         }
-        self.out.push(ch);
+        self.out.push(char);
       }
     }
   }
@@ -186,15 +186,15 @@ impl<'a> MarkdownExporter<'a> {
   }
 
   fn extract_ordered_marker(&self, node: &RedNode) -> String {
-    let mut num = String::new();
+    let mut number = String::new();
     for child in node.children() {
       match child.kind() {
-        SyntaxKind::MdNumber => num = child.text().to_string(),
+        SyntaxKind::MdNumber => number = child.text().to_string(),
         SyntaxKind::MdSymbol if child.text() == "." => {
-          return format!("{num}. ");
+          return format!("{number}. ");
         }
         _ => {
-          if !num.is_empty() {
+          if !number.is_empty() {
             break;
           }
         }
@@ -370,8 +370,8 @@ impl<'a> MarkdownExporter<'a> {
       }
       let project_node = ProjectRedNode::new(self.project, self.file, expr_node);
       let scope = get_file_runtime_scope(self.db, self.project, self.file);
-      let eval = evaluate_node(self.db, project_node, scope);
-      let obj = eval.value(self.db);
+      let evaluated_result = evaluate_node(self.db, project_node, scope);
+      let obj = evaluated_result.value(self.db);
       if let Some(obj) = obj
         && let Some(func) = obj.lookup_method(self.db, "to_string")
         && let Ok(result) = func.call(self.db, self.project, Some(obj), vec![])

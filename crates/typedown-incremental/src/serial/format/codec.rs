@@ -161,13 +161,14 @@ impl Decoder {
     &self.storage
   }
 
-  /// Map a DepNodeIndex to a DepId. No-op if already set.
+  /// Map a DepNodeIndex to a DepId
+  /// No-op if already set
   pub fn set_dep_node_id(&self, index: DepNodeIndex, dep_id: DepId) {
     self.dep_id_table.entry(index).or_insert(dep_id);
   }
 
   pub fn get_dep_node_id(&self, index: DepNodeIndex) -> Option<DepId> {
-    self.dep_id_table.get(&index).map(|e| *e.value())
+    self.dep_id_table.get(&index).map(|entry| *entry.value())
   }
 
   // Get the DepId for a node, triggering deserialization if not yet loaded
@@ -757,13 +758,13 @@ impl<V: Decodable + Eq + Hash> Decodable for HashSet<V> {
 impl<L: Encodable, R: Encodable> Encodable for Either<L, R> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      Either::Left(val) => {
+      Either::Left(value) => {
         encoder.emit_u8(buf, 0);
-        val.field_encode(buf, encoder);
+        value.field_encode(buf, encoder);
       }
-      Either::Right(val) => {
+      Either::Right(value) => {
         encoder.emit_u8(buf, 1);
-        val.field_encode(buf, encoder);
+        value.field_encode(buf, encoder);
       }
     }
   }

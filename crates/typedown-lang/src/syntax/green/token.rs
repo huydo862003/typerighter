@@ -115,7 +115,7 @@ impl Hash for SyntaxToken {
   {
     // Pack (kind, text_len) per token as u64s in one write, then all bytes in one write
     let mut kinds: SmallVec<[u64; 64]> = SmallVec::with_capacity(data.len());
-    let total_bytes: usize = data.iter().map(|t| t.text_len()).sum();
+    let total_bytes: usize = data.iter().map(|text| text.text_len()).sum();
     let mut bytes_buf: SmallVec<[u8; 256]> = SmallVec::with_capacity(total_bytes);
     for token in data {
       kinds.push(((token.kind() as u64) << 32) | token.text_len() as u64);

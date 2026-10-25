@@ -23,29 +23,41 @@ use serde_json::Value;
 use crate::core::analysis::Analysis;
 
 /// Dispatch an LSP request to the appropriate service handler.
-pub fn dispatch(analysis: &Analysis, req: Request) -> Response {
-  match req.method.as_str() {
-    CodeActionRequest::METHOD => {
-      try_handle(&req, |p| code_action::resolve_code_action(analysis, p))
-    }
-    HoverRequest::METHOD => try_handle(&req, |p| hover::resolve_hover(analysis, p)),
-    Completion::METHOD => try_handle(&req, |p| completion::resolve_completion(analysis, p)),
-    GotoDefinition::METHOD => try_handle(&req, |p| definition::resolve_definition(analysis, p)),
-    References::METHOD => try_handle(&req, |p| references::find_references(analysis, p)),
-    SemanticTokensFullRequest::METHOD => try_handle(&req, |p| {
-      semantic_tokens::resolve_semantic_tokens_full(analysis, p)
+pub fn dispatch(analysis: &Analysis, request: Request) -> Response {
+  match request.method.as_str() {
+    CodeActionRequest::METHOD => try_handle(&request, |params| {
+      code_action::resolve_code_action(analysis, params)
     }),
-    PrepareRenameRequest::METHOD => {
-      try_handle(&req, |p| rename_symbol::prepare_rename(analysis, p))
-    }
-    Rename::METHOD => try_handle(&req, |p| rename_symbol::rename(analysis, p)),
-    Formatting::METHOD => try_handle(&req, |p| formatting::format_document(analysis, p)),
-    InlayHintRequest::METHOD => try_handle(&req, |p| inlay_hint::resolve_inlay_hints(analysis, p)),
-    WillRenameFiles::METHOD => try_handle(&req, |p| rename_symbol::will_rename_files(analysis, p)),
+    HoverRequest::METHOD => try_handle(&request, |params| hover::resolve_hover(analysis, params)),
+    Completion::METHOD => try_handle(&request, |params| {
+      completion::resolve_completion(analysis, params)
+    }),
+    GotoDefinition::METHOD => try_handle(&request, |params| {
+      definition::resolve_definition(analysis, params)
+    }),
+    References::METHOD => try_handle(&request, |params| {
+      references::find_references(analysis, params)
+    }),
+    SemanticTokensFullRequest::METHOD => try_handle(&request, |params| {
+      semantic_tokens::resolve_semantic_tokens_full(analysis, params)
+    }),
+    PrepareRenameRequest::METHOD => try_handle(&request, |params| {
+      rename_symbol::prepare_rename(analysis, params)
+    }),
+    Rename::METHOD => try_handle(&request, |params| rename_symbol::rename(analysis, params)),
+    Formatting::METHOD => try_handle(&request, |params| {
+      formatting::format_document(analysis, params)
+    }),
+    InlayHintRequest::METHOD => try_handle(&request, |params| {
+      inlay_hint::resolve_inlay_hints(analysis, params)
+    }),
+    WillRenameFiles::METHOD => try_handle(&request, |params| {
+      rename_symbol::will_rename_files(analysis, params)
+    }),
     _ => Response::new_err(
-      req.id,
+      request.id,
       ErrorCode::MethodNotFound as i32,
-      format!("unhandled method: {}", req.method),
+      format!("unhandled method: {}", request.method),
     ),
   }
 }

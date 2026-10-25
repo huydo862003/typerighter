@@ -14,14 +14,14 @@ pub fn stable_hash_derive_impl(item: TokenStream) -> TokenStream {
         .variants
         .iter()
         .enumerate()
-        .map(|(i, variant)| {
+        .map(|(index, variant)| {
           let vname = &variant.ident;
-          let tag = i as u8;
+          let tag = index as u8;
           match &variant.fields {
             Fields::Named(fields) => {
-              let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-              let hashes = field_names.iter().map(|f| {
-                quote! { #f.stable_hash(db, hasher); }
+              let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
+              let hashes = field_names.iter().map(|field| {
+                quote! { #field.stable_hash(db, hasher); }
               });
               quote! {
                 #name::#vname { #(#field_names),* } => {
@@ -31,14 +31,16 @@ pub fn stable_hash_derive_impl(item: TokenStream) -> TokenStream {
               }
             }
             Fields::Unnamed(fields) => {
-              let vars: Vec<_> = (0..fields.unnamed.len())
-                .map(|i| syn::Ident::new(&format!("__f{i}"), proc_macro2::Span::call_site()))
+              let variables: Vec<_> = (0..fields.unnamed.len())
+                .map(|ident| {
+                  syn::Ident::new(&format!("__f{ident}"), proc_macro2::Span::call_site())
+                })
                 .collect();
-              let hashes = vars.iter().map(|v| {
-                quote! { #v.stable_hash(db, hasher); }
+              let hashes = variables.iter().map(|variable| {
+                quote! { #variable.stable_hash(db, hasher); }
               });
               quote! {
-                #name::#vname(#(#vars),*) => {
+                #name::#vname(#(#variables),*) => {
                   #tag.stable_hash(db, hasher);
                   #(#hashes)*
                 }
@@ -85,8 +87,8 @@ pub fn stable_hash_derive_impl(item: TokenStream) -> TokenStream {
 fn hash_fields_body(fields: &Fields) -> proc_macro2::TokenStream {
   match fields {
     Fields::Named(fields) => {
-      let hashes = fields.named.iter().map(|f| {
-        let name = &f.ident;
+      let hashes = fields.named.iter().map(|field| {
+        let name = &field.ident;
         quote! { self.#name.stable_hash(db, hasher); }
       });
       let suppress_db = if fields.named.is_empty() {
@@ -97,9 +99,9 @@ fn hash_fields_body(fields: &Fields) -> proc_macro2::TokenStream {
       quote! { #suppress_db #(#hashes)* }
     }
     Fields::Unnamed(fields) => {
-      let hashes = (0..fields.unnamed.len()).map(|i| {
-        let idx = syn::Index::from(i);
-        quote! { self.#idx.stable_hash(db, hasher); }
+      let hashes = (0..fields.unnamed.len()).map(|index| {
+        let index = syn::Index::from(index);
+        quote! { self.#index.stable_hash(db, hasher); }
       });
       quote! { #(#hashes)* }
     }

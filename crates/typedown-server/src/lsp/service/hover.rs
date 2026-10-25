@@ -87,7 +87,7 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
     let entry = entry_key.parent()?;
     let entry_value = entry
       .children()
-      .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
+      .find(|child| child.kind() == SyntaxKind::YamlMappingEntryValue)?;
     let value_expr = entry_value.children().find_map(Expr::cast)?;
     let project_node = ProjectRedNode::new(project, file, value_expr.syntax().clone());
     let typ = expected_node_typ(db, project_node).typ(db)?;
@@ -110,26 +110,26 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
 // Resolve hover text for a fref() argument: show target label and schema
 fn build_fref_hover(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<String> {
   let call = containing_fref_expr(node)?;
-  let path_str = call
+  let path_string = call
     .args()
     .into_iter()
     .next()
-    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|s| s.plain_value()))?;
+    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
-  let target_path = root_dir.join(&path_str);
+  let target_path = root_dir.join(&path_string);
   let target_file = *project.files(db).get(&target_path)?;
-  let sym = file_symbol(db, project, target_file).value(db)?;
+  let symbol = file_symbol(db, project, target_file).value(db)?;
 
-  Some(format_resource_hover(db, sym, &path_str))
+  Some(format_resource_hover(db, symbol, &path_string))
 }
 
 // Format hover text for a resolved resource file
 fn format_resource_hover(db: &TypedownDatabase, symbol: Symbol, path: &str) -> String {
   let schema_name = get_symbol_typ(db, symbol)
     .typ(db)
-    .map(|t| t.display_name(db));
+    .map(|typ| typ.display_name(db));
   let label = get_resource_label(db, symbol);
 
   let mut parts = vec![];
@@ -147,9 +147,11 @@ fn format_resource_hover(db: &TypedownDatabase, symbol: Symbol, path: &str) -> S
 fn format_type_label(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
   if let Some(sum) = typ.as_td_sum_typ() {
     let members = sum.members(db);
-    let has_null = members
-      .iter()
-      .any(|m| m.resolve(db).is_some_and(|t| t.as_td_null_typ().is_some()));
+    let has_null = members.iter().any(|member| {
+      member
+        .resolve(db)
+        .is_some_and(|typ| typ.as_td_null_typ().is_some())
+    });
     if has_null {
       // Display non-null members joined by " | " with "?" suffix
       let non_null: Vec<String> = members
@@ -183,7 +185,7 @@ fn resolve_schema_hover(db: &TypedownDatabase, project: Project, node: &RedNode)
 
   let key = entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)?;
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)?;
   let key_text = key.text();
   let key_text = key_text.trim();
   if key_text != "_type" && key_text != "_extends" {
@@ -192,15 +194,15 @@ fn resolve_schema_hover(db: &TypedownDatabase, project: Project, node: &RedNode)
 
   let value = entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryValue)?;
   let schema_name = value.text();
   let schema_name = schema_name.trim();
 
   let scope = Scope::new(db, ScopeKind::Project(project));
   let project_members = members(db, scope);
   let member_map = project_members.members(db);
-  let sym = member_map.get(schema_name)?;
-  let typ = evaluate_typ(db, *sym).typ(db)?;
+  let symbol = member_map.get(schema_name)?;
+  let typ = evaluate_typ(db, *symbol).typ(db)?;
   typ.as_td_schema_typ()?;
 
   Some(build_schema_hover_text(db, &typ))
@@ -217,11 +219,11 @@ fn build_schema_hover_text(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
   let field_lines: Vec<String> = fields
     .iter()
     .map(|(field_name, lazy)| {
-      let type_name = lazy
+      let typ_name = lazy
         .resolve(db)
-        .map(|t| format_type_label(db, &t))
+        .map(|typ| format_type_label(db, &typ))
         .unwrap_or_else(|| "unknown".to_string());
-      format!("  {field_name}: {type_name}")
+      format!("  {field_name}: {typ_name}")
     })
     .collect();
 
@@ -236,10 +238,10 @@ fn build_link_hover(
   node: &RedNode,
 ) -> Option<String> {
   let url = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
-    MdLink::cast(link_node)?.url().map(|t| t.value())?
+    MdLink::cast(link_node)?.url().map(|text| text.value())?
   } else {
     let media_node = find_ancestor(node, SyntaxKind::MdMedia)?;
-    MdMedia::cast(media_node)?.url().map(|t| t.value())?
+    MdMedia::cast(media_node)?.url().map(|text| text.value())?
   };
 
   if is_external_url(&url) || url.starts_with('#') {
@@ -285,8 +287,8 @@ fn build_component_hover(
   }
 
   let component_name = MdContainerBlock::cast(container.clone())
-    .and_then(|b| b.label())
-    .or_else(|| MdContainerShorthand::cast(container).and_then(|s| s.label()))?;
+    .and_then(|block| block.label())
+    .or_else(|| MdContainerShorthand::cast(container).and_then(|container| container.label()))?;
   let pascal = kebab_to_pascal(&component_name);
 
   let contract_file = project.custom_component_contract(db)?;
@@ -294,7 +296,7 @@ fn build_component_hover(
   let entries = contract.entries(db).clone();
   let entry = entries
     .iter()
-    .find(|e| e.name == component_name || e.name == pascal)?;
+    .find(|entry| entry.name == component_name || entry.name == pascal)?;
 
   let mut lines = vec![format!("**{}**", component_name)];
 
@@ -308,24 +310,24 @@ fn build_component_hover(
     && !props.is_empty()
   {
     lines.push("\n**Props:**".to_string());
-    for p in props {
-      let suffix = if p.required { "" } else { "?" };
-      let desc = p
+    for prop in props {
+      let suffix = if prop.required { "" } else { "?" };
+      let description = prop
         .description
         .as_ref()
-        .map(|d| format!(" — {d}"))
+        .map(|description| format!(" - {description}"))
         .unwrap_or_default();
       lines.push(format!(
         "- `{}`: `{}{}`{}",
-        p.name, p.typ_name, suffix, desc
+        prop.name, prop.typ_name, suffix, description
       ));
     }
   }
 
   if !entry.slots.is_empty() {
     lines.push("\n**Slots:**".to_string());
-    for s in &entry.slots {
-      lines.push(format!("- `{}`", s));
+    for slot in &entry.slots {
+      lines.push(format!("- `{}`", slot));
     }
   }
 
@@ -398,7 +400,7 @@ properties:
   // Accept a `content` as the current editing content
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -418,7 +420,7 @@ properties:
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -513,7 +515,7 @@ nick|name: Bob
   #[test]
   fn hover_on_fref_shows_label_and_schema() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let (content, offset) = cursor(
       r#"---
@@ -550,11 +552,11 @@ age: 30
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
@@ -604,7 +606,7 @@ age: 30
   #[test]
   fn hover_on_markdown_link_shows_target_info() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let (content, offset) = cursor(
       r#"---
@@ -643,11 +645,11 @@ age: 30
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
@@ -880,7 +882,7 @@ Some plain te|xt.
     };
     assert!(text.contains("kind"), "should still show prop name: {text}");
     assert!(
-      !text.contains(" — "),
+      !text.contains(" - "),
       "should not show description separator when no description: {text}"
     );
   }

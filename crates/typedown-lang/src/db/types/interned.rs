@@ -209,17 +209,17 @@ enum LitValueTag {
 impl Encodable for LitValue {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      LitValue::String(val) => {
+      LitValue::String(value) => {
         encoder.emit_u8(buf, LitValueTag::String as u8);
-        val.encode(buf, encoder);
+        value.encode(buf, encoder);
       }
-      LitValue::Bool(val) => {
+      LitValue::Bool(value) => {
         encoder.emit_u8(buf, LitValueTag::Bool as u8);
-        val.encode(buf, encoder);
+        value.encode(buf, encoder);
       }
-      LitValue::Number(val) => {
+      LitValue::Number(value) => {
         encoder.emit_u8(buf, LitValueTag::Number as u8);
-        val.encode(buf, encoder);
+        value.encode(buf, encoder);
       }
     }
   }

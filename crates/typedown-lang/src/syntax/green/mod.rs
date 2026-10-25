@@ -101,7 +101,7 @@ impl GreenNode {
       Either::Left(
         bytes
           .into_iter()
-          .map(|b| char::from_u32(u32::from(b)).unwrap_or('\u{FFFD}')),
+          .map(|byte| char::from_u32(u32::from(byte)).unwrap_or('\u{FFFD}')),
       )
     } else {
       Either::Right(Box::new(self.as_node().unwrap().chars()))

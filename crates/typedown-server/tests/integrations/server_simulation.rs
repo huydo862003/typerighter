@@ -25,12 +25,12 @@ pub fn run_rpc_queries(db: &TypedownDatabase) {
     .expect("project should exist");
   let mut export_count = 0;
   for (path, file) in &*project.files(db) {
-    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
     let _ = parse_file(db, project, *file);
-    if let Some(sym) = file_symbol(db, project, *file).value(db) {
-      let _ = evaluate_resource(db, sym);
+    if let Some(symbol) = file_symbol(db, project, *file).value(db) {
+      let _ = evaluate_resource(db, symbol);
       if let Some(exported) = export_resource_html(db, project, *file) {
         assert!(
           !exported.header.is_null(),
@@ -57,7 +57,7 @@ pub fn run_lsp_queries(db: &TypedownDatabase) {
     .expect("project should exist");
   let mut file_count = 0;
   for (path, file) in &*project.files(db) {
-    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
     let parse_result = parse_file(db, project, *file);
@@ -68,8 +68,8 @@ pub fn run_lsp_queries(db: &TypedownDatabase) {
     );
     let root = parse_result.ast(db).node.clone();
     let _ = typecheck(db, ProjectRedNode::new(project, *file, root));
-    if let Some(sym) = file_symbol(db, project, *file).value(db) {
-      let _ = evaluate_resource(db, sym);
+    if let Some(symbol) = file_symbol(db, project, *file).value(db) {
+      let _ = evaluate_resource(db, symbol);
     }
     file_count += 1;
   }
@@ -85,7 +85,7 @@ pub fn collect_type_errors(db: &TypedownDatabase) -> Vec<String> {
 
   let mut errors = Vec::new();
   for (path, file) in &*project.files(db) {
-    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
     let parse_result = parse_file(db, project, *file);

@@ -82,11 +82,11 @@ mod tests {
   fn evaluate_resource_with_nested_schema_resolves_correctly() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_nested_schema.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    let res = evaluate_resource(&db, symbol);
-    assert!(res.diagnostics(&db).is_empty());
+    let result = evaluate_resource(&db, symbol);
+    assert!(result.diagnostics(&db).is_empty());
 
-    let val = res.value(&db).expect("should evaluate to a value");
-    let schema_obj = val.as_td_schema_obj().expect("should be a schema object");
+    let value = result.value(&db).expect("should evaluate to a value");
+    let schema_obj = value.as_td_schema_obj().expect("should be a schema object");
     assert_eq!(schema_obj.schema(&db).display_name(&db), "SpecialPerson");
   }
 
@@ -94,10 +94,10 @@ mod tests {
   fn check_schemas_detects_duplicate_schema_names() {
     let (db, project, _) = load_vault_fixture("evaluate/duplicate_schema_vault", "_types/Item.td");
     let result = check_schemas(&db, project);
-    let diags = result.diagnostics(&db);
-    assert_eq!(diags.len(), 1);
+    let diagnostics = result.diagnostics(&db);
+    assert_eq!(diagnostics.len(), 1);
     assert!(matches!(
-      &diags[0],
+      &diagnostics[0],
       TdDiagnostic { kind: TdDiagnosticKind::DuplicateSchemaName { name, path, duplicate_of }, .. }
         if name == "Item" && path == "_types/nested/Item.td" && duplicate_of == "_types/Item.td"
     ));

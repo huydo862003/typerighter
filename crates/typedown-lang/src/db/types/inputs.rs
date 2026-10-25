@@ -33,7 +33,7 @@ impl FileMetadata {
     self
       .mtime
       .duration_since(SystemTime::UNIX_EPOCH)
-      .map(|d| d.as_secs())
+      .map(|duration| duration.as_secs())
       .unwrap_or(0)
   }
 
@@ -41,7 +41,7 @@ impl FileMetadata {
     self
       .ctime
       .duration_since(SystemTime::UNIX_EPOCH)
-      .map(|d| d.as_secs())
+      .map(|duration| duration.as_secs())
       .unwrap_or(0)
   }
 }

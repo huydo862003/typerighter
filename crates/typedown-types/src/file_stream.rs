@@ -81,21 +81,21 @@ impl<T: Read> Utf8Stream for FileStream<T> {
       self.lookahead.pop_front().unwrap()
     } else {
       match self.buffer.take() {
-        Some(r) => r,
+        Some(result) => result,
         None => {
-          let r = self.peek();
+          let result = self.peek();
           self.buffer.take();
-          r
+          result
         }
       }
     };
 
     match &result {
       Utf8Result::Char(char) => {
-        self.offset.update(|v| v + char.len_utf8());
+        self.offset.update(|value| value + char.len_utf8());
       }
       Utf8Result::Invalid { .. } => {
-        self.offset.update(|v| v + self.skip.get());
+        self.offset.update(|value| value + self.skip.get());
         self.skip.set(0);
       }
       Utf8Result::Eof => {}
@@ -112,19 +112,19 @@ impl<T: Read> Utf8Stream for FileStream<T> {
     matches!(self.peek(), Utf8Result::Eof)
   }
 
-  fn peek_nth(&mut self, n: usize) -> Utf8Result {
+  fn peek_nth(&mut self, nth: usize) -> Utf8Result {
     // Fill lookahead buffer up to n + 1 entries from the reader
-    if self.lookahead.capacity() < n + 1 {
-      self.lookahead.reserve(n + 1 - self.lookahead.capacity());
+    if self.lookahead.capacity() < nth + 1 {
+      self.lookahead.reserve(nth + 1 - self.lookahead.capacity());
     }
-    while self.lookahead.len() <= n {
+    while self.lookahead.len() <= nth {
       let result = match self.buffer.take() {
-        Some(r) => r,
+        Some(result) => result,
         None => {
           // Read from buffer/reader, bypassing lookahead
-          let r = self.read_next();
+          let result = self.read_next();
           self.buffer.take();
-          r
+          result
         }
       };
       let is_eof = matches!(result, Utf8Result::Eof);
@@ -133,8 +133,8 @@ impl<T: Read> Utf8Stream for FileStream<T> {
         break;
       }
     }
-    if n < self.lookahead.len() {
-      self.lookahead[n]
+    if nth < self.lookahead.len() {
+      self.lookahead[nth]
     } else {
       Utf8Result::Eof
     }
