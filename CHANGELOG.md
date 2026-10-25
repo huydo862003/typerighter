@@ -1,3 +1,14 @@
+## [0.45.1] - 2026-10-24
+
+### Fixed
+
+- crates/typedown-lang
+  - Support decimal (`2.5`) and negative (`-1`) number values in container block props
+  - Emit diagnostic for unclosed dict `{` and list `[` literals
+
+- crates/typedown-server
+  - Fix rename service silently failing when any single file in a batch rename had issues
+
 ## [0.45.0] - 2026-10-19
 
 ### Fixed
