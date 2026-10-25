@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+use ignore::WalkBuilder;
 use typedown_lang::db::types::{AssetKind, FileHandle, FileMetadata};
 use typedown_lang::db::utils::is_content_file;
 
@@ -27,13 +28,24 @@ pub fn scan_project_files(root: &Path) -> io::Result<HashSet<PathBuf>> {
   let mut files = HashSet::new();
   let root_dir = vault_root_dir(root);
 
-  scan_dir(&root_dir, &mut files)?;
+  // Walk the vault directory, respecting .gitignore and skipping hidden dirs
+  for entry in WalkBuilder::new(&root_dir)
+    .hidden(true)
+    .git_ignore(true)
+    .build()
+    .flatten()
+  {
+    let path = entry.into_path();
+    if path.is_file() && (is_content_file(&path) || is_asset_file(&path)) {
+      files.insert(path);
+    }
+  }
 
   // Include typedown.yaml/yml at root
   for name in ["typedown.yaml", "typedown.yml"] {
-    let p = root.join(name);
-    if p.exists() {
-      files.insert(p);
+    let path = root.join(name);
+    if path.exists() {
+      files.insert(path);
     }
   }
 
@@ -64,7 +76,7 @@ fn vault_root_dir(root: &Path) -> PathBuf {
     .and_then(|path| fs::read_to_string(path).ok())
     .unwrap_or_default();
 
-  let root_dir_str = text
+  let root_dir_string = text
     .lines()
     .find(|line| line.trim().starts_with("root_dir:"))
     .and_then(|line| {
@@ -78,27 +90,11 @@ fn vault_root_dir(root: &Path) -> PathBuf {
     })
     .unwrap_or_else(|| ".".to_string());
 
-  if root_dir_str == "." || root_dir_str.is_empty() {
+  if root_dir_string == "." || root_dir_string.is_empty() {
     root.to_path_buf()
   } else {
-    root.join(root_dir_str)
+    root.join(root_dir_string)
   }
-}
-
-fn scan_dir(dir: &Path, files: &mut HashSet<PathBuf>) -> io::Result<()> {
-  if !dir.is_dir() {
-    return Ok(());
-  }
-  for entry in fs::read_dir(dir)? {
-    let entry = entry?;
-    let path = entry.path();
-    if path.is_dir() {
-      scan_dir(&path, files)?;
-    } else if is_content_file(&path) || is_asset_file(&path) {
-      files.insert(path);
-    }
-  }
-  Ok(())
 }
 
 pub fn is_asset_file(path: &Path) -> bool {

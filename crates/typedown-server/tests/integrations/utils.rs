@@ -4,8 +4,10 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use ignore::WalkBuilder;
 use typedown_incremental::{CacheSession, InputId};
 use typedown_lang::db::types::{AssetKind, File, FileHandle, FileMetadata, Project};
+use typedown_lang::db::utils::is_content_file;
 use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
 pub fn example_vault() -> PathBuf {
@@ -122,30 +124,33 @@ fn register_project_cached(db: &mut TypedownDatabase, project_dir: &Path) {
 
 pub fn scan_project_files(dir: &Path) -> Vec<PathBuf> {
   let root = dir;
-  let mut result = Vec::new();
-  let mut stack = vec![dir.to_path_buf()];
-  while let Some(dir) = stack.pop() {
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-      continue;
-    };
-    for entry in entries.flatten() {
-      let path = entry.path();
-      if path.is_dir() {
-        stack.push(path);
-      } else {
-        let extension = path.extension().and_then(|extension| extension.to_str());
-        let name = path.file_name().and_then(|name| name.to_str());
-        let is_asset = extension.and_then(AssetKind::from_extension).is_some();
-        if extension == Some("td")
-          || is_asset
-          || (dir == root && matches!(name, Some("typedown.yaml") | Some("typedown.yml")))
-        {
-          result.push(path);
-        }
+  WalkBuilder::new(dir)
+    .hidden(true)
+    .git_ignore(true)
+    .build()
+    .flatten()
+    .filter_map(|entry| {
+      let path = entry.into_path();
+      if !path.is_file() {
+        return None;
       }
-    }
-  }
-  result
+      let is_asset = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .and_then(AssetKind::from_extension)
+        .is_some();
+      let name = path.file_name().and_then(|n| n.to_str());
+      if is_content_file(&path)
+        || is_asset
+        || (path.parent() == Some(root)
+          && matches!(name, Some("typedown.yaml") | Some("typedown.yml")))
+      {
+        Some(path)
+      } else {
+        None
+      }
+    })
+    .collect()
 }
 
 // Preserves file modification times so incremental cache sees unchanged files
