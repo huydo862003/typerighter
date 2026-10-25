@@ -148,25 +148,6 @@ pub fn scan_project_files(dir: &Path) -> Vec<PathBuf> {
   result
 }
 
-// Like copy_dir_recursive but includes .typedown cache directory
-pub fn copy_dir_recursive_all(src: &Path, dst: &Path) {
-  std::fs::create_dir_all(dst).unwrap();
-  for entry in std::fs::read_dir(src).unwrap().flatten() {
-    let src_path = entry.path();
-    let dst_path = dst.join(entry.file_name());
-    if src_path.is_dir() {
-      copy_dir_recursive_all(&src_path, &dst_path);
-    } else {
-      std::fs::copy(&src_path, &dst_path).unwrap();
-      if let Ok(meta) = entry.metadata()
-        && let Ok(mtime) = meta.modified()
-      {
-        let _ = filetime::set_file_mtime(&dst_path, filetime::FileTime::from_system_time(mtime));
-      }
-    }
-  }
-}
-
 // Preserves file modification times so incremental cache sees unchanged files
 pub fn copy_dir_recursive(src: &Path, dst: &Path) {
   std::fs::create_dir_all(dst).unwrap();
