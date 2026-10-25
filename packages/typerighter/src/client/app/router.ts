@@ -65,12 +65,18 @@ export function createRouter (
 
       if ((await router.onBeforeRouteChange?.(href)) === false) return;
 
-      if (!isInBrowser || options?.initialLoad || changeRoute(href, base, options)) {
-        await loadPage(href);
-      }
+      if (isInBrowser) document.documentElement.classList.add('td-navigating');
 
-      syncRouteQueryAndHash();
-      await router.onAfterRouteChange?.(href);
+      try {
+        if (!isInBrowser || options?.initialLoad || changeRoute(href, base, options)) {
+          await loadPage(href);
+        }
+
+        syncRouteQueryAndHash();
+        await router.onAfterRouteChange?.(href);
+      } finally {
+        if (isInBrowser) document.documentElement.classList.remove('td-navigating');
+      }
     },
   };
 

@@ -1,2 +1,6 @@
 @import "./tokens.css";
 @import "./print.css";
+
+.td-navigating, .td-navigating * {
+  cursor: wait !important;
+}
