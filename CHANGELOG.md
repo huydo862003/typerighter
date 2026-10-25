@@ -1,3 +1,12 @@
+## [0.45.3] - 2026-10-26
+
+### Fixed
+
+- crates/typedown-lang
+  - Formatter removing `---` when formatting
+  - Formatter dedent internal indentation in code blocks
+  - Disallow bare paths in frefs
+
 ## [0.45.2] - 2026-10-25
 
 ### Performance
