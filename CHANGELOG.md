@@ -1,3 +1,11 @@
+## [0.45.2] - 2026-10-25
+
+### Performance
+
+- crates/typedown-server
+  - Use burnt sushi crate to speed up file matching
+  - Exclude unnecessary folders when running integration tests
+
 ## [0.45.1] - 2026-10-24
 
 ### Fixed
