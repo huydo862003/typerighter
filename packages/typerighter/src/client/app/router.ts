@@ -5,8 +5,10 @@ import {
   inject, markRaw, nextTick, reactive, readonly,
 } from 'vue';
 import {
-  resolveRootUrl, stripTrailingSlash,
-  type PageData, type PageModule,
+  resolveRootUrl,
+  stripTrailingSlash,
+  type PageData,
+  type PageModule,
 } from '@/shared';
 
 const isInBrowser = typeof window !== 'undefined';
@@ -21,11 +23,16 @@ export interface Route {
 
 export interface Router {
   route: Route;
-  go: (to: string, options?: {
-    replace?: boolean;
-    initialLoad?: boolean;
-  }) => Promise<void>;
-  onBeforeRouteChange?: (to: string) => Promise<boolean | undefined> | boolean | undefined;
+  go: (
+    to: string,
+    options?: {
+      replace?: boolean;
+      initialLoad?: boolean;
+    },
+  ) => Promise<void>;
+  onBeforeRouteChange?: (
+    to: string,
+  ) => Promise<boolean | undefined> | boolean | undefined;
   onAfterRouteChange?: (to: string) => Promise<undefined> | undefined;
 }
 
@@ -68,14 +75,19 @@ export function createRouter (
       if (isInBrowser) document.documentElement.classList.add('td-navigating');
 
       try {
-        if (!isInBrowser || options?.initialLoad || changeRoute(href, base, options)) {
+        if (
+          !isInBrowser
+          || options?.initialLoad
+          || changeRoute(href, base, options)
+        ) {
           await loadPage(href);
         }
 
         syncRouteQueryAndHash();
         await router.onAfterRouteChange?.(href);
       } finally {
-        if (isInBrowser) document.documentElement.classList.remove('td-navigating');
+        if (isInBrowser)
+          document.documentElement.classList.remove('td-navigating');
       }
     },
   };
@@ -122,7 +134,9 @@ export function createRouter (
       if (latestPendingPath === pendingPath) {
         latestPendingPath = undefined;
         route.path = pendingPath;
-        route.contentSfc = options.fallbackComponent ? markRaw(options.fallbackComponent) : undefined;
+        route.contentSfc = options.fallbackComponent
+          ? markRaw(options.fallbackComponent)
+          : undefined;
         route.data = notFoundPageData;
         syncRouteQueryAndHash(targetLocation);
       }
@@ -148,33 +162,80 @@ export function createRouter (
   if (isInBrowser) {
     if (history.state == undefined) history.replaceState({}, '');
 
-    window.addEventListener('click', (event) => {
-      if (
-        event.defaultPrevented
-        || !(event.target instanceof Element)
-        || event.button !== 0
-        || event.ctrlKey || event.shiftKey || event.altKey || event.metaKey
-      ) return;
+    window.addEventListener(
+      'click',
+      (event) => {
+        if (
+          event.defaultPrevented
+          || !(event.target instanceof Element)
+          || event.button !== 0
+          || event.ctrlKey
+          || event.shiftKey
+          || event.altKey
+          || event.metaKey
+        )
+          return;
 
-      const link = event.target.closest<HTMLAnchorElement>('a');
+        const link = event.target.closest<HTMLAnchorElement>('a');
 
-      if (!link || link.hasAttribute('download') || link.hasAttribute('target')) return;
+        if (
+          !link
+          || link.hasAttribute('download')
+          || link.hasAttribute('target')
+        )
+          return;
 
-      const linkHref = link.getAttribute('href');
+        const linkHref = link.getAttribute('href');
 
-      if (linkHref === null) return;
+        if (linkHref === null) return;
 
-      const {
-        href, origin, pathname,
-      } = new URL(linkHref, link.baseURI);
+        const {
+          href, origin, pathname,
+        } = new URL(linkHref, link.baseURI);
 
-      if (origin === location.origin && !pathname.match(/\.\w+$/)) {
-        event.preventDefault();
-        router.go(href);
-      }
-    }, {
-      capture: true,
-    });
+        if (origin === location.origin && !pathname.match(/\.\w+$/)) {
+          event.preventDefault();
+          router.go(href);
+        }
+      },
+      {
+        capture: true,
+      },
+    );
+
+    // Prefetch page module on hover so navigation feels instant
+    window.addEventListener(
+      'pointerenter',
+      (event) => {
+        if (!(event.target instanceof HTMLAnchorElement)) return;
+
+        const linkHref = event.target.getAttribute('href');
+
+        if (
+          linkHref === null
+          || event.target.hasAttribute('download')
+          || event.target.hasAttribute('target')
+        )
+          return;
+
+        const {
+          origin, pathname,
+        } = new URL(linkHref, event.target.baseURI);
+
+        if (origin === location.origin && !pathname.match(/\.\w+$/)) {
+          const pagePath = new URL(
+            normalizeHref(linkHref, base),
+            'http://a.com',
+          ).pathname;
+
+          loadPageModule(pagePath).catch(() => { });
+        }
+      },
+      {
+        capture: true,
+        passive: true,
+      },
+    );
 
     window.addEventListener('popstate', async (event) => {
       if (event.state == undefined) return;
@@ -202,7 +263,8 @@ export function scrollToHash (hash: string): void {
   let target: HTMLElement | undefined;
 
   try {
-    target = document.getElementById(decodeURIComponent(hash).slice(1)) ?? undefined;
+    target =
+      document.getElementById(decodeURIComponent(hash).slice(1)) ?? undefined;
   } catch {
     return;
   }
@@ -242,14 +304,18 @@ function changeRoute (
     return false;
   }
 
-  const browserHref = base === '/' ? href : base + (href.startsWith('/') ? href : '/' + href);
+  const browserHref =
+    base === '/' ? href : base + (href.startsWith('/') ? href : '/' + href);
 
   if (replace) {
     history.replaceState({}, '', browserHref);
   } else {
-    history.replaceState({
-      scrollPosition: window.scrollY,
-    }, '');
+    history.replaceState(
+      {
+        scrollPosition: window.scrollY,
+      },
+      '',
+    );
     history.pushState({}, '', browserHref);
   }
 
@@ -271,7 +337,11 @@ function normalizeHref (href: string, base: string): string {
 
   let pathname = url.pathname.replace(/\.html$/, '');
 
-  if (base && base !== '/' && (pathname === base || pathname.startsWith(base + '/'))) {
+  if (
+    base
+    && base !== '/'
+    && (pathname === base || pathname.startsWith(base + '/'))
+  ) {
     pathname = pathname.slice(base.length) || '/';
   }
 
