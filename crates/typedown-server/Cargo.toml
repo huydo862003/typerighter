@@ -39,6 +39,7 @@ dashmap = "6.2.1"
 threadpool = "1"
 ctrlc = "3"
 pico-args = "0.5.0"
+ignore = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
