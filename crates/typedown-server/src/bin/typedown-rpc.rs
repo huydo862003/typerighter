@@ -47,12 +47,12 @@ pub fn main() -> anyhow::Result<()> {
     .or_else(|| {
       std::env::var("TYPEDOWN_RPC_PORT")
         .ok()
-        .and_then(|s| s.parse().ok())
+        .and_then(|string| string.parse().ok())
     })
     .unwrap_or(0);
 
   let fresh = args.contains("--fresh")
-    || std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+    || std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|value| value == "1" || value == "true");
 
   let remaining = args.finish();
   if !remaining.is_empty() {
@@ -60,7 +60,7 @@ pub fn main() -> anyhow::Result<()> {
       "warning: unknown arguments: {:?}",
       remaining
         .iter()
-        .map(|s| s.to_string_lossy())
+        .map(|string| string.to_string_lossy())
         .collect::<Vec<_>>()
     );
   }

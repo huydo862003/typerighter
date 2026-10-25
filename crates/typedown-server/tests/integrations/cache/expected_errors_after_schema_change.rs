@@ -13,7 +13,7 @@ fn expected_errors_after_schema_change() {
     let db = setup_db_cached(&cache_dir, &project_dir);
     let errors = collect_type_errors(&db);
     assert!(
-      errors.iter().all(|e| e.contains("phone")),
+      errors.iter().all(|error| error.contains("phone")),
       "all errors should be about missing phone field, got:\n{}",
       errors.join("\n"),
     );

@@ -353,7 +353,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
         fn from(id: u32) -> Self { Self(id) }
       }
       impl From<#struct_name> for u32 {
-        fn from(val: #struct_name) -> u32 { val.0 }
+        fn from(value: #struct_name) -> u32 { value.0 }
       }
 
       impl ::typedown_incremental::InputId for #struct_name {

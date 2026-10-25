@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
-use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
+use std::hash::Hasher;
+use typedown_incremental::{Fingerprint, QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 
 use super::base::{
@@ -102,14 +103,14 @@ impl<'db> StableHash for TdSchemaTyp<'db> {
     let storage = unsafe { db.storage() };
     let cache_key = (Self::ingredient_start_index(), self.0);
     if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
-      ::std::hash::Hasher::write(hasher, &cached.0);
+      Hasher::write(hasher, &cached.0);
       return;
     }
     let mut inner_hasher = StableHasher::new();
     Self::try_name(*self, db).stable_hash(db, &mut inner_hasher);
     let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
     storage.derived_fingerprints.insert(cache_key, fingerprint);
-    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+    Hasher::write(hasher, &fingerprint.0);
   }
 }
 
@@ -161,7 +162,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
   fn runtime_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdFuncObj<'db>> {
     let mut result = self
       .parent_typ(db)
-      .map(|p| p.runtime_vtable(db))
+      .map(|parent| parent.runtime_vtable(db))
       .unwrap_or_default();
     let signature = FuncSignature::new(db, vec![], get_string_typ(db).into());
     let to_string_func = TdFuncObj::new(
@@ -179,7 +180,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
   fn static_vtable(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdTypEnum<'db>> {
     let mut result = self
       .parent_typ(db)
-      .map(|p| p.static_vtable(db))
+      .map(|parent| parent.static_vtable(db))
       .unwrap_or_default();
     let signature = FuncSignature::new(db, vec![], get_string_typ(db).into());
     let func_typ = get_func_typ(db, signature).into();
@@ -195,7 +196,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
     // Include inherited fields from parent schema
     let mut result = self
       .parent(db)
-      .map(|p| p.get_fields(db))
+      .map(|parent| parent.get_fields(db))
       .unwrap_or_default();
     result.extend(
       self
@@ -275,7 +276,7 @@ impl<'db> StableHash for TdSchemaObj<'db> {
     let storage = unsafe { db.storage() };
     let cache_key = (Self::ingredient_start_index(), self.0);
     if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
-      ::std::hash::Hasher::write(hasher, &cached.0);
+      Hasher::write(hasher, &cached.0);
       return;
     }
     let mut inner_hasher = StableHasher::new();
@@ -289,9 +290,9 @@ impl<'db> StableHash for TdSchemaObj<'db> {
       Self::try_builtins(*self, db).stable_hash(db, &mut inner_hasher);
       Self::try_fields(*self, db).stable_hash(db, &mut inner_hasher);
     }
-    let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
+    let fingerprint = Fingerprint::from_hasher(inner_hasher);
     storage.derived_fingerprints.insert(cache_key, fingerprint);
-    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+    Hasher::write(hasher, &fingerprint.0);
   }
 }
 
@@ -309,16 +310,17 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
       // Missing fields: check schema for computed/default, then null
       None => {
         if let Some(schema_type) = self.schema(db).as_td_schema_typ()
-          && let Some(prop_desc) = schema_type.fields(db).get(key)
+          && let Some(prop_descriptor) = schema_type.fields(db).get(key)
         {
-          if let Some(ref computed_enum) = prop_desc.computed_func
+          if let Some(ref computed_enum) = prop_descriptor.computed_func
             && let Some(func_obj) = computed_enum.as_td_func_obj()
-            && let Ok(res_val) = func_obj.call(db, self.project(db), None, vec![(*self).into()])
+            && let Ok(result_value) =
+              func_obj.call(db, self.project(db), None, vec![(*self).into()])
           {
-            return Some(res_val);
+            return Some(result_value);
           }
-          if let Some(ref def_obj) = prop_desc.default_value {
-            return Some(def_obj.clone());
+          if let Some(ref definition_obj) = prop_descriptor.default_value {
+            return Some(definition_obj.clone());
           }
         }
         Some(TdNullObj::get(db).into())

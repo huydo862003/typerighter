@@ -61,18 +61,18 @@ fn build_fref_hint(
   }
 
   let call = CallExpr::cast(call_node.clone())?;
-  let path_str = call
+  let path_string = call
     .args()
     .into_iter()
     .next()
-    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|s| s.plain_value()))?;
+    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
-  let target_path = root_dir.join(&path_str);
+  let target_path = root_dir.join(&path_string);
   let target_file = *project.files(db).get(&target_path)?;
-  let sym = file_symbol(db, project, target_file).value(db)?;
-  let label = get_resource_label(db, sym)?;
+  let symbol = file_symbol(db, project, target_file).value(db)?;
+  let label = get_resource_label(db, symbol)?;
 
   let end_offset = call_node.offset() + call_node.text_len();
   let position = text_offset_to_lsp_position(rope, end_offset);
@@ -207,9 +207,9 @@ friend: fref("alice.td")
     assert!(
       hints
         .iter()
-        .any(|h| matches!(&h.label, lsp_types::InlayHintLabel::String(s) if s == "Alice Chen")),
+        .any(|hint| matches!(&hint.label, lsp_types::InlayHintLabel::String(string) if string == "Alice Chen")),
       "should show Alice Chen hint: {:?}",
-      hints.iter().map(|h| &h.label).collect::<Vec<_>>()
+      hints.iter().map(|hint| &hint.label).collect::<Vec<_>>()
     );
   }
 }

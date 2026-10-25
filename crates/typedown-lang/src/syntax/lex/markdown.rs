@@ -150,7 +150,14 @@ impl<S: Utf8Stream> LexCtx<S> {
   }
 
   /// Exit formula-mode lexing after a prop value is fully parsed
+  /// Pops any stray contexts (unclosed strings, braces) left by malformed values
   pub(in crate::syntax) fn exit_prop_value_mode(&mut self) {
+    while !matches!(
+      self.markdown_lex_ctx.interp_stack.last(),
+      Some(InterpContext::PropValue) | None
+    ) {
+      self.markdown_lex_ctx.interp_stack.pop();
+    }
     debug_assert!(
       matches!(
         self.markdown_lex_ctx.interp_stack.last(),

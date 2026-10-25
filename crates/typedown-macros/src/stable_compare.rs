@@ -11,7 +11,7 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
   let body = match &input.data {
     Data::Struct(data) => match &data.fields {
       Fields::Named(fields) => {
-        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+        let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
         quote! {
           ::std::cmp::Ordering::Equal
           #(
@@ -54,12 +54,16 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
           let vname = &variant.ident;
           match &variant.fields {
             Fields::Named(fields) => {
-              let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+              let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
               let self_vars: Vec<_> = (0..field_names.len())
-                .map(|i| syn::Ident::new(&format!("__self_{i}"), proc_macro2::Span::call_site()))
+                .map(|ident| {
+                  syn::Ident::new(&format!("__self_{ident}"), proc_macro2::Span::call_site())
+                })
                 .collect();
               let other_vars: Vec<_> = (0..field_names.len())
-                .map(|i| syn::Ident::new(&format!("__other_{i}"), proc_macro2::Span::call_site()))
+                .map(|ident| {
+                  syn::Ident::new(&format!("__other_{ident}"), proc_macro2::Span::call_site())
+                })
                 .collect();
               let self_bindings: Vec<_> = field_names
                 .iter()
@@ -82,16 +86,20 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
             }
             Fields::Unnamed(fields) => {
               let self_vars: Vec<_> = (0..fields.unnamed.len())
-                .map(|i| syn::Ident::new(&format!("__self_{i}"), proc_macro2::Span::call_site()))
+                .map(|ident| {
+                  syn::Ident::new(&format!("__self_{ident}"), proc_macro2::Span::call_site())
+                })
                 .collect();
-              let other_vars: Vec<_> = (0..fields.unnamed.len())
-                .map(|i| syn::Ident::new(&format!("__other_{i}"), proc_macro2::Span::call_site()))
+              let other_variables: Vec<_> = (0..fields.unnamed.len())
+                .map(|ident| {
+                  syn::Ident::new(&format!("__other_{ident}"), proc_macro2::Span::call_site())
+                })
                 .collect();
               quote! {
-                (#name::#vname(#(#self_vars),*), #name::#vname(#(#other_vars),*)) => {
+                (#name::#vname(#(#self_vars),*), #name::#vname(#(#other_variables),*)) => {
                   ::std::cmp::Ordering::Equal
                   #(
-                    .then_with(|| #self_vars.stable_cmp(db, #other_vars))
+                    .then_with(|| #self_vars.stable_cmp(db, #other_variables))
                   )*
                 }
               }

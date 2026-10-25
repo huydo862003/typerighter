@@ -30,8 +30,8 @@ impl TypedownExtension {
     // 1. User-configured path
     if let Some(path) = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
       .ok()
-      .and_then(|s| s.binary)
-      .and_then(|b| b.path)
+      .and_then(|server| server.binary)
+      .and_then(|binary| binary.path)
     {
       return Ok(path);
     }
@@ -68,22 +68,22 @@ impl TypedownExtension {
     )?;
 
     let (os, arch) = Self::os_arch()?;
-    let ext = if os == "windows" { ".exe" } else { "" };
+    let extension = if os == "windows" { ".exe" } else { "" };
     // release.version is the tag name (e.g. "v0.1.0"), strip the "v" prefix
     let version = release
       .version
       .strip_prefix('v')
       .unwrap_or(&release.version);
-    let asset_name = format!("typedown-lsp-{version}-{os}-{arch}{ext}");
+    let asset_name = format!("typedown-lsp-{version}-{os}-{arch}{extension}");
 
     let asset = release
       .assets
       .iter()
-      .find(|a| a.name == asset_name)
+      .find(|asset| asset.name == asset_name)
       .ok_or_else(|| format!("no release asset matching {asset_name:?}"))?;
 
     let version_dir = format!("typedown-lsp-{version}");
-    let binary_path = format!("{version_dir}/typedown-lsp{ext}");
+    let binary_path = format!("{version_dir}/typedown-lsp{extension}");
 
     if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
       zed::set_language_server_installation_status(
@@ -107,7 +107,7 @@ impl TypedownExtension {
           let name = entry.file_name();
           if name
             .to_str()
-            .is_some_and(|n| n.starts_with("typedown-lsp-") && n != version_dir)
+            .is_some_and(|name| name.starts_with("typedown-lsp-") && name != version_dir)
           {
             fs::remove_dir_all(entry.path()).ok();
           }

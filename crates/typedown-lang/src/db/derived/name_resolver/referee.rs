@@ -37,8 +37,8 @@ fn resolve_ident(db: &TypedownDatabase, project_node: ProjectRedNode, name: Stri
   let mut current_scope = scope(db, project_node);
   loop {
     let result = members(db, current_scope);
-    if let Some(sym) = result.members(db).get(&name) {
-      return MaybeSymbol::new(db, Some(*sym));
+    if let Some(symbol) = result.members(db).get(&name) {
+      return MaybeSymbol::new(db, Some(*symbol));
     }
     match parent_scope(db, current_scope).value(db) {
       Some(parent) => current_scope = parent,
@@ -86,7 +86,7 @@ fn resolve_call(db: &TypedownDatabase, project_node: ProjectRedNode) -> MaybeSym
     .file
     .handle(db)
     .path()
-    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    .and_then(|path| path.parent().map(|d| d.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path, &file_dir, &root_dir);
   match project.files(db).get(&target_path) {

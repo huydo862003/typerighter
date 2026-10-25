@@ -4,8 +4,10 @@ use typedown_lang::db::utils::{is_content_file, is_typ_file};
 
 use crate::lsp::service::utils::symbol::get_resource_label;
 use lsp_types::{
-  CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
+  CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CompletionTextEdit,
+  InsertTextFormat, Range, TextEdit,
 };
+use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_component_contract::get_component_contract;
@@ -32,7 +34,7 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{
   find_ancestor, get_nearest_expr_ancestor, is_in_mapping_value_position, node_at_offset,
 };
-use crate::core::utils::position::lsp_position_to_text_offset;
+use crate::core::utils::position::{lsp_position_to_text_offset, text_offset_to_lsp_position};
 use crate::core::utils::uri::uri_to_path;
 
 pub fn resolve_completion(
@@ -85,7 +87,7 @@ pub fn resolve_completion(
   // Cursor inside a fref() string argument: suggest file paths
   if is_fref_arg_position(&node) {
     return Some(CompletionResponse::Array(collect_fref_completions(
-      db, project, file, &node,
+      db, project, file, &node, &rope, offset,
     )));
   }
 
@@ -93,11 +95,11 @@ pub fn resolve_completion(
   if is_interp_position(&node) {
     let mut items = collect_fref_wrapped_completions(db, project, None);
     let scope = Scope::new(db, ScopeKind::File(project, file));
-    for (name, sym) in all_visible_members(db, scope) {
+    for (name, symbol) in all_visible_members(db, scope) {
       if name.starts_with('_') {
         continue;
       }
-      let kind = match sym.kind(db) {
+      let kind = match symbol.kind(db) {
         SymbolKind::BuiltinMacro(_) => CompletionItemKind::FUNCTION,
         SymbolKind::BuiltinGlobal(_) => CompletionItemKind::VARIABLE,
         SymbolKind::UserDefinedSchema(..) => CompletionItemKind::CLASS,
@@ -152,7 +154,9 @@ fn is_typ_value_position(node: &RedNode) -> bool {
   key.text().trim() == "_type"
 }
 
-// Suggest members of the LHS type after a "." in a binary expression
+// Suggest members of the LHS type after a "." in a binary expression.
+// Returns Some (even if empty) when we're clearly in a dot position, to prevent
+// fallthrough to interp/fref completions which would be irrelevant.
 fn collect_dot_access_completions(
   db: &TypedownDatabase,
   project: Project,
@@ -166,13 +170,22 @@ fn collect_dot_access_completions(
     return None;
   }
 
-  let lhs = bin.left()?;
-  let project_node = ProjectRedNode::new(project, file, lhs.syntax().clone());
-  let lhs_typ = actual_node_typ(db, project_node).typ(db)?;
-
+  // We're in a dot-access position — always return Some to prevent fallthrough
   let mut items = Vec::new();
 
+  let Some(lhs) = bin.left() else {
+    return Some(items);
+  };
+  let project_node = ProjectRedNode::new(project, file, lhs.syntax().clone());
+  let Some(lhs_typ) = actual_node_typ(db, project_node).typ(db) else {
+    return Some(items);
+  };
+
   for (name, _) in lhs_typ.get_fields(db) {
+    // Skip internal fields
+    if name.starts_with('_') {
+      continue;
+    }
     items.push(CompletionItem {
       label: name,
       kind: Some(CompletionItemKind::FIELD),
@@ -188,7 +201,7 @@ fn collect_dot_access_completions(
     });
   }
 
-  if items.is_empty() { None } else { Some(items) }
+  Some(items)
 }
 
 // Returns true if the cursor is inside a ${} interpolation
@@ -253,10 +266,10 @@ fn collect_fref_candidates(
       let label = get_resource_label(db, symbol);
       let schema = get_symbol_typ(db, symbol)
         .typ(db)
-        .map(|t| t.display_name(db));
+        .map(|typ| typ.display_name(db));
       let basename = relative
         .file_stem()
-        .and_then(|s| s.to_str())
+        .and_then(|stem| stem.to_str())
         .unwrap_or_default()
         .to_string();
 
@@ -290,8 +303,8 @@ fn build_candidate_completion(
     label_details: candidate
       .schema
       .as_ref()
-      .map(|s| lsp_types::CompletionItemLabelDetails {
-        detail: Some(s.clone()),
+      .map(|schema| lsp_types::CompletionItemLabelDetails {
+        detail: Some(schema.clone()),
         description: None,
       }),
     filter_text: Some(filter_parts.join(" ")),
@@ -302,26 +315,69 @@ fn build_candidate_completion(
 
 // Suggest file paths inside a fref() argument.
 // When cursor is already inside a string literal, insert bare path (inside existing quotes).
-// When cursor is inside fref() without quotes, wrap path in quotes.
+// When cursor is inside fref() without quotes, use a text_edit to replace any existing
+// unquoted content (e.g. `fref(./subfolder/|)`) with the properly-quoted path.
 fn collect_fref_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
+  rope: &Rope,
+  cursor_offset: usize,
 ) -> Vec<CompletionItem> {
   let expected_typ = get_declared_field(db, project, file, node);
   let candidates = collect_fref_candidates(db, project, expected_typ.as_ref());
   let inside_str = find_ancestor(node, SyntaxKind::StrLit).is_some();
-  candidates
-    .iter()
-    .map(|candidate| {
-      if inside_str {
-        build_candidate_completion(candidate, |path| path.to_string())
-      } else {
-        build_candidate_completion(candidate, |path| format!("\"{path}\""))
-      }
-    })
-    .collect()
+
+  if inside_str {
+    candidates
+      .iter()
+      .map(|candidate| build_candidate_completion(candidate, |path| path.to_string()))
+      .collect()
+  } else {
+    // Compute the range covering any existing unquoted arg content to replace
+    let arg_replace_range = compute_fref_unquoted_arg_range(node, rope, cursor_offset);
+    candidates
+      .iter()
+      .map(|candidate| {
+        let mut item = build_candidate_completion(candidate, |path| format!("\"{path}\""));
+        if let Some(range) = arg_replace_range {
+          item.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
+            range,
+            new_text: format!("\"{}\"", candidate.path),
+          }));
+          item.insert_text = None;
+        }
+        item
+      })
+      .collect()
+  }
+}
+
+// Compute the LSP range covering unquoted arg content from after the `(` to the cursor
+// Returns None when the cursor is already at the start (nothing to replace)
+fn compute_fref_unquoted_arg_range(
+  node: &RedNode,
+  rope: &Rope,
+  cursor_offset: usize,
+) -> Option<Range> {
+  let call_node = find_ancestor(node, SyntaxKind::CallExpr)?;
+
+  // Find the `(` token and get the offset right after it (start of arg content)
+  let arg_start_offset = call_node
+    .children()
+    .find(|child| child.text() == "(")
+    .map(|paren| paren.offset() + paren.text_len())?;
+
+  // Only build a replace range if there's existing content before the cursor
+  if cursor_offset <= arg_start_offset {
+    return None;
+  }
+
+  Some(Range {
+    start: text_offset_to_lsp_position(rope, arg_start_offset),
+    end: text_offset_to_lsp_position(rope, cursor_offset),
+  })
 }
 
 // Resolve the declared field type at a value position or empty value after a colon
@@ -340,7 +396,7 @@ fn get_declared_field_typ_at_value<'db>(
   let key_text = get_entry_key_text(&entry)?;
   let mapping = entry
     .parent()
-    .filter(|p| p.kind() == SyntaxKind::YamlMapping)?;
+    .filter(|parent| parent.kind() == SyntaxKind::YamlMapping)?;
   resolve_field_typ_from_schema(db, project, &mapping, &key_text)
 }
 
@@ -367,7 +423,7 @@ fn collect_fref_wrapped_completions(
   let candidates = collect_fref_candidates(db, project, expected_typ);
   candidates
     .iter()
-    .map(|c| build_candidate_completion(c, |path| format!("fref(\"{path}\")")))
+    .map(|candidate| build_candidate_completion(candidate, |path| format!("fref(\"{path}\")")))
     .collect()
 }
 
@@ -509,26 +565,30 @@ fn collect_enum_items(
   inside_str: bool,
   items: &mut Vec<CompletionItem>,
 ) {
-  let sum = if let Some(s) = typ.as_td_sum_typ() {
-    s
+  let sum = if let Some(sum) = typ.as_td_sum_typ() {
+    sum
   } else {
     return;
   };
   for member in sum.members(db) {
-    let Some(resolved) = member.resolve(db) else {
+    let Some(resolved_member) = member.resolve(db) else {
       continue;
     };
-    let Some(lit) = resolved.as_td_lit_typ() else {
+    let Some(lit) = resolved_member.as_td_lit_typ() else {
       continue;
     };
     let (label, insert_text, detail) = match lit.value(db) {
-      LitValue::String(s) => {
-        let label = format!("\"{s}\"");
-        let insert = if inside_str { s.clone() } else { label.clone() };
+      LitValue::String(string) => {
+        let label = format!("\"{string}\"");
+        let insert = if inside_str {
+          string.clone()
+        } else {
+          label.clone()
+        };
         (label, insert, "string".to_string())
       }
-      LitValue::Number(n) => (n.clone(), n.clone(), "number".to_string()),
-      LitValue::Bool(b) => (b.to_string(), b.to_string(), "boolean".to_string()),
+      LitValue::Number(number) => (number.clone(), number.clone(), "number".to_string()),
+      LitValue::Bool(bool) => (bool.to_string(), bool.to_string(), "boolean".to_string()),
     };
     items.push(CompletionItem {
       label,
@@ -603,9 +663,9 @@ fn collect_schema_completions(db: &TypedownDatabase, project: Project) -> Vec<Co
   members(db, scope)
     .members(db)
     .iter()
-    .filter(|(_, sym)| matches!(sym.kind(db), SymbolKind::UserDefinedSchema(..)))
-    .map(|(name, sym)| {
-      let snippet = build_schema_snippet(db, name, sym);
+    .filter(|(_, symbol)| matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(..)))
+    .map(|(name, symbol)| {
+      let snippet = build_schema_snippet(db, name, symbol);
 
       CompletionItem {
         label: name.clone(),
@@ -621,7 +681,7 @@ fn collect_schema_completions(db: &TypedownDatabase, project: Project) -> Vec<Co
 // Build a snippet with all schema fields as placeholders
 fn build_schema_snippet(db: &TypedownDatabase, name: &str, symbol: &Symbol) -> String {
   let typ = evaluate_typ(db, *symbol).typ(db);
-  let schema = typ.as_ref().and_then(|t| t.as_td_schema_typ());
+  let schema = typ.as_ref().and_then(|typ| typ.as_td_schema_typ());
 
   let Some(schema) = schema else {
     return name.to_string();
@@ -661,8 +721,8 @@ fn make_snippet_placeholder(db: &TypedownDatabase, lazy: &LazyTyp, indent: usize
         return make_snippet_placeholder(db, non_null[0], indent);
       }
       // Enum: use first literal string option as default
-      let first = members.iter().find_map(|m| {
-        if let Some(TdTypEnum::TdLitTyp(lit)) = m.resolve(db)
+      let first = members.iter().find_map(|member| {
+        if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
           && let LitValue::String(string) = lit.value(db)
         {
           return Some(string);
@@ -718,7 +778,7 @@ fn collect_existing_keys(mapping: &RedNode) -> Vec<String> {
     .filter_map(|entry| {
       entry
         .children()
-        .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)
+        .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
         .map(|key| key.text().trim().to_string())
     })
     .collect()
@@ -733,9 +793,9 @@ fn collect_field_completions_from_typ(
   let fields = typ.get_fields(db);
   let mut items: Vec<CompletionItem> = fields
     .iter()
-    .filter(|(field, _)| !existing.iter().any(|k| k == *field))
+    .filter(|(field, _)| !existing.iter().any(|key| key == *field))
     .map(|(field, lazy)| {
-      let optional = lazy.resolve(db).is_some_and(|t| is_nullable(db, &t));
+      let optional = lazy.resolve(db).is_some_and(|typ| is_nullable(db, &typ));
       let detail = if optional { "optional" } else { "required" };
 
       CompletionItem {
@@ -749,7 +809,7 @@ fn collect_field_completions_from_typ(
     .collect();
 
   // Add _meta snippet if not already present
-  if !existing.iter().any(|k| k == "_meta") {
+  if !existing.iter().any(|key| key == "_meta") {
     items.push(CompletionItem {
       label: "_meta".to_string(),
       kind: Some(CompletionItemKind::SNIPPET),
@@ -793,31 +853,31 @@ fn collect_container_prop_completions(
   let entries = contract.entries(db).clone();
   let entry = entries
     .iter()
-    .find(|e| e.name == component_name || e.name == pascal)?;
+    .find(|entry| entry.name == component_name || entry.name == pascal)?;
 
   let props = entry.props.as_ref()?;
 
   let items = props
     .iter()
-    .filter(|p| !existing.iter().any(|e| e == &p.name))
-    .map(|p| {
-      let insert = if p.required {
-        format!("{}=", p.name)
+    .filter(|prop| !existing.iter().any(|entry| entry == &prop.name))
+    .map(|prop| {
+      let insert = if prop.required {
+        format!("{}=", prop.name)
       } else {
-        p.name.clone()
+        prop.name.clone()
       };
       CompletionItem {
-        label: p.name.clone(),
+        label: prop.name.clone(),
         kind: Some(CompletionItemKind::PROPERTY),
         detail: Some(format!(
           "{}{}",
-          p.typ_name,
-          if p.required { "" } else { "?" }
+          prop.typ_name,
+          if prop.required { "" } else { "?" }
         )),
-        documentation: p.description.as_ref().map(|d| {
+        documentation: prop.description.as_ref().map(|documentation| {
           lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
             kind: lsp_types::MarkupKind::Markdown,
-            value: d.clone(),
+            value: documentation.clone(),
           })
         }),
         insert_text: Some(insert),
@@ -852,7 +912,7 @@ fn collect_container_slot_completions(
   let entries = contract.entries(db).clone();
   let entry = entries
     .iter()
-    .find(|e| e.name == component_name || e.name == pascal)?;
+    .find(|entry| entry.name == component_name || entry.name == pascal)?;
 
   if entry.slots.is_empty() {
     return None;
@@ -862,9 +922,9 @@ fn collect_container_slot_completions(
   let items = entry
     .slots
     .iter()
-    .filter(|s| !existing.iter().any(|e| e == *s))
-    .map(|s| CompletionItem {
-      label: s.clone(),
+    .filter(|slot| !existing.iter().any(|entry| entry == *slot))
+    .map(|slot| CompletionItem {
+      label: slot.clone(),
       kind: Some(CompletionItemKind::ENUM_MEMBER),
       detail: Some("slot".to_string()),
       ..Default::default()
@@ -947,7 +1007,7 @@ properties:
 ---
 "#;
 
-  /// Strip the `|` cursor marker from content and return its char offset.
+  /// Strip the `|` cursor marker from content and return its char offset
   fn cursor(content: &str) -> (String, usize) {
     let offset = content
       .find('|')
@@ -955,7 +1015,7 @@ properties:
     (content.replacen('|', "", 1), offset)
   }
 
-  /// Build CompletionParams from a URI, content string, and char offset.
+  /// Build CompletionParams from a URI, content string, and char offset
   fn make_params(uri: Uri, content: &str, offset: usize) -> CompletionParams {
     let rope = Rope::from(content);
     let line = rope.char_to_line(offset);
@@ -1098,7 +1158,7 @@ _type: |
 
     let person = items
       .iter()
-      .find(|i| i.label == "Person")
+      .find(|item| item.label == "Person")
       .expect("should have Person");
     let snippet = person
       .insert_text
@@ -1149,7 +1209,7 @@ _type: |
 
     let task = items
       .iter()
-      .find(|i| i.label == "Task")
+      .find(|item| item.label == "Task")
       .expect("should have Task");
     let snippet = task.insert_text.as_ref().expect("should have insert_text");
 
@@ -1418,14 +1478,14 @@ Reference: ${|}
       item
         .insert_text
         .as_deref()
-        .is_some_and(|t| t.starts_with("fref(\"") && t.ends_with("\")"))
+        .is_some_and(|text| text.starts_with("fref(\"") && text.ends_with("\")"))
     });
     assert!(
       has_fref_insert,
       "should wrap path in fref(): {:?}",
       items
         .iter()
-        .map(|i| (&i.label, &i.insert_text))
+        .map(|item| (&item.label, &item.insert_text))
         .collect::<Vec<_>>()
     );
 
@@ -1437,19 +1497,22 @@ Reference: ${|}
     assert!(
       alice_item.is_some(),
       "should have alice completion with human-readable label: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
 
     // Detail should be the path
     let alice = alice_item.unwrap();
     assert!(
-      alice.detail.as_deref().is_some_and(|d| d.contains("alice")),
+      alice
+        .detail
+        .as_deref()
+        .is_some_and(|detail| detail.contains("alice")),
       "detail should contain the file path: {:?}",
       alice.detail
     );
 
     // Should also have scope variables like `self`, `fref`, `icon`
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"self"),
       "should suggest 'self' variable inside ${{}}:\n{labels:?}"
@@ -1610,7 +1673,7 @@ date: 2024-01-01
         FileMetadata::default(),
       ),
     );
-    let task_ref_file = File::new(
+    let task_reference_file = File::new(
       &db,
       FileHandle::Content(
         type_root.join("TaskRef.td"),
@@ -1656,7 +1719,7 @@ date: 2024-01-01
       (root.join("_types/Person.td"), person_file),
       (root.join("_types/Event.td"), event_file),
       (root.join("_types/Directory.td"), directory_file),
-      (root.join("_types/TaskRef.td"), task_ref_file),
+      (root.join("_types/TaskRef.td"), task_reference_file),
       (root.join("_types/Collection.td"), collection_file),
       (root.join("alice.td"), alice_file),
       (root.join("birthday.td"), birthday_file),
@@ -1699,12 +1762,12 @@ featured: fref("|")
       .filter_map(|item| item.detail.clone())
       .collect();
     assert!(
-      details.iter().any(|d| d.contains("alice")),
+      details.iter().any(|detail| detail.contains("alice")),
       "should suggest alice.td (Person type), got: {:?}",
       details
     );
     assert!(
-      !details.iter().any(|d| d.contains("birthday")),
+      !details.iter().any(|detail| detail.contains("birthday")),
       "should not suggest birthday.td (Event type), got: {:?}",
       details
     );
@@ -1818,12 +1881,12 @@ vault:
 
     // Should suggest "alice.td", not "vault/alice.td"
     assert!(
-      details.iter().any(|d| d == "alice.td"),
+      details.iter().any(|detail| detail == "alice.td"),
       "should suggest vault-relative path 'alice.td', got: {:?}",
       details
     );
     assert!(
-      !details.iter().any(|d| d.contains("vault/")),
+      !details.iter().any(|detail| detail.contains("vault/")),
       "should not include vault dir prefix in path, got: {:?}",
       details
     );
@@ -1887,7 +1950,12 @@ featured: fref(|)
 
     let alice_item = items
       .iter()
-      .find(|item| item.detail.as_deref().is_some_and(|d| d.contains("alice")))
+      .find(|item| {
+        item
+          .detail
+          .as_deref()
+          .is_some_and(|detail| detail.contains("alice"))
+      })
       .expect("should suggest alice.td");
 
     let insert = alice_item
@@ -1927,12 +1995,12 @@ featured: |
       item
         .insert_text
         .as_deref()
-        .is_some_and(|t| t.contains("alice"))
+        .is_some_and(|text| text.contains("alice"))
     });
     assert!(
       has_alice,
       "should suggest alice.td: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
   }
 
@@ -1961,7 +2029,7 @@ featured: a|
         item
           .insert_text
           .as_deref()
-          .is_some_and(|t| t.contains("alice"))
+          .is_some_and(|text| text.contains("alice"))
       })
       .expect("should suggest alice for Person-typed field");
 
@@ -1969,7 +2037,7 @@ featured: a|
       alice_item
         .insert_text
         .as_deref()
-        .is_some_and(|t| t.starts_with("fref(\"") && t.ends_with("\")")),
+        .is_some_and(|text| text.starts_with("fref(\"") && text.ends_with("\")")),
       "insert_text should wrap path in fref(): {:?}",
       alice_item.insert_text
     );
@@ -1998,12 +2066,12 @@ assignee: |
       item
         .insert_text
         .as_deref()
-        .is_some_and(|t| t.contains("fref("))
+        .is_some_and(|text| text.contains("fref("))
     });
     assert!(
       has_fref,
       "nullable Person? field should suggest fref completions: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
   }
 
@@ -2032,12 +2100,12 @@ name: a|
         && item
           .insert_text
           .as_deref()
-          .is_some_and(|t| t.contains("fref("))
+          .is_some_and(|text| text.contains("fref("))
     });
     assert!(
       !has_wrapped_fref,
       "string field should not suggest fref file completions: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
   }
 
@@ -2067,7 +2135,7 @@ name: a|
     assert!(
       !has_resource,
       "resource files should not appear as bare completions: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
   }
 
@@ -2119,7 +2187,7 @@ age: |
       assert!(
         !has_resource,
         "resource files should not appear in number field: {:?}",
-        items.iter().map(|i| &i.label).collect::<Vec<_>>()
+        items.iter().map(|item| &item.label).collect::<Vec<_>>()
       );
     }
   }
@@ -2144,7 +2212,7 @@ address: |
       assert!(
         !has_resource,
         "resource files should not appear in object-typed field: {:?}",
-        items.iter().map(|i| &i.label).collect::<Vec<_>>()
+        items.iter().map(|item| &item.label).collect::<Vec<_>>()
       );
     }
   }
@@ -2169,7 +2237,7 @@ name: "ali|"
       assert!(
         !has_resource,
         "resource files should not appear inside a quoted string value: {:?}",
-        items.iter().map(|i| &i.label).collect::<Vec<_>>()
+        items.iter().map(|item| &item.label).collect::<Vec<_>>()
       );
     }
   }
@@ -2257,14 +2325,14 @@ authors:
           && item
             .insert_text
             .as_deref()
-            .is_none_or(|t| !t.starts_with("fref("))
+            .is_none_or(|text| !text.starts_with("fref("))
       });
       assert!(
         !has_bare_resource,
         "list[Person] items should not appear as bare resource names: {:?}",
         items
           .iter()
-          .map(|i| (&i.label, &i.insert_text))
+          .map(|item| (&item.label, &item.insert_text))
           .collect::<Vec<_>>()
       );
     }
@@ -2288,7 +2356,7 @@ priority: "high"
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions for enum field");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"\"todo\""),
       "should suggest 'todo': {:?}",
@@ -2323,11 +2391,11 @@ date: d|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions for date field");
     };
-    let has_date = items.iter().any(|i| i.label.contains("YYYY-MM-DD"));
+    let has_date = items.iter().any(|item| item.label.contains("YYYY-MM-DD"));
     assert!(
       has_date,
       "date field should suggest ISO format: {:?}",
-      items.iter().map(|i| &i.label).collect::<Vec<_>>()
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
   }
 
@@ -2363,7 +2431,7 @@ address:
     );
   }
 
-  // --- Expression and dot-access completion tests ---
+  // Expression and dot-access completion tests
 
   #[test]
   fn value_position_suggests_builtin_variables() {
@@ -2381,7 +2449,7 @@ name: i|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(labels.contains(&"icon"), "should suggest builtin 'icon'");
     assert!(labels.contains(&"fref"), "should suggest builtin 'fref'");
     assert!(labels.contains(&"vault"), "should suggest builtin 'vault'");
@@ -2403,7 +2471,7 @@ name: s|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"string"),
       "should suggest builtin type 'string'"
@@ -2434,7 +2502,7 @@ name: a|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"alice"),
       "should suggest project file 'alice'"
@@ -2461,9 +2529,9 @@ name: x|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
-      !labels.iter().any(|l| l.starts_with('_')),
+      !labels.iter().any(|label| label.starts_with('_')),
       "should not suggest underscore-prefixed items: {:?}",
       labels
     );
@@ -2485,7 +2553,7 @@ name: ic|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     // Keywords
     assert!(labels.contains(&"true"), "should include keyword 'true'");
     assert!(labels.contains(&"false"), "should include keyword 'false'");
@@ -2508,7 +2576,7 @@ _icon: icon.|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected dot-access completions for icon");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"book"),
       "should suggest 'book' icon: {:?}",
@@ -2521,7 +2589,7 @@ _icon: icon.|
     );
     // Should NOT include the "icon." prefix (just the member name)
     assert!(
-      !labels.iter().any(|l| l.contains('.')),
+      !labels.iter().any(|label| label.contains('.')),
       "labels should be bare names, not dotted: {:?}",
       labels
     );
@@ -2542,7 +2610,7 @@ _icon: icon.bo|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected dot-access completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"book"),
       "should suggest 'book' with partial 'bo': {:?}",
@@ -2564,7 +2632,7 @@ _icon: ic|
 
     let response = completion(&analysis, params);
     if let Some(CompletionResponse::Array(items)) = response {
-      let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+      let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
       // Should not have icon member names like "book" without the dot
       assert!(
         !labels.contains(&"book"),
@@ -2591,11 +2659,116 @@ name: icon.|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected dot-access completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"book"),
       "dot-access should work in any field: {:?}",
       labels
+    );
+  }
+
+  // After ${fref("...").| in markdown body, only schema field names should be suggested,
+  // not file paths or scope variables from the interp fallthrough
+  #[test]
+  fn dot_access_on_fref_in_markdown_body_suggests_fields_not_file_paths() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: Alice
+---
+
+${fref("alice.td").|
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected dot-access completions in markdown body");
+    };
+
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+
+    // Should suggest schema field names
+    assert!(
+      labels.contains(&"name"),
+      "should suggest 'name' field from Person schema: {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"age"),
+      "should suggest 'age' field from Person schema: {:?}",
+      labels
+    );
+
+    // Should NOT suggest file paths or fref-wrapped completions
+    let has_fref_completion = items.iter().any(|item| {
+      item
+        .insert_text
+        .as_deref()
+        .is_some_and(|text| text.starts_with("fref("))
+    });
+    assert!(
+      !has_fref_completion,
+      "should not suggest fref() file completions after dot: {:?}",
+      labels
+    );
+
+    // Should NOT suggest scope variables like 'self' or 'fref' (those are for interp, not dot access)
+    assert!(
+      !labels.contains(&"self"),
+      "should not suggest 'self' in dot-access position: {:?}",
+      labels
+    );
+  }
+
+  // When cursor is inside fref() with unquoted partial path (e.g. fref(some|)),
+  // completion should use text_edit to replace the existing unquoted content with a quoted path
+  #[test]
+  fn fref_unquoted_arg_completion_uses_text_edit_to_replace_and_quote() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Directory
+featured: fref(some|)
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected fref completions");
+    };
+
+    let alice_item = items
+      .iter()
+      .find(|item| {
+        item
+          .detail
+          .as_deref()
+          .is_some_and(|detail| detail.contains("alice"))
+      })
+      .expect("should suggest alice.td");
+
+    // Should have a text_edit that replaces existing unquoted content with quoted path
+    let text_edit = alice_item
+      .text_edit
+      .as_ref()
+      .expect("should have text_edit to replace unquoted arg");
+
+    let new_text = match text_edit {
+      lsp_types::CompletionTextEdit::Edit(edit) => &edit.new_text,
+      lsp_types::CompletionTextEdit::InsertAndReplace(entry) => &entry.new_text,
+    };
+    assert!(
+      new_text.starts_with('"') && new_text.ends_with('"'),
+      "text_edit new_text should be a quoted path, got: {new_text}"
+    );
+    assert!(
+      new_text.contains("alice"),
+      "text_edit new_text should contain 'alice', got: {new_text}"
     );
   }
 
@@ -2615,7 +2788,7 @@ name: (x) -> x|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected completions inside closure body");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"x"),
       "should suggest closure param 'x': {:?}",
@@ -2644,7 +2817,7 @@ name: (a, b) -> a|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected completions inside closure body");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"a"),
       "should suggest param 'a': {:?}",
@@ -2673,7 +2846,7 @@ name: s|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
       labels.contains(&"self"),
       "should suggest 'self': {:?}",
@@ -2700,13 +2873,13 @@ _type: Person
 
     let name_item = items
       .iter()
-      .find(|i| i.label == "name")
+      .find(|item| item.label == "name")
       .expect("should suggest name");
     assert_eq!(name_item.detail.as_deref(), Some("required"));
 
     let nickname_item = items
       .iter()
-      .find(|i| i.label == "nickname")
+      .find(|item| item.label == "nickname")
       .expect("should suggest nickname");
     assert_eq!(nickname_item.detail.as_deref(), Some("optional"));
   }
@@ -2730,7 +2903,7 @@ _type: Person
 
     let field_items: Vec<&CompletionItem> = items
       .iter()
-      .filter(|i| i.kind == Some(CompletionItemKind::FIELD))
+      .filter(|item| item.kind == Some(CompletionItemKind::FIELD))
       .collect();
 
     // All required fields should have sort_text starting with "0"
@@ -2774,7 +2947,7 @@ name: "Alice"
 
     let meta_item = items
       .iter()
-      .find(|i| i.label == "_meta")
+      .find(|item| item.label == "_meta")
       .expect("should suggest _meta");
     assert_eq!(meta_item.kind, Some(CompletionItemKind::SNIPPET));
     assert_eq!(meta_item.detail.as_deref(), Some("SEO overrides"));
@@ -2805,7 +2978,7 @@ name: "Alice"
     };
 
     assert!(
-      !items.iter().any(|i| i.label == "_meta"),
+      !items.iter().any(|item| item.label == "_meta"),
       "_meta should not be suggested when already present"
     );
   }
@@ -3022,7 +3195,7 @@ $$
     };
     let kind_item = items
       .iter()
-      .find(|i| i.label == "kind")
+      .find(|item| item.label == "kind")
       .expect("should suggest 'kind' prop");
     let doc = kind_item
       .documentation
@@ -3064,7 +3237,7 @@ $$
     };
     let kind_item = items
       .iter()
-      .find(|i| i.label == "kind")
+      .find(|item| item.label == "kind")
       .expect("should suggest 'kind' prop");
     assert!(
       kind_item.documentation.is_none(),

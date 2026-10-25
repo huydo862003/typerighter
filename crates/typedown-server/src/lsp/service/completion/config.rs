@@ -36,16 +36,16 @@ pub fn resolve_completion(
 /// Returns true if the cursor is nested inside a `vault` mapping entry value.
 fn is_under_vault(node: &RedNode) -> bool {
   let mut current = node.parent();
-  while let Some(ref cur) = current {
-    if cur.kind() == SyntaxKind::YamlMappingEntry {
-      let key = cur
+  while let Some(ref current_) = current {
+    if current_.kind() == SyntaxKind::YamlMappingEntry {
+      let key = current_
         .children()
         .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey);
-      if key.is_some_and(|k| k.text().trim() == "vault") {
+      if key.is_some_and(|key| key.text().trim() == "vault") {
         return true;
       }
     }
-    current = cur.parent();
+    current = current_.parent();
   }
   false
 }

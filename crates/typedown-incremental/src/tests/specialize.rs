@@ -3,8 +3,8 @@ use typedown_macros::specialize;
 
 #[test]
 fn dispatches_to_display_for_i32() {
-  let val = 42i32;
-  let result = specialize!(val {
+  let value = 42i32;
+  let result = specialize!(value {
     where Display => "display";
     default => "other";
   });
@@ -14,8 +14,8 @@ fn dispatches_to_display_for_i32() {
 #[test]
 fn dispatches_to_default_for_non_display() {
   struct Opaque;
-  let val = Opaque;
-  let result = specialize!(val {
+  let value = Opaque;
+  let result = specialize!(value {
     where Display => "display";
     default => "other";
   });
@@ -44,9 +44,9 @@ fn type_dispatch_to_default() {
 #[test]
 fn captures_outer_scope() {
   let mut buf: Vec<String> = Vec::new();
-  let val = 42i32;
-  specialize!(val {
-    where Display => buf.push(format!("{}", val));
+  let value = 42i32;
+  specialize!(value {
+    where Display => buf.push(format!("{}", value));
     default => buf.push("opaque".to_string());
   });
   assert_eq!(buf, vec!["42"]);

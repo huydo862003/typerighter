@@ -166,7 +166,7 @@ impl DeserializeContext {
     let new_entry_id = self
       .old_session_entry_id_to_new_session_id_map
       .get(&group_key)
-      .map(|v| *v.value())?;
+      .map(|value| *value.value())?;
     Some((name_fingerprint, identity_hash, disambiguator, new_entry_id))
   }
 

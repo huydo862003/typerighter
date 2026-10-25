@@ -27,7 +27,7 @@ fn cache_roundtrip_creates_and_loads_files() {
   // Verify files exist in a finalized session directory
   let entries: Vec<_> = std::fs::read_dir(&cache_dir)
     .unwrap()
-    .filter_map(|e| e.ok())
+    .filter_map(|entry| entry.ok())
     .collect();
   assert_eq!(
     entries.len(),
@@ -66,13 +66,13 @@ fn cache_roundtrip_creates_and_loads_files() {
 
     let finalized: Vec<_> = std::fs::read_dir(&cache_dir)
       .unwrap()
-      .filter_map(|e| e.ok())
-      .filter(|e| {
-        e.path().is_dir()
-          && e
+      .filter_map(|entry| entry.ok())
+      .filter(|entry| {
+        entry.path().is_dir()
+          && entry
             .file_name()
             .to_str()
-            .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+            .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
       })
       .collect();
     assert_eq!(

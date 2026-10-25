@@ -26,34 +26,34 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
   let file = *project.files(db).get(&path)?;
 
   // resolve the symbol the cursor is pointing at, either fref or ident
-  let symbol = resolve_symbol(db, project, file, offset).filter(|sym| {
+  let symbol = resolve_symbol(db, project, file, offset).filter(|symbol| {
     // builtin symbols (schema, fref macro) have no user references, treat as unresolved
     !matches!(
-      sym.kind(db),
+      symbol.kind(db),
       SymbolKind::BuiltinSchema(_) | SymbolKind::BuiltinMacro(_)
     )
   })?;
 
   // collect all project-wide references to the symbol
-  let refs = references(db, project, symbol);
-  let mut locations: Vec<Location> = refs
+  let references = references(db, project, symbol);
+  let mut locations: Vec<Location> = references
     .into_iter()
     .filter_map(|reference| {
-      let ref_path = reference.node.file.handle(db).path()?.clone();
-      let ref_rope = analysis.file_rope(&ref_path)?;
+      let reference_path = reference.node.file.handle(db).path()?.clone();
+      let reference_rope = analysis.file_rope(&reference_path)?;
 
       let range = match reference.kind {
-        ReferenceKind::Ident => node_trimmed_range(&ref_rope, &reference.node.node),
-        ReferenceKind::Fref => fref_path_range(db, &ref_rope, &reference.node)
-          .unwrap_or_else(|| node_trimmed_range(&ref_rope, &reference.node.node)),
+        ReferenceKind::Ident => node_trimmed_range(&reference_rope, &reference.node.node),
+        ReferenceKind::Fref => fref_path_range(db, &reference_rope, &reference.node)
+          .unwrap_or_else(|| node_trimmed_range(&reference_rope, &reference.node.node)),
       };
       let scheme = analysis
         .scheme_map
-        .get(&ref_path)
+        .get(&reference_path)
         .map(String::as_str)
         .unwrap_or("file");
       Some(Location {
-        uri: path_to_uri(&ref_path, scheme),
+        uri: path_to_uri(&reference_path, scheme),
         range,
       })
     })
@@ -66,12 +66,25 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
   if locations.is_empty() {
     return None;
   }
-  locations.sort_by(|a, b| {
-    a.uri
+  locations.sort_by(|first_location, second_location| {
+    first_location
+      .uri
       .as_str()
-      .cmp(b.uri.as_str())
-      .then_with(|| a.range.start.line.cmp(&b.range.start.line))
-      .then_with(|| a.range.start.character.cmp(&b.range.start.character))
+      .cmp(second_location.uri.as_str())
+      .then_with(|| {
+        first_location
+          .range
+          .start
+          .line
+          .cmp(&second_location.range.start.line)
+      })
+      .then_with(|| {
+        first_location
+          .range
+          .start
+          .character
+          .cmp(&second_location.range.start.character)
+      })
   });
 
   Some(locations)
@@ -98,14 +111,14 @@ fn declaration_location(
   db: &TypedownDatabase,
   symbol: Symbol,
 ) -> Option<Location> {
-  let decl_path = symbol_file_path(db, symbol)?;
+  let declaration_path = symbol_file_path(db, symbol)?;
   let scheme = analysis
     .scheme_map
-    .get(&decl_path)
+    .get(&declaration_path)
     .map(String::as_str)
     .unwrap_or("file");
   Some(Location {
-    uri: path_to_uri(&decl_path, scheme),
+    uri: path_to_uri(&declaration_path, scheme),
     range: Range::default(),
   })
 }
@@ -298,7 +311,10 @@ name: Alice
       locations.len(),
       3,
       "should find exactly 3 references, got: {:?}",
-      locations.iter().map(|l| l.uri.as_str()).collect::<Vec<_>>()
+      locations
+        .iter()
+        .map(|location| location.uri.as_str())
+        .collect::<Vec<_>>()
     );
     assert!(
       locations[0].uri.as_str().contains("alice"),
@@ -333,7 +349,7 @@ name: Alice
     assert!(
       !locations
         .iter()
-        .any(|l| l.uri.as_str().contains("Person.td"))
+        .any(|location| location.uri.as_str().contains("Person.td"))
     );
   }
   // include_declaration appends the schema definition file, pointing to its _type value
@@ -350,12 +366,12 @@ name: Alice
     let (analysis, uri) = setup(test_path, &content);
     let params = make_params(uri, &content, offset, true);
     let locations = find_references(&analysis, params).expect("should find references");
-    let decl = locations
+    let declaration = locations
       .iter()
-      .find(|l| l.uri.as_str().contains("Person.td"))
+      .find(|location| location.uri.as_str().contains("Person.td"))
       .expect("should include Person.td declaration");
     // Declaration always points to top of file
-    assert_eq!(decl.range, lsp_types::Range::default());
+    assert_eq!(declaration.range, lsp_types::Range::default());
   }
   // Cursor on a builtin ident returns None, builtins have no user references
   #[test]
@@ -394,7 +410,7 @@ name: fref("ali|ce.td")
     let locations = find_references(&analysis, params).expect("should find fref references");
     let fref_location = locations
       .iter()
-      .find(|l| l.uri == uri)
+      .find(|location| location.uri == uri)
       .expect("should include file.td (the fref site)");
     // the fref call is on line 2
     // alice.td starts right after the opening quote at col 12, ends at col 20
@@ -446,7 +462,7 @@ name: Alice
     // Find the location in file.td itself
     let own_location = locations
       .iter()
-      .find(|l| l.uri == uri)
+      .find(|location| location.uri == uri)
       .expect("should have a location in file.td");
     // "Person" is on line 1, columns 7-13
     assert_eq!(own_location.range.start.line, 1);

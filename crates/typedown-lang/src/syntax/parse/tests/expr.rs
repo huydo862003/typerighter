@@ -18,7 +18,7 @@ fn parse_expr(input: &str) -> String {
   let mapping = frontmatter
     .children()
     .iter()
-    .find(|c| c.is_node() && c.as_node().unwrap().kind() == SyntaxKind::YamlMapping)
+    .find(|child| child.is_node() && child.as_node().unwrap().kind() == SyntaxKind::YamlMapping)
     .expect("Expected BlockMapping in frontmatter");
 
   // Find the `key: ...` entry
@@ -27,7 +27,9 @@ fn parse_expr(input: &str) -> String {
     .unwrap()
     .children()
     .iter()
-    .find(|c| c.is_node() && c.as_node().unwrap().kind() == SyntaxKind::YamlMappingEntry)
+    .find(|child| {
+      child.is_node() && child.as_node().unwrap().kind() == SyntaxKind::YamlMappingEntry
+    })
     .expect("Expected MappingEntry in BlockMapping")
     .as_node()
     .unwrap();
@@ -37,28 +39,36 @@ fn parse_expr(input: &str) -> String {
     .children()
     .iter()
     .rev()
-    .find(|c| c.is_node())
+    .find(|child| child.is_node())
     .expect("Expected value in mapping entry");
 
   render_tree(value)
 }
 
 fn parse_expr_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
-  let full = format!("---\nkey: {}\n---\n", input);
+  let full = format!(
+    "---
+key: {}
+---
+",
+    input
+  );
   let (ast, diagnostics) = parse(&full);
   let root = ast.as_node().unwrap();
   let frontmatter = root.children()[0].as_node().unwrap();
   let mapping = frontmatter
     .children()
     .iter()
-    .find(|c| c.is_node() && c.as_node().unwrap().kind() == SyntaxKind::YamlMapping)
+    .find(|child| child.is_node() && child.as_node().unwrap().kind() == SyntaxKind::YamlMapping)
     .expect("Expected BlockMapping in frontmatter");
   let entry = mapping
     .as_node()
     .unwrap()
     .children()
     .iter()
-    .find(|c| c.is_node() && c.as_node().unwrap().kind() == SyntaxKind::YamlMappingEntry)
+    .find(|child| {
+      child.is_node() && child.as_node().unwrap().kind() == SyntaxKind::YamlMappingEntry
+    })
     .expect("Expected MappingEntry in BlockMapping")
     .as_node()
     .unwrap();
@@ -66,7 +76,7 @@ fn parse_expr_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
     .children()
     .iter()
     .rev()
-    .find(|c| c.is_node())
+    .find(|child| child.is_node())
     .expect("Expected value in mapping entry");
   let tree = render_tree(value);
   (tree, diagnostics)
@@ -501,8 +511,8 @@ fn parse_closure_as_rhs() {
 fn parse_dangling_param_list() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(a, b)");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::DanglingParamList,
         ..
@@ -518,8 +528,8 @@ fn parse_dangling_param_list() {
 fn parse_dangling_empty_param_list() {
   let (_, diagnostics) = parse_expr_with_diagnostics("()");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::DanglingParamList,
         ..
@@ -535,8 +545,8 @@ fn parse_dangling_empty_param_list() {
 fn parse_dangling_param_list_with_whitespace() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(a, b)   ");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::DanglingParamList,
         ..
@@ -552,8 +562,8 @@ fn parse_dangling_param_list_with_whitespace() {
 fn parse_dangling_param_list_as_lhs() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(a, b) + 1");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::DanglingParamList,
         ..
@@ -569,8 +579,8 @@ fn parse_dangling_param_list_as_lhs() {
 fn parse_dangling_param_list_as_rhs() {
   let (_, diagnostics) = parse_expr_with_diagnostics("1 + (a, b)");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::DanglingParamList,
         ..
@@ -586,8 +596,8 @@ fn parse_dangling_param_list_as_rhs() {
 fn parse_unclosed_param_list() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(a, b");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::UnclosedParamList,
         ..
@@ -603,8 +613,8 @@ fn parse_unclosed_param_list() {
 fn parse_unclosed_empty_param_list() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::MissingSyntaxNode {
           expected: SyntaxKind::PrimaryExpr,
@@ -740,8 +750,8 @@ key: x -> x + 1
 fn parse_closure_non_ident_param() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(1, 2) -> 3");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidClosureParams,
         ..
@@ -757,8 +767,8 @@ fn parse_closure_non_ident_param() {
 fn parse_closure_expr_param() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(1 + 2) -> 3");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidClosureParams,
         ..
@@ -774,8 +784,8 @@ fn parse_closure_expr_param() {
 fn parse_closure_invalid_lhs() {
   let (_, diagnostics) = parse_expr_with_diagnostics("42 -> 3");
   assert!(
-    diagnostics.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidClosureParams,
         ..
@@ -791,8 +801,8 @@ fn parse_closure_invalid_lhs() {
 fn parse_closure_valid_single_param_no_diagnostic() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(x) -> x");
   assert!(
-    !diagnostics.iter().any(|d| matches!(
-      d,
+    !diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidClosureParams,
         ..
@@ -808,8 +818,8 @@ fn parse_closure_valid_single_param_no_diagnostic() {
 fn parse_closure_valid_multi_param_no_diagnostic() {
   let (_, diagnostics) = parse_expr_with_diagnostics("(a, b) -> a");
   assert!(
-    !diagnostics.iter().any(|d| matches!(
-      d,
+    !diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidClosureParams,
         ..
@@ -825,8 +835,8 @@ fn parse_closure_valid_multi_param_no_diagnostic() {
 fn parse_closure_bare_ident_no_diagnostic() {
   let (_, diagnostics) = parse_expr_with_diagnostics("x -> x");
   assert!(
-    !diagnostics.iter().any(|d| matches!(
-      d,
+    !diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidClosureParams,
         ..
@@ -1169,7 +1179,7 @@ fn parse_precedence() {
 
 #[test]
 fn error_missing_operand() {
-  let (tree, diags) = parse_expr_with_diagnostics("1 +");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("1 +");
   let expected = r#"(YamlMappingEntryValue
   (BinaryExpr
     (NumberLit
@@ -1179,8 +1189,8 @@ fn error_missing_operand() {
     "+"
     (PrimaryExpr)))"#;
   assert_eq!(tree, expected);
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::PrimaryExpr,
@@ -1193,7 +1203,7 @@ fn error_missing_operand() {
 
 #[test]
 fn error_unclosed_paren() {
-  let (tree, diags) = parse_expr_with_diagnostics("(1");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("(1");
   let expected = r#"(YamlMappingEntryValue
   (ParenExpr
     " "
@@ -1205,8 +1215,8 @@ fn error_unclosed_paren() {
     (Error
       "---")))"#;
   assert_eq!(tree, expected);
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::RParen,
@@ -1219,7 +1229,7 @@ fn error_unclosed_paren() {
 
 #[test]
 fn error_unclosed_list() {
-  let (tree, _diags) = parse_expr_with_diagnostics("[1, 2");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("[1, 2");
   let expected = r#"(YamlMappingEntryValue
   (ListLit
     " "
@@ -1233,11 +1243,20 @@ fn error_unclosed_list() {
         " "
         "2"))))"#;
   assert_eq!(tree, expected);
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
+    TdDiagnostic {
+      kind: TdDiagnosticKind::MissingSyntaxNode {
+        expected: SyntaxKind::RBracket
+      },
+      ..
+    }
+  )));
 }
 
 #[test]
 fn error_unclosed_dict() {
-  let (tree, _diags) = parse_expr_with_diagnostics("{a: 1");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("{a: 1");
   let expected = r#"(YamlMappingEntryValue
   (DictLit
     " "
@@ -1251,19 +1270,28 @@ fn error_unclosed_dict() {
           " "
           "1")))))"#;
   assert_eq!(tree, expected);
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
+    TdDiagnostic {
+      kind: TdDiagnosticKind::MissingSyntaxNode {
+        expected: SyntaxKind::RBrace
+      },
+      ..
+    }
+  )));
 }
 
 #[test]
 fn error_unclosed_string() {
-  let (tree, diags) = parse_expr_with_diagnostics(r#""hello"#);
+  let (tree, diagnostics) = parse_expr_with_diagnostics(r#""hello"#);
   let expected = r#"(YamlMappingEntryValue
   (StrLit
     " "
     "\""
     "hello"))"#;
   assert_eq!(tree, expected);
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::UnterminatedString,
       ..
@@ -1273,7 +1301,7 @@ fn error_unclosed_string() {
 
 #[test]
 fn error_missing_value_in_mapping() {
-  let (tree, diags) = parse_expr_with_diagnostics("{a:}");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("{a:}");
   let expected = r#"(YamlMappingEntryValue
   (DictLit
     " "
@@ -1285,8 +1313,8 @@ fn error_missing_value_in_mapping() {
       (DictEntryValue))
     "}"))"#;
   assert_eq!(tree, expected);
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::DictEntryValue,
@@ -1299,7 +1327,7 @@ fn error_missing_value_in_mapping() {
 
 #[test]
 fn error_extra_comma_in_list() {
-  let (tree, diags) = parse_expr_with_diagnostics("[1,,2]");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("[1,,2]");
   let expected = r#"(YamlMappingEntryValue
   (ListLit
     " "
@@ -1316,8 +1344,8 @@ fn error_extra_comma_in_list() {
         "2"))
     "]"))"#;
   assert_eq!(tree, expected);
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::PrimaryExpr,
@@ -1330,11 +1358,11 @@ fn error_extra_comma_in_list() {
 
 #[test]
 fn error_empty_expression() {
-  let (tree, diags) = parse_expr_with_diagnostics("");
+  let (tree, diagnostics) = parse_expr_with_diagnostics("");
   let expected = r#"(YamlMappingEntryValue)"#;
   assert_eq!(tree, expected);
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::YamlMappingEntryValue,

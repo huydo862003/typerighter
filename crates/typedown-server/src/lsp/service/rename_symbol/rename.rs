@@ -53,8 +53,8 @@ pub fn rename(analysis: &Analysis, params: RenameParams) -> Option<WorkspaceEdit
   };
 
   // Collect text edits for all references + file rename
-  let refs = references(db, project, symbol);
-  let edits = collect_reference_edits(analysis, &refs, &new_stem, &new_path, &root_dir)?;
+  let references = references(db, project, symbol);
+  let edits = collect_reference_edits(analysis, &references, &new_stem, &new_path, &root_dir);
 
   build_workspace_edit(analysis, edits, vec![(old_path, new_path)])
 }
@@ -64,7 +64,7 @@ fn compute_fref_target(new_name: &str, root_dir: &Path) -> (PathBuf, String) {
   // Check extension on filename only, not the full path (e.g. "v2.0/file" has no extension)
   let has_extension = new_path
     .file_name()
-    .and_then(|f| Path::new(f).extension())
+    .and_then(|name| Path::new(name).extension())
     .is_some();
   let absolute = if has_extension {
     root_dir.join(new_name)
@@ -73,7 +73,7 @@ fn compute_fref_target(new_name: &str, root_dir: &Path) -> (PathBuf, String) {
   };
   let stem = new_path
     .file_stem()
-    .and_then(|s| s.to_str())
+    .and_then(|stem| stem.to_str())
     .unwrap_or(new_name)
     .to_string();
   (absolute, stem)
@@ -88,7 +88,7 @@ fn compute_ident_target(
   let new_path = Path::new(new_name);
   let has_extension = new_path
     .file_name()
-    .and_then(|f| Path::new(f).extension())
+    .and_then(|name| Path::new(name).extension())
     .is_some();
   let is_schema = matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(_, _));
   // Schemas must have a content file extension
@@ -98,7 +98,7 @@ fn compute_ident_target(
   let stem = if has_extension {
     new_path
       .file_stem()
-      .and_then(|s| s.to_str())
+      .and_then(|stem| stem.to_str())
       .unwrap_or(new_name)
   } else {
     new_name
@@ -185,7 +185,7 @@ age: 30
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
@@ -204,7 +204,7 @@ age: 30
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -245,24 +245,24 @@ age: 30
   }
 
   /// Serialize a WorkspaceEdit to a deterministic snapshot string
-  fn snapshot(edit: &lsp_types::WorkspaceEdit) -> String {
+  fn get_snapshot(edit: &lsp_types::WorkspaceEdit) -> String {
     let mut lines = vec![];
     if let Some(DocumentChanges::Operations(ops)) = &edit.document_changes {
       for op in ops {
         match op {
           DocumentChangeOperation::Edit(doc_edit) => {
             let uri = doc_edit.text_document.uri.as_str();
-            let short = uri.rfind("/vault/").map_or(uri, |i| &uri[i..]);
+            let short = uri.rfind("/vault/").map_or(uri, |index| &uri[index..]);
             for edit in &doc_edit.edits {
               if let lsp_types::OneOf::Left(text_edit) = edit {
-                let r = &text_edit.range;
+                let range = &text_edit.range;
                 lines.push(format!(
                   "EDIT {} [{}:{}-{}:{}] -> {:?}",
                   short,
-                  r.start.line,
-                  r.start.character,
-                  r.end.line,
-                  r.end.character,
+                  range.start.line,
+                  range.start.character,
+                  range.end.line,
+                  range.end.character,
                   text_edit.new_text
                 ));
               }
@@ -271,8 +271,8 @@ age: 30
           DocumentChangeOperation::Op(ResourceOp::Rename(rename_file)) => {
             let old = rename_file.old_uri.as_str();
             let new = rename_file.new_uri.as_str();
-            let old_short = old.rfind("/vault/").map_or(old, |i| &old[i..]);
-            let new_short = new.rfind("/vault/").map_or(new, |i| &new[i..]);
+            let old_short = old.rfind("/vault/").map_or(old, |index| &old[index..]);
+            let new_short = new.rfind("/vault/").map_or(new, |index| &new[index..]);
             lines.push(format!("RENAME {} -> {}", old_short, new_short));
           }
           _ => {}
@@ -296,28 +296,28 @@ name: Alice
     let (analysis, uri) = setup(&raw);
     let edit =
       rename(&analysis, make_params(uri, &raw, offset, "Human")).expect("should produce edits");
-    let snap = snapshot(&edit);
+    let snapshot = get_snapshot(&edit);
 
-    assert!(snap.contains("EDIT"), "should have text edits");
-    assert!(snap.contains("RENAME"), "should have file rename");
+    assert!(snapshot.contains("EDIT"), "should have text edits");
+    assert!(snapshot.contains("RENAME"), "should have file rename");
     assert_eq!(
-      snap.matches("EDIT").count(),
+      snapshot.matches("EDIT").count(),
       2,
       "should have 2 text edits:\n{}",
-      snap
+      snapshot
     );
     assert!(
-      snap
+      snapshot
         .lines()
-        .filter(|l| l.starts_with("EDIT"))
-        .all(|l| l.contains("\"Human\"")),
+        .filter(|line| line.starts_with("EDIT"))
+        .all(|line| line.contains("\"Human\"")),
       "all text edits should rename to Human:\n{}",
-      snap
+      snapshot
     );
     assert!(
-      snap.contains("Human.td"),
+      snapshot.contains("Human.td"),
       "file rename should use Human.td:\n{}",
-      snap
+      snapshot
     );
   }
 
@@ -334,18 +334,22 @@ friend: fref("|alice.td")
     let (analysis, uri) = setup(&raw);
     let edit =
       rename(&analysis, make_params(uri, &raw, offset, "bob")).expect("should produce edits");
-    let snap = snapshot(&edit);
+    let snapshot = get_snapshot(&edit);
 
-    assert!(snap.contains("EDIT"), "should have text edits:\n{}", snap);
     assert!(
-      snap.contains("RENAME"),
-      "should have file rename:\n{}",
-      snap
+      snapshot.contains("EDIT"),
+      "should have text edits:\n{}",
+      snapshot
     );
     assert!(
-      snap.contains("bob"),
+      snapshot.contains("RENAME"),
+      "should have file rename:\n{}",
+      snapshot
+    );
+    assert!(
+      snapshot.contains("bob"),
       "edits should reference new name:\n{}",
-      snap
+      snapshot
     );
   }
 
@@ -393,8 +397,12 @@ name: Alice
     );
     let (analysis, uri) = setup(&raw);
     let edit = rename(&analysis, make_params(uri, &raw, offset, "Human")).expect("first rename");
-    let snap = snapshot(&edit);
-    assert!(snap.contains("\"Human\""), "first rename:\n{}", snap);
+    let snapshot = get_snapshot(&edit);
+    assert!(
+      snapshot.contains("\"Human\""),
+      "first rename:\n{}",
+      snapshot
+    );
 
     // Apply the rename: rebuild with Human schema and updated content
     let human_content = raw.replace("Person", "Human");
@@ -454,12 +462,16 @@ name: Alice
     let (raw2, offset2) = cursor(&human_content.replacen("Human", "|Human", 1));
     let edit2 =
       rename(&analysis2, make_params(uri2, &raw2, offset2, "Person")).expect("second rename");
-    let snap2 = snapshot(&edit2);
-    assert!(snap2.contains("\"Person\""), "second rename:\n{}", snap2);
+    let snapshot2 = get_snapshot(&edit2);
     assert!(
-      snap2.contains("Person.td"),
+      snapshot2.contains("\"Person\""),
+      "second rename:\n{}",
+      snapshot2
+    );
+    assert!(
+      snapshot2.contains("Person.td"),
       "should rename back to Person.td:\n{}",
-      snap2
+      snapshot2
     );
   }
 
@@ -480,14 +492,14 @@ name: Alice
     let rename_ops: Vec<_> = edit
       .document_changes
       .as_ref()
-      .and_then(|dc| match dc {
+      .and_then(|document_changes| match document_changes {
         DocumentChanges::Operations(ops) => Some(ops),
         _ => None,
       })
       .unwrap()
       .iter()
       .filter_map(|op| match op {
-        DocumentChangeOperation::Op(ResourceOp::Rename(r)) => Some(r),
+        DocumentChangeOperation::Op(ResourceOp::Rename(rename)) => Some(rename),
         _ => None,
       })
       .collect();

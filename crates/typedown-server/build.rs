@@ -5,8 +5,8 @@ fn main() {
       .args(["-e", "process.stdout.write(new Date().toLocaleString())"])
       .output()
       .ok()
-      .and_then(|o| String::from_utf8(o.stdout).ok())
-      .map(|s| s.trim().to_string())
+      .and_then(|output| String::from_utf8(output.stdout).ok())
+      .map(|string| string.trim().to_string())
       .unwrap_or_else(|| "unknown".to_string())
   );
 }

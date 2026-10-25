@@ -14,14 +14,14 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
         .variants
         .iter()
         .enumerate()
-        .map(|(i, variant)| {
+        .map(|(index, variant)| {
           let vname = &variant.ident;
-          let tag = i as u8;
+          let tag = index as u8;
           match &variant.fields {
             Fields::Named(fields) => {
-              let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-              let encodes = field_names.iter().map(|f| {
-                quote! { #f.encode(buf, encoder); }
+              let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
+              let encodes = field_names.iter().map(|field| {
+                quote! { #field.encode(buf, encoder); }
               });
               quote! {
                 #name::#vname { #(#field_names),* } => {
@@ -31,14 +31,16 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
               }
             }
             Fields::Unnamed(fields) => {
-              let vars: Vec<_> = (0..fields.unnamed.len())
-                .map(|i| syn::Ident::new(&format!("__f{i}"), proc_macro2::Span::call_site()))
+              let variables: Vec<_> = (0..fields.unnamed.len())
+                .map(|field| {
+                  syn::Ident::new(&format!("__f{field}"), proc_macro2::Span::call_site())
+                })
                 .collect();
-              let encodes = vars.iter().map(|v| {
-                quote! { #v.encode(buf, encoder); }
+              let encodes = variables.iter().map(|variable| {
+                quote! { #variable.encode(buf, encoder); }
               });
               quote! {
-                #name::#vname(#(#vars),*) => {
+                #name::#vname(#(#variables),*) => {
                   encoder.emit_u8(buf, #tag);
                   #(#encodes)*
                 }
@@ -81,16 +83,16 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
 fn encode_fields_body(fields: &Fields) -> proc_macro2::TokenStream {
   match fields {
     Fields::Named(fields) => {
-      let encodes = fields.named.iter().map(|f| {
-        let name = &f.ident;
+      let encodes = fields.named.iter().map(|field| {
+        let name = &field.ident;
         quote! { self.#name.encode(buf, encoder); }
       });
       quote! { #(#encodes)* }
     }
     Fields::Unnamed(fields) => {
-      let encodes = (0..fields.unnamed.len()).map(|i| {
-        let idx = syn::Index::from(i);
-        quote! { self.#idx.encode(buf, encoder); }
+      let encodes = (0..fields.unnamed.len()).map(|index| {
+        let index = syn::Index::from(index);
+        quote! { self.#index.encode(buf, encoder); }
       });
       quote! { #(#encodes)* }
     }

@@ -37,16 +37,16 @@ impl<'a> Utf8Stream for StringStream<'a> {
 
   fn advance(&mut self) -> Utf8Result {
     let result = match self.buffer.take() {
-      Some(r) => r,
+      Some(result) => result,
       None => {
-        let r = self.peek();
+        let result = self.peek();
         self.buffer.take();
-        r
+        result
       }
     };
 
     if let Utf8Result::Char(char) = &result {
-      self.offset.update(|v| v + char.len_utf8());
+      self.offset.update(|value| value + char.len_utf8());
     }
 
     result

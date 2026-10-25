@@ -1,6 +1,5 @@
 //! Layer 3: Typed AST nodes wrapping untyped RedNodes.
-//! Each AST type checks the SyntaxKind on cast, providing a type-safe API
-//! over the generic tree structure.
+//! Each AST type checks the SyntaxKind on cast, providing a type-safe API over the generic tree structure
 
 use std::hash::Hash;
 
@@ -11,13 +10,13 @@ use typedown_types::unescape::{unescape, unescape_html_entity};
 
 use crate::syntax::red::RedNode;
 
-/// All AST nodes implement this trait.
+/// All AST nodes implement this trait
 pub trait AstNode: Sized + Clone + Eq + Hash + Send + Sync {
-  /// Try to cast a RedNode into this AST type.
-  /// Returns None if the SyntaxKind doesn't match.
+  /// Try to cast a RedNode into this AST type
+  /// Returns None if the SyntaxKind doesn't match
   fn cast(syntax: RedNode) -> Option<Self>;
 
-  /// Access the underlying RedNode.
+  /// Access the underlying RedNode
   fn syntax(&self) -> &RedNode;
 }
 
@@ -31,7 +30,7 @@ fn children<T: AstNode>(parent: &RedNode) -> impl Iterator<Item = T> {
 
 /* Top-level nodes */
 
-/// The root of a Typedown file: frontmatter + body.
+/// The root of a Typedown file: frontmatter + body
 #[derive(Clone, PartialEq, Eq, Hash, AstNode)]
 pub struct SourceFile(RedNode);
 
@@ -72,22 +71,22 @@ pub struct YamlMapping(RedNode);
 impl YamlMapping {
   /// Return an iterator over the mapping keys
   pub fn keys(&self) -> impl Iterator<Item = String> {
-    children::<YamlMappingEntry>(&self.0).filter_map(|e| e.key())
+    children::<YamlMappingEntry>(&self.0).filter_map(|entry| entry.key())
   }
 
   /// Return an iterator over the mapping values
   pub fn values(&self) -> impl Iterator<Item = Expr> {
-    children::<YamlMappingEntry>(&self.0).filter_map(|e| e.value())
+    children::<YamlMappingEntry>(&self.0).filter_map(|entry| entry.value())
   }
 
   /// Return an iterator over the entries
   pub fn entries(&self) -> impl Iterator<Item = (String, Expr)> {
-    children::<YamlMappingEntry>(&self.0).filter_map(|e| e.entry())
+    children::<YamlMappingEntry>(&self.0).filter_map(|entry| entry.entry())
   }
 
   /// Find a mapping entry by key name
   pub fn find_entry(&self, target: &str) -> Option<YamlMappingEntry> {
-    children::<YamlMappingEntry>(&self.0).find(|e| e.key().as_deref() == Some(target))
+    children::<YamlMappingEntry>(&self.0).find(|entry| entry.key().as_deref() == Some(target))
   }
 }
 
@@ -98,7 +97,9 @@ pub struct YamlMappingEntry(RedNode);
 impl YamlMappingEntry {
   /// Return the key of this mapping entry
   pub fn key(&self) -> Option<String> {
-    self.key_node().map(|v| v.chars().collect::<String>())
+    self
+      .key_node()
+      .map(|value| value.chars().collect::<String>())
   }
 
   /// Return the key CST node of this mapping entry
@@ -106,7 +107,7 @@ impl YamlMappingEntry {
     self
       .0
       .children()
-      .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)
+      .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
   }
 
   /// Return the value of this mapping entry
@@ -114,7 +115,7 @@ impl YamlMappingEntry {
     let entry_value = self
       .0
       .children()
-      .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
+      .find(|child| child.kind() == SyntaxKind::YamlMappingEntryValue)?;
     entry_value.children().find_map(Expr::cast)
   }
 
@@ -130,7 +131,7 @@ pub struct YamlSequence(RedNode);
 impl YamlSequence {
   /// Return the items of this sequence
   pub fn values(&self) -> impl Iterator<Item = Expr> {
-    children::<YamlSequenceItem>(&self.0).filter_map(|e| e.value())
+    children::<YamlSequenceItem>(&self.0).filter_map(|expr| expr.value())
   }
 }
 
@@ -188,7 +189,7 @@ pub enum MdInlineElement {}
 pub struct MdHeading(RedNode);
 
 impl MdHeading {
-  /// Returns the heading level (1 for `#`, 2 for `##`, etc.).
+  /// Returns the heading level (1 for `#`, 2 for `##`, etc.)
   pub fn level(&self) -> usize {
     self
       .0
@@ -452,8 +453,8 @@ impl MdContainerBlock {
       .0
       .children()
       .filter(|child| child.kind() == SyntaxKind::MdContainerSlotSeparator)
-      .filter_map(|sep| {
-        let text = sep.text();
+      .filter_map(|separator| {
+        let text = separator.text();
         let rest = text.trim().strip_prefix("===")?;
         let name = rest.trim();
         if name.is_empty() {
@@ -654,13 +655,13 @@ pub enum Lit {}
 impl Lit {
   pub fn value(&self) -> Option<LitValue> {
     match self {
-      Lit::NumberLit(n) => Some(LitValue::Number(n.value()?)),
-      Lit::StrLit(s) => Some(LitValue::Str(s.fragments().collect())),
-      Lit::CodeLit(c) => Some(LitValue::Code(c.value()?)),
-      Lit::MathLit(m) => Some(LitValue::Math(m.value()?)),
-      Lit::IdentLit(i) => Some(LitValue::Ident(i.value()?)),
-      Lit::ListLit(l) => Some(LitValue::List(l.items().collect())),
-      Lit::DictLit(d) => Some(LitValue::Dict(d.entries().collect())),
+      Lit::NumberLit(number) => Some(LitValue::Number(number.value()?)),
+      Lit::StrLit(string) => Some(LitValue::Str(string.fragments().collect())),
+      Lit::CodeLit(code) => Some(LitValue::Code(code.value()?)),
+      Lit::MathLit(math) => Some(LitValue::Math(math.value()?)),
+      Lit::IdentLit(ident) => Some(LitValue::Ident(ident.value()?)),
+      Lit::ListLit(list) => Some(LitValue::List(list.items().collect())),
+      Lit::DictLit(dict) => Some(LitValue::Dict(dict.entries().collect())),
     }
   }
 }
@@ -743,8 +744,8 @@ impl CallExpr {
   }
 
   /// Return the nth argument (0-indexed)
-  pub fn arg(&self, n: usize) -> Option<Expr> {
-    children::<Expr>(&self.0).skip(1).nth(n)
+  pub fn arg(&self, nth: usize) -> Option<Expr> {
+    children::<Expr>(&self.0).skip(1).nth(nth)
   }
 }
 
@@ -871,11 +872,11 @@ impl DictLit {
   }
 
   pub fn keys(&self) -> impl Iterator<Item = String> {
-    children::<DictEntry>(&self.0).filter_map(|e| e.key())
+    children::<DictEntry>(&self.0).filter_map(|expr| expr.key())
   }
 
   pub fn values(&self) -> impl Iterator<Item = Expr> {
-    children::<DictEntry>(&self.0).filter_map(|e| e.value())
+    children::<DictEntry>(&self.0).filter_map(|expr| expr.value())
   }
 }
 
@@ -887,15 +888,15 @@ impl DictEntry {
     self
       .0
       .children()
-      .find(|c| c.kind() == SyntaxKind::DictEntryKey)
-      .map(|n| n.text())
+      .find(|child| child.kind() == SyntaxKind::DictEntryKey)
+      .map(|node| node.text())
   }
 
   pub fn value(&self) -> Option<Expr> {
     let red_node = self
       .0
       .children()
-      .find(|c| c.kind() == SyntaxKind::DictEntryValue)?;
+      .find(|child| child.kind() == SyntaxKind::DictEntryValue)?;
     child::<Expr>(&red_node)
   }
 
@@ -912,7 +913,7 @@ impl StrLit {
     self
       .0
       .children()
-      .any(|c| c.kind() == SyntaxKind::InterpFragment)
+      .any(|child| child.kind() == SyntaxKind::InterpFragment)
   }
 
   pub fn plain_value(&self) -> Option<String> {
@@ -922,8 +923,8 @@ impl StrLit {
     Some(
       self
         .fragments()
-        .filter_map(|f| match f {
-          Either::Left(s) => Some(s),
+        .filter_map(|fragment| match fragment {
+          Either::Left(string) => Some(string),
           _ => None,
         })
         .collect::<String>(),
@@ -941,12 +942,12 @@ impl StrLit {
       SyntaxKind::InterpFragment => Some(Either::Right(InterpFragment(child))),
       // Inline math/code inside a string is preserved as display text
       SyntaxKind::MathLit => {
-        let val = MathLit(child).value()?;
-        Some(Either::Left(format!("${}$", val)))
+        let value = MathLit(child).value()?;
+        Some(Either::Left(format!("${}$", value)))
       }
       SyntaxKind::CodeLit => {
-        let val = CodeLit(child).value()?;
-        Some(Either::Left(val))
+        let value = CodeLit(child).value()?;
+        Some(Either::Left(value))
       }
       _ => None,
     })
@@ -968,8 +969,8 @@ pub struct MathLit(RedNode);
 impl MathLit {
   pub fn value(&self) -> Option<String> {
     child::<InlineMath>(&self.0)
-      .and_then(|n| n.value())
-      .or_else(|| child::<MathBlock>(&self.0).and_then(|n| n.value()))
+      .and_then(|node| node.value())
+      .or_else(|| child::<MathBlock>(&self.0).and_then(|node| node.value()))
   }
 }
 
@@ -978,13 +979,13 @@ pub struct CodeLit(RedNode);
 
 impl CodeLit {
   pub fn label(&self) -> Option<String> {
-    child::<CodeBlock>(&self.0).and_then(|n| n.label())
+    child::<CodeBlock>(&self.0).and_then(|node| node.label())
   }
 
   pub fn value(&self) -> Option<String> {
     child::<InlineCode>(&self.0)
-      .and_then(|n| n.value())
-      .or_else(|| child::<CodeBlock>(&self.0).and_then(|n| n.value()))
+      .and_then(|node| node.value())
+      .or_else(|| child::<CodeBlock>(&self.0).and_then(|node| node.value()))
   }
 }
 
@@ -996,7 +997,7 @@ impl NumberLit {
     self
       .0
       .children()
-      .find(|c| c.kind() == SyntaxKind::Number)?
+      .find(|child| child.kind() == SyntaxKind::Number)?
       .as_token()?
       .text()?
       .parse()
@@ -1012,7 +1013,7 @@ impl IdentLit {
     self
       .0
       .children()
-      .find(|c| c.kind() == SyntaxKind::Ident)?
+      .find(|child| child.kind() == SyntaxKind::Ident)?
       .as_token()?
       .text()
       .map(str::to_string)
@@ -1025,7 +1026,7 @@ pub struct InlineMath(RedNode);
 impl InlineMath {
   pub fn value(&self) -> Option<String> {
     let text = self.0.text();
-    let fence_count = text.chars().take_while(|c| *c == '$').count();
+    let fence_count = text.chars().take_while(|char| *char == '$').count();
     // Strip opening and closing fence
     let content = text.get(fence_count..text.len().checked_sub(fence_count)?)?;
     Some(content.to_string())
@@ -1038,7 +1039,7 @@ pub struct MathBlock(RedNode);
 impl MathBlock {
   pub fn value(&self) -> Option<String> {
     let text = self.0.text();
-    let fence_count = text.chars().take_while(|c| *c == '$').count();
+    let fence_count = text.chars().take_while(|char| *char == '$').count();
     // Skip opening fence then the newline
     let after_fence = text.get(fence_count..)?;
     let content_start = after_fence.find('\n')? + 1;
@@ -1055,7 +1056,7 @@ pub struct InlineCode(RedNode);
 impl InlineCode {
   pub fn value(&self) -> Option<String> {
     let text = self.0.text();
-    let fence_count = text.chars().take_while(|c| *c == '`').count();
+    let fence_count = text.chars().take_while(|char| *char == '`').count();
     let content = text.get(fence_count..text.len().checked_sub(fence_count)?)?;
     Some(content.to_string())
   }
@@ -1073,7 +1074,7 @@ impl CodeBlock {
   // Full label text after the opening fence (e.g. "js{1,3,5-8}")
   pub fn label(&self) -> Option<String> {
     let text = self.0.text();
-    let fence_count = text.chars().take_while(|c| *c == '`').count();
+    let fence_count = text.chars().take_while(|char| *char == '`').count();
     let after_fence = text.get(fence_count..)?;
     let label_end = after_fence.find('\n')?;
     let label = after_fence.get(..label_end)?.trim();
@@ -1088,7 +1089,7 @@ impl CodeBlock {
   pub fn language(&self) -> Option<String> {
     let label = self.label()?;
     let lang = match label.find('{') {
-      Some(idx) => label[..idx].trim(),
+      Some(index) => label[..index].trim(),
       None => label.trim(),
     };
     if lang.is_empty() {
@@ -1134,19 +1135,19 @@ impl CodeBlock {
   // e.g. {1,3 title=foo.ts line-numbers} -> [("title", Some("foo.ts")), ("line-numbers", None)]
   pub fn props(&self) -> Vec<(String, Option<String>)> {
     let label = match self.label() {
-      Some(l) => l,
+      Some(label) => label,
       None => return Vec::new(),
     };
     let start = match label.find('{') {
-      Some(i) => i,
+      Some(index) => index,
       None => return Vec::new(),
     };
     let end = match label.find('}') {
-      Some(i) => i,
+      Some(index) => index,
       None => return Vec::new(),
     };
     let inner = match label.get(start + 1..end) {
-      Some(s) => s.trim(),
+      Some(string) => string.trim(),
       None => return Vec::new(),
     };
     if inner.is_empty() {
@@ -1156,7 +1157,7 @@ impl CodeBlock {
     let mut props = Vec::new();
     for part in inner.split_whitespace() {
       // Skip numeric ranges like "1,3" or "5-8"
-      if part.chars().next().is_none_or(|c| c.is_ascii_digit()) {
+      if part.chars().next().is_none_or(|char| char.is_ascii_digit()) {
         continue;
       }
       if let Some(eq) = part.find('=') {
@@ -1172,7 +1173,7 @@ impl CodeBlock {
 
   pub fn value(&self) -> Option<String> {
     let text = self.0.text();
-    let fence_count = text.chars().take_while(|c| *c == '`').count();
+    let fence_count = text.chars().take_while(|char| *char == '`').count();
     // Skip opening fence and optional language tag, then the newline
     let after_fence = text.get(fence_count..)?;
     let content_start = after_fence.find('\n')? + 1;
@@ -1192,7 +1193,7 @@ fn block_scalar_content(node: &RedNode) -> (Vec<String>, usize) {
 
   // Skip past the `|`/`>` marker and the newline that follows it
   let content_start = match raw.find('\n') {
-    Some(pos) => pos + 1,
+    Some(position) => position + 1,
     None => return (vec![], 0),
   };
   let content = &raw[content_start..];
@@ -1200,10 +1201,10 @@ fn block_scalar_content(node: &RedNode) -> (Vec<String>, usize) {
   // Determine indent from the leading spaces of the first non-empty line
   let indent_size = content
     .lines()
-    .find(|l| !l.trim().is_empty())
-    .map_or(0, |l| l.len() - l.trim_start_matches(' ').len());
+    .find(|left| !left.trim().is_empty())
+    .map_or(0, |left| left.len() - left.trim_start_matches(' ').len());
 
-  let lines = content.lines().map(|l| l.to_string()).collect();
+  let lines = content.lines().map(|line| line.to_string()).collect();
   (lines, indent_size)
 }
 
@@ -1241,9 +1242,9 @@ fn extract_folded_block(node: &RedNode) -> String {
   // Drop trailing blank lines
   let last_non_blank = lines
     .iter()
-    .rposition(|l| !strip_indent(l, indent_size).is_empty());
+    .rposition(|line| !strip_indent(line, indent_size).is_empty());
   let lines = match last_non_blank {
-    Some(pos) => &lines[..=pos],
+    Some(position) => &lines[..=position],
     None => return "\n".to_string(),
   };
 

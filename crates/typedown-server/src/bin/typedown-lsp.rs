@@ -39,12 +39,12 @@ pub fn main() -> anyhow::Result<()> {
     .or_else(|| {
       std::env::var("TYPEDOWN_LSP_PORT")
         .ok()
-        .and_then(|s| s.parse().ok())
+        .and_then(|string| string.parse().ok())
     })
     .unwrap_or(0);
 
   let fresh = args.contains("--fresh")
-    || std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|v| v == "1" || v == "true");
+    || std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|vaule| vaule == "1" || vaule == "true");
 
   let remaining = args.finish();
   if !remaining.is_empty() {
@@ -52,7 +52,7 @@ pub fn main() -> anyhow::Result<()> {
       "warning: unknown arguments: {:?}",
       remaining
         .iter()
-        .map(|s| s.to_string_lossy())
+        .map(|string| string.to_string_lossy())
         .collect::<Vec<_>>()
     );
   }
@@ -86,7 +86,7 @@ pub fn main() -> anyhow::Result<()> {
       trigger_characters: Some(
         [".", "(", ",", "$", "/", "_"]
           .iter()
-          .map(|s| s.to_string())
+          .map(|char| char.to_string())
           .collect(),
       ),
       ..Default::default()
@@ -103,7 +103,7 @@ pub fn main() -> anyhow::Result<()> {
     semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
       SemanticTokensOptions {
         legend: SemanticTokensLegend {
-          token_types: semantic_tokens::list_token_types(),
+          token_types: semantic_tokens::list_token_typs(),
           token_modifiers: semantic_tokens::list_token_modifiers(),
         },
         full: Some(SemanticTokensFullOptions::Bool(true)),

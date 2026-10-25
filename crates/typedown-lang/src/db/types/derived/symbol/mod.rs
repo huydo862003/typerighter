@@ -527,9 +527,9 @@ impl<'db> RuntimeScope<'db> {
     db: &'db (impl QueryDatabase + ?Sized),
     name: &str,
   ) -> Option<TdObjEnum<'db>> {
-    for (key, val) in &self.bindings(db) {
+    for (key, value) in &self.bindings(db) {
       if key == name {
-        return Some(val.clone());
+        return Some(value.clone());
       }
     }
     if let Some(parent) = self.parent(db).as_ref() {

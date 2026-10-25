@@ -131,9 +131,9 @@ fn resolve_field_key_definition(
 
   // Resolve the schema and walk the _extends chain to find the file that defines the field
   let scope = Scope::new(db, ScopeKind::Project(project));
-  let sym = *members(db, scope).members(db).get(&schema_name)?;
+  let symbol = *members(db, scope).members(db).get(&schema_name)?;
   let (schema_file, field_offset) =
-    find_field_in_schema_chain(db, project, sym, &key_text, &scope)?;
+    find_field_in_schema_chain(db, project, symbol, &key_text, &scope)?;
 
   let schema_path = schema_file.handle(db).path().cloned()?;
 
@@ -160,11 +160,11 @@ fn resolve_field_key_definition(
 fn find_field_in_schema_chain(
   db: &TypedownDatabase,
   project: Project,
-  sym: Symbol,
+  symbol: Symbol,
   field_name: &str,
   scope: &Scope,
 ) -> Option<(File, usize)> {
-  let SymbolKind::UserDefinedSchema(_, schema_file) = sym.kind(db) else {
+  let SymbolKind::UserDefinedSchema(_, schema_file) = symbol.kind(db) else {
     return None;
   };
 
@@ -178,17 +178,17 @@ fn find_field_in_schema_chain(
   let extends_entry = find_entry_by_key(&root, "_extends")?;
   let extends_name = get_entry_value_text(&extends_entry)?;
 
-  let parent_sym = *members(db, *scope).members(db).get(&extends_name)?;
-  find_field_in_schema_chain(db, project, parent_sym, field_name, scope)
+  let parent_symbol = *members(db, *scope).members(db).get(&extends_name)?;
+  find_field_in_schema_chain(db, project, parent_symbol, field_name, scope)
 }
 
 // Find a mapping entry by key name, recursing through wrapper nodes
 fn find_entry_by_key(node: &RedNode, key_name: &str) -> Option<RedNode> {
   for child in node.children() {
     if child.kind() == SyntaxKind::YamlMappingEntry
-      && child
-        .children()
-        .any(|c| c.kind() == SyntaxKind::YamlMappingEntryKey && c.text().trim() == key_name)
+      && child.children().any(|child| {
+        child.kind() == SyntaxKind::YamlMappingEntryKey && child.text().trim() == key_name
+      })
     {
       return Some(child);
     }
@@ -202,15 +202,15 @@ fn find_entry_by_key(node: &RedNode, key_name: &str) -> Option<RedNode> {
 fn get_entry_value_text(entry: &RedNode) -> Option<String> {
   entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)
-    .map(|v| v.text().trim().to_string())
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryValue)
+    .map(|value| value.text().trim().to_string())
 }
 
 fn get_entry_key_offset(entry: &RedNode) -> Option<usize> {
   entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey)
-    .map(|k| k.offset())
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
+    .map(|key| key.offset())
 }
 
 // Find the offset of a property key inside a schema's properties block
@@ -218,7 +218,7 @@ fn find_property_key_offset(root: &RedNode, field_name: &str) -> Option<usize> {
   let props_entry = find_entry_by_key(root, "properties")?;
   let props_value = props_entry
     .children()
-    .find(|c| c.kind() == SyntaxKind::YamlMappingEntryValue)?;
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryValue)?;
   let field_entry = find_entry_by_key(&props_value, field_name)?;
   get_entry_key_offset(&field_entry)
 }
@@ -236,8 +236,8 @@ fn resolve_component_definition(
   }
   let parent = node.parent()?;
   let component_name = MdContainerBlock::cast(parent.clone())
-    .and_then(|b| b.label())
-    .or_else(|| MdContainerShorthand::cast(parent).and_then(|s| s.label()))?;
+    .and_then(|block| block.label())
+    .or_else(|| MdContainerShorthand::cast(parent).and_then(|container| container.label()))?;
   let pascal = kebab_to_pascal(&component_name);
 
   let contract_file = project.custom_component_contract(db)?;
@@ -245,7 +245,7 @@ fn resolve_component_definition(
   let entries = contract.entries(db).clone();
   let entry = entries
     .iter()
-    .find(|e| e.name == component_name || e.name == pascal)?;
+    .find(|entry| entry.name == component_name || entry.name == pascal)?;
 
   // Resolve source path relative to project root
   let source = entry.source.trim_start_matches("./");
@@ -277,10 +277,10 @@ fn resolve_markdown_link_definition(
 ) -> Option<GotoDefinitionResponse> {
   // Find the enclosing MdLink or MdMedia
   let url = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
-    MdLink::cast(link_node)?.url().map(|t| t.value())?
+    MdLink::cast(link_node)?.url().map(|text| text.value())?
   } else {
     let media_node = find_ancestor(node, SyntaxKind::MdMedia)?;
-    MdMedia::cast(media_node)?.url().map(|t| t.value())?
+    MdMedia::cast(media_node)?.url().map(|text| text.value())?
   };
 
   if is_external_url(&url) || url.starts_with('#') {
@@ -322,11 +322,12 @@ fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> O
   let call_expr = containing_fref_expr(node)?;
 
   if let Some(first_arg) = call_expr.args().into_iter().next()
-    && let Some(path_str) = StrLit::cast(first_arg.syntax().clone()).and_then(|s| s.plain_value())
+    && let Some(path_string) =
+      StrLit::cast(first_arg.syntax().clone()).and_then(|string| string.plain_value())
   {
     let config = get_vault_config(db, project);
     let root_dir = config.root_dir(db);
-    return Some(root_dir.join(path_str));
+    return Some(root_dir.join(path_string));
   }
   None
 }

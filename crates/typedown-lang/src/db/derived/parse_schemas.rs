@@ -16,11 +16,11 @@ use super::parse_file::parse_file;
 pub fn parse_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> SchemaAstResults<'db> {
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
-  let proj_files = project.files(db);
+  let project_files = project.files(db);
 
   let mut schema_asts = BTreeMap::new();
 
-  for (path, file) in &*proj_files {
+  for (path, file) in &*project_files {
     if path.starts_with(&root_dir) && is_typ_file(path) {
       let ast = parse_file(db, project, *file);
       schema_asts.insert(path.clone(), ast);

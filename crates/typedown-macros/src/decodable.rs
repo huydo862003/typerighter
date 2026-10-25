@@ -5,7 +5,7 @@ use syn::{Data, DeriveInput, Fields, parse_macro_input};
 pub fn decodable_derive_impl(item: TokenStream) -> TokenStream {
   let input = parse_macro_input!(item as DeriveInput);
   let name = &input.ident;
-  let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+  let (impl_generics, typ_generics, where_clause) = input.generics.split_for_impl();
 
   let body = match &input.data {
     Data::Struct(data) => decode_struct_body(name, &data.fields),
@@ -14,18 +14,18 @@ pub fn decodable_derive_impl(item: TokenStream) -> TokenStream {
         .variants
         .iter()
         .enumerate()
-        .map(|(i, variant)| {
+        .map(|(index, variant)| {
           let vname = &variant.ident;
-          let tag = i as u8;
+          let tag = index as u8;
           match &variant.fields {
             Fields::Named(fields) => {
               let field_decodes: Vec<_> = fields
                 .named
                 .iter()
-                .map(|f| {
-                  let fname = &f.ident;
-                  let fty = &f.ty;
-                  quote! { #fname: <#fty as ::typedown_incremental::Decodable>::decode(data, decoder) }
+                .map(|field| {
+                  let field_name = &field.ident;
+                  let field_typ = &field.ty;
+                  quote! { #field_name: <#field_typ as ::typedown_incremental::Decodable>::decode(data, decoder) }
                 })
                 .collect();
               quote! {
@@ -36,9 +36,9 @@ pub fn decodable_derive_impl(item: TokenStream) -> TokenStream {
               let field_decodes: Vec<_> = fields
                 .unnamed
                 .iter()
-                .map(|f| {
-                  let fty = &f.ty;
-                  quote! { <#fty as ::typedown_incremental::Decodable>::decode(data, decoder) }
+                .map(|field| {
+                  let field_typ = &field.ty;
+                  quote! { <#field_typ as ::typedown_incremental::Decodable>::decode(data, decoder) }
                 })
                 .collect();
               quote! {
@@ -54,12 +54,12 @@ pub fn decodable_derive_impl(item: TokenStream) -> TokenStream {
         })
         .collect();
 
-      let name_str = name.to_string();
+      let name_string = name.to_string();
       quote! {
         let __tag = decoder.read_u8(data);
         match __tag {
           #(#arms)*
-          _ => panic!("unknown {} variant tag: {}", #name_str, __tag),
+          _ => panic!("unknown {} variant tag: {}", #name_string, __tag),
         }
       }
     }
@@ -71,7 +71,7 @@ pub fn decodable_derive_impl(item: TokenStream) -> TokenStream {
   };
 
   quote! {
-    impl #impl_generics ::typedown_incremental::Decodable for #name #ty_generics #where_clause {
+    impl #impl_generics ::typedown_incremental::Decodable for #name #typ_generics #where_clause {
       fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
         #body
       }
@@ -86,10 +86,10 @@ fn decode_struct_body(name: &syn::Ident, fields: &Fields) -> proc_macro2::TokenS
       let field_decodes: Vec<_> = fields
         .named
         .iter()
-        .map(|f| {
-          let fname = &f.ident;
-          let fty = &f.ty;
-          quote! { #fname: <#fty as ::typedown_incremental::Decodable>::decode(data, decoder) }
+        .map(|field| {
+          let field_name = &field.ident;
+          let field_typ = &field.ty;
+          quote! { #field_name: <#field_typ as ::typedown_incremental::Decodable>::decode(data, decoder) }
         })
         .collect();
       quote! { #name { #(#field_decodes),* } }
@@ -98,9 +98,9 @@ fn decode_struct_body(name: &syn::Ident, fields: &Fields) -> proc_macro2::TokenS
       let field_decodes: Vec<_> = fields
         .unnamed
         .iter()
-        .map(|f| {
-          let fty = &f.ty;
-          quote! { <#fty as ::typedown_incremental::Decodable>::decode(data, decoder) }
+        .map(|field| {
+          let field_typ = &field.ty;
+          quote! { <#field_typ as ::typedown_incremental::Decodable>::decode(data, decoder) }
         })
         .collect();
       quote! { #name(#(#field_decodes),*) }

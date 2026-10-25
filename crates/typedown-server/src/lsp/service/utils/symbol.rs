@@ -57,7 +57,7 @@ pub fn find_symbol_at_cursor(
     if arg
       .syntax()
       .children()
-      .any(|c| c.kind() == SyntaxKind::InterpFragment)
+      .any(|child| child.kind() == SyntaxKind::InterpFragment)
     {
       return None;
     }
@@ -83,18 +83,18 @@ pub fn symbol_file_path(db: &dyn QueryDatabase, symbol: Symbol) -> Option<PathBu
 
 /// Find the string content node inside a StrLit
 pub fn str_content_node(str_lit: &RedNode) -> Option<RedNode> {
-  str_lit.children().find(|c| {
+  str_lit.children().find(|child| {
     matches!(
-      c.kind(),
+      child.kind(),
       SyntaxKind::DqStrContent | SyntaxKind::SqStrContent
     )
   })
 }
 
 // Get the _label string from a resource symbol
-pub fn get_resource_label(db: &TypedownDatabase, sym: Symbol) -> Option<String> {
-  let obj = evaluate_resource(db, sym).value(db)?;
+pub fn get_resource_label(db: &TypedownDatabase, symbol: Symbol) -> Option<String> {
+  let obj = evaluate_resource(db, symbol).value(db)?;
   let field = obj.get_builtin_field(db, "_label")?;
-  let str_obj = field.as_td_string_obj()?;
-  Some(str_obj.value(db))
+  let string_obj = field.as_td_string_obj()?;
+  Some(string_obj.value(db))
 }

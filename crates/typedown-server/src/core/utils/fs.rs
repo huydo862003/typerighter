@@ -61,15 +61,20 @@ fn vault_root_dir(root: &Path) -> PathBuf {
     });
 
   let text = config
-    .and_then(|p| fs::read_to_string(p).ok())
+    .and_then(|path| fs::read_to_string(path).ok())
     .unwrap_or_default();
 
   let root_dir_str = text
     .lines()
-    .find(|l| l.trim().starts_with("root_dir:"))
-    .and_then(|l| {
-      l.split_once(':')
-        .map(|(_, v)| v.trim().trim_matches('"').trim_matches('\'').to_string())
+    .find(|line| line.trim().starts_with("root_dir:"))
+    .and_then(|line| {
+      line.split_once(':').map(|(_, value)| {
+        value
+          .trim()
+          .trim_matches('"')
+          .trim_matches('\'')
+          .to_string()
+      })
     })
     .unwrap_or_else(|| ".".to_string());
 

@@ -119,24 +119,24 @@ impl Server {
       let resp = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         Cancelled::catch(|| service::dispatch(&analysis, req))
       })) {
-        Ok(Ok(resp)) => resp,
+        Ok(Ok(response)) => response,
         Ok(Err(_)) => Response::new_err(
           request_id,
           lsp_server::ErrorCode::ContentModified as i32,
           "request cancelled: content modified".to_string(),
         ),
         Err(payload) => {
-          let msg = panic_message(&payload);
-          log::error!("{method} panicked: {msg}");
+          let message = panic_message(&payload);
+          log::error!("{method} panicked: {message}");
           Response::new_err(
             request_id,
             lsp_server::ErrorCode::InternalError as i32,
-            format!("internal error: {msg}"),
+            format!("internal error: {message}"),
           )
         }
       };
-      if let Err(err) = sender.send(Message::Response(resp)) {
-        log::error!("Failed to send response: {err}");
+      if let Err(error) = sender.send(Message::Response(resp)) {
+        log::error!("Failed to send response: {error}");
       }
     });
 
@@ -518,7 +518,7 @@ pub(crate) fn apply_content_change(mut rope: Rope, change: TextDocumentContentCh
 fn panic_message(payload: &Box<dyn Any + Send>) -> &str {
   payload
     .downcast_ref::<String>()
-    .map(|s| s.as_str())
+    .map(|string| string.as_str())
     .or_else(|| payload.downcast_ref::<&str>().copied())
     .unwrap_or("unknown panic")
 }

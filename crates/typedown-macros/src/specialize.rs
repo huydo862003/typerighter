@@ -24,7 +24,7 @@ struct Arm {
 // ident { ... }  OR  type Type { ... }
 struct Input {
   binding: Option<Ident>, // Some for value dispatch, None for type dispatch
-  ty: Type,               // typeof(ident) or explicit Type
+  typ: Type,              // typeof(ident) or explicit Type
   arms: Vec<Arm>,
 }
 
@@ -79,37 +79,38 @@ impl Parse for Input {
       return Err(body.error("specialize! requires at least one arm"));
     }
 
-    Ok(Input {
-      binding,
-      ty: typ,
-      arms,
-    })
+    Ok(Input { binding, typ, arms })
   }
 }
 
 pub fn specialize_impl(input: TokenStream) -> TokenStream {
-  let Input { binding, ty, arms } = syn::parse_macro_input!(input as Input);
+  let Input {
+    binding,
+    typ: ty,
+    arms,
+  } = syn::parse_macro_input!(input as Input);
 
-  let n = arms.len();
+  let length = arms.len();
 
   // One trait corresponds to an arm, higher priority trait gets more `&` layers on `Self`
   // NOTE: __dispatch_arm_index returns an arm index, arm bodies run in the outer scope where captures work
   let trait_impls: Vec<_> = arms
     .iter()
     .enumerate()
-    .map(|(i, arm)| {
-      let trait_name = format_ident!("__Arm{}", i);
-      let refs = n - 1 - i;
-      // Add `refs` &
-      let self_ty = (0..refs).fold(quote! { __TypeHolder<__T> }, |inner, _| quote! { &#inner });
-      let bound_clause = arm.bound.as_ref().map(|b| quote! { : #b });
+    .map(|(index, arm)| {
+      let trait_name = format_ident!("__Arm{}", index);
+      let references = length - 1 - index;
+      // Add `references` &
+      let self_typ =
+        (0..references).fold(quote! { __TypeHolder<__T> }, |inner, _| quote! { &#inner });
+      let bound_clause = arm.bound.as_ref().map(|bound| quote! { : #bound });
 
       quote! {
         trait #trait_name {
           fn __dispatch_arm_index(&self) -> usize;
         }
-        impl<__T #bound_clause> #trait_name for #self_ty {
-          fn __dispatch_arm_index(&self) -> usize { #i }
+        impl<__T #bound_clause> #trait_name for #self_typ {
+          fn __dispatch_arm_index(&self) -> usize { #index }
         }
       }
     })
@@ -119,9 +120,9 @@ pub fn specialize_impl(input: TokenStream) -> TokenStream {
   let match_arms: Vec<_> = arms
     .iter()
     .enumerate()
-    .map(|(i, arm)| {
+    .map(|(index, arm)| {
       let body = &arm.body;
-      quote! { #i => { #body } }
+      quote! { #index => { #body } }
     })
     .collect();
 
@@ -131,7 +132,7 @@ pub fn specialize_impl(input: TokenStream) -> TokenStream {
     Some(ident) => quote! { __phantom(&#ident) },
     None => quote! { __TypeHolder::<#ty>(::std::marker::PhantomData) },
   };
-  let wrapped = (0..n).fold(make_wrapper, |inner, _| quote! { &#inner });
+  let wrapped = (0..length).fold(make_wrapper, |inner, _| quote! { &#inner });
 
   // Traits select arm index, match runs the body in outer scope so variables are available
   quote! {

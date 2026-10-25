@@ -12,7 +12,7 @@ fn parse_body(input: &str) -> String {
   render_tree(&ast)
 }
 
-fn parse_body_with_diags(input: &str) -> (String, Vec<TdDiagnostic>) {
+fn parse_body_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
   let full_input = format!(
     "---
 ---
@@ -833,12 +833,14 @@ content
         (MdContainerPropItem
           "cols"
           "="
-          "2")
+          (NumberLit
+            "2"))
         " "
         (MdContainerPropItem
           "rows"
           "="
-          "10")
+          (NumberLit
+            "10"))
         "}")
       "\n"
       (MdContainerSlot
@@ -854,7 +856,7 @@ content
 // A well-formed numeric prop should not produce diagnostics
 #[test]
 fn parse_container_block_with_number_prop_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: grid {cols=2}
 content
 :::
@@ -866,39 +868,31 @@ content
   );
 }
 
-// FIXME: decimal not supported
 #[test]
 fn parse_container_block_with_decimal_number_prop() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: grid {ratio=2.5}
 content
 :::
 "#,
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
-      TdDiagnostic {
-        kind: TdDiagnosticKind::UnexpectedContainerPropItem,
-        ..
-      }
-    )),
-    "decimal prop values are not supported, got: {diags:?}"
+    diagnostics.is_empty(),
+    "decimal prop values should parse without diagnostics, got: {diagnostics:?}"
   );
 }
 
-// FIXME: Same story for a negative value: `-` is an MdSymbol, not part of the number...
 #[test]
 fn parse_container_block_with_negative_number_prop() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: grid {offset=-1}
 content
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "negative prop values should parse without diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "negative prop values should parse without diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -947,7 +941,7 @@ content
 
 #[test]
 fn parse_container_block_with_bare_boolean_prop_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: card {collapsed}
 content
 :::
@@ -988,16 +982,18 @@ content
         (MdContainerPropItem
           "title"
           "="
-          "\""
-          "Hello"
-          "\"")
+          (StrLit
+            "\""
+            "Hello"
+            "\""))
         " "
         (MdContainerPropItem
           "variant"
           "="
-          "\""
-          "wide"
-          "\"")
+          (StrLit
+            "\""
+            "wide"
+            "\""))
         "}")
       "\n"
       (MdContainerSlot
@@ -1012,7 +1008,7 @@ content
 
 #[test]
 fn parse_container_block_with_leading_slot_separator_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: tabs
 === one
 content
@@ -1028,7 +1024,7 @@ content
 // Same, with a prop block between the label and the first separator
 #[test]
 fn parse_container_block_with_props_and_leading_slot_separator_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: tabs {variant="pill"}
 === one
 content
@@ -1044,7 +1040,7 @@ content
 // Two separators back to back: the slot between them is empty
 #[test]
 fn parse_container_block_with_consecutive_slot_separators_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: tabs
 === one
 === two
@@ -1102,7 +1098,7 @@ content
 // A well-formed prop block should not produce diagnostics
 #[test]
 fn parse_container_block_with_props_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: card {title="Hello" variant="wide"}
 content
 :::
@@ -1117,49 +1113,49 @@ content
 // An unclosed prop block reports UnclosedContainerPropBlock
 #[test]
 fn parse_container_block_with_unclosed_props() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: card {title="Hello"
 content
 :::
 "#,
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::UnclosedContainerPropBlock,
         ..
       }
     )),
-    "should report UnclosedContainerPropBlock, got: {diags:?}"
+    "should report UnclosedContainerPropBlock, got: {diagnostics:?}"
   );
 }
 
 // A non-identifier where a prop key is expected reports UnexpectedContainerPropItem
 #[test]
 fn parse_container_block_with_invalid_prop_key() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: card {"title"}
 content
 :::
 "#,
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::UnexpectedContainerPropItem,
         ..
       }
     )),
-    "should report UnexpectedContainerPropItem, got: {diags:?}"
+    "should report UnexpectedContainerPropItem, got: {diagnostics:?}"
   );
 }
 
 // A prop with `=` and no value should report MissingContainerPropValueAfterEq
 #[test]
 fn parse_container_block_with_missing_prop_value() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: card {title=}
 content
 :::
@@ -1227,7 +1223,7 @@ more
 // Tokens trailing a slot separator report UnexpectedContainerSlotSeparatorToken
 #[test]
 fn parse_container_block_with_slot_separator_trailing_tokens() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: tabs
 first
 === second extra
@@ -1236,14 +1232,14 @@ more
 "#,
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::UnexpectedContainerSlotSeparatorToken,
         ..
       }
     )),
-    "should report UnexpectedContainerSlotSeparatorToken, got: {diags:?}"
+    "should report UnexpectedContainerSlotSeparatorToken, got: {diagnostics:?}"
   );
 }
 
@@ -1279,9 +1275,10 @@ more
         (MdContainerPropItem
           "variant"
           "="
-          "\""
-          "pill"
-          "\"")
+          (StrLit
+            "\""
+            "pill"
+            "\""))
         "}")
       "\n"
       (MdContainerSlot
@@ -1346,7 +1343,7 @@ content
 // Container with title and multi-line content should produce no diagnostics
 #[test]
 fn parse_container_block_with_title_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: tip Current status
 Design mockups are complete. Authentication is currently being implemented.
 Integration tests are next in the queue once auth is merged.
@@ -1362,7 +1359,7 @@ Integration tests are next in the queue once auth is merged.
 // Multiple containers with titles should produce no diagnostics
 #[test]
 fn parse_multiple_containers_with_titles_no_diagnostics() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: details Architecture overview
 Some content here.
 :::
@@ -1451,7 +1448,7 @@ fn parse_container_block_empty() {
 
 #[test]
 fn parse_container_shorthand_simple() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"[[toc]]
 "#,
   );
@@ -1482,7 +1479,7 @@ fn parse_container_shorthand_simple() {
 
 #[test]
 fn parse_container_shorthand_with_props() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"[[grid {cols=2}]]
 "#,
   );
@@ -1507,7 +1504,8 @@ fn parse_container_shorthand_with_props() {
         (MdContainerPropItem
           "cols"
           "="
-          "2")
+          (NumberLit
+            "2"))
         "}")
       "]"
       "]")
@@ -1521,7 +1519,7 @@ fn parse_container_shorthand_with_props() {
 
 #[test]
 fn parse_container_block_kebab_case() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"::: directory-index
 :::
 "#,
@@ -1556,7 +1554,7 @@ fn parse_container_block_kebab_case() {
 // Space after ::: is optional: ::: td-alert and :::td-alert are both valid
 #[test]
 fn parse_container_block_kebab_case_with_space() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"::: td-alert
 :::
 "#,
@@ -1569,7 +1567,7 @@ fn parse_container_block_kebab_case_with_space() {
 
 #[test]
 fn parse_container_block_kebab_case_no_space() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#":::td-alert
 :::
 "#,
@@ -1583,7 +1581,7 @@ fn parse_container_block_kebab_case_no_space() {
 // Props can appear directly after label with no space: :::td-alert{kind="info"}
 #[test]
 fn parse_container_block_no_space_with_props() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#":::td-alert{kind="info"}
 :::
 "#,
@@ -1596,7 +1594,7 @@ fn parse_container_block_no_space_with_props() {
 
 #[test]
 fn parse_container_shorthand_kebab_case() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"[[directory-index]]
 "#,
   );
@@ -1656,7 +1654,7 @@ code
 // Code block with line range indicator parses as CodeBlock
 #[test]
 fn parse_code_block_with_line_ranges() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"```js{1,3,5-8}
 code
 ```
@@ -2063,7 +2061,7 @@ fn parse_inline_code_simple() {
 // Inline code with braces should not produce range indicator diagnostics
 #[test]
 fn parse_inline_code_with_braces_object() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"`{ a: b }`
 "#,
   );
@@ -2088,13 +2086,13 @@ fn parse_inline_code_with_braces_object() {
 
 #[test]
 fn parse_inline_code_with_range_like_braces() {
-  let (_, diags) = parse_body_with_diags("`a{1,3}`\n");
+  let (_, diags) = parse_body_with_diagnostics("`a{1,3}`\n");
   assert_eq!(diags, &[] as &[TdDiagnostic]);
 }
 
 #[test]
 fn parse_inline_code_json_object() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diags) = parse_body_with_diagnostics(
     r#"`{"key": "value"}`
 "#,
   );
@@ -3750,7 +3748,7 @@ fn parse_indented_table_in_list_with_continuation() {
 
 #[test]
 fn parse_container_after_list_item_no_diagnostics() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"- item
 
     indented content
@@ -3828,7 +3826,7 @@ content
 
 #[test]
 fn parse_sequential_containers_no_diagnostics() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"::: details Solution
 
 content
@@ -3908,7 +3906,7 @@ more content
 
 #[test]
 fn parse_container_blank_line_before_close() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"::: note
 content
 
@@ -3948,7 +3946,7 @@ content
 
 #[test]
 fn parse_container_multiple_blank_lines_before_close() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"::: note
 content
 
@@ -3992,7 +3990,7 @@ content
 
 #[test]
 fn parse_container_with_slot_separator_blank_lines() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"::: tabs
 first
 
@@ -4053,7 +4051,7 @@ second content
 // Unclosed [ before newline is treated as plain text, no diagnostic
 #[test]
 fn parse_unclosed_bracket_as_text() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"[text without closing
 "#,
   );
@@ -4088,7 +4086,7 @@ fn parse_unclosed_bracket_as_text() {
 // Unclosed ![ before newline is treated as plain text, no diagnostic
 #[test]
 fn parse_unclosed_media_bracket_as_text() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"![alt without closing
 "#,
   );
@@ -4123,7 +4121,7 @@ fn parse_unclosed_media_bracket_as_text() {
 // Recovers from unclosed bold, emits UnclosedBold diagnostic
 #[test]
 fn recover_unclosed_bold() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"**unclosed bold
 "#,
   );
@@ -4156,7 +4154,7 @@ fn recover_unclosed_bold() {
 // Recovers from mismatched italic and bold markers
 #[test]
 fn recover_mismatched_inline_formatting() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"*italic **and bold*
 "#,
   );
@@ -4201,7 +4199,7 @@ fn recover_mismatched_inline_formatting() {
 // Square brackets without `(url)` are plain text, not links
 #[test]
 fn parse_brackets_without_url_are_plain_text() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"[Cardelli, 1996] is a reference.
 "#,
   );
@@ -4240,7 +4238,7 @@ fn parse_brackets_without_url_are_plain_text() {
 // Tag-style brackets like [Rocq] are plain text
 #[test]
 fn parse_tag_brackets_are_plain_text() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"[Rocq] A command in Rocq.
 "#,
   );
@@ -4279,17 +4277,17 @@ fn parse_tag_brackets_are_plain_text() {
 // $$ math block should not trigger missing-heading-space
 #[test]
 fn parse_math_block_no_heading_error() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"$$
 x + y
 $$
 "#,
   );
-  let heading_diags: Vec<_> = diags
+  let heading_diagnostics: Vec<_> = diagnostics
     .iter()
-    .filter(|d| {
+    .filter(|diagnostic| {
       matches!(
-        d,
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::MissingRequiredSpace,
           ..
@@ -4298,26 +4296,24 @@ $$
     })
     .collect();
   assert!(
-    heading_diags.is_empty(),
+    heading_diagnostics.is_empty(),
     "$$ should not trigger missing-heading-space, got: {:?}",
-    heading_diags
+    heading_diagnostics
   );
 }
-
-// $$ after list with empty item should not trigger missing-heading-space
 
 // `->` at line start should be treated as text, not a list bullet
 #[test]
 fn parse_arrow_not_list() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"-> **Trapped error** vs **untrapped error**.
 "#,
   );
-  let heading_diags: Vec<_> = diags
+  let heading_diagnostics: Vec<_> = diagnostics
     .iter()
-    .filter(|d| {
+    .filter(|diagnostic| {
       matches!(
-        d,
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::MissingRequiredSpace,
           ..
@@ -4326,9 +4322,9 @@ fn parse_arrow_not_list() {
     })
     .collect();
   assert!(
-    heading_diags.is_empty(),
+    heading_diagnostics.is_empty(),
     "-> should not trigger missing-heading-space, got: {:?}",
-    heading_diags
+    heading_diagnostics
   );
   assert!(
     !tree.contains("MdListItem"),
@@ -4339,16 +4335,16 @@ fn parse_arrow_not_list() {
 // `->` inside a list context
 #[test]
 fn parse_arrow_inside_list_no_error() {
-  let (_, diags) = parse_body_with_diags(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"- List item.
 -> **Trapped error** vs **untrapped error**.
 "#,
   );
-  let heading_diags: Vec<_> = diags
+  let heading_diagnostics: Vec<_> = diagnostics
     .iter()
-    .filter(|d| {
+    .filter(|diagnostic| {
       matches!(
-        d,
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::MissingRequiredSpace,
           ..
@@ -4357,16 +4353,16 @@ fn parse_arrow_inside_list_no_error() {
     })
     .collect();
   assert!(
-    heading_diags.is_empty(),
+    heading_diagnostics.is_empty(),
     "-> after list should not trigger missing-heading-space, got: {:?}",
-    heading_diags
+    heading_diagnostics
   );
 }
 
 // Nested list siblings with 2-space indent
 #[test]
 fn parse_nested_siblings() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"- outer
   - first inner
   - second inner
@@ -4378,13 +4374,13 @@ fn parse_nested_siblings() {
     4,
     "expected 4 items (outer, first inner, second inner, back):\n{tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 // Nested ordered list siblings with 2-space indent
 #[test]
 fn parse_nested_ordered_siblings() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"1. outer
   1. first inner
   2. second inner
@@ -4396,13 +4392,13 @@ fn parse_nested_ordered_siblings() {
     4,
     "expected 4 items (outer, first inner, second inner, back):\n{tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 // Deep nesting exits correctly back to outer level
 #[test]
 fn parse_deep_nested_exits() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"- level 1
   - level 2
     - level 3
@@ -4468,13 +4464,13 @@ fn parse_deep_nested_exits() {
             "1"))))
     "\n"))"####
   );
-  assert!(diags.is_empty());
+  assert!(diagnostics.is_empty());
 }
 
 // Ambiguous dedent: second child at less indent than first is not a sibling
 #[test]
 fn parse_ambiguous_dedent_not_sibling() {
-  let (tree, _diags) = parse_body_with_diags(
+  let (tree, _diagnostics) = parse_body_with_diagnostics(
     r#"- outer
     - first (4 spaces)
   - second (2 spaces)
@@ -5247,7 +5243,7 @@ fn parse_list_in_blockquote_multiple_bare_blank_lines() {
 // Backslash escapes prevent markdown interpretation
 #[test]
 fn parse_backslash_escape_italic() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"\*not italic\*
 "#,
   );
@@ -5265,7 +5261,7 @@ fn parse_backslash_escape_italic() {
 // Backslash escapes work for brackets
 #[test]
 fn parse_backslash_escape_bracket() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"\[not a link\]
 "#,
   );
@@ -5279,7 +5275,7 @@ fn parse_backslash_escape_bracket() {
 // Backslash escapes work for hash
 #[test]
 fn parse_backslash_escape_hash() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"\# not a heading
 "#,
   );
@@ -5293,7 +5289,7 @@ fn parse_backslash_escape_hash() {
 // Backslash before non-escapable char is kept as literal
 #[test]
 fn parse_backslash_non_escapable() {
-  let (tree, diags) = parse_body_with_diags(
+  let (tree, diags) = parse_body_with_diagnostics(
     r#"\a plain text
 "#,
   );
@@ -5304,28 +5300,28 @@ fn parse_backslash_non_escapable() {
 // Horizontal rules
 #[test]
 fn parse_horizontal_rule_dashes() {
-  let (tree, diags) = parse_body_with_diags("---\n");
+  let (tree, diags) = parse_body_with_diagnostics("---\n");
   assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
 #[test]
 fn parse_horizontal_rule_stars() {
-  let (tree, diags) = parse_body_with_diags("***\n");
+  let (tree, diags) = parse_body_with_diagnostics("***\n");
   assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
 #[test]
 fn parse_horizontal_rule_underscores() {
-  let (tree, diags) = parse_body_with_diags("___\n");
+  let (tree, diags) = parse_body_with_diagnostics("___\n");
   assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
 #[test]
 fn parse_not_horizontal_rule_with_text() {
-  let (tree, _) = parse_body_with_diags(
+  let (tree, _) = parse_body_with_diagnostics(
     "--- some text
 ",
   );
@@ -5351,7 +5347,7 @@ fn parse_link_with_inline_code_text() {
 // Invalid token inside a list synchronizes to the next delimiter, no crash
 #[test]
 fn prop_list_invalid_element_synchronizes() {
-  let (tree, diags) = parse_body_with_diags(":::card{data=[@bad]}\n:::\n");
+  let (tree, diags) = parse_body_with_diagnostics(":::card{data=[@bad]}\n:::\n");
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5371,7 +5367,7 @@ fn prop_list_invalid_element_synchronizes() {
 // Error mid-list: synchronizes to next comma/bracket, parses what it can
 #[test]
 fn prop_list_error_mid_list_synchronizes() {
-  let (tree, diags) = parse_body_with_diags(":::card{data=[1, @, 3]}\n:::\n");
+  let (tree, diags) = parse_body_with_diagnostics(":::card{data=[1, @, 3]}\n:::\n");
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5385,7 +5381,7 @@ fn prop_list_error_mid_list_synchronizes() {
 // List terminated early by `}`: closes the list without crash
 #[test]
 fn prop_list_terminated_by_rbrace_no_crash() {
-  let (tree, _) = parse_body_with_diags(":::card{data=[1, 2}\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(":::card{data=[1, 2}\n:::\n");
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5395,7 +5391,7 @@ fn prop_list_terminated_by_rbrace_no_crash() {
 // Unterminated list at newline: closes gracefully
 #[test]
 fn prop_list_unterminated_at_newline_no_crash() {
-  let (tree, _) = parse_body_with_diags(":::card{data=[1, 2\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(":::card{data=[1, 2\n:::\n");
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5405,14 +5401,14 @@ fn prop_list_unterminated_at_newline_no_crash() {
 // Invalid value in a dict entry: synchronizes, no crash
 #[test]
 fn prop_dict_invalid_value_synchronizes() {
-  let (tree, diags) = parse_body_with_diags(":::card{config={color: @bad}}\n:::\n");
+  let (tree, diags) = parse_body_with_diagnostics(":::card{config={color: @bad}}\n:::\n");
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diags.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
         ..
@@ -5425,7 +5421,7 @@ fn prop_dict_invalid_value_synchronizes() {
 // Dict entry missing colon: synchronizes, no crash
 #[test]
 fn prop_dict_missing_colon_synchronizes() {
-  let (tree, _) = parse_body_with_diags(":::card{config={color \"red\"}}\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(":::card{config={color \"red\"}}\n:::\n");
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"
@@ -5435,7 +5431,7 @@ fn prop_dict_missing_colon_synchronizes() {
 // Unterminated dict at newline: closes gracefully
 #[test]
 fn prop_dict_unterminated_at_newline_no_crash() {
-  let (tree, _) = parse_body_with_diags(":::card{config={color: \"red\"\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(":::card{config={color: \"red\"\n:::\n");
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"
@@ -5445,7 +5441,7 @@ fn prop_dict_unterminated_at_newline_no_crash() {
 // Error in nested list inside a dict value: recovers without crash
 #[test]
 fn prop_dict_nested_list_invalid_element_no_crash() {
-  let (tree, _) = parse_body_with_diags(":::card{config={a: [@bad]}}\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(":::card{config={a: [@bad]}}\n:::\n");
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"

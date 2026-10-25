@@ -16,6 +16,7 @@ mod zero_spurious_errors;
 mod zero_spurious_errors_after_file_change;
 
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
 
 use tempfile::TempDir;
@@ -27,28 +28,51 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::Project;
 use typedown_server::core::utils::fs::get_cache_dir;
 
-use super::utils::{copy_dir_recursive, example_vault, setup_db_fresh};
+use super::utils::{copy_dir_recursive, copy_dir_recursive_all, example_vault, setup_db_fresh};
+
+// Shared session1 result: vault copy + DB build + diagnostics + cache dump done ONCE.
+// Individual tests clone the files (cheap) instead of rebuilding the DB (expensive).
+struct SharedSession1 {
+  _tmp: TempDir,
+  project_dir: PathBuf,
+  fresh_count: usize,
+}
+
+static SHARED_SESSION1: OnceLock<SharedSession1> = OnceLock::new();
 
 fn session1_dump() -> (TempDir, PathBuf, PathBuf, usize) {
-  let source = example_vault();
-  assert!(source.exists(), "examples/project_tracker must exist");
+  let shared = SHARED_SESSION1.get_or_init(|| {
+    let source = example_vault();
+    assert!(source.exists(), "examples/project_tracker must exist");
 
+    let tmp = TempDir::new().unwrap();
+    let project_dir = tmp.path().join("project_tracker");
+    copy_dir_recursive(&source, &project_dir);
+
+    let cache_dir = get_cache_dir(&project_dir);
+
+    let db = setup_db_fresh(&project_dir);
+    run_diagnostics(&db);
+
+    let fresh_count = db.storage.total_recompute_count();
+    let serialized = db.dump();
+    let (session, _) = CacheSession::open(&cache_dir).unwrap();
+    let revision = db.storage.revision.load(Ordering::Acquire) as u64;
+    session.finalize(&serialized, revision).unwrap();
+
+    SharedSession1 {
+      _tmp: tmp,
+      project_dir,
+      fresh_count,
+    }
+  });
+
+  // Clone to a fresh TempDir so each test can mutate independently
   let tmp = TempDir::new().unwrap();
   let project_dir = tmp.path().join("project_tracker");
-  copy_dir_recursive(&source, &project_dir);
-
+  copy_dir_recursive_all(&shared.project_dir, &project_dir);
   let cache_dir = get_cache_dir(&project_dir);
-
-  let db = setup_db_fresh(&project_dir);
-  run_diagnostics(&db);
-
-  let fresh_count = db.storage.total_recompute_count();
-  let serialized = db.dump();
-  let (session, _) = CacheSession::open(&cache_dir).unwrap();
-  let revision = db.storage.revision.load(Ordering::Acquire) as u64;
-  session.finalize(&serialized, revision).unwrap();
-
-  (tmp, project_dir, cache_dir, fresh_count)
+  (tmp, project_dir, cache_dir, shared.fresh_count)
 }
 
 fn run_diagnostics(db: &TypedownDatabase) {
@@ -57,14 +81,14 @@ fn run_diagnostics(db: &TypedownDatabase) {
     .next()
     .expect("project should exist");
   for (path, file) in &*project.files(db) {
-    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
     let result = parse_file(db, project, *file);
     let _ = result.diagnostics(db);
-    if let Some(sym) = file_symbol(db, project, *file).value(db) {
-      let eval = evaluate_resource(db, sym);
-      let _ = eval.diagnostics(db);
+    if let Some(symbol) = file_symbol(db, project, *file).value(db) {
+      let evaluated_result = evaluate_resource(db, symbol);
+      let _ = evaluated_result.diagnostics(db);
     }
   }
 }

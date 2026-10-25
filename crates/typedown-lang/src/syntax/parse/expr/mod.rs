@@ -821,6 +821,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
         _ => {
           let handler = self.expr_ctx_stack.find_handler(&peek.token);
           if handler.is_some_and(|ctx| ctx != ExprCtx::List) {
+            self.diagnostics.push(
+              TdDiagnosticKind::MissingSyntaxNode {
+                expected: SyntaxKind::RBracket,
+              }
+              .into_error(self.offset(), self.offset()),
+            );
             // Outer context should handle this token
             self.expr_ctx_stack.exit(ExprCtx::List);
             return (self.emit(SyntaxKind::ListLit, &children), handler);
@@ -1122,6 +1128,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
         _ => {
           let handler = self.expr_ctx_stack.find_handler(&peek.token);
           if handler.is_some_and(|ctx| ctx != ExprCtx::Dict) {
+            self.diagnostics.push(
+              TdDiagnosticKind::MissingSyntaxNode {
+                expected: SyntaxKind::RBrace,
+              }
+              .into_error(self.offset(), self.offset()),
+            );
             self.expr_ctx_stack.exit(ExprCtx::Dict);
             return (self.emit(SyntaxKind::DictLit, &children), handler);
           }

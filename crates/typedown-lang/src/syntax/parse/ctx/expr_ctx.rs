@@ -128,11 +128,15 @@ impl ExprCtxStack {
   }
 
   pub(in crate::syntax::parse) fn current(&self) -> Option<ExprCtx> {
-    self.stack.last().map(|e| e.ctx)
+    self.stack.last().map(|entry| entry.ctx)
   }
 
   pub(in crate::syntax::parse) fn is_inside(&self, pred: impl Fn(ExprCtx) -> bool) -> bool {
-    self.stack.iter().find(|c| pred(c.ctx)).is_some()
+    self
+      .stack
+      .iter()
+      .find(|context| pred(context.ctx))
+      .is_some()
   }
 
   // The accumulated expected MD prefix tokens
@@ -142,12 +146,18 @@ impl ExprCtxStack {
 
   /// Whether expressions should skip indent/dedent tokens.
   pub(in crate::syntax::parse) fn should_expr_skip_indent(&self) -> bool {
-    self.stack.iter().any(|e| e.ctx.should_expr_skip_indent())
+    self
+      .stack
+      .iter()
+      .any(|entry| entry.ctx.should_expr_skip_indent())
   }
 
   /// Whether expressions can span across newlines.
   pub(in crate::syntax::parse) fn should_expr_span_newline(&self) -> bool {
-    self.stack.iter().any(|e| e.ctx.should_expr_span_newline())
+    self
+      .stack
+      .iter()
+      .any(|entry| entry.ctx.should_expr_span_newline())
   }
 
   /// Push expected prefix tokens for the given context.
@@ -188,7 +198,7 @@ impl ExprCtxStack {
       .stack
       .iter()
       .rev()
-      .map(|e| e.ctx)
+      .map(|entry| entry.ctx)
       .find(|ctx| ctx.can_handle(token))
       .or_else(|| self.current())
   }

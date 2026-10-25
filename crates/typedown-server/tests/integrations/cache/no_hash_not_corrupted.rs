@@ -31,8 +31,8 @@ fn no_hash_not_corrupted() {
         "parse result should have content for {}",
         path.display()
       );
-      if let Some(sym) = file_symbol(&db, project, *file).value(&db) {
-        let _eval = evaluate_resource(&db, sym);
+      if let Some(symbol) = file_symbol(&db, project, *file).value(&db) {
+        let _evaluate = evaluate_resource(&db, symbol);
       }
     }
     return;

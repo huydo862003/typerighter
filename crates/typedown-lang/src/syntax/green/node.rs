@@ -28,9 +28,9 @@ impl SyntaxNode {
   }
 
   pub(super) fn from_raw_parts(kind: SyntaxKind, children: &[GreenNode]) -> Self {
-    let n = children.len();
-    let text_len = children.iter().map(|c| c.text_len()).sum();
-    let (layout, children_offset) = Self::layout(n);
+    let lenth = children.len();
+    let text_length = children.iter().map(|child| child.text_len()).sum();
+    let (layout, children_offset) = Self::layout(lenth);
 
     unsafe {
       let base = alloc(layout);
@@ -39,8 +39,8 @@ impl SyntaxNode {
       (base as *mut NodeHeader).write(NodeHeader {
         ref_count: AtomicUsize::new(1),
         kind,
-        text_len,
-        n_children: n as u32,
+        text_len: text_length,
+        n_children: lenth as u32,
       });
 
       // Clone each child (bumps ref-count) and write into the allocation
@@ -62,7 +62,7 @@ impl SyntaxNode {
   }
 
   pub fn chars(&self) -> impl Iterator<Item = char> {
-    self.children().iter().flat_map(|c| c.chars())
+    self.children().iter().flat_map(|child| child.chars())
   }
 
   pub fn n_children(&self) -> u32 {
@@ -116,8 +116,9 @@ impl PartialEq for SyntaxNode {
 impl Eq for SyntaxNode {}
 
 impl Debug for SyntaxNode {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.debug_struct("SyntaxNode")
+  fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    formatter
+      .debug_struct("SyntaxNode")
       .field("kind", &self.kind())
       .field("children", &self.children())
       .finish()
@@ -139,7 +140,7 @@ impl Hash for SyntaxNode {
   where
     Self: Sized,
   {
-    let total = data.iter().map(|n| 1 + n.n_children() as usize).sum();
+    let total = data.iter().map(|node| 1 + node.n_children() as usize).sum();
     let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(total);
     for node in data {
       buf.push(((node.kind() as u64) << 32) | node.text_len() as u64);

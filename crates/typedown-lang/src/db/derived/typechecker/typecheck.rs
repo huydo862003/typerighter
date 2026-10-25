@@ -16,10 +16,11 @@ use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::typecheck::{is_nullable, is_subtype_of};
-use crate::db::types::{ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult};
+use crate::db::types::{File, Project, ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult};
 use crate::syntax::ast::{
-  AstNode, Expr, IdentLit, SourceFile, YamlFrontmatter, YamlMapping, YamlOpKind,
+  AstNode, Expr, IdentLit, InterpFragment, SourceFile, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
+use crate::syntax::red::RedNode;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
@@ -43,6 +44,15 @@ pub fn typecheck<'db>(
         mapping.syntax().clone(),
       );
       diags.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
+    }
+    if let Some(body) = source_file.body() {
+      typecheck_md_body(
+        db,
+        project_node.project,
+        project_node.file,
+        body.syntax().clone(),
+        &mut diags,
+      );
     }
     return TypecheckResult::new(db, diags);
   }
@@ -210,6 +220,26 @@ fn typecheck_body<'db>(
   diagnostics
 }
 
+// Walk an MdBody subtree and typecheck each interpolation expression
+fn typecheck_md_body(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: RedNode,
+  diagnostics: &mut Vec<TdDiagnostic>,
+) {
+  if let Some(interp) = InterpFragment::cast(node.clone()) {
+    if let Some(expr) = interp.expr() {
+      let expr_node = ProjectRedNode::new(project, file, expr.syntax().clone());
+      diagnostics.extend(typecheck(db, expr_node).diagnostics(db).iter().cloned());
+    }
+    return;
+  }
+  for child in node.children() {
+    typecheck_md_body(db, project, file, child, diagnostics);
+  }
+}
+
 fn check_mapping_fields<'db>(
   db: &'db TypedownDatabase,
   mapping_node: ProjectRedNode,
@@ -356,8 +386,9 @@ fn check_mapping_fields<'db>(
 
   let default_fields: HashSet<String> = expected_typ
     .as_td_schema_typ()
-    .map(|p| {
-      p.fields(db)
+    .map(|path| {
+      path
+        .fields(db)
         .iter()
         .filter_map(|(key, descriptor)| {
           if descriptor.default_value.is_some() {
@@ -491,7 +522,7 @@ fn check_index(
 
   // If the base expr resolves to a type constructor (e.g. `list` in `list[string]`),
   // use the generic type's arity instead of the metatype (TdTypTyp has arity 0).
-  let expr_type = if expr_type.arity(db) == 0
+  let expr_typ = if expr_type.arity(db) == 0
     && IdentLit::cast(expr.node.clone()).is_some()
     && let Some(symbol) = referee(db, expr.clone()).value(db)
     && let Some(generic_typ) = evaluate_typ(db, symbol).typ(db)
@@ -503,12 +534,12 @@ fn check_index(
   };
 
   // Type instantiation: no checking is needed because we do not support type bound, only check arity
-  if expr_type.arity(db) > 0 {
+  if expr_typ.arity(db) > 0 {
     return diagnostics;
   }
 
   // List element access: index must be a number
-  if expr_type.is_td_list_typ() {
+  if expr_typ.is_td_list_typ() {
     for index_node in &indices {
       let index_result = actual_node_typ(db, index_node.clone());
       diagnostics.extend(index_result.diagnostics(db).iter().cloned());
@@ -529,18 +560,18 @@ fn check_index(
   }
 
   // Dict element access: index must match key type
-  if let TdTypEnum::TdDictTyp(dict) = &expr_type {
-    if let Some(key_type) = dict.key(db).and_then(|l| l.resolve(db)) {
+  if let TdTypEnum::TdDictTyp(dict) = &expr_typ {
+    if let Some(key_typ) = dict.key(db).and_then(|lazy_typ| lazy_typ.resolve(db)) {
       for index_node in &indices {
         let index_result = actual_node_typ(db, index_node.clone());
         diagnostics.extend(index_result.diagnostics(db).iter().cloned());
-        if let Some(index_type) = index_result.typ(db)
-          && !is_subtype_of(db, &index_type, &key_type)
+        if let Some(index_typ) = index_result.typ(db)
+          && !is_subtype_of(db, &index_typ, &key_typ)
         {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
           diagnostics.push(
             TdDiagnosticKind::IndexTypMismatch {
-              expected: key_type.display_name(db),
+              expected: key_typ.display_name(db),
             }
             .into_error(trimmed_offset, trimmed_offset + trimmed_len),
           );
@@ -551,13 +582,13 @@ fn check_index(
   }
 
   // String indexing is valid: index must be a number
-  if expr_type.is_td_string_typ() {
+  if expr_typ.is_td_string_typ() {
     for index_node in &indices {
       let index_result = actual_node_typ(db, index_node.clone());
       diagnostics.extend(index_result.diagnostics(db).iter().cloned());
-      if let Some(index_type) = index_result.typ(db) {
+      if let Some(index_typ) = index_result.typ(db) {
         let number_typ = get_number_typ(db);
-        if !is_subtype_of(db, &index_type, &number_typ.into()) {
+        if !is_subtype_of(db, &index_typ, &number_typ.into()) {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
           diagnostics.push(
             TdDiagnosticKind::IndexTypMismatch {
@@ -729,7 +760,7 @@ fn check_sequence<'db>(
     return diagnostics;
   };
 
-  let element_typ = match list.element(db).and_then(|e| e.resolve(db)) {
+  let element_typ = match list.element(db).and_then(|element| element.resolve(db)) {
     Some(typ) => typ,
     // Uninstantiated list: no element type constraint
     None => return diagnostics,
@@ -808,13 +839,13 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "excess_field.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags
+      diagnostics
         .iter()
-        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::UnknownField { field, on_typ, ..}, .. } if field == "favorite_color" && on_typ == "Person")),
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::UnknownField { field, on_typ, ..}, .. } if field == "favorite_color" && on_typ == "Person")),
       "expected UnknownField for 'favorite_color', got: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -824,12 +855,12 @@ mod tests {
       load_vault_fixture("typecheck/my_vault", "schema_missing_properties.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     // properties is optional: a schema without it is valid
     assert!(
-      diags.is_empty(),
+      diagnostics.is_empty(),
       "schema without properties should have no errors, got: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -850,11 +881,11 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "wrong_field_type.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags.iter().any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. } if field == "name" && expected == "string")),
+      diagnostics.iter().any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. } if field == "name" && expected == "string")),
       "expected FieldTypeMismatch for 'name' with expected 'string', got: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -903,8 +934,8 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result.diagnostics(&db).iter().any(|d| matches!(
-        d,
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::OperandTypMismatch { .. },
           ..
@@ -988,7 +1019,7 @@ mod tests {
       result
         .diagnostics(&db)
         .iter()
-        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "state")),
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "state")),
       "state mismatch expected"
     );
   }
@@ -1575,8 +1606,8 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result.diagnostics(&db).iter().any(|d| matches!(
-        d,
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::OperandTypMismatch { .. },
           ..
@@ -1645,8 +1676,8 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result.diagnostics(&db).iter().any(|d| matches!(
-        d,
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::OperandTypMismatch { .. },
           ..
@@ -1730,6 +1761,93 @@ mod tests {
         }
       )),
       "string literal indexing should not be flagged as not indexable: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // ${fref("file.td").validField} in markdown body should typecheck cleanly
+  #[test]
+  fn typecheck_md_body_fref_valid_field_no_errors() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "md_body_fref_valid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "fref().validField in markdown body should typecheck cleanly: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // ${fref("file.td").nonexistentField} in markdown body should emit UnknownField
+  #[test]
+  fn typecheck_md_body_fref_unknown_field_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "md_body_fref_unknown_field.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnknownField { .. },
+          ..
+        }
+      )),
+      "fref().nonexistentField in markdown body should emit UnknownField: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // ${1 + 2} in markdown body should typecheck cleanly
+  #[test]
+  fn typecheck_md_body_valid_arithmetic_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "md_body_valid_arithmetic.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "valid arithmetic in markdown body should have no errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // ${1 + true} in markdown body should emit OperandTypMismatch
+  #[test]
+  fn typecheck_md_body_binary_wrong_operand_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "md_body_binary_wrong_operand.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
+      "1 + true in markdown body should emit OperandTypMismatch: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // ${-"hello"} in markdown body should emit OperandTypMismatch
+  #[test]
+  fn typecheck_md_body_prefix_wrong_operand_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "md_body_prefix_wrong_operand.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
+      "prefix minus on string in markdown body should emit OperandTypMismatch: {:?}",
       result.diagnostics(&db)
     );
   }

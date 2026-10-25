@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use typedown_types::file_stream::FileStream;
 use typedown_types::string_stream::StringStream;
 
 use crate::syntax::diagnostic::*;
@@ -26,11 +27,11 @@ fn lex_yaml(input: &str) -> Vec<(SyntaxKind, String)> {
 }
 
 fn lex_markdown(input: &str) -> Vec<(SyntaxKind, String)> {
-  let (tokens, _) = lex_markdown_with_diags(input);
+  let (tokens, _) = lex_markdown_with_diagnostics(input);
   tokens
 }
 
-fn lex_markdown_with_diags(input: &str) -> (Vec<(SyntaxKind, String)>, Vec<TdDiagnostic>) {
+fn lex_markdown_with_diagnostics(input: &str) -> (Vec<(SyntaxKind, String)>, Vec<TdDiagnostic>) {
   let stream = StringStream::new(input);
   let cache = Rc::new(RefCell::new(Cache::new()));
   let mut lexer = LexCtx::new(stream, cache);
@@ -359,10 +360,20 @@ fn md_inline_code() {
 
 #[test]
 fn md_code_block() {
-  let tokens = lex_markdown("```\ncode\n```");
+  let tokens = lex_markdown(
+    "```
+code
+```",
+  );
   assert_eq!(
     tokens[0],
-    (SyntaxKind::CodeBlock, "```\ncode\n```".to_string())
+    (
+      SyntaxKind::CodeBlock,
+      "```
+code
+```"
+        .to_string()
+    )
   );
 }
 
@@ -387,7 +398,11 @@ fn md_number() {
 
 #[test]
 fn md_math_block() {
-  let tokens = lex_markdown("$$\nx + y\n$$");
+  let tokens = lex_markdown(
+    "$$
+x + y
+$$",
+  );
   assert_eq!(tokens.len(), 2); // MathBlock + Eof
   assert_eq!(
     tokens[0],
@@ -397,7 +412,11 @@ fn md_math_block() {
 
 #[test]
 fn md_math_block_triple_dollar() {
-  let tokens = lex_markdown("$$$\nx + y\n$$$");
+  let tokens = lex_markdown(
+    "$$$
+x + y
+$$$",
+  );
   assert_eq!(tokens.len(), 2);
   assert_eq!(
     tokens[0],
@@ -543,50 +562,58 @@ fn md_code_block_with_line_ranges() {
 }
 
 #[test]
-fn md_code_block_with_ranges_no_diags() {
-  let (_, diags) = lex_markdown_with_diags("```js{1,3}\ncode\n```");
+fn md_code_block_with_ranges_no_diagnostics() {
+  let (_, diagnostics) = lex_markdown_with_diagnostics("```js{1,3}\ncode\n```");
   assert!(
-    diags.is_empty(),
-    "valid range should have no diagnostics: {diags:?}"
+    diagnostics.is_empty(),
+    "valid range should have no diagnostics: {diagnostics:?}"
   );
 }
 
 #[test]
 fn md_code_block_invalid_range_chars() {
-  let (tokens, diags) = lex_markdown_with_diags("```js{abc}\ncode\n```");
+  let (tokens, diagnostics) = lex_markdown_with_diagnostics(
+    "```js{abc}
+code
+```",
+  );
   assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidCodeRangeIndicator,
         ..
       }
     )),
-    "should have InvalidCodeRangeIndicator: {diags:?}",
+    "should have InvalidCodeRangeIndicator: {diagnostics:?}",
   );
 }
 
 #[test]
 fn md_code_block_unclosed_range() {
-  let (tokens, diags) = lex_markdown_with_diags("```js{1,3\ncode\n```");
+  let (tokens, diagnostics) = lex_markdown_with_diagnostics(
+    "```js{1,3
+code
+```",
+  );
   assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::InvalidCodeRangeIndicator,
         ..
       }
     )),
-    "should have InvalidCodeRangeIndicator: {diags:?}",
+    "should have InvalidCodeRangeIndicator: {diagnostics:?}",
   );
 }
 
 #[test]
 fn file_stream_lookahead_eof() {
-  use typedown_types::file_stream::FileStream;
-  let input = "# Heading\nSome content";
+  let input = "# Heading
+Some content";
   let stream = FileStream::new(input.as_bytes());
   let cache = Rc::new(RefCell::new(Cache::new()));
   let mut lexer = LexCtx::new(stream, cache);

@@ -40,7 +40,7 @@ pub(crate) fn render_tree(node: &GreenNode) -> String {
       } else {
         let inner: Vec<String> = children
           .iter()
-          .map(|c| render_tree_inner(c, indent + 1))
+          .map(|child| render_tree_inner(child, indent + 1))
           .collect();
         format!("{}({:?}\n{})", pad, node.kind(), inner.join("\n"))
       }

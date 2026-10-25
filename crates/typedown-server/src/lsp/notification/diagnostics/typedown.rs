@@ -96,7 +96,7 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
       let scheme = analysis
         .scheme_map
         .get(&full_path)
-        .map(|s| s.as_str())
+        .map(|scheme| scheme.as_str())
         .unwrap_or("file");
       let uri = path_to_uri(&full_path, scheme);
       notifications.push(Notification::new(
@@ -159,13 +159,13 @@ fn get_diagnostics_for_file(
   td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors
-  if let Some(sym) = file_symbol(db, project, file).value(db) {
-    if sym.kind(db).is_schema() {
-      let eval_result = evaluate_typ(db, sym);
-      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+  if let Some(symbol) = file_symbol(db, project, file).value(db) {
+    if symbol.kind(db).is_schema() {
+      let evaluated_result = evaluate_typ(db, symbol);
+      td_diags.extend(evaluated_result.diagnostics(db).iter().cloned());
     } else {
-      let eval_result = evaluate_resource(db, sym);
-      td_diags.extend(eval_result.diagnostics(db).iter().cloned());
+      let evaluated_result = evaluate_resource(db, symbol);
+      td_diags.extend(evaluated_result.diagnostics(db).iter().cloned());
     }
   }
 
@@ -526,16 +526,16 @@ age: 30
       r#"{"KnownWidget":{"source":"./KnownWidget.vue","props":{}}}"#,
     );
     let notifications = publish_diagnostics_for_project(&analysis);
-    let notif = notifications
+    let notification = notifications
       .iter()
-      .find(|n| n.params.to_string().contains("file.td"))
+      .find(|notification| notification.params.to_string().contains("file.td"))
       .expect("expected notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
     let codes: Vec<&str> = params["diagnostics"]
       .as_array()
       .unwrap()
       .iter()
-      .filter_map(|d| d["code"].as_str())
+      .filter_map(|diagnostic| diagnostic["code"].as_str())
       .collect();
     assert!(
       codes.contains(&"unknown-component"),
@@ -554,16 +554,16 @@ age: 30
       contract,
     );
     let notifications = publish_diagnostics_for_project(&analysis);
-    let notif = notifications
+    let notification = notifications
       .iter()
-      .find(|n| n.params.to_string().contains("file.td"))
+      .find(|notification| notification.params.to_string().contains("file.td"))
       .expect("expected notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
     let codes: Vec<&str> = params["diagnostics"]
       .as_array()
       .unwrap()
       .iter()
-      .filter_map(|d| d["code"].as_str())
+      .filter_map(|diagnostic| diagnostic["code"].as_str())
       .collect();
     assert!(
       codes.contains(&"missing-required-prop"),
@@ -574,21 +574,27 @@ age: 30
   #[test]
   fn known_component_produces_no_component_diagnostic() {
     let contract = r#"{"Chart":{"source":"./Chart.vue","props":{}}}"#;
-    let analysis = setup_with_contract(":::chart\n:::\n", contract);
+    let analysis = setup_with_contract(
+      ":::chart
+:::
+",
+      contract,
+    );
     let notifications = publish_diagnostics_for_project(&analysis);
-    let notif = notifications
+    let notification = notifications
       .iter()
-      .find(|n| n.params.to_string().contains("file.td"));
-    if let Some(notif) = notif {
-      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+      .find(|notification| notification.params.to_string().contains("file.td"));
+    if let Some(notification) = notification {
+      let params: serde_json::Value =
+        serde_json::from_str(&notification.params.to_string()).unwrap();
       let component_codes: Vec<&str> = params["diagnostics"]
         .as_array()
         .unwrap()
         .iter()
-        .filter_map(|d| d["code"].as_str())
-        .filter(|c| {
+        .filter_map(|diagnostic| diagnostic["code"].as_str())
+        .filter(|code| {
           matches!(
-            *c,
+            *code,
             "unknown-component" | "missing-required-prop" | "unknown-prop"
           )
         })
@@ -603,18 +609,23 @@ age: 30
   #[test]
   fn unknown_prop_produces_diagnostic() {
     let contract = r#"{"Chart":{"source":"./Chart.vue","props":{}}}"#;
-    let analysis = setup_with_contract(":::chart {extra=\"val\"}\n:::\n", contract);
+    let analysis = setup_with_contract(
+      r#":::chart {extra="val"}
+:::
+"#,
+      contract,
+    );
     let notifications = publish_diagnostics_for_project(&analysis);
-    let notif = notifications
+    let notification = notifications
       .iter()
-      .find(|n| n.params.to_string().contains("file.td"))
+      .find(|notification| notification.params.to_string().contains("file.td"))
       .expect("expected notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
     let codes: Vec<&str> = params["diagnostics"]
       .as_array()
       .unwrap()
       .iter()
-      .filter_map(|d| d["code"].as_str())
+      .filter_map(|diagnostic| diagnostic["code"].as_str())
       .collect();
     assert!(
       codes.contains(&"unknown-prop"),
@@ -633,16 +644,17 @@ age: 30
 "#,
     );
     let notifications = publish_diagnostics_for_project(&analysis);
-    let config_notif = notifications
+    let config_notification = notifications
       .iter()
-      .find(|notif| notif.params.to_string().contains("typedown.yaml"));
+      .find(|notification| notification.params.to_string().contains("typedown.yaml"));
     // Config notification should either not exist or have empty diagnostics
-    if let Some(notif) = config_notif {
-      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-      let diags = params["diagnostics"].as_array().unwrap();
+    if let Some(notification) = config_notification {
+      let params: serde_json::Value =
+        serde_json::from_str(&notification.params.to_string()).unwrap();
+      let diagnostics = params["diagnostics"].as_array().unwrap();
       assert!(
-        diags.is_empty(),
-        "valid config should produce no diagnostics, got: {diags:?}"
+        diagnostics.is_empty(),
+        "valid config should produce no diagnostics, got: {diagnostics:?}"
       );
     }
   }

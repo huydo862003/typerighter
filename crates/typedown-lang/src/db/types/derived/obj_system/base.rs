@@ -79,14 +79,14 @@ pub trait TdStaticTyp<'x0> {
   fn runtime_vtable(&self, db: &'x0 TypedownDatabase) -> BTreeMap<String, TdFuncObj<'x0>> {
     self
       .parent_typ(db)
-      .map(|p| p.runtime_vtable(db))
+      .map(|parent| parent.runtime_vtable(db))
       .unwrap_or_default()
   }
 
   fn static_vtable(&self, db: &'x0 TypedownDatabase) -> BTreeMap<String, TdTypEnum<'x0>> {
     self
       .parent_typ(db)
-      .map(|p| p.static_vtable(db))
+      .map(|parent| parent.static_vtable(db))
       .unwrap_or_default()
   }
 

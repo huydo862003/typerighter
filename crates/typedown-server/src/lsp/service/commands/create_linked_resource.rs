@@ -198,13 +198,13 @@ fn find_nearest_schema_directory(
     if !path.starts_with(root_dir) {
       continue;
     }
-    let Some(sym) = file_symbol(db, project, *file).value(db) else {
+    let Some(symbol) = file_symbol(db, project, *file).value(db) else {
       continue;
     };
-    if !matches!(sym.kind(db), SymbolKind::UserDefinedResource(_, _)) {
+    if !matches!(symbol.kind(db), SymbolKind::UserDefinedResource(_, _)) {
       continue;
     }
-    if get_symbol_typ(db, sym)
+    if get_symbol_typ(db, symbol)
       .typ(db)
       .is_none_or(|typ| typ.display_name(db) != schema_name)
     {
@@ -236,9 +236,9 @@ fn build_template(db: &TypedownDatabase, project: Project, schema_name: &str) ->
     .members(db)
     .get(schema_name)
     .copied()
-    .and_then(|sym| evaluate_typ(db, sym).typ(db));
+    .and_then(|symbol| evaluate_typ(db, symbol).typ(db));
 
-  if let Some(schema) = typ.as_ref().and_then(|t| t.as_td_schema_typ()) {
+  if let Some(schema) = typ.as_ref().and_then(|typ| typ.as_td_schema_typ()) {
     for (field_name, _) in schema.fields(db) {
       template.push_str(&format!("{field_name}: \n"));
     }

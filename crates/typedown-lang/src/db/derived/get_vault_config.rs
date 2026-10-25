@@ -43,11 +43,11 @@ pub fn get_vault_config<'db>(
 
   // Extract vault.root_dir
   let root_dir = get_nested_string_field(db, &obj, "vault", "root_dir")
-    .map(|s| {
-      if s.is_empty() || s == "." {
+    .map(|string| {
+      if string.is_empty() || string == "." {
         root.clone()
       } else {
-        root.join(s)
+        root.join(string)
       }
     })
     .unwrap_or_else(|| root.clone());
@@ -56,10 +56,10 @@ pub fn get_vault_config<'db>(
   let site = get_field(db, &obj, "site");
   let site_title = get_site_string(db, &site, "title").unwrap_or_default();
   let site_description = get_site_string(db, &site, "description").unwrap_or_default();
-  let origin = get_site_string(db, &site, "origin").map(|s| normalize_origin(&s));
+  let origin = get_site_string(db, &site, "origin").map(|site| normalize_origin(&site));
   let lang = get_site_string(db, &site, "lang").unwrap_or_else(|| "en".to_string());
   let base_path = get_site_string(db, &site, "base_path")
-    .map(|s| normalize_base_path(&s))
+    .map(|site| normalize_base_path(&site))
     .unwrap_or_else(|| "/".to_string());
   let author = get_site_string(db, &site, "author");
   let license = get_site_string(db, &site, "license");
@@ -147,7 +147,7 @@ fn get_string_field<'db>(
   obj: &TdObjEnum<'db>,
   key: &str,
 ) -> Option<String> {
-  get_field(db, obj, key).and_then(|o| o.as_td_string_obj().map(|string| string.value(db)))
+  get_field(db, obj, key).and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)))
 }
 
 fn get_nested_string_field<'db>(
@@ -165,7 +165,9 @@ fn get_site_string<'db>(
   site: &Option<TdObjEnum<'db>>,
   key: &str,
 ) -> Option<String> {
-  site.as_ref().and_then(|s| get_string_field(db, s, key))
+  site
+    .as_ref()
+    .and_then(|site| get_string_field(db, site, key))
 }
 
 fn extract_nav<'db>(
@@ -226,7 +228,7 @@ fn extract_theme_components<'db>(
     };
 
     // String item: folder path to scan for .vue files
-    if let Some(path) = item.as_td_string_obj().map(|s| s.value(db)) {
+    if let Some(path) = item.as_td_string_obj().map(|string| string.value(db)) {
       entries.push(CustomComponentEntry::Dir { path });
       continue;
     }
@@ -259,7 +261,7 @@ fn extract_theme_layout<'db>(
   };
 
   // String form: theme.layout = "./path/to/Layout.vue"
-  if let Some(path) = layout.as_td_string_obj().map(|s| s.value(db)) {
+  if let Some(path) = layout.as_td_string_obj().map(|string| string.value(db)) {
     return CustomLayoutConfig {
       component: Some(path),
       ..CustomLayoutConfig::default()

@@ -204,18 +204,21 @@ fn parse_all_project_tracker_files() {
   let mut file_map = HashMap::new();
   fn collect_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap().flatten() {
-      let p = entry.path();
-      let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+      let path = entry.path();
+      let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
       if name == "node_modules" || name == ".typedown" {
         continue;
       }
-      if p.is_dir() {
-        collect_files(&p, out);
+      if path.is_dir() {
+        collect_files(&path, out);
       } else {
-        let ext = p.extension().and_then(|e| e.to_str());
-        let name = p.file_name().and_then(|n| n.to_str());
-        if ext == Some("td") || matches!(name, Some("typedown.yaml") | Some("typedown.yml")) {
-          out.push(p);
+        let extension = path.extension().and_then(|extension| extension.to_str());
+        let name = path.file_name().and_then(|name| name.to_str());
+        if extension == Some("td") || matches!(name, Some("typedown.yaml") | Some("typedown.yml")) {
+          out.push(path);
         }
       }
     }
@@ -227,11 +230,11 @@ fn parse_all_project_tracker_files() {
     let meta = std::fs::metadata(path).ok();
     let mtime = meta
       .as_ref()
-      .and_then(|m| m.modified().ok())
+      .and_then(|metadata| metadata.modified().ok())
       .unwrap_or(SystemTime::UNIX_EPOCH);
     let ctime = meta
       .as_ref()
-      .and_then(|m| m.created().ok())
+      .and_then(|metadata| metadata.created().ok())
       .unwrap_or(mtime);
     let handle = FileHandle::Path(path.clone(), FileMetadata { mtime, ctime });
     let file = File::new(&db, handle);
@@ -242,7 +245,7 @@ fn parse_all_project_tracker_files() {
   let mut sorted_files: Vec<_> = file_map.iter().collect();
   sorted_files.sort_by_key(|(p, _)| *p);
   for (path, file) in sorted_files {
-    if path.extension().and_then(|e| e.to_str()) != Some("td") {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
     eprintln!("parsing: {}", path.display());
@@ -448,7 +451,8 @@ fn parse_typedown_container_shorthand_no_frontmatter() {
 // Single dash is not a frontmatter opener
 #[test]
 fn parse_typedown_single_dash_no_frontmatter() {
-  let input = "- list item\n";
+  let input = "- list item
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -480,7 +484,8 @@ fn parse_typedown_double_dash_no_frontmatter() {
 // Four dashes is not a frontmatter opener
 #[test]
 fn parse_typedown_four_dashes_no_frontmatter() {
-  let input = "---- not frontmatter\n";
+  let input = "---- not frontmatter
+";
   let (ast, diagnostics) = parse(input);
   assert!(diagnostics.is_empty());
   let tree = render_tree(&ast);
@@ -819,8 +824,7 @@ fn parse_container_nested_in_ordered_list() {
 }
 
 // Container block nested inside a blockquote
-// Known limitation: the closing ::: is re-parsed as a new container inside the blockquote
-// because the blockquote prefix [>, " "] plus the container's extra " " require ">  :::"
+// Known limitation: the closing ::: is re-parsed as a new container inside the blockquote because the blockquote prefix [>, " "] plus the container's extra " " require ">  :::"
 // but the natural blockquote syntax uses "> :::" (one space)
 #[test]
 fn parse_container_nested_in_blockquote() {
