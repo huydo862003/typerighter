@@ -86,7 +86,7 @@ impl AnalysisHost {
     })
   }
 
-  /// Take a read-only snapshot of the current database state.
+  /// Take a read-only snapshot of the current database state
   pub fn snapshot(&self) -> Analysis {
     *self.snapshot_counter.0.lock().unwrap() += 1;
     Analysis::new(
@@ -98,7 +98,7 @@ impl AnalysisHost {
     )
   }
 
-  /// Cancel all in-flight snapshots, wait for them to finish, then apply a write.
+  /// Cancel all in-flight snapshots, wait for them to finish, then apply a write
   pub fn write<R>(&mut self, f: impl FnOnce(&mut TypedownDatabase) -> R) -> R {
     self.db.storage.cancelled.store(true, Ordering::Relaxed);
 
@@ -178,7 +178,7 @@ impl AnalysisHost {
     self.file_map = new_file_map;
   }
 
-  /// Called on textDocument/didOpen.
+  /// Called on textDocument/didOpen
   pub fn on_editor_open_file(&mut self, uri: &Uri, content: String) {
     if let Some(path) = uri_to_path(uri) {
       let scheme = get_uri_scheme(uri).to_string();
@@ -188,7 +188,7 @@ impl AnalysisHost {
     }
   }
 
-  /// Called on textDocument/didChange.
+  /// Called on textDocument/didChange
   pub fn on_editor_change_file(&mut self, path: PathBuf, rope: Rope) {
     // Preserve ctime from the existing handle instead of re-reading from disk
     let ctime = self
@@ -217,13 +217,13 @@ impl AnalysisHost {
     }
   }
 
-  /// Called on textDocument/didClose. Falls back to disk version.
+  /// Called on textDocument/didClose. Falls back to disk version
   pub fn on_close_file(&mut self, path: &PathBuf) {
     Arc::make_mut(&mut self.open_files).remove(path);
     self.sync_files();
   }
 
-  /// Called by the file watcher for disk changes to non-open files.
+  /// Called by the file watcher for disk changes to non-open files
   pub fn on_disk_change(&mut self, path: PathBuf) {
     if self.open_files.contains_key(&path) {
       return; // editor owns this file, ignore disk change
@@ -290,7 +290,7 @@ impl AnalysisHost {
     self.file_map.insert(new_path, file);
   }
 
-  /// Called by the file watcher when a file is deleted.
+  /// Called by the file watcher when a file is deleted
   pub fn on_disk_delete(&mut self, path: PathBuf) {
     if self.open_files.contains_key(&path) {
       return;

@@ -295,7 +295,7 @@ fn check_mapping_fields<'db>(
         let is_optional = is_nullable(db, &field_typ);
         // Skip structural subtype check for schema declaration fields that hold mappings:
         // schema metatype fields like `properties` are validated structurally during
-        // schema member resolution, not via subtype comparison here.
+        // schema member resolution, not via subtype comparison here
         let is_schema_meta_mapping =
           expected_typ.as_td_schema_meta_typ().is_some() && value_node.mapping_entries().is_some();
         match value_result.typ(db) {
@@ -352,10 +352,10 @@ fn check_mapping_fields<'db>(
     }
   }
 
-  // For schema metatype, validate that each property descriptor mapping has a required `type` field.
+  // For schema metatype, validate that each property descriptor mapping has a required `type` field
   // Full subtype checking against SchemaProperty is skipped because descriptor values use
   // type-expression syntax (e.g. `string | null`, `list[string]?`) that actual_node_typ
-  // cannot evaluate as plain values.
+  // cannot evaluate as plain values
   if expected_typ.as_td_schema_meta_typ().is_some() {
     for (key, value_node) in entries {
       if key == "properties"
@@ -521,7 +521,7 @@ fn check_index(
   };
 
   // If the base expr resolves to a type constructor (e.g. `list` in `list[string]`),
-  // use the generic type's arity instead of the metatype (TdTypTyp has arity 0).
+  // use the generic type's arity instead of the metatype (TdTypTyp has arity 0)
   let expr_typ = if expr_type.arity(db) == 0
     && IdentLit::cast(expr.node.clone()).is_some()
     && let Some(symbol) = referee(db, expr.clone()).value(db)

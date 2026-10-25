@@ -154,26 +154,25 @@ fn is_typ_value_position(node: &RedNode) -> bool {
   key.text().trim() == "_type"
 }
 
-// Suggest members of the LHS type after a "." in a binary expression.
-// Returns Some (even if empty) when we're clearly in a dot position, to prevent
-// fallthrough to interp/fref completions which would be irrelevant.
+// Suggest members of the LHS type after a "." in a binary expression
+// Returns Some (even if empty) when we're clearly in a dot position, to prevent fallthrough to interp/fref completions which would be irrelevant
 fn collect_dot_access_completions(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
 ) -> Option<Vec<CompletionItem>> {
-  let bin_node = find_ancestor(node, SyntaxKind::BinaryExpr)?;
-  let bin = BinaryExpr::cast(bin_node)?;
+  let binary_node = find_ancestor(node, SyntaxKind::BinaryExpr)?;
+  let binary_expr = BinaryExpr::cast(binary_node)?;
 
-  if !matches!(bin.op()?.kind()?, YamlOpKind::Dot) {
+  if !matches!(binary_expr.op()?.kind()?, YamlOpKind::Dot) {
     return None;
   }
 
-  // We're in a dot-access position — always return Some to prevent fallthrough
+  // We're in a dot-access position, always return Some to prevent fallthrough
   let mut items = Vec::new();
 
-  let Some(lhs) = bin.left() else {
+  let Some(lhs) = binary_expr.left() else {
     return Some(items);
   };
   let project_node = ProjectRedNode::new(project, file, lhs.syntax().clone());
@@ -313,10 +312,9 @@ fn build_candidate_completion(
   }
 }
 
-// Suggest file paths inside a fref() argument.
-// When cursor is already inside a string literal, insert bare path (inside existing quotes).
-// When cursor is inside fref() without quotes, use a text_edit to replace any existing
-// unquoted content (e.g. `fref(./subfolder/|)`) with the properly-quoted path.
+// Suggest file paths inside a fref() argument
+// When cursor is already inside a string literal, insert bare path (inside existing quotes)
+// When cursor is inside fref() without quotes, use a text_edit to replace any existing unquoted content (e.g. `fref(./subfolder/|)`) with the properly-quoted path
 fn collect_fref_completions(
   db: &TypedownDatabase,
   project: Project,
@@ -1034,7 +1032,7 @@ properties:
     }
   }
 
-  /// Build an in-memory vault with Person and Event schemas, plus the given content file.
+  /// Build an in-memory vault with Person and Event schemas, plus the given content file
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
@@ -1628,7 +1626,7 @@ date: 2024-01-01
 ---
 "#;
 
-  /// Build a vault with Person, Event, Directory schemas plus two content files.
+  /// Build a vault with Person, Event, Directory schemas plus two content files
   fn setup_with_content(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 

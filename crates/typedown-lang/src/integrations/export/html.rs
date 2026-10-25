@@ -781,7 +781,7 @@ fn parse_separator_alignments(table_node: &RedNode) -> Vec<Option<&'static str>>
 }
 
 // Extract the container label (possibly kebab like `td-alert`) and optional title text
-// (for callouts, e.g. `:::warning My title`) in a single pass.
+// (for callouts, e.g. `:::warning My title`) in a single pass
 fn extract_container_label_and_title(node: &RedNode) -> (String, Option<String>) {
   let mut label = String::new();
   let mut title_raw = String::new();

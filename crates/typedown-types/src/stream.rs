@@ -3,26 +3,26 @@
 pub enum Utf8Result {
   /// A valid UTF-8 character
   Char(char),
-  /// Some invalid bytes were skipped while recovering.
-  /// The recovery scheme is up to the implementor.
+  /// Some invalid bytes were skipped while recovering
+  /// The recovery scheme is up to the implementor
   Invalid { len: usize, bytes: [u8; 4] },
   /// The end of the stream has been reached
   Eof,
 }
 
-/// Character-level input source.
-/// Abstracts over files, strings, stdin, etc.
+/// Character-level input source
+/// Abstracts over files, strings, stdin, etc
 pub trait Utf8Stream {
-  /// Look at the next result without consuming it.
+  /// Look at the next result without consuming it
   fn peek(&self) -> Utf8Result;
 
-  /// Consume and return the next result.
+  /// Consume and return the next result
   fn advance(&mut self) -> Utf8Result;
 
-  /// Current byte offset in the source.
+  /// Current byte offset in the source
   fn offset(&self) -> usize;
 
-  /// Whether the stream is exhausted.
+  /// Whether the stream is exhausted
   fn exhausted(&self) -> bool;
 
   /// Peek at the nth character ahead (0-indexed) without consuming

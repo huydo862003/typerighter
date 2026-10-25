@@ -1,4 +1,4 @@
-/// A byte range in source text: [start, end).
+/// A byte range in source text: [start, end)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TextRange {
   pub start_offset: usize,

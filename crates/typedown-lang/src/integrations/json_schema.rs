@@ -1,4 +1,4 @@
-//! Translate JSON Schema (from the component contract) into typedown types.
+//! Translate JSON Schema (from the component contract) into typedown types
 
 use std::collections::BTreeMap;
 

@@ -6,7 +6,7 @@ use std::{
 
 use crate::stream::{Utf8Result, Utf8Stream};
 
-/// A Utf8Stream over any `Read` source (file, stdin, etc.) via BufReader.
+/// A Utf8Stream over any `Read` source (file, stdin, etc.) via BufReader
 pub struct FileStream<T: Read> {
   reader: RefCell<BufReader<T>>,
   /// Buffered result for fast repeated peek access

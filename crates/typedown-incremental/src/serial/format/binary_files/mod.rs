@@ -1,9 +1,9 @@
-//! Serialized formats for cross-session persistence.
+//! Serialized formats for cross-session persistence
 //!
 //! Three files are persisted:
-//! - `dep-graph.bin`: The dependency graph (nodes, edges, fingerprints). No query result data.
-//! - `query-cache.bin`: Cached query results, accessed lazily by offset.
-//! - `interned-blobs.bin`: Deduplicated blobs (e.g. green tree nodes).
+//! - `dep-graph.bin`: The dependency graph (nodes, edges, fingerprints). No query result data
+//! - `query-cache.bin`: Cached query results, accessed lazily by offset
+//! - `interned-blobs.bin`: Deduplicated blobs (e.g. green tree nodes)
 
 pub mod dep_graph;
 pub mod interned_blobs;

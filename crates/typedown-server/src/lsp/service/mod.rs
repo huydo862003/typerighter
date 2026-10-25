@@ -22,7 +22,7 @@ use serde_json::Value;
 
 use crate::core::analysis::Analysis;
 
-/// Dispatch an LSP request to the appropriate service handler.
+/// Dispatch an LSP request to the appropriate service handler
 pub fn dispatch(analysis: &Analysis, request: Request) -> Response {
   match request.method.as_str() {
     CodeActionRequest::METHOD => try_handle(&request, |params| {

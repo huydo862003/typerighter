@@ -5,7 +5,7 @@ use typedown_incremental::{CacheSession, SerializableQueryDatabase};
 use typedown_lang::db::{QueryStorage, TypedownDatabase};
 use typedown_server::core::utils::fs::get_cache_dir;
 
-/// Verify that the cache session creates files on disk and can be loaded back.
+/// Verify that the cache session creates files on disk and can be loaded back
 #[test]
 fn cache_roundtrip_creates_and_loads_files() {
   let dir = TempDir::new().unwrap();

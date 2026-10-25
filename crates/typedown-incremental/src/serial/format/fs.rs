@@ -1,6 +1,6 @@
-//! Session directory management for incremental cache persistence.
+//! Session directory management for incremental cache persistence
 //!
-//! Follows rustc's pattern: each session gets its own subdirectory with a lock file.
+//! Follows rustc's pattern: each session gets its own subdirectory with a lock file
 //!
 //! ```text
 //! {cache_dir}/
@@ -27,14 +27,14 @@ const QUERY_CACHE_FILE: &str = "query-cache.bin";
 const INTERNED_BLOBS_FILE: &str = "interned-blobs.bin";
 const LOCK_FILE: &str = "lock";
 
-/// An active cache session with an exclusive lock on its working directory.
+/// An active cache session with an exclusive lock on its working directory
 pub struct CacheSession {
   working_dir: PathBuf,
   lock_file: Option<File>,
 }
 
 impl CacheSession {
-  /// A no-op session that does nothing on finalize.
+  /// A no-op session that does nothing on finalize
   pub fn empty() -> Self {
     CacheSession {
       working_dir: PathBuf::new(),
@@ -43,7 +43,7 @@ impl CacheSession {
   }
 
   /// Open a cache session: load the most recent finalized session (if any),
-  /// then create a new working directory for this session.
+  /// then create a new working directory for this session
   pub fn open(cache_dir: &Path) -> io::Result<(Self, Option<SerializedQueryStorage>)> {
     fs::create_dir_all(cache_dir)?;
 
@@ -88,7 +88,7 @@ impl CacheSession {
     ))
   }
 
-  /// Write the serialized data and rename the working directory to finalized.
+  /// Write the serialized data and rename the working directory to finalized
   pub fn finalize(mut self, data: &SerializedQueryStorage, revision: u64) -> io::Result<()> {
     if self.lock_file.is_none() {
       return Ok(());
@@ -118,8 +118,8 @@ impl CacheSession {
   }
 }
 
-// Extract (timestamp, revision) from a finalized session dir name (s-{timestamp}-{random}-{revision}).
-// Revision is the last dash-separated segment; used as a tiebreaker when two sessions share a timestamp.
+// Extract (timestamp, revision) from a finalized session dir name (s-{timestamp}-{random}-{revision})
+// Revision is the last dash-separated segment; used as a tiebreaker when two sessions share a timestamp
 fn session_sort_key(path: &Path) -> (u128, u64) {
   let name = path
     .file_name()
@@ -138,7 +138,7 @@ fn session_sort_key(path: &Path) -> (u128, u64) {
   (timestamp, revision)
 }
 
-/// Find the most recent finalized session directory (not ending in "-working").
+/// Find the most recent finalized session directory (not ending in "-working")
 fn find_latest_finalized(cache_dir: &Path) -> Option<PathBuf> {
   let mut candidates: Vec<PathBuf> = fs::read_dir(cache_dir)
     .ok()?

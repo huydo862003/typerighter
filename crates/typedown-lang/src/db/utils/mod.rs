@@ -135,13 +135,14 @@ pub fn normalize_joined_path(base: &Path, relative: &str) -> PathBuf {
 }
 
 /// Resolve a fref path string to an absolute file system path
-/// Paths starting with `./` or `../` are resolved relative to `source_file_dir`
-/// All other paths are resolved relative to `vault_root`
+/// - Paths starting with `/` are resolved relative to `vault_root`
+/// - Paths starting with `./` or `../` are resolved relative to `source_file_dir`
 pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) -> PathBuf {
   if path.starts_with("./") || path.starts_with("../") {
     normalize_joined_path(source_file_dir, path)
   } else {
-    vault_root.join(path)
+    // Handles absolute paths starting with `/` (strip leading slash before joining)
+    vault_root.join(path.trim_start_matches('/'))
   }
 }
 

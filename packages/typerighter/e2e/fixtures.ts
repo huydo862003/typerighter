@@ -44,6 +44,127 @@ export interface TestProjectFixtureOptions {
   withoutContract?: boolean;
 }
 
+// Fixture for typedown mounted inside a host Vite app via typedown({ root })
+// Runs `vite dev` instead of `typerighter dev`, typedown.yaml lives under mountDir/
+export function createMountedTestProjectFixture (fixture: FixtureName, mountDirectory: string) {
+  return async ({}, use: (project: TestProject) => Promise<void>) => {
+    const fixtureDirectory = path.join(FIXTURES_DIR, fixture);
+    const directory = await mkdtemp(path.join(tmpdir(), `typerighter-e2e-${fixture}-`));
+
+    await cp(fixtureDirectory, directory, {
+      recursive: true,
+      dereference: true,
+      filter: (src) => path.basename(src) !== 'node_modules',
+    });
+
+    await symlink(
+      path.join(fixtureDirectory, 'node_modules'),
+      path.join(directory, 'node_modules'),
+      'dir',
+    );
+
+    const port = await getFreePort();
+    const basePath = await readBasePath(path.join(directory, mountDirectory));
+
+    // Use the vite binary bundled with typerighter
+    const VITE_BIN = path.resolve(
+      fixtureDirectory,
+      'node_modules/typerighter/node_modules/vite/bin/vite.js',
+    );
+
+    const serverProcess: ChildProcess = spawn(
+      'node',
+      [
+        VITE_BIN,
+        'dev',
+        '--port',
+        String(port),
+      ],
+      {
+        cwd: directory,
+        stdio: [
+          'ignore',
+          'ignore',
+          'pipe',
+        ],
+        env: {
+          ...process.env,
+          NODE_ENV: 'development',
+        },
+      },
+    );
+
+    const serverStderr: string[] = [];
+
+    if (serverProcess.stderr) {
+      let buffer = '';
+
+      serverProcess.stderr.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+
+        process.stderr.write(text);
+        buffer += text;
+
+        const lines = buffer.split('\n');
+
+        buffer = lines.pop() ?? '';
+        serverStderr.push(...lines.filter((line) => 0 < line.length));
+      });
+    }
+
+    await waitForServer(`http://localhost:${port}${basePath}/`, 30_000);
+
+    const url = (vaultPath = '') => `http://localhost:${port}${basePath}${vaultPath}`;
+
+    const goto = async (page: Page, vaultPath = '') => {
+      await page.goto(url(vaultPath));
+      await page.waitForFunction(
+        () => 0 < (document.querySelector('#app')?.children.length ?? 0),
+        {
+          timeout: 30_000,
+        },
+      );
+    };
+
+    const modifyFile = async (relativePath: string, transform: (content: string) => string) => {
+      const filePath = path.join(directory, relativePath);
+      const original = await readFile(filePath, 'utf-8');
+
+      await writeFile(filePath, transform(original), 'utf-8');
+    };
+
+    const writeProjectFile = async (relativePath: string, content: string) => {
+      const filePath = path.join(directory, relativePath);
+
+      await mkdir(path.dirname(filePath), {
+        recursive: true,
+      });
+      await writeFile(filePath, content, 'utf-8');
+    };
+
+    await use({
+      dir: directory,
+      port,
+      basePath,
+      url,
+      goto,
+      modifyFile,
+      writeFile: writeProjectFile,
+      serverStderr,
+    });
+
+    serverProcess.kill('SIGTERM');
+    await new Promise<void>((resolve) => {
+      serverProcess.on('exit', resolve);
+      setTimeout(resolve, 5_000);
+    });
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => {});
+  };
+}
+
 export function createTestProjectFixture (fixture: FixtureName, options: TestProjectFixtureOptions = {}) {
   return async ({}, use: (project: TestProject) => Promise<void>) => {
     const fixtureDirectory = path.join(FIXTURES_DIR, fixture);
@@ -181,108 +302,6 @@ export function createTestProjectFixture (fixture: FixtureName, options: TestPro
       recursive: true,
       force: true,
     }).catch(() => {});
-  };
-}
-
-// Fixture for typedown mounted inside a host Vite app via typedown({ root }).
-// Runs `vite dev` instead of `typerighter dev`; typedown.yaml lives under mountDir/.
-export function createMountedTestProjectFixture (fixture: FixtureName, mountDir: string) {
-  return async ({}: Record<string, never>, use: (project: TestProject) => Promise<void>) => {
-    const fixtureDirectory = path.join(FIXTURES_DIR, fixture);
-    const directory = await mkdtemp(path.join(tmpdir(), `typerighter-e2e-${fixture}-`));
-
-    await cp(fixtureDirectory, directory, {
-      recursive: true,
-      dereference: true,
-      filter: (src) => path.basename(src) !== 'node_modules',
-    });
-
-    await symlink(
-      path.join(fixtureDirectory, 'node_modules'),
-      path.join(directory, 'node_modules'),
-      'dir',
-    );
-
-    const port = await getFreePort();
-    const basePath = await readBasePath(path.join(directory, mountDir));
-
-    // Use the vite binary bundled with typerighter
-    const VITE_BIN = path.resolve(
-      fixtureDirectory,
-      'node_modules/typerighter/node_modules/vite/bin/vite.js',
-    );
-
-    const serverProcess: ChildProcess = spawn(
-      'node',
-      [VITE_BIN, 'dev', '--port', String(port)],
-      {
-        cwd: directory,
-        stdio: ['ignore', 'ignore', 'pipe'],
-        env: { ...process.env, NODE_ENV: 'development' },
-      },
-    );
-
-    const serverStderr: string[] = [];
-
-    if (serverProcess.stderr) {
-      let buffer = '';
-
-      serverProcess.stderr.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-
-        process.stderr.write(text);
-        buffer += text;
-
-        const lines = buffer.split('\n');
-
-        buffer = lines.pop() ?? '';
-        serverStderr.push(...lines.filter((line) => 0 < line.length));
-      });
-    }
-
-    await waitForServer(`http://localhost:${port}${basePath}/`, 30_000);
-
-    const url = (vaultPath = '') => `http://localhost:${port}${basePath}${vaultPath}`;
-
-    const goto = async (page: Page, vaultPath = '') => {
-      await page.goto(url(vaultPath));
-      await page.waitForFunction(
-        () => 0 < (document.querySelector('#app')?.children.length ?? 0),
-        { timeout: 30_000 },
-      );
-    };
-
-    const modifyFile = async (relativePath: string, transform: (content: string) => string) => {
-      const filePath = path.join(directory, relativePath);
-      const original = await readFile(filePath, 'utf-8');
-
-      await writeFile(filePath, transform(original), 'utf-8');
-    };
-
-    const writeProjectFile = async (relativePath: string, content: string) => {
-      const filePath = path.join(directory, relativePath);
-
-      await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, content, 'utf-8');
-    };
-
-    await use({
-      dir: directory,
-      port,
-      basePath,
-      url,
-      goto,
-      modifyFile,
-      writeFile: writeProjectFile,
-      serverStderr,
-    });
-
-    serverProcess.kill('SIGTERM');
-    await new Promise<void>((resolve) => {
-      serverProcess.on('exit', resolve);
-      setTimeout(resolve, 5_000);
-    });
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
   };
 }
 

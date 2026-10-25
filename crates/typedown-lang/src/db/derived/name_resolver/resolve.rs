@@ -151,20 +151,27 @@ fn collect_unresolved(
         .map(|value| value == "fref")
         .unwrap_or(false);
       if is_fref {
-        let resolved = referee(db, project_node.clone());
-        if resolved.value(db).is_none() {
-          // Only emit when the path is a plain non-empty string (interpolated/missing args are already implicitly invalid and caught by other diagnostics)
-          if let Some(first_arg) = call.args().first()
-            && let Some(string_lit) = StrLit::cast(first_arg.syntax().clone())
-            && !string_lit.is_interpolated()
-            && let Some(path) = string_lit.plain_value()
-            && !path.is_empty()
-          {
-            let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
+        // Only emit when the path is a plain non-empty string (interpolated/missing args are already implicitly invalid and caught by other diagnostics)
+        if let Some(first_arg) = call.args().first()
+          && let Some(string_lit) = StrLit::cast(first_arg.syntax().clone())
+          && !string_lit.is_interpolated()
+          && let Some(path) = string_lit.plain_value()
+          && !path.is_empty()
+        {
+          let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
+          if !path.starts_with('/') && !path.starts_with("./") && !path.starts_with("../") {
             diagnostics.push(
-              TdDiagnosticKind::UnresolvedFileRef { path }
+              TdDiagnosticKind::InvalidFrefPath { path }
                 .into_error(trimmed_offset, trimmed_offset + trimmed_len),
             );
+          } else {
+            let resolved = referee(db, project_node.clone());
+            if resolved.value(db).is_none() {
+              diagnostics.push(
+                TdDiagnosticKind::UnresolvedFileRef { path }
+                  .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+              );
+            }
           }
         }
         return;
@@ -383,7 +390,7 @@ name: missing.foo
       project,
       file,
       r#"---
-value: fref("nonexistent_file_that_does_not_exist.td")
+value: fref("./nonexistent_file_that_does_not_exist.td")
 ---"#,
     );
 
@@ -432,7 +439,7 @@ value: fref("nonexistent_file_that_does_not_exist.td")
       file,
       r#"---
 ---
-${fref("nonexistent_file_that_does_not_exist.td")}"#,
+${fref("./nonexistent_file_that_does_not_exist.td")}"#,
     );
 
     let result = resolve(&db, project_node);
@@ -446,6 +453,33 @@ ${fref("nonexistent_file_that_does_not_exist.td")}"#,
         }
       )),
       "fref() in markdown body with nonexistent path should emit UnresolvedFileRef, got: {:?}",
+      diagnostics
+    );
+  }
+
+  // fref("bare/path.td") without a leading / or ./ should emit InvalidFrefPath
+  #[test]
+  fn resolve_fref_bare_path_emits_invalid_fref_path() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let project_node = make_root_node(
+      &db,
+      project,
+      file,
+      r#"---
+value: fref("bare/path.td")
+---"#,
+    );
+    let result = resolve(&db, project_node);
+    let diagnostics = result.diagnostics(&db);
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::InvalidFrefPath { .. },
+          ..
+        }
+      )),
+      "fref() with bare path should emit InvalidFrefPath, got: {:?}",
       diagnostics
     );
   }

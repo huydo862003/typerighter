@@ -31,7 +31,7 @@ impl<'a> Encoder<'a> {
     }
   }
 
-  /// Register a DepId and get a stable DepNodeIndex for it.
+  /// Register a DepId and get a stable DepNodeIndex for it
   pub fn add_dep_id(&mut self, dep_id: DepId) -> DepNodeIndex {
     if let Some(&index) = self.dep_id_table.get(&dep_id) {
       return index;

@@ -1,8 +1,8 @@
-//! On-disk format for the dependency graph (`dep-graph.bin`).
+//! On-disk format for the dependency graph (`dep-graph.bin`)
 //! Based on rustc's dep-graph.bin
 //!
-//! Stores nodes, edges, and fingerprints. No query result data.
-//! Fully decoded upfront into memory on load.
+//! Stores nodes, edges, and fingerprints. No query result data
+//! Fully decoded upfront into memory on load
 //!
 //! ```text
 //! [ FileHeader (8 bytes)       ]  magic "TDEP" + version
@@ -24,7 +24,7 @@ pub type DepNodeIndex = u32;
 pub const MAGIC: [u8; 4] = *b"TDEP"; // Magic bytes, like PNG/ELF magic bytes
 pub const VERSION: u32 = 1;
 
-/// File header (16 bytes).
+/// File header (16 bytes)
 #[derive(Debug, Clone, Copy)]
 pub struct FileHeader {
   pub magic: [u8; 4],
@@ -451,7 +451,7 @@ impl DepNode {
   }
 }
 
-/// File footer (16 bytes).
+/// File footer (16 bytes)
 #[derive(Debug, Clone, Copy)]
 pub struct FileFooter {
   pub total_node_count: u64, // 8 bytes

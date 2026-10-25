@@ -1,5 +1,5 @@
-//! Tracked query to get the actual (bottom-up) type of an AST node.
-// This is the idea of bidirectional typechecking.
+//! Tracked query to get the actual (bottom-up) type of an AST node
+// This is the idea of bidirectional typechecking
 
 use std::collections::BTreeMap;
 
@@ -32,8 +32,8 @@ use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
-// Infer the type of an AST node bottom-up from its structure.
-// Exception: closures read expected(closure) to get param types.
+// Infer the type of an AST node bottom-up from its structure
+// Exception: closures read expected(closure) to get param types
 #[query_derived(no_hash)]
 pub fn actual_node_typ<'db>(
   db: &'db TypedownDatabase,

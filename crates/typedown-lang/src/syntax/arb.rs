@@ -1,4 +1,4 @@
-//! Arbitrary implementations for syntax types, used in property-based tests.
+//! Arbitrary implementations for syntax types, used in property-based tests
 
 use proptest::prelude::*;
 use strum::IntoEnumIterator;

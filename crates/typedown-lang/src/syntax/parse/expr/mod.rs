@@ -12,7 +12,7 @@ use crate::syntax::{
 };
 
 impl<S: Utf8Stream> ParseCtx<S> {
-  /// General expression, including formula and yaml.
+  /// General expression, including formula and yaml
   pub(in crate::syntax::parse) fn parse_expr(
     &mut self,
     block_indent: usize,
@@ -260,8 +260,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (lhs, None)
   }
 
-  /// Parse a call expression: `callee(arg1, arg2, ...)`.
-  /// `callee` has already been parsed and is passed in.
+  /// Parse a call expression: `callee(arg1, arg2, ...)`
+  /// `callee` has already been parsed and is passed in
   fn parse_call_expr(
     &mut self,
     callee: GreenNode,
@@ -391,7 +391,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse an index expression: `expr[expr, ...]`
-  /// `target` has already been parsed and is passed in.
+  /// `target` has already been parsed and is passed in
   fn parse_index_expr(
     &mut self,
     target: GreenNode,
@@ -502,7 +502,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse a primary expression (an operand): literal, ident, paren, etc.
+  /// Parse a primary expression (an operand): literal, ident, paren, etc
   pub(in crate::syntax::parse) fn parse_primary_expr(
     &mut self,
     children: Vec<GreenNode>,
@@ -551,8 +551,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Parse a parenthesized expression: `(expr)`.
-  /// If empty `()` or comma-separated `(a, b)`, emits ParamListExpr instead.
+  /// Parse a parenthesized expression: `(expr)`
+  /// If empty `()` or comma-separated `(a, b)`, emits ParamListExpr instead
   pub(in crate::syntax::parse) fn parse_paren_expr(
     &mut self,
     children: Vec<GreenNode>,
@@ -624,8 +624,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::ParenExpr, &children), None)
   }
 
-  /// Continue parsing a param list after `(first,` has been seen.
-  /// children already contains `(` and the first expression.
+  /// Continue parsing a param list after `(first,` has been seen
+  /// children already contains `(` and the first expression
   fn parse_param_list_rest(
     &mut self,
     mut children: Vec<GreenNode>,
@@ -725,7 +725,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Parse a flow list literal: `[expr, expr, ...]`.
+  /// Parse a flow list literal: `[expr, expr, ...]`
   pub(in crate::syntax::parse) fn parse_list_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -869,7 +869,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse a block expression (sequence or mapping) after a newline.
+  /// Parse a block expression (sequence or mapping) after a newline
   pub(in crate::syntax::parse) fn parse_block_seq_or_mapping(
     &mut self,
     children: Vec<GreenNode>,
@@ -902,7 +902,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse a block sequence literal: Start with `-` on the current line, not on a new line with indentation
-  /// INVARIANT: Next token must be - followed by a whitespace.
+  /// INVARIANT: Next token must be - followed by a whitespace
   pub(in crate::syntax::parse) fn parse_inline_block_seq_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1014,7 +1014,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::YamlSequence, &children), None)
   }
 
-  /// Parse a single block sequence item: `- expr`.
+  /// Parse a single block sequence item: `- expr`
   fn parse_block_seq_item(&mut self, block_indent: usize) -> (GreenNode, Option<ExprCtx>) {
     let mode = self.lex_ctx.mode();
     let mut children = vec![];
@@ -1032,7 +1032,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     )
   }
 
-  /// Parse a flow mapping literal: `{key: value, ...}`.
+  /// Parse a flow mapping literal: `{key: value, ...}`
   pub(in crate::syntax::parse) fn parse_dict_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1149,7 +1149,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::DictLit, &children), None)
   }
 
-  /// Parse a single mapping entry: `key: value`.
+  /// Parse a single mapping entry: `key: value`
   fn parse_dict_entry_lit(&mut self, block_indent: usize) -> (GreenNode, Option<ExprCtx>) {
     let mode = self.lex_ctx.mode();
     let mut children = vec![];
@@ -1284,7 +1284,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse a literal block string: `|` followed by indented content.
+  /// Parse a literal block string: `|` followed by indented content
   pub(in crate::syntax::parse) fn parse_literal_block_str_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1357,7 +1357,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     )
   }
 
-  /// Parse a folded block string: `>` followed by indented content.
+  /// Parse a folded block string: `>` followed by indented content
   pub(in crate::syntax::parse) fn parse_folded_block_str_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1427,7 +1427,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::StrLit, &[folded_block_str_lit]), None)
   }
 
-  /// Parse an inline block mapping: starts with `key: value` on the current line (not on a newline with indentation).
+  /// Parse an inline block mapping: starts with `key: value` on the current line (not on a newline with indentation)
   fn parse_inline_block_mapping_lit(
     &mut self,
     mut children: Vec<GreenNode>,
@@ -1488,7 +1488,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::YamlMapping, &children), None)
   }
 
-  /// Parse a block mapping literal (indentation-based `key: value` pairs).
+  /// Parse a block mapping literal (indentation-based `key: value` pairs)
   pub(in crate::syntax::parse) fn parse_block_mapping_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1534,7 +1534,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::YamlMapping, &children), None)
   }
 
-  /// Parse a single block mapping entry: `key: value`.
+  /// Parse a single block mapping entry: `key: value`
   fn parse_block_mapping_entry(
     &mut self,
     children: Vec<GreenNode>,
@@ -1636,7 +1636,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::YamlMappingEntry, &children), None)
   }
 
-  /// Parse a double-quoted string literal with interpolation: `"content ${expr} content"`.
+  /// Parse a double-quoted string literal with interpolation: `"content ${expr} content"`
   pub(in crate::syntax::parse) fn parse_dq_str_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1694,7 +1694,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::StrLit, &children), None)
   }
 
-  /// Parse a single-quoted string literal with interpolation: `'content ${expr} content'`.
+  /// Parse a single-quoted string literal with interpolation: `'content ${expr} content'`
   pub(in crate::syntax::parse) fn parse_sq_str_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1752,7 +1752,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::StrLit, &children), None)
   }
 
-  /// Parse an interpolation fragment: `${...}` inside a string.
+  /// Parse an interpolation fragment: `${...}` inside a string
   pub(in crate::syntax::parse) fn parse_interp_fragment(
     &mut self,
     block_indent: usize,
@@ -1795,8 +1795,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::InterpFragment, &children), None)
   }
 
-  /// Parse a math literal (inline or block math).
-  /// Wraps a single InlineMath or MathBlock token.
+  /// Parse a math literal (inline or block math)
+  /// Wraps a single InlineMath or MathBlock token
   pub(in crate::syntax::parse) fn parse_math_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1819,8 +1819,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MathLit, &children), None)
   }
 
-  /// Parse a code literal (inline or block code).
-  /// Wraps a single InlineCode or CodeBlock token.
+  /// Parse a code literal (inline or block code)
+  /// Wraps a single InlineCode or CodeBlock token
   pub(in crate::syntax::parse) fn parse_code_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1843,8 +1843,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::CodeLit, &children), None)
   }
 
-  /// Parse a number literal.
-  /// Wraps a single Number token.
+  /// Parse a number literal
+  /// Wraps a single Number token
   pub(in crate::syntax::parse) fn parse_number_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1865,8 +1865,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::NumberLit, &children), None)
   }
 
-  /// Parse an identifier literal.
-  /// Wraps a single Ident token.
+  /// Parse an identifier literal
+  /// Wraps a single Ident token
   pub(in crate::syntax::parse) fn parse_ident_lit(
     &mut self,
     children: Vec<GreenNode>,
@@ -1887,8 +1887,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::IdentLit, &children), None)
   }
 
-  /// If the next token should be handled by an outer context, return that context.
-  /// Otherwise consume the token into `error_children` for the caller to wrap.
+  /// If the next token should be handled by an outer context, return that context
+  /// Otherwise consume the token into `error_children` for the caller to wrap
   fn consume_or_delegate(
     &mut self,
     current: ExprCtx,

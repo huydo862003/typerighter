@@ -5,7 +5,7 @@ use syn::{
   Data, DeriveInput, Expr, Fields, Lit, Meta, Token, parse_macro_input, punctuated::Punctuated,
 };
 
-/// Attribute macro for the TdDiagnosticKind enum.
+/// Attribute macro for the TdDiagnosticKind enum
 /// Every variant must have a `#[message(...)]` attribute
 pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   let mut input = parse_macro_input!(item as DeriveInput);

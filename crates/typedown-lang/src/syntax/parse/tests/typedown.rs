@@ -173,7 +173,7 @@ fn parse_typedown_fref_in_frontmatter_then_markdown() {
   let input = r#"---
 _type: Task
 title: "Design mockups"
-project: fref("projects/website-redesign.td")
+project: fref("/projects/website-redesign.td")
 ---
 
 Completed **ahead of schedule**.
@@ -262,7 +262,7 @@ _type: Person
 name: "Alice"
 ---
 
-Inline formula reference: ${fref("tasks/implement-auth.td")}
+Inline formula reference: ${fref("/tasks/implement-auth.td")}
 "#;
   let (ast, _) = parse(input);
   let tree = render_tree(&ast);
@@ -278,8 +278,8 @@ _type: Task
 title: "Write integration tests for auth"
 status: "todo"
 priority: "medium"
-project: fref("projects/website-redesign.td")
-assignee: fref("people/alice.td")
+project: fref("/projects/website-redesign.td")
+assignee: fref("/people/alice.td")
 ---
 
 Depends on the auth implementation being merged first.

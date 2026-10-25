@@ -28,22 +28,22 @@ use typedown_types::either::Either;
 ///   conform to the corresponding `PartialEq` implementations:
 ///
 ///     - `x == y` implies `stable_hash(x) == stable_hash(y)`, and
-///     - `x != y` implies `stable_hash(x) != stable_hash(y)`.
+///     - `x != y` implies `stable_hash(x) != stable_hash(y)`
 ///
 ///   That second condition is usually not required for hash functions
 ///   (e.g. `Hash`). In practice this means that `stable_hash` must feed any
 ///   information into the hasher that a `PartialEq` comparison takes into
 ///   account. See [#49300](https://github.com/rust-lang/rust/issues/49300)
 ///   for an example where violating this invariant has caused trouble in the
-///   past.
+///   past
 ///
 /// - `stable_hash()` must be independent of the current
 ///   compilation session. E.g. they must not hash memory addresses or other
-///   things that are "randomly" assigned per compilation session.
+///   things that are "randomly" assigned per compilation session
 ///
 /// - `stable_hash()` must be independent of the host architecture. The
 ///   `StableHasher` takes care of endianness and `isize`/`usize` platform
-///   differences.
+///   differences
 pub trait StableHash {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher);
 }

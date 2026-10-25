@@ -1,5 +1,5 @@
-//! Tracked query for the expected (top-down) type of an AST node.
-// This is the idea of bidirectional typechecking.
+//! Tracked query for the expected (top-down) type of an AST node
+// This is the idea of bidirectional typechecking
 
 use crate::db::TypedownDatabase;
 use std::collections::{BTreeMap, HashSet};

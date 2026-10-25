@@ -47,9 +47,9 @@ impl Parse for WrapperAstNodeMacroArgs {
   }
 }
 
-/// Attribute macro for wrapper AST enums that cover multiple SyntaxKind variants.
-/// The annotated type becomes an enum with one variant per kind.
-/// Pattern matching on the enum is exhaustive with no extra wrapper needed.
+/// Attribute macro for wrapper AST enums that cover multiple SyntaxKind variants
+/// The annotated type becomes an enum with one variant per kind
+/// Pattern matching on the enum is exhaustive with no extra wrapper needed
 ///
 /// Generates:
 /// - The enum with `#[derive(Clone, PartialEq, Eq, Hash)]`

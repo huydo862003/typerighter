@@ -31,7 +31,7 @@ impl Analysis {
     }
   }
 
-  /// Get the rope for a file: from the editor buffer if open, otherwise read from disk.
+  /// Get the rope for a file: from the editor buffer if open, otherwise read from disk
   pub fn file_rope(&self, path: &Path) -> Option<Rope> {
     if let Some(rope) = self.open_files.get(path) {
       return Some(rope.clone());

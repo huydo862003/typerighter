@@ -510,7 +510,7 @@ name: fref("ali|ce.td")
   }
 
   // fref resolves from vault root, not project root
-  // When root_dir is "vault", fref("alice.td") should resolve to /project/vault/alice.td.
+  // When root_dir is "vault", fref("alice.td") should resolve to /project/vault/alice.td
   #[test]
   fn definition_on_fref_uses_vault_root() {
     let project_root = PathBuf::from(if cfg!(windows) {

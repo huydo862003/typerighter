@@ -17,7 +17,7 @@ pub(super) struct NodeHeader {
   pub(super) n_children: u32,
 }
 
-/// An interior node in the green tree.
+/// An interior node in the green tree
 pub struct SyntaxNode(pub(super) *const NodeHeader);
 
 impl SyntaxNode {
@@ -69,7 +69,7 @@ impl SyntaxNode {
     unsafe { (*self.0).n_children }
   }
 
-  /// Returns a slice of this node's children.
+  /// Returns a slice of this node's children
   pub fn children(&self) -> &[GreenNode] {
     unsafe {
       let n = (*self.0).n_children as usize;

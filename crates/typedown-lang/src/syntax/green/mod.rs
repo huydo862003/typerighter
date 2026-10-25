@@ -16,12 +16,12 @@ use crate::syntax::syntax_kind::SyntaxKind;
 pub use node::SyntaxNode;
 pub use token::SyntaxToken;
 
-/// GreenNode: A thread-safe readonly tagged pointer to either a Node or a Token.
+/// GreenNode: A thread-safe readonly tagged pointer to either a Node or a Token
 // Tag bit 0 = node, tag bit 1 = token
 pub struct GreenNode(usize);
 
 impl GreenNode {
-  /// Take ownership of a Node and store it as a tagged pointer.
+  /// Take ownership of a Node and store it as a tagged pointer
   pub fn from_node(node: SyntaxNode) -> Self {
     let ptr = node.0 as usize;
     debug_assert!(ptr & 1 == 0, "Node pointer not aligned");
@@ -29,7 +29,7 @@ impl GreenNode {
     Self(ptr)
   }
 
-  /// Take ownership of a Token and store it as a tagged pointer.
+  /// Take ownership of a Token and store it as a tagged pointer
   pub fn from_token(token: SyntaxToken) -> Self {
     let ptr = token.0 as usize;
     debug_assert!(ptr & 1 == 0, "Token pointer not aligned");
@@ -37,18 +37,18 @@ impl GreenNode {
     Self(ptr | 1)
   }
 
-  /// Returns true if this child points to a Node.
+  /// Returns true if this child points to a Node
   pub fn is_node(&self) -> bool {
     self.0 & 1 == 0
   }
 
-  /// Returns true if this child points to a Token.
+  /// Returns true if this child points to a Token
   pub fn is_token(&self) -> bool {
     self.0 & 1 == 1
   }
 
-  /// Returns a borrowed handle to the inner Node.
-  /// Returns None if this child is a token.
+  /// Returns a borrowed handle to the inner Node
+  /// Returns None if this child is a token
   pub fn as_node(&self) -> Option<&SyntaxNode> {
     if !self.is_node() {
       return None;
@@ -56,8 +56,8 @@ impl GreenNode {
     unsafe { Some(&*(&self.0 as *const usize as *const SyntaxNode)) }
   }
 
-  /// Returns an owned handle to the inner Token (ref-count bumped via Token::clone).
-  /// Returns None if this child is a node.
+  /// Returns an owned handle to the inner Token (ref-count bumped via Token::clone)
+  /// Returns None if this child is a node
   pub fn as_token(&self) -> Option<SyntaxToken> {
     if !self.is_token() {
       return None;
@@ -76,7 +76,7 @@ impl GreenNode {
     }
   }
 
-  /// Raw tagged pointer value, usable as a dedup key.
+  /// Raw tagged pointer value, usable as a dedup key
   pub fn as_ptr(&self) -> usize {
     self.0
   }

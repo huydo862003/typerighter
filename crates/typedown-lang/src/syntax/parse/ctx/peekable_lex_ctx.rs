@@ -13,9 +13,9 @@ use crate::syntax::{
 
 pub struct YamlLexResult {
   result: LexResult,
-  /// Total text length of all tokens since the last newline (column offset).
+  /// Total text length of all tokens since the last newline (column offset)
   pub token_indent: usize,
-  /// The text length of the most recent YamlIndent token (the line's leading indentation).
+  /// The text length of the most recent YamlIndent token (the line's leading indentation)
   pub block_indent: usize,
 }
 
@@ -77,11 +77,11 @@ impl From<MdLexResult> for LexResult {
 pub struct PeekableLexCtx<S: Utf8Stream> {
   pub(in crate::syntax::parse) lex_ctx: LexCtx<S>,
   token_buffer: VecDeque<LexResult>,
-  /// Whether the last non-whitespace token was a Newline (or we're at start of input).
+  /// Whether the last non-whitespace token was a Newline (or we're at start of input)
   after_newline: bool,
-  /// Total text length of all tokens since the last newline (column offset).
+  /// Total text length of all tokens since the last newline (column offset)
   token_indent: usize,
-  /// The text length of the most recent YamlIndent token (the line's leading indentation).
+  /// The text length of the most recent YamlIndent token (the line's leading indentation)
   block_indent: usize,
 }
 
@@ -144,12 +144,12 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
     }
   }
 
-  /// Peek at the next non-skipped YAML token without consuming.
+  /// Peek at the next non-skipped YAML token without consuming
   pub fn peek_yaml(&mut self, skip: usize) -> YamlLexResult {
     self.peek_yaml_nth(0, skip)
   }
 
-  /// Peek at the nth non-skipped YAML token without consuming (0-indexed).
+  /// Peek at the nth non-skipped YAML token without consuming (0-indexed)
   pub fn peek_yaml_nth(&mut self, nth: usize, skip: usize) -> YamlLexResult {
     debug_assert!(
       self.lex_ctx.mode() == LexMode::YamlFrontmatter,
@@ -196,12 +196,12 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
     YamlLexResult::new(result, peeked_token_indent, peeked_block_indent)
   }
 
-  /// Peek at the next non-skipped Markdown token without consuming.
+  /// Peek at the next non-skipped Markdown token without consuming
   pub fn peek_md(&mut self, skip: usize) -> MdLexResult {
     self.peek_md_nth(0, skip)
   }
 
-  /// Peek at the nth non-skipped Markdown token without consuming.
+  /// Peek at the nth non-skipped Markdown token without consuming
   pub fn peek_md_nth(&mut self, nth: usize, skip: usize) -> MdLexResult {
     debug_assert!(
       self.lex_ctx.mode() == LexMode::MarkdownBody,
@@ -239,7 +239,7 @@ impl<S: Utf8Stream> PeekableLexCtx<S> {
     MdLexResult::new(result)
   }
 
-  /// Whether the most recently lexed token should be skipped given the skip flags.
+  /// Whether the most recently lexed token should be skipped given the skip flags
   pub fn should_skip(&self, kind: SyntaxKind, skip: usize) -> bool {
     match kind {
       SyntaxKind::Whitespace => skip & SKIP_WS != 0,

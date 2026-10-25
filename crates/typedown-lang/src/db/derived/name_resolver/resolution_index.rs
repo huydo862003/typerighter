@@ -230,7 +230,8 @@ fn collect_references_in_md_block(
     MdBlockElement::MdContainerShorthand(_)
     | MdBlockElement::MdMedia(_)
     | MdBlockElement::MathBlock(_)
-    | MdBlockElement::CodeBlock(_) => {}
+    | MdBlockElement::CodeBlock(_)
+    | MdBlockElement::MdHorizontalRule(_) => {}
   }
 }
 

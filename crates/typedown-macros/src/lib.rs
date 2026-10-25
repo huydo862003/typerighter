@@ -14,7 +14,7 @@ pub fn ast_node_derive(item: TokenStream) -> TokenStream {
   ast::ast_node_derive_impl(item)
 }
 
-/// Attribute macro for synthetic AST nodes that wrap multiple SyntaxKind variants.
+/// Attribute macro for synthetic AST nodes that wrap multiple SyntaxKind variants
 #[proc_macro_attribute]
 pub fn wrapper_ast_node(attr: TokenStream, item: TokenStream) -> TokenStream {
   ast::wrapper_ast_node_impl(attr, item)

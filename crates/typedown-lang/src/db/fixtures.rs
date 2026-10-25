@@ -133,7 +133,7 @@ pub fn load_fixtures(subdir: &str) -> BTreeMap<String, Fixture> {
   result
 }
 
-/// Create a database with a vault project loaded from a fixture directory.
+/// Create a database with a vault project loaded from a fixture directory
 pub fn load_vault_fixture(
   vault_subdir: &str,
   file_path: &str,
@@ -162,7 +162,7 @@ pub fn load_vault_fixture(
   (db, project, target_file)
 }
 
-/// Collect all vault files (`.td` and `typedown.yaml`/`typedown.yml`) recursively.
+/// Collect all vault files (`.td` and `typedown.yaml`/`typedown.yml`) recursively
 fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, File> {
   fn is_vault_file(path: &Path) -> bool {
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");

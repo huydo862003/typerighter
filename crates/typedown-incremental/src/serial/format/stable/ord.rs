@@ -18,20 +18,20 @@ use crate::QueryDatabase;
 ///
 /// i.e. the result of `Ord::cmp` is not influenced by encoding
 /// the values in one session and then decoding them in another
-/// session.
+/// session
 ///
 /// This is trivially true for types where encoding and decoding
 /// don't change the bytes of the values that are used during
 /// comparison and comparison only depends on these bytes (as
 /// opposed to some non-local state). Examples are u32, String,
-/// Path, etc.
+/// Path, etc
 ///
 /// But it is not true for:
 ///  - `*const T` and `*mut T` because the values of these pointers
-///    will change between sessions.
+///    will change between sessions
 ///  - `DefIndex`, `CrateNum`, `LocalDefId`, because their concrete
 ///    values depend on state that might be different between
-///    compilation sessions.
+///    compilation sessions
 ///    '''
 pub trait StableOrd: Ord {}
 
@@ -50,8 +50,8 @@ impl<T: StableOrd> StableOrd for &T {}
 /// a stable hashing context and `ToStableHashKey` can also be expensive as in
 /// the case of `Symbol` where it has to allocate a `String`.)
 ///
-/// See the documentation of [StableOrd] for how stable sort order is defined.
-/// The same definition applies here. Be careful when implementing this trait.
+/// See the documentation of [StableOrd] for how stable sort order is defined
+/// The same definition applies here. Be careful when implementing this trait
 /// '''
 /// So StableCompare is weaker
 pub trait StableCompare {

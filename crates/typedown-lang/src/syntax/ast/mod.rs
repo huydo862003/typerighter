@@ -1,4 +1,4 @@
-//! Layer 3: Typed AST nodes wrapping untyped RedNodes.
+//! Layer 3: Typed AST nodes wrapping untyped RedNodes
 //! Each AST type checks the SyntaxKind on cast, providing a type-safe API over the generic tree structure
 
 use std::hash::Hash;
@@ -169,7 +169,7 @@ pub enum MdNode {}
   MdHeading, MdParagraph, MdBlockquote, MdTable,
   MdBulletList, MdOrderedList, MdContainerBlock, MdContainerShorthand,
   MathBlock, CodeBlock,
-  MdMedia,
+  MdMedia, MdHorizontalRule,
 ])]
 pub enum MdBlockElement {}
 
@@ -214,7 +214,7 @@ impl MdHeading {
 }
 
 /// The Markdown paragraph
-/// Represented by: Paragraph ...
+/// Represented by: Paragraph ..
 #[derive(Clone, PartialEq, Eq, Hash, AstNode)]
 pub struct MdParagraph(RedNode);
 
@@ -359,7 +359,7 @@ impl MdOrderedListItem {
     children::<MdBlockElement>(&self.0)
   }
 
-  /// Returns the numeric index of this list item (e.g. 1, 2, 3).
+  /// Returns the numeric index of this list item (e.g. 1, 2, 3)
   pub fn index(&self) -> Option<usize> {
     self.0.children().next().and_then(|child| {
       child
@@ -544,6 +544,11 @@ impl MdLink {
     None
   }
 }
+
+/// A horizontal rule
+/// Represented by: ---
+#[derive(Clone, PartialEq, Eq, Hash, AstNode)]
+pub struct MdHorizontalRule(RedNode);
 
 /// The Markdown media
 /// Represented by: ![alt](link)

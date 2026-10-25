@@ -64,7 +64,7 @@ impl Server {
     self.multiproject.save();
   }
 
-  /// Run the server event loop until the client sends a shutdown request.
+  /// Run the server event loop until the client sends a shutdown request
   pub fn run(&self) -> anyhow::Result<()> {
     self.register_file_watcher()?;
     self.register_file_operations()?;

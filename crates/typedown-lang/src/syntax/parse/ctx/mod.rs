@@ -68,7 +68,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 }
 
 impl<S: Utf8Stream> ParseCtx<S> {
-  /// Consume the next non-skipped YAML token, pushing skipped trivia and result into children.
+  /// Consume the next non-skipped YAML token, pushing skipped trivia and result into children
   pub(in crate::syntax::parse) fn advance_yaml(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -90,7 +90,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Consume the next non-skipped Markdown token, pushing skipped trivia and result into children.
+  /// Consume the next non-skipped Markdown token, pushing skipped trivia and result into children
   pub(in crate::syntax::parse) fn advance_md(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -126,7 +126,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Like advance_yaml(), but expects the token to match `expected`.
+  /// Like advance_yaml(), but expects the token to match `expected`
   pub(in crate::syntax::parse) fn consume_yaml(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -145,7 +145,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Like advance_md(), but expects the token to match `expected`.
+  /// Like advance_md(), but expects the token to match `expected`
   pub(in crate::syntax::parse) fn consume_md(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -182,7 +182,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Like advance_yaml(), but expects the token to satisfy a predicate.
+  /// Like advance_yaml(), but expects the token to satisfy a predicate
   pub(in crate::syntax::parse) fn consume_yaml_if(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -201,7 +201,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Like advance_md(), but expects the token to satisfy a predicate.
+  /// Like advance_md(), but expects the token to satisfy a predicate
   pub(in crate::syntax::parse) fn consume_md_if(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -238,7 +238,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Consume everything until newline or EOF.
+  /// Consume everything until newline or EOF
   pub(in crate::syntax::parse) fn expect_end_of_line(
     &mut self,
     children: &mut Vec<GreenNode>,
@@ -270,12 +270,12 @@ impl<S: Utf8Stream> ParseCtx<S> {
     !has_error
   }
 
-  /// Current byte offset in the source stream.
+  /// Current byte offset in the source stream
   pub(in crate::syntax::parse) fn offset(&self) -> usize {
     self.lex_ctx.offset()
   }
 
-  /// Push a diagnostic.
+  /// Push a diagnostic
   pub(in crate::syntax::parse) fn emit_diagnostic(&mut self, diagnostic: TdDiagnostic) {
     self.diagnostics.push(diagnostic);
   }

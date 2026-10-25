@@ -34,7 +34,7 @@ pub fn uri_to_path(uri: &Uri) -> Option<PathBuf> {
     log::warn!("URI has empty path: {}", uri.as_str());
     return None;
   }
-  // On Windows, strip the leading / from paths like /C:/vault/...
+  // On Windows, strip the leading / from paths like /C:/vault/..
   #[cfg(windows)]
   let path = path.strip_prefix('/').unwrap_or(path);
   Some(PathBuf::from(path))

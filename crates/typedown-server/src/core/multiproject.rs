@@ -52,7 +52,7 @@ impl Multiproject {
     self.projects.iter().map(|entry| entry.value().clone())
   }
 
-  /// Load or return an existing project for the nearest vault root above `nested_dir`.
+  /// Load or return an existing project for the nearest vault root above `nested_dir`
   pub fn load_nearest_project(&self, nested_dir: &Path) -> anyhow::Result<Arc<ProjectEntry>> {
     let project_dir = find_project_root(nested_dir)?;
 
@@ -67,8 +67,8 @@ impl Multiproject {
     }
   }
 
-  /// Save all project caches to disk.
-  /// Must be called on the main thread after the event loop exits.
+  /// Save all project caches to disk
+  /// Must be called on the main thread after the event loop exits
   pub fn save(mut self) {
     // Take ownership so Drop sees an empty map and does not warn
     let projects = std::mem::take(&mut self.projects);
@@ -109,7 +109,7 @@ impl Multiproject {
   }
 }
 
-/// Create a new project entry for the given directory.
+/// Create a new project entry for the given directory
 fn load_project(project_dir: &Path) -> anyhow::Result<Arc<ProjectEntry>> {
   log::info!("Loading project: {}", project_dir.display());
   let cache_dir = utils::fs::get_cache_dir(project_dir);
@@ -153,7 +153,7 @@ fn load_project(project_dir: &Path) -> anyhow::Result<Arc<ProjectEntry>> {
   }))
 }
 
-/// Walk up from `start` until a directory containing `typedown.yaml` or `typedown.yml` is found.
+/// Walk up from `start` until a directory containing `typedown.yaml` or `typedown.yml` is found
 fn find_project_root(start: &Path) -> anyhow::Result<PathBuf> {
   let mut current = start;
   loop {

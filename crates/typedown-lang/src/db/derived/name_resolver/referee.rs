@@ -194,7 +194,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let (root, _) = parse(
       r#"---
-value: fref("nonexistent.td")
+value: fref("./nonexistent.td")
 ---"#,
     );
     let red_root = RedNode::new_root(root.as_node().unwrap().clone());

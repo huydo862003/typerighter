@@ -1,7 +1,7 @@
-//! A non-thread safe interner for node/token deduplication.
-//! Cannot ensure across-thread uniqueness.
-//! Equal pointers -> Equal node/token.
-//! Different pointers -> Not sure.
+//! A non-thread safe interner for node/token deduplication
+//! Cannot ensure across-thread uniqueness
+//! Equal pointers -> Equal node/token
+//! Different pointers -> Not sure
 
 use std::cell::RefCell;
 use std::hash::{BuildHasher, Hash, Hasher};
@@ -19,7 +19,7 @@ thread_local! {
   static CACHE: Rc<RefCell<Cache>> = Rc::new(RefCell::new(Cache::new()));
 }
 
-/// A non-thread safe interner for node/token deduplication.
+/// A non-thread safe interner for node/token deduplication
 #[derive(Default)]
 pub struct Cache {
   // We use HashMap instead of HashSet to access the raw entry API
@@ -28,7 +28,7 @@ pub struct Cache {
   nodes: HashMap<SyntaxNode, ()>,
 }
 
-/// Access the thread-local green cache.
+/// Access the thread-local green cache
 pub fn with_green_cache<F, R>(f: F) -> R
 where
   F: FnOnce(&mut Cache) -> R,
@@ -36,7 +36,7 @@ where
   CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
-/// Get a clone of the thread-local green cache handle.
+/// Get a clone of the thread-local green cache handle
 pub fn green_cache() -> Rc<RefCell<Cache>> {
   CACHE.with(|cache| cache.clone())
 }
@@ -46,7 +46,7 @@ impl Cache {
     Self::default()
   }
 
-  /// Get or create an interned token.
+  /// Get or create an interned token
   pub fn token(&mut self, kind: SyntaxKind, bytes: &[u8]) -> SyntaxToken {
     // Hash from borrowed data to avoid allocating a String on cache hit
     let hash = {
@@ -70,7 +70,7 @@ impl Cache {
     }
   }
 
-  /// Get or create an interned node.
+  /// Get or create an interned node
   pub fn node(&mut self, kind: SyntaxKind, children: &[GreenNode]) -> SyntaxNode {
     let hash = {
       let mut h = self.nodes.hasher().build_hasher();

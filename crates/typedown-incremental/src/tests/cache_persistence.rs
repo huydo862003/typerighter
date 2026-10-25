@@ -293,7 +293,7 @@ fn interned_key_with_derived_struct_fields_cached_after_roundtrip() {
 }
 
 // After a stale dep forces re-execution, the re-executed query and the cached downstream
-// must return the same IdResult entry ID.
+// must return the same IdResult entry ID
 #[test]
 fn reused_entry_ids_after_cross_session_stale_dep_recompute() {
   let db1 = IdDb {
@@ -333,8 +333,8 @@ fn reused_entry_ids_after_cross_session_stale_dep_recompute() {
 }
 
 // When nothing changes between sessions, both a query and its cached downstream must return
-// the exact same entry ID. No recomputation, no ID drift.
-// Mirrors the integration test: zero_spurious_errors (no mutations between sessions).
+// the exact same entry ID. No recomputation, no ID drift
+// Mirrors the integration test: zero_spurious_errors (no mutations between sessions)
 #[test]
 fn no_id_drift_after_unchanged_roundtrip() {
   let db1 = IdDb {
@@ -372,7 +372,7 @@ fn no_id_drift_after_unchanged_roundtrip() {
 }
 
 // After re-execution due to a stale side dep, the cached downstream result must return a struct whose fields are accessible with correct values
-// If the bug exists: re-execution creates a new entry_id, the cached downstream holds the old entry_id whose field data is stale or cleaned up -> field access panics or returns wrong value.
+// If the bug exists: re-execution creates a new entry_id, the cached downstream holds the old entry_id whose field data is stale or cleaned up -> field access panics or returns wrong value
 #[test]
 fn cached_downstream_fields_accessible_after_stale_dep_recompute() {
   let db1 = IdDb {

@@ -15,7 +15,7 @@ use crate::core::utils::position::node_trimmed_range;
 use crate::core::utils::uri::path_to_uri;
 use crate::lsp::service::utils::symbol::str_content_node;
 
-/// Build text edits for all references to a symbol.
+/// Build text edits for all references to a symbol
 pub fn collect_reference_edits(
   analysis: &Analysis,
   references: &[Reference],

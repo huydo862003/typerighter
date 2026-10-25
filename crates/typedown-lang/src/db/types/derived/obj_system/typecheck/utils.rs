@@ -364,7 +364,7 @@ fn is_subtype_of_env<'db>(
     }
     (TdTypEnum::TdExistentialTyp(existential_subtype), TdTypEnum::TdExistentialTyp(_)) => {
       // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
-      // Well this is just a special case of the below case, technically can be merged...
+      // Well this is just a special case of the below case, technically can be merged..
       existential_subtype
         .body(db)
         .and_then(|b| b.resolve(db))

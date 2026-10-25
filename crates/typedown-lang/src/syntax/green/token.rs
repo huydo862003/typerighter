@@ -17,7 +17,7 @@ pub(super) struct TokenBody {
   pub(super) bytes: Vec<u8>,
 }
 
-/// The leaf node in the green tree.
+/// The leaf node in the green tree
 pub struct SyntaxToken(pub(super) *const TokenBody);
 
 impl SyntaxToken {

@@ -77,8 +77,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.emit(SyntaxKind::MdBody, &children)
   }
 
-  /// Parse a block-level element.
-  /// INVARIANT: Must be at start of line with prefix already consumed.
+  /// Parse a block-level element
+  /// INVARIANT: Must be at start of line with prefix already consumed
   /// INVARIANT: Block elements do not consume their trailing newline as one newline can end multiple block elements
   pub(in crate::syntax::parse) fn parse_md_block_element(
     &mut self,
@@ -125,8 +125,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Parse an inline element.
-  /// INVARIANT: Must not be at a Newline or EOF.
+  /// Parse an inline element
+  /// INVARIANT: Must not be at a Newline or EOF
   pub(in crate::syntax::parse) fn parse_md_inline_element(
     &mut self,
   ) -> (GreenNode, Option<ExprCtx>) {
@@ -173,7 +173,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
   }
 
-  /// Parse a heading: `# ...`, `## ...`, etc.
+  /// Parse a heading: `# ...`, `## ...`, etc
   /// INVARIANT: The next token should be a hash sequence
   pub(in crate::syntax::parse) fn parse_heading(&mut self) -> (GreenNode, Option<ExprCtx>) {
     fn is_hash(token: &SyntaxToken) -> bool {
@@ -231,8 +231,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdHeading, &children), None)
   }
 
-  /// Parse a paragraph: consecutive non-blank text lines.
-  /// INVARIANT: The current line is not blank (caller must ensure there is content).
+  /// Parse a paragraph: consecutive non-blank text lines
+  /// INVARIANT: The current line is not blank (caller must ensure there is content)
   pub(in crate::syntax::parse) fn parse_paragraph(&mut self) -> (GreenNode, Option<ExprCtx>) {
     self.expr_ctx_stack.enter(ExprCtx::MdParagraph);
     let mut children = vec![];
@@ -292,7 +292,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdParagraph, &children), None)
   }
 
-  /// Parse a blockquote: `> ...`.
+  /// Parse a blockquote: `> ...`
   /// INVARIANT: Expect the next token to be `>`
   pub(in crate::syntax::parse) fn parse_blockquote(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
@@ -352,8 +352,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdBlockquote, &children), None)
   }
 
-  /// Parse a table: `| ... | ... |`.
-  /// INVARIANT: Next token must be MdSymbol `|`, optionally preceded by whitespace.
+  /// Parse a table: `| ... | ... |`
+  /// INVARIANT: Next token must be MdSymbol `|`, optionally preceded by whitespace
   pub(in crate::syntax::parse) fn parse_table(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.is_table_start(SKIP_NONE),
@@ -451,9 +451,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdTable, &children), None)
   }
 
-  /// Parse a table row: `| cell | cell |`.
-  /// Returns the node, cell count, and early exit context.
-  /// INVARIANT: Next token must be MdSymbol `|`.
+  /// Parse a table row: `| cell | cell |`
+  /// Returns the node, cell count, and early exit context
+  /// INVARIANT: Next token must be MdSymbol `|`
   fn parse_table_row(&mut self, is_data_row: bool) -> (GreenNode, usize, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
@@ -511,8 +511,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(row_kind, &children), cell_count, None)
   }
 
-  /// Parse a table separator row: `| --- | --- |`.
-  /// INVARIANT: Next token must be MdSymbol `|`.
+  /// Parse a table separator row: `| --- | --- |`
+  /// INVARIANT: Next token must be MdSymbol `|`
   fn parse_table_separator_row(&mut self) -> (GreenNode, Option<ExprCtx>) {
     let mut children = vec![];
 
@@ -531,7 +531,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdTableSeparatorRow, &children), None)
   }
 
-  /// Parse a table cell: inline content until `|` or end of line.
+  /// Parse a table cell: inline content until `|` or end of line
   fn parse_table_cell(&mut self) -> (GreenNode, Option<ExprCtx>) {
     let mut children = vec![];
 
@@ -568,8 +568,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdTableCell, &children), None)
   }
 
-  /// Parse a bullet list: `- ...` or `* ...` or `+ ...`.
-  /// INVARIANT: Must be after prefix. Next token must be MdSymbol `-`, `*`, or `+`.
+  /// Parse a bullet list: `- ...` or `* ...` or `+ ...`
+  /// INVARIANT: Must be after prefix. Next token must be MdSymbol `-`, `*`, or `+`
   pub(in crate::syntax::parse) fn parse_bullet_list(
     &mut self,
     indent: usize,
@@ -654,8 +654,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.parse_bullet_list_item(bullet)
   }
 
-  /// Parse a bullet list item: `- content` or `* content` or `+ content`.
-  /// INVARIANT: Next token must be the bullet marker matching `bullet`.
+  /// Parse a bullet list item: `- content` or `* content` or `+ content`
+  /// INVARIANT: Next token must be the bullet marker matching `bullet`
   fn parse_bullet_list_item(&mut self, bullet: &str) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       {
@@ -797,8 +797,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdTaskListItem, &children), None)
   }
 
-  /// Parse an ordered list: `1. ...`.
-  /// INVARIANT: The next tokens must be MdNumber and MdSymbol dot.
+  /// Parse an ordered list: `1. ...`
+  /// INVARIANT: The next tokens must be MdNumber and MdSymbol dot
   pub(in crate::syntax::parse) fn parse_ordered_list(
     &mut self,
     indent: usize,
@@ -858,8 +858,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdOrderedList, &children), None)
   }
 
-  /// Parse an ordered list item: `1. content`.
-  /// INVARIANT: Next token must be MdNumber followed by `.`.
+  /// Parse an ordered list item: `1. content`
+  /// INVARIANT: Next token must be MdNumber followed by `.`
   fn parse_ordered_list_item(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdNumber,
@@ -942,7 +942,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdOrderedListItem, &children), None)
   }
 
-  /// Parse a container block: `::: label ... :::`.
+  /// Parse a container block: `::: label ... :::`
   /// INVARIANT: Expect ::: to be the next token, all spaces must already be consumed and passed
   pub(in crate::syntax::parse) fn parse_container_block(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
@@ -1236,7 +1236,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse a container props block: `{key=value}`.
+  /// Parse a container props block: `{key=value}`
   /// INVARIANT: Expect { to be the next NON-WHITESPACE token
   pub(in crate::syntax::parse) fn parse_container_prop_block(
     &mut self,
@@ -1347,7 +1347,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdContainerPropBlock, &children), None)
   }
 
-  /// Parse a container prop item: `key=value`.
+  /// Parse a container prop item: `key=value`
   /// INVARIANT: Expect ident to be the next NON-WHITESPACE token
   pub(in crate::syntax::parse) fn parse_container_prop_item(
     &mut self,
@@ -1376,9 +1376,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.advance_md(&mut children, SKIP_NONE); // Consume eq
 
     // Enter prop_value_mode BEFORE peeking so the formula lexer (lex_number)
-    // handles full numbers (2.5, 1e3) as single tokens.
+    // handles full numbers (2.5, 1e3) as single tokens
     // parse_js_prop_value handles all value types: numbers, strings, keywords,
-    // lists, dicts, unary minus, and emits MissingContainerPropValueAfterEq for errors.
+    // lists, dicts, unary minus, and emits MissingContainerPropValueAfterEq for errors
     self.lex_ctx.enter_prop_value_mode();
     children.push(self.parse_js_prop_value());
     self.lex_ctx.exit_prop_value_mode();
@@ -1388,7 +1388,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdContainerPropItem, &children), None)
   }
 
-  /// Parse a container slot: `=== <name>\n<content>\n=== <name>`.
+  /// Parse a container slot: `=== <name>\n<content>\n=== <name>`
   /// INVARIANT: Expect content to be next
   /// INVARIANT: It must not consume the ending newline (except if there is an EOF)
   pub(in crate::syntax::parse) fn parse_container_slot(&mut self) -> (GreenNode, Option<ExprCtx>) {
@@ -1445,8 +1445,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdContainerSlot, &children), None)
   }
 
-  /// Parse a link: `[text](url)`.
-  /// INVARIANT: The next token must be LBracket.
+  /// Parse a link: `[text](url)`
+  /// INVARIANT: The next token must be LBracket
   pub(in crate::syntax::parse) fn parse_link(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::LBracket,
@@ -1601,8 +1601,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdLink, &children), None)
   }
 
-  /// Parse a media embed: `![alt](src)`.
-  /// INVARIANT: The next token must be MdSymbol `!` followed by `[`.
+  /// Parse a media embed: `![alt](src)`
+  /// INVARIANT: The next token must be MdSymbol `!` followed by `[`
   pub(in crate::syntax::parse) fn parse_media(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
@@ -1761,10 +1761,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdMedia, &children), None)
   }
 
-  /// Parse bold text: `**text**`.
-  /// INVARIANT: The next token must be MdSymbol `**`.
-  /// Leading whitespace must already be consumed by the caller.
-  /// Trailing whitespace after the closing delimiter is not consumed.
+  /// Parse bold text: `**text**`
+  /// INVARIANT: The next token must be MdSymbol `**`
+  /// Leading whitespace must already be consumed by the caller
+  /// Trailing whitespace after the closing delimiter is not consumed
   pub(in crate::syntax::parse) fn parse_bold(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
@@ -1841,10 +1841,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse italic text: `*text*` or `_text_`.
-  /// INVARIANT: The next token must be MdSymbol `*` or `_`.
-  /// Leading whitespace must already be consumed by the caller.
-  /// Trailing whitespace after the closing delimiter is not consumed.
+  /// Parse italic text: `*text*` or `_text_`
+  /// INVARIANT: The next token must be MdSymbol `*` or `_`
+  /// Leading whitespace must already be consumed by the caller
+  /// Trailing whitespace after the closing delimiter is not consumed
   pub(in crate::syntax::parse) fn parse_italic(&mut self) -> (GreenNode, Option<ExprCtx>) {
     let opening: String = self.lex_ctx.peek_md(SKIP_NONE).token.chars().collect();
     debug_assert!(
@@ -1937,10 +1937,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse bolditalic text: `***text***`.
-  /// INVARIANT: The next token must be MdSymbol `***`.
-  /// Leading whitespace must already be consumed by the caller.
-  /// Trailing whitespace after the closing delimiter is not consumed.
+  /// Parse bolditalic text: `***text***`
+  /// INVARIANT: The next token must be MdSymbol `***`
+  /// Leading whitespace must already be consumed by the caller
+  /// Trailing whitespace after the closing delimiter is not consumed
   pub(in crate::syntax::parse) fn parse_bold_italic(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
@@ -2017,10 +2017,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse strikethrough text: `~~text~~`.
-  /// INVARIANT: The next token must be MdSymbol `~~`.
-  /// Leading whitespace must already be consumed by the caller.
-  /// Trailing whitespace after the closing delimiter is not consumed.
+  /// Parse strikethrough text: `~~text~~`
+  /// INVARIANT: The next token must be MdSymbol `~~`
+  /// Leading whitespace must already be consumed by the caller
+  /// Trailing whitespace after the closing delimiter is not consumed
   pub(in crate::syntax::parse) fn parse_strikethrough(&mut self) -> (GreenNode, Option<ExprCtx>) {
     debug_assert!(
       self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::MdSymbol
@@ -2101,8 +2101,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     result
   }
 
-  /// Parse a text run: consecutive plain text, including surrounding whitespace.
-  /// Consumes leading and trailing spaces.
+  /// Parse a text run: consecutive plain text, including surrounding whitespace
+  /// Consumes leading and trailing spaces
   pub(in crate::syntax::parse) fn parse_text(&mut self) -> (GreenNode, Option<ExprCtx>) {
     let in_table_cell = self.expr_ctx_stack.current() == Some(ExprCtx::MdTableCell);
     let mut children = vec![];
@@ -2228,8 +2228,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     None
   }
 
-  /// Whether the current inline element should end due to EOF or a line boundary.
-  /// Consumes the newline and prefix if present.
+  /// Whether the current inline element should end due to EOF or a line boundary
+  /// Consumes the newline and prefix if present
   fn should_end_inline_element(&mut self, children: &mut Vec<GreenNode>) -> bool {
     let next_kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
     if next_kind == SyntaxKind::Eof {
@@ -2275,7 +2275,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     false
   }
 
-  /// Whether the next token starts an inline element.
+  /// Whether the next token starts an inline element
   fn is_md_inline_start(&mut self) -> bool {
     let next = self.lex_ctx.peek_md(SKIP_NONE);
     match next.token.kind() {

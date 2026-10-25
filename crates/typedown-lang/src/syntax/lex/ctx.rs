@@ -1,7 +1,7 @@
-//! An on-demand lexer supporting 2 lex modes (YAML frontmatter and Markdown).
+//! An on-demand lexer supporting 2 lex modes (YAML frontmatter and Markdown)
 //!
 //! The parser triggers lex and switches mode where sensible,
-//! producing one green token at a time.
+//! producing one green token at a time
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -115,7 +115,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       && !matches!(self.stream.peek_nth(3), Utf8Result::Char(c) if is_op_char(c))
   }
 
-  /// Current byte offset in the source stream.
+  /// Current byte offset in the source stream
   pub fn offset(&self) -> usize {
     self.stream.offset()
   }
@@ -143,13 +143,13 @@ impl<S: Utf8Stream> LexCtx<S> {
 
 /* Shared helpers */
 impl<S: Utf8Stream> LexCtx<S> {
-  /// Look at the next character without consuming it.
+  /// Look at the next character without consuming it
   pub(super) fn peek(&mut self) -> Utf8Result {
     self.stream.peek()
   }
 
-  /// Consume the next character, appending it to the current token text.
-  /// If invalid UTF-8 is encountered, do not consume it and return the result.
+  /// Consume the next character, appending it to the current token text
+  /// If invalid UTF-8 is encountered, do not consume it and return the result
   pub(super) fn advance_avoid_invalid_utf8(&mut self) -> Utf8Result {
     match self.stream.peek() {
       Utf8Result::Char(_) => {
@@ -163,7 +163,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
   }
 
-  /// Consume the next character if it matches `expected`.
+  /// Consume the next character if it matches `expected`
   pub(super) fn consume_avoid_invalid_utf8(&mut self, expected: char) -> bool {
     if let Utf8Result::Char(encountered) = self.peek()
       && encountered == expected
@@ -175,8 +175,8 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
   }
 
-  /// Look for an invalid utf-8 character right ahead and return if any.
-  /// INVARIANT: Always call before any other advance()/consume().
+  /// Look for an invalid utf-8 character right ahead and return if any
+  /// INVARIANT: Always call before any other advance()/consume()
   pub(super) fn try_consume_invalid_utf8(&mut self) -> Option<LexResult> {
     debug_assert!(
       self.text_buffer.is_empty(),
@@ -198,7 +198,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
   }
 
-  /// Finalize the current token with no diagnostic.
+  /// Finalize the current token with no diagnostic
   pub(super) fn emit(&mut self, kind: SyntaxKind) -> LexResult {
     let text = std::mem::take(&mut self.text_buffer);
     LexResult {
@@ -207,7 +207,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
   }
 
-  /// Finalize the current token with a diagnostic.
+  /// Finalize the current token with a diagnostic
   pub(super) fn emit_with(&mut self, kind: SyntaxKind, diagnostic: TdDiagnostic) -> LexResult {
     let text = std::mem::take(&mut self.text_buffer);
     LexResult {
@@ -291,7 +291,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
   }
 
-  /// Whether the stream is exhausted.
+  /// Whether the stream is exhausted
   fn is_eof(&mut self) -> bool {
     self.stream.exhausted()
   }

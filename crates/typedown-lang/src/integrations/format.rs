@@ -40,9 +40,28 @@ fn format_block(out: &mut String, node: &RedNode, depth: usize) {
     SyntaxKind::MdHeading => format_heading(out, node),
     SyntaxKind::MdBulletList => format_bullet_list(out, node, depth),
     SyntaxKind::MdOrderedList => format_ordered_list(out, node, depth),
+    // Code and math blocks: preserve internal indentation verbatim, only add outer indent
+    SyntaxKind::CodeBlock | SyntaxKind::MathBlock => emit_verbatim_block(out, node, depth),
     _ => {
-      // Tables, blockquotes, containers, paragraphs: emit source text
+      // Tables, blockquotes, containers, paragraphs, horizontal rules: emit source text
       emit_source_lines(out, node, depth);
+    }
+  }
+}
+
+/// Emit a code/math block verbatim: strip only the common leading indent from the source,
+/// then re-indent with `depth` levels so internal relative indentation is preserved
+fn emit_verbatim_block(out: &mut String, node: &RedNode, depth: usize) {
+  let indent = "  ".repeat(depth);
+  let text = node.text();
+  for line in text.lines() {
+    if line.trim().is_empty() {
+      out.push('\n');
+    } else {
+      // Remove trailing whitespace but preserve leading (internal) indentation
+      out.push_str(&indent);
+      out.push_str(line.trim_end());
+      out.push('\n');
     }
   }
 }
@@ -607,6 +626,92 @@ More text.
     assert!(
       result.contains("![architecture](_assets/architecture.webp)"),
       "media should be preserved in list item:\n{result}"
+    );
+  }
+
+  // Horizontal rule is preserved
+  #[test]
+  fn horizontal_rule_preserved() {
+    let result = fmt(
+      r#"---
+---
+Some text.
+
+---
+
+More text.
+"#,
+    );
+    assert!(
+      result.contains("---\n\nMore text."),
+      "horizontal rule should be preserved:\n{result}"
+    );
+  }
+
+  // Horizontal rule between paragraphs
+  #[test]
+  fn horizontal_rule_between_paragraphs() {
+    let result = fmt(
+      r#"---
+---
+First.
+
+---
+
+Second.
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+First.
+
+---
+
+Second.
+"#
+    );
+  }
+
+  // Code block inside ordered list preserves internal indentation
+  #[test]
+  fn code_block_in_ordered_list_preserves_indentation() {
+    let result = fmt(
+      r#"---
+---
+1. Example
+
+   ```js
+   if (x) {
+     doSomething();
+   }
+   ```
+"#,
+    );
+    assert!(
+      result.contains("  doSomething();"),
+      "internal code indentation should be preserved:\n{result}"
+    );
+  }
+
+  // Code block inside bullet list preserves internal indentation
+  #[test]
+  fn code_block_in_bullet_list_preserves_indentation() {
+    let result = fmt(
+      r#"---
+---
+- Example
+
+  ```js
+  if (x) {
+    doSomething();
+  }
+  ```
+"#,
+    );
+    assert!(
+      result.contains("  doSomething();"),
+      "internal code indentation in bullet list should be preserved:\n{result}"
     );
   }
 

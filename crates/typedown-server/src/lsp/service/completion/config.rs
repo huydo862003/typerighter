@@ -33,7 +33,7 @@ pub fn resolve_completion(
   Some(CompletionResponse::Array(items))
 }
 
-/// Returns true if the cursor is nested inside a `vault` mapping entry value.
+/// Returns true if the cursor is nested inside a `vault` mapping entry value
 fn is_under_vault(node: &RedNode) -> bool {
   let mut current = node.parent();
   while let Some(ref current_) = current {

@@ -1,8 +1,8 @@
-//! On-disk format for interned blobs (`interned-blobs.bin`).
-//! Based on rustc's interned node deduplication strategy.
+//! On-disk format for interned blobs (`interned-blobs.bin`)
+//! Based on rustc's interned node deduplication strategy
 //!
-//! Stores deduplicated blobs (e.g. green tree nodes: tokens and inner nodes).
-//! Each blob is stored once & references use indices into this table.
+//! Stores deduplicated blobs (e.g. green tree nodes: tokens and inner nodes)
+//! Each blob is stored once & references use indices into this table
 //!
 //! ```text
 //! [ FileHeader (8 bytes)       ]  magic "TDIB" + version
@@ -16,8 +16,8 @@
 //! - Token (tag = 0): SyntaxKind + text bytes
 //! - Node  (tag = 1): SyntaxKind + child_count + child indices
 //!
-//! Child indices refer to earlier entries in this file.
-//! Decoded upfront into a Vec on load.
+//! Child indices refer to earlier entries in this file
+//! Decoded upfront into a Vec on load
 
 /* File identification */
 // Magic: 4 bytes
@@ -31,7 +31,7 @@ pub const VERSION: u32 = 1;
 const TAG_TOKEN: u8 = 0;
 const TAG_NODE: u8 = 1;
 
-/// File header (8 bytes).
+/// File header (8 bytes)
 #[derive(Debug, Clone, Copy)]
 pub struct FileHeader {
   pub magic: [u8; 4],
@@ -73,12 +73,12 @@ impl FileHeader {
   }
 }
 
-/// A record in the interned nodes file.
+/// A record in the interned nodes file
 #[derive(Debug, Clone)]
 pub enum NodeRecord {
-  /// A token leaf node: SyntaxKind + text bytes.
+  /// A token leaf node: SyntaxKind + text bytes
   Token { kind: u16, text: Vec<u8> },
-  /// An inner node: SyntaxKind + children (indices into this file's node table).
+  /// An inner node: SyntaxKind + children (indices into this file's node table)
   Node { kind: u16, children: Vec<u32> },
 }
 
@@ -175,7 +175,7 @@ impl NodeRecord {
   }
 }
 
-/// File footer.
+/// File footer
 #[derive(Debug, Clone, Copy)]
 pub struct FileFooter {
   /// Total number of node records in the file

@@ -147,6 +147,10 @@ pub enum TdDiagnosticKind {
   DuplicateKey { key: String },
   #[message("cannot resolve file reference '{path}'")]
   UnresolvedFileRef { path: String },
+  #[message(
+    "invalid fref path '{path}': must start with '/' (absolute) or './' / '../' (relative)"
+  )]
+  InvalidFrefPath { path: String },
   #[message("cannot resolve identifier '{name}'")]
   UnresolvedIdentifier { name: String },
   #[message("cannot resolve import '{path}'")]

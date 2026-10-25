@@ -1,3 +1,3 @@
 ---
 ---
-${fref("valid_person.td").name}
+${fref("./valid_person.td").name}

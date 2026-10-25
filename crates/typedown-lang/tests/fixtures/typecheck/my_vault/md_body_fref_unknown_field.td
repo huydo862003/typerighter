@@ -1,3 +1,3 @@
 ---
 ---
-${fref("valid_person.td").nonexistent_field}
+${fref("./valid_person.td").nonexistent_field}

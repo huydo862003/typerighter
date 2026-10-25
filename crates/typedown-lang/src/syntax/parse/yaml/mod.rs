@@ -108,7 +108,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 }
 
 impl<S: Utf8Stream> ParseCtx<S> {
-  /// Whether the token is EOF or a YamlIndent with less than the current block indent.
+  /// Whether the token is EOF or a YamlIndent with less than the current block indent
   pub(in crate::syntax::parse) fn is_block_dedent(
     &self,
     token: &SyntaxToken,

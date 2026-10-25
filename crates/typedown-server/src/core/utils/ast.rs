@@ -2,7 +2,7 @@ use typedown_lang::syntax::ast::{AstNode, CallExpr, Expr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
-/// Find the innermost red node whose source span contains `offset`.
+/// Find the innermost red node whose source span contains `offset`
 pub fn node_at_offset(root: RedNode, offset: usize) -> Option<RedNode> {
   let start = root.offset();
   let end = start + root.text_len();
@@ -21,7 +21,7 @@ pub fn node_at_offset(root: RedNode, offset: usize) -> Option<RedNode> {
   Some(root)
 }
 
-/// Returns true if the cursor is in a mapping value position rather than a key position.
+/// Returns true if the cursor is in a mapping value position rather than a key position
 pub fn is_in_mapping_value_position(node: &RedNode) -> bool {
   let mut current = node.parent();
   while let Some(ref cur) = current {
@@ -34,7 +34,7 @@ pub fn is_in_mapping_value_position(node: &RedNode) -> bool {
   false
 }
 
-/// Returns true if this `Ident` token is directly inside a `YamlMappingEntryKey`.
+/// Returns true if this `Ident` token is directly inside a `YamlMappingEntryKey`
 pub fn ident_is_mapping_key(node: &RedNode) -> bool {
   node
     .parent()
@@ -114,7 +114,7 @@ fn is_inside_schema_properties(entry: &RedNode) -> bool {
     .is_some_and(|key| key.text().trim() == "properties")
 }
 
-/// Walk up to find the nearest ancestor with the given syntax kind.
+/// Walk up to find the nearest ancestor with the given syntax kind
 pub fn find_ancestor(node: &RedNode, kind: SyntaxKind) -> Option<RedNode> {
   let mut current = node.parent()?;
   loop {

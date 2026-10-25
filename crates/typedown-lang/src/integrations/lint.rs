@@ -24,7 +24,7 @@ const GENERIC_LINK_TEXTS: &[&str] = &[
   "this link",
 ];
 
-/// Lint the markdown body of a Typedown file.
+/// Lint the markdown body of a Typedown file
 pub fn lint_markdown(body: &MdBody) -> Vec<TdDiagnostic> {
   let mut diagnostics = Vec::new();
 

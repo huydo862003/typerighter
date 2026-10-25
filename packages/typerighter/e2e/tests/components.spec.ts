@@ -5,7 +5,9 @@ import {
   test,
 } from '@playwright/test';
 import {
-  expect, createTestProjectFixture, type TestProject,
+  expect,
+  createTestProjectFixture,
+  type TestProject,
 } from '../fixtures';
 
 const components = test.extend<{
@@ -48,7 +50,9 @@ components.describe('TdAlert', () => {
   components('slot content renders inside component', async ({
     page,
   }) => {
-    await expect(page.locator('.td-alert').first()).toContainText('This is an alert component.');
+    await expect(page.locator('.td-alert').first()).toContainText(
+      'This is an alert component.',
+    );
   });
 });
 
@@ -78,20 +82,25 @@ components.describe('TdDataTable', () => {
     await expect(page.locator('.td-data-table')).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator('.td-data-table')).toHaveAttribute('data-striped');
+    await expect(page.locator('.td-data-table')).toHaveAttribute(
+      'data-striped',
+    );
   });
 
-  components('markdown table in slot renders as <table> inside component', async ({
-    page,
-  }) => {
-    const table = page.locator('.td-data-table table');
+  components(
+    'markdown table in slot renders as <table> inside component',
+    async ({
+      page,
+    }) => {
+      const table = page.locator('.td-data-table table');
 
-    await expect(table).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(table).toContainText('jan');
-    await expect(table).toContainText('$1,200');
-  });
+      await expect(table).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(table).toContainText('jan');
+      await expect(table).toContainText('$1,200');
+    },
+  );
 });
 
 components.describe('TdTabs', () => {
@@ -116,36 +125,52 @@ components.describe('TdTabs', () => {
       timeout: 15_000,
     });
     // active="1" -> Details is initially active (0-indexed)
-    await expect(page.locator('.td-tabs')).toHaveAttribute('data-active-tab', '1');
-    await expect(page.locator('.td-tabs [role="tab"][aria-selected="true"]')).toHaveText('Details');
+    await expect(page.locator('.td-tabs')).toHaveAttribute(
+      'data-active-tab',
+      '1',
+    );
+    await expect(
+      page.locator('.td-tabs [role="tab"][aria-selected="true"]'),
+    ).toHaveText('Details');
   });
 
-  components('clicking a tab updates active state reactively', async ({
-    page,
-  }) => {
-    await expect(page.locator('.td-tabs')).toBeVisible({
-      timeout: 15_000,
-    });
+  components(
+    'clicking a tab updates active state reactively',
+    async ({
+      page,
+    }) => {
+      await expect(page.locator('.td-tabs')).toBeVisible({
+        timeout: 15_000,
+      });
 
-    await page.locator('.td-tabs [role="tab"]').nth(2)
-      .click();
+      await page.locator('.td-tabs [role="tab"]').nth(2)
+        .click();
 
-    await expect(page.locator('.td-tabs')).toHaveAttribute('data-active-tab', '2');
-    await expect(page.locator('.td-tabs [role="tab"][aria-selected="true"]')).toHaveText('Notes');
-  });
+      await expect(page.locator('.td-tabs')).toHaveAttribute(
+        'data-active-tab',
+        '2',
+      );
+      await expect(
+        page.locator('.td-tabs [role="tab"][aria-selected="true"]'),
+      ).toHaveText('Notes');
+    },
+  );
 
-  components('slot markdown with bold and list renders inside panel', async ({
-    page,
-  }) => {
-    const panel = page.locator('.td-tabs .td-tabs__panel');
+  components(
+    'slot markdown with bold and list renders inside panel',
+    async ({
+      page,
+    }) => {
+      const panel = page.locator('.td-tabs .td-tabs__panel');
 
-    await expect(panel).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(panel).toContainText('This is the tab panel content.');
-    await expect(panel.locator('strong')).toHaveText('bold text');
-    await expect(panel.locator('li')).toHaveCount(2);
-  });
+      await expect(panel).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(panel).toContainText('This is the tab panel content.');
+      await expect(panel.locator('strong')).toHaveText('bold text');
+      await expect(panel.locator('li')).toHaveCount(2);
+    },
+  );
 });
 
 components.describe('TdCard', () => {
@@ -155,7 +180,9 @@ components.describe('TdCard', () => {
     await expect(page.locator('.td-card')).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator('.td-card .td-card__title')).toHaveText('Getting started');
+    await expect(page.locator('.td-card .td-card__title')).toHaveText(
+      'Getting started',
+    );
   });
 
   components('icon prop renders in header', async ({
@@ -175,30 +202,41 @@ components.describe('TdCard', () => {
     await expect(page.locator('.td-card .td-card__footer')).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator('.td-card .td-card__footer')).toHaveText('Last updated: today');
+    await expect(page.locator('.td-card .td-card__footer')).toHaveText(
+      'Last updated: today',
+    );
   });
 
-  components('data-has-footer attribute reflects footer presence', async ({
-    page,
-  }) => {
-    await expect(page.locator('.td-card')).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator('.td-card')).toHaveAttribute('data-has-footer', 'true');
-  });
+  components(
+    'data-has-footer attribute reflects footer presence',
+    async ({
+      page,
+    }) => {
+      await expect(page.locator('.td-card')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator('.td-card')).toHaveAttribute(
+        'data-has-footer',
+        'true',
+      );
+    },
+  );
 
-  components('slot markdown ordered list renders inside card body', async ({
-    page,
-  }) => {
-    const items = page.locator('.td-card .td-card__body ol li');
+  components(
+    'slot markdown ordered list renders inside card body',
+    async ({
+      page,
+    }) => {
+      const items = page.locator('.td-card .td-card__body ol li');
 
-    await expect(page.locator('.td-card')).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(items).toHaveCount(3);
-    await expect(items.nth(0)).toContainText('Install the package');
-    await expect(items.nth(2)).toContainText('Run the dev server');
-  });
+      await expect(page.locator('.td-card')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(items).toHaveCount(3);
+      await expect(items.nth(0)).toContainText('Install the package');
+      await expect(items.nth(2)).toContainText('Run the dev server');
+    },
+  );
 });
 
 components.describe('contract', () => {
@@ -225,49 +263,55 @@ components.describe('contract', () => {
     );
   });
 
-  components('components.json includes builtin flashcard with prop types', async () => {
-    expect(contract.flashcard).toBeDefined();
-    expect(contract.flashcard.props.revealed.schema).toEqual({
-      type: [
-        'boolean',
-        'null',
-      ],
-    });
-    expect(contract.flashcard.props.disabled.schema).toEqual({
-      type: [
-        'boolean',
-        'null',
-      ],
-    });
-    expect(contract.flashcard.props.id.schema).toEqual({
-      type: [
-        'string',
-        'null',
-      ],
-    });
-    expect(contract.flashcard.props.questionLabel.schema).toEqual({
-      type: [
-        'string',
-        'null',
-      ],
-    });
-    expect(contract.flashcard.props.keyLabel.schema).toEqual({
-      type: [
-        'string',
-        'null',
-      ],
-    });
-  });
+  components(
+    'components.json includes builtin flashcard with prop types',
+    async () => {
+      expect(contract.flashcard).toBeDefined();
+      expect(contract.flashcard.props.revealed.schema).toEqual({
+        type: [
+          'boolean',
+          'null',
+        ],
+      });
+      expect(contract.flashcard.props.disabled.schema).toEqual({
+        type: [
+          'boolean',
+          'null',
+        ],
+      });
+      expect(contract.flashcard.props.id.schema).toEqual({
+        type: [
+          'string',
+          'null',
+        ],
+      });
+      expect(contract.flashcard.props.questionLabel.schema).toEqual({
+        type: [
+          'string',
+          'null',
+        ],
+      });
+      expect(contract.flashcard.props.keyLabel.schema).toEqual({
+        type: [
+          'string',
+          'null',
+        ],
+      });
+    },
+  );
 
   components('components.json includes flashcard slots', async () => {
     expect(contract.flashcard.slots).toEqual(['key']);
   });
 
-  components('components.json includes all auto-discovered builtins', async () => {
-    expect(contract['glossary-index']).toBeDefined();
-    expect(contract['toc']).toBeDefined();
-    expect(contract['directory-index']).toBeDefined();
-  });
+  components(
+    'components.json includes all auto-discovered builtins',
+    async () => {
+      expect(contract['glossary-index']).toBeDefined();
+      expect(contract['toc']).toBeDefined();
+      expect(contract['directory-index']).toBeDefined();
+    },
+  );
 
   components('string prop type is mapped correctly', async () => {
     // Required props: { type: "string" }; optional props: { type: ["string", "null"] }
@@ -303,14 +347,17 @@ components.describe('contract', () => {
     });
   });
 
-  components('unsupported prop type is omitted, component still registered', async () => {
-    // TdComplex has title: string (kept) and data: Record<string, unknown> (omitted)
-    expect(contract.TdComplex).toBeDefined();
-    expect(contract.TdComplex.props.title.schema).toEqual({
-      type: 'string',
-    });
-    expect(contract.TdComplex.props.data).toBeUndefined();
-  });
+  components(
+    'unsupported prop type is omitted, component still registered',
+    async () => {
+      // TdComplex has title: string (kept) and data: Record<string, unknown> (omitted)
+      expect(contract.TdComplex).toBeDefined();
+      expect(contract.TdComplex.props.title.schema).toEqual({
+        type: 'string',
+      });
+      expect(contract.TdComplex.props.data).toBeUndefined();
+    },
+  );
 });
 
 // Fixture variant that starts without a pre-existing components.json
@@ -328,7 +375,10 @@ const componentsFresh = test.extend<{
 });
 
 // Wait for the plugin to write the file (it writes async during configureServer)
-async function waitForContract (filePath: string, timeoutMs = 15_000): Promise<string> {
+async function waitForContract (
+  filePath: string,
+  timeoutMs = 15_000,
+): Promise<string> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
@@ -348,22 +398,27 @@ componentsFresh.describe('contract (fresh)', () => {
   componentsFresh.beforeEach(async ({
     testProject,
   }) => {
-    const raw = await waitForContract(`${testProject.dir}/.typedown/components.json`);
+    const raw = await waitForContract(
+      `${testProject.dir}/.typedown/components.json`,
+    );
 
     contract = JSON.parse(raw);
   });
 
-  componentsFresh('plugin generates components.json from scratch on startup', async () => {
-    expect(Object.keys(contract)).toEqual(
-      expect.arrayContaining([
-        'TdAlert',
-        'TdDataTable',
-        'TdTabs',
-        'TdCard',
-        'TdComplex',
-      ]),
-    );
-  });
+  componentsFresh(
+    'plugin generates components.json from scratch on startup',
+    async () => {
+      expect(Object.keys(contract)).toEqual(
+        expect.arrayContaining([
+          'TdAlert',
+          'TdDataTable',
+          'TdTabs',
+          'TdCard',
+          'TdComplex',
+        ]),
+      );
+    },
+  );
 
   componentsFresh('generated contract has correct prop types', async () => {
     expect(contract.TdTabs.props.labels.schema).toEqual({
@@ -392,12 +447,15 @@ componentsFresh.describe('contract (fresh)', () => {
     });
   });
 
-  componentsFresh('unsupported prop type omitted in generated contract', async () => {
-    expect(contract.TdComplex.props.title.schema).toEqual({
-      type: 'string',
-    });
-    expect(contract.TdComplex.props.data).toBeUndefined();
-  });
+  componentsFresh(
+    'unsupported prop type omitted in generated contract',
+    async () => {
+      expect(contract.TdComplex.props.title.schema).toEqual({
+        type: 'string',
+      });
+      expect(contract.TdComplex.props.data).toBeUndefined();
+    },
+  );
 });
 
 // Vault with no theme.components config
@@ -421,121 +479,141 @@ componentsNone.describe('contract (no user components)', () => {
     testProject,
   }) => {
     // Server is already responsive so the contract file has been written
-    const raw = await waitForContract(`${testProject.dir}/.typedown/components.json`);
+    const raw = await waitForContract(
+      `${testProject.dir}/.typedown/components.json`,
+    );
 
     contract = JSON.parse(raw);
   });
 
-  componentsNone('components.json is created with builtins even without user components', async () => {
-    expect(contract.flashcard).toBeDefined();
-    expect(contract['glossary-index']).toBeDefined();
-    expect(contract['toc']).toBeDefined();
-    expect(contract['directory-index']).toBeDefined();
-  });
+  componentsNone(
+    'components.json is created with builtins even without user components',
+    async () => {
+      expect(contract.flashcard).toBeDefined();
+      expect(contract['glossary-index']).toBeDefined();
+      expect(contract['toc']).toBeDefined();
+      expect(contract['directory-index']).toBeDefined();
+    },
+  );
 
-  componentsNone('components.json contains only builtins when no user components are configured', async () => {
-    const keys = Object.keys(contract);
+  componentsNone(
+    'components.json contains only builtins when no user components are configured',
+    async () => {
+      const keys = Object.keys(contract);
 
-    expect(keys).toContain('flashcard');
-    expect(keys).toContain('glossary-index');
-    expect(keys).toContain('toc');
-    expect(keys).toContain('directory-index');
-    expect(keys).not.toContain('TdAlert');
-  });
+      expect(keys).toContain('flashcard');
+      expect(keys).toContain('glossary-index');
+      expect(keys).toContain('toc');
+      expect(keys).toContain('directory-index');
+      expect(keys).not.toContain('TdAlert');
+    },
+  );
 });
 
 components.describe('HMR', () => {
-  components('new component added at runtime becomes available after HMR', async ({
-    page,
-    testProject,
-  }) => {
-    await testProject.writeFile(
-      'components/TdBadge.vue',
-      '<template><span class="td-badge"><slot /></span></template>',
-    );
+  components(
+    'new component added at runtime becomes available after HMR',
+    async ({
+      page, testProject,
+    }) => {
+      await testProject.writeFile(
+        'components/TdBadge.vue',
+        '<template><span class="td-badge"><slot /></span></template>',
+      );
 
-    // Read existing contract and add TdBadge without clobbering other entries
-    const existing = JSON.parse(
-      await readFile(`${testProject.dir}/.typedown/components.json`, 'utf-8'),
-    );
+      // Read existing contract and add TdBadge without clobbering other entries
+      const existing = JSON.parse(
+        await readFile(`${testProject.dir}/.typedown/components.json`, 'utf-8'),
+      );
 
-    await testProject.writeFile(
-      '.typedown/components.json',
-      JSON.stringify({
-        ...existing,
-        TdBadge: {
-          source: './components/TdBadge.vue',
-          props: {},
-        },
-      }, undefined, 2),
-    );
-    await testProject.modifyFile(
-      'vault/demo.td',
-      (content) => `${content}\n:::td-badge\nNew badge\n:::\n`,
-    );
+      await testProject.writeFile(
+        '.typedown/components.json',
+        JSON.stringify(
+          {
+            ...existing,
+            TdBadge: {
+              source: './components/TdBadge.vue',
+              props: {},
+            },
+          },
+          undefined,
+          2,
+        ),
+      );
+      await testProject.modifyFile(
+        'vault/demo.td',
+        (content) => `${content}\n:::td-badge\nNew badge\n:::\n`,
+      );
 
-    // Reload the page so the app module re-evaluates with the new component import
-    await testProject.goto(page, '/demo');
+      // Reload the page so the app module re-evaluates with the new component import
+      await testProject.goto(page, '/demo');
 
-    await expect(page.locator('.td-badge')).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator('.td-badge')).toContainText('New badge');
-  });
+      await expect(page.locator('.td-badge')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator('.td-badge')).toContainText('New badge');
+    },
+  );
 });
 
 components.describe('component check', () => {
   // Positive: correct usage renders without issues
-  components('known component with required prop renders correctly', async ({
-    page,
-  }) => {
-    await expect(page.locator('.td-card .td-card__title')).toHaveText('Getting started');
-  });
+  components(
+    'known component with required prop renders correctly',
+    async ({
+      page,
+    }) => {
+      await expect(page.locator('.td-card .td-card__title')).toHaveText(
+        'Getting started',
+      );
+    },
+  );
 
   // Negative: unknown component emits diagnostic, page still renders
   // Uses check-unknown-component.td in the fixture (checked at startup)
-  components('unknown component emits warning', async ({
-    page,
-    testProject,
-  }) => {
-    await testProject.goto(page, '/check-unknown-component');
-    await expect(page.locator('.td-content')).toBeVisible({
-      timeout: 15_000,
-    });
+  components(
+    'unknown component emits warning',
+    async ({
+      page, testProject,
+    }) => {
+      await testProject.goto(page, '/check-unknown-component');
+      await expect(page.locator('.td-content')).toBeVisible({
+        timeout: 15_000,
+      });
 
-    const hasWarning = testProject.serverStderr.some(
-      (line) => line.includes('td-nonexistent'),
-    );
+      const hasWarning = testProject.serverStderr.some((line) =>
+        line.includes('td-nonexistent'));
 
-    expect(hasWarning).toBe(true);
-  });
+      expect(hasWarning).toBe(true);
+    },
+  );
 
   // Negative: missing required prop emits diagnostic, component still renders
   // Uses check-missing-prop.td in the fixture (TdCard without title)
-  components('missing required prop emits warning', async ({
-    page,
-    testProject,
-  }) => {
-    await testProject.goto(page, '/check-missing-prop');
-    await expect(page.locator('.td-content')).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator('.td-card')).toBeVisible({
-      timeout: 15_000,
-    });
+  components(
+    'missing required prop emits warning',
+    async ({
+      page, testProject,
+    }) => {
+      await testProject.goto(page, '/check-missing-prop');
+      await expect(page.locator('.td-content')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator('.td-card')).toBeVisible({
+        timeout: 15_000,
+      });
 
-    const hasWarning = testProject.serverStderr.some(
-      (line) => line.includes('title'),
-    );
+      const hasWarning = testProject.serverStderr.some((line) =>
+        line.includes('title'));
 
-    expect(hasWarning).toBe(true);
-  });
+      expect(hasWarning).toBe(true);
+    },
+  );
 
   // Negative: unknown prop emits diagnostic, component still renders
   // Uses check-unknown-prop.td in the fixture (TdAlert with severity prop)
   components('unknown prop emits warning', async ({
-    page,
-    testProject,
+    page, testProject,
   }) => {
     await testProject.goto(page, '/check-unknown-prop');
     await expect(page.locator('.td-content')).toBeVisible({
@@ -545,85 +623,95 @@ components.describe('component check', () => {
       timeout: 15_000,
     });
 
-    const hasWarning = testProject.serverStderr.some(
-      (line) => line.includes('severity'),
-    );
+    const hasWarning = testProject.serverStderr.some((line) =>
+      line.includes('severity'));
 
     expect(hasWarning).toBe(true);
   });
 
   // Negative: unknown prop on builtin flashcard emits diagnostic
   // Uses check-builtin-unknown-prop.td (flashcard with severity prop)
-  components('unknown prop on builtin flashcard emits warning', async ({
-    page,
-    testProject,
-  }) => {
-    await testProject.goto(page, '/check-builtin-unknown-prop');
-    await expect(page.locator('.td-content')).toBeVisible({
-      timeout: 15_000,
-    });
+  components(
+    'unknown prop on builtin flashcard emits warning',
+    async ({
+      page, testProject,
+    }) => {
+      await testProject.goto(page, '/check-builtin-unknown-prop');
+      await expect(page.locator('.td-content')).toBeVisible({
+        timeout: 15_000,
+      });
 
-    const hasWarning = testProject.serverStderr.some(
-      (line) => line.includes('unknown prop'),
-    );
+      const hasWarning = testProject.serverStderr.some((line) =>
+        line.includes('unknown prop'));
 
-    expect(hasWarning).toBe(true);
-  });
+      expect(hasWarning).toBe(true);
+    },
+  );
 });
 
 components.describe('layout slots', () => {
-  components('layout_top slot renders banner above header', async ({
-    page,
-  }) => {
-    const banner = page.locator('[data-testid="layout-slot-banner"]');
+  components(
+    'layout_top slot renders banner above header',
+    async ({
+      page,
+    }) => {
+      const banner = page.locator('[data-testid="layout-slot-banner"]');
 
-    await expect(banner).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(banner).toContainText('Test announcement banner');
-  });
+      await expect(banner).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(banner).toContainText('Test announcement banner');
+    },
+  );
 
-  components('doc_after slot renders feedback widget after content', async ({
-    page,
-  }) => {
-    const footer = page.locator('[data-testid="layout-slot-doc-footer"]');
+  components(
+    'doc_after slot renders feedback widget after content',
+    async ({
+      page,
+    }) => {
+      const footer = page.locator('[data-testid="layout-slot-doc-footer"]');
 
-    await expect(footer).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(footer).toContainText('Was this page helpful?');
-  });
+      await expect(footer).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(footer).toContainText('Was this page helpful?');
+    },
+  );
 
-  components('custom layout component replaces default layout', async ({
-    page,
-    testProject,
-  }) => {
-    // Switch to a fully custom layout by rewriting the config
-    await testProject.writeFile(
-      'typedown.yaml',
-      [
-        'version: "1"',
-        'vault:',
-        '  root_dir: "vault"',
-        'site:',
-        '  title: "E2E Component Vault"',
-        '  description: "Test fixture"',
-        'theme:',
-        '  components:',
-        '    - "./components"',
-        '  layout: "./custom-layout/TdCustomLayout.vue"',
-      ].join('\n'),
-    );
+  components(
+    'custom layout component replaces default layout',
+    async ({
+      page, testProject,
+    }) => {
+      // Switch to a fully custom layout by rewriting the config
+      await testProject.writeFile(
+        'typedown.yaml',
+        [
+          'version: "1"',
+          'vault:',
+          '  root_dir: "vault"',
+          'site:',
+          '  title: "E2E Component Vault"',
+          '  description: "Test fixture"',
+          'theme:',
+          '  components:',
+          '    - "./components"',
+          '  layout: "./custom-layout/TdCustomLayout.vue"',
+        ].join('\n'),
+      );
 
-    await testProject.goto(page, '/demo');
+      await testProject.goto(page, '/demo');
 
-    await expect(page.locator('[data-testid="custom-layout"]')).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator('[data-testid="custom-header"]')).toContainText('Custom Layout');
-    // Default header should not be present
-    await expect(page.locator('.td-header')).not.toBeVisible();
-  });
+      await expect(page.locator('[data-testid="custom-layout"]')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator('[data-testid="custom-header"]')).toContainText(
+        'Custom Layout',
+      );
+      // Default header should not be present
+      await expect(page.locator('.td-header')).not.toBeVisible();
+    },
+  );
 
   components('layout_top slot appears before the header', async ({
     page,

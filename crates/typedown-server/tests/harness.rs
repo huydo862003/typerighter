@@ -1,4 +1,4 @@
-//! Test fixture for integration-testing the LSP server over an in-memory connection.
+//! Test fixture for integration-testing the LSP server over an in-memory connection
 //!
 //! Usage:
 //!   let server = Server::new()
@@ -27,7 +27,7 @@ use typedown_server::lsp::server::Server as LspServer;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Builder for a test server backed by an in-memory vault written to a TempDir.
+/// Builder for a test server backed by an in-memory vault written to a TempDir
 pub struct ServerBuilder {
   files: Vec<(String, String)>,
 }
@@ -37,13 +37,13 @@ impl ServerBuilder {
     Self { files: vec![] }
   }
 
-  /// Add a file to the vault. Path is relative to the vault root.
+  /// Add a file to the vault. Path is relative to the vault root
   pub fn file(mut self, path: &str, content: &str) -> Self {
     self.files.push((path.to_string(), content.to_string()));
     self
   }
 
-  /// Write files to a TempDir and start the LSP server thread.
+  /// Write files to a TempDir and start the LSP server thread
   pub fn start(self) -> Server {
     let dir = TempDir::new().expect("failed to create tempdir");
 
@@ -112,7 +112,7 @@ impl Default for ServerBuilder {
   }
 }
 
-/// A running LSP test server connected over an in-memory channel.
+/// A running LSP test server connected over an in-memory channel
 pub struct Server {
   conn: Connection,
   req_id: Cell<i32>,
@@ -124,7 +124,7 @@ impl Server {
     ServerBuilder::new()
   }
 
-  /// Send a `textDocument/didOpen` notification for the given vault-relative path.
+  /// Send a `textDocument/didOpen` notification for the given vault-relative path
   pub fn open(&self, rel_path: &str, content: &str) {
     let uri = self.file_uri(rel_path);
     let params = DidOpenTextDocumentParams {
@@ -144,7 +144,7 @@ impl Server {
     self.drain_notifications();
   }
 
-  /// Send an LSP request and return the raw JSON response value.
+  /// Send an LSP request and return the raw JSON response value
   pub fn request<R>(&self, params: R::Params) -> Value
   where
     R: lsp_types::request::Request,
@@ -182,13 +182,13 @@ impl Server {
     }
   }
 
-  /// Return the `file://` URI for a vault-relative path.
+  /// Return the `file://` URI for a vault-relative path
   pub fn file_uri(&self, rel_path: &str) -> Uri {
     let abs = self._dir.path().join(rel_path);
     Uri::from_str(&format!("file://{}", abs.display())).unwrap()
   }
 
-  /// Receive and discard any queued notifications (e.g. diagnostics pushes).
+  /// Receive and discard any queued notifications (e.g. diagnostics pushes)
   fn drain_notifications(&self) {
     while let Ok(msg) = self.conn.receiver.recv_timeout(Duration::from_millis(50)) {
       match msg {

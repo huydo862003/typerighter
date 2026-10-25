@@ -70,8 +70,8 @@ impl Log for Logger {
   fn flush(&self) {}
 }
 
-/// Initialize file-only logging.
-/// Call early so messages before the LSP handshake are captured.
+/// Initialize file-only logging
+/// Call early so messages before the LSP handshake are captured
 pub fn init_file() {
   let file = open_log_file();
   let logger = Box::leak(Box::new(Logger { file }));
@@ -79,8 +79,8 @@ pub fn init_file() {
   let _ = log::set_logger(logger);
 }
 
-/// Start sending log messages to the LSP client as well.
-/// Call after the LSP handshake completes.
+/// Start sending log messages to the LSP client as well
+/// Call after the LSP handshake completes
 pub fn set_lsp_sender(sender: Sender<Message>) {
   let _ = LSP_SENDER.set(sender);
 }

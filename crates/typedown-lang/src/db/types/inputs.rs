@@ -165,9 +165,9 @@ impl Decodable for FileHandle {
   }
 }
 
-/// A project input struct representing files in a project.
-/// `files` maps each tracked path to its stable `File` ID.
-/// It only changes when files are added or removed, not when their content changes.
+/// A project input struct representing files in a project
+/// `files` maps each tracked path to its stable `File` ID
+/// It only changes when files are added or removed, not when their content changes
 #[query_input]
 pub struct Project {
   #[return_ref]

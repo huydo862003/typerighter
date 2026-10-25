@@ -1,7 +1,7 @@
-//! On-disk format for the query result cache (`query-cache.bin`).
+//! On-disk format for the query result cache (`query-cache.bin`)
 //!
-//! Stores serialized return values of all cached queries, both derived and input.
-//! Field projections (DerivedField, InputField) are not stored here. Their values are accessed via the parent query result.
+//! Stores serialized return values of all cached queries, both derived and input
+//! Field projections (DerivedField, InputField) are not stored here. Their values are accessed via the parent query result
 //!
 //! ```text
 //! [ FileHeader (8 bytes)       ]  magic "TDQC" + version
@@ -12,8 +12,8 @@
 //! [ footer_pos: u64            ]  last 8 bytes: byte offset of the Footer
 //! ```
 //!
-//! On load, the footer is decoded upfront into a HashMap for O(1) lookup.
-//! Result blobs stay in mmap and are decoded on demand.
+//! On load, the footer is decoded upfront into a HashMap for O(1) lookup
+//! Result blobs stay in mmap and are decoded on demand
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -28,7 +28,7 @@ use tempfile::TempPath;
 pub const MAGIC: [u8; 4] = *b"TDQC";
 pub const VERSION: u32 = 1;
 
-/// File header (8 bytes).
+/// File header (8 bytes)
 #[derive(Debug, Clone, Copy)]
 pub struct FileHeader {
   pub magic: [u8; 4],
@@ -110,7 +110,7 @@ pub enum BackingFile {
 
 pub struct QueryCache {
   pub(crate) mmap: memmap2::Mmap,
-  /// Index table: dep graph node index -> byte offset of the result blob.
+  /// Index table: dep graph node index -> byte offset of the result blob
   index: HashMap<u32, u64>,
   /// Path to the backing file, used for hard-linking during persist
   pub(crate) backing_path: PathBuf,
@@ -148,12 +148,12 @@ impl QueryCache {
     })
   }
 
-  /// Get the byte offset of a cached result by dep graph node index.
+  /// Get the byte offset of a cached result by dep graph node index
   pub fn offset_of(&self, node_index: u32) -> Option<u64> {
     self.index.get(&node_index).copied()
   }
 
-  /// Get a decoder-ready byte slice starting at the cached result for a node.
+  /// Get a decoder-ready byte slice starting at the cached result for a node
   pub fn get(&self, node_index: u32) -> Option<&[u8]> {
     let offset = *self.index.get(&node_index)? as usize;
     Some(&self.mmap[offset..])

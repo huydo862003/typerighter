@@ -37,7 +37,7 @@ impl<'a> SerializeContext<'a> {
   }
 }
 
-/// A dep node with edges stored as unresolved DepIds.
+/// A dep node with edges stored as unresolved DepIds
 #[derive(Debug, Clone)]
 pub enum UnresolvedDepNode {
   DerivedQuery {
@@ -70,8 +70,8 @@ pub enum UnresolvedDepNode {
   },
 }
 
-/// Builder for the dep graph during serialization.
-/// Uses the Encoder's dep_id_table for DepId -> DepNodeIndex mapping.
+/// Builder for the dep graph during serialization
+/// Uses the Encoder's dep_id_table for DepId -> DepNodeIndex mapping
 pub struct DepGraphBuilder {
   nodes: Vec<(DepNodeIndex, UnresolvedDepNode)>,
 }
@@ -171,8 +171,8 @@ impl DepGraphBuilder {
   }
 }
 
-/// Builder for the query cache during serialization.
-/// Writes blobs to a tempfile and tracks the mapping from dep node index to byte offset.
+/// Builder for the query cache during serialization
+/// Writes blobs to a tempfile and tracks the mapping from dep node index to byte offset
 pub struct QueryCacheBuilder {
   writer: io::BufWriter<NamedTempFile>,
   offset: u64,
@@ -195,7 +195,7 @@ impl QueryCacheBuilder {
     }
   }
 
-  /// Write a blob to the backing file. Returns the byte offset where the blob was written.
+  /// Write a blob to the backing file. Returns the byte offset where the blob was written
   pub fn set(&mut self, node_index: DepNodeIndex, blob: &[u8]) -> u64 {
     let byte_offset = self.offset;
     self
@@ -210,7 +210,7 @@ impl QueryCacheBuilder {
     byte_offset
   }
 
-  /// Write the footer and convert the backing tempfile into a read-only mmap.
+  /// Write the footer and convert the backing tempfile into a read-only mmap
   pub fn finalize(mut self) -> (memmap2::Mmap, NamedTempFile) {
     let footer_pos = self.offset;
 

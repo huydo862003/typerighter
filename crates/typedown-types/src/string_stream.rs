@@ -2,8 +2,8 @@ use std::cell::Cell;
 
 use crate::stream::{Utf8Result, Utf8Stream};
 
-/// A Utf8Stream over a borrowed string slice.
-/// Since the input is already valid UTF-8, this never produces Utf8Result::Invalid.
+/// A Utf8Stream over a borrowed string slice
+/// Since the input is already valid UTF-8, this never produces Utf8Result::Invalid
 pub struct StringStream<'a> {
   str: &'a str,
   offset: Cell<usize>,

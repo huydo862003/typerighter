@@ -73,7 +73,7 @@ impl RedNode {
     })
   }
 
-  /// Walk up the parent chain to find the root node.
+  /// Walk up the parent chain to find the root node
   pub fn root(&self) -> RedNode {
     let mut current = self.clone();
     while let Some(parent) = current.parent() {
@@ -82,8 +82,8 @@ impl RedNode {
     current
   }
 
-  /// Find a descendant node at the given offset. Walks depth-first.
-  /// Returns the deepest node whose offset matches.
+  /// Find a descendant node at the given offset. Walks depth-first
+  /// Returns the deepest node whose offset matches
   pub fn find_at_offset(&self, target_offset: usize) -> Option<RedNode> {
     if self.offset() == target_offset {
       return Some(self.clone());
@@ -104,7 +104,7 @@ impl RedNode {
     self.0.parent.as_deref().cloned()
   }
 
-  /// Collect all token text under this node into a String.
+  /// Collect all token text under this node into a String
   pub fn text(&self) -> String {
     let mut out = String::with_capacity(self.text_len());
     self.write_text(&mut out);
@@ -188,7 +188,7 @@ impl Deref for RedNode {
   }
 }
 
-/// A lazy iterator over a RedNode's children.
+/// A lazy iterator over a RedNode's children
 pub struct RedNodeChildren {
   parent: RedNode,
   green_node: Option<SyntaxNode>,

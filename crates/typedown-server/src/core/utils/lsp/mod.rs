@@ -2,7 +2,7 @@ use lsp_server::{Notification, Request};
 use lsp_types::{TextDocumentIdentifier, Uri};
 use serde::{Deserialize, Serialize};
 
-/// Standard requests use this: Prepare rename, Go to definition, ...
+/// Standard requests use this: Prepare rename, Go to definition, ..
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct HasDocumentUri {

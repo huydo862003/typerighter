@@ -168,9 +168,9 @@ fn drain_shrinks_serialized_field_count() {
   );
 }
 
-// Regression: concurrent deserialize_derived_identity for shared struct entries must not panic.
+// Regression: concurrent deserialize_derived_identity for shared struct entries must not panic
 //
-// Two sets of queries share IdResult entries in their derived_identities.
+// Two sets of queries share IdResult entries in their derived_identities
 // After roundtrip, concurrent loading of both sets races on deserialize_derived_identity for the same entries
 #[test]
 fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
@@ -181,7 +181,7 @@ fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
     storage: QueryStorage::default(),
   };
 
-  // make_range and identity both create IdResult::new(db, i, i) for i in 0..=count.
+  // make_range and identity both create IdResult::new(db, i, i) for i in 0..=count
   // They produce the same struct entries (same identity_hash), so both memos list them in derived_identities. After roundtrip, loading these concurrently races on deserialize_derived_identity for each shared IdResult entry
   let count = 50usize;
   let config = identity::RangeConfig::new(&db1, count);

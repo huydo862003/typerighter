@@ -1,4 +1,4 @@
-//! Dependency graph types for cache persistence.
+//! Dependency graph types for cache persistence
 
 use std::hash::Hasher;
 use std::sync::OnceLock;
@@ -9,7 +9,7 @@ use super::StableHasher;
 use crate::QueryDatabase;
 use crate::StableHash;
 
-/// A stable 128-bit hash value, used for both query identity and result change detection.
+/// A stable 128-bit hash value, used for both query identity and result change detection
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Fingerprint(pub [u8; 16]);
 
@@ -65,8 +65,8 @@ impl Fingerprint {
     hasher.finish()
   }
 
-  /// Compute a fingerprint from a stable name string.
-  /// Used for ingredient identity across sessions.
+  /// Compute a fingerprint from a stable name string
+  /// Used for ingredient identity across sessions
   pub fn from_name(name: &str) -> Self {
     let mut hasher: StableHasher = StableSipHasher128::new();
     hasher.write(name.as_bytes());

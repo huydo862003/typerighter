@@ -1,5 +1,5 @@
-// Self-contained builtin contract builder.
-// No @/ aliases so vite.config.ts can import this directly.
+// Self-contained builtin contract builder
+// No @/ aliases so vite.config.ts can import this directly
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

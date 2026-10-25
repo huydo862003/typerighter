@@ -62,8 +62,8 @@ fn validate(
     .iter()
     .find(|component_entry| component_entry.name == name || component_entry.name == pascal_name)
   else {
-    // Callouts (e.g. "note", "warning") are valid without a contract entry.
-    // If a callout name is registered in the contract, it falls through and is validated normally.
+    // Callouts (e.g. "note", "warning") are valid without a contract entry
+    // If a callout name is registered in the contract, it falls through and is validated normally
     if is_callout(name) {
       return;
     }
@@ -325,7 +325,6 @@ mod tests {
 
   // validate unknown component
 
-
   #[test]
   fn unknown_component_emits_diagnostic() {
     let root = parse_body(
@@ -451,7 +450,7 @@ content
 
   #[test]
   fn callout_with_contract_entry_is_validated() {
-    // A callout name registered in the contract should be validated like any other component.
+    // A callout name registered in the contract should be validated like any other component
     let root = parse_body(
       r#"
 ::: note{extra="val"}

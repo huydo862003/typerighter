@@ -1,4 +1,4 @@
-//! Evaluate a schema symbol to extract the type it defines.
+//! Evaluate a schema symbol to extract the type it defines
 
 use std::collections::BTreeMap;
 
