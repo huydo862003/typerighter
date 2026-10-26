@@ -233,7 +233,10 @@ mod tests {
     let vault_root = Path::new("/project/vault");
     let source_file_dir = Path::new("/project/vault/articles/webrtc");
     let result = resolve_fref_path("./peer.td", source_file_dir, vault_root);
-    assert_eq!(result, PathBuf::from("/project/vault/articles/webrtc/peer.td"));
+    assert_eq!(
+      result,
+      PathBuf::from("/project/vault/articles/webrtc/peer.td")
+    );
   }
 
   #[test]

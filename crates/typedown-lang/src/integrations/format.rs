@@ -54,12 +54,22 @@ fn format_block(out: &mut String, node: &RedNode, depth: usize) {
 fn emit_verbatim_block(out: &mut String, node: &RedNode, depth: usize) {
   let indent = "  ".repeat(depth);
   let text = node.text();
-  for line in text.lines() {
+  // Only the opening fence needs the depth-based indent
+  // Content and closing fence carry the correct source indentation already
+  let mut lines = text.lines();
+  if let Some(first) = lines.next() {
+    if first.trim().is_empty() {
+      out.push('\n');
+    } else {
+      out.push_str(&indent);
+      out.push_str(first.trim_end());
+      out.push('\n');
+    }
+  }
+  for line in lines {
     if line.trim().is_empty() {
       out.push('\n');
     } else {
-      // Remove trailing whitespace but preserve leading (internal) indentation
-      out.push_str(&indent);
       out.push_str(line.trim_end());
       out.push('\n');
     }
@@ -673,6 +683,31 @@ Second.
     );
   }
 
+  // Code block at top level preserves internal indentation
+  #[test]
+  fn code_block_top_level_preserves_indentation() {
+    let result = fmt(
+      r#"---
+---
+```js
+if (x) {
+  doSomething();
+}
+```
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+```js
+if (x) {
+  doSomething();
+}
+```
+"#
+    );
+  }
+
   // Code block inside ordered list preserves internal indentation
   #[test]
   fn code_block_in_ordered_list_preserves_indentation() {
@@ -688,9 +723,16 @@ Second.
    ```
 "#,
     );
-    assert!(
-      result.contains("  doSomething();"),
-      "internal code indentation should be preserved:\n{result}"
+    assert_eq!(
+      result,
+      r#"
+1. Example
+  ```js
+   if (x) {
+     doSomething();
+   }
+   ```
+"#
     );
   }
 
@@ -709,9 +751,72 @@ Second.
   ```
 "#,
     );
-    assert!(
-      result.contains("  doSomething();"),
-      "internal code indentation in bullet list should be preserved:\n{result}"
+    assert_eq!(
+      result,
+      r#"
+- Example
+  ```js
+  if (x) {
+    doSomething();
+  }
+  ```
+"#
+    );
+  }
+
+  // Code block inside nested bullet list preserves internal indentation
+  #[test]
+  fn code_block_in_nested_bullet_list_preserves_indentation() {
+    let result = fmt(
+      r#"---
+---
+- Outer
+
+  - Inner
+
+    ```js
+    if (x) {
+      doSomething();
+    }
+    ```
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+- Outer
+  - Inner
+    ```js
+    if (x) {
+      doSomething();
+    }
+    ```
+"#
+    );
+  }
+
+  // Closing fence is at same indent as opening fence (not double-indented)
+  #[test]
+  fn code_block_in_nested_list_fence_not_double_indented() {
+    let result = fmt(
+      r#"---
+---
+- Limitations:
+  - Cannot use from browser:
+    ```
+    Browser --> backend --> API
+    ```
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+- Limitations:
+  - Cannot use from browser:
+    ```
+    Browser --> backend --> API
+    ```
+"#
     );
   }
 
