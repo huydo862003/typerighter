@@ -208,4 +208,39 @@ mod tests {
     assert_eq!(strip_content_extension("file.txt"), "file.txt");
     assert_eq!(strip_content_extension("file"), "file");
   }
+
+  // resolve_fref_path: absolute `/` paths are relative to vault_root, not filesystem root
+  #[test]
+  fn resolve_fref_absolute_path_nested_vault() {
+    // vault lives at /project/vault, file is in a subdirectory
+    let vault_root = Path::new("/project/vault");
+    let source_file_dir = Path::new("/project/vault/articles/webrtc");
+    let result = resolve_fref_path("/articles/intro.td", source_file_dir, vault_root);
+    assert_eq!(result, PathBuf::from("/project/vault/articles/intro.td"));
+  }
+
+  #[test]
+  fn resolve_fref_absolute_path_vault_at_project_root() {
+    // vault_root is `.` — the project root itself
+    let vault_root = Path::new("/project");
+    let source_file_dir = Path::new("/project/articles");
+    let result = resolve_fref_path("/articles/intro.td", source_file_dir, vault_root);
+    assert_eq!(result, PathBuf::from("/project/articles/intro.td"));
+  }
+
+  #[test]
+  fn resolve_fref_relative_dot_path_resolves_from_source_dir() {
+    let vault_root = Path::new("/project/vault");
+    let source_file_dir = Path::new("/project/vault/articles/webrtc");
+    let result = resolve_fref_path("./peer.td", source_file_dir, vault_root);
+    assert_eq!(result, PathBuf::from("/project/vault/articles/webrtc/peer.td"));
+  }
+
+  #[test]
+  fn resolve_fref_relative_parent_path_resolves_from_source_dir() {
+    let vault_root = Path::new("/project/vault");
+    let source_file_dir = Path::new("/project/vault/articles/webrtc");
+    let result = resolve_fref_path("../intro.td", source_file_dir, vault_root);
+    assert_eq!(result, PathBuf::from("/project/vault/articles/intro.td"));
+  }
 }
