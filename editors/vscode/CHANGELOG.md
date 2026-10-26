@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.45.4] - 2026-10-27
+
+### Fixed
+
+- crates/typedown-lang
+  - Formatter incorrectly indent the closing ```
+
 ## [0.45.3] - 2026-10-26
 
 ### Fixed
