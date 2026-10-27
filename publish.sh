@@ -108,7 +108,7 @@ sed -i "s/version = \"[^\"]*\";/version = \"$VERSION\";/" flake.nix
 # Commit and push
 git add VERSION Cargo.toml editors/nvim/lua/typedown/version.lua Cargo.lock pnpm-lock.yaml flake.nix
 [[ "$BUMP_TYPE" != pre* ]] && git add CHANGELOG.md editors/vscode/CHANGELOG.md
-find . -name package.json -not -path '*/node_modules/*' -print0 | xargs -0 git add --ignore-errors
+find . -name package.json -not -path '*/node_modules/*' -not -path '*/.vscode-test/*' -print0 | xargs -0 git add --ignore-errors
 find ./crates ./editors -name Cargo.toml -print0 | xargs -0 git add --ignore-errors
 git commit -m "chore: release $TAG"
 git tag "$TAG"

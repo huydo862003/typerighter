@@ -1,6 +1,22 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.46.0] - 2026-10-27
+
+### Added
+
+- editors/nvim
+  - Markdown rendering: headings, bullets, checkboxes, code blocks, tables, containers, highlights, and toggle lists
+  - Code action support
+
+### Fixed
+
+- editors/zed
+  - Improved syntax highlighting for Typedown Markdown
+- crates/typedown-lang
+  - HTML export link handling improved; export no longer requires a feature flag
+  - Container blocks inside blockquotes now format correctly
+
 ## [0.45.4] - 2026-10-27
 
 ### Fixed
