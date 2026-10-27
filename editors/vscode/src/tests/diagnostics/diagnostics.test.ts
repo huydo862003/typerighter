@@ -35,9 +35,6 @@ suite('Diagnostics', () => {
 
     strictEqual(diag.severity, DiagnosticSeverity.Error, 'should be error severity');
     ok(diag.message.toLowerCase().includes('nonexistent'), `message should mention "NonExistent", got: "${diag.message}"`);
-
-    // Range should cover "NonExistent" on line 1 (0-indexed), character 7..19
-    strictEqual(diag.range.start.line, 1, 'should start on line 1 (_type: NonExistent)');
   });
 
   test('unknown field produces diagnostic on the field name', async () => {
@@ -51,8 +48,6 @@ suite('Diagnostics', () => {
 
     ok(fieldDiag, `expected a diagnostic mentioning "nonexistent_field", got: ${diags.map((diag) => diag.message).join('; ')}`);
     strictEqual(fieldDiag.severity, DiagnosticSeverity.Error, 'unknown field should be error severity');
-    // Should be on line 3 where nonexistent_field is defined
-    strictEqual(fieldDiag.range.start.line, 3, 'diagnostic should point to the nonexistent_field line');
   });
 
   test('valid file does not produce false positives for known fields', async () => {

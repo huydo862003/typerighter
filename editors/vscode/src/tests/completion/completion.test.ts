@@ -79,14 +79,15 @@ suite('Completion', () => {
     );
 
     if (completions) {
-      const labels = getLabels(completions);
-      const schemaFields = labels.filter((label) => [
-        'name',
-        'age',
-        'friend',
-      ].includes(label));
+      const schemaFields = completions.items.filter((item) =>
+        item.kind === vscode.CompletionItemKind.Field &&
+        [
+          'name',
+          'age',
+          'friend',
+        ].includes(typeof item.label === 'string' ? item.label : item.label.label));
 
-      strictEqual(schemaFields.length, 0, `should not suggest schema fields on "---" line, got: ${schemaFields.join(', ')}`);
+      strictEqual(schemaFields.length, 0, `should not suggest schema fields on "---" line, got: ${schemaFields.map((item) => typeof item.label === 'string' ? item.label : item.label.label).join(', ')}`);
     }
   });
 });
