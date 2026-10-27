@@ -422,7 +422,7 @@
     "build": "pnpm run build:grammar && pnpm run check-types && pnpm run lint && node esbuild.js",
     "build:local": "pnpm run build:rust && pnpm run build",
     "build:staging": "pnpm run fetch:staging && pnpm run build",
-    "build:tests": "tsc -p . --outDir out",
+    "build:tests": "tsc -p . --outDir out --module commonjs",
     "dev": "npm-run-all -p dev:rust dev:esbuild dev:tsc",
     "dev:esbuild": "node esbuild.js --watch",
     "dev:tsc": "tsc --noEmit --watch --project tsconfig.json",
