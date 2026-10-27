@@ -9,6 +9,7 @@ dist/
 build/
 !**/src/**/build/
 output/
+out/
 
 # tree-sitter
 editors/tree-sitter/src
@@ -16,6 +17,9 @@ perf.data
 
 # Generated component contract
 .typedown/
+
+# VSCode test runner
+.vscode-test/
 
 # Playwright
 test-results/

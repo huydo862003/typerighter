@@ -11,7 +11,8 @@
 //! - File ends with exactly one newline
 
 use crate::syntax::ast::{
-  AstNode, MdBody, MdBulletList, MdBulletListItem, MdOrderedList, MdOrderedListItem, MdTaskListItem,
+  AstNode, MdBlockquote, MdBody, MdBulletList, MdBulletListItem, MdContainerBlock, MdOrderedList,
+  MdOrderedListItem, MdTaskListItem,
 };
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -27,26 +28,41 @@ pub fn format_markdown(body: &MdBody) -> String {
   }
 
   let mut out = String::new();
-  for (index, block) in blocks.iter().enumerate() {
-    if index > 0 {
-      ensure_blank_line(&mut out);
-    }
-    format_block(&mut out, block.syntax(), 0);
-  }
+  format_block_sequence(
+    &mut out,
+    &blocks
+      .iter()
+      .map(|b| b.syntax().clone())
+      .collect::<Vec<_>>(),
+    0,
+  );
 
   let result = collapse_blank_lines(&out);
   ensure_trailing_newline(result)
 }
 
+/// Format a sequence of block elements with blank-line separation
+fn format_block_sequence(out: &mut String, blocks: &[RedNode], depth: usize) {
+  for (index, block) in blocks.iter().enumerate() {
+    if index > 0 {
+      ensure_blank_line(out);
+    }
+    format_block(out, block, depth);
+  }
+}
+
 fn format_block(out: &mut String, node: &RedNode, depth: usize) {
   match node.kind() {
-    SyntaxKind::MdHeading => format_heading(out, node),
+    SyntaxKind::MdHeading => format_heading(out, node, depth),
     SyntaxKind::MdBulletList => format_bullet_list(out, node, depth),
     SyntaxKind::MdOrderedList => format_ordered_list(out, node, depth),
+    // Blockquotes: pass through verbatim (inner text includes `>` prefix from source)
+    SyntaxKind::MdBlockquote => emit_source_lines(out, node, depth),
+    SyntaxKind::MdContainerBlock => format_container_block(out, node, depth),
     // Code and math blocks: preserve internal indentation verbatim, only add outer indent
     SyntaxKind::CodeBlock | SyntaxKind::MathBlock => emit_verbatim_block(out, node, depth),
     _ => {
-      // Tables, blockquotes, containers, paragraphs, horizontal rules: emit source text
+      // Tables, paragraphs, horizontal rules: emit source text
       emit_source_lines(out, node, depth);
     }
   }
@@ -80,7 +96,8 @@ fn emit_verbatim_block(out: &mut String, node: &RedNode, depth: usize) {
 }
 
 /// Format a heading: normalize to exactly one space after `#` symbols
-fn format_heading(out: &mut String, node: &RedNode) {
+fn format_heading(out: &mut String, node: &RedNode, depth: usize) {
+  let indent = "  ".repeat(depth);
   let text = node.text();
   let trimmed = text.trim();
 
@@ -88,7 +105,7 @@ fn format_heading(out: &mut String, node: &RedNode) {
   let hash_count = trimmed.chars().take_while(|char| *char == '#').count();
   if hash_count == 0 {
     // Not a valid heading, emit as-is
-    push_trimmed_line(out, trimmed);
+    push_trimmed_line(out, &format!("{indent}{trimmed}"));
     return;
   }
 
@@ -97,10 +114,92 @@ fn format_heading(out: &mut String, node: &RedNode) {
   let content = after_hashes.trim_start();
 
   if content.is_empty() {
-    push_trimmed_line(out, &"#".repeat(hash_count));
+    push_trimmed_line(out, &format!("{indent}{}", "#".repeat(hash_count)));
   } else {
-    push_trimmed_line(out, &format!("{} {}", "#".repeat(hash_count), content));
+    push_trimmed_line(
+      out,
+      &format!("{indent}{} {content}", "#".repeat(hash_count)),
+    );
   }
+}
+
+/// Format a blockquote: recursively format inner block elements with `> ` prefix
+fn format_blockquote(out: &mut String, node: &RedNode, depth: usize) {
+  let Some(bq) = MdBlockquote::cast(node.clone()) else {
+    emit_source_lines(out, node, depth);
+    return;
+  };
+
+  let indent = "  ".repeat(depth);
+  let blocks: Vec<_> = bq.block_elements().map(|b| b.syntax().clone()).collect();
+
+  // Format inner blocks to a temporary buffer, then prefix each line with "> "
+  let mut inner = String::new();
+  format_block_sequence(&mut inner, &blocks, 0);
+
+  for line in inner.lines() {
+    if line.is_empty() {
+      push_trimmed_line(out, &format!("{indent}>"));
+    } else {
+      push_trimmed_line(out, &format!("{indent}> {line}"));
+    }
+  }
+}
+
+/// Format a container block: emit opening fence, recursively format slot content, emit closing fence
+fn format_container_block(out: &mut String, node: &RedNode, depth: usize) {
+  let Some(_container) = MdContainerBlock::cast(node.clone()) else {
+    emit_source_lines(out, node, depth);
+    return;
+  };
+
+  let indent = "  ".repeat(depth);
+
+  // Reconstruct the opening line: ::: label {props} title
+  // We emit the source text of everything up to the first newline
+  let text = node.text();
+  let first_line = text.lines().next().unwrap_or(":::");
+  push_trimmed_line(out, &format!("{indent}{}", first_line.trim()));
+
+  // Format each slot's content
+  for child in node.children() {
+    match child.kind() {
+      SyntaxKind::MdContainerSlot => {
+        let blocks: Vec<_> = child
+          .children()
+          .filter(|c| c.as_node().is_some() && is_block_element(c.kind()))
+          .collect();
+        format_block_sequence(out, &blocks, depth);
+      }
+      SyntaxKind::MdContainerSlotSeparator => {
+        let sep_text = child.text();
+        let sep_line = sep_text.lines().next().unwrap_or("===");
+        push_trimmed_line(out, &format!("{indent}{}", sep_line.trim()));
+      }
+      _ => {}
+    }
+  }
+
+  // Closing fence
+  push_trimmed_line(out, &format!("{indent}:::"));
+}
+
+fn is_block_element(kind: SyntaxKind) -> bool {
+  matches!(
+    kind,
+    SyntaxKind::MdParagraph
+      | SyntaxKind::MdHeading
+      | SyntaxKind::MdBulletList
+      | SyntaxKind::MdOrderedList
+      | SyntaxKind::MdBlockquote
+      | SyntaxKind::MdTable
+      | SyntaxKind::MdContainerBlock
+      | SyntaxKind::MdContainerShorthand
+      | SyntaxKind::CodeBlock
+      | SyntaxKind::MathBlock
+      | SyntaxKind::MdHorizontalRule
+      | SyntaxKind::MdMedia
+  )
 }
 
 /// Format a bullet list, applying 2-space indentation per nesting level
@@ -333,14 +432,12 @@ Some text.
 ## Heading
 "#,
     );
-    assert!(
-      result.contains(
-        r"
+    assert_eq!(
+      result,
+      r#"Some text.
 
-## Heading"
-      ),
-      r"should have blank line before heading:
-{result}"
+## Heading
+"#
     );
   }
 
@@ -354,14 +451,12 @@ Some text.
 Some text.
 "#,
     );
-    assert!(
-      result.contains(
-        r"## Heading
+    assert_eq!(
+      result,
+      r#"## Heading
 
-"
-      ),
-      r"should have blank line after heading:
-{result}"
+Some text.
+"#
     );
   }
 
@@ -495,14 +590,13 @@ Paragraph.
 ## Next Section
 "#,
     );
-    assert!(
-      result.contains(
-        r"- Item two
+    assert_eq!(
+      result,
+      r#"- Item one
+- Item two
 
-## Next Section"
-      ),
-      r"should have blank line between list and heading:
-{result}"
+## Next Section
+"#
     );
   }
 
@@ -550,30 +644,22 @@ Alice is a **backend developer**.
 - Mentor junior developers
 "#,
     );
-    assert!(
-      result.contains(
-        r"- Lead backend development
-"
-      ),
-      r"list items preserved:
-{result}"
-    );
-    assert!(
-      result.contains(
-        r"## Skills
+    assert_eq!(
+      result,
+      r#"Alice is a **backend developer**.
 
-"
-      ),
-      r"blank line after heading:
-{result}"
-    );
-    assert!(
-      !result.contains(
-        r"- Lead backend development
-- Lead backend development"
-      ),
-      r"no duplication:
-{result}"
+## Skills
+
+| Area | Proficiency |
+|------|-------------|
+| Rust | Expert |
+
+## Responsibilities
+
+- Lead backend development
+- Review pull requests
+- Mentor junior developers
+"#
     );
   }
 
@@ -588,14 +674,13 @@ Alice is a **backend developer**.
 Some text.
 "#,
     );
-    assert!(
-      result.contains(
-        r"- Item two
+    assert_eq!(
+      result,
+      r#"- Item one
+- Item two
 
-Some text."
-      ),
-      r"should have blank line between list and paragraph:
-{result}"
+Some text.
+"#
     );
   }
 
@@ -610,14 +695,13 @@ Some text.
 - Item two
 "#,
     );
-    assert!(
-      result.contains(
-        r"Some text.
+    assert_eq!(
+      result,
+      r#"Some text.
 
-- Item one"
-      ),
-      r"should have blank line between paragraph and list:
-{result}"
+- Item one
+- Item two
+"#
     );
   }
 
@@ -740,8 +824,11 @@ Some text.
     );
     assert!(
       result.contains("$$"),
-      r"math block $$ should be preserved in list:
-{result}"
+      "math block should be preserved in list: {result}"
+    );
+    assert!(
+      result.contains(r"\frac"),
+      "math content should be preserved: {result}"
     );
   }
 
@@ -757,15 +844,14 @@ $$T_{total} = T_{TTFB} + T_{FCP}$$
 More text.
 "#,
     );
-    assert!(
-      result.contains("$$T_{total}"),
-      r"math block opening $$ should be preserved:
-{result}"
-    );
-    assert!(
-      result.contains("T_{FCP}$$"),
-      r"math block closing $$ should be preserved:
-{result}"
+    assert_eq!(
+      result,
+      r#"Some text.
+
+$$T_{total} = T_{TTFB} + T_{FCP}$$
+
+More text.
+"#
     );
   }
 
@@ -778,10 +864,10 @@ More text.
 - ![architecture](_assets/architecture.webp)
 "#,
     );
-    assert!(
-      result.contains("![architecture](_assets/architecture.webp)"),
-      r"media should be preserved in list item:
-{result}"
+    assert_eq!(
+      result,
+      r#"- ![architecture](_assets/architecture.webp)
+"#
     );
   }
 
@@ -798,14 +884,14 @@ Some text.
 More text.
 "#,
     );
-    assert!(
-      result.contains(
-        r"---
+    assert_eq!(
+      result,
+      r#"Some text.
 
-More text."
-      ),
-      r"horizontal rule should be preserved:
-{result}"
+---
+
+More text.
+"#
     );
   }
 
@@ -998,10 +1084,249 @@ if (x) {
 ![photo](img.png)
 "#,
     );
+    assert_eq!(
+      result,
+      r#"![photo](img.png)
+"#
+    );
+  }
+
+  // Container block is preserved verbatim
+  #[test]
+  fn container_block_preserved() {
+    let result = fmt(
+      r#"---
+---
+::: info
+Some content here.
+:::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"::: info
+Some content here.
+:::
+"#
+    );
+  }
+
+  // Container block with props is preserved
+  #[test]
+  fn container_block_with_props_preserved() {
+    let result = fmt(
+      r#"---
+---
+::: card {title="Hello" collapsed}
+Card content.
+:::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"::: card {title="Hello" collapsed}
+Card content.
+:::
+"#
+    );
+  }
+
+  // Container block with slots is preserved
+  #[test]
+  fn container_block_with_slots_preserved() {
+    let result = fmt(
+      r#"---
+---
+::: tabs
+=== first
+First tab content.
+=== second
+Second tab content.
+:::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"::: tabs
+=== first
+First tab content.
+=== second
+Second tab content.
+:::
+"#
+    );
+  }
+
+  // Blockquote is preserved verbatim
+  #[test]
+  fn blockquote_preserved() {
+    let result = fmt(
+      r#"---
+---
+> This is a blockquote.
+> It has multiple lines.
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"> This is a blockquote.
+> It has multiple lines.
+"#
+    );
+  }
+
+  // Table is preserved verbatim
+  #[test]
+  fn table_preserved() {
+    let result = fmt(
+      r#"---
+---
+| A | B |
+|---|---|
+| 1 | 2 |
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"| A | B |
+|---|---|
+| 1 | 2 |
+"#
+    );
+  }
+
+  // Container inside list is preserved
+  #[test]
+  fn container_in_list_preserved() {
+    let result = fmt(
+      r#"---
+---
+- item
+  ::: info
+  content here
+  :::
+"#,
+    );
     assert!(
-      result.contains("![photo](img.png)"),
-      r"standalone media should be preserved:
-{result}"
+      result.contains("- item"),
+      "list item should be preserved: {result}"
+    );
+    assert!(
+      result.contains("::: info"),
+      "container should be preserved: {result}"
+    );
+    assert!(
+      result.contains("content here"),
+      "container content should be preserved: {result}"
+    );
+    assert!(
+      result.contains(":::"),
+      "closing fence should be preserved: {result}"
+    );
+  }
+
+  // Container block heading gets normalized inside
+  #[test]
+  fn container_heading_normalized() {
+    let result = fmt(
+      r#"---
+---
+::: info
+##Heading inside container
+:::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"::: info
+## Heading inside container
+:::
+"#
+    );
+  }
+
+  // Container block blank-line rules apply inside slots
+  #[test]
+  fn container_blank_line_between_blocks() {
+    let result = fmt(
+      r#"---
+---
+::: card
+Some text.
+## Section
+More text.
+:::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"::: card
+Some text.
+
+## Section
+
+More text.
+:::
+"#
+    );
+  }
+
+  // Container with list inside gets list formatting
+  #[test]
+  fn container_list_formatted() {
+    let result = fmt(
+      r#"---
+---
+::: note
+- Item one
+- Item two
+:::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"::: note
+- Item one
+- Item two
+:::
+"#
+    );
+  }
+
+  // Empty body produces empty string
+  #[test]
+  fn empty_body() {
+    let result = fmt(
+      r#"---
+---
+"#,
+    );
+    assert_eq!(result, "", "empty body should produce empty string");
+  }
+
+  // Idempotent with containers and blockquotes
+  #[test]
+  fn idempotent_with_containers() {
+    let input = r#"---
+---
+Some text.
+
+::: info
+Important note.
+:::
+
+> A blockquote.
+
+| A | B |
+|---|---|
+| 1 | 2 |
+"#;
+    let first = fmt(input);
+    let second_input = format!("---\n---\n{first}");
+    let second = fmt(&second_input);
+    assert_eq!(
+      first, second,
+      "formatter should be idempotent with containers and blockquotes"
     );
   }
 }

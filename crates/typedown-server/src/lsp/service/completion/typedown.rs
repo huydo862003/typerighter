@@ -1142,6 +1142,22 @@ _type: |
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(labels.contains(&"Person"), "should suggest Person schema");
     assert!(labels.contains(&"Event"), "should suggest Event schema");
+    // Should NOT suggest non-schema items (field names, file paths, etc.)
+    assert!(
+      !labels.contains(&"name"),
+      "should not suggest field names in _type position"
+    );
+    assert!(
+      !labels.contains(&"age"),
+      "should not suggest field names in _type position"
+    );
+    // All items should be class-kind (schemas)
+    assert!(
+      items
+        .iter()
+        .all(|item| item.kind == Some(CompletionItemKind::CLASS)),
+      "all _type completions should be CLASS kind"
+    );
   }
 
   #[test]
@@ -1267,6 +1283,11 @@ na|:
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(labels.contains(&"name"), "should suggest 'name' field");
     assert!(labels.contains(&"age"), "should suggest 'age' field");
+    // Should NOT suggest _type itself as a field completion
+    assert!(
+      !labels.contains(&"_type"),
+      "'_type' should not be suggested as a field completion"
+    );
   }
 
   #[test]

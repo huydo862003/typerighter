@@ -4,7 +4,7 @@
   "author": "Huy-DNA <huydo862003@gmail.com>",
   "version": "0.45.4",
   "private": true,
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.9.0",
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "cargo build --release && pnpm -r run build",

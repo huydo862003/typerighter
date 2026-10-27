@@ -287,6 +287,24 @@ properties:
     )
   }
 
+  /// Extract deduplicated diagnostic codes from the notification for file.td
+  fn diagnostic_codes(analysis: &Analysis) -> Vec<String> {
+    let notifications = publish_diagnostics_for_project(analysis);
+    let notif = notifications
+      .iter()
+      .find(|notif| notif.params.to_string().contains("file.td"))
+      .expect("expected a notification for file.td");
+    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let mut codes: Vec<String> = params["diagnostics"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|diag| diag["code"].as_str().map(String::from))
+      .collect();
+    codes.dedup();
+    codes
+  }
+
   #[test]
   fn no_diagnostics_for_valid_file() {
     let analysis = setup(
@@ -297,19 +315,11 @@ age: 30
 ---
 "#,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    // Only the content file should have a notification; it must be empty
-    let content_notif = notifications
-      .iter()
-      .find(|notif| notif.params.to_string().contains("file.td"));
-    if let Some(notif) = content_notif {
-      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-      let diags = params["diagnostics"].as_array().unwrap();
-      assert!(
-        diags.is_empty(),
-        "valid file should produce no diagnostics, got: {diags:?}"
-      );
-    }
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.is_empty(),
+      "valid file should produce zero diagnostics, got: {codes:?}"
+    );
   }
 
   #[test]
@@ -322,24 +332,16 @@ name: "Alice"
 ---
 "#,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let content_notif = notifications
-      .iter()
-      .find(|notif| notif.params.to_string().contains("file.td"));
-    let notif = content_notif.expect("expected a notification for the content file");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-    let diags = params["diagnostics"].as_array().unwrap();
+    let codes = diagnostic_codes(&analysis);
     assert!(
-      !diags.is_empty(),
-      "unresolved schema should produce at least one diagnostic"
+      codes.contains(&"unresolved-schema".to_string()),
+      "expected an unresolved-schema diagnostic, got: {codes:?}"
     );
-    let codes: Vec<&str> = diags
-      .iter()
-      .filter_map(|diag| diag["code"].as_str())
-      .collect();
+    // Should ONLY have unresolved-schema (no false positives from the unresolved type)
+    let non_schema_codes: Vec<_> = codes.iter().filter(|c| *c != "unresolved-schema").collect();
     assert!(
-      codes.contains(&"unresolved-schema"),
-      "expected an unresolved-schema diagnostic, got codes: {codes:?}"
+      non_schema_codes.is_empty(),
+      "should have no other diagnostics besides unresolved-schema, got: {non_schema_codes:?}"
     );
   }
 
@@ -353,24 +355,14 @@ name: "Alice"
 ---
 "#,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let content_notif = notifications
-      .iter()
-      .find(|notif| notif.params.to_string().contains("file.td"));
-    let notif = content_notif.expect("expected a notification for the content file");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-    let diags = params["diagnostics"].as_array().unwrap();
+    let codes = diagnostic_codes(&analysis);
     assert!(
-      !diags.is_empty(),
-      "missing required field should produce at least one diagnostic"
+      codes.iter().all(|code| code == "missing-required-field"),
+      "all diagnostics should be missing-required-field, got: {codes:?}"
     );
-    let codes: Vec<&str> = diags
-      .iter()
-      .filter_map(|diag| diag["code"].as_str())
-      .collect();
     assert!(
-      codes.contains(&"missing-required-field"),
-      "expected a missing-required-field diagnostic, got codes: {codes:?}"
+      !codes.is_empty(),
+      "should have at least one missing-required-field diagnostic"
     );
   }
 
@@ -386,16 +378,15 @@ age: 30
 ---
 "#,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let content_notif = notifications
-      .iter()
-      .find(|notif| notif.params.to_string().contains("file.td"));
-    let notif = content_notif.expect("expected a notification for the content file");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-    let diags = params["diagnostics"].as_array().unwrap();
+    let codes = diagnostic_codes(&analysis);
     assert!(
-      !diags.is_empty(),
-      "_meta.title with wrong type should produce a diagnostic"
+      !codes.is_empty(),
+      "_meta.title with wrong type should produce a diagnostic, got zero"
+    );
+    // Should not produce unrelated diagnostics
+    assert!(
+      !codes.contains(&"unresolved-schema".to_string()),
+      "should not have unresolved-schema for valid type, got: {codes:?}"
     );
   }
 
@@ -412,18 +403,11 @@ age: 30
 ---
 "#,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let content_notif = notifications
-      .iter()
-      .find(|notif| notif.params.to_string().contains("file.td"));
-    if let Some(notif) = content_notif {
-      let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-      let diags = params["diagnostics"].as_array().unwrap();
-      assert!(
-        diags.is_empty(),
-        "valid _meta should produce no diagnostics, got: {diags:?}"
-      );
-    }
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.is_empty(),
+      "valid _meta should produce zero diagnostics, got: {codes:?}"
+    );
   }
 
   #[test]
@@ -526,21 +510,11 @@ age: 30
 "#,
       r#"{"KnownWidget":{"source":"./KnownWidget.vue","props":{}}}"#,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let notification = notifications
-      .iter()
-      .find(|notification| notification.params.to_string().contains("file.td"))
-      .expect("expected notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
-    let codes: Vec<&str> = params["diagnostics"]
-      .as_array()
-      .unwrap()
-      .iter()
-      .filter_map(|diagnostic| diagnostic["code"].as_str())
-      .collect();
-    assert!(
-      codes.contains(&"unknown-component"),
-      "expected unknown-component diagnostic, got: {codes:?}"
+    let codes = diagnostic_codes(&analysis);
+    assert_eq!(
+      codes,
+      vec!["unknown-component"],
+      "should have exactly one unknown-component diagnostic"
     );
   }
 
@@ -554,21 +528,11 @@ age: 30
 "#,
       contract,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let notification = notifications
-      .iter()
-      .find(|notification| notification.params.to_string().contains("file.td"))
-      .expect("expected notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
-    let codes: Vec<&str> = params["diagnostics"]
-      .as_array()
-      .unwrap()
-      .iter()
-      .filter_map(|diagnostic| diagnostic["code"].as_str())
-      .collect();
-    assert!(
-      codes.contains(&"missing-required-prop"),
-      "expected missing-required-prop diagnostic, got: {codes:?}"
+    let codes = diagnostic_codes(&analysis);
+    assert_eq!(
+      codes,
+      vec!["missing-required-prop"],
+      "should have exactly one missing-required-prop diagnostic"
     );
   }
 
@@ -581,30 +545,11 @@ age: 30
 ",
       contract,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let notification = notifications
-      .iter()
-      .find(|notification| notification.params.to_string().contains("file.td"));
-    if let Some(notification) = notification {
-      let params: serde_json::Value =
-        serde_json::from_str(&notification.params.to_string()).unwrap();
-      let component_codes: Vec<&str> = params["diagnostics"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|diagnostic| diagnostic["code"].as_str())
-        .filter(|code| {
-          matches!(
-            *code,
-            "unknown-component" | "missing-required-prop" | "unknown-prop"
-          )
-        })
-        .collect();
-      assert!(
-        component_codes.is_empty(),
-        "valid component usage should produce no component diagnostics, got: {component_codes:?}"
-      );
-    }
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.is_empty(),
+      "valid component usage should produce zero diagnostics, got: {codes:?}"
+    );
   }
 
   #[test]
@@ -616,21 +561,11 @@ age: 30
 "#,
       contract,
     );
-    let notifications = publish_diagnostics_for_project(&analysis);
-    let notification = notifications
-      .iter()
-      .find(|notification| notification.params.to_string().contains("file.td"))
-      .expect("expected notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
-    let codes: Vec<&str> = params["diagnostics"]
-      .as_array()
-      .unwrap()
-      .iter()
-      .filter_map(|diagnostic| diagnostic["code"].as_str())
-      .collect();
-    assert!(
-      codes.contains(&"unknown-prop"),
-      "expected unknown-prop diagnostic, got: {codes:?}"
+    let codes = diagnostic_codes(&analysis);
+    assert_eq!(
+      codes,
+      vec!["unknown-prop"],
+      "should have exactly one unknown-prop diagnostic"
     );
   }
 

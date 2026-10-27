@@ -8,7 +8,11 @@ use typedown_types::either::Either;
 fn parse_expr(input: &str) -> String {
   let program = format!("---\nkey: {}\n---\n", input);
 
-  let (ast, _) = parse(&program);
+  let (ast, diagnostics) = parse(&program);
+  assert!(
+    diagnostics.is_empty(),
+    "valid expression should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let root = ast.as_node().unwrap();
 
   // Extract the fronmatter as we inject expressions inside the frontmatter

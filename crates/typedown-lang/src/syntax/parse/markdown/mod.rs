@@ -1038,7 +1038,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       // Check for closing `:::` at the same indentation level as the opening
       // The closing `:::` should appear right after the full current prefix
       let check_pos = if next_kind == SyntaxKind::Newline {
-        match self.peek_md_multinewline_and_prefix() {
+        let result = self.peek_md_multinewline_and_prefix();
+        match result {
           Some(pos) => pos,
           None => break,
         }
@@ -1140,6 +1141,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
     // Consume newlines and prefix before the closing `:::`
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Newline {
       self.consume_md_multinewline_and_prefix(&mut children);
+    } else if !self.expr_ctx_stack.md_prefix_tokens().is_empty() {
+      // The newline was already consumed by the slot loop; consume just the prefix
+      self.consume_md_prefix(&mut children);
     }
 
     // Consume closing `:::`
@@ -1407,7 +1411,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       // Check for closing `:::`, `===` at the same indentation level as the opening
       // The closing `:::`, `===` should appear right after the full current prefix
       let check_pos = if next_kind == SyntaxKind::Newline {
-        match self.peek_md_multinewline_and_prefix() {
+        let result = self.peek_md_multinewline_and_prefix();
+        match result {
           Some(pos) => pos,
           None => break,
         }
@@ -1424,6 +1429,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
       {
         break;
       }
+
+      // Consume parent prefix tokens (e.g. blockquote "> ") before parsing the block element,
+      // so the block element parser sees content after the prefix, not the prefix itself.
+      if !self.expr_ctx_stack.md_prefix_tokens().is_empty()
+        && !self.consume_md_prefix(&mut children) {
+          break;
+        }
 
       let (block, early_exit) = self.parse_md_block_element(0);
       children.push(block);

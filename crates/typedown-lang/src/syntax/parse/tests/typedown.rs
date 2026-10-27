@@ -28,7 +28,11 @@ A paragraph with **bold** and *italic*.
 
 > A blockquote
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -178,7 +182,11 @@ project: fref("/projects/website-redesign.td")
 
 Completed **ahead of schedule**.
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert!(tree.contains("YamlFrontmatter"), "should have frontmatter");
   assert!(tree.contains("MdBody"), "should have markdown body");
@@ -264,7 +272,11 @@ name: "Alice"
 
 Inline formula reference: ${fref("/tasks/implement-auth.td")}
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert!(tree.contains("InterpFragment"), "should have interpolation");
   assert!(tree.contains("CallExpr"), "should have function call");
@@ -303,7 +315,11 @@ Use the existing test harness in `tests/integration/`.
 - [ ] Write failure and edge case tests
 - [ ] Assert token expiry behavior
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert!(tree.contains("YamlFrontmatter"), "should have frontmatter");
   assert!(tree.contains("MdBody"), "should have markdown body");
@@ -322,7 +338,11 @@ title: hi
 
 world
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -511,7 +531,11 @@ title: hello
 
 paragraph here
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -564,7 +588,11 @@ tags:
 
 - list item
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -635,7 +663,11 @@ tags:
 fn parse_braces_in_prose() {
   let input = r"hello {world}
 ";
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -660,7 +692,11 @@ fn parse_braces_in_container() {
 braces {} here
 :::
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -692,7 +728,11 @@ braces {} here
 fn parse_inline_code_with_braces() {
   let input = r#"text `{}` more
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -717,7 +757,11 @@ fn parse_inline_code_with_braces() {
 fn parse_backslash_brace() {
   let input = r#"hello \{world\}
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -743,7 +787,11 @@ fn parse_container_nested_in_bullet_list() {
   content here
   :::
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -766,10 +814,10 @@ fn parse_container_nested_in_bullet_list() {
           "info"
           "\n"
           (MdContainerSlot
+            " "
+            " "
             (MdParagraph
               (MdText
-                " "
-                " "
                 "content"
                 " "
                 "here")))
@@ -790,7 +838,11 @@ fn parse_container_nested_in_ordered_list() {
   content here
   :::
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -814,10 +866,10 @@ fn parse_container_nested_in_ordered_list() {
           "info"
           "\n"
           (MdContainerSlot
+            " "
+            " "
             (MdParagraph
               (MdText
-                " "
-                " "
                 "content"
                 " "
                 "here")))
@@ -830,15 +882,17 @@ fn parse_container_nested_in_ordered_list() {
 }
 
 // Container block nested inside a blockquote
-// Known limitation: the closing ::: is re-parsed as a new container inside the blockquote because the blockquote prefix [>, " "] plus the container's extra " " require ">  :::"
-// but the natural blockquote syntax uses "> :::" (one space)
 #[test]
 fn parse_container_nested_in_blockquote() {
   let input = r#"> ::: info
 >  content here
 > :::
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -854,25 +908,19 @@ fn parse_container_nested_in_blockquote() {
         "info"
         "\n"
         (MdContainerSlot
-          (MdBlockquote
-            ">"
-            " "
-            (MdParagraph
-              (MdText
-                " "
-                "content"
-                " "
-                "here"))))
+          ">"
+          " "
+          (MdParagraph
+            (MdText
+              " "
+              "content"
+              " "
+              "here")))
         "\n"
-        (Error
-          ">"))
-      (MdParagraph
+        ">"
         " "
-        (MdContainerBlock
-          ":::"
-          "\n"
-          (Error
-            ""))))))"#
+        ":::"))
+    "\n"))"#
   );
 }
 
@@ -886,7 +934,11 @@ fn parse_container_with_slots_nested_in_bullet_list() {
   back content
   :::
 "#;
-  let (ast, _) = parse(input);
+  let (ast, diagnostics) = parse(input);
+  assert!(
+    diagnostics.is_empty(),
+    "valid input should produce zero diagnostics, got: {diagnostics:?}"
+  );
   let tree = render_tree(&ast);
   assert_eq!(
     tree,
@@ -909,10 +961,10 @@ fn parse_container_with_slots_nested_in_bullet_list() {
           "card"
           "\n"
           (MdContainerSlot
+            " "
+            " "
             (MdParagraph
               (MdText
-                " "
-                " "
                 "front"
                 " "
                 "content")))
@@ -925,10 +977,10 @@ fn parse_container_with_slots_nested_in_bullet_list() {
             "back"
             "\n")
           (MdContainerSlot
+            " "
+            " "
             (MdParagraph
               (MdText
-                " "
-                " "
                 "back"
                 " "
                 "content")))
