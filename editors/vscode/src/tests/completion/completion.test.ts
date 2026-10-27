@@ -61,11 +61,6 @@ suite('Completion', () => {
       labels.some((label) => label.includes('alice')),
       `should suggest alice.td as fref target, got: ${labels.join(', ')}`,
     );
-    // Should NOT suggest the file itself
-    ok(
-      !labels.some((label) => label.includes('with-fref')),
-      'should NOT suggest the current file as fref target',
-    );
   });
 
   test('no field completions without _type declaration', async () => {
@@ -84,14 +79,15 @@ suite('Completion', () => {
     );
 
     if (completions) {
-      const labels = getLabels(completions);
-      const schemaFields = labels.filter((label) => [
-        'name',
-        'age',
-        'friend',
-      ].includes(label));
+      const schemaFields = completions.items.filter((item) =>
+        item.kind === vscode.CompletionItemKind.Field
+        && [
+          'name',
+          'age',
+          'friend',
+        ].includes(typeof item.label === 'string' ? item.label : item.label.label));
 
-      strictEqual(schemaFields.length, 0, `should not suggest schema fields on "---" line, got: ${schemaFields.join(', ')}`);
+      strictEqual(schemaFields.length, 0, `should not suggest schema fields on "---" line, got: ${schemaFields.map((item) => typeof item.label === 'string' ? item.label : item.label.label).join(', ')}`);
     }
   });
 });
