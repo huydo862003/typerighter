@@ -248,13 +248,24 @@ jobs:
           cd artifacts
           find . -type f \( -name 'typedown-*' \) -exec sha256sum {} + | sed 's|  \./[^/]*/|  |' | sort -k2 > ../SHA256SUMS.txt
 
+      - name: Extract changelog entry
+        id: changelog
+        if: needs.validate-tag.outputs.is_staging != 'true'
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        run: |
+          body=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '1d;/^## \[/d' | sed '${/^$/d}')
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$body" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8 # v2.1.0
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ needs.validate-tag.outputs.is_staging == 'true' && format('Staging {0}', github.ref_name) || '' }}
           prerelease: ${{ needs.validate-tag.outputs.is_staging == 'true' }}
-          generate_release_notes: ${{ needs.validate-tag.outputs.is_staging != 'true' }}
+          body: ${{ needs.validate-tag.outputs.is_staging != 'true' && steps.changelog.outputs.body || '' }}
           files: |
             artifacts/typedown-lsp-*/*
             artifacts/typedown-rpc-*/*
