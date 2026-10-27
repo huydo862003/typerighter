@@ -185,27 +185,7 @@ h.test("anti-conceal: insert mode sets special cursor value", function()
   h.assert(state.get_cursor_line(buf) ~= -2, "leaving insert should restore cursor line")
 end)
 
-h.test("attach sets conceallevel=2 on current window", function()
-  local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_md")
-  if not lang_ok then
-    io.write("  (skipped: typedown_md parser not available)\n")
-    return
-  end
-
-  vim.cmd("enew")
-  vim.bo.filetype = "typedown"
-  local buf = vim.api.nvim_get_current_buf()
-  local win = vim.api.nvim_get_current_win()
-
-  vim.api.nvim_set_option_value("conceallevel", 0, { win = win })
-
-  require("typedown.render.init").attach(buf)
-
-  local cl = vim.api.nvim_get_option_value("conceallevel", { win = win })
-  h.assert_eq(cl, 2, "attach should set conceallevel=2 so conceal extmarks hide markers")
-end)
-
-h.test("container: both opening and closing ::: are concealed", function()
+h.test("container: both opening and closing ::: are rendered", function()
   local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_md")
   if not lang_ok then
     io.write("  (skipped: typedown_md parser not available)\n")
@@ -235,19 +215,19 @@ h.test("container: both opening and closing ::: are concealed", function()
   local ns = require("typedown.render.state").get_namespace("containers")
   local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
 
-  local has_opening_conceal = false
-  local has_closing_conceal = false
+  local has_opening_overlay = false
+  local has_closing_overlay = false
   for _, mark in ipairs(marks) do
+    local row = mark[2]
     local details = mark[4]
-    if details.conceal == "" then
-      local row = mark[2]
-      if row == 2 then has_opening_conceal = true end
-      if row == 4 then has_closing_conceal = true end
+    if details.virt_text and details.virt_text_pos == "overlay" then
+      if row == 2 then has_opening_overlay = true end
+      if row == 4 then has_closing_overlay = true end
     end
   end
 
-  h.assert(has_opening_conceal, "opening ::: (row 2) should have a conceal extmark")
-  h.assert(has_closing_conceal, "closing ::: (row 4) should have a conceal extmark")
+  h.assert(has_opening_overlay, "opening ::: (row 2) should have an overlay extmark")
+  h.assert(has_closing_overlay, "closing ::: (row 4) should have an overlay extmark")
 end)
 
 h.test("typedown_yaml highlights query loads without errors", function()

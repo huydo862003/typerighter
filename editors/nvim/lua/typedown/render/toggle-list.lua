@@ -34,21 +34,20 @@ end
 function M.render(buf, md_tree)
   local ns = state.get_namespace(M.name)
   state.clear(buf, M.name)
-  local cursor_line = state.get_cursor_line(buf)
 
   if not folded[buf] then folded[buf] = {} end
 
   local q = get_query()
   for id, node in q:iter_captures(md_tree:root(), buf) do
     if q.captures[id] == "item" then
-      M.render_item(buf, ns, node, cursor_line)
+      M.render_item(buf, ns, node)
     end
   end
 end
 
-function M.render_item(buf, ns, node, cursor_line)
+function M.render_item(buf, ns, node)
   local start_row, _, end_row = node:range()
-  if start_row == cursor_line then return end
+  if state.is_hidden(buf, start_row) then return end
 
   local is_folded = folded[buf] and folded[buf][start_row]
   local icon = is_folded and CLOSED_ICON or OPEN_ICON
@@ -58,13 +57,12 @@ function M.render_item(buf, ns, node, cursor_line)
   for child in node:iter_children() do
     if child:type() == "toggle_list_marker" then
       local m_row, m_col, _, m_end_col = child:range()
+      local width = m_end_col - m_col
+      local text = icon .. string.rep(" ", math.max(0, width - 1))
       vim.api.nvim_buf_set_extmark(buf, ns, m_row, m_col, {
-        end_col = m_end_col,
-        conceal = "",
-      })
-      vim.api.nvim_buf_set_extmark(buf, ns, m_row, m_col, {
-        virt_text     = { { icon, hl } },
-        virt_text_pos = "inline",
+        end_col       = m_end_col,
+        virt_text     = { { text, hl } },
+        virt_text_pos = "overlay",
         priority      = 110,
       })
       break

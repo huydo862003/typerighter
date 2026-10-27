@@ -1,3 +1,33 @@
+## [0.46.3] - 2026-10-27
+
+### Added
+
+- editors/nvim
+  - Smart action keybind: `<CR>` contextually follows links, toggles checkboxes, or folds toggle items
+  - Multi-state checkboxes: cycle through `[ ]`, `[x]`, `[~]`, `[>]`, `[!]` with distinct icons and colors
+  - fref link rendering: `fref("path")` and `${fref("path")}` display as icon + name
+  - Sign column indicators for headings (H1-H6)
+  - Code block min-width padding and language badge with icon + name
+  - Table cell alignment (left/center/right) with proper junction characters
+  - Tree-sitter folding support (`za`/`zo`/`zc` on containers, code blocks, etc.)
+
+### Changed
+
+- editors/nvim
+  - All renderers use `virt_text_pos = "overlay"` instead of `conceal` (no longer requires `conceallevel`)
+  - Range-based anti-conceal with per-element visibility control
+  - Mode-aware rendering: insert mode clears all decorations, re-renders on mode change
+  - Debounced text change re-renders (50ms) with changedtick dedup
+  - Skip rendering for files over 5000 lines
+
+### Fixed
+
+- editors/nvim
+  - Closing `:::` container delimiter not being hidden
+  - First character of heading text trimmed by marker conceal
+  - Missing space between bullet/checkbox icons and text
+  - Tree-sitter query error for `block_scalar` in typedown_yaml highlights
+
 ## [0.46.2] - 2026-10-27
 
 ### Fixed

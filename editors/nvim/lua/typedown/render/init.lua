@@ -10,6 +10,8 @@ local bullets = require("typedown.render.bullets")
 local code = require("typedown.render.code")
 local tables = require("typedown.render.tables")
 local toggle_list = require("typedown.render.toggle-list")
+local links = require("typedown.render.links")
+local smart_action = require("typedown.render.smart-action")
 
 local M = {}
 
@@ -23,6 +25,11 @@ local renderers = {
   toggle_list,
 }
 
+-- Links renderer runs separately (not tree-sitter based, scans full buffer)
+local text_renderers = {
+  links,
+}
+
 function M.setup()
   highlights.setup()
   checkboxes.setup_commands()
@@ -30,6 +37,21 @@ function M.setup()
 end
 
 function M.render_buf(buf)
+  -- If mode is disabled (e.g. insert), clear everything instead of rendering
+  if state.is_mode_disabled(buf) then
+    for _, renderer in ipairs(renderers) do
+      state.clear(buf, renderer.name)
+    end
+    for _, renderer in ipairs(text_renderers) do
+      state.clear(buf, renderer.name)
+    end
+    return
+  end
+
+  -- Max file length guard
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  if line_count > state.max_file_length then return end
+
   local parser = vim.treesitter.get_parser(buf, "typedown")
   if not parser then return end
 
@@ -48,22 +70,37 @@ function M.render_buf(buf)
           end
         end
       end
-      return
+      break
+    end
+  end
+
+  -- Text-based renderers (scan full buffer, not tree-sitter)
+  for _, renderer in ipairs(text_renderers) do
+    local ok, err = pcall(renderer.render, buf)
+    if not ok then
+      vim.schedule(function()
+        vim.notify("[typedown render] " .. tostring(err), vim.log.levels.DEBUG)
+      end)
     end
   end
 end
 
-local function set_conceallevel(win)
-  vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+local function set_fold_options(win)
+  vim.api.nvim_set_option_value("foldmethod", "expr", { win = win })
+  vim.api.nvim_set_option_value("foldexpr", "v:lua.vim.treesitter.foldexpr()", { win = win })
+  vim.api.nvim_set_option_value("foldlevel", 99, { win = win })
 end
 
 function M.attach(buf)
   if state.is_attached(buf) then return end
   state.mark_attached(buf)
 
-  -- Conceal is required for bullet/checkbox/heading marker hiding (window-local)
+  -- Smart action keybind (<CR> = follow link / toggle checkbox / fold)
+  smart_action.setup(buf)
+
+  -- Enable tree-sitter folding (za/zo/zc work on containers, code blocks, etc.)
   for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-    set_conceallevel(win)
+    set_fold_options(win)
   end
 
   -- Initial cursor position
@@ -79,23 +116,25 @@ function M.attach(buf)
     end
   end, 100)
 
-  -- Re-render on text changes
+  -- Debounced re-render on text changes
+  local render_timer = vim.uv.new_timer()
   vim.api.nvim_buf_attach(buf, false, {
     on_lines = function()
-      vim.defer_fn(function()
-        if vim.api.nvim_buf_is_valid(buf) then
+      render_timer:stop()
+      render_timer:start(state.debounce_ms, 0, vim.schedule_wrap(function()
+        if vim.api.nvim_buf_is_valid(buf) and state.has_changed(buf) then
           M.render_buf(buf)
         end
-      end, 50)
+      end))
     end,
     on_detach = function()
       state.detach(buf)
     end,
   })
 
-  -- Anti-conceal: re-render on cursor move
   local group = vim.api.nvim_create_augroup("typedown_render_" .. buf, { clear = true })
 
+  -- Anti-conceal: re-render on cursor move
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = group,
     buffer = buf,
@@ -106,14 +145,23 @@ function M.attach(buf)
     end,
   })
 
+  -- Mode-aware rendering: re-render on mode change
+  vim.api.nvim_create_autocmd("ModeChanged", {
+    group = group,
+    buffer = buf,
+    callback = function()
+      if anti_conceal.on_mode_changed(buf) then
+        M.render_buf(buf)
+      end
+    end,
+  })
+
   vim.api.nvim_create_autocmd("InsertEnter", {
     group = group,
     buffer = buf,
     callback = function()
       if anti_conceal.on_insert_enter(buf) then
-        for _, renderer in ipairs(renderers) do
-          state.clear(buf, renderer.name)
-        end
+        M.render_buf(buf) -- will clear due to mode check
       end
     end,
   })
@@ -132,7 +180,7 @@ function M.attach(buf)
     group = group,
     buffer = buf,
     callback = function()
-      set_conceallevel(vim.api.nvim_get_current_win())
+      set_fold_options(vim.api.nvim_get_current_win())
     end,
   })
 

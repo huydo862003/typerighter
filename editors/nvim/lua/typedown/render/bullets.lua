@@ -35,22 +35,20 @@ end
 function M.render(buf, md_tree)
   local ns = state.get_namespace(M.name)
   state.clear(buf, M.name)
-  local cursor_line = state.get_cursor_line(buf)
 
   local q = get_query()
   for _, node in q:iter_captures(md_tree:root(), buf) do
     local row, col, _, end_col = node:range()
-    if row ~= cursor_line then
+    if not state.is_hidden(buf, row) then
       local depth = list_depth(node)
       local icon  = BULLET_ICONS[(depth % #BULLET_ICONS) + 1]
+      local marker_width = end_col - col
+      local text = icon .. string.rep(" ", math.max(0, marker_width - 1))
 
       vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-        end_col = end_col,
-        conceal = "",
-      })
-      vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-        virt_text     = { { icon, "TypedownRenderBullet" } },
-        virt_text_pos = "inline",
+        end_col       = end_col,
+        virt_text     = { { text, "TypedownRenderBullet" } },
+        virt_text_pos = "overlay",
         priority      = 110,
       })
     end

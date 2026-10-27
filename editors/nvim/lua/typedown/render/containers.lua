@@ -33,54 +33,55 @@ end
 function M.render(buf, md_tree)
   local ns = state.get_namespace(M.name)
   state.clear(buf, M.name)
-  local cursor_line = state.get_cursor_line(buf)
 
   local q = get_query()
   for _, node in q:iter_captures(md_tree:root(), buf) do
-    M.render_container(buf, ns, node, cursor_line)
+    M.render_container(buf, ns, node)
   end
 end
 
-function M.render_container(buf, ns, node, cursor_line)
+function M.render_container(buf, ns, node)
   local start_row, _, end_row = node:range()
+  local hidden = state.is_hidden
 
   -- Find container type via field
   local type_node = node:field("type")[1]
   local container_type = type_node and vim.treesitter.get_node_text(type_node, buf) or ""
   local style = CONTAINER_STYLES[container_type] or DEFAULT_STYLE
 
-  -- Left border on each line
+  -- Left border on each line (always visible for visual continuity)
   for row = start_row, end_row - 1 do
-    if row ~= cursor_line then
-      vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
-        virt_text     = { { "┃ ", style.hl } },
-        virt_text_pos = "inline",
-        priority      = 90,
-      })
-    end
+    vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
+      virt_text     = { { "┃ ", style.hl } },
+      virt_text_pos = "inline",
+      priority      = 90,
+    })
   end
 
-  -- Conceal/replace ::: delimiters
+  -- Overlay ::: delimiters (hidden on cursor line)
   for child in node:iter_children() do
     if child:type() == "container_block_delimiter" then
       local d_row, d_col, _, d_end_col = child:range()
-      if d_row == start_row and d_row ~= cursor_line then
-        -- Opening ::: -> icon
-        vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
-          end_col = d_end_col,
-          conceal = "",
-        })
-        vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
-          virt_text     = { { style.icon .. " ", style.hl } },
-          virt_text_pos = "inline",
-          priority      = 110,
-        })
-      elseif d_row == end_row - 1 and d_row ~= cursor_line then
-        -- Closing ::: -> conceal
-        vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
-          end_col = d_end_col,
-          conceal = "",
-        })
+      if not hidden(buf, d_row) then
+        local width = d_end_col - d_col
+        if d_row == start_row then
+          -- Opening ::: -> overlay with icon
+          local text = style.icon .. string.rep(" ", math.max(0, width - 1))
+          vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
+            end_col       = d_end_col,
+            virt_text     = { { text, style.hl } },
+            virt_text_pos = "overlay",
+            priority      = 110,
+          })
+        else
+          -- Closing ::: -> overlay with spaces (hide it)
+          vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
+            end_col       = d_end_col,
+            virt_text     = { { string.rep(" ", width) } },
+            virt_text_pos = "overlay",
+            priority      = 110,
+          })
+        end
       end
     end
   end

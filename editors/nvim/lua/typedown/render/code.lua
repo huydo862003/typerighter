@@ -1,8 +1,11 @@
--- Code block renderer: left border + language icon
+-- Code block renderer: background + left border + language badge + padding
 local state = require("typedown.render.state")
 
 local M = {}
 M.name = "code"
+
+local LEFT_PAD = 1   -- cells of padding on the left inside the block
+local MIN_WIDTH = 40  -- minimum block width in cells
 
 -- Common language icons (Nerd Font)
 local LANG_ICONS = {
@@ -30,30 +33,48 @@ end
 function M.render(buf, md_tree)
   local ns = state.get_namespace(M.name)
   state.clear(buf, M.name)
-  local cursor_line = state.get_cursor_line(buf)
 
   local q = get_query()
   for _, node in q:iter_captures(md_tree:root(), buf) do
-    M.render_block(buf, ns, node, cursor_line)
+    M.render_block(buf, ns, node)
   end
 end
 
-function M.render_block(buf, ns, node, cursor_line)
+function M.render_block(buf, ns, node)
   local start_row, _, end_row = node:range()
+  local hidden = state.is_hidden
 
-  -- Background for the whole block
+  -- Calculate max content width for the block
+  local max_width = 0
   for row = start_row, end_row - 1 do
+    local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
+    max_width = math.max(max_width, vim.fn.strdisplaywidth(line))
+  end
+  local block_width = math.max(max_width + LEFT_PAD * 2, MIN_WIDTH)
+
+  for row = start_row, end_row - 1 do
+    -- Background with hl_eol (always visible)
     vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
       end_row  = row + 1,
       hl_group = "TypedownRenderCodeBlock",
       hl_eol   = true,
       priority = 80,
     })
-  end
 
-  -- Left border
-  for row = start_row, end_row - 1 do
-    if row ~= cursor_line then
+    -- Right-side padding to extend background to block_width
+    local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
+    local line_width = vim.fn.strdisplaywidth(line)
+    local right_pad = math.max(0, block_width - line_width)
+    if right_pad > 0 then
+      vim.api.nvim_buf_set_extmark(buf, ns, row, #line, {
+        virt_text     = { { string.rep(" ", right_pad), "TypedownRenderCodeBlock" } },
+        virt_text_pos = "inline",
+        priority      = 80,
+      })
+    end
+
+    -- Left border (hidden on cursor line)
+    if not hidden(buf, row) then
       vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
         virt_text     = { { "▎", "TypedownRenderCodeBorder" } },
         virt_text_pos = "inline",
@@ -62,17 +83,20 @@ function M.render_block(buf, ns, node, cursor_line)
     end
   end
 
-  -- Language icon on opening fence line
-  local lang_nodes = node:field("language")
-  if lang_nodes and lang_nodes[1] and start_row ~= cursor_line then
-    local lang = vim.treesitter.get_node_text(lang_nodes[1], buf):lower()
-    local icon = LANG_ICONS[lang]
-    if icon then
-      vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
-        virt_text     = { { " " .. icon .. " ", "TypedownRenderCodeLanguage" } },
-        virt_text_pos = "eol",
-        priority      = 100,
-      })
+  -- Language badge on opening fence line (hidden on cursor line)
+  if not hidden(buf, start_row) then
+    local lang_nodes = node:field("language")
+    if lang_nodes and lang_nodes[1] then
+      local lang = vim.treesitter.get_node_text(lang_nodes[1], buf):lower()
+      local icon = LANG_ICONS[lang]
+      local badge = icon and (icon .. " " .. lang) or lang
+      if badge ~= "" then
+        vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
+          virt_text     = { { " " .. badge .. " ", "TypedownRenderCodeLanguage" } },
+          virt_text_pos = "eol",
+          priority      = 100,
+        })
+      end
     end
   end
 end

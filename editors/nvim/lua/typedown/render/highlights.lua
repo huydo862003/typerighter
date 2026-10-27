@@ -38,9 +38,16 @@ function M.setup()
   set_hl(0, "TypedownRenderTableBorder", { fg = "#585b70", default = true })
   set_hl(0, "TypedownRenderTableHeader", { bold = true, default = true })
 
-  -- Checkboxes
+  -- Checkboxes (multi-state)
   set_hl(0, "TypedownRenderCheckboxUnchecked", { fg = "#585b70", default = true })
   set_hl(0, "TypedownRenderCheckboxChecked",   { fg = "#a6e3a1", default = true })
+  set_hl(0, "TypedownRenderCheckboxCancelled", { fg = "#f38ba8", strikethrough = true, default = true })
+  set_hl(0, "TypedownRenderCheckboxForwarded", { fg = "#fab387", default = true })
+  set_hl(0, "TypedownRenderCheckboxImportant", { fg = "#f38ba8", bold = true, default = true })
+
+  -- Links
+  set_hl(0, "TypedownRenderFrefIcon", { fg = "#89b4fa", default = true })
+  set_hl(0, "TypedownRenderFrefText", { fg = "#cba6f7", underline = true, default = true })
 
   -- Bullets
   set_hl(0, "TypedownRenderBullet", { fg = "#89b4fa", default = true })
