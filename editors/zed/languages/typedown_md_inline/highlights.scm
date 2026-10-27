@@ -9,6 +9,7 @@
 (math_span_content) @text.literal
 
 ; Links
+(inline_link) @link_uri
 (inline_link "[" @punctuation.delimiter)
 (inline_link "]" @punctuation.delimiter)
 (inline_link "(" @punctuation.delimiter)
@@ -17,6 +18,7 @@
 (link_destination) @link_uri
 
 ; Images
+(image) @link_uri
 (image "!" @punctuation.special)
 (image "[" @punctuation.delimiter)
 (image "]" @punctuation.delimiter)
@@ -25,12 +27,14 @@
 (image_alt) @link_text
 
 ; Footnotes
+(footnote_reference) @link_uri
 (footnote_reference "[" @punctuation.delimiter)
 (footnote_reference "^" @punctuation.special)
 (footnote_reference "]" @punctuation.delimiter)
 (footnote_label) @link_text
 
 ; Citations
+(citation) @link_uri
 (citation "[" @punctuation.delimiter)
 (citation "@" @punctuation.special)
 (citation "]" @punctuation.delimiter)

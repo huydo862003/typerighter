@@ -21,6 +21,7 @@
 ; Code blocks
 (fenced_code_block_delimiter) @punctuation.special
 (language) @label
+(line_range_indicator) @comment
 (code_fence_content) @text.literal
 
 ; Math blocks
@@ -41,8 +42,17 @@
 ; Containers
 (container_block_delimiter) @punctuation.special
 (container_type) @label
+(container_prop_block ["{" "}"] @punctuation.bracket)
+(container_prop_key) @property
+(container_prop_item "=" @operator)
+(container_prop_number) @number
+(container_prop_string) @string
+(container_slot_delimiter) @punctuation.special
+(container_slot_name) @label
 
 ; Tables
 (pipe_table_header) @title
 (pipe_table_delimiter_row) @punctuation.delimiter
 (pipe_table_cell) @text
+(pipe_table_row "|" @punctuation.special)
+(pipe_table_header "|" @punctuation.special)

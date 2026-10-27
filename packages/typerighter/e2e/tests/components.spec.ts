@@ -246,9 +246,25 @@ components.describe('contract', () => {
   components.beforeEach(async ({
     testProject,
   }) => {
-    contract = JSON.parse(
-      await readFile(`${testProject.dir}/.typedown/components.json`, 'utf-8'),
-    );
+    // Wait for the contract to include builtin components (written asynchronously at startup)
+    const contractPath = `${testProject.dir}/.typedown/components.json`;
+    const deadline = Date.now() + 10_000;
+
+    while (Date.now() < deadline) {
+      try {
+        const raw = JSON.parse(await readFile(contractPath, 'utf-8'));
+
+        if (raw.flashcard) {
+          contract = raw;
+
+          return;
+        }
+      } catch {}
+      await new Promise((resolve) => {
+        setTimeout(resolve, 200);
+      });
+    }
+    contract = JSON.parse(await readFile(contractPath, 'utf-8'));
   });
 
   components('components.json contains all registered components', async () => {
