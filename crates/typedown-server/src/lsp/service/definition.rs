@@ -334,22 +334,19 @@ fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> O
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-  use std::sync::{Arc, Condvar, Mutex};
-
+  use super::resolve_definition as definition;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
   use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, PartialResultParams, Position,
     TextDocumentIdentifier, TextDocumentPositionParams, Uri, WorkDoneProgressParams,
   };
   use ropey::Rope;
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
-
-  use super::resolve_definition as definition;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

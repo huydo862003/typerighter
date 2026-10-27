@@ -55,15 +55,13 @@ pub fn parse_file<'db>(
 
 #[cfg(test)]
 mod tests {
-  use std::{collections::HashMap, path::PathBuf};
-
-  use crate::syntax::ast::{AstNode, SourceFile};
-
   use crate::db::{
     QueryStorage, TypedownDatabase,
     fixtures::load_fixtures,
     types::{File, FileHandle, FileMetadata, Project},
   };
+  use crate::syntax::ast::{AstNode, SourceFile};
+  use std::{collections::HashMap, path::PathBuf};
 
   use super::parse_file;
 

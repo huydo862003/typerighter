@@ -330,9 +330,8 @@ fn normalize_base_path(raw: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-  use crate::db::fixtures::load_vault_fixture;
-
   use super::*;
+  use crate::db::fixtures::load_vault_fixture;
 
   #[test]
   fn extracts_nav_items() {

@@ -1020,7 +1020,6 @@ mod tests {
     PROTOCOL_CALL, PROTOCOL_INDEX, Project, TdProductTyp, TdSchemaTyp, TdTypEnum,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
-
   use std::collections::{BTreeMap, HashMap};
   use std::path::PathBuf;
 
@@ -1116,7 +1115,9 @@ mod tests {
       &db,
       FileHandle::Content(
         PathBuf::from("test.td"),
-        "\"hello\"\n".into(),
+        r#""hello"
+"#
+        .into(),
         FileMetadata::default(),
       ),
     );

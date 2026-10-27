@@ -251,12 +251,6 @@ fn serialize_lazy_typ(
 
 #[cfg(test)]
 mod tests {
-  use std::path::PathBuf;
-
-  use typedown_types::either::Either;
-
-  use std::collections::HashMap;
-
   use super::*;
   use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
   use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
@@ -264,6 +258,9 @@ mod tests {
   use crate::db::fixtures::*;
   use crate::db::types::*;
   use crate::db::{QueryStorage, TypedownDatabase};
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use typedown_types::either::Either;
 
   fn empty_db() -> (TypedownDatabase, Project) {
     let db = TypedownDatabase {

@@ -287,14 +287,21 @@ fn gitignore_not_overwritten_when_exists() {
   fs::create_dir_all(&cache_dir).unwrap();
 
   let gitignore = parent.path().join(".gitignore");
-  fs::write(&gitignore, "custom content\n").unwrap();
+  fs::write(
+    &gitignore,
+    r"custom content
+",
+  )
+  .unwrap();
 
   let (session, _) = CacheSession::open(&cache_dir).expect("open failed");
   drop(session);
 
   let content = fs::read_to_string(&gitignore).unwrap();
   assert_eq!(
-    content, "custom content\n",
+    content,
+    r"custom content
+",
     "existing .gitignore must not be overwritten by CacheSession::open"
   );
 }

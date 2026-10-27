@@ -426,14 +426,13 @@ mod tests {
   use crate::db::types::typecheck::is_nullable;
   use crate::db::types::typecheck::validate_typ_params;
   use crate::db::types::{LazyTyp, TdTypEnum, TypParams, TypVariable};
-  use crate::syntax::diagnostic::*;
-
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::get_builtin_typs::{
       get_config_typ, get_dict_typ, get_list_typ, get_number_typ, get_string_typ,
     },
   };
+  use crate::syntax::diagnostic::*;
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
