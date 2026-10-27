@@ -21,18 +21,8 @@ ambassador = "0.5.1"
 derive_more = { version = "2.1.1", features = ["from"] }
 enum-as-inner = "0.7.0"
 strum = { version = "0.28.0", features = ["derive"] }
-
-[features]
-default = []
-export = ["serde"]
-
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-optional = true
-
-[dependencies.serde_json]
-version = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 expect-test = "1.5.1"

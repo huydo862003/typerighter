@@ -12,7 +12,8 @@ use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
 use crate::integrations::export::utils::is_string_quoted;
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
-  MdBoldItalic, MdHeading, MdItalic, MdLink, MdStrikethrough, MdTable, MdTableCell,
+  MdBoldItalic, MdHeading, MdInlineElement, MdItalic, MdLink, MdStrikethrough, MdTable,
+  MdTableCell,
 };
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -24,8 +25,7 @@ use crate::db::utils::is_external_url;
 use crate::syntax::ast::MdContainerShorthand;
 
 /// Heading extracted during HTML emission
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "export", derive(serde::Serialize))]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ExportedHeading {
   pub level: u32,
   pub title: String,
@@ -617,8 +617,21 @@ impl<'a> HtmlEmitter<'a> {
           self.emit_media(&child);
         }
       }
-    } else if let Some(alt_node) = link.alt() {
-      self.emit_inline(alt_node.syntax());
+    } else {
+      // Emit inline children between [ and ] (link text, not URL)
+      let mut in_text = false;
+      for child in node.children() {
+        if child.kind() == SyntaxKind::LBracket {
+          in_text = true;
+          continue;
+        }
+        if child.kind() == SyntaxKind::RBracket {
+          break;
+        }
+        if in_text && MdInlineElement::cast(child.clone()).is_some() {
+          self.emit_inline(&child);
+        }
+      }
     }
     self.write("</a>");
   }

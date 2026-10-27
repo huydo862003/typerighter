@@ -62,4 +62,6 @@ details content
 
 [link text](https://example.com)
 
+[`code` in link](https://example.com)
+
 ![alt](image.png)

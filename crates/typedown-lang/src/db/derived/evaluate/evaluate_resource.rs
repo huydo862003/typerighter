@@ -108,7 +108,6 @@ mod tests {
     derived::typechecker::typecheck::typecheck,
     fixtures::{load_vault_fixture, make_blob_obj},
   };
-  #[cfg(feature = "export")]
   use crate::integrations::export::export_resource_markdown;
   use crate::syntax::diagnostic::*;
   use std::path::PathBuf;
@@ -876,7 +875,6 @@ mod tests {
   }
 
   #[test]
-  #[cfg(feature = "export")]
   fn imports_stripped_from_export() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
     let result = export_resource_markdown(&db, project, file);

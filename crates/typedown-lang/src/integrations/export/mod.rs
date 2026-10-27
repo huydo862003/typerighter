@@ -1054,6 +1054,24 @@ properties:
   }
 
   #[test]
+  fn html_export_code_in_link_text() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    // [`code` in link](url) should render code with <code> tags, not raw backticks
+    assert!(
+      exported.content.contains("<code>code</code> in link</a>"),
+      "inline code in link should render as <code>code</code> inside <a>: {}",
+      exported.content
+    );
+    // Raw backticks should not leak into the output
+    assert!(
+      !exported.content.contains("`code` in link"),
+      "backticks should not appear as raw text in rendered link: {}",
+      exported.content
+    );
+  }
+
+  #[test]
   fn html_export_container_shorthand() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_shorthand.td");
     let exported = export_resource_html(&db, project, file).expect("should export");

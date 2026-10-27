@@ -1433,9 +1433,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
       // Consume parent prefix tokens (e.g. blockquote "> ") before parsing the block element,
       // so the block element parser sees content after the prefix, not the prefix itself.
       if !self.expr_ctx_stack.md_prefix_tokens().is_empty()
-        && !self.consume_md_prefix(&mut children) {
-          break;
-        }
+        && !self.consume_md_prefix(&mut children)
+      {
+        break;
+      }
 
       let (block, early_exit) = self.parse_md_block_element(0);
       children.push(block);
@@ -1488,7 +1489,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.expr_ctx_stack.enter(ExprCtx::MdLinkText);
 
     // Collect alt text tokens until `]`, Newline, or EOF
-    // Recognizes `![` as an embedded image (linked image / badge syntax)
+    // Recognizes `![` as embedded image and inline code/math as distinct nodes
     let mut alt_children = vec![];
     loop {
       let peek = self.lex_ctx.peek_md(SKIP_NONE);
@@ -1509,6 +1510,17 @@ impl<S: Utf8Stream> ParseCtx<S> {
             self.expr_ctx_stack.exit(ExprCtx::MdLinkText);
             return (self.emit(SyntaxKind::MdLink, &children), Some(ctx));
           }
+        }
+        // Inline code and math inside link text get their own nodes
+        SyntaxKind::InlineCode | SyntaxKind::InlineMath => {
+          if !alt_children.is_empty() {
+            children.push(self.emit(SyntaxKind::MdText, &alt_children));
+            alt_children = vec![];
+          }
+          let kind = peek.token.kind();
+          let mut code_children = vec![];
+          self.advance_md(&mut code_children, SKIP_NONE);
+          children.push(self.emit(kind, &code_children));
         }
         _ => {
           if let Some(ctx) = self.consume_or_delegate_md(ExprCtx::MdLinkText, &mut alt_children) {
