@@ -1,3 +1,10 @@
+## [0.46.2] - 2026-10-27
+
+### Fixed
+
+- editors/nvim
+  - Broken tree-sitter parser plugin loading order
+
 ## [0.46.1] - 2026-10-27
 
 ### Fixed
