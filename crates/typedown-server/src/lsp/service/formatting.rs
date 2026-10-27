@@ -22,11 +22,17 @@ pub fn format_document(
   let source_file = SourceFile::cast(root)?;
   let body = source_file.body()?;
 
-  let formatted = format_markdown(&body);
+  let body_formatted = format_markdown(&body);
+  // Add blank line between frontmatter and body, schemaless files get no leading newline
+  let formatted = if source_file.frontmatter().is_some() && !body_formatted.is_empty() {
+    format!("\n{body_formatted}")
+  } else {
+    body_formatted
+  };
 
   // Replace the entire body range with the formatted text
   let body_node = body.syntax();
-  let start = body_node.offset();
+  let start = body_node.start_offset();
   let end = (start + body_node.text_len()).min(rope.len_chars()); // AST span may exceed rope length
 
   let range = lsp_types::Range {

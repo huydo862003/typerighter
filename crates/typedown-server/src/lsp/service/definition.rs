@@ -210,7 +210,7 @@ fn get_entry_key_offset(entry: &RedNode) -> Option<usize> {
   entry
     .children()
     .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
-    .map(|key| key.offset())
+    .map(|key| key.start_offset())
 }
 
 // Find the offset of a property key inside a schema's properties block

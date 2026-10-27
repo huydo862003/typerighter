@@ -121,7 +121,7 @@ impl StableHash for ProjectRedNode {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     self.project.stable_hash(db, hasher);
     self.file.stable_hash(db, hasher);
-    (self.node.offset() as u64).stable_hash(db, hasher);
+    (self.node.start_offset() as u64).stable_hash(db, hasher);
     self.node.kind().stable_hash(db, hasher);
     (self.node.text_len() as u64).stable_hash(db, hasher);
   }

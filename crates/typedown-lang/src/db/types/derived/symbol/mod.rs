@@ -501,7 +501,7 @@ fn runtime_scope_display_string<'db>(
         .path()
         .map(|path| path.display().to_string())
         .unwrap_or_default();
-      let offset = project_node.node.offset();
+      let offset = project_node.node.start_offset();
       format!("func:{path}:{offset}")
     }
   };

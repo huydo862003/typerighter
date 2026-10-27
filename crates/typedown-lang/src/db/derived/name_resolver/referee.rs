@@ -107,7 +107,7 @@ fn is_dot_rhs(node: &RedNode) -> bool {
     .children()
     .find(|child| child.kind() == SyntaxKind::YamlOp && child.text() == ".");
   match dot_op {
-    Some(op) => node.offset() > op.offset(),
+    Some(op) => node.start_offset() > op.start_offset(),
     None => false,
   }
 }

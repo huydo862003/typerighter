@@ -32,6 +32,7 @@ pub fn lint_markdown(body: &MdBody) -> Vec<TdDiagnostic> {
   lint_inline_elements(body.syntax(), &mut diagnostics);
   lint_trailing_whitespace(body, &mut diagnostics);
   lint_heading_spacing(body, &mut diagnostics);
+  lint_blank_line_after_frontmatter(body, &mut diagnostics);
   lint_block_blank_lines(body, &mut diagnostics);
   lint_consecutive_blank_lines(body, &mut diagnostics);
 
@@ -82,7 +83,7 @@ fn lint_headings(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
 fn heading_text(heading: &MdHeading) -> String {
   let text = heading.syntax().text();
   let trimmed = text.trim();
-  let hash_count = trimmed.chars().take_while(|ch| *ch == '#').count();
+  let hash_count = trimmed.chars().take_while(|char| *char == '#').count();
   trimmed[hash_count..].trim().to_string()
 }
 
@@ -124,7 +125,7 @@ fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<TdDiagnostic>) {
 /// Check for trailing whitespace on any line in the body
 fn lint_trailing_whitespace(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let source = body.syntax().text();
-  let body_offset = body.syntax().offset();
+  let body_offset = body.syntax().start_offset();
 
   let mut offset = body_offset;
   for line in source.lines() {
@@ -144,7 +145,7 @@ fn lint_heading_spacing(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
     }
     let text = block.syntax().text();
     let trimmed = text.trim();
-    let hash_count = trimmed.chars().take_while(|ch| *ch == '#').count();
+    let hash_count = trimmed.chars().take_while(|char| *char == '#').count();
     if hash_count == 0 {
       continue;
     }
@@ -160,19 +161,37 @@ fn lint_heading_spacing(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   }
 }
 
+/// Check that the body starts with a blank line when there is frontmatter
+fn lint_blank_line_after_frontmatter(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
+  // body.syntax().offset() == 0 means the body starts at the beginning of the file (no frontmatter)
+  if body.syntax().start_offset() == 0 {
+    return;
+  }
+  let text = body.syntax().text();
+  // Nothing to warn about if the body has no content
+  if text.trim().is_empty() {
+    return;
+  }
+  if !text.starts_with('\n') {
+    let (offset, len) = body.syntax().trimmed_range();
+    diagnostics
+      .push(TdDiagnosticKind::BlankLineAfterFrontmatter {}.into_warning(offset, offset + len));
+  }
+}
+
 // Check that blocks have blank lines between them
 fn lint_block_blank_lines(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let source = body.syntax().text();
-  let body_offset = body.syntax().offset();
+  let body_offset = body.syntax().start_offset();
   let blocks: Vec<_> = body.block_elements().collect();
 
-  for (idx, block) in blocks.iter().enumerate() {
+  for (index, block) in blocks.iter().enumerate() {
     let node = block.syntax();
     let (trimmed_offset, trimmed_len) = node.trimmed_range();
-    let rel_start = node.offset().saturating_sub(body_offset);
+    let rel_start = node.start_offset().saturating_sub(body_offset);
 
     // Check blank line before (skip the first block)
-    if idx > 0 && rel_start > 0 {
+    if index > 0 && rel_start > 0 {
       let before = &source[..rel_start];
       if !before.trim().is_empty() && !before.ends_with("\n\n") {
         diagnostics.push(
@@ -187,16 +206,16 @@ fn lint_block_blank_lines(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
 /// Check for multiple consecutive blank lines
 fn lint_consecutive_blank_lines(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) {
   let source = body.syntax().text();
-  let body_offset = body.syntax().offset();
+  let body_offset = body.syntax().start_offset();
 
   let mut consecutive_newlines = 0;
-  for (idx, ch) in source.char_indices() {
-    if ch == '\n' {
+  for (index, char) in source.char_indices() {
+    if char == '\n' {
       consecutive_newlines += 1;
       if consecutive_newlines == 3 {
         diagnostics.push(
           TdDiagnosticKind::ConsecutiveBlankLines {}
-            .into_warning(body_offset + idx, body_offset + idx + 1),
+            .into_warning(body_offset + index, body_offset + index + 1),
         );
       }
     } else {
@@ -437,10 +456,34 @@ Some text.
   }
 
   #[test]
+  fn blank_line_after_frontmatter_missing() {
+    let diags = lint(
+      r#"---
+---
+## Heading
+"#,
+    );
+    assert!(codes(&diags).contains(&"blank-line-after-frontmatter"));
+  }
+
+  #[test]
+  fn blank_line_after_frontmatter_present() {
+    let diags = lint(
+      r#"---
+---
+
+## Heading
+"#,
+    );
+    assert!(!codes(&diags).contains(&"blank-line-after-frontmatter"));
+  }
+
+  #[test]
   fn clean_file() {
     let diags = lint(
       r#"---
 ---
+
 ## Heading
 
 Some text.

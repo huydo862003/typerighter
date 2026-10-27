@@ -284,8 +284,8 @@ fn extract_theme_layout<'db>(
     };
 
     for key in keys {
-      if let Some(comp) = get_string_field(db, &slots_obj, &key) {
-        slots.insert(key, comp);
+      if let Some(value) = get_string_field(db, &slots_obj, &key) {
+        slots.insert(key, value);
       }
     }
   }

@@ -63,7 +63,7 @@ fn emit(
 ) {
   let len = node.text_len();
   if len > 0 {
-    out.push((node.offset(), len, token_typ, modifiers));
+    out.push((node.start_offset(), len, token_typ, modifiers));
   }
 }
 

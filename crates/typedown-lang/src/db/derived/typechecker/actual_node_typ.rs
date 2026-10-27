@@ -755,9 +755,11 @@ mod tests {
     let list = tags_typ
       .as_td_list_typ()
       .expect("tags should be a list type");
-    let elem = list.element(&db).expect("list should have elem");
-    let elem_typ = elem.resolve(&db).expect("elem should resolve");
-    let sum = elem_typ.as_td_sum_typ().expect("elem should be a sum type");
+    let element = list.element(&db).expect("list should have element");
+    let element_typ = element.resolve(&db).expect("element should resolve");
+    let sum = element_typ
+      .as_td_sum_typ()
+      .expect("element should be a sum type");
     let members = sum.members(&db);
     assert_eq!(members.len(), 2, "tags should have 2 arms");
     let has_a = members.iter().any(|member| {

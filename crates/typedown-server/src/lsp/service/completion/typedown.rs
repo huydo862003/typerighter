@@ -365,7 +365,7 @@ fn compute_fref_unquoted_arg_range(
   let arg_start_offset = call_node
     .children()
     .find(|child| child.text() == "(")
-    .map(|paren| paren.offset() + paren.text_len())?;
+    .map(|paren| paren.end_offset())?;
 
   // Only build a replace range if there's existing content before the cursor
   if cursor_offset <= arg_start_offset {
@@ -748,8 +748,8 @@ fn make_simple_typ_placeholder(db: &TypedownDatabase, typ: &TdTypEnum, indent: u
     TdTypEnum::TdListTyp(list) => {
       let inner = list
         .element(db)
-        .and_then(|elem| elem.resolve(db))
-        .map(|elem| make_simple_typ_placeholder(db, &elem, indent + 1))
+        .and_then(|element| element.resolve(db))
+        .map(|element| make_simple_typ_placeholder(db, &element, indent + 1))
         .unwrap_or_else(|| "value".to_string());
       let pad = "  ".repeat(indent);
 

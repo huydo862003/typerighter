@@ -74,7 +74,7 @@ fn build_fref_hint(
   let symbol = file_symbol(db, project, target_file).value(db)?;
   let label = get_resource_label(db, symbol)?;
 
-  let end_offset = call_node.offset() + call_node.text_len();
+  let end_offset = call_node.end_offset();
   let position = text_offset_to_lsp_position(rope, end_offset);
 
   Some(InlayHint {

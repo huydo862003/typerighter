@@ -93,7 +93,7 @@ impl Decodable for GreenNode {
 // RedNode
 impl Encodable for RedNode {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.offset().encode(buf, encoder);
+    self.start_offset().encode(buf, encoder);
     let root = self.root();
     (*root).encode(buf, encoder);
   }
