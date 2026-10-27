@@ -18,7 +18,7 @@ fi
 
 TESTS=("$@")
 if [ ${#TESTS[@]} -eq 0 ]; then
-  TESTS=(diagnostics completion definition hover)
+  TESTS=(diagnostics completion definition hover rename code-action render)
 fi
 
 EXIT_CODE=0

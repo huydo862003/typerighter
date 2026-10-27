@@ -11,7 +11,7 @@
 //! - File ends with exactly one newline
 
 use crate::syntax::ast::{
-  AstNode, MdBlockquote, MdBody, MdBulletList, MdBulletListItem, MdContainerBlock, MdOrderedList,
+  AstNode, MdBody, MdBulletList, MdBulletListItem, MdContainerBlock, MdOrderedList,
   MdOrderedListItem, MdTaskListItem,
 };
 use crate::syntax::red::RedNode;
@@ -56,8 +56,7 @@ fn format_block(out: &mut String, node: &RedNode, depth: usize) {
     SyntaxKind::MdHeading => format_heading(out, node, depth),
     SyntaxKind::MdBulletList => format_bullet_list(out, node, depth),
     SyntaxKind::MdOrderedList => format_ordered_list(out, node, depth),
-    // Blockquotes: pass through verbatim (inner text includes `>` prefix from source)
-    SyntaxKind::MdBlockquote => emit_source_lines(out, node, depth),
+    SyntaxKind::MdBlockquote => format_blockquote(out, node, depth),
     SyntaxKind::MdContainerBlock => format_container_block(out, node, depth),
     // Code and math blocks: preserve internal indentation verbatim, only add outer indent
     SyntaxKind::CodeBlock | SyntaxKind::MathBlock => emit_verbatim_block(out, node, depth),
@@ -122,26 +121,19 @@ fn format_heading(out: &mut String, node: &RedNode, depth: usize) {
     );
   }
 }
-
-/// Format a blockquote: recursively format inner block elements with `> ` prefix
+/// Format a blockquote: strip one level of `> ` prefix from source lines and re-emit with proper indent
 fn format_blockquote(out: &mut String, node: &RedNode, depth: usize) {
-  let Some(bq) = MdBlockquote::cast(node.clone()) else {
-    emit_source_lines(out, node, depth);
-    return;
-  };
-
   let indent = "  ".repeat(depth);
-  let blocks: Vec<_> = bq.block_elements().map(|b| b.syntax().clone()).collect();
-
-  // Format inner blocks to a temporary buffer, then prefix each line with "> "
-  let mut inner = String::new();
-  format_block_sequence(&mut inner, &blocks, 0);
-
-  for line in inner.lines() {
-    if line.is_empty() {
+  for line in node.text().lines() {
+    // Strip one level of blockquote marker
+    let inner = line
+      .strip_prefix("> ")
+      .or_else(|| line.strip_prefix('>'))
+      .unwrap_or(line);
+    if inner.trim().is_empty() {
       push_trimmed_line(out, &format!("{indent}>"));
     } else {
-      push_trimmed_line(out, &format!("{indent}> {line}"));
+      push_trimmed_line(out, &format!("{indent}> {inner}"));
     }
   }
 }

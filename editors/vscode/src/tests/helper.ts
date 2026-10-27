@@ -1,3 +1,10 @@
+import {
+  cpSync, mkdtempSync, readFileSync, rmSync, existsSync,
+} from 'node:fs';
+import {
+  tmpdir,
+} from 'node:os';
+import path from 'node:path';
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 
@@ -21,6 +28,13 @@ export async function activate (): Promise<void> {
 }
 
 /**
+ * Check if a file exists in a copied vault
+ */
+export function checkFileExists (directory: string, relativePath: string): boolean {
+  return existsSync(path.join(directory, relativePath));
+}
+
+/**
  * Close all open editors to prevent state leakage between tests
  */
 export async function closeAllEditors (): Promise<void> {
@@ -28,9 +42,40 @@ export async function closeAllEditors (): Promise<void> {
 }
 
 /**
+ * Copy a fixture vault to a temp directory for mutation tests.
+ * Returns the temp dir path and a cleanup function
+ */
+export function copyFixture (vault: string): {
+  dir: string;
+  cleanup: () => void;
+} {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+  if (!workspaceFolder) {
+    throw new Error('No workspace folder open');
+  }
+  // Resolve the fixture from the workspace's parent (fixtures are siblings of vaults)
+  const fixturesDirectory = path.resolve(workspaceFolder.uri.fsPath, '..');
+  const src = path.join(fixturesDirectory, vault);
+  const directory = mkdtempSync(path.join(tmpdir(), `typedown-test-${vault}-`));
+
+  cpSync(src, directory, {
+    recursive: true,
+  });
+
+  return {
+    dir: directory,
+    cleanup: () => rmSync(directory, {
+      recursive: true,
+      force: true,
+    }),
+  };
+}
+
+/**
  * Get the URI for a file in the current workspace
  */
-export function fileUri (relativePath: string): vscode.Uri {
+export function getFileUri (relativePath: string): vscode.Uri {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 
   if (!workspaceFolder) {
@@ -55,6 +100,13 @@ export async function openDocument (relativePath: string): Promise<vscode.TextDo
   await vscode.window.showTextDocument(document);
 
   return document;
+}
+
+/**
+ * Read a file from a copied vault
+ */
+export function readCopiedFile (directory: string, relativePath: string): string {
+  return readFileSync(path.join(directory, relativePath), 'utf-8');
 }
 
 export function sleep (ms: number): Promise<void> {

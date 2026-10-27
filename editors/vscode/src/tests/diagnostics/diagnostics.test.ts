@@ -5,7 +5,7 @@ import {
   DiagnosticSeverity,
 } from 'vscode';
 import {
-  activate, openDocument, waitForDiagnostics, waitForNoDiagnostics, closeAllEditors, fileUri,
+  activate, openDocument, waitForDiagnostics, waitForNoDiagnostics, closeAllEditors, getFileUri,
 } from '../helper';
 
 suite('Diagnostics', () => {
@@ -19,14 +19,14 @@ suite('Diagnostics', () => {
 
   test('valid file produces zero diagnostics', async () => {
     await openDocument('valid.td');
-    const diags = await waitForNoDiagnostics(fileUri('valid.td'));
+    const diags = await waitForNoDiagnostics(getFileUri('valid.td'));
 
     deepStrictEqual(diags, [], 'valid file should have exactly zero diagnostics');
   });
 
   test('unknown type produces error on the type name with correct code', async () => {
     await openDocument('unknown-type.td');
-    const diags = await waitForDiagnostics(fileUri('unknown-type.td'));
+    const diags = await waitForDiagnostics(getFileUri('unknown-type.td'));
 
     // Should have exactly one diagnostic: unresolved schema for "NonExistent"
     strictEqual(diags.length, 1, `expected exactly 1 diagnostic, got ${diags.length}: ${diags.map((diag) => diag.message).join('; ')}`);
@@ -42,7 +42,7 @@ suite('Diagnostics', () => {
 
   test('unknown field produces diagnostic on the field name', async () => {
     await openDocument('unknown-field.td');
-    const diags = await waitForDiagnostics(fileUri('unknown-field.td'));
+    const diags = await waitForDiagnostics(getFileUri('unknown-field.td'));
 
     // Should flag "nonexistent_field" as unknown
     ok(0 < diags.length, 'expected at least one diagnostic for unknown field');
@@ -58,7 +58,7 @@ suite('Diagnostics', () => {
   test('valid file does not produce false positives for known fields', async () => {
     // Ensure "name" and "age" (valid Person fields) do NOT trigger diagnostics
     await openDocument('valid.td');
-    const diags = await waitForNoDiagnostics(fileUri('valid.td'));
+    const diags = await waitForNoDiagnostics(getFileUri('valid.td'));
 
     const falsePositives = diags.filter((diag) =>
       diag.message.includes('name') || diag.message.includes('age'));

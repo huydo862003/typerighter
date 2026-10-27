@@ -63,7 +63,7 @@ export default defineConfig([
 	{
 		label: 'code-action',
 		files: 'out/tests/code-action/**/*.test.js',
-		workspaceFolder: './src/tests/fixtures/empty-vault',
+		workspaceFolder: './src/tests/fixtures/basic-vault',
 		...shared,
 	},
 	{

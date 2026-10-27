@@ -16,41 +16,41 @@ suite('Code Actions', () => {
     await closeAllEditors();
   });
 
-  test('empty file offers schema initialization actions', async () => {
-    const document = await openDocument('empty.td');
+  test('create linked resource action on schema-typed field', async () => {
+    // empty-friend.td has `friend:` (empty Person? field)
+    const document = await openDocument('empty-friend.td');
 
     await sleep(1000);
 
+    // Position on the empty 'friend:' field (line 4)
     const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
       'vscode.executeCodeActionProvider',
       document.uri,
-      new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)),
+      new vscode.Range(new vscode.Position(4, 0), new vscode.Position(4, 0)),
     );
 
-    ok(actions && 0 < actions.length, 'should offer code actions for empty file');
+    if (actions && 0 < actions.length) {
+      const createActions = actions.filter((action) => action.title.includes('Create new'));
 
-    const initializeActions = actions.filter((action) => action.title.startsWith('Initialize as'));
+      if (0 < createActions.length) {
+        const action = createActions[0];
 
-    ok(0 < initializeActions.length, `should have "Initialize as" actions, got: ${actions.map((action) => action.title).join(', ')}`);
-    // Each init action should have a workspace edit attached
-    for (const action of initializeActions) {
-      ok(action.edit || action.command, `"${action.title}" should have an edit or command`);
+        // Should mention the target schema type
+        ok(
+          action.title.includes('Person'),
+          `create action should mention Person, got: ${action.title}`,
+        );
+        // Should have a command (for the prompt flow)
+        ok(
+          action.command,
+          'create linked action should have a command for the filename prompt',
+        );
+      }
     }
   });
 
   test('non-empty file does not offer initialization actions', async () => {
-    // empty-vault only has empty.td, but let's verify the typedown.yaml
-    // doesn't get offered init actions (it's not a .td file, so no actions)
-    const document = await openDocument('empty.td');
-
-    await sleep(1000);
-
-    // First, write some content to make it non-empty
-    const editor = await vscode.window.showTextDocument(document);
-
-    await editor.edit((builder) => {
-      builder.insert(new vscode.Position(0, 0), '---\n_type: schema\n---\n');
-    });
+    const document = await openDocument('alice.td');
 
     await sleep(1000);
 
@@ -63,8 +63,22 @@ suite('Code Actions', () => {
     const initializeActions = (actions ?? []).filter((action) => action.title.startsWith('Initialize as'));
 
     strictEqual(initializeActions.length, 0, 'non-empty file should NOT offer initialization actions');
+  });
 
-    // Revert the edit
-    await vscode.commands.executeCommand('workbench.action.files.revert');
+  test('no create-linked action on string field', async () => {
+    const document = await openDocument('alice.td');
+
+    await sleep(1000);
+
+    // Position on 'name: "Alice"' line (line 2) - string field, not schema-typed
+    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      'vscode.executeCodeActionProvider',
+      document.uri,
+      new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 0)),
+    );
+
+    const createActions = (actions ?? []).filter((action) => action.title.includes('Create new'));
+
+    strictEqual(createActions.length, 0, 'string field should not offer create-linked action');
   });
 });

@@ -39,7 +39,7 @@ suite('Rename', () => {
     strictEqual(result.range.end.character, 13, 'range should end at character 13');
   });
 
-  test('rename "Person" to "Human" produces edits in referencing files', async () => {
+  test('rename "Person" to "Human" produces edits with correct new text', async () => {
     const document = await openDocument('alice.td');
 
     await sleep(1000);
@@ -56,6 +56,7 @@ suite('Rename', () => {
 
     const entries = edit.entries();
 
+    // Check affected files
     ok(
       entries.some(([uri]) => uri.fsPath.endsWith('alice.td')),
       'rename should include edits for alice.td',
@@ -64,6 +65,19 @@ suite('Rename', () => {
       entries.some(([uri]) => uri.fsPath.endsWith('refers-alice.td')),
       'rename should include edits for refers-alice.td',
     );
+
+    // Check that all text edits contain "Human" as the new text
+    for (const [
+      , edits,
+    ] of entries) {
+      for (const textEdit of edits) {
+        strictEqual(
+          (textEdit as vscode.TextEdit).newText,
+          'Human',
+          'every text edit should replace with "Human"',
+        );
+      }
+    }
   });
 
   test('prepare rename on plain string value returns null', async () => {
@@ -71,6 +85,7 @@ suite('Rename', () => {
 
     await sleep(1000);
 
+    // "Alice" at line 2, char 7 - plain string, not renameable
     try {
       const result = await vscode.commands.executeCommand(
         'vscode.executePrepareRenameProvider',
@@ -81,6 +96,25 @@ suite('Rename', () => {
       strictEqual(result, null, 'plain string value should not be renameable');
     } catch {
       // Some LSP clients throw when prepareRename returns null
+    }
+  });
+
+  test('prepare rename on number value returns null', async () => {
+    const document = await openDocument('alice.td');
+
+    await sleep(1000);
+
+    // 30 at line 3, char 5 - number, not renameable
+    try {
+      const result = await vscode.commands.executeCommand(
+        'vscode.executePrepareRenameProvider',
+        document.uri,
+        new vscode.Position(3, 5),
+      );
+
+      strictEqual(result, null, 'number value should not be renameable');
+    } catch {
+      // Expected
     }
   });
 });

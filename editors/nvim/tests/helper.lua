@@ -68,15 +68,81 @@ function M.lsp_request(method, params, timeout_ms)
   return result and result.result, nil
 end
 
---- Open a file from the fixtures directory
+--- Resolve fixtures directory path
+---@return string
+function M.fixtures_dir()
+  local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
+  return script_dir .. "fixtures/"
+end
+
+--- Open a file from the fixtures directory (read-only, shared)
 ---@param vault string vault name (e.g. "basic-vault")
 ---@param file string relative file path
 function M.open_fixture(vault, file)
-  local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-  local path = script_dir .. "fixtures/" .. vault .. "/" .. file
+  local path = M.fixtures_dir() .. vault .. "/" .. file
   vim.cmd("edit " .. vim.fn.fnameescape(path))
   -- Wait for filetype detection and LSP attach
   vim.wait(500, function() return false end, 50)
+end
+
+--- Copy a fixture vault to a temp directory for mutation tests
+--- Returns the temp dir path. The caller should clean up with rm_temp_vault().
+---@param vault string vault name (e.g. "rename-vault")
+---@return string temp_dir absolute path to the temp copy
+function M.copy_fixture(vault)
+  local src = M.fixtures_dir() .. vault
+  local temp_dir = vim.fn.tempname() .. "-" .. vault
+  vim.fn.mkdir(temp_dir, "p")
+  -- Recursive copy preserving structure
+  local function copy_recursive(from, to)
+    vim.fn.mkdir(to, "p")
+    local entries = vim.fn.readdir(from)
+    for _, name in ipairs(entries) do
+      local from_path = from .. "/" .. name
+      local to_path = to .. "/" .. name
+      if vim.fn.isdirectory(from_path) == 1 then
+        copy_recursive(from_path, to_path)
+      else
+        local content = vim.fn.readfile(from_path, "b")
+        vim.fn.writefile(content, to_path, "b")
+      end
+    end
+  end
+  copy_recursive(src, temp_dir)
+  return temp_dir
+end
+
+--- Open a file from a temp vault copy
+---@param temp_dir string path from copy_fixture()
+---@param file string relative file path
+function M.open_temp(temp_dir, file)
+  local path = temp_dir .. "/" .. file
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
+  vim.wait(500, function() return false end, 50)
+end
+
+--- Read file content from a temp vault
+---@param temp_dir string path from copy_fixture()
+---@param file string relative file path
+---@return string content
+function M.read_temp_file(temp_dir, file)
+  local path = temp_dir .. "/" .. file
+  local lines = vim.fn.readfile(path)
+  return table.concat(lines, "\n")
+end
+
+--- Check if a file exists in a temp vault
+---@param temp_dir string path from copy_fixture()
+---@param file string relative file path
+---@return boolean
+function M.temp_file_exists(temp_dir, file)
+  return vim.fn.filereadable(temp_dir .. "/" .. file) == 1
+end
+
+--- Remove a temp vault copy
+---@param temp_dir string path from copy_fixture()
+function M.rm_temp_vault(temp_dir)
+  vim.fn.delete(temp_dir, "rf")
 end
 
 --- Assert helper
