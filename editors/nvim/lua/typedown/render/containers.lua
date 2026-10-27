@@ -19,16 +19,24 @@ local CONTAINER_STYLES = {
 
 local DEFAULT_STYLE = { icon = "󰅩", hl = "TypedownRenderContainerDefault" }
 
-local QUERY = vim.treesitter.query.parse("typedown_md", [[
-  (container_block) @container
-]])
+local query
+
+local function get_query()
+  if not query then
+    query = vim.treesitter.query.parse("typedown_md", [[
+      (container_block) @container
+    ]])
+  end
+  return query
+end
 
 function M.render(buf, md_tree)
   local ns = state.get_namespace(M.name)
   state.clear(buf, M.name)
   local cursor_line = state.get_cursor_line(buf)
 
-  for _, node in QUERY:iter_captures(md_tree:root(), buf) do
+  local q = get_query()
+  for _, node in q:iter_captures(md_tree:root(), buf) do
     M.render_container(buf, ns, node, cursor_line)
   end
 end

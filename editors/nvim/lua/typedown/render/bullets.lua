@@ -6,14 +6,21 @@ M.name = "bullets"
 
 local BULLET_ICONS = { "●", "○", "◆", "◇", "■", "□" }
 
-local QUERY = vim.treesitter.query.parse("typedown_md", [[
-  (list_marker_minus) @marker
-  (list_marker_star)  @marker
-  (list_marker_dot)   @marker
-]])
+local query
 
--- Count enclosing bullet_list/ordered_list ancestors for nesting depth
--- Top-level markers sit inside one list node so depth = count - 1
+local function get_query()
+  if not query then
+    query = vim.treesitter.query.parse("typedown_md", [[
+      (list_marker_minus) @marker
+      (list_marker_star)  @marker
+      (list_marker_dot)   @marker
+    ]])
+  end
+  return query
+end
+
+-- Count enclosing bullet_list/ordered_list ancestors for nesting depth.
+-- Top-level markers sit inside one list node so depth = count - 1.
 local function list_depth(node)
   local count = 0
   local parent = node:parent()
@@ -30,24 +37,23 @@ function M.render(buf, md_tree)
   state.clear(buf, M.name)
   local cursor_line = state.get_cursor_line(buf)
 
-  for _, node in QUERY:iter_captures(md_tree:root(), buf) do
+  local q = get_query()
+  for _, node in q:iter_captures(md_tree:root(), buf) do
     local row, col, _, end_col = node:range()
-    if row == cursor_line then goto continue end
+    if row ~= cursor_line then
+      local depth = list_depth(node)
+      local icon  = BULLET_ICONS[(depth % #BULLET_ICONS) + 1]
 
-    local depth = list_depth(node)
-    local icon  = BULLET_ICONS[(depth % #BULLET_ICONS) + 1]
-
-    vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-      end_col = end_col,
-      conceal = "",
-    })
-    vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-      virt_text     = { { icon, "TypedownRenderBullet" } },
-      virt_text_pos = "inline",
-      priority      = 110,
-    })
-
-    ::continue::
+      vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+        end_col = end_col,
+        conceal = "",
+      })
+      vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+        virt_text     = { { icon, "TypedownRenderBullet" } },
+        virt_text_pos = "inline",
+        priority      = 110,
+      })
+    end
   end
 end
 

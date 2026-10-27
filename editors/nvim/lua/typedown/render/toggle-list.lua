@@ -10,14 +10,26 @@ local CLOSED_ICON = ""
 -- Track folded toggle items: buf -> { [start_row] = true }
 local folded = {}
 
-local QUERY = vim.treesitter.query.parse("typedown_md", [[
-  (toggle_list_item
-    (toggle_list_marker) @marker) @item
-]])
+local query, find_query
 
-local FIND_QUERY = vim.treesitter.query.parse("typedown_md", [[
-  (toggle_list_item) @item
-]])
+local function get_query()
+  if not query then
+    query = vim.treesitter.query.parse("typedown_md", [[
+      (toggle_list_item
+        (toggle_list_marker) @marker) @item
+    ]])
+  end
+  return query
+end
+
+local function get_find_query()
+  if not find_query then
+    find_query = vim.treesitter.query.parse("typedown_md", [[
+      (toggle_list_item) @item
+    ]])
+  end
+  return find_query
+end
 
 function M.render(buf, md_tree)
   local ns = state.get_namespace(M.name)
@@ -26,8 +38,9 @@ function M.render(buf, md_tree)
 
   if not folded[buf] then folded[buf] = {} end
 
-  for id, node in QUERY:iter_captures(md_tree:root(), buf) do
-    if QUERY.captures[id] == "item" then
+  local q = get_query()
+  for id, node in q:iter_captures(md_tree:root(), buf) do
+    if q.captures[id] == "item" then
       M.render_item(buf, ns, node, cursor_line)
     end
   end
@@ -82,18 +95,17 @@ function M.toggle()
 
   if not folded[buf] then folded[buf] = {} end
 
+  local fq = get_find_query()
   for _, tree in ipairs(state.get_md_trees(buf)) do
-    for id, node in FIND_QUERY:iter_captures(tree:root(), buf) do
-      if FIND_QUERY.captures[id] ~= "item" then goto next end
-
-      local start_row, _, end_row = node:range()
-      if line >= start_row and line < end_row then
-        folded[buf][start_row] = not folded[buf][start_row]
-        require("typedown.render").render_buf(buf)
-        return
+    for id, node in fq:iter_captures(tree:root(), buf) do
+      if fq.captures[id] == "item" then
+        local start_row, _, end_row = node:range()
+        if line >= start_row and line < end_row then
+          folded[buf][start_row] = not folded[buf][start_row]
+          require("typedown.render").render_buf(buf)
+          return
+        end
       end
-
-      ::next::
     end
   end
 end

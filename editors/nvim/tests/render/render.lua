@@ -186,6 +186,12 @@ h.test("anti-conceal: insert mode sets special cursor value", function()
 end)
 
 h.test("attach sets conceallevel=2 on current window", function()
+  local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_md")
+  if not lang_ok then
+    io.write("  (skipped: typedown_md parser not available)\n")
+    return
+  end
+
   vim.cmd("enew")
   vim.bo.filetype = "typedown"
   local buf = vim.api.nvim_get_current_buf()
@@ -200,6 +206,12 @@ h.test("attach sets conceallevel=2 on current window", function()
 end)
 
 h.test("container: both opening and closing ::: are concealed", function()
+  local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_md")
+  if not lang_ok then
+    io.write("  (skipped: typedown_md parser not available)\n")
+    return
+  end
+
   vim.cmd("enew")
   vim.bo.filetype = "typedown"
   local buf = vim.api.nvim_get_current_buf()
@@ -239,6 +251,11 @@ h.test("container: both opening and closing ::: are concealed", function()
 end)
 
 h.test("typedown_yaml highlights query loads without errors", function()
+  local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_yaml")
+  if not lang_ok then
+    io.write("  (skipped: typedown_yaml parser not available)\n")
+    return
+  end
   local ok, err = pcall(vim.treesitter.query.get, "typedown_yaml", "highlights")
   h.assert(ok, "typedown_yaml highlights query should load without errors: " .. tostring(err))
 end)
