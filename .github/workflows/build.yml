@@ -157,7 +157,10 @@ jobs:
 
       - name: Run VSCode tests
         working-directory: editors/vscode
-        run: xvfb-run -a pnpm run test
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a pnpm run test 2>&1 | grep -v "dbus\|object_proxy\|NameHasOwner\|Unknown address type\|Unknown channel:\|agentHostClient\|GL_RENDERER\|GL_VERSION\|GL_SHADING_LANGUAGE_VERSION\|\[ERROR:gl_surface"
 
   build-zed:
     name: Build Zed Extension

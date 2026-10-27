@@ -19,7 +19,7 @@ const vscodeExecutablePath = detectVscodeExecutable();
 
 const shared = {
 	mocha: { ui: 'tdd', timeout: 15000 },
-	launchArgs: ['--disable-extensions', '--log=off', '--disable-gpu'],
+	launchArgs: ['--disable-extensions', '--disable-gpu'],
 	...(vscodeExecutablePath ? { useInstallation: { fromPath: vscodeExecutablePath } } : {}),
 };
 
