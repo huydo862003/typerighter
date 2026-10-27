@@ -121,12 +121,11 @@ impl<'db> Decodable for FuncKind<'db> {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-
   use super::*;
   use crate::db::QueryStorage;
   use crate::db::fixtures::make_number_obj;
+  use std::collections::HashMap;
+  use std::path::PathBuf;
 
   fn make_db() -> (TypedownDatabase, Project) {
     let db = TypedownDatabase {

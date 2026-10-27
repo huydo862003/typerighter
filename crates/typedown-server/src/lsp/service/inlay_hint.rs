@@ -74,7 +74,7 @@ fn build_fref_hint(
   let symbol = file_symbol(db, project, target_file).value(db)?;
   let label = get_resource_label(db, symbol)?;
 
-  let end_offset = call_node.offset() + call_node.text_len();
+  let end_offset = call_node.end_offset();
   let position = text_offset_to_lsp_position(rope, end_offset);
 
   Some(InlayHint {
@@ -91,18 +91,15 @@ fn build_fref_hint(
 
 #[cfg(test)]
 mod tests {
+  use super::resolve_inlay_hints;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
+  use lsp_types::{InlayHintParams, Range, TextDocumentIdentifier, WorkDoneProgressParams};
   use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
-
-  use lsp_types::{InlayHintParams, Range, TextDocumentIdentifier, WorkDoneProgressParams};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
-
-  use super::resolve_inlay_hints;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

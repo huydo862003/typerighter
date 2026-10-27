@@ -95,15 +95,9 @@ pub fn evaluate_resource<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> Reso
 
 #[cfg(test)]
 mod tests {
-  #[cfg(feature = "export")]
-  use crate::integrations::export::export_resource_markdown;
-  use std::path::PathBuf;
-
   use crate::db::types::{
     AssetKind, File, FileHandle, FileMetadata, Project, Symbol, SymbolKind, TdObjEnum, TdRuntimeObj,
   };
-  use crate::syntax::diagnostic::*;
-
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::evaluate::evaluate_node::evaluate_node,
@@ -114,6 +108,10 @@ mod tests {
     derived::typechecker::typecheck::typecheck,
     fixtures::{load_vault_fixture, make_blob_obj},
   };
+  #[cfg(feature = "export")]
+  use crate::integrations::export::export_resource_markdown;
+  use crate::syntax::diagnostic::*;
+  use std::path::PathBuf;
 
   // A valid resource with _type produces an object with the declared fields
   #[test]

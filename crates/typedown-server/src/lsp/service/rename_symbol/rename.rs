@@ -117,21 +117,19 @@ fn compute_ident_target(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-  use std::sync::{Arc, Condvar, Mutex};
-
+  use super::rename;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
   use lsp_types::{
     DocumentChangeOperation, DocumentChanges, Position, RenameParams, ResourceOp,
     TextDocumentIdentifier, TextDocumentPositionParams,
   };
   use ropey::Rope;
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use super::rename;
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
 
   const VAULT_CONFIG: &str = r#"
 version: "1"
@@ -280,7 +278,10 @@ age: 30
       }
     }
     lines.sort();
-    lines.join("\n")
+    lines.join(
+      r"
+",
+    )
   }
 
   // Rename an identifier in _type position
@@ -303,20 +304,23 @@ name: Alice
     assert_eq!(
       snapshot.matches("EDIT").count(),
       2,
-      "should have 2 text edits:\n{}",
+      r"should have 2 text edits:
+{}",
       snapshot
     );
     assert!(
       snapshot
         .lines()
         .filter(|line| line.starts_with("EDIT"))
-        .all(|line| line.contains("\"Human\"")),
-      "all text edits should rename to Human:\n{}",
+        .all(|line| line.contains(r#""Human""#)),
+      r"all text edits should rename to Human:
+{}",
       snapshot
     );
     assert!(
       snapshot.contains("Human.td"),
-      "file rename should use Human.td:\n{}",
+      r"file rename should use Human.td:
+{}",
       snapshot
     );
   }
@@ -338,17 +342,20 @@ friend: fref("|alice.td")
 
     assert!(
       snapshot.contains("EDIT"),
-      "should have text edits:\n{}",
+      r"should have text edits:
+{}",
       snapshot
     );
     assert!(
       snapshot.contains("RENAME"),
-      "should have file rename:\n{}",
+      r"should have file rename:
+{}",
       snapshot
     );
     assert!(
       snapshot.contains("bob"),
-      "edits should reference new name:\n{}",
+      r"edits should reference new name:
+{}",
       snapshot
     );
   }
@@ -399,8 +406,9 @@ name: Alice
     let edit = rename(&analysis, make_params(uri, &raw, offset, "Human")).expect("first rename");
     let snapshot = get_snapshot(&edit);
     assert!(
-      snapshot.contains("\"Human\""),
-      "first rename:\n{}",
+      snapshot.contains(r#""Human""#),
+      r"first rename:
+{}",
       snapshot
     );
 
@@ -464,13 +472,15 @@ name: Alice
       rename(&analysis2, make_params(uri2, &raw2, offset2, "Person")).expect("second rename");
     let snapshot2 = get_snapshot(&edit2);
     assert!(
-      snapshot2.contains("\"Person\""),
-      "second rename:\n{}",
+      snapshot2.contains(r#""Person""#),
+      r"second rename:
+{}",
       snapshot2
     );
     assert!(
       snapshot2.contains("Person.td"),
-      "should rename back to Person.td:\n{}",
+      r"should rename back to Person.td:
+{}",
       snapshot2
     );
   }

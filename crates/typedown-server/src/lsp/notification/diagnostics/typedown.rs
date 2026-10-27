@@ -216,16 +216,13 @@ fn lint_diag_to_lsp(lint: &TdDiagnostic, rope: &Rope) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+  use super::publish_diagnostics_for_project;
+  use crate::core::analysis::Analysis;
   use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
-
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use crate::core::analysis::Analysis;
-
-  use super::publish_diagnostics_for_project;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
@@ -441,7 +438,9 @@ age: 30
       &db,
       FileHandle::Content(
         root.join("typedown.yaml"),
-        "version: 42\n".to_string(),
+        r"version: 42
+"
+        .to_string(),
         FileMetadata::default(),
       ),
     );
@@ -522,7 +521,9 @@ age: 30
   #[test]
   fn unknown_component_produces_diagnostic() {
     let analysis = setup_with_contract(
-      ":::my-widget\n:::\n",
+      r#":::my-widget
+:::
+"#,
       r#"{"KnownWidget":{"source":"./KnownWidget.vue","props":{}}}"#,
     );
     let notifications = publish_diagnostics_for_project(&analysis);

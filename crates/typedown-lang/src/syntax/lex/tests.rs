@@ -151,7 +151,10 @@ fn yaml_string_with_escape() {
 
 #[test]
 fn yaml_unterminated_string() {
-  let tokens = lex_yaml("\"hello\n");
+  let tokens = lex_yaml(
+    r#""hello
+"#,
+  );
   assert_eq!(tokens[0], (SyntaxKind::YamlIndent, "".to_string()));
   assert_eq!(tokens[1], (SyntaxKind::DqStrStart, "\"".to_string()));
   assert_eq!(tokens[2].0, SyntaxKind::Error);
@@ -406,7 +409,13 @@ $$",
   assert_eq!(tokens.len(), 2); // MathBlock + Eof
   assert_eq!(
     tokens[0],
-    (SyntaxKind::MathBlock, "$$\nx + y\n$$".to_string())
+    (
+      SyntaxKind::MathBlock,
+      r#"$$
+x + y
+$$"#
+        .to_string()
+    )
   );
 }
 
@@ -420,7 +429,13 @@ $$$",
   assert_eq!(tokens.len(), 2);
   assert_eq!(
     tokens[0],
-    (SyntaxKind::MathBlock, "$$$\nx + y\n$$$".to_string())
+    (
+      SyntaxKind::MathBlock,
+      r#"$$$
+x + y
+$$$"#
+        .to_string()
+    )
   );
 }
 
@@ -551,19 +566,30 @@ fn md_empty_dq_string() {
 
 #[test]
 fn md_code_block_with_line_ranges() {
-  let tokens = lex_markdown("```js{1,3,5-8}\ncode\n```");
+  let tokens = lex_markdown(
+    r#"```js{1,3,5-8}
+code
+```"#,
+  );
   assert_eq!(
     tokens[0],
     (
       SyntaxKind::CodeBlock,
-      "```js{1,3,5-8}\ncode\n```".to_string()
+      r#"```js{1,3,5-8}
+code
+```"#
+        .to_string()
     )
   );
 }
 
 #[test]
 fn md_code_block_with_ranges_no_diagnostics() {
-  let (_, diagnostics) = lex_markdown_with_diagnostics("```js{1,3}\ncode\n```");
+  let (_, diagnostics) = lex_markdown_with_diagnostics(
+    r#"```js{1,3}
+code
+```"#,
+  );
   assert!(
     diagnostics.is_empty(),
     "valid range should have no diagnostics: {diagnostics:?}"

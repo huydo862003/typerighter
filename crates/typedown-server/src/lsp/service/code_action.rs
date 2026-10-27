@@ -269,21 +269,21 @@ fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, Stri
 // Generate a default value string for a schema field type
 fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
   let Some(typ) = lazy.resolve(db) else {
-    return "\"\"".to_string();
+    return r#""""#.to_string();
   };
   match typ {
     TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
-      LitValue::String(s) => format!("\"{s}\""),
-      _ => "\"\"".to_string(),
+      LitValue::String(s) => format!(r#""{s}""#),
+      _ => r#""""#.to_string(),
     },
-    TdTypEnum::TdStringTyp(_) => "\"\"".to_string(),
+    TdTypEnum::TdStringTyp(_) => r#""""#.to_string(),
     TdTypEnum::TdNumberTyp(_) => "0".to_string(),
     TdTypEnum::TdBoolTyp(_) => "false".to_string(),
-    TdTypEnum::TdDateTyp(_) => "\"\"".to_string(),
-    TdTypEnum::TdDateTimeTyp(_) => "\"\"".to_string(),
-    TdTypEnum::TdTimeTyp(_) => "\"\"".to_string(),
+    TdTypEnum::TdDateTyp(_) => r#""""#.to_string(),
+    TdTypEnum::TdDateTimeTyp(_) => r#""""#.to_string(),
+    TdTypEnum::TdTimeTyp(_) => r#""""#.to_string(),
     TdTypEnum::TdSchemaTyp(schema) => {
-      format!("fref(\"{}\")", schema.name(db))
+      format!(r#"fref("{}")"#, schema.name(db))
     }
     TdTypEnum::TdListTyp(_) => "[]".to_string(),
 
@@ -313,26 +313,23 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
           }
           None
         })
-        .unwrap_or_else(|| "\"\"".to_string())
+        .unwrap_or_else(|| r#""""#.to_string())
     }
-    _ => "\"\"".to_string(),
+    _ => r#""""#.to_string(),
   }
 }
 
 #[cfg(test)]
 mod tests {
+  use super::resolve_code_action as code_action;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
+  use lsp_types::{CodeActionContext, CodeActionParams, Position, Range, TextDocumentIdentifier};
   use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::{Arc, Condvar, Mutex};
-
-  use lsp_types::{CodeActionContext, CodeActionParams, Position, Range, TextDocumentIdentifier};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
-
-  use super::resolve_code_action as code_action;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
@@ -467,7 +464,11 @@ properties:
 
   #[test]
   fn offers_schema_actions_for_empty_file() {
-    let (analysis, uri) = setup("---\n---\n");
+    let (analysis, uri) = setup(
+      r#"---
+---
+"#,
+    );
     let params = make_params(uri);
     let response = code_action(&analysis, params).expect("should return actions");
 
@@ -630,11 +631,11 @@ title: "hello"
     assert!(text.contains("title:"), "should contain title: {text}");
     assert!(text.contains("status:"), "should contain status: {text}");
     assert!(
-      text.contains("\"done\"") || text.contains("\"todo\""),
+      text.contains(r#""done""#) || text.contains(r#""todo""#),
       "enum should default to first option: {text}"
     );
     assert!(
-      text.contains("assignee: fref(\"Person\")"),
+      text.contains(r#"assignee: fref("Person")"#),
       "relation should use fref: {text}"
     );
   }

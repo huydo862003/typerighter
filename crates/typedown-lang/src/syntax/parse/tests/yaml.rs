@@ -2,7 +2,13 @@ use super::helpers::*;
 use crate::syntax::diagnostic::*;
 
 fn parse_frontmatter(input: &str) -> String {
-  let full = format!("---\n{}\n---\n", input);
+  let full = format!(
+    r#"---
+{}
+---
+"#,
+    input
+  );
   let (ast, _) = parse(&full);
   let root = ast.as_node().unwrap();
   let frontmatter = &root.children()[0];
@@ -10,7 +16,13 @@ fn parse_frontmatter(input: &str) -> String {
 }
 
 fn parse_frontmatter_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
-  let full = format!("---\n{}\n---\n", input);
+  let full = format!(
+    r#"---
+{}
+---
+"#,
+    input
+  );
   let (ast, diagnostics) = parse(&full);
   let root = ast.as_node().unwrap();
   let frontmatter = &root.children()[0];
@@ -535,7 +547,10 @@ fn multi_entry_inline_mapping() {
 #[test]
 fn inline_nested_sequence_multi_items() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"items:
   - - 1
     - 2
@@ -551,7 +566,10 @@ fn inline_nested_sequence_multi_items() {
 #[test]
 fn multi_key_mixed_seq_and_map() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"users:
   - name: alice
     tags:
@@ -580,7 +598,10 @@ extra:
 #[test]
 fn seq_alternating_list_and_map() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"data:
   - - 10
     - 20
@@ -685,7 +706,10 @@ fn seq_alternating_list_and_map() {
 #[test]
 fn triple_nested_sequence() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"matrix:
   - - - 1
       - 2
@@ -703,7 +727,10 @@ fn triple_nested_sequence() {
 #[test]
 fn map_of_seq_of_map_of_seq() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"teams:
   - members:
       - alice
@@ -845,7 +872,10 @@ settings:
 #[test]
 fn inline_seq_first_map_then_list() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"mixed:
   - a: 1
     b: 2
@@ -936,7 +966,10 @@ fn inline_seq_first_map_then_list() {
 #[test]
 fn seq_mixed_single_and_multi_inner() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"values:
   - - 1
   - - 2
@@ -952,7 +985,10 @@ fn seq_mixed_single_and_multi_inner() {
 #[test]
 fn seq_with_folded_block_string() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"key:
   - >
     hello
@@ -969,7 +1005,10 @@ fn seq_with_folded_block_string() {
 #[test]
 fn seq_with_literal_block_string() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"key:
   - |
     line1
@@ -986,7 +1025,10 @@ fn seq_with_literal_block_string() {
 #[test]
 fn mapping_with_folded_block_string() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"desc: >
   this is
   folded
@@ -1002,7 +1044,10 @@ title: hello"#
 #[test]
 fn mapping_with_literal_block_string() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"desc: |
   line one
   line two
@@ -1018,7 +1063,10 @@ title: hello"#
 #[test]
 fn complex_mixed_block_strings_and_nesting() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"items:
   - name: alice
     bio: >
@@ -1042,7 +1090,10 @@ settings:
 #[test]
 fn deep_nested_with_block_string() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"outer:
   - inner:
       desc: >
@@ -1059,7 +1110,10 @@ fn deep_nested_with_block_string() {
 #[test]
 fn seq_empty_dash_then_nested() {
   let full = format!(
-    "---\n{}\n---\n",
+    r#"---
+{}
+---
+"#,
     r#"matrix:
   -
     - 1
@@ -1141,7 +1195,10 @@ fn document_empty() {
 
 #[test]
 fn document_simple_mapping() {
-  let (tree, diags) = parse_document_with_diagnostics("key: value\n");
+  let (tree, diags) = parse_document_with_diagnostics(
+    r"key: value
+",
+  );
   assert!(diags.is_empty(), "unexpected diagnostics: {diags:?}");
   assert!(
     tree.contains("YamlMapping"),

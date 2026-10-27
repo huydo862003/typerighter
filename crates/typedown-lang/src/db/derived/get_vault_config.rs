@@ -284,8 +284,8 @@ fn extract_theme_layout<'db>(
     };
 
     for key in keys {
-      if let Some(comp) = get_string_field(db, &slots_obj, &key) {
-        slots.insert(key, comp);
+      if let Some(value) = get_string_field(db, &slots_obj, &key) {
+        slots.insert(key, value);
       }
     }
   }
@@ -330,9 +330,8 @@ fn normalize_base_path(raw: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-  use crate::db::fixtures::load_vault_fixture;
-
   use super::*;
+  use crate::db::fixtures::load_vault_fixture;
 
   #[test]
   fn extracts_nav_items() {

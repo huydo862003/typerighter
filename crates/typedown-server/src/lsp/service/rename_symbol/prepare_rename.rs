@@ -27,20 +27,18 @@ pub fn prepare_rename(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-  use std::sync::{Arc, Condvar, Mutex};
-
+  use super::prepare_rename;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
   use lsp_types::{
     Position, PrepareRenameResponse, TextDocumentIdentifier, TextDocumentPositionParams,
   };
   use ropey::Rope;
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use super::prepare_rename;
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
 
   const VAULT_CONFIG: &str = r#"
 version: "1"

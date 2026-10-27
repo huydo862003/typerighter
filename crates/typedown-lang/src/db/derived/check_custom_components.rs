@@ -145,16 +145,15 @@ mod tests {
   use super::*;
   use crate::db::types::CustomComponentProp;
   use crate::syntax::ast::{AstNode, MdContainerBlock, MdContainerShorthand};
+  use crate::syntax::green::cache::Cache;
+  use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
   use crate::syntax::red::RedNode;
   use crate::syntax::syntax_kind::SyntaxKind;
+  use std::cell::RefCell;
+  use std::rc::Rc;
+  use typedown_types::string_stream::StringStream;
 
   fn parse_body(input: &str) -> RedNode {
-    use crate::syntax::green::cache::Cache;
-    use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use typedown_types::string_stream::StringStream;
-
     let full = format!("---\n---\n{}", input);
     let stream = StringStream::new(&full);
     let cache = Rc::new(RefCell::new(Cache::new()));
