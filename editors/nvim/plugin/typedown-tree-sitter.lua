@@ -64,8 +64,11 @@ local binaries = resolve_tree_sitter_binaries()
 
 if binaries then
   for parser_name, binary_path in pairs(binaries) do
-    vim.treesitter.language.add(parser_name, { path = binary_path })
+    local ok, err = pcall(vim.treesitter.language.add, parser_name, { path = binary_path })
+    if not ok then
+      vim.notify("[typedown] Failed to load parser " .. parser_name .. ": " .. tostring(err), vim.log.levels.WARN)
+    end
   end
 
-  vim.treesitter.language.register('typedown', 'typedown')
+  pcall(vim.treesitter.language.register, 'typedown', 'typedown')
 end

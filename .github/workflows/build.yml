@@ -114,6 +114,20 @@ jobs:
       - name: Build LSP binary
         run: cargo build --locked -p typedown-server
 
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Build tree-sitter parsers
+        working-directory: packages/tree-sitter
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run generate
+          pnpm run build:so
+
       - name: Install Neovim
         uses: rhysd/action-setup-vim@8e931b9954b19d4203d5caa5ff5521f3bc21dcc7 # v1.4.2
         with:

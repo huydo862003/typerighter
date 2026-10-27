@@ -19,7 +19,7 @@ h.test("checkbox toggle: unchecked to checked", function()
   h.assert_eq(line, "- [x] buy groceries", "should toggle [ ] to [x] and preserve text")
 end)
 
-h.test("checkbox toggle: checked to unchecked", function()
+h.test("checkbox toggle: checked to cancelled", function()
   vim.cmd("enew")
   vim.bo.filetype = "typedown"
   local buf = vim.api.nvim_get_current_buf()
@@ -32,10 +32,10 @@ h.test("checkbox toggle: checked to unchecked", function()
   vim.api.nvim_win_set_cursor(0, { 3, 0 })
   require("typedown.render.checkboxes").toggle()
   local line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
-  h.assert_eq(line, "- [ ] done task", "should toggle [x] to [ ] and preserve text")
+  h.assert_eq(line, "- [~] done task", "should toggle [x] to [~] (next in cycle)")
 end)
 
-h.test("checkbox toggle: no-op on line without checkbox", function()
+h.test("checkbox toggle: converts plain list item to checkbox", function()
   vim.cmd("enew")
   vim.bo.filetype = "typedown"
   local buf = vim.api.nvim_get_current_buf()
@@ -48,10 +48,10 @@ h.test("checkbox toggle: no-op on line without checkbox", function()
   vim.api.nvim_win_set_cursor(0, { 3, 0 })
   require("typedown.render.checkboxes").toggle()
   local line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
-  h.assert_eq(line, "- plain item", "should not modify line without checkbox")
+  h.assert_eq(line, "- [ ] plain item", "should convert plain list item to checkbox")
 end)
 
-h.test("checkbox toggle: round-trip preserves line", function()
+h.test("checkbox toggle: full cycle returns to unchecked", function()
   vim.cmd("enew")
   vim.bo.filetype = "typedown"
   local buf = vim.api.nvim_get_current_buf()
@@ -63,10 +63,11 @@ h.test("checkbox toggle: round-trip preserves line", function()
   local original = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
 
   vim.api.nvim_win_set_cursor(0, { 3, 0 })
-  require("typedown.render.checkboxes").toggle()
-  require("typedown.render.checkboxes").toggle()
+  local checkboxes = require("typedown.render.checkboxes")
+  -- 5 toggles: [ ] -> [x] -> [~] -> [>] -> [!] -> [ ]
+  for _ = 1, 5 do checkboxes.toggle() end
   local after = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
-  h.assert_eq(after, original, "round-trip toggle should restore original line")
+  h.assert_eq(after, original, "full cycle (5 toggles) should restore original line")
 end)
 
 h.test("highlight groups have correct attributes", function()
@@ -118,6 +119,8 @@ h.test("all highlight groups are defined", function()
     "TypedownRenderCheckboxImportant",
     "TypedownRenderFrefIcon",
     "TypedownRenderFrefText",
+    "TypedownRenderFrontmatterRule",
+    "TypedownRenderFrontmatterContent",
     "TypedownRenderBullet",
     "TypedownRenderToggleOpen",
     "TypedownRenderToggleClosed",
@@ -210,12 +213,13 @@ h.test("container: both opening and closing ::: are rendered", function()
   -- Move cursor away from both delimiters
   vim.api.nvim_win_set_cursor(0, { 4, 0 })
 
-  -- Wait for tree-sitter parse
-  vim.wait(200, function() return false end, 10)
+  -- Set cursor line in state so is_hidden works correctly
+  local render_state = require("typedown.render.state")
+  render_state.set_cursor_line(buf, 3) -- 0-indexed line 3 = row 4
 
+  -- Render directly (attach defers, which doesn't work in headless)
   local render = require("typedown.render.init")
-  render.attach(buf)
-  vim.wait(200, function() return false end, 10)
+  render.render_buf(buf)
 
   local ns = require("typedown.render.state").get_namespace("containers")
   local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
@@ -310,21 +314,6 @@ h.test("multi-state checkbox toggle cycles through states", function()
   checkboxes.toggle()
   line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
   h.assert_eq(line, "- [ ] unchecked", "fifth toggle: [!] -> [ ] (full cycle)")
-end)
-
-h.test("checkbox toggle converts plain list item to checkbox", function()
-  vim.cmd("enew")
-  vim.bo.filetype = "typedown"
-  local buf = vim.api.nvim_get_current_buf()
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
-    "---", "---",
-    "- plain item",
-  })
-
-  vim.api.nvim_win_set_cursor(0, { 3, 0 })
-  require("typedown.render.checkboxes").toggle()
-  local line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
-  h.assert_eq(line, "- [ ] plain item", "plain list item should become checkbox")
 end)
 
 h.test("state: is_hidden respects anti-conceal range", function()
