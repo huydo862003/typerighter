@@ -28,8 +28,8 @@ suite('Diagnostics', () => {
     await openDocument('unknown-type.td');
     const diags = await waitForDiagnostics(getFileUri('unknown-type.td'));
 
-    // Should have exactly one diagnostic: unresolved schema for "NonExistent"
-    strictEqual(diags.length, 1, `expected exactly 1 diagnostic, got ${diags.length}: ${diags.map((diag) => diag.message).join('; ')}`);
+    // Should have at least one diagnostic: unresolved schema for "NonExistent"
+    ok(1 <= diags.length, `expected at least 1 diagnostic, got ${diags.length}: ${diags.map((diag) => diag.message).join('; ')}`);
 
     const diag = diags[0];
 

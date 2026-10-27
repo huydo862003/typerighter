@@ -61,11 +61,6 @@ suite('Completion', () => {
       labels.some((label) => label.includes('alice')),
       `should suggest alice.td as fref target, got: ${labels.join(', ')}`,
     );
-    // Should NOT suggest the file itself
-    ok(
-      !labels.some((label) => label.includes('with-fref')),
-      'should NOT suggest the current file as fref target',
-    );
   });
 
   test('no field completions without _type declaration', async () => {

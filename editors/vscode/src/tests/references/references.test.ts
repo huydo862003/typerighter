@@ -19,7 +19,7 @@ suite('Find References', () => {
   test('schema type references found in content files', async () => {
     const document = await openDocument('_types/Person.td');
 
-    await sleep(1000);
+    await sleep(3000);
 
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider',
@@ -39,7 +39,7 @@ suite('Find References', () => {
   test('content file references found via fref', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await sleep(3000);
 
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider',

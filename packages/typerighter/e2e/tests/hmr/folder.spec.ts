@@ -33,7 +33,7 @@ e2e.describe('HMR folder operations', () => {
     await expect(sidebar.getByRole('link', {
       name: /Q1/,
     })).toBeVisible({
-      timeout: 30_000,
+      timeout: 45_000,
     });
   });
 

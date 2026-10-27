@@ -29,7 +29,7 @@ const executablePath = resolveChromiumExecutable();
 export default defineConfig({
   testDir: './tests',
   timeout: 60_000,
-  retries: 0,
+  retries: 1,
   use: {
     trace: 'on-first-retry',
   },

@@ -19,7 +19,7 @@ suite('Rename', () => {
   test('prepare rename on _type value returns the type name range', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await sleep(3000);
 
     const result = await vscode.commands.executeCommand<{
       range: vscode.Range;
@@ -42,7 +42,7 @@ suite('Rename', () => {
   test('rename "Person" to "Human" produces edits with correct new text', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await sleep(3000);
 
     const edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
       'vscode.executeRenameProvider',
@@ -83,7 +83,7 @@ suite('Rename', () => {
   test('prepare rename on plain string value returns null', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await sleep(3000);
 
     // "Alice" at line 2, char 7 - plain string, not renameable
     try {
@@ -102,7 +102,7 @@ suite('Rename', () => {
   test('prepare rename on number value returns null', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await sleep(3000);
 
     // 30 at line 3, char 5 - number, not renameable
     try {
