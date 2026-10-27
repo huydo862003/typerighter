@@ -213,6 +213,8 @@ pub enum TdDiagnosticKind {
   BlockBlankLine,
   #[message("multiple consecutive blank lines")]
   ConsecutiveBlankLines,
+  #[message("missing blank line after frontmatter")]
+  BlankLineAfterFrontmatter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encodable, Decodable, StableHash, StableCompare)]

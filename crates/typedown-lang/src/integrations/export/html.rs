@@ -899,14 +899,12 @@ fn extract_ordered_list_start_number(node: &RedNode) -> usize {
 
 #[cfg(test)]
 mod tests {
-  use std::cell::RefCell;
-  use std::rc::Rc;
-
-  use typedown_types::string_stream::StringStream;
-
   use super::*;
   use crate::syntax::green::cache::Cache;
   use crate::syntax::parse::ctx::{ParseCtx, ParseResult};
+  use std::cell::RefCell;
+  use std::rc::Rc;
+  use typedown_types::string_stream::StringStream;
 
   // Colon position in separator cells determines alignment
   #[test]

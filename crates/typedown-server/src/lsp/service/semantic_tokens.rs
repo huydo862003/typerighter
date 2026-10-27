@@ -63,7 +63,7 @@ fn emit(
 ) {
   let len = node.text_len();
   if len > 0 {
-    out.push((node.offset(), len, token_typ, modifiers));
+    out.push((node.start_offset(), len, token_typ, modifiers));
   }
 }
 
@@ -131,10 +131,9 @@ fn delta_encode(
 
 #[cfg(test)]
 mod tests {
+  use super::*;
   use std::collections::HashMap;
   use std::path::PathBuf;
-
-  use super::*;
   use typedown_lang::db::types::FileMetadata;
 
   // Token -> Semantic token

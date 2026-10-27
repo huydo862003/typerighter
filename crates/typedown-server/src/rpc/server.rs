@@ -106,7 +106,7 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
     components: config
       .component_entries(db)
       .iter()
-      .map(|decl| match decl {
+      .map(|declaration| match declaration {
         CustomComponentEntry::Dir { path } => TdComponentEntry::Dir { path: path.clone() },
         CustomComponentEntry::Explicit { name, source } => TdComponentEntry::Explicit {
           name: name.clone(),
@@ -905,9 +905,15 @@ fn format_file(analysis: &Analysis, file_path: &str) -> RpcResult<TdFormatResult
   let original = root.text();
   let formatted = match source_file.body() {
     Some(body) => {
-      let frontmatter = original[..body.syntax().offset()].to_string();
+      let frontmatter = original[..body.syntax().start_offset()].to_string();
       let body_formatted = format_markdown(&body);
-      frontmatter + &body_formatted
+      // Add blank line between frontmatter and body, empty body or no frontmatter gets no separator
+      let separator = if !frontmatter.is_empty() && !body_formatted.is_empty() {
+        "\n"
+      } else {
+        ""
+      };
+      frontmatter + separator + &body_formatted
     }
     None => original.to_string(),
   };

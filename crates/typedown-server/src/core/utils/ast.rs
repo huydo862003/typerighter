@@ -4,7 +4,7 @@ use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 /// Find the innermost red node whose source span contains `offset`
 pub fn node_at_offset(root: RedNode, offset: usize) -> Option<RedNode> {
-  let start = root.offset();
+  let start = root.start_offset();
   let end = start + root.text_len();
 
   if offset < start || offset >= end {

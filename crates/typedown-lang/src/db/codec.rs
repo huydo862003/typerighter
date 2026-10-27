@@ -93,7 +93,7 @@ impl Decodable for GreenNode {
 // RedNode
 impl Encodable for RedNode {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.offset().encode(buf, encoder);
+    self.start_offset().encode(buf, encoder);
     let root = self.root();
     (*root).encode(buf, encoder);
   }
@@ -158,21 +158,17 @@ impl StableHash for SyntaxKind {
 
 #[cfg(test)]
 mod tests {
-  use std::fmt::Debug;
-  use std::path::PathBuf;
-
-  use proptest::prelude::*;
-
-  use typedown_incremental::{Decodable, Encodable};
-  use typedown_incremental::{Decoder, Encoder, QueryStorage};
-
-  use std::sync::Arc;
-
   use crate::db::TypedownDatabase;
   use crate::syntax::diagnostic::TdDiagnostic;
   use crate::syntax::green::GreenNode;
   use crate::syntax::red::RedNode;
   use crate::syntax::syntax_kind::SyntaxKind;
+  use proptest::prelude::*;
+  use std::fmt::Debug;
+  use std::path::PathBuf;
+  use std::sync::Arc;
+  use typedown_incremental::{Decodable, Encodable};
+  use typedown_incremental::{Decoder, Encoder, QueryStorage};
 
   /// Check that encode and decode return the original value
   fn encode_decode_roundtrip<T: Encodable + Decodable + PartialEq + Debug>(v: &T) {

@@ -336,22 +336,19 @@ fn build_component_hover(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-  use std::sync::{Arc, Condvar, Mutex};
-
+  use super::resolve_hover as hover;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
   use lsp_types::{
     HoverContents, HoverParams, Position, TextDocumentIdentifier, TextDocumentPositionParams, Uri,
     WorkDoneProgressParams,
   };
   use ropey::Rope;
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
-
-  use super::resolve_hover as hover;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:

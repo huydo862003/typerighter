@@ -17,20 +17,23 @@ use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
 /// Format the AST markdown body of a Typedown file
+///
+/// Returns an empty string if the body has no blocks
+/// The caller is responsible for adding any separator between frontmatter and body
 pub fn format_markdown(body: &MdBody) -> String {
-  let mut out = String::from("\n");
   let blocks: Vec<_> = body.block_elements().collect();
+  if blocks.is_empty() {
+    return String::new();
+  }
 
-  for (idx, block) in blocks.iter().enumerate() {
-    // One blank line between any two blocks
-    if idx > 0 {
+  let mut out = String::new();
+  for (index, block) in blocks.iter().enumerate() {
+    if index > 0 {
       ensure_blank_line(&mut out);
     }
-
     format_block(&mut out, block.syntax(), 0);
   }
 
-  // Collapse multiple blank lines and ensure trailing newline
   let result = collapse_blank_lines(&out);
   ensure_trailing_newline(result)
 }
@@ -82,7 +85,7 @@ fn format_heading(out: &mut String, node: &RedNode) {
   let trimmed = text.trim();
 
   // Count leading `#` symbols
-  let hash_count = trimmed.chars().take_while(|ch| *ch == '#').count();
+  let hash_count = trimmed.chars().take_while(|char| *char == '#').count();
   if hash_count == 0 {
     // Not a valid heading, emit as-is
     push_trimmed_line(out, trimmed);
@@ -103,8 +106,20 @@ fn format_heading(out: &mut String, node: &RedNode) {
 /// Format a bullet list, applying 2-space indentation per nesting level
 fn format_bullet_list(out: &mut String, node: &RedNode, depth: usize) {
   if let Some(list) = MdBulletList::cast(node.clone()) {
-    for item in list.items() {
-      format_bullet_item(out, &item, depth);
+    let list_text = node.text();
+    let list_offset = node.start_offset();
+    let items: Vec<_> = list.items().collect();
+    for (index, item) in items.iter().enumerate() {
+      if index > 0 {
+        // Preserve blank lines between item groups in the source
+        let prev = &items[index - 1];
+        let prev_end = prev.syntax().end_offset() - list_offset;
+        let curr_start = item.syntax().start_offset() - list_offset;
+        if list_text[prev_end..curr_start].contains("\n\n") {
+          ensure_blank_line(out);
+        }
+      }
+      format_bullet_item(out, item, depth);
     }
   }
   // Also handle task list items at this level
@@ -160,8 +175,20 @@ fn format_task_item(out: &mut String, item: &MdTaskListItem, depth: usize) {
 /// Format an ordered list
 fn format_ordered_list(out: &mut String, node: &RedNode, depth: usize) {
   if let Some(list) = MdOrderedList::cast(node.clone()) {
-    for (idx, item) in list.items().enumerate() {
-      format_ordered_item(out, &item, depth, idx + 1);
+    let list_text = node.text();
+    let list_offset = node.start_offset();
+    let items: Vec<_> = list.items().collect();
+    for (index, item) in items.iter().enumerate() {
+      if index > 0 {
+        // Preserve blank lines between item groups in the source
+        let prev = &items[index - 1];
+        let prev_end = prev.syntax().end_offset() - list_offset;
+        let curr_start = item.syntax().start_offset() - list_offset;
+        if list_text[prev_end..curr_start].contains("\n\n") {
+          ensure_blank_line(out);
+        }
+      }
+      format_ordered_item(out, item, depth, index + 1);
     }
   }
 }
@@ -224,15 +251,15 @@ fn collapse_blank_lines(text: &str) -> String {
   let mut result = String::with_capacity(text.len());
   let mut consecutive_newlines = 0;
 
-  for ch in text.chars() {
-    if ch == '\n' {
+  for char in text.chars() {
+    if char == '\n' {
       consecutive_newlines += 1;
       if consecutive_newlines <= 2 {
-        result.push(ch);
+        result.push(char);
       }
     } else {
       consecutive_newlines = 0;
-      result.push(ch);
+      result.push(char);
     }
   }
 
@@ -267,67 +294,150 @@ mod tests {
   // Heading gets exactly one space after hashes
   #[test]
   fn heading_spacing() {
-    let result = fmt("---\n---\n##Heading\n");
-    assert_eq!(result, "\n## Heading\n");
+    let result = fmt(
+      r#"---
+---
+##Heading
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"## Heading
+"#
+    );
   }
 
   // Extra spaces after hashes are normalized
   #[test]
   fn heading_extra_spaces() {
-    let result = fmt("---\n---\n##   Heading\n");
-    assert_eq!(result, "\n## Heading\n");
+    let result = fmt(
+      r#"---
+---
+##   Heading
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"## Heading
+"#
+    );
   }
 
   // Blank line before heading
   #[test]
   fn blank_line_before_heading() {
-    let result = fmt("---\n---\nSome text.\n## Heading\n");
+    let result = fmt(
+      r#"---
+---
+Some text.
+## Heading
+"#,
+    );
     assert!(
-      result.contains("\n\n## Heading"),
-      "should have blank line before heading:\n{result}"
+      result.contains(
+        r"
+
+## Heading"
+      ),
+      r"should have blank line before heading:
+{result}"
     );
   }
 
   // Blank line after heading
   #[test]
   fn blank_line_after_heading() {
-    let result = fmt("---\n---\n## Heading\nSome text.\n");
+    let result = fmt(
+      r#"---
+---
+## Heading
+Some text.
+"#,
+    );
     assert!(
-      result.contains("## Heading\n\n"),
-      "should have blank line after heading:\n{result}"
+      result.contains(
+        r"## Heading
+
+"
+      ),
+      r"should have blank line after heading:
+{result}"
     );
   }
 
   // Trailing whitespace removed
   #[test]
   fn trailing_whitespace() {
-    let result = fmt("---\n---\nHello world   \n");
-    assert_eq!(result, "\nHello world\n");
+    let result = fmt(
+      r"---
+---
+Hello world   
+",
+    );
+    assert_eq!(
+      result,
+      r#"Hello world
+"#
+    );
   }
 
   // Multiple blank lines collapsed to one
   #[test]
   fn collapse_blank_lines_test() {
-    let result = fmt("---\n---\nFirst.\n\n\n\nSecond.\n");
-    assert_eq!(result, "\nFirst.\n\nSecond.\n");
+    let result = fmt(
+      r#"---
+---
+First.
+
+
+
+Second.
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"First.
+
+Second.
+"#
+    );
   }
 
   // File ends with exactly one newline
   #[test]
   fn trailing_newline() {
-    let result = fmt("---\n---\nHello\n\n\n");
-    assert!(
-      result.ends_with("\nHello\n"),
-      "should end with one newline:\n{result:?}"
+    let result = fmt(
+      r#"---
+---
+Hello
+
+
+"#,
     );
+    assert_eq!(result, "Hello\n", "should end with one newline: {result:?}");
   }
 
   // Formatter is idempotent
   #[test]
   fn idempotent() {
-    let input = "---\n---\n##Heading\n\n\n\nSome text.   \n\n## Another\n\nParagraph.\n";
+    let input = r#"---
+---
+##Heading
+
+
+
+Some text.
+
+## Another
+
+Paragraph.
+"#;
     let first = fmt(input);
-    let second_input = format!("---\n---\n{first}");
+    let second_input = format!(
+      r"---
+---
+{first}"
+    );
     let second = fmt(&second_input);
     assert_eq!(first, second, "formatter should be idempotent");
   }
@@ -345,8 +455,7 @@ mod tests {
     );
     assert_eq!(
       result,
-      r#"
-- First item
+      r#"- First item
 - Second item
 - Third item
 "#
@@ -366,8 +475,7 @@ mod tests {
     );
     assert_eq!(
       result,
-      r#"
-- Star item
+      r#"- Star item
 
 - Plus item
 
@@ -388,8 +496,13 @@ mod tests {
 "#,
     );
     assert!(
-      result.contains("- Item two\n\n## Next Section"),
-      "should have blank line between list and heading:\n{result}"
+      result.contains(
+        r"- Item two
+
+## Next Section"
+      ),
+      r"should have blank line between list and heading:
+{result}"
     );
   }
 
@@ -407,8 +520,7 @@ mod tests {
     );
     assert_eq!(
       result,
-      r#"
-## Section
+      r#"## Section
 
 - Item one
 - Item two
@@ -439,16 +551,29 @@ Alice is a **backend developer**.
 "#,
     );
     assert!(
-      result.contains("- Lead backend development\n"),
-      "list items preserved:\n{result}"
+      result.contains(
+        r"- Lead backend development
+"
+      ),
+      r"list items preserved:
+{result}"
     );
     assert!(
-      result.contains("## Skills\n\n"),
-      "blank line after heading:\n{result}"
+      result.contains(
+        r"## Skills
+
+"
+      ),
+      r"blank line after heading:
+{result}"
     );
     assert!(
-      !result.contains("- Lead backend development\n- Lead backend development"),
-      "no duplication:\n{result}"
+      !result.contains(
+        r"- Lead backend development
+- Lead backend development"
+      ),
+      r"no duplication:
+{result}"
     );
   }
 
@@ -464,8 +589,13 @@ Some text.
 "#,
     );
     assert!(
-      result.contains("- Item two\n\nSome text."),
-      "should have blank line between list and paragraph:\n{result}"
+      result.contains(
+        r"- Item two
+
+Some text."
+      ),
+      r"should have blank line between list and paragraph:
+{result}"
     );
   }
 
@@ -481,8 +611,13 @@ Some text.
 "#,
     );
     assert!(
-      result.contains("Some text.\n\n- Item one"),
-      "should have blank line between paragraph and list:\n{result}"
+      result.contains(
+        r"Some text.
+
+- Item one"
+      ),
+      r"should have blank line between paragraph and list:
+{result}"
     );
   }
 
@@ -497,7 +632,13 @@ First paragraph.
 Second paragraph.
 "#,
     );
-    assert_eq!(result, "\nFirst paragraph.\n\nSecond paragraph.\n");
+    assert_eq!(
+      result,
+      r#"First paragraph.
+
+Second paragraph.
+"#
+    );
   }
 
   // Idempotent with lists
@@ -513,7 +654,11 @@ Second paragraph.
 Some text.
 "#;
     let first = fmt(input);
-    let second_input = format!("---\n---\n{first}");
+    let second_input = format!(
+      r"---
+---
+{first}"
+    );
     let second = fmt(&second_input);
     assert_eq!(first, second, "formatter should be idempotent with lists");
   }
@@ -531,8 +676,7 @@ Some text.
     );
     assert_eq!(
       result,
-      r#"
-- parent
+      r#"- parent
 
  - child one
  - child two
@@ -553,8 +697,7 @@ Some text.
     );
     assert_eq!(
       result,
-      r#"
-- parent
+      r#"- parent
   1. first
   2. second
 "#
@@ -574,8 +717,7 @@ Some text.
     );
     assert_eq!(
       result,
-      r#"
-- level one
+      r#"- level one
   1. level two
     - level three
 "#
@@ -598,7 +740,8 @@ Some text.
     );
     assert!(
       result.contains("$$"),
-      "math block $$ should be preserved in list:\n{result}"
+      r"math block $$ should be preserved in list:
+{result}"
     );
   }
 
@@ -616,11 +759,13 @@ More text.
     );
     assert!(
       result.contains("$$T_{total}"),
-      "math block opening $$ should be preserved:\n{result}"
+      r"math block opening $$ should be preserved:
+{result}"
     );
     assert!(
       result.contains("T_{FCP}$$"),
-      "math block closing $$ should be preserved:\n{result}"
+      r"math block closing $$ should be preserved:
+{result}"
     );
   }
 
@@ -635,7 +780,8 @@ More text.
     );
     assert!(
       result.contains("![architecture](_assets/architecture.webp)"),
-      "media should be preserved in list item:\n{result}"
+      r"media should be preserved in list item:
+{result}"
     );
   }
 
@@ -653,8 +799,13 @@ More text.
 "#,
     );
     assert!(
-      result.contains("---\n\nMore text."),
-      "horizontal rule should be preserved:\n{result}"
+      result.contains(
+        r"---
+
+More text."
+      ),
+      r"horizontal rule should be preserved:
+{result}"
     );
   }
 
@@ -673,8 +824,7 @@ Second.
     );
     assert_eq!(
       result,
-      r#"
-First.
+      r#"First.
 
 ---
 
@@ -698,8 +848,7 @@ if (x) {
     );
     assert_eq!(
       result,
-      r#"
-```js
+      r#"```js
 if (x) {
   doSomething();
 }
@@ -725,8 +874,7 @@ if (x) {
     );
     assert_eq!(
       result,
-      r#"
-1. Example
+      r#"1. Example
   ```js
    if (x) {
      doSomething();
@@ -753,8 +901,7 @@ if (x) {
     );
     assert_eq!(
       result,
-      r#"
-- Example
+      r#"- Example
   ```js
   if (x) {
     doSomething();
@@ -783,8 +930,7 @@ if (x) {
     );
     assert_eq!(
       result,
-      r#"
-- Outer
+      r#"- Outer
   - Inner
     ```js
     if (x) {
@@ -810,12 +956,35 @@ if (x) {
     );
     assert_eq!(
       result,
-      r#"
-- Limitations:
+      r#"- Limitations:
   - Cannot use from browser:
     ```
     Browser --> backend --> API
     ```
+"#
+    );
+  }
+
+  // Blank line between unrelated bullet list groups is preserved
+  #[test]
+  fn bullet_list_groups_separated_by_blank_line() {
+    let result = fmt(
+      r#"---
+---
+- Item A1
+- Item A2
+
+- Item B1
+- Item B2
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"- Item A1
+- Item A2
+
+- Item B1
+- Item B2
 "#
     );
   }
@@ -831,7 +1000,8 @@ if (x) {
     );
     assert!(
       result.contains("![photo](img.png)"),
-      "standalone media should be preserved:\n{result}"
+      r"standalone media should be preserved:
+{result}"
     );
   }
 }

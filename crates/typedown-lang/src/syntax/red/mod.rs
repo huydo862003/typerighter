@@ -85,11 +85,11 @@ impl RedNode {
   /// Find a descendant node at the given offset. Walks depth-first
   /// Returns the deepest node whose offset matches
   pub fn find_at_offset(&self, target_offset: usize) -> Option<RedNode> {
-    if self.offset() == target_offset {
+    if self.start_offset() == target_offset {
       return Some(self.clone());
     }
     for child in self.children() {
-      if target_offset >= child.offset() && target_offset < child.offset() + child.text_len() {
+      if target_offset >= child.start_offset() && target_offset < child.end_offset() {
         return child.find_at_offset(target_offset);
       }
     }
@@ -122,8 +122,12 @@ impl RedNode {
     }
   }
 
-  pub fn offset(&self) -> usize {
+  pub fn start_offset(&self) -> usize {
     self.0.offset
+  }
+
+  pub fn end_offset(&self) -> usize {
+    self.0.offset + self.0.green.text_len()
   }
 
   pub fn text_len(&self) -> usize {
@@ -158,14 +162,14 @@ impl RedNode {
     let start = children
       .iter()
       .find(|child| !child.kind().is_trivia())
-      .map(|child| child.offset())
-      .unwrap_or(self.offset());
+      .map(|child| child.start_offset())
+      .unwrap_or(self.start_offset());
     // Find last non-trivia children
     let end = children
       .iter()
       .rfind(|child| !child.kind().is_trivia())
-      .map(|child| child.offset() + child.text_len())
-      .unwrap_or(self.offset() + self.text_len());
+      .map(|child| child.end_offset())
+      .unwrap_or(self.end_offset());
     (start, end - start)
   }
 

@@ -320,8 +320,17 @@ mod tests {
   use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
   use typedown_lang::db::derived::parse_file::parse_file;
 
-  const VAULT_CONFIG: &str = "version: \"1\"\nvault:\n  root_dir: \".\"\n";
-  const CONTENT: &str = "---\n_type: schema\nproperties:\n  name:\n    type: string\n---\n";
+  const VAULT_CONFIG: &str = r#"version: "1"
+vault:
+  root_dir: "."
+"#;
+  const CONTENT: &str = r#"---
+_type: schema
+properties:
+  name:
+    type: string
+---
+"#;
 
   fn setup() -> (tempfile::TempDir, AnalysisHost) {
     let dir = tempfile::TempDir::new().unwrap();
@@ -410,8 +419,15 @@ mod tests {
     let new = root.join("_types/Human.td");
 
     // Simulate editor opening the file with modified content
-    let edited =
-      "---\n_type: schema\nproperties:\n  name:\n    type: string\n  age:\n    type: number\n---\n";
+    let edited = r#"---
+_type: schema
+properties:
+  name:
+    type: string
+  age:
+    type: number
+---
+"#;
     let rope = ropey::Rope::from_str(edited);
     Arc::make_mut(&mut host.open_files).insert(old.clone(), rope);
 
