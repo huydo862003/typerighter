@@ -9,13 +9,13 @@ Bullet list with minus
 
 (document
   (section
-    (list
+    (bullet_list
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline)))
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline))))))
 
@@ -30,13 +30,13 @@ Bullet list with star
 
 (document
   (section
-    (list
+    (bullet_list
       (list_item
-        (list_marker_star)
+        marker: (list_marker_star)
         (paragraph
           (inline)))
       (list_item
-        (list_marker_star)
+        marker: (list_marker_star)
         (paragraph
           (inline))))))
 
@@ -51,13 +51,13 @@ Ordered list
 
 (document
   (section
-    (list
+    (ordered_list
       (list_item
-        (list_marker_dot)
+        marker: (list_marker_dot)
         (paragraph
           (inline)))
       (list_item
-        (list_marker_dot)
+        marker: (list_marker_dot)
         (paragraph
           (inline))))))
 
@@ -71,8 +71,8 @@ Single list item
 
 (document
   (section
-    (list
+    (bullet_list
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline))))))

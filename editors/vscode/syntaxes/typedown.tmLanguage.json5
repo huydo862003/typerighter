@@ -279,10 +279,11 @@
       ]
     },
     "md-list": {
-      "match": "^(\\s*)([-*]|\\d+\\.)(\\s+)(.*)",
+      "match": "^(\\s*)([-*]|\\d+\\.)(\\s+)(\\[[ xX]\\]\\s)?(.*)",
       "captures": {
         "2": { "name": "punctuation.definition.list.begin.markdown" },
-        "4": {
+        "4": { "name": "markup.list.checkbox.typedown" },
+        "5": {
           "patterns": [{ "include": "#md-inline" }]
         }
       }

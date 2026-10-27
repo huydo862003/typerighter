@@ -42,6 +42,10 @@
 (list_marker_star) @markup.list
 (list_marker_dot) @markup.list
 
+; Checkboxes
+(checkbox_unchecked) @markup.list.unchecked
+(checkbox_checked) @markup.list.checked
+
 ; Containers
 (container_block_delimiter) @punctuation.special
 (container_type) @label

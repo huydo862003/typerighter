@@ -1,6 +1,7 @@
 ; Emphasis
 (emphasis) @emphasis
 (strong_emphasis) @emphasis.strong
+(strikethrough) @strikethrough
 
 ; Code and math spans
 (code_span_delimiter) @punctuation.delimiter

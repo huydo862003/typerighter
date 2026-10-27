@@ -1,6 +1,7 @@
 ; Emphasis
 (emphasis) @markup.italic
 (strong_emphasis) @markup.strong
+(strikethrough) @markup.strikethrough
 
 ; Code and math spans
 (code_span) @markup.raw

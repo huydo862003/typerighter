@@ -35,6 +35,8 @@ enum TokenType {
   LIST_MARKER_MINUS,
   LIST_MARKER_STAR,
   LIST_MARKER_DOT,
+  CHECKBOX_UNCHECKED,
+  CHECKBOX_CHECKED,
 
   CONTAINER_OPEN,
   CONTAINER_CLOSE,
@@ -283,7 +285,7 @@ static bool next_line_starts_block(TSLexer *lexer, bool exclude_pipe,
   }
 
   // Triple equals opens a container slot, but only where one is valid --
-  // elsewhere `===` is ordinary text, since there are no setext headings.
+  // elsewhere === is ordinary text since there are no setext headings
   if (next == '=') {
     lexer->advance(lexer, false);
     if (lexer->lookahead == '=') {
@@ -460,6 +462,36 @@ static bool scan_line_ending(Scanner *scanner, TSLexer *lexer,
   return false;
 }
 
+// Try checkbox token: [ ] or [x] followed by a space
+// Valid right after a list marker has been emitted
+static bool try_checkbox(TSLexer *lexer, const bool *valid_symbols) {
+  if (!valid_symbols[CHECKBOX_UNCHECKED] && !valid_symbols[CHECKBOX_CHECKED]) {
+    return false;
+  }
+  if (lexer->lookahead != '[') return false;
+
+  lexer->mark_end(lexer);
+  lexer->advance(lexer, false); // consume [
+
+  int32_t inner = lexer->lookahead;
+  bool is_checked = (inner == 'x' || inner == 'X');
+  bool is_unchecked = (inner == ' ');
+  if (!is_checked && !is_unchecked) return false;
+
+  lexer->advance(lexer, false); // consume inner char
+  if (lexer->lookahead != ']') return false;
+
+  lexer->advance(lexer, false); // consume ]
+
+  // Checkbox must be followed by whitespace before content
+  if (lexer->lookahead != ' ' && lexer->lookahead != '\t') return false;
+  lexer->advance(lexer, false); // consume trailing space
+
+  lexer->mark_end(lexer);
+  lexer->result_symbol = is_checked ? CHECKBOX_CHECKED : CHECKBOX_UNCHECKED;
+  return true;
+}
+
 // Try bullet list marker, mark_end before consuming for safe fallback
 static bool try_list_marker_bullet(Scanner *scanner, TSLexer *lexer,
                                    uint16_t indent, int result_symbol) {
@@ -484,6 +516,9 @@ bool tree_sitter_typedown_md_external_scanner_scan(void *payload,
                                                    TSLexer *lexer,
                                                    const bool *valid_symbols) {
   Scanner *scanner = (Scanner *)payload;
+
+  // Checkbox: `[ ] ` or `[x] ` right after a list marker
+  if (try_checkbox(lexer, valid_symbols)) return true;
 
   if (scanner->code_fence_count > 0) {
     if (scanner->code_fence_info_pending) {
@@ -709,7 +744,7 @@ bool tree_sitter_typedown_md_external_scanner_scan(void *payload,
     }
   }
 
-  // -, *, N.
+  // Bullet and ordered list markers: -, *, N
   if (lexer->lookahead == '-' && valid_symbols[LIST_MARKER_MINUS]) {
     if (try_list_marker_bullet(scanner, lexer, indent, LIST_MARKER_MINUS)) {
       return true;

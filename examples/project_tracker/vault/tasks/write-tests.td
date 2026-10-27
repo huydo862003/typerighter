@@ -4,8 +4,8 @@ _label: "Write integration tests for auth"
 status: "todo"
 priority: "medium"
 blocked: false
-project: fref("projects/website-redesign.td")
-assignee: fref("people/alice.td")
+project: fref("/projects/website-redesign.td")
+assignee: fref("/people/alice.td")
 ---
 
 Depends on the auth implementation being merged first.

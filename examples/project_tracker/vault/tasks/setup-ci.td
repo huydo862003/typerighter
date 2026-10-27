@@ -3,7 +3,7 @@ _type: Task
 _label: "Set up CI pipeline"
 status: "todo"
 priority: "low"
-project: fref("projects/mobile-app.td")
+project: fref("/projects/mobile-app.td")
 tags:
   - "ci"
   - "devops"

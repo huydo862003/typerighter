@@ -43,6 +43,8 @@ export default grammar({
     $.list_marker_minus,
     $.list_marker_star,
     $.list_marker_dot,
+    $.checkbox_unchecked,
+    $.checkbox_checked,
 
     $._container_open,
     $._container_close,
@@ -151,7 +153,8 @@ export default grammar({
         $.math_block,
         $.block_quote,
         $.toggle_list,
-        $.list,
+        $.bullet_list,
+        $.ordered_list,
         $.container_block,
         $.container_block_shorthand,
         $.pipe_table,
@@ -247,21 +250,20 @@ export default grammar({
 
     // Lists
 
-    list: ($) =>
+    bullet_list: ($) =>
       choice(
         $._list_minus,
         $._list_star,
-        $._list_dot,
       ),
+
+    ordered_list: ($) =>
+      prec.right(repeat1(alias($._list_item_dot, $.list_item))),
 
     _list_minus: ($) =>
       prec.right(repeat1(alias($._list_item_minus, $.list_item))),
 
     _list_star: ($) =>
       prec.right(repeat1(alias($._list_item_star, $.list_item))),
-
-    _list_dot: ($) =>
-      prec.right(repeat1(alias($._list_item_dot, $.list_item))),
 
     _list_item_minus: ($) => listItemBody($, $.list_marker_minus),
     _list_item_star: ($) => listItemBody($, $.list_marker_star),
@@ -414,7 +416,8 @@ function headingRule ($, level) {
  */
 function listItemBody ($, marker) {
   return seq(
-    marker,
+    field('marker', marker),
+    optional(field('checkbox', choice($.checkbox_unchecked, $.checkbox_checked))),
     repeat(
       choice(
         $._block,

@@ -3,7 +3,7 @@ _type: Task
 _label: "Database migrations"
 status: "done"
 priority: "high"
-project: fref("projects/mobile-app.td")
+project: fref("/projects/mobile-app.td")
 ---
 
 Set up the migration framework and initial schema.

@@ -5,8 +5,8 @@ status: "in progress"
 priority: "high"
 blocked: true
 due: "2026-07-10"
-project: fref("projects/website-redesign.td")
-assignee: fref("people/alice.td")
+project: fref("/projects/website-redesign.td")
+assignee: fref("/people/alice.td")
 tags:
   - "security"
   - "authentication"

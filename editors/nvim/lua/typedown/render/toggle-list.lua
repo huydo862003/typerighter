@@ -2,38 +2,33 @@
 local state = require("typedown.render.state")
 
 local M = {}
+M.name = "toggle_list"
 
-local OPEN_ICON = ""
+local OPEN_ICON   = ""
 local CLOSED_ICON = ""
 
 -- Track folded toggle items: buf -> { [start_row] = true }
 local folded = {}
 
+local QUERY = vim.treesitter.query.parse("typedown_md", [[
+  (toggle_list_item
+    (toggle_list_marker) @marker) @item
+]])
+
+local FIND_QUERY = vim.treesitter.query.parse("typedown_md", [[
+  (toggle_list_item) @item
+]])
+
 function M.render(buf, md_tree)
-  local ns = state.get_namespace("toggle_list")
-  state.clear(buf, "toggle_list")
+  local ns = state.get_namespace(M.name)
+  state.clear(buf, M.name)
   local cursor_line = state.get_cursor_line(buf)
 
   if not folded[buf] then folded[buf] = {} end
 
-  for node in md_tree:root():iter_children() do
-    M.render_node(buf, ns, node, cursor_line)
-  end
-end
-
-function M.render_node(buf, ns, node, cursor_line)
-  if node:type() == "section" then
-    for child in node:iter_children() do
-      M.render_node(buf, ns, child, cursor_line)
-    end
-    return
-  end
-
-  if node:type() ~= "toggle_list" then return end
-
-  for child in node:iter_children() do
-    if child:type() == "toggle_list_item" then
-      M.render_item(buf, ns, child, cursor_line)
+  for id, node in QUERY:iter_captures(md_tree:root(), buf) do
+    if QUERY.captures[id] == "item" then
+      M.render_item(buf, ns, node, cursor_line)
     end
   end
 end
@@ -44,7 +39,7 @@ function M.render_item(buf, ns, node, cursor_line)
 
   local is_folded = folded[buf] and folded[buf][start_row]
   local icon = is_folded and CLOSED_ICON or OPEN_ICON
-  local hl = is_folded and "TypedownRenderToggleClosed" or "TypedownRenderToggleOpen"
+  local hl   = is_folded and "TypedownRenderToggleClosed" or "TypedownRenderToggleOpen"
 
   -- Find the toggle marker (>)
   for child in node:iter_children() do
@@ -55,9 +50,9 @@ function M.render_item(buf, ns, node, cursor_line)
         conceal = "",
       })
       vim.api.nvim_buf_set_extmark(buf, ns, m_row, m_col, {
-        virt_text = { { icon, hl } },
+        virt_text     = { { icon, hl } },
         virt_text_pos = "inline",
-        priority = 110,
+        priority      = 110,
       })
       break
     end
@@ -67,16 +62,15 @@ function M.render_item(buf, ns, node, cursor_line)
   if is_folded and end_row - start_row > 1 then
     for row = start_row + 1, end_row - 1 do
       vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
-        end_row = row + 1,
-        conceal = "",
+        end_row  = row + 1,
+        conceal  = "",
         hl_group = "TypedownRenderToggleClosed",
       })
     end
-    -- Show fold indicator
     vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
-      virt_text = { { " [" .. (end_row - start_row - 1) .. " lines]", "TypedownRenderToggleClosed" } },
+      virt_text     = { { " [" .. (end_row - start_row - 1) .. " lines]", "TypedownRenderToggleClosed" } },
       virt_text_pos = "eol",
-      priority = 100,
+      priority      = 100,
     })
   end
 end
@@ -88,40 +82,20 @@ function M.toggle()
 
   if not folded[buf] then folded[buf] = {} end
 
-  -- Find the toggle_list_item that contains the cursor line
-  local parser = vim.treesitter.get_parser(buf, "typedown")
-  if not parser then return end
+  for _, tree in ipairs(state.get_md_trees(buf)) do
+    for id, node in FIND_QUERY:iter_captures(tree:root(), buf) do
+      if FIND_QUERY.captures[id] ~= "item" then goto next end
 
-  parser:parse()
-
-  for _, tree in pairs(parser:children()) do
-    if tree:lang() == "typedown_md" then
-      for _, md_tree in ipairs(tree:trees()) do
-        local item = M.find_toggle_item(md_tree:root(), line)
-        if item then
-          local start_row = item:range()
-          folded[buf][start_row] = not folded[buf][start_row]
-          -- Trigger re-render
-          require("typedown.render").render_buf(buf)
-          return
-        end
-      end
-    end
-  end
-end
-
-function M.find_toggle_item(node, line)
-  for child in node:iter_children() do
-    if child:type() == "toggle_list_item" then
-      local start_row, _, end_row = child:range()
+      local start_row, _, end_row = node:range()
       if line >= start_row and line < end_row then
-        return child
+        folded[buf][start_row] = not folded[buf][start_row]
+        require("typedown.render").render_buf(buf)
+        return
       end
+
+      ::next::
     end
-    local result = M.find_toggle_item(child, line)
-    if result then return result end
   end
-  return nil
 end
 
 function M.setup_commands()

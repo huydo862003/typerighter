@@ -26,11 +26,47 @@ before *middle* after
   (emphasis))
 
 ================
-Double star is nested emphasis
+Double star is strong emphasis
 ================
 **hello**
 ---
 
 (inline
-  (emphasis
+  (strong_emphasis))
+
+================
+Triple star is bold italic
+================
+***hello***
+---
+
+(inline
+  (strong_emphasis
     (emphasis)))
+
+================
+Underscore strong emphasis
+================
+__hello__
+---
+
+(inline
+  (strong_emphasis))
+
+================
+Strikethrough
+================
+~~hello~~
+---
+
+(inline
+  (strikethrough))
+
+================
+Strikethrough with content
+================
+before ~~deleted~~ after
+---
+
+(inline
+  (strikethrough))

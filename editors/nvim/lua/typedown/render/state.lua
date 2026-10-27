@@ -52,4 +52,18 @@ function M.detach(buf)
   end
 end
 
+-- Get typedown_md tree objects for a buffer
+function M.get_md_trees(buf)
+  local parser = vim.treesitter.get_parser(buf, "typedown")
+  if not parser then return {} end
+  parser:parse()
+
+  for _, child_tree in pairs(parser:children()) do
+    if child_tree:lang() == "typedown_md" then
+      return child_tree:trees()
+    end
+  end
+  return {}
+end
+
 return M

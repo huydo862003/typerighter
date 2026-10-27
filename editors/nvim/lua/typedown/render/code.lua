@@ -1,7 +1,8 @@
--- Code block renderer: left border + language icon, inline code background
+-- Code block renderer: left border + language icon
 local state = require("typedown.render.state")
 
 local M = {}
+M.name = "code"
 
 -- Common language icons (Nerd Font)
 local LANG_ICONS = {
@@ -15,34 +16,29 @@ local LANG_ICONS = {
   markdown = "", md = "", toml = "",
 }
 
+local QUERY = vim.treesitter.query.parse("typedown_md", [[
+  (fenced_code_block) @code_block
+]])
+
 function M.render(buf, md_tree)
-  local ns = state.get_namespace("code")
-  state.clear(buf, "code")
+  local ns = state.get_namespace(M.name)
+  state.clear(buf, M.name)
   local cursor_line = state.get_cursor_line(buf)
 
-  for node in md_tree:root():iter_children() do
-    M.render_node(buf, ns, node, cursor_line)
+  for _, node in QUERY:iter_captures(md_tree:root(), buf) do
+    M.render_block(buf, ns, node, cursor_line)
   end
 end
 
-function M.render_node(buf, ns, node, cursor_line)
-  if node:type() == "section" then
-    for child in node:iter_children() do
-      M.render_node(buf, ns, child, cursor_line)
-    end
-    return
-  end
-
-  if node:type() ~= "fenced_code_block" then return end
-
+function M.render_block(buf, ns, node, cursor_line)
   local start_row, _, end_row = node:range()
 
   -- Background for the whole block
   for row = start_row, end_row - 1 do
     vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
-      end_row = row + 1,
+      end_row  = row + 1,
       hl_group = "TypedownRenderCodeBlock",
-      hl_eol = true,
+      hl_eol   = true,
       priority = 80,
     })
   end
@@ -51,25 +47,23 @@ function M.render_node(buf, ns, node, cursor_line)
   for row = start_row, end_row - 1 do
     if row ~= cursor_line then
       vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
-        virt_text = { { "▎", "TypedownRenderCodeBorder" } },
+        virt_text     = { { "▎", "TypedownRenderCodeBorder" } },
         virt_text_pos = "inline",
-        priority = 90,
+        priority      = 90,
       })
     end
   end
 
   -- Language icon on opening fence line
-  local lang_node = node:field("language")
-  if lang_node and lang_node[1] and start_row ~= cursor_line then
-    local lang = vim.treesitter.get_node_text(lang_node[1], buf):lower()
-    -- Strip line range indicator like {1,3}
-    lang = lang:gsub("{.*", "")
+  local lang_nodes = node:field("language")
+  if lang_nodes and lang_nodes[1] and start_row ~= cursor_line then
+    local lang = vim.treesitter.get_node_text(lang_nodes[1], buf):lower()
     local icon = LANG_ICONS[lang]
     if icon then
       vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
-        virt_text = { { " " .. icon .. " ", "TypedownRenderCodeLanguage" } },
+        virt_text     = { { " " .. icon .. " ", "TypedownRenderCodeLanguage" } },
         virt_text_pos = "eol",
-        priority = 100,
+        priority      = 100,
       })
     end
   end

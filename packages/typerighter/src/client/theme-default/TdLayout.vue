@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import {
-  computed, nextTick, ref, useTemplateRef, watch, watchEffect,
+  computed,
+  nextTick,
+  ref,
+  useTemplateRef,
+  watch,
+  watchEffect,
 } from 'vue';
 import {
   X,
@@ -96,7 +101,8 @@ useMermaid();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
-const menuSearch = useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
+const menuSearch =
+  useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
 
 // Build the GitHub edit URL from repo config, rootDir, and the page filepath
 function editPageUrl (filepath: string): string {
@@ -391,7 +397,9 @@ function shrinkSidebar () {
               v-if="page.fileMetadata"
               class="td-page-meta"
             >
-              <span>{{ formatEditTime(page.fileMetadata.mtime, "Modified") }}</span>
+              <span>{{
+                formatEditTime(page.fileMetadata.mtime, "Modified")
+              }}</span>
               <span v-if="page.fileMetadata.ctime !== page.fileMetadata.mtime">
                 · {{ formatEditTime(page.fileMetadata.ctime, "Created") }}</span>
             </div>

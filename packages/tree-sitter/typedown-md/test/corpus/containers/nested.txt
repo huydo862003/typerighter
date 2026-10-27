@@ -14,13 +14,13 @@ Container containing a list
     (container_block
       (container_block_delimiter)
       type: (container_type)
-      (list
+      (bullet_list
         (list_item
-          (list_marker_minus)
+          marker: (list_marker_minus)
           (paragraph
             (inline)))
         (list_item
-          (list_marker_minus)
+          marker: (list_marker_minus)
           (paragraph
             (inline))))
       (container_block_delimiter))))

@@ -4,14 +4,22 @@
 
 #include "tree_sitter/parser.h"
 
-#include <stdlib.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 enum TokenType {
   EMPHASIS_OPEN_STAR,
   EMPHASIS_CLOSE_STAR,
   EMPHASIS_OPEN_UNDERSCORE,
   EMPHASIS_CLOSE_UNDERSCORE,
+
+  STRONG_EMPHASIS_OPEN_STAR,
+  STRONG_EMPHASIS_CLOSE_STAR,
+  STRONG_EMPHASIS_OPEN_UNDERSCORE,
+  STRONG_EMPHASIS_CLOSE_UNDERSCORE,
+
+  STRIKETHROUGH_OPEN,
+  STRIKETHROUGH_CLOSE,
 
   CODE_SPAN_DELIMITER,
   CODE_SPAN_CONTENT,
@@ -57,8 +65,9 @@ void tree_sitter_typedown_md_inline_external_scanner_destroy(void *payload) {
   free(payload);
 }
 
-unsigned tree_sitter_typedown_md_inline_external_scanner_serialize(
-    void *payload, char *buffer) {
+unsigned
+tree_sitter_typedown_md_inline_external_scanner_serialize(void *payload,
+                                                          char *buffer) {
   Scanner *scanner = (Scanner *)payload;
   buffer[0] = (char)scanner->code_span_count;
   buffer[1] = (char)scanner->math_span_count;
@@ -83,7 +92,8 @@ void tree_sitter_typedown_md_inline_external_scanner_deserialize(
 static bool scan_span_delimiter(Scanner *scanner, TSLexer *lexer,
                                 char delim_char, uint8_t *span_count,
                                 int delim_symbol) {
-  if (lexer->lookahead != delim_char) return false;
+  if (lexer->lookahead != delim_char)
+    return false;
 
   // Mark_end before consuming so failed match is restorable
   lexer->mark_end(lexer);
@@ -122,7 +132,8 @@ static bool scan_span_delimiter(Scanner *scanner, TSLexer *lexer,
 // Consume content between matching span delimiters
 static bool scan_span_content(TSLexer *lexer, char delim_char,
                               uint8_t span_count, int content_symbol) {
-  if (span_count == 0) return false;
+  if (span_count == 0)
+    return false;
 
   bool has_content = false;
   while (!lexer->eof(lexer)) {
@@ -154,76 +165,112 @@ static bool scan_span_content(TSLexer *lexer, char delim_char,
   return false;
 }
 
-// Classify * or _ as open, close, or plain text
-static bool scan_emphasis(Scanner *scanner, TSLexer *lexer,
-                          const bool *valid_symbols) {
-  char delim_char;
-  int open_token, close_token;
-
-  if (lexer->lookahead == '*') {
-    delim_char = '*';
-    open_token = EMPHASIS_OPEN_STAR;
-    close_token = EMPHASIS_CLOSE_STAR;
-  } else if (lexer->lookahead == '_') {
-    delim_char = '_';
-    open_token = EMPHASIS_OPEN_UNDERSCORE;
-    close_token = EMPHASIS_CLOSE_UNDERSCORE;
-  } else {
-    return false;
-  }
-
-  bool open_valid = valid_symbols[open_token];
-  bool close_valid = valid_symbols[close_token];
-  if (!open_valid && !close_valid && !valid_symbols[TEXT_CONTENT]) {
-    return false;
-  }
-
-  uint8_t before = scanner->last_char_type;
-
-  lexer->advance(lexer, false);
-  lexer->mark_end(lexer);
-
-  uint8_t after = char_type(lexer->lookahead);
-
-  // Left-flanking: not followed by whitespace
+// Compute flanking and open/close rules per CommonMark spec
+static void compute_flanking(char delim_char, uint8_t before, uint8_t after,
+                             bool *can_open, bool *can_close) {
   bool left_flanking =
       (after != CHAR_WHITESPACE) &&
       (after != CHAR_PUNCTUATION || before == CHAR_WHITESPACE ||
        before == CHAR_PUNCTUATION);
-  // Right-flanking: not preceded by whitespace
-  bool right_flanking =
-      (before != CHAR_WHITESPACE) &&
-      (before != CHAR_PUNCTUATION || after == CHAR_WHITESPACE ||
-       after == CHAR_PUNCTUATION);
+  bool right_flanking = (before != CHAR_WHITESPACE) &&
+                        (before != CHAR_PUNCTUATION ||
+                         after == CHAR_WHITESPACE || after == CHAR_PUNCTUATION);
 
-  // _ has stricter rules than *
   if (delim_char == '_') {
-    bool can_open =
+    *can_open =
         left_flanking && (!right_flanking || before == CHAR_PUNCTUATION);
-    bool can_close =
+    *can_close =
         right_flanking && (!left_flanking || after == CHAR_PUNCTUATION);
-
-    if (can_close && close_valid) {
-      lexer->result_symbol = close_token;
-      scanner->last_char_type = CHAR_PUNCTUATION;
-      return true;
-    }
-    if (can_open && open_valid) {
-      lexer->result_symbol = open_token;
-      scanner->last_char_type = CHAR_PUNCTUATION;
-      return true;
-    }
   } else {
-    if (right_flanking && close_valid) {
-      lexer->result_symbol = close_token;
-      scanner->last_char_type = CHAR_PUNCTUATION;
+    *can_open = left_flanking;
+    *can_close = right_flanking;
+  }
+}
+
+// Try emitting a token if valid, returns true on success
+static bool emit_if_valid(Scanner *scanner, TSLexer *lexer,
+                          const bool *valid_symbols, bool can_close,
+                          int close_symbol, bool can_open, int open_symbol,
+                          bool extend_mark) {
+  if (can_close && valid_symbols[close_symbol]) {
+    if (extend_mark)
+      lexer->mark_end(lexer);
+    lexer->result_symbol = close_symbol;
+    scanner->last_char_type = CHAR_PUNCTUATION;
+    return true;
+  }
+  if (can_open && valid_symbols[open_symbol]) {
+    if (extend_mark)
+      lexer->mark_end(lexer);
+    lexer->result_symbol = open_symbol;
+    scanner->last_char_type = CHAR_PUNCTUATION;
+    return true;
+  }
+  return false;
+}
+
+// Classify * or _ as emphasis open/close (single or double)
+static bool scan_emphasis(Scanner *scanner, TSLexer *lexer,
+                          const bool *valid_symbols) {
+  char delim_char = (char)lexer->lookahead;
+  if (delim_char != '*' && delim_char != '_')
+    return false;
+
+  int single_open, single_close, double_open, double_close;
+  if (delim_char == '*') {
+    single_open = EMPHASIS_OPEN_STAR;
+    single_close = EMPHASIS_CLOSE_STAR;
+    double_open = STRONG_EMPHASIS_OPEN_STAR;
+    double_close = STRONG_EMPHASIS_CLOSE_STAR;
+  } else {
+    single_open = EMPHASIS_OPEN_UNDERSCORE;
+    single_close = EMPHASIS_CLOSE_UNDERSCORE;
+    double_open = STRONG_EMPHASIS_OPEN_UNDERSCORE;
+    double_close = STRONG_EMPHASIS_CLOSE_UNDERSCORE;
+  }
+
+  bool any_valid = valid_symbols[single_open] || valid_symbols[single_close] ||
+                   valid_symbols[double_open] || valid_symbols[double_close] ||
+                   valid_symbols[TEXT_CONTENT];
+  if (!any_valid)
+    return false;
+
+  uint8_t before = scanner->last_char_type;
+
+  // Consume first delimiter char, mark after it for safe fallback
+  lexer->advance(lexer, false);
+  lexer->mark_end(lexer);
+
+  bool has_second = (lexer->lookahead == delim_char);
+
+  // Try double (strong) first when second delimiter char is available
+  if (has_second) {
+    lexer->advance(lexer, false);
+    // Don't mark_end yet so we can fall back to single-char token
+
+    uint8_t after_double = char_type(lexer->lookahead);
+    bool can_open, can_close;
+    compute_flanking(delim_char, before, after_double, &can_open, &can_close);
+
+    if (emit_if_valid(scanner, lexer, valid_symbols, can_close, double_close,
+                      can_open, double_open, true)) {
       return true;
     }
-    if (left_flanking && open_valid) {
-      lexer->result_symbol = open_token;
-      scanner->last_char_type = CHAR_PUNCTUATION;
-      return true;
-    }
+    // Double tokens not valid, fall through to single
+    // mark_end remains after first char so only 1 char is emitted
+  }
+
+  // Single emphasis
+  // When has_second, the char after first delimiter is another delimiter
+  // (punctuation), which prevents single * from opening when ** is strong
+  uint8_t after_single =
+      has_second ? CHAR_PUNCTUATION : char_type(lexer->lookahead);
+  bool can_open, can_close;
+  compute_flanking(delim_char, before, after_single, &can_open, &can_close);
+
+  if (emit_if_valid(scanner, lexer, valid_symbols, can_close, single_close,
+                    can_open, single_open, false)) {
+    return true;
   }
 
   // Emit as text so the character is not dropped
@@ -236,10 +283,62 @@ static bool scan_emphasis(Scanner *scanner, TSLexer *lexer,
   return false;
 }
 
+// Classify ~~ as strikethrough open/close
+static bool scan_strikethrough(Scanner *scanner, TSLexer *lexer,
+                               const bool *valid_symbols) {
+  if (lexer->lookahead != '~')
+    return false;
+  if (!valid_symbols[STRIKETHROUGH_OPEN] &&
+      !valid_symbols[STRIKETHROUGH_CLOSE] && !valid_symbols[TEXT_CONTENT]) {
+    return false;
+  }
+
+  uint8_t before = scanner->last_char_type;
+
+  lexer->advance(lexer, false);
+  if (lexer->lookahead != '~') {
+    // Single ~ is text
+    if (valid_symbols[TEXT_CONTENT]) {
+      lexer->mark_end(lexer);
+      lexer->result_symbol = TEXT_CONTENT;
+      scanner->last_char_type = CHAR_PUNCTUATION;
+      return true;
+    }
+    return false;
+  }
+  lexer->advance(lexer, false);
+  lexer->mark_end(lexer);
+
+  uint8_t after = char_type(lexer->lookahead);
+
+  bool left_flanking = (after != CHAR_WHITESPACE);
+  bool right_flanking = (before != CHAR_WHITESPACE);
+
+  if (right_flanking && valid_symbols[STRIKETHROUGH_CLOSE]) {
+    lexer->result_symbol = STRIKETHROUGH_CLOSE;
+    scanner->last_char_type = CHAR_PUNCTUATION;
+    return true;
+  }
+  if (left_flanking && valid_symbols[STRIKETHROUGH_OPEN]) {
+    lexer->result_symbol = STRIKETHROUGH_OPEN;
+    scanner->last_char_type = CHAR_PUNCTUATION;
+    return true;
+  }
+
+  if (valid_symbols[TEXT_CONTENT]) {
+    lexer->result_symbol = TEXT_CONTENT;
+    scanner->last_char_type = CHAR_PUNCTUATION;
+    return true;
+  }
+
+  return false;
+}
+
 // Consume plain text, stopping at inline construct starters
 static bool scan_text_content(Scanner *scanner, TSLexer *lexer,
                               const bool *valid_symbols) {
-  if (!valid_symbols[TEXT_CONTENT]) return false;
+  if (!valid_symbols[TEXT_CONTENT])
+    return false;
 
   bool has_content = false;
 
@@ -249,11 +348,12 @@ static bool scan_text_content(Scanner *scanner, TSLexer *lexer,
     if (current == '*' || current == '_' || current == '`' || current == '$' ||
         current == '[' || current == ']' || current == '!' || current == '\\' ||
         current == '{' || current == '}' || current == '(' || current == ')' ||
-        current == '^' || current == '@') {
+        current == '^' || current == '@' || current == '~') {
       break;
     }
 
-    if (current == '\n' || current == '\r') break;
+    if (current == '\n' || current == '\r')
+      break;
 
     scanner->last_char_type = char_type(current);
     lexer->advance(lexer, false);
@@ -318,9 +418,16 @@ bool tree_sitter_typedown_md_inline_external_scanner_scan(
     }
   }
 
-  // * _
+  // ~~
+  if (lexer->lookahead == '~') {
+    if (scan_strikethrough(scanner, lexer, valid_symbols))
+      return true;
+  }
+
+  // * _ ** __
   if (lexer->lookahead == '*' || lexer->lookahead == '_') {
-    if (scan_emphasis(scanner, lexer, valid_symbols)) return true;
+    if (scan_emphasis(scanner, lexer, valid_symbols))
+      return true;
   }
 
   return scan_text_content(scanner, lexer, valid_symbols);

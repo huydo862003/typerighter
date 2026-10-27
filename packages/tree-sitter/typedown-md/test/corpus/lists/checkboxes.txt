@@ -1,0 +1,95 @@
+================
+Unchecked checkbox
+================
+
+- [ ] buy groceries
+
+---
+
+(document
+  (section
+    (bullet_list
+      (list_item
+        marker: (list_marker_minus)
+        checkbox: (checkbox_unchecked)
+        (paragraph
+          (inline))))))
+
+================
+Checked checkbox
+================
+
+- [x] done task
+
+---
+
+(document
+  (section
+    (bullet_list
+      (list_item
+        marker: (list_marker_minus)
+        checkbox: (checkbox_checked)
+        (paragraph
+          (inline))))))
+
+================
+Mixed checkboxes
+================
+
+- [ ] pending
+- [x] completed
+- plain item
+
+---
+
+(document
+  (section
+    (bullet_list
+      (list_item
+        marker: (list_marker_minus)
+        checkbox: (checkbox_unchecked)
+        (paragraph
+          (inline)))
+      (list_item
+        marker: (list_marker_minus)
+        checkbox: (checkbox_checked)
+        (paragraph
+          (inline)))
+      (list_item
+        marker: (list_marker_minus)
+        (paragraph
+          (inline))))))
+
+================
+Star checkbox
+================
+
+* [ ] star unchecked
+
+---
+
+(document
+  (section
+    (bullet_list
+      (list_item
+        marker: (list_marker_star)
+        checkbox: (checkbox_unchecked)
+        (paragraph
+          (inline))))))
+
+================
+Uppercase X checkbox
+================
+
+- [X] uppercase
+
+---
+
+(document
+  (section
+    (bullet_list
+      (list_item
+        marker: (list_marker_minus)
+        checkbox: (checkbox_checked)
+        (paragraph
+          (inline))))))

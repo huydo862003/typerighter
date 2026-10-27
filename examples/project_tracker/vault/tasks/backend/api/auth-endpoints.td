@@ -3,7 +3,7 @@ _type: Task
 _label: "Implement auth endpoints"
 status: "in progress"
 priority: "high"
-project: fref("projects/mobile-app.td")
+project: fref("/projects/mobile-app.td")
 ---
 
 Build the authentication REST endpoints for the mobile app.

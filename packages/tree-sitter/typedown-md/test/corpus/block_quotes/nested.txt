@@ -11,12 +11,12 @@ Blockquote containing a list
   (section
     (block_quote
       (block_quote_marker)
-      (list
+      (bullet_list
         (list_item
-          (list_marker_minus)
+          marker: (list_marker_minus)
           (paragraph
             (inline)))
         (list_item
-          (list_marker_minus)
+          marker: (list_marker_minus)
           (paragraph
             (inline)))))))

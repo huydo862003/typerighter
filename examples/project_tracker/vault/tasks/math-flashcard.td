@@ -3,7 +3,7 @@ _type: Task
 _label: "Math flashcard test"
 status: "todo"
 priority: "low"
-project: fref("projects/website-redesign.td")
+project: fref("/projects/website-redesign.td")
 ---
 
 ::: flashcard

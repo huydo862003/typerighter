@@ -7,10 +7,10 @@ active: true
 tags: ["rust", "backend", "auth"]
 email: "alice@example.com"
 tasks:
-  - fref("tasks/implement-auth.td")
-  - fref("tasks/design-mockups.td")
-  - fref("tasks/write-tests.td")
-  - fref("tasks/setup-ci.td")
+  - fref("/tasks/implement-auth.td")
+  - fref("/tasks/design-mockups.td")
+  - fref("/tasks/write-tests.td")
+  - fref("/tasks/setup-ci.td")
 ---
 
 Alice is a **backend developer** with a focus on *authentication systems* and developer tooling.
@@ -59,4 +59,4 @@ ci-status() {
 
 ## Inline References
 
-Currently working on: ${fref("tasks/implement-auth.td")}
+Currently working on: ${fref("/tasks/implement-auth.td")}

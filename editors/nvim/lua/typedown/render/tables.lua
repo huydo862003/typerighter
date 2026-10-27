@@ -2,6 +2,7 @@
 local state = require("typedown.render.state")
 
 local M = {}
+M.name = "tables"
 
 -- Box-drawing characters
 local CHARS = {
@@ -66,19 +67,8 @@ function M.render_node(buf, ns, node, cursor_line)
     -- Replace delimiter row dashes with horizontal lines
     if is_delimiter then
       for col = 0, #line - 1 do
-        local ch = line:sub(col + 1, col + 1)
-        if ch == "-" then
-          vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-            end_col = col + 1,
-            conceal = "",
-          })
-          vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-            virt_text = { { CHARS.horizontal, "TypedownRenderTableBorder" } },
-            virt_text_pos = "inline",
-            priority = 110,
-          })
-        elseif ch == ":" then
-          -- Alignment indicator: keep as-is or style
+        local char = line:sub(col + 1, col + 1)
+        if char == "-" or char == ":" then
           vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
             end_col = col + 1,
             conceal = "",

@@ -26,8 +26,8 @@ code
       language: (language)
       (code_fence_content)
       (fenced_code_block_delimiter))
-    (list
+    (bullet_list
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline))))))

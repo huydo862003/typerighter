@@ -53,9 +53,18 @@ function M.render_buf(buf)
   end
 end
 
+local function set_conceallevel(win)
+  vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+end
+
 function M.attach(buf)
   if state.is_attached(buf) then return end
   state.mark_attached(buf)
+
+  -- Conceal is required for bullet/checkbox/heading marker hiding (window-local)
+  for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+    set_conceallevel(win)
+  end
 
   -- Initial cursor position
   local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
@@ -102,9 +111,8 @@ function M.attach(buf)
     buffer = buf,
     callback = function()
       if anti_conceal.on_insert_enter(buf) then
-        -- Clear all rendering in insert mode
-        for _, renderer_name in ipairs({ "headings", "containers", "checkboxes", "bullets", "code", "tables", "toggle_list" }) do
-          state.clear(buf, renderer_name)
+        for _, renderer in ipairs(renderers) do
+          state.clear(buf, renderer.name)
         end
       end
     end,
@@ -117,6 +125,14 @@ function M.attach(buf)
       if anti_conceal.on_insert_leave(buf) then
         M.render_buf(buf)
       end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    buffer = buf,
+    callback = function()
+      set_conceallevel(vim.api.nvim_get_current_win())
     end,
   })
 

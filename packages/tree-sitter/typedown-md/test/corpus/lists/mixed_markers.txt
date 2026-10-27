@@ -11,22 +11,22 @@ Mixed markers produce separate lists
 
 (document
   (section
-    (list
+    (bullet_list
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline)))
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline))))
-    (list
+    (ordered_list
       (list_item
-        (list_marker_dot)
+        marker: (list_marker_dot)
         (paragraph
           (inline)))
       (list_item
-        (list_marker_dot)
+        marker: (list_marker_dot)
         (paragraph
           (inline))))))
 
@@ -41,13 +41,13 @@ Star then minus produces two lists
 
 (document
   (section
-    (list
+    (bullet_list
       (list_item
-        (list_marker_star)
+        marker: (list_marker_star)
         (paragraph
           (inline))))
-    (list
+    (bullet_list
       (list_item
-        (list_marker_minus)
+        marker: (list_marker_minus)
         (paragraph
           (inline))))))

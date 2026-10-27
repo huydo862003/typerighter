@@ -39,6 +39,10 @@
 (list_marker_star) @punctuation.list_marker
 (list_marker_dot) @punctuation.list_marker
 
+; Checkboxes
+(checkbox_unchecked) @punctuation.special
+(checkbox_checked) @punctuation.special
+
 ; Containers
 (container_block_delimiter) @punctuation.special
 (container_type) @label

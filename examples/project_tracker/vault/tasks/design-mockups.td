@@ -5,8 +5,8 @@ status: "done"
 priority: "high"
 blocked: false
 due: "2026-04-15"
-project: fref("projects/website-redesign.td")
-assignee: fref("people/bob.td")
+project: fref("/projects/website-redesign.td")
+assignee: fref("/people/bob.td")
 ---
 
 Completed **ahead of schedule**. Bob delivered three homepage variants.

@@ -4,7 +4,8 @@
 (block_quote) @fold
 (toggle_list) @fold
 (toggle_list_item) @fold
-(list) @fold
+(bullet_list) @fold
+(ordered_list) @fold
 (list_item) @fold
 (container_block) @fold
 (pipe_table) @fold

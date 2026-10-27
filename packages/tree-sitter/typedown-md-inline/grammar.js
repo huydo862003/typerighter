@@ -24,6 +24,14 @@ export default grammar({
     $._emphasis_open_underscore,
     $._emphasis_close_underscore,
 
+    $._strong_emphasis_open_star,
+    $._strong_emphasis_close_star,
+    $._strong_emphasis_open_underscore,
+    $._strong_emphasis_close_underscore,
+
+    $._strikethrough_open,
+    $._strikethrough_close,
+
     $.code_span_delimiter,
     $.code_span_content,
 
@@ -35,12 +43,7 @@ export default grammar({
 
   extras: () => [],
 
-  conflicts: ($) => [
-    [
-      $.emphasis,
-      $.strong_emphasis,
-    ],
-  ],
+  conflicts: () => [],
 
   rules: {
     inline: ($) =>
@@ -48,8 +51,9 @@ export default grammar({
 
     _inline_element: ($) =>
       choice(
-        $.emphasis,
         $.strong_emphasis,
+        $.emphasis,
+        $.strikethrough,
         $.code_span,
         $.math_span,
         $.inline_link,
@@ -62,42 +66,42 @@ export default grammar({
         $._text_content,
       ),
 
+    // *text* or _text_
     emphasis: ($) =>
-      prec.dynamic(
-        1,
-        choice(
-          seq(
-            $._emphasis_open_star,
-            repeat1($._inline_element),
-            $._emphasis_close_star,
-          ),
-          seq(
-            $._emphasis_open_underscore,
-            repeat1($._inline_element),
-            $._emphasis_close_underscore,
-          ),
+      choice(
+        seq(
+          $._emphasis_open_star,
+          repeat1($._inline_element),
+          $._emphasis_close_star,
+        ),
+        seq(
+          $._emphasis_open_underscore,
+          repeat1($._inline_element),
+          $._emphasis_close_underscore,
         ),
       ),
 
+    // **text** or __text__
     strong_emphasis: ($) =>
-      prec.dynamic(
-        2,
-        choice(
-          seq(
-            $._emphasis_open_star,
-            $._emphasis_open_star,
-            repeat1($._inline_element),
-            $._emphasis_close_star,
-            $._emphasis_close_star,
-          ),
-          seq(
-            $._emphasis_open_underscore,
-            $._emphasis_open_underscore,
-            repeat1($._inline_element),
-            $._emphasis_close_underscore,
-            $._emphasis_close_underscore,
-          ),
+      choice(
+        seq(
+          $._strong_emphasis_open_star,
+          repeat1($._inline_element),
+          $._strong_emphasis_close_star,
         ),
+        seq(
+          $._strong_emphasis_open_underscore,
+          repeat1($._inline_element),
+          $._strong_emphasis_close_underscore,
+        ),
+      ),
+
+    // ~~text~~
+    strikethrough: ($) =>
+      seq(
+        $._strikethrough_open,
+        repeat1($._inline_element),
+        $._strikethrough_close,
       ),
 
     code_span: ($) =>
@@ -128,8 +132,9 @@ export default grammar({
       repeat1(
         choice(
           $._text_content,
-          $.emphasis,
           $.strong_emphasis,
+          $.emphasis,
+          $.strikethrough,
           $.code_span,
           $.math_span,
         ),

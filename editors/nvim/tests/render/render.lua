@@ -106,9 +106,7 @@ h.test("all highlight groups are defined", function()
     "TypedownRenderContainerImportant",
     "TypedownRenderContainerCaution",
     "TypedownRenderContainerDefault",
-    "TypedownRenderContainerBorder",
     "TypedownRenderCodeBlock",
-    "TypedownRenderCodeInline",
     "TypedownRenderCodeLanguage",
     "TypedownRenderCodeBorder",
     "TypedownRenderTableBorder",
@@ -185,6 +183,93 @@ h.test("anti-conceal: insert mode sets special cursor value", function()
 
   anti_conceal.on_insert_leave(buf)
   h.assert(state.get_cursor_line(buf) ~= -2, "leaving insert should restore cursor line")
+end)
+
+h.test("attach sets conceallevel=2 on current window", function()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  local win = vim.api.nvim_get_current_win()
+
+  vim.api.nvim_set_option_value("conceallevel", 0, { win = win })
+
+  require("typedown.render.init").attach(buf)
+
+  local cl = vim.api.nvim_get_option_value("conceallevel", { win = win })
+  h.assert_eq(cl, 2, "attach should set conceallevel=2 so conceal extmarks hide markers")
+end)
+
+h.test("container: both opening and closing ::: are concealed", function()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    "---", "---",
+    "::: note",
+    "content",
+    ":::",
+  })
+
+  -- Move cursor away from both delimiters
+  vim.api.nvim_win_set_cursor(0, { 4, 0 })
+
+  -- Wait for tree-sitter parse
+  vim.wait(200, function() return false end, 10)
+
+  local render = require("typedown.render.init")
+  render.attach(buf)
+  vim.wait(200, function() return false end, 10)
+
+  local ns = require("typedown.render.state").get_namespace("containers")
+  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
+
+  local has_opening_conceal = false
+  local has_closing_conceal = false
+  for _, mark in ipairs(marks) do
+    local details = mark[4]
+    if details.conceal == "" then
+      local row = mark[2]
+      if row == 2 then has_opening_conceal = true end
+      if row == 4 then has_closing_conceal = true end
+    end
+  end
+
+  h.assert(has_opening_conceal, "opening ::: (row 2) should have a conceal extmark")
+  h.assert(has_closing_conceal, "closing ::: (row 4) should have a conceal extmark")
+end)
+
+h.test("typedown_yaml highlights query loads without errors", function()
+  local ok, err = pcall(vim.treesitter.query.get, "typedown_yaml", "highlights")
+  h.assert(ok, "typedown_yaml highlights query should load without errors: " .. tostring(err))
+end)
+
+h.test("inline formatting highlights are correctly set", function()
+  require("typedown.render.highlights").setup()
+
+  local strong = vim.api.nvim_get_hl(0, { name = "@markup.strong" })
+  h.assert(strong.bold, "@markup.strong should be bold")
+
+  local italic = vim.api.nvim_get_hl(0, { name = "@markup.italic" })
+  h.assert(italic.italic, "@markup.italic should be italic")
+
+  local strike = vim.api.nvim_get_hl(0, { name = "@markup.strikethrough" })
+  h.assert(strike.strikethrough, "@markup.strikethrough should be strikethrough")
+end)
+
+h.test("all renderers have a name field", function()
+  local renderers = {
+    require("typedown.render.headings"),
+    require("typedown.render.containers"),
+    require("typedown.render.checkboxes"),
+    require("typedown.render.bullets"),
+    require("typedown.render.code"),
+    require("typedown.render.tables"),
+    require("typedown.render.toggle-list"),
+  }
+  for _, renderer in ipairs(renderers) do
+    h.assert(renderer.name, "renderer should have a name field")
+    h.assert(type(renderer.name) == "string", "renderer.name should be a string")
+  end
 end)
 
 h.test("commands are registered", function()

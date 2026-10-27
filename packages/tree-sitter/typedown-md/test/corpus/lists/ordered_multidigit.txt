@@ -9,12 +9,12 @@ Multi-digit ordered list
 
 (document
   (section
-    (list
+    (ordered_list
       (list_item
-        (list_marker_dot)
+        marker: (list_marker_dot)
         (paragraph
           (inline)))
       (list_item
-        (list_marker_dot)
+        marker: (list_marker_dot)
         (paragraph
           (inline))))))
