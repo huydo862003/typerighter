@@ -92,6 +92,7 @@
 "(" @punctuation.bracket
 ")" @punctuation.bracket
 ; Block scalars
+(block_scalar indicator: _ @punctuation.special)
 (block_scalar_content) @string
 
 ; Spell checking

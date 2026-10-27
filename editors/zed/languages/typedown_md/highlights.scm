@@ -42,6 +42,7 @@
 ; Containers
 (container_block_delimiter) @punctuation.special
 (container_type) @label
+(container_title) @string.special
 (container_prop_block ["{" "}"] @punctuation.bracket)
 (container_prop_key) @property
 (container_prop_item "=" @operator)
@@ -53,6 +54,6 @@
 ; Tables
 (pipe_table_header) @title
 (pipe_table_delimiter_row) @punctuation.delimiter
-(pipe_table_cell) @text
+; pipe_table_cell is injected with typedown_md_inline for rich content highlighting
 (pipe_table_row "|" @punctuation.special)
 (pipe_table_header "|" @punctuation.special)

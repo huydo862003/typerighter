@@ -111,6 +111,49 @@ more
       (container_block_delimiter))))
 
 ================
+Container block with title
+================
+
+::: details Click to expand
+content
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      title: (container_title)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
+Container block with props and title
+================
+
+::: card {collapsed} My Card Title
+content
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      props: (container_prop_block
+        (container_prop_item
+          key: (container_prop_key)))
+      title: (container_title)
+      (paragraph
+        (inline))
+      (container_block_delimiter))))
+
+================
 Kebab-case container type
 ================
 
