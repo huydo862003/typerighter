@@ -1,6 +1,17 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.46.1] - 2026-10-27
+
+### Fixed
+
+- editors/nvim
+  - Fix markdown rendering plugin
+- packages/treesitter
+  - Support list parsing
+- editors/vscode
+  - Update textmate grammar
+
 ## [0.46.0] - 2026-10-27
 
 ### Added
