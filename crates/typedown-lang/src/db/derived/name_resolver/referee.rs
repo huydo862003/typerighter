@@ -114,14 +114,13 @@ fn is_dot_rhs(node: &RedNode) -> bool {
 
 #[cfg(test)]
 mod tests {
+  use super::referee;
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::{ProjectRedNode, SymbolKind};
   use crate::syntax::ast::{AstNode, CallExpr, IdentLit};
   use crate::syntax::parse::tests::helpers::parse;
   use crate::syntax::red::RedNode;
-
-  use super::referee;
 
   // walk the tree depth-first to find the first CallExpr node
   fn find_call_node(node: &RedNode) -> Option<RedNode> {
@@ -180,7 +179,7 @@ mod tests {
     let resolved = referee(&db, project_node);
     let symbol = resolved
       .value(&db)
-      .expect("fref(\"./peer.td\") from subdir/ should resolve to subdir/peer.td");
+      .expect(r#"fref("./peer.td") from subdir/ should resolve to subdir/peer.td"#);
     assert_eq!(
       symbol.name(&db),
       "peer",

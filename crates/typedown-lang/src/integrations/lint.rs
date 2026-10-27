@@ -324,7 +324,12 @@ Text.
 
   #[test]
   fn trailing_whitespace() {
-    let diags = lint("---\n---\nHello   \n");
+    let diags = lint(
+      r"---
+---
+Hello   
+",
+    );
     assert!(codes(&diags).contains(&"trailing-whitespace"));
   }
 
@@ -404,7 +409,16 @@ More text.
 
   #[test]
   fn consecutive_blank_lines() {
-    let diags = lint("---\n---\nFirst.\n\n\n\nSecond.\n");
+    let diags = lint(
+      r#"---
+---
+First.
+
+
+
+Second.
+"#,
+    );
     assert!(codes(&diags).contains(&"consecutive-blank-lines"));
   }
 

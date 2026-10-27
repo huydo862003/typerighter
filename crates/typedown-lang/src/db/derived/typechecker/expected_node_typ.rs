@@ -539,7 +539,6 @@ fn simple_schemaless_result<'db>(db: &'db TypedownDatabase) -> TypResult<'db> {
 mod tests {
   use crate::db::TypedownDatabase;
   use crate::db::types::derived::obj_system::TdStaticTyp;
-
   use crate::db::{
     derived::parse_file::parse_file,
     derived::typechecker::expected_node_typ::expected_node_typ,

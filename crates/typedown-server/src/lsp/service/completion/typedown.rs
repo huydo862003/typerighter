@@ -495,7 +495,7 @@ fn collect_value_completions(
       items.push(CompletionItem {
         label: name,
         kind: Some(kind),
-        insert_text: Some("fref(\"$1\")".to_string()),
+        insert_text: Some(r#"fref("$1")"#.to_string()),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         ..Default::default()
       });
@@ -528,7 +528,7 @@ fn collect_value_completions(
     let (label, insert) = if inside_str {
       ("YYYY-MM-DD", "$1")
     } else {
-      ("\"YYYY-MM-DD\"", "\"$1\"")
+      (r#""YYYY-MM-DD""#, r#""$1""#)
     };
     items.push(CompletionItem {
       label: label.to_string(),
@@ -544,7 +544,11 @@ fn collect_value_completions(
   if typ.is_td_list_typ() || has_nullable_member(db, &typ, TdTypEnum::is_td_list_typ) {
     items.push(CompletionItem {
       label: "- ...".to_string(),
-      insert_text: Some("\n  - $1".to_string()),
+      insert_text: Some(
+        r#"
+  - $1"#
+          .to_string(),
+      ),
       insert_text_format: Some(InsertTextFormat::SNIPPET),
       detail: Some("List".to_string()),
       kind: Some(CompletionItemKind::SNIPPET),
@@ -812,7 +816,12 @@ fn collect_field_completions_from_typ(
       label: "_meta".to_string(),
       kind: Some(CompletionItemKind::SNIPPET),
       detail: Some("SEO overrides".to_string()),
-      insert_text: Some("_meta:\n  title: \"$1\"\n  description: \"$2\"".to_string()),
+      insert_text: Some(
+        r#"_meta:
+  title: "$1"
+  description: "$2""#
+          .to_string(),
+      ),
       insert_text_format: Some(InsertTextFormat::SNIPPET),
       sort_text: Some("2_meta".to_string()),
       ..Default::default()
@@ -934,22 +943,19 @@ fn collect_container_slot_completions(
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-  use std::sync::{Arc, Condvar, Mutex};
-
+  use super::resolve_completion as completion;
+  use crate::core::analysis::Analysis;
+  use crate::core::utils::uri::path_to_uri;
   use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, PartialResultParams,
     Position, TextDocumentIdentifier, TextDocumentPositionParams, Uri, WorkDoneProgressParams,
   };
   use ropey::Rope;
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
-  use crate::core::analysis::Analysis;
-  use crate::core::utils::uri::path_to_uri;
-
-  use super::resolve_completion as completion;
 
   const VAULT_CONFIG: &str = r#"version: "1"
 vault:
@@ -1216,7 +1222,7 @@ _type: |
       "enum field should have first option as placeholder: {snippet}"
     );
     assert!(
-      snippet.contains("fref(\"Person\")"),
+      snippet.contains(r#"fref("Person")"#),
       "relation field should have fref placeholder: {snippet}"
     );
   }
@@ -1476,7 +1482,7 @@ Reference: ${|}
       item
         .insert_text
         .as_deref()
-        .is_some_and(|text| text.starts_with("fref(\"") && text.ends_with("\")"))
+        .is_some_and(|text| text.starts_with(r#"fref(""#) && text.ends_with(r#"")"#))
     });
     assert!(
       has_fref_insert,
@@ -2035,7 +2041,7 @@ featured: a|
       alice_item
         .insert_text
         .as_deref()
-        .is_some_and(|text| text.starts_with("fref(\"") && text.ends_with("\")")),
+        .is_some_and(|text| text.starts_with(r#"fref(""#) && text.ends_with(r#"")"#)),
       "insert_text should wrap path in fref(): {:?}",
       alice_item.insert_text
     );
@@ -2356,17 +2362,17 @@ priority: "high"
     };
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
-      labels.contains(&"\"todo\""),
+      labels.contains(&r#""todo""#),
       "should suggest 'todo': {:?}",
       labels
     );
     assert!(
-      labels.contains(&"\"in_progress\""),
+      labels.contains(&r#""in_progress""#),
       "should suggest 'in_progress': {:?}",
       labels
     );
     assert!(
-      labels.contains(&"\"done\""),
+      labels.contains(&r#""done""#),
       "should suggest 'done': {:?}",
       labels
     );

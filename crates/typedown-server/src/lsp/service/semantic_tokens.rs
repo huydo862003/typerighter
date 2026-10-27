@@ -131,10 +131,9 @@ fn delta_encode(
 
 #[cfg(test)]
 mod tests {
+  use super::*;
   use std::collections::HashMap;
   use std::path::PathBuf;
-
-  use super::*;
   use typedown_lang::db::types::FileMetadata;
 
   // Token -> Semantic token

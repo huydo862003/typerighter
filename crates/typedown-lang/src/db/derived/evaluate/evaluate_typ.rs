@@ -623,10 +623,6 @@ mod tests {
   use super::*;
   use crate::db::types::typecheck::{is_subtype_of, validate_typ_params};
   use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, TypVariable};
-
-  use std::collections::{BTreeMap, HashMap};
-  use std::path::PathBuf;
-
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::evaluate::evaluate_resource::evaluate_resource,
@@ -643,6 +639,8 @@ mod tests {
       SymbolKind, TdBoolObj, TdNumberObj, TdProductTyp, TdStringObj, TdTypTyp,
     },
   };
+  use std::collections::{BTreeMap, HashMap};
+  use std::path::PathBuf;
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
@@ -1082,7 +1080,7 @@ mod tests {
     let get_display_name = |t: TdTypEnum<'_>| t.display_name(&db);
     assert_eq!(
       get_display_name(get_lit_typ(&db, LitValue::String("draft".to_string())).into()),
-      "\"draft\""
+      r#""draft""#
     );
     assert_eq!(
       get_display_name(get_lit_typ(&db, LitValue::Number("42".to_string())).into()),
@@ -1316,7 +1314,13 @@ mod tests {
   #[test]
   fn construct_object_typ_fallback_to_dict() {
     let db = make_db();
-    let root = make_root_node(&db, "---\nname: \"Alice\"\nage: 42\n---");
+    let root = make_root_node(
+      &db,
+      r#"---
+name: "Alice"
+age: 42
+---"#,
+    );
     let name_node = get_field_node(&db, &root, "name");
     let scope = get_file_runtime_scope(&db, name_node.project, name_node.file);
     let obj = construct_from_node(&db, name_node, scope, &mut vec![]).unwrap();

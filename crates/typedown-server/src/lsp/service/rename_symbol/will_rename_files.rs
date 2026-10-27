@@ -64,17 +64,15 @@ pub fn will_rename_files(analysis: &Analysis, params: RenameFilesParams) -> Opti
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
-  use std::path::PathBuf;
-  use std::sync::{Arc, Condvar, Mutex};
-
-  use lsp_types::{DocumentChangeOperation, DocumentChanges, FileRename, RenameFilesParams};
-  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
-  use typedown_lang::db::{QueryStorage, TypedownDatabase};
-
   use super::will_rename_files;
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
+  use lsp_types::{DocumentChangeOperation, DocumentChanges, FileRename, RenameFilesParams};
+  use std::collections::HashMap;
+  use std::path::PathBuf;
+  use std::sync::{Arc, Condvar, Mutex};
+  use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
+  use typedown_lang::db::{QueryStorage, TypedownDatabase};
 
   const VAULT_CONFIG: &str = r#"
 version: "1"
@@ -209,7 +207,10 @@ avatar: fref("icon.svg")
       }
     }
     lines.sort();
-    lines.join("\n")
+    lines.join(
+      r"
+",
+    )
   }
 
   fn root() -> PathBuf {
@@ -235,14 +236,16 @@ avatar: fref("icon.svg")
     let snapshot = snapshot(&edit);
 
     assert!(
-      snapshot.contains("\"Human\""),
-      "should rename idents to Human:\n{}",
+      snapshot.contains(r#""Human""#),
+      r"should rename idents to Human:
+{}",
       snapshot
     );
     assert_eq!(
       snapshot.matches("EDIT").count(),
       2,
-      "should edit 2 files:\n{}",
+      r"should edit 2 files:
+{}",
       snapshot
     );
   }
@@ -255,7 +258,12 @@ avatar: fref("icon.svg")
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
     let snap = snapshot(&edit);
 
-    assert!(snap.contains("bob"), "should update fref to bob:\n{}", snap);
+    assert!(
+      snap.contains("bob"),
+      r"should update fref to bob:
+{}",
+      snap
+    );
   }
 
   // Renaming a content file to a nested directory updates fref references with full path
@@ -268,7 +276,8 @@ avatar: fref("icon.svg")
 
     assert!(
       snap.contains("people/alice.td"),
-      "should update fref to people/alice.td:\n{}",
+      r"should update fref to people/alice.td:
+{}",
       snap
     );
   }
@@ -295,8 +304,9 @@ avatar: fref("icon.svg")
     let snapshot = snapshot(&edit);
 
     assert!(
-      snapshot.contains("\"Human\""),
-      "should rename idents to Human in nested dir:\n{}",
+      snapshot.contains(r#""Human""#),
+      r"should rename idents to Human in nested dir:
+{}",
       snapshot
     );
   }
@@ -314,7 +324,8 @@ avatar: fref("icon.svg")
 
     assert!(
       snapshot.contains("logo"),
-      "should update fref to logo:\n{}",
+      r"should update fref to logo:
+{}",
       snapshot
     );
   }
@@ -334,7 +345,8 @@ avatar: fref("icon.svg")
 
     assert!(
       snapshot.contains("logo"),
-      "should update fref to logo:\n{}",
+      r"should update fref to logo:
+{}",
       snapshot
     );
   }

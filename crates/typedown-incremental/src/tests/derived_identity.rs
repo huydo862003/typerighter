@@ -1,12 +1,13 @@
 // Struct entry ID stability across roundtrips and drain
 
+use std::sync::Arc;
+
 use super::fixtures::identity;
+use crate::{Id, InputId, InternedId, SerializableQueryDatabase};
 use identity::{Database as IdDatabase, QueryStorage};
 
 #[test]
 fn derived_struct_identity_preserved_across_roundtrip() {
-  use crate::{Id, InputId};
-
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -41,8 +42,6 @@ fn derived_struct_identity_preserved_across_roundtrip() {
 
 #[test]
 fn multiple_derived_structs_preserve_identity_across_roundtrip() {
-  use crate::InputId;
-
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -74,8 +73,6 @@ fn multiple_derived_structs_preserve_identity_across_roundtrip() {
 
 #[test]
 fn no_id_fields_preserve_identity_across_roundtrip() {
-  use crate::{Id, InputId};
-
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -112,8 +109,6 @@ fn no_id_fields_preserve_identity_across_roundtrip() {
 // Drain: query creates fewer structs, stale ones must be cleaned up
 #[test]
 fn drain_removes_stale_structs_after_roundtrip() {
-  use crate::InputId;
-
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -147,8 +142,6 @@ fn drain_removes_stale_structs_after_roundtrip() {
 // After drain, serialization must not include removed structs' field data
 #[test]
 fn drain_shrinks_serialized_field_count() {
-  use crate::SerializableQueryDatabase;
-
   let mut db = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -174,9 +167,6 @@ fn drain_shrinks_serialized_field_count() {
 // After roundtrip, concurrent loading of both sets races on deserialize_derived_identity for the same entries
 #[test]
 fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
-  use crate::{InputId, InternedId};
-  use std::sync::Arc;
-
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
@@ -230,8 +220,6 @@ fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
 // Identity map cleanup must not break serialization
 #[test]
 fn drain_then_roundtrip_is_clean() {
-  use crate::InputId;
-
   let mut db = IdDatabase {
     storage: QueryStorage::default(),
   };

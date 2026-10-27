@@ -380,7 +380,10 @@ world
 // File with no frontmatter parses as empty frontmatter + markdown body
 #[test]
 fn parse_typedown_no_frontmatter() {
-  let input = "# Hello\n\nparagraph here\n";
+  let input = r#"# Hello
+
+paragraph here
+"#;
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -426,7 +429,8 @@ fn parse_typedown_empty_file() {
 // Container shorthand in a schemaless file (no frontmatter)
 #[test]
 fn parse_typedown_container_shorthand_no_frontmatter() {
-  let input = "[[toc]]\n";
+  let input = r"[[toc]]
+";
   let (ast, diagnostics) = parse(input);
   let tree = render_tree(&ast);
   assert_eq!(
@@ -470,7 +474,8 @@ fn parse_typedown_single_dash_no_frontmatter() {
 // Double dash is not a frontmatter opener
 #[test]
 fn parse_typedown_double_dash_no_frontmatter() {
-  let input = "-- not frontmatter\n";
+  let input = r"-- not frontmatter
+";
   let (ast, diagnostics) = parse(input);
   assert!(diagnostics.is_empty());
   let tree = render_tree(&ast);
@@ -628,7 +633,8 @@ tags:
 // Braces in prose are parsed as text tokens
 #[test]
 fn parse_braces_in_prose() {
-  let input = "hello {world}\n";
+  let input = r"hello {world}
+";
   let (ast, _) = parse(input);
   let tree = render_tree(&ast);
   assert_eq!(

@@ -241,8 +241,16 @@ fn parse_nested_bullet_list() {
 "#,
   );
   assert!(
-    tree.contains("(MdBulletList") && tree.matches("(MdBulletList\n").count() == 2,
-    "should have nested MdBulletList:\n{tree}"
+    tree.contains("(MdBulletList")
+      && tree
+        .matches(
+          r"(MdBulletList
+"
+        )
+        .count()
+        == 2,
+    r"should have nested MdBulletList:
+{tree}"
   );
 }
 
@@ -257,7 +265,8 @@ fn parse_ordered_in_bullet_list() {
   );
   assert!(
     tree.contains("(MdBulletList") && tree.contains("(MdOrderedList"),
-    "should have MdOrderedList nested in MdBulletList:\n{tree}"
+    r"should have MdOrderedList nested in MdBulletList:
+{tree}"
   );
 }
 
@@ -272,7 +281,8 @@ fn parse_bullet_in_ordered_list() {
   );
   assert!(
     tree.contains("(MdOrderedList") && tree.contains("(MdBulletList"),
-    "should have MdBulletList nested in MdOrderedList:\n{tree}"
+    r"should have MdBulletList nested in MdOrderedList:
+{tree}"
   );
 }
 
@@ -778,7 +788,14 @@ content
 
 #[test]
 fn parse_container_block_with_code_block() {
-  let tree = parse_body("::: note\n```python\nprint('hi')\n```\n:::\n");
+  let tree = parse_body(
+    r#"::: note
+```python
+print('hi')
+```
+:::
+"#,
+  );
   assert_eq!(
     tree,
     r####"(SourceFile
@@ -1588,7 +1605,7 @@ fn parse_container_block_no_space_with_props() {
   );
   assert!(
     diags.is_empty(),
-    "should produce no diagnostics for ':::td-alert{{kind=\"info\"}}', got: {diags:?}"
+    r#"should produce no diagnostics for ':::td-alert{{kind="info"}}', got: {diags:?}"#
   );
 }
 
@@ -1712,7 +1729,12 @@ fn parse_body_empty() {
 // Parses a body with only blank lines
 #[test]
 fn parse_body_only_blank_lines() {
-  let tree = parse_body("\n\n\n");
+  let tree = parse_body(
+    r"
+
+
+",
+  );
   assert_eq!(
     tree,
     r####"(SourceFile
@@ -1812,7 +1834,10 @@ fn parse_link_url_with_special_chars() {
 // Backslash in link URL should not be treated as escape sequence
 #[test]
 fn parse_link_url_with_backslash() {
-  let tree = parse_body("[text](https://example.com/path\\file)\n");
+  let tree = parse_body(
+    r"[text](https://example.com/path\file)
+",
+  );
   assert_eq!(
     tree,
     r####"(SourceFile
@@ -1850,7 +1875,10 @@ fn parse_link_url_with_backslash() {
 // Asterisks in link URL should not trigger bold/italic
 #[test]
 fn parse_link_url_with_asterisks() {
-  let tree = parse_body("[text](https://example.com/*glob*)\n");
+  let tree = parse_body(
+    r"[text](https://example.com/*glob*)
+",
+  );
   assert_eq!(
     tree,
     r####"(SourceFile
@@ -2086,7 +2114,10 @@ fn parse_inline_code_with_braces_object() {
 
 #[test]
 fn parse_inline_code_with_range_like_braces() {
-  let (_, diags) = parse_body_with_diagnostics("`a{1,3}`\n");
+  let (_, diags) = parse_body_with_diagnostics(
+    r"`a{1,3}`
+",
+  );
   assert_eq!(diags, &[] as &[TdDiagnostic]);
 }
 
@@ -4370,9 +4401,15 @@ fn parse_nested_siblings() {
 "#,
   );
   assert_eq!(
-    tree.matches("(MdBulletListItem\n").count(),
+    tree
+      .matches(
+        r"(MdBulletListItem
+"
+      )
+      .count(),
     4,
-    "expected 4 items (outer, first inner, second inner, back):\n{tree}"
+    r"expected 4 items (outer, first inner, second inner, back):
+{tree}"
   );
   assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
@@ -4388,9 +4425,15 @@ fn parse_nested_ordered_siblings() {
 "#,
   );
   assert_eq!(
-    tree.matches("(MdOrderedListItem\n").count(),
+    tree
+      .matches(
+        r"(MdOrderedListItem
+"
+      )
+      .count(),
     4,
-    "expected 4 items (outer, first inner, second inner, back):\n{tree}"
+    r"expected 4 items (outer, first inner, second inner, back):
+{tree}"
   );
   assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
@@ -4479,8 +4522,15 @@ fn parse_ambiguous_dedent_not_sibling() {
   // "second" should NOT be a sibling of "first" since it dedented
   // It should be parsed as text or a separate context
   assert!(
-    tree.matches("(MdBulletListItem\n").count() <= 3,
-    "dedented item should not create a 4th sibling:\n{tree}"
+    tree
+      .matches(
+        r"(MdBulletListItem
+"
+      )
+      .count()
+      <= 3,
+    r"dedented item should not create a 4th sibling:
+{tree}"
   );
 }
 
@@ -5249,11 +5299,13 @@ fn parse_backslash_escape_italic() {
   );
   assert!(
     !tree.contains("MdItalic"),
-    "escaped * should not create italic:\n{tree}"
+    r"escaped * should not create italic:
+{tree}"
   );
   assert!(
     tree.contains("*"),
-    "escaped * should appear as literal:\n{tree}"
+    r"escaped * should appear as literal:
+{tree}"
   );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
@@ -5267,7 +5319,8 @@ fn parse_backslash_escape_bracket() {
   );
   assert!(
     !tree.contains("MdLink"),
-    "escaped [ should not create link:\n{tree}"
+    r"escaped [ should not create link:
+{tree}"
   );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
@@ -5281,7 +5334,8 @@ fn parse_backslash_escape_hash() {
   );
   assert!(
     !tree.contains("MdHeading"),
-    "escaped # should not create heading:\n{tree}"
+    r"escaped # should not create heading:
+{tree}"
   );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
@@ -5293,29 +5347,54 @@ fn parse_backslash_non_escapable() {
     r#"\a plain text
 "#,
   );
-  assert!(tree.contains("\\"), "backslash should be literal:\n{tree}");
+  assert!(
+    tree.contains(r"\"),
+    r"backslash should be literal:
+{tree}"
+  );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
 // Horizontal rules
 #[test]
 fn parse_horizontal_rule_dashes() {
-  let (tree, diags) = parse_body_with_diagnostics("---\n");
-  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  let (tree, diags) = parse_body_with_diagnostics(
+    r"---
+",
+  );
+  assert!(
+    tree.contains("MdHorizontalRule"),
+    r"expected hr:
+{tree}"
+  );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
 #[test]
 fn parse_horizontal_rule_stars() {
-  let (tree, diags) = parse_body_with_diagnostics("***\n");
-  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  let (tree, diags) = parse_body_with_diagnostics(
+    r"***
+",
+  );
+  assert!(
+    tree.contains("MdHorizontalRule"),
+    r"expected hr:
+{tree}"
+  );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
 #[test]
 fn parse_horizontal_rule_underscores() {
-  let (tree, diags) = parse_body_with_diagnostics("___\n");
-  assert!(tree.contains("MdHorizontalRule"), "expected hr:\n{tree}");
+  let (tree, diags) = parse_body_with_diagnostics(
+    r"___
+",
+  );
+  assert!(
+    tree.contains("MdHorizontalRule"),
+    r"expected hr:
+{tree}"
+  );
   assert!(diags.is_empty(), "got: {diags:?}");
 }
 
@@ -5327,7 +5406,8 @@ fn parse_not_horizontal_rule_with_text() {
   );
   assert!(
     !tree.contains("MdHorizontalRule"),
-    "should not be hr:\n{tree}"
+    r"should not be hr:
+{tree}"
   );
 }
 
@@ -5339,7 +5419,11 @@ fn parse_link_with_inline_code_text() {
 ",
   );
   eprintln!("{tree}");
-  assert!(tree.contains("MdLink"), "should parse as a link:\n{tree}");
+  assert!(
+    tree.contains("MdLink"),
+    r"should parse as a link:
+{tree}"
+  );
 }
 
 // JS prop value error recovery
@@ -5347,7 +5431,11 @@ fn parse_link_with_inline_code_text() {
 // Invalid token inside a list synchronizes to the next delimiter, no crash
 #[test]
 fn prop_list_invalid_element_synchronizes() {
-  let (tree, diags) = parse_body_with_diagnostics(":::card{data=[@bad]}\n:::\n");
+  let (tree, diags) = parse_body_with_diagnostics(
+    r#":::card{data=[@bad]}
+:::
+"#,
+  );
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5367,7 +5455,11 @@ fn prop_list_invalid_element_synchronizes() {
 // Error mid-list: synchronizes to next comma/bracket, parses what it can
 #[test]
 fn prop_list_error_mid_list_synchronizes() {
-  let (tree, diags) = parse_body_with_diagnostics(":::card{data=[1, @, 3]}\n:::\n");
+  let (tree, diags) = parse_body_with_diagnostics(
+    r#":::card{data=[1, @, 3]}
+:::
+"#,
+  );
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5381,7 +5473,11 @@ fn prop_list_error_mid_list_synchronizes() {
 // List terminated early by `}`: closes the list without crash
 #[test]
 fn prop_list_terminated_by_rbrace_no_crash() {
-  let (tree, _) = parse_body_with_diagnostics(":::card{data=[1, 2}\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(
+    r#":::card{data=[1, 2}
+:::
+"#,
+  );
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5391,7 +5487,11 @@ fn prop_list_terminated_by_rbrace_no_crash() {
 // Unterminated list at newline: closes gracefully
 #[test]
 fn prop_list_unterminated_at_newline_no_crash() {
-  let (tree, _) = parse_body_with_diagnostics(":::card{data=[1, 2\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(
+    r#":::card{data=[1, 2
+:::
+"#,
+  );
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
@@ -5401,7 +5501,11 @@ fn prop_list_unterminated_at_newline_no_crash() {
 // Invalid value in a dict entry: synchronizes, no crash
 #[test]
 fn prop_dict_invalid_value_synchronizes() {
-  let (tree, diags) = parse_body_with_diagnostics(":::card{config={color: @bad}}\n:::\n");
+  let (tree, diags) = parse_body_with_diagnostics(
+    r#":::card{config={color: @bad}}
+:::
+"#,
+  );
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"
@@ -5421,7 +5525,11 @@ fn prop_dict_invalid_value_synchronizes() {
 // Dict entry missing colon: synchronizes, no crash
 #[test]
 fn prop_dict_missing_colon_synchronizes() {
-  let (tree, _) = parse_body_with_diagnostics(":::card{config={color \"red\"}}\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(
+    r#":::card{config={color "red"}}
+:::
+"#,
+  );
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"
@@ -5431,7 +5539,11 @@ fn prop_dict_missing_colon_synchronizes() {
 // Unterminated dict at newline: closes gracefully
 #[test]
 fn prop_dict_unterminated_at_newline_no_crash() {
-  let (tree, _) = parse_body_with_diagnostics(":::card{config={color: \"red\"\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(
+    r#":::card{config={color: "red"
+:::
+"#,
+  );
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"
@@ -5441,7 +5553,11 @@ fn prop_dict_unterminated_at_newline_no_crash() {
 // Error in nested list inside a dict value: recovers without crash
 #[test]
 fn prop_dict_nested_list_invalid_element_no_crash() {
-  let (tree, _) = parse_body_with_diagnostics(":::card{config={a: [@bad]}}\n:::\n");
+  let (tree, _) = parse_body_with_diagnostics(
+    r#":::card{config={a: [@bad]}}
+:::
+"#,
+  );
   assert!(
     tree.contains("DictLit"),
     "should still emit DictLit node: {tree}"

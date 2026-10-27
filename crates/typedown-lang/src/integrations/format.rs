@@ -267,67 +267,162 @@ mod tests {
   // Heading gets exactly one space after hashes
   #[test]
   fn heading_spacing() {
-    let result = fmt("---\n---\n##Heading\n");
-    assert_eq!(result, "\n## Heading\n");
+    let result = fmt(
+      r#"---
+---
+##Heading
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+## Heading
+"#
+    );
   }
 
   // Extra spaces after hashes are normalized
   #[test]
   fn heading_extra_spaces() {
-    let result = fmt("---\n---\n##   Heading\n");
-    assert_eq!(result, "\n## Heading\n");
+    let result = fmt(
+      r#"---
+---
+##   Heading
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+## Heading
+"#
+    );
   }
 
   // Blank line before heading
   #[test]
   fn blank_line_before_heading() {
-    let result = fmt("---\n---\nSome text.\n## Heading\n");
+    let result = fmt(
+      r#"---
+---
+Some text.
+## Heading
+"#,
+    );
     assert!(
-      result.contains("\n\n## Heading"),
-      "should have blank line before heading:\n{result}"
+      result.contains(
+        r"
+
+## Heading"
+      ),
+      r"should have blank line before heading:
+{result}"
     );
   }
 
   // Blank line after heading
   #[test]
   fn blank_line_after_heading() {
-    let result = fmt("---\n---\n## Heading\nSome text.\n");
+    let result = fmt(
+      r#"---
+---
+## Heading
+Some text.
+"#,
+    );
     assert!(
-      result.contains("## Heading\n\n"),
-      "should have blank line after heading:\n{result}"
+      result.contains(
+        r"## Heading
+
+"
+      ),
+      r"should have blank line after heading:
+{result}"
     );
   }
 
   // Trailing whitespace removed
   #[test]
   fn trailing_whitespace() {
-    let result = fmt("---\n---\nHello world   \n");
-    assert_eq!(result, "\nHello world\n");
+    let result = fmt(
+      r"---
+---
+Hello world   
+",
+    );
+    assert_eq!(
+      result,
+      r#"
+Hello world
+"#
+    );
   }
 
   // Multiple blank lines collapsed to one
   #[test]
   fn collapse_blank_lines_test() {
-    let result = fmt("---\n---\nFirst.\n\n\n\nSecond.\n");
-    assert_eq!(result, "\nFirst.\n\nSecond.\n");
+    let result = fmt(
+      r#"---
+---
+First.
+
+
+
+Second.
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"
+First.
+
+Second.
+"#
+    );
   }
 
   // File ends with exactly one newline
   #[test]
   fn trailing_newline() {
-    let result = fmt("---\n---\nHello\n\n\n");
+    let result = fmt(
+      r#"---
+---
+Hello
+
+
+"#,
+    );
     assert!(
-      result.ends_with("\nHello\n"),
-      "should end with one newline:\n{result:?}"
+      result.ends_with(
+        r"
+Hello
+"
+      ),
+      r"should end with one newline:
+{result:?}"
     );
   }
 
   // Formatter is idempotent
   #[test]
   fn idempotent() {
-    let input = "---\n---\n##Heading\n\n\n\nSome text.   \n\n## Another\n\nParagraph.\n";
+    let input = r#"---
+---
+##Heading
+
+
+
+Some text.
+
+## Another
+
+Paragraph.
+"#;
     let first = fmt(input);
-    let second_input = format!("---\n---\n{first}");
+    let second_input = format!(
+      r"---
+---
+{first}"
+    );
     let second = fmt(&second_input);
     assert_eq!(first, second, "formatter should be idempotent");
   }
@@ -388,8 +483,13 @@ mod tests {
 "#,
     );
     assert!(
-      result.contains("- Item two\n\n## Next Section"),
-      "should have blank line between list and heading:\n{result}"
+      result.contains(
+        r"- Item two
+
+## Next Section"
+      ),
+      r"should have blank line between list and heading:
+{result}"
     );
   }
 
@@ -439,16 +539,29 @@ Alice is a **backend developer**.
 "#,
     );
     assert!(
-      result.contains("- Lead backend development\n"),
-      "list items preserved:\n{result}"
+      result.contains(
+        r"- Lead backend development
+"
+      ),
+      r"list items preserved:
+{result}"
     );
     assert!(
-      result.contains("## Skills\n\n"),
-      "blank line after heading:\n{result}"
+      result.contains(
+        r"## Skills
+
+"
+      ),
+      r"blank line after heading:
+{result}"
     );
     assert!(
-      !result.contains("- Lead backend development\n- Lead backend development"),
-      "no duplication:\n{result}"
+      !result.contains(
+        r"- Lead backend development
+- Lead backend development"
+      ),
+      r"no duplication:
+{result}"
     );
   }
 
@@ -464,8 +577,13 @@ Some text.
 "#,
     );
     assert!(
-      result.contains("- Item two\n\nSome text."),
-      "should have blank line between list and paragraph:\n{result}"
+      result.contains(
+        r"- Item two
+
+Some text."
+      ),
+      r"should have blank line between list and paragraph:
+{result}"
     );
   }
 
@@ -481,8 +599,13 @@ Some text.
 "#,
     );
     assert!(
-      result.contains("Some text.\n\n- Item one"),
-      "should have blank line between paragraph and list:\n{result}"
+      result.contains(
+        r"Some text.
+
+- Item one"
+      ),
+      r"should have blank line between paragraph and list:
+{result}"
     );
   }
 
@@ -497,7 +620,14 @@ First paragraph.
 Second paragraph.
 "#,
     );
-    assert_eq!(result, "\nFirst paragraph.\n\nSecond paragraph.\n");
+    assert_eq!(
+      result,
+      r#"
+First paragraph.
+
+Second paragraph.
+"#
+    );
   }
 
   // Idempotent with lists
@@ -513,7 +643,11 @@ Second paragraph.
 Some text.
 "#;
     let first = fmt(input);
-    let second_input = format!("---\n---\n{first}");
+    let second_input = format!(
+      r"---
+---
+{first}"
+    );
     let second = fmt(&second_input);
     assert_eq!(first, second, "formatter should be idempotent with lists");
   }
@@ -598,7 +732,8 @@ Some text.
     );
     assert!(
       result.contains("$$"),
-      "math block $$ should be preserved in list:\n{result}"
+      r"math block $$ should be preserved in list:
+{result}"
     );
   }
 
@@ -616,11 +751,13 @@ More text.
     );
     assert!(
       result.contains("$$T_{total}"),
-      "math block opening $$ should be preserved:\n{result}"
+      r"math block opening $$ should be preserved:
+{result}"
     );
     assert!(
       result.contains("T_{FCP}$$"),
-      "math block closing $$ should be preserved:\n{result}"
+      r"math block closing $$ should be preserved:
+{result}"
     );
   }
 
@@ -635,7 +772,8 @@ More text.
     );
     assert!(
       result.contains("![architecture](_assets/architecture.webp)"),
-      "media should be preserved in list item:\n{result}"
+      r"media should be preserved in list item:
+{result}"
     );
   }
 
@@ -653,8 +791,13 @@ More text.
 "#,
     );
     assert!(
-      result.contains("---\n\nMore text."),
-      "horizontal rule should be preserved:\n{result}"
+      result.contains(
+        r"---
+
+More text."
+      ),
+      r"horizontal rule should be preserved:
+{result}"
     );
   }
 
@@ -831,7 +974,8 @@ if (x) {
     );
     assert!(
       result.contains("![photo](img.png)"),
-      "standalone media should be preserved:\n{result}"
+      r"standalone media should be preserved:
+{result}"
     );
   }
 }

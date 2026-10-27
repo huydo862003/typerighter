@@ -676,21 +676,18 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
 
 #[cfg(test)]
 mod tests {
+  use super::actual_node_typ;
   use crate::db::derived::get_builtin_typs::{
     get_func_typ, get_lit_typ, get_schema_meta_typ, get_string_typ,
   };
+  use crate::db::derived::parse_file::parse_file;
+  use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::derived::obj_system::TdStaticTyp;
   use crate::db::types::{File, FileHandle, FileMetadata, LitValue, Project};
   use crate::db::types::{FuncSignature, TdTypEnum};
-  use std::{collections::HashMap, path::PathBuf};
-
-  use crate::db::derived::parse_file::parse_file;
   use crate::db::{QueryStorage, TypedownDatabase};
   use crate::syntax::diagnostic::*;
-
-  use crate::db::fixtures::load_vault_fixture;
-
-  use super::actual_node_typ;
+  use std::{collections::HashMap, path::PathBuf};
 
   fn is_lit_string(db: &TypedownDatabase, typ: &TdTypEnum, expected: &str) -> bool {
     if let TdTypEnum::TdLitTyp(lit) = typ {
@@ -733,7 +730,7 @@ mod tests {
     let name_typ = name_lazy.resolve(&db).expect("should resolve");
     assert!(
       is_lit_string(&db, &name_typ, "Alice"),
-      "name should be literal str \"Alice\""
+      r#"name should be literal str "Alice""#
     );
 
     // Num literal narrows to TdLiteralType(Num)
@@ -741,7 +738,7 @@ mod tests {
     let age_typ = age_lazy.resolve(&db).expect("should resolve");
     assert!(
       is_lit_number(&db, &age_typ, "30"),
-      "age should be literal num \"30\""
+      r#"age should be literal num "30""#
     );
 
     // Bool literal narrows to TdLiteralType(Bool)
@@ -960,12 +957,12 @@ mod tests {
     });
     assert!(
       !has_unresolved,
-      "fref(\"./peer.td\") should resolve relative to subdir/, not vault root: {:?}",
+      r#"fref("./peer.td") should resolve relative to subdir/, not vault root: {:?}"#,
       result.diagnostics(&db)
     );
     assert!(
       result.typ(&db).is_some(),
-      "fref(\"./peer.td\") should have a resolved type"
+      r#"fref("./peer.td") should have a resolved type"#
     );
   }
 

@@ -15,13 +15,10 @@ pub trait InputId: super::Id + From<u32> + Into<u32> {
 
 #[cfg(test)]
 mod tests {
-  use std::path::PathBuf;
-
-  use typedown_macros::{query_db, query_input};
-
-  use std::sync::atomic::Ordering;
-
   use crate::QueryStorage;
+  use std::path::PathBuf;
+  use std::sync::atomic::Ordering;
+  use typedown_macros::{query_db, query_input};
 
   #[query_db]
   struct Database {

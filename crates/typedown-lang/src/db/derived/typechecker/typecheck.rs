@@ -1005,7 +1005,7 @@ mod tests {
     let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
-      "state: \"draft\" should match: {:?}",
+      r#"state: "draft" should match: {:?}"#,
       result.diagnostics(&db)
     );
   }
@@ -1338,7 +1338,7 @@ mod tests {
     let result = typecheck(&db, root_node);
     assert!(
       result.diagnostics(&db).is_empty(),
-      "string | number should accept \"hello\": {:?}",
+      r#"string | number should accept "hello": {:?}"#,
       result.diagnostics(&db)
     );
   }

@@ -221,7 +221,7 @@ mod tests {
 
   #[test]
   fn resolve_fref_absolute_path_vault_at_project_root() {
-    // vault_root is `.` — the project root itself
+    // vault_root is `.` - the project root itself
     let vault_root = Path::new("/project");
     let source_file_dir = Path::new("/project/articles");
     let result = resolve_fref_path("/articles/intro.td", source_file_dir, vault_root);
