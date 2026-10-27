@@ -113,6 +113,11 @@ h.test("all highlight groups are defined", function()
     "TypedownRenderTableHeader",
     "TypedownRenderCheckboxUnchecked",
     "TypedownRenderCheckboxChecked",
+    "TypedownRenderCheckboxCancelled",
+    "TypedownRenderCheckboxForwarded",
+    "TypedownRenderCheckboxImportant",
+    "TypedownRenderFrefIcon",
+    "TypedownRenderFrefText",
     "TypedownRenderBullet",
     "TypedownRenderToggleOpen",
     "TypedownRenderToggleClosed",
@@ -267,6 +272,130 @@ h.test("all renderers have a name field", function()
     h.assert(renderer.name, "renderer should have a name field")
     h.assert(type(renderer.name) == "string", "renderer.name should be a string")
   end
+end)
+
+h.test("multi-state checkbox toggle cycles through states", function()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    "---", "---",
+    "- [ ] unchecked",
+  })
+
+  local checkboxes = require("typedown.render.checkboxes")
+
+  -- [ ] -> [x]
+  vim.api.nvim_win_set_cursor(0, { 3, 0 })
+  checkboxes.toggle()
+  local line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+  h.assert_eq(line, "- [x] unchecked", "first toggle: [ ] -> [x]")
+
+  -- [x] -> [~]
+  checkboxes.toggle()
+  line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+  h.assert_eq(line, "- [~] unchecked", "second toggle: [x] -> [~]")
+
+  -- [~] -> [>]
+  checkboxes.toggle()
+  line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+  h.assert_eq(line, "- [>] unchecked", "third toggle: [~] -> [>]")
+
+  -- [>] -> [!]
+  checkboxes.toggle()
+  line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+  h.assert_eq(line, "- [!] unchecked", "fourth toggle: [>] -> [!]")
+
+  -- [!] -> [ ]
+  checkboxes.toggle()
+  line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+  h.assert_eq(line, "- [ ] unchecked", "fifth toggle: [!] -> [ ] (full cycle)")
+end)
+
+h.test("checkbox toggle converts plain list item to checkbox", function()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    "---", "---",
+    "- plain item",
+  })
+
+  vim.api.nvim_win_set_cursor(0, { 3, 0 })
+  require("typedown.render.checkboxes").toggle()
+  local line = vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]
+  h.assert_eq(line, "- [ ] plain item", "plain list item should become checkbox")
+end)
+
+h.test("state: is_hidden respects anti-conceal range", function()
+  local render_state = require("typedown.render.state")
+  local buf = vim.api.nvim_get_current_buf()
+
+  render_state.set_cursor_line(buf, 10)
+
+  -- Default range (above=0, below=0): only cursor line is hidden
+  h.assert(render_state.is_hidden(buf, 10), "cursor line should be hidden")
+  h.assert(not render_state.is_hidden(buf, 9), "line above should not be hidden")
+  h.assert(not render_state.is_hidden(buf, 11), "line below should not be hidden")
+
+  -- Expand range
+  local orig_above = render_state.anti_conceal.above
+  local orig_below = render_state.anti_conceal.below
+  render_state.anti_conceal.above = 2
+  render_state.anti_conceal.below = 1
+
+  h.assert(render_state.is_hidden(buf, 8), "2 lines above should be hidden")
+  h.assert(render_state.is_hidden(buf, 9), "1 line above should be hidden")
+  h.assert(render_state.is_hidden(buf, 10), "cursor line should be hidden")
+  h.assert(render_state.is_hidden(buf, 11), "1 line below should be hidden")
+  h.assert(not render_state.is_hidden(buf, 12), "2 lines below should not be hidden")
+  h.assert(not render_state.is_hidden(buf, 7), "3 lines above should not be hidden")
+
+  -- Restore
+  render_state.anti_conceal.above = orig_above
+  render_state.anti_conceal.below = orig_below
+end)
+
+h.test("state: mode tracking", function()
+  local render_state = require("typedown.render.state")
+  local buf = vim.api.nvim_get_current_buf()
+
+  render_state.set_mode(buf, "n")
+  h.assert(not render_state.is_mode_disabled(buf), "normal mode should not be disabled")
+
+  render_state.set_mode(buf, "i")
+  h.assert(render_state.is_mode_disabled(buf), "insert mode should be disabled")
+
+  render_state.set_mode(buf, "v")
+  h.assert(not render_state.is_mode_disabled(buf), "visual mode should not be disabled")
+
+  render_state.set_mode(buf, "n")
+end)
+
+h.test("state: changedtick tracking", function()
+  local render_state = require("typedown.render.state")
+  vim.cmd("enew")
+  local buf = vim.api.nvim_get_current_buf()
+
+  -- First call should always return true (tick mismatch)
+  h.assert(render_state.has_changed(buf), "first has_changed should be true")
+
+  -- Second call without changes should return false
+  h.assert(not render_state.has_changed(buf), "second has_changed should be false (no change)")
+
+  -- Modify buffer
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "changed" })
+  h.assert(render_state.has_changed(buf), "has_changed should be true after modification")
+end)
+
+h.test("links renderer has a name field", function()
+  local links = require("typedown.render.links")
+  h.assert_eq(links.name, "links", "links renderer should have name 'links'")
+end)
+
+h.test("smart-action module loads without error", function()
+  local ok, err = pcall(require, "typedown.render.smart-action")
+  h.assert(ok, "smart-action should load without error: " .. tostring(err))
 end)
 
 h.test("commands are registered", function()

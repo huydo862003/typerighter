@@ -1,6 +1,24 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.46.4] - 2026-10-27
+
+### Added
+
+- editors/nvim
+  - fref link rendering: `fref("path")` and `${fref("path")}` display as icon + name
+  - Frontmatter rendering: `---` delimiters replaced with thin horizontal rules, content dimmed
+  - Code block min-width padding and language badge with icon + name
+  - Container left border repeats on wrapped visual lines
+
+### Changed
+
+- editors/nvim
+  - Heading icons: `§` for H1, `󰫎` for H2, nerd font numbered icons for H3-H6
+  - Heading icon highlight includes background color for contiguous appearance
+  - All renderers use `virt_text_pos = "overlay"` instead of `conceal` (except tables)
+  - Tables use `conceal` + `inline` for reliable character replacement on wrapped lines
+
 ## [0.46.3] - 2026-10-27
 
 ### Added

@@ -57,8 +57,10 @@ function M.render_item(buf, ns, node)
   for child in node:iter_children() do
     if child:type() == "toggle_list_marker" then
       local m_row, m_col, _, m_end_col = child:range()
-      local width = m_end_col - m_col
-      local text = icon .. string.rep(" ", math.max(0, width - 1))
+      local marker_text = vim.treesitter.get_node_text(child, buf)
+      local width = vim.fn.strdisplaywidth(marker_text)
+      local icon_width = vim.fn.strdisplaywidth(icon)
+      local text = icon .. string.rep(" ", math.max(0, width - icon_width))
       vim.api.nvim_buf_set_extmark(buf, ns, m_row, m_col, {
         end_col       = m_end_col,
         virt_text     = { { text, hl } },

@@ -4,8 +4,8 @@ local state = require("typedown.render.state")
 local M = {}
 M.name = "headings"
 
-local ICONS = { "󰉫", "󰉬", "󰉭", "󰉮", "󰉯", "󰉰" }
-local SIGNS = { "H1", "H2", "H3", "H4", "H5", "H6" }
+local ICONS = { "§", "󰫎", "󰲥", "󰲧", "󰲩", "󰲫" }
+local SIGNS = {}
 local HL_FG  = { "TypedownRenderH1", "TypedownRenderH2", "TypedownRenderH3", "TypedownRenderH4", "TypedownRenderH5", "TypedownRenderH6" }
 local HL_BG  = { "TypedownRenderH1Bg", "TypedownRenderH2Bg", "TypedownRenderH3Bg", "TypedownRenderH4Bg", "TypedownRenderH5Bg", "TypedownRenderH6Bg" }
 
@@ -43,12 +43,14 @@ function M.render(buf, md_tree)
       local start_row, marker_col, _, marker_end_col = node:range()
       local hidden = state.is_hidden(buf, start_row)
 
-      -- Sign column indicator (always visible)
-      vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
-        sign_text = SIGNS[level],
-        sign_hl_group = HL_FG[level],
-        priority = 110,
-      })
+      -- Sign column indicator (H1 only)
+      if SIGNS[level] then
+        vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
+          sign_text = SIGNS[level],
+          sign_hl_group = HL_FG[level],
+          priority = 110,
+        })
+      end
 
       -- Full-line background (always visible)
       vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
@@ -60,8 +62,10 @@ function M.render(buf, md_tree)
 
       -- Overlay marker with icon (hidden on cursor line)
       if not hidden then
-        local marker_width = marker_end_col - marker_col
-        local text = ICONS[level] .. string.rep(" ", math.max(1, marker_width - 1))
+        local marker_text = vim.treesitter.get_node_text(node, buf)
+        local marker_width = vim.fn.strdisplaywidth(marker_text)
+        local icon_width = vim.fn.strdisplaywidth(ICONS[level])
+        local text = ICONS[level] .. string.rep(" ", math.max(1, marker_width - icon_width))
 
         vim.api.nvim_buf_set_extmark(buf, ns, start_row, marker_col, {
           end_col       = marker_end_col,

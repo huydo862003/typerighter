@@ -43,8 +43,10 @@ function M.render(buf, md_tree)
       local char = text:match("%[(.-)%]")
       local spec = char and M.states[char] or M.states[" "]
 
-      local width = end_col - col
-      local display = spec.icon .. string.rep(" ", math.max(0, width - 1))
+      local node_text = vim.treesitter.get_node_text(node, buf)
+      local width = vim.fn.strdisplaywidth(node_text)
+      local icon_width = vim.fn.strdisplaywidth(spec.icon)
+      local display = spec.icon .. string.rep(" ", math.max(0, width - icon_width))
 
       vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
         end_col       = end_col,

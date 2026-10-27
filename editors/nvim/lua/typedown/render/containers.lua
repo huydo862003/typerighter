@@ -54,6 +54,7 @@ function M.render_container(buf, ns, node)
     vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
       virt_text     = { { "┃ ", style.hl } },
       virt_text_pos = "inline",
+      virt_text_repeat_linebreak = true,
       priority      = 90,
     })
   end
@@ -63,10 +64,12 @@ function M.render_container(buf, ns, node)
     if child:type() == "container_block_delimiter" then
       local d_row, d_col, _, d_end_col = child:range()
       if not hidden(buf, d_row) then
-        local width = d_end_col - d_col
+        local delim_text = vim.treesitter.get_node_text(child, buf)
+        local width = vim.fn.strdisplaywidth(delim_text)
         if d_row == start_row then
           -- Opening ::: -> overlay with icon
-          local text = style.icon .. string.rep(" ", math.max(0, width - 1))
+          local icon_width = vim.fn.strdisplaywidth(style.icon)
+          local text = style.icon .. string.rep(" ", math.max(0, width - icon_width))
           vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
             end_col       = d_end_col,
             virt_text     = { { text, style.hl } },

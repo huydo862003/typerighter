@@ -42,10 +42,17 @@ function M.render(buf, md_tree)
     if not state.is_hidden(buf, row) then
       local depth = list_depth(node)
       local icon  = BULLET_ICONS[(depth % #BULLET_ICONS) + 1]
-      local marker_width = end_col - col
-      local text = icon .. string.rep(" ", math.max(0, marker_width - 1))
 
-      vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+      -- The marker node may include leading whitespace (e.g. "  - ").
+      -- Find the actual marker char and overlay only from there.
+      local marker_text = vim.treesitter.get_node_text(node, buf)
+      local lead = marker_text:match("^(%s*)") or ""
+      local marker_col = col + #lead
+      local marker_char_width = end_col - marker_col
+      local icon_width = vim.fn.strdisplaywidth(icon)
+      local text = icon .. string.rep(" ", math.max(0, marker_char_width - icon_width))
+
+      vim.api.nvim_buf_set_extmark(buf, ns, row, marker_col, {
         end_col       = end_col,
         virt_text     = { { text, "TypedownRenderBullet" } },
         virt_text_pos = "overlay",

@@ -11,6 +11,7 @@ local code = require("typedown.render.code")
 local tables = require("typedown.render.tables")
 local toggle_list = require("typedown.render.toggle-list")
 local links = require("typedown.render.links")
+local frontmatter = require("typedown.render.frontmatter")
 local smart_action = require("typedown.render.smart-action")
 
 local M = {}
@@ -28,6 +29,7 @@ local renderers = {
 -- Links renderer runs separately (not tree-sitter based, scans full buffer)
 local text_renderers = {
   links,
+  frontmatter,
 }
 
 function M.setup()

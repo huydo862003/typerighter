@@ -7,18 +7,18 @@ local M = {}
 function M.setup()
   local set_hl = vim.api.nvim_set_hl
 
-  -- Headings: icon foreground + full-line background
-  set_hl(0, "TypedownRenderH1",   { fg = "#f38ba8", bold = true, default = true })
+  -- Headings: icon (fg+bg combined) + full-line background
+  set_hl(0, "TypedownRenderH1",   { fg = "#f38ba8", bg = "#3b2030", bold = true, default = true })
   set_hl(0, "TypedownRenderH1Bg", { bg = "#3b2030", default = true })
-  set_hl(0, "TypedownRenderH2",   { fg = "#fab387", bold = true, default = true })
+  set_hl(0, "TypedownRenderH2",   { fg = "#fab387", bg = "#3b2a20", bold = true, default = true })
   set_hl(0, "TypedownRenderH2Bg", { bg = "#3b2a20", default = true })
-  set_hl(0, "TypedownRenderH3",   { fg = "#f9e2af", bold = true, default = true })
+  set_hl(0, "TypedownRenderH3",   { fg = "#f9e2af", bg = "#3b3520", bold = true, default = true })
   set_hl(0, "TypedownRenderH3Bg", { bg = "#3b3520", default = true })
-  set_hl(0, "TypedownRenderH4",   { fg = "#a6e3a1", bold = true, default = true })
+  set_hl(0, "TypedownRenderH4",   { fg = "#a6e3a1", bg = "#203b25", bold = true, default = true })
   set_hl(0, "TypedownRenderH4Bg", { bg = "#203b25", default = true })
-  set_hl(0, "TypedownRenderH5",   { fg = "#89b4fa", bold = true, default = true })
+  set_hl(0, "TypedownRenderH5",   { fg = "#89b4fa", bg = "#20253b", bold = true, default = true })
   set_hl(0, "TypedownRenderH5Bg", { bg = "#20253b", default = true })
-  set_hl(0, "TypedownRenderH6",   { fg = "#cba6f7", bold = true, default = true })
+  set_hl(0, "TypedownRenderH6",   { fg = "#cba6f7", bg = "#2a203b", bold = true, default = true })
   set_hl(0, "TypedownRenderH6Bg", { bg = "#2a203b", default = true })
 
   -- Containers
@@ -55,6 +55,10 @@ function M.setup()
   -- Toggle list
   set_hl(0, "TypedownRenderToggleOpen",   { fg = "#89b4fa", default = true })
   set_hl(0, "TypedownRenderToggleClosed", { fg = "#585b70", default = true })
+
+  -- Frontmatter
+  set_hl(0, "TypedownRenderFrontmatterRule",    { fg = "#585b70", default = true })
+  set_hl(0, "TypedownRenderFrontmatterContent", { fg = "#7f849c", default = true })
 
   -- Inline formatting (ensures correct rendering regardless of colorscheme)
   set_hl(0, "@markup.strong",        { bold = true, default = true })
