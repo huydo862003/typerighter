@@ -59,7 +59,9 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
     })
     .collect();
 
-  if include_declaration && let Some(declaration_location) = declaration_location(analysis, db, symbol) {
+  if include_declaration
+    && let Some(declaration_location) = declaration_location(analysis, db, symbol)
+  {
     locations.push(declaration_location);
   }
 

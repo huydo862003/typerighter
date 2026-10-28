@@ -165,7 +165,10 @@ pub fn load_vault_fixture(
 /// Collect all vault files (`.td` and `typedown.yaml`/`typedown.yml`) recursively
 fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, File> {
   fn is_vault_file(path: &Path) -> bool {
-    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+    let name = path
+      .file_name()
+      .and_then(|name| name.to_str())
+      .unwrap_or("");
     let is_asset = path
       .extension()
       .and_then(|extension| extension.to_str())

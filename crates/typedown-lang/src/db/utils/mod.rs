@@ -63,14 +63,21 @@ pub fn is_content_file(path: &Path) -> bool {
 pub fn is_internal_file(path: &Path) -> bool {
   is_content_file(path)
     && path.parent().is_some_and(|path| {
-      path.components()
-        .any(|component| component.as_os_str().to_str().is_some_and(|string| string.starts_with('_')))
+      path.components().any(|component| {
+        component
+          .as_os_str()
+          .to_str()
+          .is_some_and(|string| string.starts_with('_'))
+      })
     })
 }
 
 /// Whether a path is located inside a `_types` directory anywhere in the vault
 pub fn is_typ_file(path: &Path) -> bool {
-  is_content_file(path) && path.components().any(|component| component.as_os_str() == "_types")
+  is_content_file(path)
+    && path
+      .components()
+      .any(|component| component.as_os_str() == "_types")
 }
 
 /// Strip a content file extension (.td or .md) from a string

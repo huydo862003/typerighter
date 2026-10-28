@@ -42,9 +42,10 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
   let stream = match handle.open() {
     Ok(stream) => stream,
     Err(error) => {
-      let path = handle
-        .path()
-        .map_or_else(|| "typedown.yaml".to_string(), |path| path.display().to_string());
+      let path = handle.path().map_or_else(
+        || "typedown.yaml".to_string(),
+        |path| path.display().to_string(),
+      );
 
       return ResourceResult::new(
         db,

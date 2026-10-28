@@ -1,5 +1,10 @@
 use lsp_types::{
-  CodeActionProviderCapability, CompletionOptions, ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, HoverProviderCapability, InitializeParams, InitializeResult, OneOf, RenameOptions, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities,
+  CodeActionProviderCapability, CompletionOptions, ExecuteCommandOptions, FileOperationFilter,
+  FileOperationPattern, FileOperationRegistrationOptions, HoverProviderCapability,
+  InitializeParams, InitializeResult, OneOf, RenameOptions, SemanticTokensFullOptions,
+  SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
+  ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+  WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities,
 };
 use typedown_server::core::logger;
 use typedown_server::core::multiproject::Multiproject;

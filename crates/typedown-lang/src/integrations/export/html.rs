@@ -361,6 +361,14 @@ impl<'a> HtmlEmitter<'a> {
       return;
     }
 
+    // D2 blocks use a separate placeholder for client-side rendering
+    if lang == "d2" {
+      self.write("<pre class=\"td-d2-placeholder\"><code>");
+      self.write_escaped(&value);
+      self.write("</code></pre>\n");
+      return;
+    }
+
     self.write("<pre class=\"td-code-placeholder\"");
     if !lang.is_empty() {
       self.write(" data-lang=\"");

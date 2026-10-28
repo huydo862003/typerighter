@@ -185,7 +185,10 @@ fn parse_typ_string<'db>(
       )
     }
     "object" => {
-      if let Some(additional) = schema.get("additionalProperties").filter(|value| value.is_object()) {
+      if let Some(additional) = schema
+        .get("additionalProperties")
+        .filter(|value| value.is_object())
+      {
         // additionalProperties is a schema -> dict[string, V]
         let value_typ = parse_json_schema(db, additional)?;
         let string_typ: TdTypEnum = get_string_typ(db).into();

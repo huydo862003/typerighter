@@ -50,7 +50,7 @@ export function generateThemeModule (
 
     return [
       `import DefaultTheme from ${JSON.stringify(DEFAULT_THEME)};`,
-      `import { h, resolveComponent } from 'vue';`,
+      'import { h, resolveComponent } from \'vue\';',
       notFoundImport,
       `export default { Layout: { render() { return h(DefaultTheme.Layout, null, { ${rendered} }); } }${notFoundExport} };`,
     ]

@@ -130,11 +130,7 @@ impl<'db> SubtypEnv<'db> {
 }
 
 // Walk the nominal parent chain of `sub` to see if it reaches `sup` by identity
-fn nominal_subtyp_of(
-  db: &TypedownDatabase,
-  subtyp: &TdSchemaTyp,
-  supertyp: &TdSchemaTyp,
-) -> bool {
+fn nominal_subtyp_of(db: &TypedownDatabase, subtyp: &TdSchemaTyp, supertyp: &TdSchemaTyp) -> bool {
   let target_id = supertyp.as_id();
   let mut current = subtyp.parent(db);
   while let Some(typ) = current {
@@ -275,8 +271,12 @@ fn is_subtyp_of_env<'db>(
     match (subtyp, supertyp) {
       (TdTypEnum::TdListTyp(subtyp_list), TdTypEnum::TdListTyp(supertyp_list)) => {
         match (
-          subtyp_list.element(db).and_then(|element| element.resolve(db)),
-          supertyp_list.element(db).and_then(|element| element.resolve(db)),
+          subtyp_list
+            .element(db)
+            .and_then(|element| element.resolve(db)),
+          supertyp_list
+            .element(db)
+            .and_then(|element| element.resolve(db)),
         ) {
           (_, None) => true,
           (None, Some(_)) => false,
@@ -1480,7 +1480,8 @@ mod tests {
     assert!(is_subtyp_of(&db, &list_string, &existential_list_typ));
 
     let typ_variable_number_bound = TypVariable::get(&db, Some(LazyTyp::eager(number_typ.clone())));
-    let variable_number_bound: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_number_bound).into();
+    let variable_number_bound: TdTypEnum =
+      TdVariableTyp::new(&db, 0, typ_variable_number_bound).into();
     let list_variable_number: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_number_bound)])
       .typ(&db);

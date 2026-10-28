@@ -103,7 +103,10 @@ fn get_expected_expr_typ<'db>(
     let expr_children: Vec<Expr> = parent.children().filter_map(Expr::cast).collect();
 
     // Is it the callee (first Expr child)?
-    if expr_children.first().is_some_and(|child| *child.syntax() == node) {
+    if expr_children
+      .first()
+      .is_some_and(|child| *child.syntax() == node)
+    {
       return get_expected_call_callee_typ(db, project, file, &call);
     }
 

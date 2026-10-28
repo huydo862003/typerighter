@@ -187,7 +187,9 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     | SymbolKind::UserDefinedSchema(_, target_file) => {
       let handle = target_file.handle(db);
       let path = handle.path();
-      let stem = path.and_then(|path| path.file_stem()).and_then(|stem| stem.to_str());
+      let stem = path
+        .and_then(|path| path.file_stem())
+        .and_then(|stem| stem.to_str());
 
       match stem {
         Some("index") => path
