@@ -371,7 +371,7 @@ There are two kinds of tags:
     - Start with `!` and are application-specific (e.g `!circle`).
     - Don't need to be declared, you just use them inline.
 - **Global tags**:
-  - Motivation: When interoperability matters, tags that are universally recognized across different processors are useful. 
+  - Motivation: When interoperability matters, tags that are universally recognized across different processors are useful.
   - Syntax: full URIs that are universally unique (e.g `tag:yaml.org,2002:str`), standardized across all processors.
 
 Since global tags are verbose, YAML provides **tag handles** (also called tag shorthands): short prefixes that expand to a URI prefix, declared via the `%TAG` directive.
@@ -521,13 +521,13 @@ Loading is the inverse: text -> events -> graph -> native data. Each stage strip
 
    Reconstructs the representation graph from the event tree.
 
-   Resolves aliases back into shared node references, discards serialization details (key order, anchor names). 
+   Resolves aliases back into shared node references, discards serialization details (key order, anchor names).
 
    Can fail on unresolved aliases.
 
 3. **Constructing: Graph -> Native data structure**
 
-   Converts the representation graph into native data structures (dicts, lists, strings, etc). 
+   Converts the representation graph into native data structures (dicts, lists, strings, etc).
 
    Must only rely on information in the representation (node kinds, tags, content), not presentation or serialization details.
 
@@ -576,6 +576,7 @@ Each layer's additions (`+`, `++`) are details that should not leak into other l
 #### Representation Graph
 
 YAML represents native data as a:
+
 - **Rooted**: one starting node from which all others are reachable.
 - **Connected**: every node is reachable from the root.
 - **Directed**: edges have direction (parent points to child).
@@ -583,6 +584,7 @@ YAML represents native data as a:
 **graph** of tagged nodes.
 
 Other properties:
+
 - Cycles are allowed.
 - Nodes can have multiple incoming edges (shared via aliases).
 
@@ -601,16 +603,19 @@ Each node has content of one of three kinds, plus a tag:
 ##### Tags
 
 Tags represent type information & meta information about a node:
+
 - **Global tags** are URIs, globally unique. The `tag:` URI scheme is recommended.
 - **Local tags** start with `!`, application-specific.
 
 YAML provides a `TAG` directive to make tag notation less verbose.
 
 Notes:
+
 - Tags that share the same URI prefix are not related in any special way.
 - By **convention**, `/` is used for namespace hierarchies and `#` for variants, but each tag may use its own rules (e.g Perl uses `::`, Java uses `.`).
 
 Each tag must specify:
+
 - The expected node kind (scalar, sequence, or mapping).
 - For scalar tags: a mechanism for converting formatted content to a canonical form (for equality testing).
 - Optionally:
@@ -627,6 +632,7 @@ Mapping keys must be unique, so YAML needs a way to test node equality:
 - **Uniqueness**: a mapping's keys are unique if no two keys are equal.
 
 Notes:
+
 - Tag equality can use simple character-by-character comparison (since processors can't know every URI scheme's equality rules). Tags must therefore be presented in canonical form. The `tag:` URI scheme also uses this comparison method.
 - If a node has itself as a descendant (via an alias, i.e circular reference), equality checking could loop forever. The spec leaves this to each processor to decide.
 - A processor may treat equal scalars as identical.
@@ -689,6 +695,7 @@ Loading native data structures from a YAML stream can fail at multiple points.
 ![Loading Failure Points (source: YAML 1.2 spec)](img/yaml-1.2-loading-failure.svg)
 
 Two levels of representation:
+
 - **Partial representation**: tags may be unresolved, canonical forms may be missing. Useful when type information is incomplete.
 - **Complete representation**: every node has a resolved tag and canonical form. Required for constructing native data structures.
 
@@ -726,6 +733,7 @@ name: *unknown  # error: no anchor named "unknown"
   -> This makes one-pass resolution both possible and practical.
 
 Resolution conventions:
+
 - `!` non-specific tag should resolve to `!!seq`, `!!map`, or `!!str` depending on node kind (scalar, sequence, or mapping). This lets authors "disable" tag resolution by explicitly writing `!`, forcing a vanilla type.
 - `?` non-specific tag is where application-specific rules apply:
   - Most commonly for plain scalars: matching content against regexes for integers, floats, timestamps, etc.
