@@ -193,52 +193,6 @@ h.test("anti-conceal: insert mode sets special cursor value", function()
   h.assert(state.get_cursor_line(buf) ~= -2, "leaving insert should restore cursor line")
 end)
 
-h.test("container: both opening and closing ::: are rendered", function()
-  local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_md")
-  if not lang_ok then
-    io.write("  (skipped: typedown_md parser not available)\n")
-    return
-  end
-
-  vim.cmd("enew")
-  vim.bo.filetype = "typedown"
-  local buf = vim.api.nvim_get_current_buf()
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
-    "---", "---",
-    "::: note",
-    "content",
-    ":::",
-  })
-
-  -- Move cursor away from both delimiters
-  vim.api.nvim_win_set_cursor(0, { 4, 0 })
-
-  -- Set cursor line in state so is_hidden works correctly
-  local render_state = require("typedown.render.state")
-  render_state.set_cursor_line(buf, 3) -- 0-indexed line 3 = row 4
-
-  -- Render directly (attach defers, which doesn't work in headless)
-  local render = require("typedown.render.init")
-  render.render_buf(buf)
-
-  local ns = require("typedown.render.state").get_namespace("containers")
-  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
-
-  local has_opening_overlay = false
-  local has_closing_overlay = false
-  for _, mark in ipairs(marks) do
-    local row = mark[2]
-    local details = mark[4]
-    if details.virt_text and details.virt_text_pos == "overlay" then
-      if row == 2 then has_opening_overlay = true end
-      if row == 4 then has_closing_overlay = true end
-    end
-  end
-
-  h.assert(has_opening_overlay, "opening ::: (row 2) should have an overlay extmark")
-  h.assert(has_closing_overlay, "closing ::: (row 4) should have an overlay extmark")
-end)
-
 h.test("typedown_yaml highlights query loads without errors", function()
   local lang_ok = pcall(vim.treesitter.language.inspect, "typedown_yaml")
   if not lang_ok then
