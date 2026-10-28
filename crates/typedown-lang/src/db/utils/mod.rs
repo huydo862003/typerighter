@@ -54,7 +54,7 @@ pub fn is_external_url(url: &str) -> bool {
 pub fn is_content_file(path: &Path) -> bool {
   path
     .extension()
-    .and_then(|e| e.to_str())
+    .and_then(|extension| extension.to_str())
     .is_some_and(|ext| ext == "td" || ext == "md")
 }
 
@@ -62,15 +62,15 @@ pub fn is_content_file(path: &Path) -> bool {
 // These are excluded from content discovery
 pub fn is_internal_file(path: &Path) -> bool {
   is_content_file(path)
-    && path.parent().is_some_and(|p| {
-      p.components()
-        .any(|c| c.as_os_str().to_str().is_some_and(|s| s.starts_with('_')))
+    && path.parent().is_some_and(|path| {
+      path.components()
+        .any(|component| component.as_os_str().to_str().is_some_and(|string| string.starts_with('_')))
     })
 }
 
 /// Whether a path is located inside a `_types` directory anywhere in the vault
 pub fn is_typ_file(path: &Path) -> bool {
-  is_content_file(path) && path.components().any(|c| c.as_os_str() == "_types")
+  is_content_file(path) && path.components().any(|component| component.as_os_str() == "_types")
 }
 
 /// Strip a content file extension (.td or .md) from a string

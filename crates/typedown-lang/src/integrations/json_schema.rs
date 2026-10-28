@@ -15,7 +15,7 @@ pub fn parse_json_schema<'db>(
   value: &serde_json::Value,
 ) -> Option<TdTypEnum<'db>> {
   // { enum: [...] }
-  if let Some(members) = value.get("enum").and_then(|e| e.as_array()) {
+  if let Some(members) = value.get("enum").and_then(|r#enum| r#enum.as_array()) {
     return parse_enum(db, members);
   }
 
@@ -69,7 +69,7 @@ fn parse_schema_union<'db>(
 ) -> Option<TdTypEnum<'db>> {
   let members: Vec<LazyTyp<'db>> = schemas
     .iter()
-    .filter_map(|s| parse_json_schema(db, s))
+    .filter_map(|schema| parse_json_schema(db, schema))
     .map(LazyTyp::eager)
     .collect();
   if members.is_empty() {
@@ -120,7 +120,7 @@ fn parse_typ_array<'db>(
   // Multiple concrete types -> Sum([T1, T2, ...]) optionally with null
   let mut members: Vec<LazyTyp<'db>> = non_null
     .iter()
-    .filter_map(|t| parse_typ_string(db, t, schema))
+    .filter_map(|typ| parse_typ_string(db, typ, schema))
     .map(LazyTyp::eager)
     .collect();
   if members.is_empty() {
@@ -185,7 +185,7 @@ fn parse_typ_string<'db>(
       )
     }
     "object" => {
-      if let Some(additional) = schema.get("additionalProperties").filter(|v| v.is_object()) {
+      if let Some(additional) = schema.get("additionalProperties").filter(|value| value.is_object()) {
         // additionalProperties is a schema -> dict[string, V]
         let value_typ = parse_json_schema(db, additional)?;
         let string_typ: TdTypEnum = get_string_typ(db).into();
@@ -198,7 +198,7 @@ fn parse_typ_string<'db>(
             )
             .typ(db),
         )
-      } else if let Some(props) = schema.get("properties").and_then(|p| p.as_object()) {
+      } else if let Some(props) = schema.get("properties").and_then(|prop| prop.as_object()) {
         // Named properties -> anonymous product type
         let mut fields = BTreeMap::new();
         for (key, prop_schema) in props {
@@ -369,14 +369,14 @@ mod tests {
   }
 
   #[test]
-  fn enum_mixed_types() {
+  fn enum_mixed_typs() {
     let db = make_db();
     let typ = parse_json_schema(&db, &serde_json::json!({ "enum": ["yes", true, 1] })).unwrap();
     assert!(typ.is_td_sum_typ());
   }
 
   #[test]
-  fn multi_type_array() {
+  fn multi_typ_array() {
     let db = make_db();
     let typ = parse_json_schema(&db, &serde_json::json!({ "type": ["string", "number"] })).unwrap();
     assert!(typ.is_td_sum_typ());
@@ -384,7 +384,7 @@ mod tests {
   }
 
   #[test]
-  fn multi_type_array_nullable() {
+  fn multi_typ_array_nullable() {
     let db = make_db();
     let typ = parse_json_schema(
       &db,
@@ -432,13 +432,13 @@ mod tests {
   }
 
   #[test]
-  fn unknown_type_returns_none() {
+  fn unknown_typ_returns_none() {
     let db = make_db();
     assert!(parse_json_schema(&db, &serde_json::json!({ "type": "integer" })).is_none());
   }
 
   #[test]
-  fn missing_type_returns_none() {
+  fn missing_typ_returns_none() {
     let db = make_db();
     assert!(
       parse_json_schema(&db, &serde_json::json!({ "items": { "type": "string" } })).is_none()

@@ -12,7 +12,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::types::TdSchemaTyp;
 use crate::db::types::derived::obj_system::TdStaticTyp;
-use crate::db::types::typecheck::is_subtype_of;
+use crate::db::types::typecheck::is_subtyp_of;
 use crate::db::types::{
   File, FuncSignature, LazyTyp, Project, ProjectRedNode, StaticAccessPath, Symbol, TdProductTyp,
   TdTypEnum, TypResult,
@@ -103,7 +103,7 @@ fn get_expected_expr_typ<'db>(
     let expr_children: Vec<Expr> = parent.children().filter_map(Expr::cast).collect();
 
     // Is it the callee (first Expr child)?
-    if expr_children.first().is_some_and(|c| *c.syntax() == node) {
+    if expr_children.first().is_some_and(|child| *child.syntax() == node) {
       return get_expected_call_callee_typ(db, project, file, &call);
     }
 
@@ -111,7 +111,7 @@ fn get_expected_expr_typ<'db>(
     let arg_index = expr_children
       .iter()
       .skip(1)
-      .position(|c| *c.syntax() == node);
+      .position(|child| *child.syntax() == node);
     if let Some(idx) = arg_index {
       return get_expected_call_arg_typ(db, project, file, &call, idx);
     }
@@ -119,7 +119,7 @@ fn get_expected_expr_typ<'db>(
 
   // ClosureExpr: body gets the return type from expected(closure)
   if let Some(closure) = ClosureExpr::cast(parent.clone())
-    && closure.body().is_some_and(|b| *b.syntax() == node)
+    && closure.body().is_some_and(|body| *body.syntax() == node)
   {
     return get_expected_closure_body_typ(db, project, file, &closure);
   }
@@ -132,14 +132,14 @@ fn get_expected_expr_typ<'db>(
 
   // BinaryExpr: propagate expected types to operands based on operator
   if let Some(binary) = BinaryExpr::cast(parent.clone())
-    && let Some(op) = binary.op().and_then(|o| o.kind())
+    && let Some(op) = binary.op().and_then(|op| op.kind())
   {
     return get_expected_binary_operand_typ(db, &op);
   }
 
   // PrefixExpr: propagate expected type to operand based on operator
   if let Some(prefix) = PrefixExpr::cast(parent.clone())
-    && let Some(op) = prefix.op().and_then(|o| o.kind())
+    && let Some(op) = prefix.op().and_then(|op| op.kind())
   {
     return get_expected_prefix_operand_typ(db, &op);
   }
@@ -457,7 +457,7 @@ fn resolve_lazy_typ<'db>(
     // actual_node_typ to avoid re-entering the type query for the same node
     let non_null: Vec<_> = members
       .iter()
-      .filter(|member| !member.resolve(db).is_some_and(|t| t.is_td_null_typ()))
+      .filter(|member| !member.resolve(db).is_some_and(|typ| typ.is_td_null_typ()))
       .cloned()
       .collect();
     if non_null.len() == 1 {
@@ -483,7 +483,7 @@ fn pick_most_specific_arm<'db>(
     .filter(|arm| {
       arm
         .resolve(db)
-        .is_some_and(|t| is_subtype_of(db, &actual_typ, &t))
+        .is_some_and(|typ| is_subtyp_of(db, &actual_typ, &typ))
     })
     .cloned()
     .collect();
@@ -513,7 +513,7 @@ fn traverse_field<'db>(
   }
   // Dict: any key maps to the value type
   if let Some(dict) = typ.as_td_dict_typ().copied()
-    && let Some(value_typ) = dict.value(db).and_then(|l| l.resolve(db))
+    && let Some(value_typ) = dict.value(db).and_then(|lit_typ| lit_typ.resolve(db))
   {
     return Some(LazyTyp::eager(value_typ));
   }

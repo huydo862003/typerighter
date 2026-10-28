@@ -232,8 +232,8 @@ mod tests {
 
   proptest! {
     #[test]
-    fn bool_roundtrip(v in any::<bool>()) {
-      encode_decode_roundtrip(&v);
+    fn bool_roundtrip(value in any::<bool>()) {
+      encode_decode_roundtrip(&value);
     }
   }
 
@@ -241,73 +241,73 @@ mod tests {
 
   proptest! {
     #[test]
-    fn char_rountrip(v in any::<char>()) {
-      encode_decode_roundtrip(&v);
+    fn char_rountrip(value in any::<char>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn u8_roundtrip(v in any::<u8>()) {
-      encode_decode_roundtrip(&v);
+    fn u8_roundtrip(value in any::<u8>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn i8_roundtrip(v in any::<i8>()) {
-      encode_decode_roundtrip(&v);
+    fn i8_roundtrip(value in any::<i8>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn i16_roundtrip(v in any::<i16>()) {
-      encode_decode_roundtrip(&v);
+    fn i16_roundtrip(value in any::<i16>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn u16_roundtrip(v in any::<u16>()) {
-      encode_decode_roundtrip(&v);
+    fn u16_roundtrip(value in any::<u16>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn i32_roundtrip(v in any::<i32>()) {
-      encode_decode_roundtrip(&v);
+    fn i32_roundtrip(value in any::<i32>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn u32_roundtrip(v in any::<u32>()) {
-      encode_decode_roundtrip(&v);
+    fn u32_roundtrip(value in any::<u32>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn i64_roundtrip(v in any::<i64>()) {
-      encode_decode_roundtrip(&v);
+    fn i64_roundtrip(value in any::<i64>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn u64_roundtrip(v in any::<u64>()) {
-      encode_decode_roundtrip(&v);
+    fn u64_roundtrip(value in any::<u64>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn i128_roundtrip(v in any::<i128>()) {
-      encode_decode_roundtrip(&v);
+    fn i128_roundtrip(value in any::<i128>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn u128_roundtrip(v in any::<u128>()) {
-      encode_decode_roundtrip(&v);
+    fn u128_roundtrip(value in any::<u128>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn usize_roundtrip(v in any::<usize>()) {
-      encode_decode_roundtrip(&v);
+    fn usize_roundtrip(value in any::<usize>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn isize_roundtrip(v in any::<isize>()) {
-      encode_decode_roundtrip(&v);
+    fn isize_roundtrip(value in any::<isize>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn f64_roundtrip(v in any::<f64>()) {
-      encode_decode_roundtrip(&v);
+    fn f64_roundtrip(value in any::<f64>()) {
+      encode_decode_roundtrip(&value);
     }
   }
 
@@ -315,43 +315,43 @@ mod tests {
 
   proptest! {
     #[test]
-    fn string_roundtrip(v in any::<String>()) {
-      encode_decode_roundtrip(&v);
+    fn string_roundtrip(value in any::<String>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn pathbuf_roundtrip(v in any::<PathBuf>()) {
-      encode_decode_roundtrip(&v);
+    fn pathbuf_roundtrip(value in any::<PathBuf>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn vec_u8_roundtrip(v in proptest::collection::vec(any::<u8>(), 0..100)) {
-      encode_decode_roundtrip(&v);
+    fn vec_u8_roundtrip(value in proptest::collection::vec(any::<u8>(), 0..100)) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn vec_i32_roundtrip(v in proptest::collection::vec(any::<i32>(), 0..100)) {
-      encode_decode_roundtrip(&v);
+    fn vec_i32_roundtrip(value in proptest::collection::vec(any::<i32>(), 0..100)) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn vec_string_roundtrip(v in proptest::collection::vec(any::<String>(), 0..20)) {
-      encode_decode_roundtrip(&v);
+    fn vec_string_roundtrip(value in proptest::collection::vec(any::<String>(), 0..20)) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn option_u32_roundtrip(v in any::<Option<u32>>()) {
-      encode_decode_roundtrip(&v);
+    fn option_u32_roundtrip(value in any::<Option<u32>>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn option_string_roundtrip(v in any::<Option<String>>()) {
-      encode_decode_roundtrip(&v);
+    fn option_string_roundtrip(value in any::<Option<String>>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn vec_option_i64_roundtrip(v in proptest::collection::vec(any::<Option<i64>>(), 0..50)) {
-      encode_decode_roundtrip(&v);
+    fn vec_option_i64_roundtrip(value in proptest::collection::vec(any::<Option<i64>>(), 0..50)) {
+      encode_decode_roundtrip(&value);
     }
   }
 
@@ -359,41 +359,41 @@ mod tests {
 
   proptest! {
     #[test]
-    fn unit_roundtrip(_v in proptest::strategy::Just(())) {
+    fn unit_roundtrip(_value in proptest::strategy::Just(())) {
       encode_decode_roundtrip(&());
     }
 
     #[test]
-    fn tuple1_roundtrip(v in any::<(i32,)>()) {
-      encode_decode_roundtrip(&v);
+    fn tuple1_roundtrip(value in any::<(i32,)>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn tuple2_roundtrip(v in any::<(i32, String)>()) {
-      encode_decode_roundtrip(&v);
+    fn tuple2_roundtrip(value in any::<(i32, String)>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn tuple3_roundtrip(v in any::<(u8, bool, String)>()) {
-      encode_decode_roundtrip(&v);
+    fn tuple3_roundtrip(value in any::<(u8, bool, String)>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn box_roundtrip(v in any::<Box<i32>>()) {
-      encode_decode_roundtrip(&v);
+    fn box_roundtrip(value in any::<Box<i32>>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn either_roundtrip(v in prop_oneof![
+    fn either_roundtrip(value in prop_oneof![
       any::<i32>().prop_map(typedown_types::either::Either::<i32, String>::Left),
       any::<String>().prop_map(typedown_types::either::Either::<i32, String>::Right),
     ]) {
-      encode_decode_roundtrip(&v);
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn hashmap_roundtrip(v in proptest::collection::hash_map(any::<String>(), any::<i32>(), 0..20)) {
-      encode_decode_roundtrip(&v);
+    fn hashmap_roundtrip(value in proptest::collection::hash_map(any::<String>(), any::<i32>(), 0..20)) {
+      encode_decode_roundtrip(&value);
     }
   }
 
@@ -401,23 +401,23 @@ mod tests {
 
   proptest! {
     #[test]
-    fn syntax_kind_roundtrip(v in any::<SyntaxKind>()) {
-      encode_decode_roundtrip(&v);
+    fn syntax_kind_roundtrip(value in any::<SyntaxKind>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn green_node_roundtrip(v in any::<GreenNode>()) {
-      encode_decode_roundtrip(&v);
+    fn green_node_roundtrip(value in any::<GreenNode>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn red_node_roundtrip(v in any::<RedNode>()) {
-      encode_decode_roundtrip(&v);
+    fn red_node_roundtrip(value in any::<RedNode>()) {
+      encode_decode_roundtrip(&value);
     }
 
     #[test]
-    fn diagnostic_roundtrip(v in any::<TdDiagnostic>()) {
-      encode_decode_roundtrip(&v);
+    fn diagnostic_roundtrip(value in any::<TdDiagnostic>()) {
+      encode_decode_roundtrip(&value);
     }
   }
 }

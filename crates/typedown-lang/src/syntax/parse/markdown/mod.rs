@@ -177,7 +177,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   /// INVARIANT: The next token should be a hash sequence
   pub(in crate::syntax::parse) fn parse_heading(&mut self) -> (GreenNode, Option<ExprCtx>) {
     fn is_hash(token: &SyntaxToken) -> bool {
-      token.kind() == SyntaxKind::MdSymbol && token.chars().all(|c| c == '#')
+      token.kind() == SyntaxKind::MdSymbol && token.chars().all(|char| char == '#')
     }
     debug_assert!(
       is_hash(&self.lex_ctx.peek_md(SKIP_NONE).token),
@@ -1370,7 +1370,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     let maybe_eq_token = self.lex_ctx.peek_md(SKIP_NONE);
     if maybe_eq_token.token.kind() != SyntaxKind::MdSymbol
-      || maybe_eq_token.token.text().is_none_or(|t| t != "=")
+      || maybe_eq_token.token.text().is_none_or(|text| text != "=")
     {
       self.expr_ctx_stack.exit(ExprCtx::MdContainerPropItem);
 
@@ -1913,7 +1913,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
       let (inline, early_exit) = self.parse_md_inline_element();
       children.push(inline);
-      if early_exit.is_some_and(|c| c != ctx) {
+      if early_exit.is_some_and(|handler_ctx| handler_ctx != ctx) {
         self.expr_ctx_stack.exit(ctx);
         return (self.emit(SyntaxKind::MdItalic, &children), early_exit);
       }
@@ -2274,7 +2274,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         if text == "===" {
           return self
             .expr_ctx_stack
-            .is_inside(|c| matches!(c, ExprCtx::MdContainerBlock(_)));
+            .is_inside(|handler_ctx| matches!(handler_ctx, ExprCtx::MdContainerBlock(_)));
         }
       }
       // Indented table row
@@ -2424,7 +2424,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return false;
     }
     let first = text.chars().next().unwrap();
-    if !matches!(first, '-' | '*' | '_') || !text.chars().all(|c| c == first) {
+    if !matches!(first, '-' | '*' | '_') || !text.chars().all(|char| char == first) {
       return false;
     }
     let after = self.lex_ctx.peek_md_nth(1, skip).token.kind();
@@ -2434,7 +2434,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   // WARNING: Prefix must be consumed already
   fn is_heading_start(&mut self, skip: usize) -> bool {
     let next = self.lex_ctx.peek_md(skip);
-    next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().all(|c| c == '#')
+    next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().all(|char| char == '#')
   }
 
   fn is_bullet_list_start(&mut self, skip: usize) -> bool {
@@ -2514,9 +2514,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
   fn is_md_block_start_at(&mut self, offset: usize) -> bool {
     // Skip leading whitespace when inside a list item
     let mut offset = offset;
-    if self.expr_ctx_stack.is_inside(|c| {
+    if self.expr_ctx_stack.is_inside(|handler_ctx| {
       matches!(
-        c,
+        handler_ctx,
         ExprCtx::MdUnorderedListItem | ExprCtx::MdOrderedListItem | ExprCtx::MdTaskListItem
       )
     }) {
@@ -2529,7 +2529,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     match first.token.kind() {
       SyntaxKind::MdSymbol => {
         let text: String = first.token.chars().collect();
-        if text.chars().all(|c| c == '#') {
+        if text.chars().all(|handler_ctx| handler_ctx == '#') {
           return true;
         }
         if matches!(text.as_str(), "-" | "*" | "+") {
@@ -2549,7 +2549,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         if text == "===" {
           return self
             .expr_ctx_stack
-            .is_inside(|c| matches!(c, ExprCtx::MdContainerBlock(_)));
+            .is_inside(|handler_ctx| matches!(handler_ctx, ExprCtx::MdContainerBlock(_)));
         }
         false
       }

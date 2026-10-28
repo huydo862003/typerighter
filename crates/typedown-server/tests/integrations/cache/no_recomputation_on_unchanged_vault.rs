@@ -15,8 +15,8 @@ fn no_recomputation_on_unchanged_vault() {
     let stats = db.storage.ingredient_stats();
     let hashed_recomputes: usize = stats
       .iter()
-      .filter(|s| !s.no_hash)
-      .map(|s| s.recompute_count)
+      .filter(|stat| !stat.no_hash)
+      .map(|stat| stat.recompute_count)
       .sum();
     assert_eq!(
       hashed_recomputes, 0,

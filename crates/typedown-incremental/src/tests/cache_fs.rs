@@ -4,8 +4,10 @@
 #![cfg(feature = "session")]
 
 use std::fs;
+use std::sync::Arc;
 
 use crate::serial::format::fs::CacheSession;
+use crate::tests::fixtures::identity::VersionConfig;
 use crate::{QueryStorage, SerializableQueryDatabase};
 
 use super::fixtures::identity;
@@ -19,10 +21,10 @@ fn make_db() -> IdDb {
 
 fn open_session(dir: &std::path::Path) -> (CacheSession, Option<IdDb>) {
   let (session, serialized) = CacheSession::open(dir).expect("open failed");
-  let db = serialized.map(|s| {
-    let storage = QueryStorage::from_serialized(s);
+  let db = serialized.map(|serialized_entry| {
+    let storage = QueryStorage::from_serialized(serialized_entry);
     IdDb {
-      storage: std::sync::Arc::try_unwrap(storage).unwrap_or_else(|arc| (*arc).clone()),
+      storage: Arc::try_unwrap(storage).unwrap_or_else(|arc| (*arc).clone()),
     }
   });
   (session, db)
@@ -56,7 +58,7 @@ fn disk_roundtrip_basic() {
     let db = db.expect("session 2 must load previous session");
     let input = identity::find_entry(
       identity::IdInput::iter(&db),
-      |i| i.n(&db) == 7,
+      |input| input.n(&db) == 7,
       "IdInput(7)",
     );
     identity::take_log();
@@ -78,7 +80,7 @@ fn disk_three_sessions_no_recomputation() {
   {
     let (session, _) = open_session(dir.path());
     let db = make_db();
-    let config = identity::VersionConfig::new(&db, 1);
+    let config = VersionConfig::new(&db, 1);
     identity::root_query_versioned_result(&db, config);
     finalize(session, &db);
   }
@@ -87,8 +89,8 @@ fn disk_three_sessions_no_recomputation() {
     let (session, db) = open_session(dir.path());
     let db = db.unwrap_or_else(|| panic!("session {session_num} must load previous"));
     let config = identity::find_entry(
-      identity::VersionConfig::iter(&db),
-      |c| c.version(&db) == 1,
+      VersionConfig::iter(&db),
+      |config| config.version(&db) == 1,
       "VersionConfig(1)",
     );
     identity::take_log();
@@ -119,8 +121,8 @@ fn disk_mutation_then_cached_next_session() {
     let (session, db) = open_session(dir.path());
     let mut db = db.expect("session 2 must load");
     let config = identity::find_entry(
-      identity::VersionConfig::iter(&db),
-      |c| c.version(&db) == 1,
+      VersionConfig::iter(&db),
+      |config| config.version(&db) == 1,
       "VersionConfig(1)",
     );
     config.set_version(&mut db, 42);
@@ -133,8 +135,8 @@ fn disk_mutation_then_cached_next_session() {
     let (session, db) = open_session(dir.path());
     let db = db.expect("session 3 must load");
     let config = identity::find_entry(
-      identity::VersionConfig::iter(&db),
-      |c| c.version(&db) == 42,
+      VersionConfig::iter(&db),
+      |config| config.version(&db) == 42,
       "VersionConfig(42)",
     );
     identity::take_log();
@@ -182,11 +184,12 @@ fn corrupt_dep_graph_starts_clean() {
   // Corrupt the dep-graph file in the finalized session dir
   let session_dir = fs::read_dir(dir.path())
     .unwrap()
-    .filter_map(|e| e.ok())
-    .find(|e| {
-      e.file_name()
+    .filter_map(|entry| entry.ok())
+    .find(|entry| {
+      entry
+        .file_name()
         .to_str()
-        .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+        .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
     })
     .expect("finalized session dir")
     .path();
@@ -219,16 +222,16 @@ fn old_finalized_sessions_are_removed() {
     // Record the name of the just-finalized directory
     last_finalized_dir = fs::read_dir(dir.path())
       .unwrap()
-      .filter_map(|e| e.ok())
-      .map(|e| e.path())
-      .filter(|p| {
-        p.is_dir()
-          && p
+      .filter_map(|entry| entry.ok())
+      .map(|entry| entry.path())
+      .filter(|path| {
+        path.is_dir()
+          && path
             .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
       })
-      .max_by_key(|p| p.file_name().unwrap().to_os_string());
+      .max_by_key(|path| path.file_name().unwrap().to_os_string());
   }
 
   // Opening a 4th session triggers GC, which must remove all but the most recent
@@ -237,14 +240,14 @@ fn old_finalized_sessions_are_removed() {
 
   let finalized_dirs: Vec<_> = fs::read_dir(dir.path())
     .unwrap()
-    .filter_map(|e| e.ok())
-    .map(|e| e.path())
-    .filter(|p| {
-      p.is_dir()
-        && p
+    .filter_map(|entry| entry.ok())
+    .map(|entry| entry.path())
+    .filter(|path| {
+      path.is_dir()
+        && path
           .file_name()
-          .and_then(|n| n.to_str())
-          .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+          .and_then(|name| name.to_str())
+          .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
     })
     .collect();
 
@@ -329,7 +332,7 @@ fn interned_blob_values_survive_disk_roundtrip() {
     for n in [0usize, 1, 100, 999] {
       let found = identity::IdInput::iter(&db)
         .into_iter()
-        .any(|i| i.n(&db) == n);
+        .any(|input| input.n(&db) == n);
       assert!(found, "IdInput(n={n}) must survive disk roundtrip");
     }
     finalize(session, &db);
@@ -350,11 +353,12 @@ fn corrupt_interned_blobs_starts_clean() {
 
   let session_dir = fs::read_dir(dir.path())
     .unwrap()
-    .filter_map(|e| e.ok())
-    .find(|e| {
-      e.file_name()
+    .filter_map(|entry| entry.ok())
+    .find(|entry| {
+      entry
+        .file_name()
         .to_str()
-        .is_some_and(|n| n.starts_with("s-") && !n.ends_with("-working"))
+        .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
     })
     .expect("finalized session dir")
     .path();

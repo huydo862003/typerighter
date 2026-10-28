@@ -41,7 +41,7 @@ fn parse_contract_entries(db: &TypedownDatabase, json: &str) -> Vec<CustomCompon
     .iter()
     .filter_map(|(name, entry)| {
       let source = entry.get("source")?.as_str()?.to_string();
-      let props_obj = entry.get("props").and_then(|p| p.as_object());
+      let props_obj = entry.get("props").and_then(|prop| prop.as_object());
 
       // None means props key is absent: skip prop validation for this component
       let props = props_obj.map(|prop| {
@@ -69,18 +69,18 @@ fn parse_contract_entries(db: &TypedownDatabase, json: &str) -> Vec<CustomCompon
 
       let slots = entry
         .get("slots")
-        .and_then(|s| s.as_array())
-        .map(|arr| {
-          arr
+        .and_then(|slot| slot.as_array())
+        .map(|array| {
+          array
             .iter()
-            .filter_map(|v| v.as_str().map(String::from))
+            .filter_map(|value| value.as_str().map(String::from))
             .collect()
         })
         .unwrap_or_default();
 
       let deprecated = entry
         .get("deprecated")
-        .and_then(|d| d.as_str())
+        .and_then(|deprecated_entry| deprecated_entry.as_str())
         .map(String::from);
 
       Some(CustomComponentTyp {
@@ -128,9 +128,9 @@ mod tests {
     assert_eq!(entry.source, "./Chart.vue");
     let props = entry.props.as_ref().unwrap();
     assert_eq!(props.len(), 2);
-    let data_prop = props.iter().find(|p| p.name == "data").unwrap();
+    let data_prop = props.iter().find(|prop| prop.name == "data").unwrap();
     assert!(data_prop.required);
-    let title_prop = props.iter().find(|p| p.name == "title").unwrap();
+    let title_prop = props.iter().find(|prop| prop.name == "title").unwrap();
     assert!(!title_prop.required);
   }
 
@@ -185,7 +185,7 @@ mod tests {
       .as_ref()
       .unwrap()
       .iter()
-      .find(|p| p.name == "kind")
+      .find(|prop| prop.name == "kind")
       .unwrap();
     assert_eq!(prop.description.as_deref(), Some("The alert variant"));
   }
@@ -201,7 +201,7 @@ mod tests {
       .as_ref()
       .unwrap()
       .iter()
-      .find(|p| p.name == "kind")
+      .find(|prop| prop.name == "kind")
       .unwrap();
     assert!(prop.description.is_none());
   }

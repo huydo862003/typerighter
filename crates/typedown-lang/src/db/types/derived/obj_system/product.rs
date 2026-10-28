@@ -6,7 +6,7 @@ use typedown_macros::{StableCompare, query_derived};
 
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::null::TdNullObj;
-use super::typecheck::{is_nullable, is_subtype_of};
+use super::typecheck::{is_nullable, is_subtyp_of};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -197,7 +197,7 @@ pub fn fields_compatible<'db>(
         let Some(actual_typ) = actual_lazy.resolve(db) else {
           return false;
         };
-        is_subtype_of(db, &actual_typ, &expected_typ)
+        is_subtyp_of(db, &actual_typ, &expected_typ)
       }
       None => optional,
     }

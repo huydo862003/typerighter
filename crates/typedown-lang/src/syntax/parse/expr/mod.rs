@@ -48,8 +48,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SyntaxKind::YamlOp => {
         let text: String = peek.token.chars().collect();
         match text.as_str() {
-          "|" => self.parse_literal_block_str_lit(children, block_indent),
-          ">" => self.parse_folded_block_str_lit(children, block_indent),
+          "|" => self.parse_literal_block_string_lit(children, block_indent),
+          ">" => self.parse_folded_block_string_lit(children, block_indent),
           "-" => {
             let after = self.lex_ctx.peek_yaml_nth(1, SKIP_NONE);
             if after.token.kind() == SyntaxKind::Whitespace {
@@ -142,7 +142,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         node
           .children()
           .iter()
-          .any(|c| c.kind() == SyntaxKind::RParen)
+          .any(|child| child.kind() == SyntaxKind::RParen)
       });
       if is_closed {
         let peek = self.lex_ctx.peek(self.formula_expr_skip_flags(), mode);
@@ -513,8 +513,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     match peek.token.kind() {
       SyntaxKind::Number => self.parse_number_lit(children, block_indent),
-      SyntaxKind::DqStrStart => self.parse_dq_str_lit(children, block_indent),
-      SyntaxKind::SqStrStart => self.parse_sq_str_lit(children, block_indent),
+      SyntaxKind::DqStrStart => self.parse_dq_string_lit(children, block_indent),
+      SyntaxKind::SqStrStart => self.parse_sq_string_lit(children, block_indent),
       SyntaxKind::InlineCode | SyntaxKind::CodeBlock => self.parse_code_lit(children, block_indent),
       SyntaxKind::InlineMath | SyntaxKind::MathBlock => self.parse_math_lit(children, block_indent),
       SyntaxKind::Ident => self.parse_ident_lit(children, block_indent),
@@ -688,7 +688,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     if !closed {
-      let total_len: usize = children.iter().map(|c| c.text_len()).sum();
+      let total_len: usize = children.iter().map(|child| child.text_len()).sum();
       self.diagnostics.push(
         TdDiagnosticKind::UnclosedParamList {}.into_error(self.offset() - total_len, self.offset()),
       );
@@ -1285,7 +1285,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse a literal block string: `|` followed by indented content
-  pub(in crate::syntax::parse) fn parse_literal_block_str_lit(
+  pub(in crate::syntax::parse) fn parse_literal_block_string_lit(
     &mut self,
     children: Vec<GreenNode>,
     block_indent: usize,
@@ -1296,7 +1296,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         let peek = self.lex_ctx.peek(self.formula_expr_skip_flags(), mode);
         peek.token.kind() == SyntaxKind::YamlOp && peek.token.chars().collect::<String>() == "|"
       },
-      "[ParseCtx::parse_literal_block_str_lit] Expected next token to be `|`"
+      "[ParseCtx::parse_literal_block_string_lit] Expected next token to be `|`"
     );
 
     let mut children = children;
@@ -1350,15 +1350,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.advance(&mut children, SKIP_NONE, mode);
     }
 
-    let literal_block_str_lit = self.emit(SyntaxKind::YamlLiteralBlockStrLit, &children);
+    let literal_block_string_lit = self.emit(SyntaxKind::YamlLiteralBlockStrLit, &children);
     (
-      self.emit(SyntaxKind::StrLit, &[literal_block_str_lit]),
+      self.emit(SyntaxKind::StrLit, &[literal_block_string_lit]),
       None,
     )
   }
 
   /// Parse a folded block string: `>` followed by indented content
-  pub(in crate::syntax::parse) fn parse_folded_block_str_lit(
+  pub(in crate::syntax::parse) fn parse_folded_block_string_lit(
     &mut self,
     children: Vec<GreenNode>,
     block_indent: usize,
@@ -1369,7 +1369,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         let peek = self.lex_ctx.peek(self.formula_expr_skip_flags(), mode);
         peek.token.kind() == SyntaxKind::YamlOp && peek.token.chars().collect::<String>() == ">"
       },
-      "[ParseCtx::parse_folded_block_str_lit] Expected next token to be `>`"
+      "[ParseCtx::parse_folded_block_string_lit] Expected next token to be `>`"
     );
 
     let mut children = children;
@@ -1423,8 +1423,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.advance(&mut children, SKIP_NONE, mode);
     }
 
-    let folded_block_str_lit = self.emit(SyntaxKind::YamlFoldedBlockStrLit, &children);
-    (self.emit(SyntaxKind::StrLit, &[folded_block_str_lit]), None)
+    let folded_block_string_lit = self.emit(SyntaxKind::YamlFoldedBlockStrLit, &children);
+    (self.emit(SyntaxKind::StrLit, &[folded_block_string_lit]), None)
   }
 
   /// Parse an inline block mapping: starts with `key: value` on the current line (not on a newline with indentation)
@@ -1637,7 +1637,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse a double-quoted string literal with interpolation: `"content ${expr} content"`
-  pub(in crate::syntax::parse) fn parse_dq_str_lit(
+  pub(in crate::syntax::parse) fn parse_dq_string_lit(
     &mut self,
     children: Vec<GreenNode>,
     block_indent: usize,
@@ -1650,7 +1650,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         .token
         .kind()
         == SyntaxKind::DqStrStart,
-      "[ParseCtx::parse_dq_str_lit] Expected next token to be DqStrStart"
+      "[ParseCtx::parse_dq_string_lit] Expected next token to be DqStrStart"
     );
 
     let mut children = children;
@@ -1695,7 +1695,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
   }
 
   /// Parse a single-quoted string literal with interpolation: `'content ${expr} content'`
-  pub(in crate::syntax::parse) fn parse_sq_str_lit(
+  pub(in crate::syntax::parse) fn parse_sq_string_lit(
     &mut self,
     children: Vec<GreenNode>,
     block_indent: usize,
@@ -1708,7 +1708,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
         .token
         .kind()
         == SyntaxKind::SqStrStart,
-      "[ParseCtx::parse_sq_str_lit] Expected next token to be SqStrStart"
+      "[ParseCtx::parse_sq_string_lit] Expected next token to be SqStrStart"
     );
 
     let mut children = children;

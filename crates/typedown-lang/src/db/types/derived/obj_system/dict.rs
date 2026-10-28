@@ -16,17 +16,17 @@ use crate::syntax::diagnostic::*;
 
 #[query_derived]
 pub struct TdDictTyp<'db> {
-  pub key_type: Option<LazyTyp<'db>>,
-  pub value_type: Option<LazyTyp<'db>>,
+  pub key_typ: Option<LazyTyp<'db>>,
+  pub value_typ: Option<LazyTyp<'db>>,
 }
 
 impl<'db> TdDictTyp<'db> {
   pub fn key(self, db: &'db TypedownDatabase) -> Option<LazyTyp<'db>> {
-    self.key_type(db)
+    self.key_typ(db)
   }
 
   pub fn value(self, db: &'db TypedownDatabase) -> Option<LazyTyp<'db>> {
-    self.value_type(db)
+    self.value_typ(db)
   }
 }
 
@@ -42,8 +42,8 @@ impl<'db> TdRuntimeObj<'db> for TdDictTyp<'db> {
   }
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     match (
-      self.key(db).and_then(|l| l.resolve(db)),
-      self.value(db).and_then(|l| l.resolve(db)),
+      self.key(db).and_then(|lazy_typ| lazy_typ.resolve(db)),
+      self.value(db).and_then(|lazy_typ| lazy_typ.resolve(db)),
     ) {
       (Some(key), Some(value)) => format!(
         "@builtin::dict[{}, {}]",
@@ -58,8 +58,8 @@ impl<'db> TdRuntimeObj<'db> for TdDictTyp<'db> {
 impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match (
-      self.key(db).and_then(|l| l.resolve(db)),
-      self.value(db).and_then(|l| l.resolve(db)),
+      self.key(db).and_then(|lazy_typ| lazy_typ.resolve(db)),
+      self.value(db).and_then(|lazy_typ| lazy_typ.resolve(db)),
     ) {
       (Some(key), Some(value)) => {
         format!("dict[{}, {}]", key.display_name(db), value.display_name(db))
@@ -104,8 +104,8 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
 
   fn get_typ_args(&self, db: &'db TypedownDatabase) -> Vec<TdTypEnum<'db>> {
     match (
-      self.key(db).and_then(|l| l.resolve(db)),
-      self.value(db).and_then(|l| l.resolve(db)),
+      self.key(db).and_then(|lazy_typ| lazy_typ.resolve(db)),
+      self.value(db).and_then(|lazy_typ| lazy_typ.resolve(db)),
     ) {
       (Some(key), Some(value)) => vec![key, value],
       _ => vec![],
@@ -121,19 +121,19 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
     db: &'db TypedownDatabase,
     args: Vec<LazyTyp<'db>>,
   ) -> InstantiateResult<'db> {
-    let self_type: TdTypEnum = (*self).into();
+    let self_typ: TdTypEnum = (*self).into();
     let params = self.typ_params(db);
     let diagnostics = validate_typ_params(db, params.as_ref(), &args);
-    if diagnostics.iter().any(|d| {
+    if diagnostics.iter().any(|diagnostic| {
       matches!(
-        d,
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::WrongTypArgCount { .. },
           ..
         }
       )
     }) {
-      return InstantiateResult::new(db, self_type, diagnostics);
+      return InstantiateResult::new(db, self_typ, diagnostics);
     }
     if args.len() == 2 {
       InstantiateResult::new(
@@ -142,7 +142,7 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
         diagnostics,
       )
     } else {
-      InstantiateResult::new(db, self_type, diagnostics)
+      InstantiateResult::new(db, self_typ, diagnostics)
     }
   }
 
@@ -170,10 +170,10 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
     db: &'db TypedownDatabase,
     _key_type: &TdTypEnum<'db>,
   ) -> Option<FuncSignature<'db>> {
-    let value = self.value(db).and_then(|v| v.resolve(db))?;
+    let value = self.value(db).and_then(|value| value.resolve(db))?;
     let key = self
       .key(db)
-      .and_then(|k| k.resolve(db))
+      .and_then(|key| key.resolve(db))
       .unwrap_or_else(|| get_string_typ(db).into());
     Some(FuncSignature::new(db, vec![key], value))
   }
@@ -241,8 +241,8 @@ impl<'db> TdRuntimeObj<'db> for TdDictObj<'db> {
     self.get_typ(db).source_path(db)
   }
   fn index(&self, db: &'db TypedownDatabase, key: &TdObjEnum<'db>) -> Option<TdObjEnum<'db>> {
-    let str_key = key.as_td_string_obj()?;
-    self.get_owned_field(db, &str_key.value(db))
+    let string_key = key.as_td_string_obj()?;
+    self.get_owned_field(db, &string_key.value(db))
   }
   fn len(&self, db: &'db TypedownDatabase) -> Option<usize> {
     Some(self.entries(db).len())

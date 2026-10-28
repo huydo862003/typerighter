@@ -13,7 +13,7 @@ use typedown_types::path::normalize_path;
 use crate::core::analysis::Analysis;
 use crate::core::utils::position::node_trimmed_range;
 use crate::core::utils::uri::path_to_uri;
-use crate::lsp::service::utils::symbol::str_content_node;
+use crate::lsp::service::utils::symbol::get_string_content_node;
 
 /// Build text edits for all references to a symbol
 pub fn collect_reference_edits(
@@ -56,7 +56,7 @@ pub fn collect_reference_edits(
         {
           continue;
         }
-        let Some(content) = str_content_node(&arg_node) else {
+        let Some(content) = get_string_content_node(&arg_node) else {
           continue;
         };
         let Some(new_relative) = new_absolute.strip_prefix(root_dir).ok() else {

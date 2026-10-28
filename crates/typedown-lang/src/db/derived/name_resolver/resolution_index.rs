@@ -348,7 +348,7 @@ fn collect_references_in_expr(
   let file = project_node.file;
 
   let expr = match Expr::cast(project_node.node.clone()) {
-    Some(e) => e,
+    Some(expr) => expr,
     None => return,
   };
 
@@ -356,8 +356,8 @@ fn collect_references_in_expr(
     Expr::IdentLit(ident) => {
       collect_references_in_ident(db, ident, project_node, map);
     }
-    Expr::StrLit(str_lit) => {
-      collect_references_in_string_lit(db, str_lit, project, file, map);
+    Expr::StrLit(string_lit) => {
+      collect_references_in_string_lit(db, string_lit, project, file, map);
     }
     Expr::CallExpr(call) => {
       collect_references_in_call(db, call, project_node, map);
@@ -434,12 +434,12 @@ fn collect_references_in_ident(
 
 fn collect_references_in_string_lit(
   db: &TypedownDatabase,
-  str_lit: StrLit,
+  string_lit: StrLit,
   project: Project,
   file: File,
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
-  for fragment in str_lit.fragments() {
+  for fragment in string_lit.fragments() {
     if let Either::Right(interp) = fragment
       && let Some(inner_expr) = interp.expr()
     {

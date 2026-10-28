@@ -148,7 +148,7 @@ fn projects_iterator_lists_loaded() {
 
   let roots: Vec<_> = multiproject
     .projects()
-    .map(|e| e.root_dir.clone())
+    .map(|entry| entry.root_dir.clone())
     .collect();
   assert_eq!(roots.len(), 2);
   assert!(roots.contains(&tmp.path().join("project_a")));

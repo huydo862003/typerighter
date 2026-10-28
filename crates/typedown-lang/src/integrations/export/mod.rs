@@ -24,6 +24,7 @@ use crate::db::derived::parse_file::parse_file;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::{File, FileHandle, Project, TdBlobTyp, TdObjEnum, TdRuntimeObj};
 use crate::db::utils::is_external_url;
+use crate::integrations::export::utils::{extract_plain_text, prepend_base_path};
 use crate::syntax::ast::{AstNode, MdBody, SourceFile};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -193,7 +194,7 @@ fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
 
     let label = obj
       .get_builtin_field(db, "_label")
-      .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
+      .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
     let icon = obj.get_builtin_field(db, "_icon").and_then(|obj| {
       obj.as_td_icon_obj().map(|icon| ExportedIcon {
         name: icon.lucide_name(db),
@@ -223,14 +224,16 @@ fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
   // Prefer description or summary fields from the object, fall back to first body paragraph
   let excerpt = obj
     .as_ref()
-    .and_then(|o| {
-      o.get_owned_field(db, "description")
-        .and_then(|f| f.as_td_string_obj().map(|s| s.value(db)))
+    .and_then(|obj| {
+      obj
+        .get_owned_field(db, "description")
+        .and_then(|field| field.as_td_string_obj().map(|string| string.value(db)))
         .or_else(|| {
-          o.get_owned_field(db, "summary")
-            .and_then(|f| f.as_td_string_obj().map(|s| s.value(db)))
+          obj
+            .get_owned_field(db, "summary")
+            .and_then(|field| field.as_td_string_obj().map(|string| string.value(db)))
         })
-        .filter(|s| !s.is_empty())
+        .filter(|string| !string.is_empty())
     })
     .or_else(|| export_body_excerpt(body.syntax()));
 
@@ -267,18 +270,18 @@ fn export_seo_metadata(
 
   let title = meta_obj
     .get_owned_field(db, "title")
-    .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
+    .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
   let description = meta_obj
     .get_owned_field(db, "description")
-    .and_then(|o| o.as_td_string_obj().map(|s| s.value(db)));
-  let image = meta_obj.get_owned_field(db, "image").and_then(|o| {
-    o.as_td_string_obj().map(|s| {
-      let raw = s.value(db);
+    .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
+  let image = meta_obj.get_owned_field(db, "image").and_then(|obj| {
+    obj.as_td_string_obj().map(|string| {
+      let raw = string.value(db);
       if is_external_url(&raw) || raw.starts_with('/') {
         raw
       } else {
         let config = get_vault_config(db, project);
-        utils::prepend_base_path(&config.base_path(db), &raw)
+        prepend_base_path(&config.base_path(db), &raw)
       }
     })
   });
@@ -309,8 +312,8 @@ fn export_body_excerpt(node: &RedNode) -> Option<String> {
   }
 
   find_first_paragraph(node)
-    .map(|p| utils::extract_plain_text(&p))
-    .filter(|s| !s.is_empty())
+    .map(|paragraph| extract_plain_text(&paragraph))
+    .filter(|string| !string.is_empty())
 }
 
 #[cfg(test)]
@@ -330,7 +333,10 @@ mod tests {
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("should export");
     assert!(
-      exported.header.as_object().is_some_and(|m| !m.is_empty()),
+      exported
+        .header
+        .as_object()
+        .is_some_and(|member| !member.is_empty()),
       "header should have fields"
     );
     assert_eq!(
@@ -824,7 +830,11 @@ properties:
   fn html_export_heading_titles_preserve_special_chars() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    let titles: Vec<&str> = exported.headings.iter().map(|h| h.title.as_str()).collect();
+    let titles: Vec<&str> = exported
+      .headings
+      .iter()
+      .map(|heading| heading.title.as_str())
+      .collect();
     assert!(
       titles.contains(&"Version v1.2.3"),
       "dots preserved: {titles:?}"
@@ -1184,7 +1194,11 @@ properties:
   fn html_export_heading_slugs_unique() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    let slugs: Vec<&str> = exported.headings.iter().map(|h| h.slug.as_str()).collect();
+    let slugs: Vec<&str> = exported
+      .headings
+      .iter()
+      .map(|heading| heading.slug.as_str())
+      .collect();
     let mut deduped = slugs.clone();
     deduped.sort();
     deduped.dedup();

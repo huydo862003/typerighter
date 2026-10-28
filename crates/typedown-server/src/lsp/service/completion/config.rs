@@ -40,7 +40,7 @@ fn is_under_vault(node: &RedNode) -> bool {
     if current_.kind() == SyntaxKind::YamlMappingEntry {
       let key = current_
         .children()
-        .find(|c| c.kind() == SyntaxKind::YamlMappingEntryKey);
+        .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey);
       if key.is_some_and(|key| key.text().trim() == "vault") {
         return true;
       }

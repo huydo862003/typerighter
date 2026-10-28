@@ -45,7 +45,7 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
     let params: Vec<String> = signature
       .params(db)
       .iter()
-      .map(|p| p.display_name(db))
+      .map(|param| param.display_name(db))
       .collect();
     let ret = signature.ret(db).display_name(db);
     format!("fn({}) -> {}", params.join(", "), ret)

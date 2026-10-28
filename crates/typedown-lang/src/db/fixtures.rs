@@ -165,10 +165,10 @@ pub fn load_vault_fixture(
 /// Collect all vault files (`.td` and `typedown.yaml`/`typedown.yml`) recursively
 fn collect_vault_files(dir: &Path, db: &TypedownDatabase) -> HashMap<PathBuf, File> {
   fn is_vault_file(path: &Path) -> bool {
-    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
     let is_asset = path
       .extension()
-      .and_then(|ext| ext.to_str())
+      .and_then(|extension| extension.to_str())
       .and_then(AssetKind::from_extension)
       .is_some();
     is_content_file(path) || is_asset || name == "typedown.yaml" || name == "typedown.yml"
@@ -197,11 +197,11 @@ fn get_path_metadata(path: &Path) -> FileMetadata {
   let meta = fs::metadata(path).ok();
   let mtime = meta
     .as_ref()
-    .and_then(|m| m.modified().ok())
+    .and_then(|metadata| metadata.modified().ok())
     .unwrap_or(SystemTime::UNIX_EPOCH);
   let ctime = meta
     .as_ref()
-    .and_then(|m| m.created().ok())
+    .and_then(|metadata| metadata.created().ok())
     .unwrap_or(mtime);
   FileMetadata { mtime, ctime }
 }

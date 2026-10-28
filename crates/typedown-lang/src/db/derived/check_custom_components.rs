@@ -82,12 +82,12 @@ fn validate(
   };
 
   let provided_props = MdContainerBlock::cast(node.clone())
-    .map(|b| b.prop_names())
-    .or_else(|| MdContainerShorthand::cast(node.clone()).map(|s| s.prop_names()))
+    .map(|block| block.prop_names())
+    .or_else(|| MdContainerShorthand::cast(node.clone()).map(|container| container.prop_names()))
     .unwrap_or_default();
 
   for prop in props {
-    if prop.required && !provided_props.iter().any(|p| p == &prop.name) {
+    if prop.required && !provided_props.iter().any(|provided_prop| provided_prop == &prop.name) {
       diagnostics.push(
         TdDiagnosticKind::MissingRequiredProp {
           prop: prop.name.clone(),
@@ -99,7 +99,7 @@ fn validate(
   }
 
   for prop_name in &provided_props {
-    if !props.iter().any(|p| &p.name == prop_name) {
+    if !props.iter().any(|prop| &prop.name == prop_name) {
       diagnostics.push(
         TdDiagnosticKind::UnknownProp {
           prop: prop_name.clone(),
@@ -124,13 +124,13 @@ fn validate(
   // Slot validation (only container blocks have slots, not shorthands)
   if !entry.slots.is_empty() {
     let used_slots = MdContainerBlock::cast(node.clone())
-      .map(|b| b.slot_names())
+      .map(|block| block.slot_names())
       .unwrap_or_default();
-    for slot in &used_slots {
-      if !entry.slots.iter().any(|s| s == slot) {
+    for used_slot in &used_slots {
+      if !entry.slots.iter().any(|slot| slot == used_slot) {
         diagnostics.push(
           TdDiagnosticKind::UnknownSlot {
-            slot: slot.clone(),
+            slot: used_slot.clone(),
             component: name.to_string(),
           }
           .into_warning(start_offset, end_offset),
@@ -335,17 +335,17 @@ mod tests {
     let block = find_block(&root);
     let name = block.label().unwrap();
     let contract: Vec<CustomComponentTyp> = vec![];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::UnknownComponent { .. },
           ..
         }
       )),
-      "expected UnknownComponent, got: {diags:?}"
+      "expected UnknownComponent, got: {diagnostics:?}"
     );
   }
 
@@ -393,13 +393,13 @@ mod tests {
       slots: vec![],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags
+      diagnostics
         .iter()
-        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredProp { prop, .. }, .. } if prop == "data")),
-      "expected MissingRequiredProp for 'data', got: {diags:?}"
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredProp { prop, .. }, .. } if prop == "data")),
+      "expected MissingRequiredProp for 'data', got: {diagnostics:?}"
     );
   }
 
@@ -420,13 +420,13 @@ mod tests {
       slots: vec![],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostuis = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostuis);
     assert!(
-      diags
+      diagnostuis
         .iter()
-        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::UnknownProp { prop, .. }, .. } if prop == "extra")),
-      "expected UnknownProp for 'extra', got: {diags:?}"
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::UnknownProp { prop, .. }, .. } if prop == "extra")),
+      "expected UnknownProp for 'extra', got: {diagnostuis:?}"
     );
   }
 
@@ -466,13 +466,13 @@ content
       slots: vec![],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags
+      diagnostics
         .iter()
-        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::UnknownProp { prop, .. }, .. } if prop == "extra")),
-      "callout with contract entry should be validated; expected UnknownProp, got: {diags:?}"
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::UnknownProp { prop, .. }, .. } if prop == "extra")),
+      "callout with contract entry should be validated; expected UnknownProp, got: {diagnostics:?}"
     );
   }
 
@@ -493,17 +493,17 @@ content
       slots: vec![],
       deprecated: Some("use new-widget instead".to_string()),
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::DeprecatedComponent { .. },
           ..
         }
       )),
-      "expected DeprecatedComponent, got: {diags:?}"
+      "expected DeprecatedComponent, got: {diagnostics:?}"
     );
   }
 
@@ -527,14 +527,14 @@ the answer
       slots: vec!["key".to_string()],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic { kind: TdDiagnosticKind::UnknownSlot { slot, .. }, .. } if slot == "answer"
       )),
-      "expected UnknownSlot for 'answer', got: {diags:?}"
+      "expected UnknownSlot for 'answer', got: {diagnostics:?}"
     );
   }
 

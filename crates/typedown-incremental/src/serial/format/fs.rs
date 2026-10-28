@@ -169,7 +169,7 @@ fn garbage_collect(cache_dir: &Path) {
         && path
           .file_name()
           .and_then(|name| name.to_str())
-          .is_some_and(|n| n.starts_with("s-"))
+          .is_some_and(|name| name.starts_with("s-"))
     })
     .collect();
 

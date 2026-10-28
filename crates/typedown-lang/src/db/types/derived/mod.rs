@@ -49,7 +49,7 @@ impl ProjectRedNode {
     if let Some(source_file) = SourceFile::cast(node.clone()) {
       let frontmatter_node = source_file
         .frontmatter()
-        .map(|fm| ProjectRedNode::new(project, file, fm.syntax().clone()))?;
+        .map(|frontmatter| ProjectRedNode::new(project, file, frontmatter.syntax().clone()))?;
       return frontmatter_node.mapping_entries();
     }
     if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
@@ -57,14 +57,14 @@ impl ProjectRedNode {
       return Some(
         mapping
           .entries()
-          .map(|(k, v)| (k, ProjectRedNode::new(project, file, v.syntax().clone())))
+          .map(|(key, value)| (key, ProjectRedNode::new(project, file, value.syntax().clone())))
           .collect(),
       );
     }
-    if let Some(m) = YamlMapping::cast(node.clone()) {
+    if let Some(mapping) = YamlMapping::cast(node.clone()) {
       return Some(
-        m.entries()
-          .map(|(k, v)| (k, ProjectRedNode::new(project, file, v.syntax().clone())))
+        mapping.entries()
+          .map(|(key, value)| (key, ProjectRedNode::new(project, file, value.syntax().clone())))
           .collect(),
       );
     }
@@ -72,10 +72,10 @@ impl ProjectRedNode {
       return Some(
         dict
           .entries()
-          .filter_map(|e| {
-            let k = e.key()?;
-            let v = e.value()?;
-            Some((k, ProjectRedNode::new(project, file, v.syntax().clone())))
+          .filter_map(|entry| {
+            let key = entry.key()?;
+            let value = entry.value()?;
+            Some((key, ProjectRedNode::new(project, file, value.syntax().clone())))
           })
           .collect(),
       );
@@ -88,11 +88,11 @@ impl ProjectRedNode {
     let file = self.file;
     let node = self.node.clone();
 
-    if let Some(seq) = YamlSequence::cast(node.clone()) {
+    if let Some(sequence) = YamlSequence::cast(node.clone()) {
       return Some(
-        seq
+        sequence
           .values()
-          .map(|v| ProjectRedNode::new(project, file, v.syntax().clone()))
+          .map(|value| ProjectRedNode::new(project, file, value.syntax().clone()))
           .collect(),
       );
     }
@@ -101,7 +101,7 @@ impl ProjectRedNode {
         list
           .items()
           .filter_map(|item| item.value())
-          .map(|v| ProjectRedNode::new(project, file, v.syntax().clone()))
+          .map(|value| ProjectRedNode::new(project, file, value.syntax().clone()))
           .collect(),
       );
     }

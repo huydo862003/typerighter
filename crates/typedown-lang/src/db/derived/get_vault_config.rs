@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Once;
 
 use typedown_macros::query_derived;
 
@@ -71,7 +72,6 @@ pub fn get_vault_config<'db>(
 
   let nav = extract_nav(db, &site);
   if nav.len() > 4 {
-    use std::sync::Once;
     static WARN: Once = Once::new();
     WARN.call_once(|| {
       eprintln!(

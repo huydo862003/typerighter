@@ -1,10 +1,5 @@
 use lsp_types::{
-  CompletionOptions, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions,
-  HoverProviderCapability, InitializeParams, InitializeResult, OneOf, RenameOptions,
-  SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-  SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-  TextDocumentSyncKind, WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities,
-  WorkspaceServerCapabilities,
+  CodeActionProviderCapability, CompletionOptions, ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, HoverProviderCapability, InitializeParams, InitializeResult, OneOf, RenameOptions, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities,
 };
 use typedown_server::core::logger;
 use typedown_server::core::multiproject::Multiproject;
@@ -93,13 +88,13 @@ pub fn main() -> anyhow::Result<()> {
     }),
     definition_provider: Some(OneOf::Left(true)),
     references_provider: Some(OneOf::Left(true)),
-    code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
+    code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
     document_formatting_provider: Some(OneOf::Left(true)),
-    execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
+    execute_command_provider: Some(ExecuteCommandOptions {
       commands: commands::command_ids(),
       ..Default::default()
     }),
-    inlay_hint_provider: Some(lsp_types::OneOf::Left(true)),
+    inlay_hint_provider: Some(OneOf::Left(true)),
     semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
       SemanticTokensOptions {
         legend: SemanticTokensLegend {

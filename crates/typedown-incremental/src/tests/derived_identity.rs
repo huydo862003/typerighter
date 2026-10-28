@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use super::fixtures::identity;
-use crate::{Id, InputId, InternedId, SerializableQueryDatabase};
+use crate::{Id, InputId, InternedId, SerializableQueryDatabase, tests::fixtures::identity::{IdInput, RangeConfig, VersionConfig}};
 use identity::{Database as IdDatabase, QueryStorage};
 
 #[test]
@@ -11,19 +11,19 @@ fn derived_struct_identity_preserved_across_roundtrip() {
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
-  let config = identity::VersionConfig::new(&db1, 1);
+  let config = VersionConfig::new(&db1, 1);
   let result1 = identity::root_query_versioned_result(&db1, config);
   assert_eq!(result1.value(&db1), 1);
 
   let mut db2 = identity::dump_and_reload(&db1, |storage| IdDatabase { storage });
   let config2 = identity::find_entry(
-    identity::VersionConfig::iter(&db2),
-    |c| c.version(&db2) == 1,
+    VersionConfig::iter(&db2),
+    |config| config.version(&db2) == 1,
     "VersionConfig(version=1)",
   );
 
   let cached = identity::root_query_versioned_result(&db2, config2);
-  let id_before_reexec = cached.as_id().entry_id();
+  let id_before_reexecution = cached.as_id().entry_id();
 
   config2.set_version(&mut db2, 2);
   identity::take_log();
@@ -31,9 +31,9 @@ fn derived_struct_identity_preserved_across_roundtrip() {
   let log = identity::take_log();
   assert!(!log.is_empty(), "versioned_result should have re-executed");
 
-  let id_after_reexec = result2.as_id().entry_id();
+  let id_after_reexecution = result2.as_id().entry_id();
   assert_eq!(
-    id_before_reexec, id_after_reexec,
+    id_before_reexecution, id_after_reexecution,
     "re-executed struct should reuse the deserialized entry ID"
   );
   assert_eq!(result2.n(&db2), 0);
@@ -45,13 +45,13 @@ fn multiple_derived_structs_preserve_identity_across_roundtrip() {
   let db1 = IdDatabase {
     storage: QueryStorage::default(),
   };
-  let config = identity::RangeConfig::new(&db1, 3);
+  let config = RangeConfig::new(&db1, 3);
   identity::make_range(&db1, config);
 
   let mut db2 = identity::dump_and_reload(&db1, |storage| IdDatabase { storage });
   let config2 = identity::find_entry(
-    identity::RangeConfig::iter(&db2),
-    |c| c.count(&db2) == 3,
+    RangeConfig::iter(&db2),
+    |config| config.count(&db2) == 3,
     "RangeConfig(count=3)",
   );
 
@@ -63,8 +63,8 @@ fn multiple_derived_structs_preserve_identity_across_roundtrip() {
 
   let db3 = identity::dump_and_reload(&db2, |storage| IdDatabase { storage });
   let config3 = identity::find_entry(
-    identity::RangeConfig::iter(&db3),
-    |c| c.count(&db3) == 5,
+    RangeConfig::iter(&db3),
+    |config| config.count(&db3) == 5,
     "RangeConfig(count=5)",
   );
   let result3 = identity::make_range(&db3, config3);
@@ -83,8 +83,8 @@ fn no_id_fields_preserve_identity_across_roundtrip() {
 
   let mut db2 = identity::dump_and_reload(&db1, |storage| IdDatabase { storage });
   let config2 = identity::find_entry(
-    identity::VersionConfig::iter(&db2),
-    |c| c.version(&db2) == 1,
+    VersionConfig::iter(&db2),
+    |config| config.version(&db2) == 1,
     "VersionConfig(version=1)",
   );
 
@@ -118,8 +118,8 @@ fn drain_removes_stale_structs_after_roundtrip() {
 
   let mut db2 = identity::dump_and_reload(&db1, |storage| IdDatabase { storage });
   let config2 = identity::find_entry(
-    identity::RangeConfig::iter(&db2),
-    |c| c.count(&db2) == 5,
+    RangeConfig::iter(&db2),
+    |config| config.count(&db2) == 5,
     "RangeConfig(count=5)",
   );
 
@@ -131,8 +131,8 @@ fn drain_removes_stale_structs_after_roundtrip() {
 
   let db3 = identity::dump_and_reload(&db2, |storage| IdDatabase { storage });
   let config3 = identity::find_entry(
-    identity::RangeConfig::iter(&db3),
-    |c| c.count(&db3) == 2,
+    RangeConfig::iter(&db3),
+    |config| config.count(&db3) == 2,
     "RangeConfig(count=2)",
   );
   let result3 = identity::make_range(&db3, config3);
@@ -174,10 +174,10 @@ fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
   // make_range and identity both create IdResult::new(db, i, i) for i in 0..=count
   // They produce the same struct entries (same identity_hash), so both memos list them in derived_identities. After roundtrip, loading these concurrently races on deserialize_derived_identity for each shared IdResult entry
   let count = 50usize;
-  let config = identity::RangeConfig::new(&db1, count);
+  let config = RangeConfig::new(&db1, count);
   identity::make_range(&db1, config);
   for i in 0..=count {
-    let input = identity::IdInput::new(&db1, i);
+    let input = IdInput::new(&db1, i);
     identity::identity(&db1, input);
   }
 
@@ -185,33 +185,33 @@ fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
     storage,
   }));
 
-  std::thread::scope(|s| {
+  std::thread::scope(|thread_scope| {
     let db = Arc::as_ref(&db2);
 
     // One thread loads make_range (deserialize_derived_identity for IdResult[0..=count])
-    s.spawn(|| {
-      let cfg = identity::find_entry(
+    thread_scope.spawn(|| {
+      let config = identity::find_entry(
         identity::RangeConfig::iter(db),
-        |c| c.count(db) == count,
+        |config| config.count(db) == count,
         "RangeConfig",
       );
-      let result = identity::make_range(db, cfg);
+      let result = identity::make_range(db, config);
       assert_eq!(result.n(db), count);
       assert_eq!(result.value(db), count);
     });
 
     // Many threads each load identity(input_i), racing on deserialize_derived_identity for IdResult[i] which is also in make_range's derived_identities
-    for i in 0..=count {
-      s.spawn(move || {
+    for index in 0..=count {
+      thread_scope.spawn(move || {
         let input = identity::find_entry(
           identity::IdInput::iter(db),
-          |inp| inp.n(db) == i,
-          format!("IdInput(n={i})"),
+          |input| input.n(db) == index,
+          format!("IdInput(n={index})"),
         );
         let result = identity::identity(db, input);
         // These reads panic if sibling fields were not fully written before entry_id was returned
-        assert_eq!(result.n(db), i);
-        assert_eq!(result.value(db), i);
+        assert_eq!(result.n(db), index);
+        assert_eq!(result.value(db), index);
       });
     }
   });
@@ -233,7 +233,7 @@ fn drain_then_roundtrip_is_clean() {
   let db2 = identity::dump_and_reload(&db, |storage| IdDatabase { storage });
   let config2 = identity::find_entry(
     identity::RangeConfig::iter(&db2),
-    |c| c.count(&db2) == 2,
+    |config| config.count(&db2) == 2,
     "count=2",
   );
   identity::take_log();

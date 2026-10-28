@@ -22,7 +22,7 @@ pub fn list_token_typs() -> Vec<SemanticTokenType> {
   vec![SemanticTokenType::TYPE]
 }
 
-fn get_token_type_index(token_typ: &SemanticTokenType) -> u32 {
+fn get_token_typ_index(token_typ: &SemanticTokenType) -> u32 {
   list_token_typs()
     .iter()
     .position(|typ| typ == token_typ)
@@ -100,7 +100,7 @@ fn delta_encode(
   let mut previous_line = 0u32;
   let mut previous_start = 0u32;
 
-  for (offset, length, token_type, modifiers) in raw {
+  for (offset, length, token_typ, modifiers) in raw {
     // Convert char offset to line/character position
     let position = text_offset_to_lsp_position(rope, offset);
     let line = position.line;
@@ -118,7 +118,7 @@ fn delta_encode(
       delta_line,
       delta_start,
       length: length as u32,
-      token_type: get_token_type_index(&token_type),
+      token_type: get_token_typ_index(&token_typ),
       token_modifiers_bitset: modifiers,
     });
 
@@ -157,12 +157,12 @@ mod tests {
     collect_tokens(ast, &mut raw);
     raw
       .into_iter()
-      .map(|(_, _, token_type, _)| token_type)
+      .map(|(_, _, token_typ, _)| token_typ)
       .collect()
   }
 
   #[test]
-  fn typ_reference_in_type_field() {
+  fn typ_reference_in_typ_field() {
     let typs = parse_tokens(
       r#"---
 _type: Person
@@ -175,7 +175,7 @@ name: "Alice"
   }
 
   #[test]
-  fn schema_property_type_ref_highlighted_as_typ() {
+  fn schema_property_typ_ref_highlighted_as_typ() {
     let typs = parse_tokens(
       r#"---
 _type: schema

@@ -246,11 +246,11 @@ impl QueryStorage {
 
   /// Access the current thread's ExecuteContext
   #[doc(hidden)]
-  pub fn with_context<R>(&self, f: impl FnOnce(&mut Option<ExecuteContext>) -> R) -> R {
+  pub fn with_context<R>(&self, callback: impl FnOnce(&mut Option<ExecuteContext>) -> R) -> R {
     thread_local! {
       static CTX: RefCell<Option<ExecuteContext>> = const { RefCell::new(None) };
     }
-    CTX.with(|c| f(&mut c.borrow_mut()))
+    CTX.with(|ctx| callback(&mut ctx.borrow_mut()))
   }
 
   // Whether the current thread is inside a query execution

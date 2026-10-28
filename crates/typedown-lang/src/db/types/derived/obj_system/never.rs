@@ -73,7 +73,7 @@ mod tests {
   }
 
   #[test]
-  fn never_type_operations_always_return_never() {
+  fn never_typ_operations_always_return_never() {
     let db = make_db();
     let never_typ = TdNeverTyp::get(&db);
     let never_enum: TdTypEnum = never_typ.into();
@@ -85,12 +85,12 @@ mod tests {
     );
 
     // index type returns signature returning never
-    let num_typ: TdTypEnum = get_number_typ(&db).into();
-    let index_signature = never_typ.index_typ(&db, &num_typ).unwrap();
+    let number_typ: TdTypEnum = get_number_typ(&db).into();
+    let index_signature = never_typ.index_typ(&db, &number_typ).unwrap();
     assert_eq!(index_signature.ret(&db), never_enum);
 
     // call type returns signature returning never
-    let call_signature = never_typ.call_typ(&db, vec![num_typ]).unwrap();
+    let call_signature = never_typ.call_typ(&db, vec![number_typ]).unwrap();
     assert_eq!(call_signature.ret(&db), never_enum);
   }
 }

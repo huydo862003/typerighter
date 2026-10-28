@@ -41,10 +41,10 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
   let handle = config_file.handle(db);
   let stream = match handle.open() {
     Ok(stream) => stream,
-    Err(err) => {
+    Err(error) => {
       let path = handle
         .path()
-        .map_or_else(|| "typedown.yaml".to_string(), |p| p.display().to_string());
+        .map_or_else(|| "typedown.yaml".to_string(), |path| path.display().to_string());
 
       return ResourceResult::new(
         db,
@@ -52,7 +52,7 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
         vec![
           TdDiagnosticKind::VaultConfigReadError {
             path,
-            message: err.to_string(),
+            message: error.to_string(),
           }
           .into_error(0, 0),
         ],
