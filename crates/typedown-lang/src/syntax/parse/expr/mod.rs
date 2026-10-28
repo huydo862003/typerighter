@@ -1424,7 +1424,10 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     let folded_block_string_lit = self.emit(SyntaxKind::YamlFoldedBlockStrLit, &children);
-    (self.emit(SyntaxKind::StrLit, &[folded_block_string_lit]), None)
+    (
+      self.emit(SyntaxKind::StrLit, &[folded_block_string_lit]),
+      None,
+    )
   }
 
   /// Parse an inline block mapping: starts with `key: value` on the current line (not on a newline with indentation)

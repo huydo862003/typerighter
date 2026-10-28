@@ -97,7 +97,11 @@ pub fn actual_node_typ<'db>(
           SyntaxKind::DqStrContent | SyntaxKind::SqStrContent
         ) && !child.text().trim().is_empty()
       });
-      if !has_text && children.iter().any(|child| child.kind() == SyntaxKind::MathLit) {
+      if !has_text
+        && children
+          .iter()
+          .any(|child| child.kind() == SyntaxKind::MathLit)
+      {
         return TypResult::new(db, Some(get_math_typ(db).into()), vec![]);
       }
       let value: String = string_lit
@@ -122,7 +126,10 @@ pub fn actual_node_typ<'db>(
   }
 
   if let Some(number) = NumberLit::cast(node.clone()) {
-    let value = number.value().map(|value| value.to_string()).unwrap_or_default();
+    let value = number
+      .value()
+      .map(|value| value.to_string())
+      .unwrap_or_default();
     return TypResult::new(
       db,
       Some(get_lit_typ(db, LitValue::Number(value)).into()),
@@ -630,12 +637,11 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
   };
 
   let params: Vec<String> = match closure.params() {
-    Some(Either::Left(param_list)) => {
-      param_list.params().filter_map(|param| param.value()).collect()
-    }
-    Some(Either::Right(ident)) => {
-      ident.value().map(|node| vec![node]).unwrap_or_default()
-    }
+    Some(Either::Left(param_list)) => param_list
+      .params()
+      .filter_map(|param| param.value())
+      .collect(),
+    Some(Either::Right(ident)) => ident.value().map(|node| vec![node]).unwrap_or_default(),
     None => vec![],
   };
 

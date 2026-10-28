@@ -3,7 +3,10 @@
 use std::sync::Arc;
 
 use super::fixtures::identity;
-use crate::{Id, InputId, InternedId, SerializableQueryDatabase, tests::fixtures::identity::{IdInput, RangeConfig, VersionConfig}};
+use crate::{
+  Id, InputId, InternedId, SerializableQueryDatabase,
+  tests::fixtures::identity::{IdInput, RangeConfig, VersionConfig},
+};
 use identity::{Database as IdDatabase, QueryStorage};
 
 #[test]

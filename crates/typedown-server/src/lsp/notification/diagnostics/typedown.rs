@@ -338,7 +338,10 @@ name: "Alice"
       "expected an unresolved-schema diagnostic, got: {codes:?}"
     );
     // Should ONLY have unresolved-schema (no false positives from the unresolved type)
-    let non_schema_codes: Vec<_> = codes.iter().filter(|code| *code != "unresolved-schema").collect();
+    let non_schema_codes: Vec<_> = codes
+      .iter()
+      .filter(|code| *code != "unresolved-schema")
+      .collect();
     assert!(
       non_schema_codes.is_empty(),
       "should have no other diagnostics besides unresolved-schema, got: {non_schema_codes:?}"

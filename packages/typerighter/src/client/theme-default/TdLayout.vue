@@ -54,6 +54,9 @@ import {
   useMermaid,
 } from './composables/useMermaid';
 import {
+  useD2,
+} from './composables/useD2';
+import {
   useMenu,
 } from './composables/useMenu';
 import {
@@ -98,6 +101,7 @@ watch(
 useCopyCode();
 useCopyHeadingAnchor();
 useMermaid();
+useD2();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');

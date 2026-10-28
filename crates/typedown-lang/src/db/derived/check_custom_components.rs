@@ -87,7 +87,11 @@ fn validate(
     .unwrap_or_default();
 
   for prop in props {
-    if prop.required && !provided_props.iter().any(|provided_prop| provided_prop == &prop.name) {
+    if prop.required
+      && !provided_props
+        .iter()
+        .any(|provided_prop| provided_prop == &prop.name)
+    {
       diagnostics.push(
         TdDiagnosticKind::MissingRequiredProp {
           prop: prop.name.clone(),

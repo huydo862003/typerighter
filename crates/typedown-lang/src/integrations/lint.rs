@@ -240,7 +240,10 @@ mod tests {
   }
 
   fn codes(diagnostics: &[TdDiagnostic]) -> Vec<&str> {
-    diagnostics.iter().map(|diagnostic| diagnostic.code_str()).collect()
+    diagnostics
+      .iter()
+      .map(|diagnostic| diagnostic.code_str())
+      .collect()
   }
 
   #[test]

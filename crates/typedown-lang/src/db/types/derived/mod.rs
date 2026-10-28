@@ -57,14 +57,25 @@ impl ProjectRedNode {
       return Some(
         mapping
           .entries()
-          .map(|(key, value)| (key, ProjectRedNode::new(project, file, value.syntax().clone())))
+          .map(|(key, value)| {
+            (
+              key,
+              ProjectRedNode::new(project, file, value.syntax().clone()),
+            )
+          })
           .collect(),
       );
     }
     if let Some(mapping) = YamlMapping::cast(node.clone()) {
       return Some(
-        mapping.entries()
-          .map(|(key, value)| (key, ProjectRedNode::new(project, file, value.syntax().clone())))
+        mapping
+          .entries()
+          .map(|(key, value)| {
+            (
+              key,
+              ProjectRedNode::new(project, file, value.syntax().clone()),
+            )
+          })
           .collect(),
       );
     }
@@ -75,7 +86,10 @@ impl ProjectRedNode {
           .filter_map(|entry| {
             let key = entry.key()?;
             let value = entry.value()?;
-            Some((key, ProjectRedNode::new(project, file, value.syntax().clone())))
+            Some((
+              key,
+              ProjectRedNode::new(project, file, value.syntax().clone()),
+            ))
           })
           .collect(),
       );

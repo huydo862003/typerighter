@@ -97,6 +97,43 @@ const c = 3;
 ````
 
 
+## Diagrams
+
+Typedown supports diagrams via fenced code blocks. Diagrams are rendered client-side using lazy-loaded libraries from CDN.
+
+### Mermaid
+
+Use a fenced code block with the `mermaid` language to create flowcharts, sequence diagrams, Gantt charts, and more:
+
+````markdown
+```mermaid
+graph LR
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action]
+    B -->|No| D[End]
+```
+````
+
+See [Mermaid documentation](https://mermaid.js.org/) for the full syntax reference.
+
+### D2
+
+Use a fenced code block with the `d2` language for D2 diagrams. D2 is a modern diagram language with a clean syntax:
+
+````markdown
+```d2
+Web Client -> API Gateway: HTTPS
+API Gateway -> Auth Service: validate
+Auth Service -> API Gateway: token
+API Gateway -> App Server: request
+App Server -> Database: query
+```
+````
+
+D2 supports shapes, connections, containers, and more. See [D2 documentation](https://d2lang.com/) for the full syntax reference.
+
+Both Mermaid and D2 are loaded lazily from CDN only when a diagram block is present on the page. They respect the current light/dark theme.
+
 ## Math
 
 Inline math with single `$`:
