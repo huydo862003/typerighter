@@ -1,6 +1,17 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.47.0] - 2026-10-28
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - D2 diagram support: fenced code blocks with `d2` language render diagrams client-side via WASM (lazy-loaded from CDN, same pattern as Mermaid)
+- editors/nvim
+  - Code block language badges with 100+ language icons (Nerd Font)
+- homepage
+  - Documentation for Mermaid and D2 diagram syntax
+
 ## [0.46.4] - 2026-10-27
 
 ### Added

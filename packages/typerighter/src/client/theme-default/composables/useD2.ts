@@ -4,7 +4,7 @@ import {
 
 const CDN_URL = 'https://esm.sh/@terrastruct/d2';
 
-let d2Module: any;
+let d2Instance: any;
 let idCounter = 0;
 
 // Lazy-load D2 from CDN and render diagram placeholders
@@ -20,9 +20,9 @@ export function useD2 (): void {
 
     if (placeholders.length === 0) return;
 
-    const module_ = await loadD2();
+    const d2 = await loadD2();
 
-    if (module_ === undefined) return;
+    if (!d2) return;
 
     for (const placeholder of placeholders) {
       const code = placeholder.querySelector('code');
@@ -32,14 +32,18 @@ export function useD2 (): void {
       const id = `td-d2-${idCounter++}`;
 
       try {
-        const result = await module_.compile(code.textContent ?? '', {
-          themeId: document.documentElement.classList.contains('dark') ? 200 : 0,
+        const compiled = await d2.compile(code.textContent ?? '', {
+          layout: 'dagre',
+        });
+        const svg = await d2.render(compiled.diagram, {
+          ...compiled.renderOptions,
+          themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
         });
         const wrapper = document.createElement('div');
 
         wrapper.className = 'td-d2';
         wrapper.id = id;
-        wrapper.innerHTML = result.svg;
+        wrapper.innerHTML = svg;
         placeholder.replaceWith(wrapper);
       } catch {
         placeholder.classList.add('td-d2-error');
@@ -68,13 +72,16 @@ export function useD2 (): void {
 }
 
 async function loadD2 () {
-  if (d2Module !== undefined) return d2Module;
+  if (d2Instance) return d2Instance;
 
   try {
-    d2Module = await import(/* @vite-ignore */ CDN_URL);
+    const module = await import(/* @vite-ignore */ CDN_URL);
+    const D2 = module.D2 || module.default?.D2 || module.default;
+
+    d2Instance = new D2();
   } catch {
     return undefined;
   }
 
-  return d2Module;
+  return d2Instance;
 }

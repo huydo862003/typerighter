@@ -1,3 +1,14 @@
+## [0.47.0] - 2026-10-28
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - D2 diagram support: fenced code blocks with `d2` language render diagrams client-side via WASM (lazy-loaded from CDN, same pattern as Mermaid)
+- editors/nvim
+  - Code block language badges with 100+ language icons (Nerd Font)
+- homepage
+  - Documentation for Mermaid and D2 diagram syntax
+
 ## [0.46.4] - 2026-10-27
 
 ### Added
@@ -16,7 +27,7 @@
   - All renderers use `virt_text_pos = "overlay"` instead of `conceal` (except tables)
   - Tables use `conceal` + `inline` for reliable character replacement on wrapped lines
 
-## [0.46.3] - 2026-10-27
+## [0.46.3] - 2026-10-27 (retracted)
 
 ### Added
 
@@ -46,14 +57,14 @@
   - Missing space between bullet/checkbox icons and text
   - Tree-sitter query error for `block_scalar` in typedown_yaml highlights
 
-## [0.46.2] - 2026-10-27
+## [0.46.2] - 2026-10-27 (retracted)
 
 ### Fixed
 
 - editors/nvim
   - Broken tree-sitter parser plugin loading order
 
-## [0.46.1] - 2026-10-27
+## [0.46.1] - 2026-10-27 (retracted)
 
 ### Fixed
 
