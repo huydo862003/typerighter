@@ -1,3 +1,46 @@
+## [0.48.0] - 2026-10-28
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - Image captions: `![alt](url "caption")` renders as `<figure>` with `<figcaption>`
+  - Link titles: `[text](url "title")` adds a `title` attribute to the `<a>` tag
+  - Diagram captions: `{title="..."}` on mermaid/d2 blocks renders a `<figcaption>` below the diagram
+  - Code block props validation: `{title="..." line-numbers}` validated in the lexer, unknown props diagnosed
+  - Code block `title()` and `has_line_numbers()` AST convenience methods
+  - LSP autocompletion for code block props (`title`, `line-numbers`) inside `{...}`
+  - LSP go-to-definition, references, and rename for markdown link/image URLs (`[text](path)`, `![alt](path)`)
+  - `ReferenceKind::MdLink` in the resolution index for consistent tracking of markdown link references
+  - `resolve_md_link_path` centralized URL-to-vault-path resolution with `base_path` stripping
+
+- editors/nvim
+  - Code block language badges with 100+ Nerd Font devicons
+  - Frontmatter rendering: `---` delimiters replaced with thin horizontal rules, content dimmed
+  - Bullet overlay strips leading whitespace from marker node to preserve indentation
+
+- packages/typerighter
+  - Code blocks revamped: `<figure>` + `<figcaption>` HTML with header bar, language label, and copy button with icon
+  - Image `<figure>` + `<figcaption>` CSS styling
+
+### Changed
+
+- crates/typedown-lang
+  - Code block `{...}` lexer accepts named props (`title`, `line-numbers`) alongside line ranges
+  - Image/link title parsed as separate `MdText` node in the AST (not inline in URL text)
+
+- editors/nvim
+  - Code block language badge uses `right_align` position
+
+- packages/typerighter
+  - Frontmatter "more" button: hover shows accent color instead of background highlight
+
+### Fixed
+
+- crates/typedown-lang
+  - `{title="..."}` on code blocks no longer produces `invalid-code-range-indicator` diagnostic
+  - Tree-sitter scanner returns false on `\` so `\*` is not treated as emphasis
+  - TextMate grammar: `md-escape` pattern moved before emphasis to prevent `\*` from italicizing
+
 ## [0.47.0] - 2026-10-28
 
 ### Added
