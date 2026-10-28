@@ -183,41 +183,29 @@
 
 /* Mermaid diagrams */
 
-.td-mermaid {
-  margin: 1rem 0;
-  text-align: center;
-}
+/* Mermaid and D2 diagrams (shared styles) */
 
-.td-mermaid svg {
-  max-width: 100%;
-  height: auto;
-}
-
-.td-mermaid-placeholder {
-  margin: 1rem 0;
-  padding: 1rem;
-  background: var(--color-td-surf);
-  border-radius: var(--radius-td-md);
-  color: var(--color-td-ink-3);
-  font-size: var(--font-size-td-sm);
-}
-
-.td-mermaid-error {
-  border: 1px solid var(--color-td-danger);
-}
-
-/* D2 diagrams */
-
+.td-mermaid,
 .td-d2 {
   margin: 1rem 0;
   text-align: center;
 }
 
+.td-mermaid svg,
 .td-d2 svg {
   max-width: 100%;
   height: auto;
 }
 
+.td-mermaid figcaption,
+.td-d2 figcaption {
+  margin-top: 8px;
+  font-size: var(--font-size-td-sm);
+  color: var(--color-td-ink-3);
+  font-style: italic;
+}
+
+.td-mermaid-placeholder,
 .td-d2-placeholder {
   margin: 1rem 0;
   padding: 1rem;
@@ -227,6 +215,7 @@
   font-size: var(--font-size-td-sm);
 }
 
+.td-mermaid-error,
 .td-d2-error {
   border: 1px solid var(--color-td-danger);
 }
@@ -265,6 +254,25 @@
   max-width: 100%;
   height: auto;
   display: block;
+}
+
+/* Image with caption (figure) */
+
+.td-content figure:not(.td-code-block) {
+  margin: 16px 0;
+  text-align: center;
+}
+
+.td-content figure:not(.td-code-block) img {
+  margin: 0 auto;
+  border-radius: var(--radius-td-md);
+}
+
+.td-content figure:not(.td-code-block) figcaption {
+  margin-top: 8px;
+  font-size: var(--font-size-td-sm);
+  color: var(--color-td-ink-3);
+  font-style: italic;
 }
 
 /* Tables */

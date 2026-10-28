@@ -7,10 +7,12 @@ use crate::lsp::service::utils::symbol::{
 use lsp_types::{Location, Range, ReferenceParams};
 use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
+use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::name_resolver::resolution_index::{ReferenceKind, references};
 use typedown_lang::db::types::{File, Project, ProjectRedNode, Symbol, SymbolKind};
-use typedown_lang::syntax::ast::{AstNode, CallExpr};
+use typedown_lang::syntax::ast::{AstNode, CallExpr, MdLink, MdMedia};
+use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<Vec<Location>> {
@@ -45,6 +47,8 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
       let range = match reference.kind {
         ReferenceKind::Ident => node_trimmed_range(&reference_rope, &reference.node.node),
         ReferenceKind::Fref => fref_path_range(db, &reference_rope, &reference.node)
+          .unwrap_or_else(|| node_trimmed_range(&reference_rope, &reference.node.node)),
+        ReferenceKind::MdLink => md_link_url_range(&reference_rope, &reference.node.node)
           .unwrap_or_else(|| node_trimmed_range(&reference_rope, &reference.node.node)),
       };
       let scheme = analysis
@@ -100,11 +104,17 @@ fn resolve_symbol(
   offset: usize,
 ) -> Option<Symbol> {
   let rename_symbol = find_symbol_at_cursor(db, project, file, offset)?;
-  let syntax = match &rename_symbol {
-    CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
-    CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
-  };
-  referee(db, ProjectRedNode::new(project, file, syntax)).value(db)
+  match &rename_symbol {
+    CursorSymbol::MdLinkUrl { target_file, .. } => file_symbol(db, project, *target_file).value(db),
+    _ => {
+      let syntax = match &rename_symbol {
+        CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
+        CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
+        CursorSymbol::MdLinkUrl { .. } => unreachable!(),
+      };
+      referee(db, ProjectRedNode::new(project, file, syntax)).value(db)
+    }
+  }
 }
 
 /// Build the declaration Location for a symbol, pointing to the top of its backing file
@@ -144,6 +154,18 @@ fn fref_path_range(
   let content = get_string_content_node(&arg_node)?;
   Some(node_trimmed_range(rope, &content))
 }
+
+/// For a markdown link/media node, return the range of the URL text
+fn md_link_url_range(rope: &Rope, node: &RedNode) -> Option<Range> {
+  let url_node = if let Some(link) = MdLink::cast(node.clone()) {
+    link.url()?.syntax().clone()
+  } else {
+    let media = MdMedia::cast(node.clone())?;
+    media.url()?.syntax().clone()
+  };
+  Some(node_trimmed_range(rope, &url_node))
+}
+
 #[cfg(test)]
 mod tests {
   use super::find_references;
@@ -471,5 +493,114 @@ name: Alice
     assert_eq!(own_location.range.start.character, 7);
     assert_eq!(own_location.range.end.line, 1);
     assert_eq!(own_location.range.end.character, 13);
+  }
+
+  // Cursor on a markdown link URL finds all references to the target file
+  #[test]
+  fn references_on_md_link_url_finds_usages() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let content_raw = r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](ali|ce.td)
+"#;
+    let (content, offset) = cursor(content_raw);
+    let (analysis, uri) = setup(test_path, &content);
+    let params = make_params(uri, &content, offset, false);
+    let locations = find_references(&analysis, params).expect("should find references");
+    // file.td has a markdown link to alice.td, and alice.td has _type: Person (ident ref)
+    // The md link in file.td should be found
+    assert!(
+      locations
+        .iter()
+        .any(|location| location.uri.as_str().contains("file")),
+      "should find the markdown link reference in file.td: {:?}",
+      locations
+        .iter()
+        .map(|location| location.uri.as_str())
+        .collect::<Vec<_>>()
+    );
+  }
+
+  // Cursor on a markdown image URL also finds references
+  #[test]
+  fn references_on_md_image_url_finds_usages() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let content_raw = r#"---
+_type: Person
+name: "Test"
+---
+
+![photo](ali|ce.td)
+"#;
+    let (content, offset) = cursor(content_raw);
+    let (analysis, uri) = setup(test_path, &content);
+    let params = make_params(uri, &content, offset, false);
+    let locations = find_references(&analysis, params).expect("should find references");
+    assert!(
+      locations
+        .iter()
+        .any(|location| location.uri.as_str().contains("file")),
+      "should find the image reference in file.td"
+    );
+  }
+
+  // Markdown link reference range covers the URL text, not the whole link
+  #[test]
+  fn references_md_link_range_covers_url_text() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let content_raw = r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](ali|ce.td)
+"#;
+    let (content, offset) = cursor(content_raw);
+    let (analysis, uri) = setup(test_path.clone(), &content);
+    let params = make_params(uri.clone(), &content, offset, false);
+    let locations = find_references(&analysis, params).expect("should find references");
+    let own = locations
+      .iter()
+      .find(|location| location.uri == uri)
+      .expect("should find reference in file.td");
+    // "alice.td" is on line 5 (0-indexed), inside the parentheses
+    let rope = Rope::from(content.as_str());
+    let start_offset =
+      rope.line_to_char(own.range.start.line as usize) + own.range.start.character as usize;
+    let end_offset =
+      rope.line_to_char(own.range.end.line as usize) + own.range.end.character as usize;
+    let selected: String = rope.slice(start_offset..end_offset).into();
+    assert_eq!(
+      selected, "alice.td",
+      "reference range should cover just the URL text"
+    );
+  }
+
+  // Absolute path markdown link (/alice.td) finds references
+  #[test]
+  fn references_on_md_link_absolute_path() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("sub/file.td");
+    let content_raw = r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](/ali|ce.td)
+"#;
+    let (content, offset) = cursor(content_raw);
+    let (analysis, uri) = setup_with_files(test_path.clone(), vec![(test_path, content.clone())]);
+    let params = make_params(uri, &content, offset, false);
+    let locations = find_references(&analysis, params).expect("should find references");
+    assert!(
+      !locations.is_empty(),
+      "absolute path should resolve to alice.td and find references"
+    );
   }
 }

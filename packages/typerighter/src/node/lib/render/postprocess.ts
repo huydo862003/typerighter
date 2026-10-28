@@ -80,18 +80,32 @@ async function highlightCodeBlocks (html: string): Promise<string> {
 
 function wrapCodeBlock (highlighted: string, language: string, options: CodeBlockOptions): string {
   language ||= 'txt';
-  const label = options.title ?? language.replace(/_/g, ' ');
+  const displayLabel = options.title
+    ? escapeHtml(options.title)
+    : escapeHtml(language.toUpperCase().replace(/_/g, ' '));
 
-  const classes = ['language-' + language];
+  const classes = [
+    'td-code-block',
+    'language-' + language,
+  ];
 
   if (options.title) classes.push('has-title');
   if (options.lineNumbers !== undefined) classes.push('line-numbers-mode');
 
-  let result =
-    `<div class="${classes.join(' ')}">`
-    + '<button title="Copy code" data-copied="Copied" class="copy"></button>'
-    + `<span class="lang">${escapeHtml(label)}</span>`
-    + highlighted;
+  // <figure> wrapper with <figcaption> header
+  let result = `<figure class="${classes.join(' ')}">`;
+
+  // Header bar: language/title label left, copy button right
+  result += '<figcaption class="td-code-header">';
+  result += `<span class="td-code-label">${displayLabel}</span>`;
+  result += '<button type="button" aria-label="Copy code" data-copied="Copied" class="td-code-copy">';
+  result += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9"></path></svg>';
+  result += '<span class="td-code-copy-text">Copy</span>';
+  result += '</button>';
+  result += '</figcaption>';
+
+  // Code body
+  result += highlighted;
 
   if (options.lineNumbers !== undefined) {
     const startLineNumber = parseInt(options.lineNumbers) || 1;
@@ -105,7 +119,7 @@ function wrapCodeBlock (highlighted: string, language: string, options: CodeBloc
     result += `<div class="line-numbers-wrapper" aria-hidden="true">${lineNumbersHtml}</div>`;
   }
 
-  result += '</div>';
+  result += '</figure>';
 
   return result;
 }

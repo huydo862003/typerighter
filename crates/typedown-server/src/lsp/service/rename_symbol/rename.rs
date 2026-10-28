@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::{RenameParams, WorkspaceEdit};
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
+use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::referee::referee;
 use typedown_lang::db::derived::name_resolver::resolution_index::references;
 use typedown_lang::db::types::{ProjectRedNode, SymbolKind};
@@ -29,11 +30,19 @@ pub fn rename(analysis: &Analysis, params: RenameParams) -> Option<WorkspaceEdit
   let rename_symbol = find_symbol_at_cursor(db, project, file, offset)?;
 
   // Resolve to the underlying symbol
-  let syntax = match &rename_symbol {
-    CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
-    CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
+  let symbol = match &rename_symbol {
+    CursorSymbol::MdLinkUrl { target_file, .. } => {
+      file_symbol(db, project, *target_file).value(db)?
+    }
+    _ => {
+      let syntax = match &rename_symbol {
+        CursorSymbol::Fref { call_node } => call_node.syntax().clone(),
+        CursorSymbol::Identifier { ident_node } => ident_node.syntax().clone(),
+        CursorSymbol::MdLinkUrl { .. } => unreachable!(),
+      };
+      referee(db, ProjectRedNode::new(project, file, syntax)).value(db)?
+    }
   };
-  let symbol = referee(db, ProjectRedNode::new(project, file, syntax)).value(db)?;
 
   // Builtins cannot be renamed
   if matches!(
@@ -48,7 +57,9 @@ pub fn rename(analysis: &Analysis, params: RenameParams) -> Option<WorkspaceEdit
 
   // Compute new file path and identifier stem based on rename kind
   let (new_path, new_stem) = match &rename_symbol {
-    CursorSymbol::Fref { .. } => compute_fref_target(new_name, &root_dir),
+    CursorSymbol::Fref { .. } | CursorSymbol::MdLinkUrl { .. } => {
+      compute_fref_target(new_name, &root_dir)
+    }
     CursorSymbol::Identifier { .. } => compute_ident_target(db, new_name, symbol, &old_path)?,
   };
 
@@ -542,6 +553,185 @@ name: |Alice
     assert!(
       rename(&analysis, make_params(uri, &raw, offset, "Bob")).is_none(),
       "renaming a string value should return None"
+    );
+  }
+
+  // Rename via markdown link URL renames the target file and updates all references
+  #[test]
+  fn rename_md_link_renames_file_and_updates_refs() {
+    let (raw, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&raw);
+    let edit = rename(&analysis, make_params(uri, &raw, offset, "bob.td"))
+      .expect("should produce edits for md link rename");
+    let snapshot = get_snapshot(&edit);
+
+    assert!(
+      snapshot.contains("RENAME"),
+      "should have file rename:\n{}",
+      snapshot
+    );
+    assert!(
+      snapshot.contains("bob.td"),
+      "file rename should target bob.td:\n{}",
+      snapshot
+    );
+    // The md link URL should be updated
+    assert!(
+      snapshot.contains("EDIT"),
+      "should have text edits:\n{}",
+      snapshot
+    );
+  }
+
+  // Rename via markdown image URL
+  #[test]
+  fn rename_md_image_renames_file() {
+    let (raw, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+![photo](ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&raw);
+    let edit = rename(&analysis, make_params(uri, &raw, offset, "bob.td"))
+      .expect("should produce edits for md image rename");
+    let snapshot = get_snapshot(&edit);
+
+    assert!(
+      snapshot.contains("RENAME"),
+      "should have file rename:\n{}",
+      snapshot
+    );
+    assert!(
+      snapshot.contains("bob.td"),
+      "should rename to bob.td:\n{}",
+      snapshot
+    );
+  }
+
+  // Rename via md link also updates fref references to the same file
+  #[test]
+  fn rename_md_link_also_updates_fref_refs() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let test_path = root.join("file.td");
+    let content_raw = r#"---
+_type: Person
+friend: fref("alice.td")
+---
+
+[see alice](ali|ce.td)
+"#;
+    let (content, offset) = cursor(content_raw);
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+    let files = HashMap::from([
+      (
+        root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("typedown.yaml"),
+            VAULT_CONFIG.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("_types/Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("_types/Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("alice.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("alice.td"),
+            CONTENT_ALICE.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        test_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(test_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, root, files, None);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+    let uri = path_to_uri(
+      &PathBuf::from(if cfg!(windows) {
+        "C:\\vault\\file.td"
+      } else {
+        "/vault/file.td"
+      }),
+      "file",
+    );
+
+    let edit = rename(&analysis, make_params(uri, &content, offset, "bob.td"))
+      .expect("should produce edits");
+    let snapshot = get_snapshot(&edit);
+
+    // Should update both the fref("alice.td") and [see alice](alice.td)
+    let edit_count = snapshot.matches("EDIT").count();
+    assert!(
+      edit_count >= 2,
+      "should update both fref and md link, got {} edits:\n{}",
+      edit_count,
+      snapshot
+    );
+    assert!(
+      snapshot.contains("RENAME"),
+      "should rename file:\n{}",
+      snapshot
+    );
+  }
+
+  // Rename md link on external URL returns None
+  #[test]
+  fn rename_md_link_external_url_returns_none() {
+    let (raw, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[external](https://exam|ple.com)
+"#,
+    );
+    let (analysis, uri) = setup(&raw);
+    assert!(
+      rename(&analysis, make_params(uri, &raw, offset, "new")).is_none(),
+      "external URL should not be renameable"
     );
   }
 }

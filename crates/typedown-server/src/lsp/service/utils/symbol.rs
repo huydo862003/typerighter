@@ -7,9 +7,11 @@ use ropey::Rope;
 use typedown_incremental::QueryDatabase;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
+use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::{File, Project, Symbol, SymbolKind, TdRuntimeObj};
-use typedown_lang::syntax::ast::{AstNode, CallExpr, IdentLit};
+use typedown_lang::db::utils::{is_external_url, resolve_md_link_path};
+use typedown_lang::syntax::ast::{AstNode, CallExpr, IdentLit, MdLink, MdMedia};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -18,8 +20,17 @@ use crate::core::utils::position::text_offset_to_lsp_position;
 
 /// The kind of symbol reference found at the cursor position
 pub enum CursorSymbol {
-  Fref { call_node: CallExpr },
-  Identifier { ident_node: IdentLit },
+  Fref {
+    call_node: CallExpr,
+  },
+  Identifier {
+    ident_node: IdentLit,
+  },
+  /// Cursor is on a URL inside [text](url) or ![alt](url) that points to a vault file
+  MdLinkUrl {
+    url_node: RedNode,
+    target_file: File,
+  },
 }
 
 impl CursorSymbol {
@@ -33,6 +44,7 @@ impl CursorSymbol {
         content.trimmed_range()
       }
       CursorSymbol::Identifier { ident_node } => ident_node.syntax().trimmed_range(),
+      CursorSymbol::MdLinkUrl { url_node, .. } => url_node.trimmed_range(),
     };
     Range {
       start: text_offset_to_lsp_position(rope, offset),
@@ -66,9 +78,59 @@ pub fn find_symbol_at_cursor(
     });
   }
 
+  // Check if cursor is on a markdown link/media URL that points to a vault file
+  if let Some(cursor_symbol) = find_md_link_url_symbol(db, project, file, &node) {
+    return Some(cursor_symbol);
+  }
+
   find_ancestor(&node, SyntaxKind::IdentLit)
     .and_then(IdentLit::cast)
     .map(|ident_node| CursorSymbol::Identifier { ident_node })
+}
+
+/// Check if the cursor is inside the URL part of a [text](url) or ![alt](url) and the URL resolves to a vault file
+fn find_md_link_url_symbol(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<CursorSymbol> {
+  // Find enclosing MdLink or MdMedia
+  let (url_text, url_node) = if let Some(link_node) = find_ancestor(node, SyntaxKind::MdLink) {
+    let link = MdLink::cast(link_node)?;
+    let url = link.url()?;
+    (url.value(), url.syntax().clone())
+  } else {
+    let media_node = find_ancestor(node, SyntaxKind::MdMedia)?;
+    let media = MdMedia::cast(media_node)?;
+    let url = media.url()?;
+    (url.value(), url.syntax().clone())
+  };
+
+  // Check that the cursor is actually inside the URL node, not the alt/text part
+  let (url_start, url_len) = url_node.trimmed_range();
+  let (node_start, _) = node.trimmed_range();
+  if node_start < url_start || node_start >= url_start + url_len {
+    return None;
+  }
+
+  // Skip external URLs and anchors
+  if is_external_url(&url_text) || url_text.starts_with('#') {
+    return None;
+  }
+
+  // Resolve to vault file path
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  let base_path = config.base_path(db);
+  let file_dir = file.handle(db).path()?.parent()?.to_path_buf();
+  let target_path = resolve_md_link_path(&url_text, &file_dir, &root_dir, &base_path);
+
+  let target_file = project.files(db).get(&target_path).copied()?;
+  Some(CursorSymbol::MdLinkUrl {
+    url_node,
+    target_file,
+  })
 }
 
 /// Get the file path backing a user-defined symbol

@@ -30,6 +30,7 @@ export function useD2 (): void {
       if (!code) continue;
 
       const id = `td-d2-${idCounter++}`;
+      const title = placeholder.getAttribute('data-title');
 
       try {
         const compiled = await d2.compile(code.textContent ?? '', {
@@ -39,12 +40,25 @@ export function useD2 (): void {
           ...compiled.renderOptions,
           themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
         });
-        const wrapper = document.createElement('div');
 
-        wrapper.className = 'td-d2';
-        wrapper.id = id;
-        wrapper.innerHTML = svg;
-        placeholder.replaceWith(wrapper);
+        const figure = document.createElement('figure');
+
+        figure.className = 'td-d2';
+        figure.id = id;
+
+        const svgWrapper = document.createElement('div');
+
+        svgWrapper.innerHTML = svg;
+        figure.appendChild(svgWrapper);
+
+        if (title) {
+          const caption = document.createElement('figcaption');
+
+          caption.textContent = title;
+          figure.appendChild(caption);
+        }
+
+        placeholder.replaceWith(figure);
       } catch {
         placeholder.classList.add('td-d2-error');
       }

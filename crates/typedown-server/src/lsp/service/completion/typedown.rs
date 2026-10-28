@@ -54,10 +54,15 @@ pub fn resolve_completion(
   let lookup = offset.saturating_sub(1);
   let node = node_at_offset(root, lookup)?;
 
-  // No completions inside code/math tokens (each is a single self-contained token)
+  // Code block: offer prop completions if cursor is inside the {...} on the opening fence line
+  if node.kind() == SyntaxKind::CodeBlock {
+    return collect_code_block_prop_completions(&node, offset);
+  }
+
+  // No completions inside other code/math tokens
   if matches!(
     node.kind(),
-    SyntaxKind::CodeBlock | SyntaxKind::InlineCode | SyntaxKind::InlineMath | SyntaxKind::MathBlock
+    SyntaxKind::InlineCode | SyntaxKind::InlineMath | SyntaxKind::MathBlock
   ) {
     return None;
   }
@@ -829,6 +834,60 @@ fn collect_field_completions_from_typ(
   }
 
   items
+}
+
+/// Suggest prop names when the cursor is inside the {...} on a code block's opening fence
+fn collect_code_block_prop_completions(
+  node: &typedown_lang::syntax::red::RedNode,
+  offset: usize,
+) -> Option<CompletionResponse> {
+  let text = node.text();
+  let (node_offset, _) = node.trimmed_range();
+
+  // Find the opening fence line (first line of the code block)
+  let relative_offset = offset.saturating_sub(node_offset);
+  let first_line = text.lines().next().unwrap_or("");
+
+  // Check if cursor is inside {...} on the first line
+  let brace_open = first_line.find('{')?;
+  let brace_close = first_line.find('}').unwrap_or(first_line.len());
+
+  if relative_offset <= brace_open || relative_offset > brace_close {
+    return None;
+  }
+
+  // Parse existing props to exclude already-used ones
+  let inner = &first_line[brace_open + 1..brace_close];
+  let has_title = inner.contains("title");
+  let has_line_numbers = inner.contains("line-numbers");
+
+  let mut items = Vec::new();
+
+  if !has_title {
+    items.push(CompletionItem {
+      label: "title".to_string(),
+      kind: Some(CompletionItemKind::PROPERTY),
+      insert_text: Some("title=\"$1\"".to_string()),
+      insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+      detail: Some("Code block title/filename".to_string()),
+      ..Default::default()
+    });
+  }
+
+  if !has_line_numbers {
+    items.push(CompletionItem {
+      label: "line-numbers".to_string(),
+      kind: Some(CompletionItemKind::PROPERTY),
+      detail: Some("Show line numbers".to_string()),
+      ..Default::default()
+    });
+  }
+
+  if items.is_empty() {
+    return None;
+  }
+
+  Some(CompletionResponse::Array(items))
 }
 
 // Suggest prop names when the cursor is inside a container's prop block ({...})

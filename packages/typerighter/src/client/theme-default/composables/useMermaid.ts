@@ -30,16 +30,30 @@ export function useMermaid (): void {
       if (!code) continue;
 
       const id = `td-mermaid-${idCounter++}`;
+      const title = placeholder.getAttribute('data-title');
 
       try {
         const {
           svg,
         } = await module_.default.render(id, code.textContent ?? '');
-        const wrapper = document.createElement('div');
 
-        wrapper.className = 'td-mermaid';
-        wrapper.innerHTML = svg;
-        placeholder.replaceWith(wrapper);
+        const figure = document.createElement('figure');
+
+        figure.className = 'td-mermaid';
+
+        const svgWrapper = document.createElement('div');
+
+        svgWrapper.innerHTML = svg;
+        figure.appendChild(svgWrapper);
+
+        if (title) {
+          const caption = document.createElement('figcaption');
+
+          caption.textContent = title;
+          figure.appendChild(caption);
+        }
+
+        placeholder.replaceWith(figure);
       } catch {
         placeholder.classList.add('td-mermaid-error');
       }

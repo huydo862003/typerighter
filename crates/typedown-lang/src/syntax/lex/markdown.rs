@@ -405,12 +405,15 @@ impl<S: Utf8Stream> LexCtx<S> {
       self.advance_avoid_invalid_utf8();
     }
 
-    // Consume optional line range indicator like {1,3,5-8}
+    // Consume optional code block props: {1,3 title="foo.ts" line-numbers}
+    // Supports: line ranges (digits, commas, dashes), named props (key=value),
+    // flag props (bare identifiers), and quoted string values
     let mut range_diagnostic: Option<TdDiagnostic> = None;
     if let Utf8Result::Char('{') = self.peek() {
       let range_start = self.stream.offset();
       self.advance_avoid_invalid_utf8();
       let mut closed = false;
+      let mut content = String::new();
 
       loop {
         match self.peek() {
@@ -419,17 +422,14 @@ impl<S: Utf8Stream> LexCtx<S> {
             closed = true;
             break;
           }
-          Utf8Result::Char(c) if c.is_ascii_digit() || c == ',' || c == '-' || c == ' ' => {
-            self.advance_avoid_invalid_utf8();
-          }
           Utf8Result::Char('\n') | Utf8Result::Char('\r') | Utf8Result::Eof => {
             break;
           }
-          _ => {
-            // Invalid character in range indicator
-            let offset = self.stream.offset();
-            range_diagnostic =
-              Some(TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(range_start, offset));
+          Utf8Result::Char(c) => {
+            content.push(c);
+            self.advance_avoid_invalid_utf8();
+          }
+          Utf8Result::Invalid { .. } => {
             self.advance_avoid_invalid_utf8();
           }
         }
@@ -440,6 +440,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           TdDiagnosticKind::InvalidCodeRangeIndicator {}
             .into_error(range_start, self.stream.offset()),
         );
+      } else if let Some(diagnostic) = validate_code_block_props(&content, range_start + 1) {
+        range_diagnostic = Some(diagnostic);
       }
     }
 
@@ -802,4 +804,97 @@ fn is_md_escapable_char(char: char) -> bool {
       | ':'
       | '$'
   )
+}
+
+/// Known code block prop names
+const KNOWN_CODE_PROPS: &[&str] = &["title", "line-numbers"];
+
+/// Validate code block props content (the text between { and })
+/// Returns a diagnostic if the content has invalid syntax or unknown prop names
+fn validate_code_block_props(content: &str, offset: usize) -> Option<TdDiagnostic> {
+  let trimmed = content.trim();
+  if trimmed.is_empty() {
+    return None;
+  }
+
+  let mut pos = 0;
+  let chars: Vec<char> = trimmed.chars().collect();
+
+  while pos < chars.len() {
+    // Skip whitespace
+    while pos < chars.len() && chars[pos] == ' ' {
+      pos += 1;
+    }
+    if pos >= chars.len() {
+      break;
+    }
+
+    // Line range: digit or digit-range or comma-separated
+    if chars[pos].is_ascii_digit() {
+      while pos < chars.len()
+        && (chars[pos].is_ascii_digit() || chars[pos] == '-' || chars[pos] == ',')
+      {
+        pos += 1;
+      }
+      // Skip trailing space after range
+      while pos < chars.len() && chars[pos] == ' ' {
+        pos += 1;
+      }
+      continue;
+    }
+
+    // Named prop or flag: identifier (letters, digits, hyphens, underscores)
+    if chars[pos].is_ascii_alphabetic() || chars[pos] == '_' {
+      let name_start = pos;
+      while pos < chars.len()
+        && (chars[pos].is_ascii_alphanumeric() || chars[pos] == '-' || chars[pos] == '_')
+      {
+        pos += 1;
+      }
+      let name: String = chars[name_start..pos].iter().collect();
+
+      // Check if it's a known prop
+      if !KNOWN_CODE_PROPS.contains(&name.as_str()) {
+        return Some(
+          TdDiagnosticKind::InvalidCodeRangeIndicator {}
+            .into_error(offset + name_start, offset + pos),
+        );
+      }
+
+      // Check for = (named prop with value)
+      if pos < chars.len() && chars[pos] == '=' {
+        pos += 1; // skip =
+        if pos >= chars.len() {
+          return Some(
+            TdDiagnosticKind::InvalidCodeRangeIndicator {}
+              .into_error(offset + pos - 1, offset + pos),
+          );
+        }
+        // Quoted value
+        if chars[pos] == '"' || chars[pos] == '\'' {
+          let quote = chars[pos];
+          pos += 1;
+          while pos < chars.len() && chars[pos] != quote {
+            pos += 1;
+          }
+          if pos < chars.len() {
+            pos += 1; // closing quote
+          }
+        } else {
+          // Unquoted value: consume until space or end
+          while pos < chars.len() && chars[pos] != ' ' && chars[pos] != '}' {
+            pos += 1;
+          }
+        }
+      }
+      continue;
+    }
+
+    // Unknown character
+    return Some(
+      TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(offset + pos, offset + pos + 1),
+    );
+  }
+
+  None
 }

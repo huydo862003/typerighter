@@ -4,9 +4,6 @@ local state = require("typedown.render.state")
 local M = {}
 M.name = "code"
 
-local LEFT_PAD = 1 -- cells of padding on the left inside the block
-local MIN_WIDTH = 40 -- minimum block width in cells
-
 -- Language icons (Nerd Font devicons, using utf8.char for reliability)
 local u = utf8 and utf8.char or function(cp)
 	if cp < 0x80 then
@@ -170,14 +167,6 @@ function M.render_block(buf, ns, node)
 	local start_row, _, end_row = node:range()
 	local hidden = state.is_hidden
 
-	-- Calculate max content width for the block
-	local max_width = 0
-	for row = start_row, end_row - 1 do
-		local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
-		max_width = math.max(max_width, vim.fn.strdisplaywidth(line))
-	end
-	local block_width = math.max(max_width + LEFT_PAD * 2, MIN_WIDTH)
-
 	for row = start_row, end_row - 1 do
 		-- Background with hl_eol (always visible)
 		vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
@@ -186,18 +175,6 @@ function M.render_block(buf, ns, node)
 			hl_eol = true,
 			priority = 80,
 		})
-
-		-- Right-side padding to extend background to block_width
-		local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
-		local line_width = vim.fn.strdisplaywidth(line)
-		local right_pad = math.max(0, block_width - line_width)
-		if right_pad > 0 then
-			vim.api.nvim_buf_set_extmark(buf, ns, row, #line, {
-				virt_text = { { string.rep(" ", right_pad), "TypedownRenderCodeBlock" } },
-				virt_text_pos = "inline",
-				priority = 80,
-			})
-		end
 
 		-- Left border (hidden on cursor line)
 		if not hidden(buf, row) then
@@ -214,14 +191,13 @@ function M.render_block(buf, ns, node)
 		local lang_nodes = node:field("language")
 		if lang_nodes and lang_nodes[1] then
 			local lang = vim.treesitter.get_node_text(lang_nodes[1], buf):lower()
-			-- Strip line range indicator like {1,3}
 			lang = lang:gsub("{.*", "")
 			local icon = LANG_ICONS[lang]
 			local badge = icon and (icon .. " " .. lang) or lang
 			if badge ~= "" then
 				vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
 					virt_text = { { " " .. badge .. " ", "TypedownRenderCodeLanguage" } },
-					virt_text_pos = "eol",
+					virt_text_pos = "right_align",
 					priority = 100,
 				})
 			end

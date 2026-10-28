@@ -10,7 +10,7 @@ project: fref("/projects/website-redesign.td")
 
 The following D2 diagram shows the high-level architecture:
 
-```d2
+```d2{title="System Architecture"}
 Web Client -> API Gateway: HTTPS
 API Gateway -> Auth Service: validate token
 API Gateway -> App Server: forward request
@@ -24,10 +24,31 @@ API Gateway -> Web Client: JSON
 
 ## Deployment Flow
 
-```mermaid
+```mermaid{title="CI/CD Pipeline"}
 graph LR
     A[Developer] -->|push| B[GitHub]
     B -->|trigger| C[CI/CD]
     C -->|build| D[Docker Image]
     D -->|deploy| E[Production]
 ```
+
+## Token Payload
+
+```json{title="token-payload.json"}
+{
+  "sub": "user-id",
+  "exp": 1720000000,
+  "iat": 1719996400,
+  "scope": "read write"
+}
+```
+
+## Session Storage
+
+```bash{title="Redis session setup"}
+redis-cli SET "session:abc123" '{"userId":"u1","refresh":"tok"}' EX 2592000
+```
+
+## Logo
+
+![Typedown logo](/typedown.svg "The Typedown project logo")

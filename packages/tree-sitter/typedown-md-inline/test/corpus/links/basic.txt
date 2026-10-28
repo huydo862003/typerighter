@@ -31,3 +31,25 @@ Link with emphasis in text
     text: (link_text
       (emphasis))
     destination: (link_destination)))
+
+================
+Link with title
+================
+[text](url "tooltip")
+---
+
+(inline
+  (inline_link
+    text: (link_text)
+    destination: (link_destination)))
+
+================
+Image with title
+================
+![alt](img.png "A caption")
+---
+
+(inline
+  (image
+    alt: (image_alt)
+    source: (link_destination)))

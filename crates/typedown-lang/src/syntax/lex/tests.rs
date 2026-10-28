@@ -717,9 +717,65 @@ code
 }
 
 #[test]
-fn md_code_block_invalid_range_chars() {
+fn md_code_block_title_prop_accepted() {
   let (tokens, diagnostics) = lex_markdown_with_diagnostics(
-    "```js{abc}
+    "```js{title=\"foo.ts\"}
+code
+```",
+  );
+  assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
+  assert!(
+    diagnostics.is_empty(),
+    "title prop should not produce diagnostics: {diagnostics:?}",
+  );
+}
+
+#[test]
+fn md_code_block_line_numbers_flag_accepted() {
+  let (tokens, diagnostics) = lex_markdown_with_diagnostics(
+    "```js{line-numbers}
+code
+```",
+  );
+  assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
+  assert!(
+    diagnostics.is_empty(),
+    "line-numbers flag should not produce diagnostics: {diagnostics:?}",
+  );
+}
+
+#[test]
+fn md_code_block_mixed_ranges_and_props() {
+  let (tokens, diagnostics) = lex_markdown_with_diagnostics(
+    "```js{1,3 title=\"foo.ts\" line-numbers}
+code
+```",
+  );
+  assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
+  assert!(
+    diagnostics.is_empty(),
+    "mixed ranges and props should not produce diagnostics: {diagnostics:?}",
+  );
+}
+
+#[test]
+fn md_code_block_title_unquoted_accepted() {
+  let (tokens, diagnostics) = lex_markdown_with_diagnostics(
+    "```js{title=foo.ts}
+code
+```",
+  );
+  assert_eq!(tokens[0].0, SyntaxKind::CodeBlock);
+  assert!(
+    diagnostics.is_empty(),
+    "unquoted title should not produce diagnostics: {diagnostics:?}",
+  );
+}
+
+#[test]
+fn md_code_block_unknown_prop_rejected() {
+  let (tokens, diagnostics) = lex_markdown_with_diagnostics(
+    "```js{unknown=value}
 code
 ```",
   );
@@ -732,7 +788,7 @@ code
         ..
       }
     )),
-    "should have InvalidCodeRangeIndicator: {diagnostics:?}",
+    "unknown prop should produce diagnostic: {diagnostics:?}",
   );
 }
 

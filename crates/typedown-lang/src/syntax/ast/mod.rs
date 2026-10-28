@@ -8,6 +8,8 @@ use typedown_macros::{AstNode, wrapper_ast_node};
 use typedown_types::either::Either;
 use typedown_types::unescape::{unescape, unescape_html_entity};
 
+use crate::integrations::export::utils::strip_quotes;
+
 use crate::syntax::red::RedNode;
 
 /// All AST nodes implement this trait
@@ -531,6 +533,7 @@ impl MdLink {
   // URL is the MdText after the `(` delimiter
   // For normal links: [alt](url) -> second MdText
   // For linked images: [![alt](img)](url) -> first (and only) MdText
+  // If a title is present, the raw text is `url "title"` - we strip the title part
   pub fn url(&self) -> Option<MdText> {
     let mut found_lparen = false;
 
@@ -539,6 +542,25 @@ impl MdLink {
         found_lparen = true;
       } else if found_lparen && let Some(text) = MdText::cast(child) {
         return Some(text);
+      }
+    }
+    None
+  }
+
+  /// Extract the title from `[text](url "title")`
+  /// The title is the third MdText child (after alt and url)
+  pub fn title(&self) -> Option<MdText> {
+    let mut found_lparen = false;
+    let mut found_url = false;
+
+    for child in self.0.children() {
+      if child.kind() == SyntaxKind::LParen {
+        found_lparen = true;
+      } else if found_lparen && let Some(text) = MdText::cast(child) {
+        if found_url {
+          return Some(text);
+        }
+        found_url = true;
       }
     }
     None
@@ -562,6 +584,12 @@ impl MdMedia {
 
   pub fn url(&self) -> Option<MdText> {
     self.0.children().filter_map(MdText::cast).nth(1)
+  }
+
+  /// Extract the title/caption from `![alt](url "title")`
+  /// The title is the third MdText child (after alt and url)
+  pub fn title(&self) -> Option<MdText> {
+    self.0.children().filter_map(MdText::cast).nth(2)
   }
 }
 
@@ -1174,6 +1202,26 @@ impl CodeBlock {
       }
     }
     props
+  }
+
+  /// Get the title from {title="..."} or {title=...}
+  pub fn title(&self) -> Option<String> {
+    self.get_prop("title")
+  }
+
+  /// Check if line-numbers flag is set
+  pub fn has_line_numbers(&self) -> bool {
+    self.props().iter().any(|(key, _)| key == "line-numbers")
+  }
+
+  /// Get a named prop value, stripping surrounding quotes
+  fn get_prop(&self, name: &str) -> Option<String> {
+    self
+      .props()
+      .iter()
+      .find(|(key, _)| key == name)
+      .and_then(|(_, value)| value.clone())
+      .map(|value| strip_quotes(&value).to_string())
   }
 
   pub fn value(&self) -> Option<String> {

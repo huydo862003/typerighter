@@ -151,7 +151,6 @@ function visible<T> (list: T[]): T[] {
 }
 
 .td-widget-more:hover {
-  background-color: var(--color-td-ink-4);
-  color: var(--color-td-ink-3);
+  color: var(--color-td-accent);
 }
 </style>

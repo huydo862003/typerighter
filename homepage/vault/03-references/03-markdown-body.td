@@ -132,6 +132,17 @@ App Server -> Database: query
 
 D2 supports shapes, connections, containers, and more. See [D2 documentation](https://d2lang.com/) for the full syntax reference.
 
+### Diagram captions
+
+Add a title to any diagram block using `{title=...}` to render a caption below the diagram:
+
+````markdown
+```mermaid{title="Authentication Flow"}
+graph LR
+    A[Client] --> B[Auth Server]
+```
+````
+
 Both Mermaid and D2 are loaded lazily from CDN only when a diagram block is present on the page. They respect the current light/dark theme.
 
 ## Math
@@ -216,6 +227,24 @@ Task lists:
 ```
 
 Links to `.td` files are resolved relative to the vault root. The `.td` extension can be omitted.
+
+### Link titles
+
+Add a quoted title after the URL for tooltips:
+
+```markdown
+[Example](https://example.com "Visit Example")
+```
+
+### Image captions
+
+Add a quoted title to an image to render it as a figure with a caption:
+
+```markdown
+![A sunset](_assets/sunset.jpg "Golden hour at the beach")
+```
+
+The image is wrapped in a `<figure>` element with the title rendered as a `<figcaption>` below it.
 
 ## String interpolation
 

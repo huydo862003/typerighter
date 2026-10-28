@@ -1587,12 +1587,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.enter(ExprCtx::MdLinkUrl);
 
-    // Consume plain text tokens until `)`, Newline, or EOF
+    // Consume URL tokens until `)`, quote (title start), Newline, or EOF
     let mut url_children = vec![];
     loop {
       let peek = self.lex_ctx.peek_md(SKIP_NONE);
       match peek.token.kind() {
         SyntaxKind::RParen | SyntaxKind::Newline | SyntaxKind::Eof => break,
+        SyntaxKind::DqStrStart | SyntaxKind::SqStrStart => break, // title starts
         _ => {
           if let Some(ctx) = self.consume_or_delegate_md(ExprCtx::MdLinkUrl, &mut url_children) {
             children.push(self.emit(SyntaxKind::MdText, &url_children));
@@ -1603,6 +1604,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
     }
     children.push(self.emit(SyntaxKind::MdText, &url_children));
+
+    // If a quoted title follows, parse it as a separate MdText node
+    self.parse_link_title(&mut children);
 
     // Consume `)`
     let ok = self.consume_md(
@@ -1747,12 +1751,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.enter(ExprCtx::MdLinkUrl);
 
-    // Consume plain text tokens until `)`, Newline, or EOF
+    // Consume URL tokens until `)`, quote (title start), Newline, or EOF
     let mut url_children = vec![];
     loop {
       let peek = self.lex_ctx.peek_md(SKIP_NONE);
       match peek.token.kind() {
         SyntaxKind::RParen | SyntaxKind::Newline | SyntaxKind::Eof => break,
+        SyntaxKind::DqStrStart | SyntaxKind::SqStrStart => break, // title starts
         _ => {
           if let Some(ctx) = self.consume_or_delegate_md(ExprCtx::MdLinkUrl, &mut url_children) {
             children.push(self.emit(SyntaxKind::MdText, &url_children));
@@ -1763,6 +1768,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
     }
     children.push(self.emit(SyntaxKind::MdText, &url_children));
+
+    // If a quoted title follows, parse it as a separate MdText node
+    self.parse_link_title(&mut children);
 
     // Consume `)`
     let ok = self.consume_md(
@@ -1783,6 +1791,39 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     (self.emit(SyntaxKind::MdMedia, &children), None)
+  }
+
+  /// Parse an optional quoted title inside a link/media `(url "title")`
+  /// Consumes `"title"` or `'title'` and emits the content as an MdText node
+  fn parse_link_title(&mut self, children: &mut Vec<GreenNode>) {
+    let peek = self.lex_ctx.peek_md(SKIP_NONE);
+    let (_, end_kind) = match peek.token.kind() {
+      SyntaxKind::DqStrStart => (SyntaxKind::DqStrStart, SyntaxKind::DqStrEnd),
+      SyntaxKind::SqStrStart => (SyntaxKind::SqStrStart, SyntaxKind::SqStrEnd),
+      _ => return,
+    };
+
+    // Consume opening quote
+    self.advance_md(children, SKIP_NONE);
+
+    // Collect title content tokens until closing quote, `)`, Newline, or EOF
+    let mut title_children = vec![];
+    loop {
+      let peek = self.lex_ctx.peek_md(SKIP_NONE);
+      match peek.token.kind() {
+        kind if kind == end_kind => break,
+        SyntaxKind::RParen | SyntaxKind::Newline | SyntaxKind::Eof => break,
+        _ => {
+          self.advance_md(&mut title_children, SKIP_NONE);
+        }
+      }
+    }
+    children.push(self.emit(SyntaxKind::MdText, &title_children));
+
+    // Consume closing quote if present
+    if self.lex_ctx.peek_md(SKIP_NONE).token.kind() == end_kind {
+      self.advance_md(children, SKIP_NONE);
+    }
   }
 
   /// Parse bold text: `**text**`

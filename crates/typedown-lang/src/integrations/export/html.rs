@@ -353,9 +353,22 @@ impl<'a> HtmlEmitter<'a> {
     let label = block.label().unwrap_or_default();
     let value = block.value().unwrap_or_default();
 
+    // Extract title from props for diagram captions
+    let title_prop = block
+      .props()
+      .iter()
+      .find(|(key, _)| key == "title")
+      .and_then(|(_, value)| value.clone());
+
     // Mermaid blocks use a separate placeholder for client-side rendering
     if lang == "mermaid" {
-      self.write("<pre class=\"td-mermaid-placeholder\"><code>");
+      self.write("<pre class=\"td-mermaid-placeholder\"");
+      if let Some(ref title) = title_prop {
+        self.write(" data-title=\"");
+        self.write_escaped(title);
+        self.write("\"");
+      }
+      self.write("><code>");
       self.write_escaped(&value);
       self.write("</code></pre>\n");
       return;
@@ -363,7 +376,13 @@ impl<'a> HtmlEmitter<'a> {
 
     // D2 blocks use a separate placeholder for client-side rendering
     if lang == "d2" {
-      self.write("<pre class=\"td-d2-placeholder\"><code>");
+      self.write("<pre class=\"td-d2-placeholder\"");
+      if let Some(ref title) = title_prop {
+        self.write(" data-title=\"");
+        self.write_escaped(title);
+        self.write("\"");
+      }
+      self.write("><code>");
       self.write_escaped(&value);
       self.write("</code></pre>\n");
       return;
@@ -598,6 +617,11 @@ impl<'a> HtmlEmitter<'a> {
     };
     let raw_url = link.url().map(|text| text.value()).unwrap_or_default();
     let url = self.resolve_url(&raw_url);
+    let title = link.title().map(|text| text.value());
+    let title_attribute = title
+      .as_ref()
+      .map(|title| format!(" title=\"{}\"", html_escape(title)))
+      .unwrap_or_default();
 
     // Check for an embedded image (linked image / badge syntax)
     let has_media = node
@@ -607,16 +631,22 @@ impl<'a> HtmlEmitter<'a> {
     if is_external_url(&url) && !url.starts_with("mailto:") && !has_media {
       self.write("<LucideIcon name=\"arrow-up-right\" class=\"td-external-link-icon\" />");
       self.write(&format!(
-        "<a href=\"{}\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\">",
-        html_escape(&url)
+        "<a href=\"{}\" class=\"td-external-link\" target=\"_blank\" rel=\"noopener noreferrer\"{}>",
+        html_escape(&url),
+        title_attribute
       ));
     } else if is_external_url(&url) {
       self.write(&format!(
-        "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">",
-        html_escape(&url)
+        "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\"{}>",
+        html_escape(&url),
+        title_attribute
       ));
     } else {
-      self.write(&format!("<a href=\"{}\">", html_escape(&url)));
+      self.write(&format!(
+        "<a href=\"{}\"{}>",
+        html_escape(&url),
+        title_attribute
+      ));
     }
 
     if has_media {
@@ -651,12 +681,27 @@ impl<'a> HtmlEmitter<'a> {
     let alt = media.alt().map(|text| text.value()).unwrap_or_default();
     let raw_url = media.url().map(|text| text.value()).unwrap_or_default();
     let url = self.resolve_url(&raw_url);
+    let title = media.title().map(|text| text.value());
 
-    self.write(&format!(
-      "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
-      html_escape(&url),
-      html_escape(&alt)
-    ));
+    if let Some(ref caption) = title {
+      self.write("<figure>");
+      self.write(&format!(
+        "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\">",
+        html_escape(&url),
+        html_escape(&alt),
+        html_escape(caption)
+      ));
+      self.write("<figcaption>");
+      self.write_escaped(caption);
+      self.write("</figcaption>");
+      self.write("</figure>\n");
+    } else {
+      self.write(&format!(
+        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
+        html_escape(&url),
+        html_escape(&alt)
+      ));
+    }
   }
 
   fn emit_inline_code(&mut self, node: &RedNode) {

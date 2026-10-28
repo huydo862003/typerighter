@@ -1951,6 +1951,84 @@ fn parse_media_simple() {
   );
 }
 
+// Parses a media embed with title (caption)
+#[test]
+fn parse_media_with_title() {
+  let tree = parse_body(
+    r#"![alt](image.png "A caption")
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdMedia
+      "!"
+      "["
+      (MdText
+        "alt")
+      "]"
+      "("
+      (MdText
+        "image"
+        "."
+        "png"
+        " ")
+      "\""
+      (MdText
+        "A"
+        " "
+        "caption")
+      "\""
+      ")")
+    "\n"))"####
+  );
+}
+
+// Parses a link with title
+#[test]
+fn parse_link_with_title() {
+  let tree = parse_body(
+    r#"[text](url "tooltip")
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdParagraph
+      (MdLink
+        "["
+        (MdText
+          "text")
+        "]"
+        "("
+        (MdText
+          "url"
+          " ")
+        "\""
+        (MdText
+          "tooltip")
+        "\""
+        ")"))
+    "\n"))"####
+  );
+}
+
 // Parses bold text
 #[test]
 fn parse_bold_simple() {

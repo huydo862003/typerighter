@@ -27,6 +27,7 @@ use crate::core::utils::ast::{
 };
 use crate::core::utils::position::{lsp_position_to_text_offset, text_offset_to_lsp_position};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
+use typedown_lang::db::utils::resolve_md_link_path;
 
 pub fn resolve_definition(
   analysis: &Analysis,
@@ -289,16 +290,10 @@ fn resolve_markdown_link_definition(
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
+  let base_path = config.base_path(db);
+  let file_dir = file.handle(db).path()?.parent()?.to_path_buf();
 
-  // Resolve the path: absolute from vault root, relative from current file's directory
-  let target_path = if url.starts_with('/') {
-    root_dir.join(url.trim_start_matches('/'))
-  } else {
-    let handle = file.handle(db);
-    let file_path = handle.path()?;
-    let file_dir = file_path.parent()?;
-    file_dir.join(&url)
-  };
+  let target_path = resolve_md_link_path(&url, &file_dir, &root_dir, &base_path);
 
   // Only resolve if the target is a known project file
   if !project.files(db).contains_key(&target_path) {
@@ -838,6 +833,82 @@ name: "Test"
     assert!(
       response.is_none(),
       "dangling link should not have a definition"
+    );
+  }
+
+  #[test]
+  fn definition_on_markdown_image_resolves_path() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+![photo](ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for markdown image");
+    };
+    assert!(
+      location.uri.as_str().contains("alice.td"),
+      "should resolve image to alice.td, got: {:?}",
+      location.uri
+    );
+  }
+
+  #[test]
+  fn definition_on_markdown_link_absolute_path() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](/ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for absolute markdown link");
+    };
+    assert!(
+      location.uri.as_str().contains("alice.td"),
+      "should resolve /alice.td from vault root, got: {:?}",
+      location.uri
+    );
+  }
+
+  // Cursor on link text still resolves to the target file (clicking anywhere on a link follows it)
+  #[test]
+  fn definition_on_link_text_also_resolves() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see al|ice](alice.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected definition even from link text position");
+    };
+    assert!(
+      location.uri.as_str().contains("alice.td"),
+      "should resolve to alice.td, got: {:?}",
+      location.uri
     );
   }
 
