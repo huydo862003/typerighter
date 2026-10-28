@@ -21,7 +21,7 @@ pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> T
   };
 
   let mut message_arms = Vec::new();
-  let mut code_str_arms = Vec::new();
+  let mut code_string_arms = Vec::new();
 
   for variant in &data.variants {
     let variant_name = &variant.ident;
@@ -42,9 +42,9 @@ pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> T
 
     // code_str() arm
     match &variant.fields {
-      Fields::Named(_) => code_str_arms.push(quote! { #name::#variant_name { .. } => #kebab }),
-      Fields::Unnamed(_) => code_str_arms.push(quote! { #name::#variant_name(..) => #kebab }),
-      Fields::Unit => code_str_arms.push(quote! { #name::#variant_name => #kebab }),
+      Fields::Named(_) => code_string_arms.push(quote! { #name::#variant_name { .. } => #kebab }),
+      Fields::Unnamed(_) => code_string_arms.push(quote! { #name::#variant_name(..) => #kebab }),
+      Fields::Unit => code_string_arms.push(quote! { #name::#variant_name => #kebab }),
     }
 
     // message() arm
@@ -90,7 +90,7 @@ pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> T
     impl #name {
       pub fn code_str(&self) -> &'static str {
         match self {
-          #(#code_str_arms,)*
+          #(#code_string_arms,)*
         }
       }
 

@@ -506,7 +506,7 @@ mod tests {
 
   // string[n] returns the nth character as a string
   #[test]
-  fn str_index_evaluates_correctly() {
+  fn string_index_evaluates_correctly() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "str_index.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let obj = evaluate_resource(&db, symbol).value(&db).unwrap();
@@ -757,8 +757,8 @@ mod tests {
     let result = typecheck(&db, root_node);
     let diagnostics = result.diagnostics(&db);
     assert!(
-      diagnostics.iter().any(|d| matches!(
-        d,
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::UnresolvedSchema { .. },
           ..
@@ -779,7 +779,7 @@ mod tests {
     assert!(
       diagnostics
         .iter()
-        .any(|d| matches!(d, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredField { field, ..}, .. } if field == "name")),
+        .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::MissingRequiredField { field, ..}, .. } if field == "name")),
       "missing required field 'name' should produce diagnostic: {:?}",
       diagnostics
     );

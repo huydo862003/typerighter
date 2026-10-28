@@ -29,7 +29,7 @@ impl CursorSymbol {
       CursorSymbol::Fref { call_node } => {
         let arg = call_node.arg(0).expect("fref must have an argument");
         let content =
-          str_content_node(arg.syntax()).expect("fref argument must be a string literal");
+          get_string_content_node(arg.syntax()).expect("fref argument must be a string literal");
         content.trimmed_range()
       }
       CursorSymbol::Identifier { ident_node } => ident_node.syntax().trimmed_range(),
@@ -82,8 +82,8 @@ pub fn symbol_file_path(db: &dyn QueryDatabase, symbol: Symbol) -> Option<PathBu
 }
 
 /// Find the string content node inside a StrLit
-pub fn str_content_node(str_lit: &RedNode) -> Option<RedNode> {
-  str_lit.children().find(|child| {
+pub fn get_string_content_node(string_lit: &RedNode) -> Option<RedNode> {
+  string_lit.children().find(|child| {
     matches!(
       child.kind(),
       SyntaxKind::DqStrContent | SyntaxKind::SqStrContent

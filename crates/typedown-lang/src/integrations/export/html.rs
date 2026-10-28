@@ -82,7 +82,7 @@ impl<'a> HtmlEmitter<'a> {
       .path()
       .unwrap_or(&empty)
       .parent()
-      .and_then(|p| p.strip_prefix(config.root_dir(self.db)).ok())
+      .and_then(|parent| parent.strip_prefix(config.root_dir(self.db)).ok())
       .unwrap_or(Path::new(""));
 
     resolve_vault_url(url, &config.base_path(self.db), file_dir)
@@ -201,7 +201,7 @@ impl<'a> HtmlEmitter<'a> {
   fn emit_bullet_list(&mut self, node: &RedNode) {
     let has_task = node
       .children()
-      .any(|c| c.kind() == SyntaxKind::MdTaskListItem);
+      .any(|child| child.kind() == SyntaxKind::MdTaskListItem);
 
     if has_task {
       self.write("<ul class=\"td-task-list\">\n");
@@ -238,7 +238,7 @@ impl<'a> HtmlEmitter<'a> {
   fn emit_list_item(&mut self, node: &RedNode) {
     self.write("<li>");
 
-    let has_block = node.children().any(|c| c.kind().is_md_block());
+    let has_block = node.children().any(|child| child.kind().is_md_block());
 
     if has_block {
       self.write("\n");
@@ -265,7 +265,7 @@ impl<'a> HtmlEmitter<'a> {
   fn emit_task_list_item(&mut self, node: &RedNode) {
     let checked = node
       .children()
-      .any(|c| c.kind() == SyntaxKind::MdCheckbox && c.text().contains('x'));
+      .any(|child| child.kind() == SyntaxKind::MdCheckbox && child.text().contains('x'));
 
     self.write("<li class=\"td-task-list-item\">");
     if checked {
@@ -356,6 +356,14 @@ impl<'a> HtmlEmitter<'a> {
     // Mermaid blocks use a separate placeholder for client-side rendering
     if lang == "mermaid" {
       self.write("<pre class=\"td-mermaid-placeholder\"><code>");
+      self.write_escaped(&value);
+      self.write("</code></pre>\n");
+      return;
+    }
+
+    // D2 blocks use a separate placeholder for client-side rendering
+    if lang == "d2" {
+      self.write("<pre class=\"td-d2-placeholder\"><code>");
       self.write_escaped(&value);
       self.write("</code></pre>\n");
       return;
@@ -532,21 +540,21 @@ impl<'a> HtmlEmitter<'a> {
         MdBold::cast(node.clone())
           .unwrap()
           .inline_elements()
-          .map(|e| e.syntax().clone()),
+          .map(|element| element.syntax().clone()),
       ),
       SyntaxKind::MdItalic => self.emit_wrapped(
         "em",
         MdItalic::cast(node.clone())
           .unwrap()
           .inline_elements()
-          .map(|e| e.syntax().clone()),
+          .map(|element| element.syntax().clone()),
       ),
       SyntaxKind::MdBoldItalic => {
         self.write("<strong><em>");
         MdBoldItalic::cast(node.clone())
           .unwrap()
           .inline_elements()
-          .for_each(|c| self.emit_inline(c.syntax()));
+          .for_each(|element| self.emit_inline(element.syntax()));
         self.write("</em></strong>");
       }
       SyntaxKind::MdStrikethrough => self.emit_wrapped(
@@ -554,7 +562,7 @@ impl<'a> HtmlEmitter<'a> {
         MdStrikethrough::cast(node.clone())
           .unwrap()
           .inline_elements()
-          .map(|e| e.syntax().clone()),
+          .map(|element| element.syntax().clone()),
       ),
       SyntaxKind::MdLink => self.emit_link(node),
       SyntaxKind::MdMedia => self.emit_media(node),
@@ -580,7 +588,7 @@ impl<'a> HtmlEmitter<'a> {
 
   fn emit_wrapped(&mut self, tag: &str, children: impl Iterator<Item = RedNode>) {
     self.write(&format!("<{tag}>"));
-    children.for_each(|c| self.emit_inline(&c));
+    children.for_each(|child| self.emit_inline(&child));
     self.write(&format!("</{tag}>"));
   }
 
@@ -588,7 +596,7 @@ impl<'a> HtmlEmitter<'a> {
     let Some(link) = MdLink::cast(node.clone()) else {
       return;
     };
-    let raw_url = link.url().map(|t| t.value()).unwrap_or_default();
+    let raw_url = link.url().map(|text| text.value()).unwrap_or_default();
     let url = self.resolve_url(&raw_url);
 
     // Check for an embedded image (linked image / badge syntax)
@@ -640,8 +648,8 @@ impl<'a> HtmlEmitter<'a> {
     let Some(media) = crate::syntax::ast::MdMedia::cast(node.clone()) else {
       return;
     };
-    let alt = media.alt().map(|t| t.value()).unwrap_or_default();
-    let raw_url = media.url().map(|t| t.value()).unwrap_or_default();
+    let alt = media.alt().map(|text| text.value()).unwrap_or_default();
+    let raw_url = media.url().map(|text| text.value()).unwrap_or_default();
     let url = self.resolve_url(&raw_url);
 
     self.write(&format!(
@@ -709,8 +717,8 @@ impl<'a> HtmlEmitter<'a> {
     // Fall back to expression evaluation
     let project_node = ProjectRedNode::new(self.project, self.file, expr_node);
     let scope = get_file_runtime_scope(self.db, self.project, self.file);
-    let eval = evaluate_node(self.db, project_node, scope);
-    if let Some(obj) = eval.value(self.db) {
+    let evaluated_result = evaluate_node(self.db, project_node, scope);
+    if let Some(obj) = evaluated_result.value(self.db) {
       self.write_escaped(&obj.to_display_string(self.db));
     }
   }
@@ -775,7 +783,7 @@ fn parse_separator_alignments(table_node: &RedNode) -> Vec<Option<&'static str>>
       let text = child.text();
       return text
         .split('|')
-        .filter(|s| !s.trim().is_empty())
+        .filter(|string| !string.trim().is_empty())
         .map(|cell| {
           let cell = cell.trim();
           let starts = cell.starts_with(':');
@@ -900,9 +908,9 @@ fn extract_slot_name(node: &RedNode) -> Option<String> {
 fn extract_ordered_list_start_number(node: &RedNode) -> usize {
   for child in node.children() {
     if child.kind() == SyntaxKind::MdOrderedListItem {
-      for c in child.children() {
-        if c.kind() == SyntaxKind::MdNumber {
-          return c.text().parse().unwrap_or(1);
+      for child in child.children() {
+        if child.kind() == SyntaxKind::MdNumber {
+          return child.text().parse().unwrap_or(1);
         }
       }
     }
@@ -925,7 +933,7 @@ mod tests {
     let text = "| :--- | :---: | ---: | --- |";
     let aligns: Vec<Option<&str>> = text
       .split('|')
-      .filter(|s| !s.trim().is_empty())
+      .filter(|string| !string.trim().is_empty())
       .map(|cell| {
         let cell = cell.trim();
         let starts = cell.starts_with(':');

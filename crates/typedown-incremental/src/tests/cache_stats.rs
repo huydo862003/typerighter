@@ -1,5 +1,6 @@
 use super::fixtures::fibonacci::*;
 use super::fixtures::identity;
+use crate::tests::fixtures::identity::IdInput;
 use crate::{LRU_CAPACITY, SerializableQueryDatabase};
 use identity::{Database as IdDb, InternedId, QueryStorage};
 
@@ -53,9 +54,9 @@ fn no_recomputation_after_roundtrip_recompute_count() {
     fibonacci(&db1, FibInput::new(&db1, n));
   }
 
-  let db2 = dump_and_reload(&db1, |s| Database { storage: s });
+  let db2 = dump_and_reload(&db1, |storage| Database { storage });
   for n in 0..=5 {
-    let input = find_entry(FibInput::iter(&db2), |i| i.n(&db2) == n, "FibInput");
+    let input = find_entry(FibInput::iter(&db2), |input| input.n(&db2) == n, "FibInput");
     fibonacci(&db2, input);
   }
 
@@ -78,7 +79,7 @@ fn dump_stats_stable_across_passthrough_session() {
   let stats1 = db1.dump().stats();
 
   // Session 2: passthrough, no new queries
-  let db2 = dump_and_reload(&db1, |s| Database { storage: s });
+  let db2 = dump_and_reload(&db1, |storage| Database { storage });
   let stats2 = db2.dump().stats();
 
   assert_eq!(
@@ -96,11 +97,11 @@ fn dump_promote_cached_capped_at_lru_capacity() {
     storage: QueryStorage::default(),
   };
   for i in 0..=(LRU_CAPACITY + 50) {
-    identity::identity(&db1, identity::IdInput::new(&db1, i));
+    identity::identity(&db1, IdInput::new(&db1, i));
   }
 
   // Session 2: load but access nothing, then dump
-  let db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let stats2 = db2.dump().stats();
 
   assert!(

@@ -5,6 +5,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use ropey::Rope;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::types::Project;
+use typedown_types::stream::Utf8Result;
 
 pub struct Analysis {
   pub(crate) db: TypedownDatabase,
@@ -42,9 +43,9 @@ impl Analysis {
     let mut content = String::new();
     loop {
       match reader.advance() {
-        typedown_types::stream::Utf8Result::Char(ch) => content.push(ch),
-        typedown_types::stream::Utf8Result::Invalid { .. } => {}
-        typedown_types::stream::Utf8Result::Eof => break,
+        Utf8Result::Char(ch) => content.push(ch),
+        Utf8Result::Invalid { .. } => {}
+        Utf8Result::Eof => break,
       }
     }
     Some(Rope::from(content))

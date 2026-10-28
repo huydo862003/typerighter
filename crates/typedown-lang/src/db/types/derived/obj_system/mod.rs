@@ -120,7 +120,7 @@ pub enum TdObjEnum<'db> {
 }
 
 // Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
-macro_rules! impl_from_type_for_obj_enum {
+macro_rules! impl_from_typ_for_obj_enum {
   ($($ty:ident),+ $(,)?) => {
     $(
       impl<'db> From<$ty<'db>> for TdObjEnum<'db> {
@@ -132,7 +132,7 @@ macro_rules! impl_from_type_for_obj_enum {
   };
 }
 
-impl_from_type_for_obj_enum!(
+impl_from_typ_for_obj_enum!(
   TdTypTyp,
   TdBoolTyp,
   TdStringTyp,
@@ -334,7 +334,7 @@ pub enum TdTypeKind {
 #[repr(u8)]
 pub enum TdObjectKind {
   // Types (wraps TdTypeEnum)
-  Type = 0,
+  Typ = 0,
   // Object-only
   StringObj = 128,
   BoolObj = 129,
@@ -490,7 +490,7 @@ impl Encodable for TdObjEnum<'_> {
   fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       TdObjEnum::TdTypObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Type as u8);
+        encoder.emit_u8(buf, TdObjectKind::Typ as u8);
         v.encode(buf, encoder);
       }
       // Objects
@@ -566,7 +566,7 @@ impl Decodable for TdObjEnum<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match TdObjectKind::from_repr(tag) {
-      Some(TdObjectKind::Type) => TdObjEnum::TdTypObj(TdTypEnum::decode(data, decoder)),
+      Some(TdObjectKind::Typ) => TdObjEnum::TdTypObj(TdTypEnum::decode(data, decoder)),
       Some(TdObjectKind::StringObj) => TdStringObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::BoolObj) => TdBoolObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::NumObj) => TdNumberObj::field_decode(data, decoder).into(),

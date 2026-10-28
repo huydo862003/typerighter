@@ -25,10 +25,10 @@ pub fn evaluate_node<'db>(
 pub fn evaluate_node_with_expected<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
-  expected_type: &TdTypEnum<'db>,
+  expected_typ: &TdTypEnum<'db>,
   runtime_scope: RuntimeScope<'db>,
 ) -> ResourceResult<'db> {
-  let typecheck_result = typecheck_with_expected(db, project_node.clone(), expected_type);
+  let typecheck_result = typecheck_with_expected(db, project_node.clone(), expected_typ);
   let diagnostics = typecheck_result.diagnostics(db).to_vec();
   evaluate_body(db, project_node, runtime_scope, diagnostics)
 }

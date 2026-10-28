@@ -17,7 +17,7 @@ use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
-use crate::db::types::typecheck::is_subtype_of;
+use crate::db::types::typecheck::is_subtyp_of;
 use crate::db::types::{
   BuiltinSchemaKind, File, LazyTyp, LitValue, Project, ProjectRedNode, PropertyDescriptor, Symbol,
   SymbolKind, TdBlobTyp, TdObjEnum, TdProductTyp, TdSchemaTyp, TdStaticTyp, TdTypEnum, TypResult,
@@ -149,7 +149,7 @@ fn evaluate_user_defined_schema<'db>(
           child_descriptor.field_typ.resolve(db),
           parent_descriptor.field_typ.resolve(db),
         )
-        && !is_subtype_of(db, &child_field_typ, &parent_field_typ)
+        && !is_subtyp_of(db, &child_field_typ, &parent_field_typ)
       {
         let parent_name = parent_typ
           .as_ref()
@@ -336,7 +336,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
     diagnostics.extend(actual_typ_result.diagnostics(db).iter().cloned());
     if actual_typ_result
       .typ(db)
-      .is_some_and(|actual_typ| !is_subtype_of(db, &actual_typ, &declared_typ))
+      .is_some_and(|actual_typ| !is_subtyp_of(db, &actual_typ, &declared_typ))
     {
       let (trimmed_offset, trimmed_len) = definition_node.node.trimmed_range();
       diagnostics.push(
@@ -410,7 +410,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
     if let Some(ref lazy) = field_typ
       && let Some(declared_typ) = lazy.resolve(db)
       && let Some(ret_typ) = ret_typ
-      && !is_subtype_of(db, &ret_typ, &declared_typ)
+      && !is_subtyp_of(db, &ret_typ, &declared_typ)
     {
       let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
       diagnostics.push(
@@ -621,7 +621,7 @@ fn resolve_typ_lazy<'db>(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::db::types::typecheck::{is_subtype_of, validate_typ_params};
+  use crate::db::types::typecheck::{is_subtyp_of, validate_typ_params};
   use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, TypVariable};
   use crate::db::{
     QueryStorage, TypedownDatabase,
@@ -847,7 +847,7 @@ mod tests {
   }
 
   #[test]
-  fn extends_student_is_subtype_of_person() {
+  fn extends_student_is_subtyp_of_person() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Student.td");
     let person_file = project
       .files(&db)
@@ -860,11 +860,11 @@ mod tests {
     let student_typ = evaluate_typ(&db, student_symbol).typ(&db).unwrap();
     let person_typ = evaluate_typ(&db, person_symbol).typ(&db).unwrap();
     assert!(
-      is_subtype_of(&db, &student_typ, &person_typ),
+      is_subtyp_of(&db, &student_typ, &person_typ),
       "Student should be a subtype of Person"
     );
     assert!(
-      !is_subtype_of(&db, &person_typ, &student_typ),
+      !is_subtyp_of(&db, &person_typ, &student_typ),
       "Person should not be a subtype of Student"
     );
   }
@@ -969,7 +969,7 @@ mod tests {
     let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
     let grad_typ = evaluate_typ(&db, grad_symbol).typ(&db).unwrap();
     let person_typ = evaluate_typ(&db, person_symbol).typ(&db).unwrap();
-    assert!(is_subtype_of(&db, &grad_typ, &person_typ));
+    assert!(is_subtyp_of(&db, &grad_typ, &person_typ));
   }
 
   #[test]
@@ -1258,7 +1258,7 @@ mod tests {
   }
 
   #[test]
-  fn construct_str_returns_none_for_wrong_typ() {
+  fn construct_string_returns_none_for_wrong_typ() {
     let db = make_db();
     assert!(
       get_string_typ(&db)
@@ -1633,13 +1633,13 @@ result: ((x) -> x > 5)(10)
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "closure_self_ref.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let resource = evaluate_resource(&db, symbol).value(&db).unwrap();
-    let b_val = resource
+    let b_value = resource
       .get_owned_field(&db, "b")
       .unwrap()
       .as_td_number_obj()
       .unwrap()
       .value(&db);
-    assert_eq!(b_val, 31.0);
+    assert_eq!(b_value, 31.0);
   }
 
   // Closure captures self from defining file, not call site

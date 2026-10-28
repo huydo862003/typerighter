@@ -53,7 +53,7 @@ pub(crate) fn construct_from_node<'db>(
       if prefix
         .op()
         .and_then(|op| op.kind())
-        .is_some_and(|k| matches!(k, crate::syntax::ast::YamlOpKind::Tag(_))) =>
+        .is_some_and(|key| matches!(key, YamlOpKind::Tag(_))) =>
     {
       if let Some(inner) = prefix.expr() {
         let inner_node = ProjectRedNode::new(project, file, inner.syntax().clone());
@@ -67,7 +67,7 @@ pub(crate) fn construct_from_node<'db>(
       if binary
         .op()
         .and_then(|op| op.kind())
-        .is_some_and(|k| matches!(k, crate::syntax::ast::YamlOpKind::Dot)) =>
+        .is_some_and(|key| matches!(key, YamlOpKind::Dot)) =>
     {
       if let Some(right) = binary.right()
         && let Some(field_ident) = IdentLit::cast(right.syntax().clone())
@@ -122,7 +122,7 @@ pub(crate) fn construct_from_node<'db>(
       diagnostics,
     ),
     // String / interpolated
-    Expr::StrLit(string_lit) => construct_from_str_lit(
+    Expr::StrLit(string_lit) => construct_from_string_lit(
       db,
       string_lit,
       project,
@@ -263,7 +263,7 @@ fn construct_from_call<'db>(
     && callee_binary
       .op()
       .and_then(|op| op.kind())
-      .is_some_and(|k| matches!(k, YamlOpKind::Dot))
+      .is_some_and(|key| matches!(key, YamlOpKind::Dot))
     && let Some(right) = callee_binary.right()
     && let Some(method_ident) = IdentLit::cast(right.syntax().clone())
     && let Some(method_name) = method_ident.value()
@@ -412,7 +412,7 @@ fn construct_from_list<'db>(
   let items: Vec<_> = list
     .items()
     .filter_map(|item| item.value())
-    .map(|v| ProjectRedNode::new(project, file, v.syntax().clone()))
+    .map(|value| ProjectRedNode::new(project, file, value.syntax().clone()))
     .collect();
   construct_sequence_items(db, items, project_node, runtime_scope, diagnostics)
 }
@@ -450,7 +450,7 @@ fn construct_sequence_items<'db>(
   typ.construct(db, project_node.project, args)
 }
 
-fn construct_from_str_lit<'db>(
+fn construct_from_string_lit<'db>(
   db: &'db TypedownDatabase,
   string_lit: StrLit,
   project: Project,
@@ -992,7 +992,7 @@ fn construct_fref<'db>(
   args: Vec<ProjectRedNode>,
 ) -> Option<TdObjEnum<'db>> {
   let arg = args.first()?;
-  let path_string = StrLit::cast(arg.node.clone()).and_then(|s| s.plain_value())?;
+  let path_string = StrLit::cast(arg.node.clone()).and_then(|string| string.plain_value())?;
 
   let project = arg.project;
   let files = project.files(db);

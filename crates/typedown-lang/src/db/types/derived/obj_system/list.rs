@@ -53,7 +53,7 @@ impl<'db> TdRuntimeObj<'db> for TdListTyp<'db> {
 impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match self.element(db).and_then(|element| element.resolve(db)) {
-      Some(elem) => format!("list[{}]", elem.display_name(db)),
+      Some(element) => format!("list[{}]", element.display_name(db)),
       None => "list".to_string(),
     }
   }

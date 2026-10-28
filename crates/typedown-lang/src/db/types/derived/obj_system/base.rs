@@ -55,7 +55,7 @@ pub trait TdStaticTyp<'x0> {
   fn to_typ_enum(&self, db: &'x0 TypedownDatabase) -> TdTypEnum<'x0> {
     self
       .runtime_typ(db)
-      .expect("to_type_enum must be implemented for types without runtime_type")
+      .expect("to_typ_enum must be implemented for types without runtime_type")
   }
 
   fn instantiate(
@@ -112,7 +112,7 @@ pub trait TdStaticTyp<'x0> {
   fn index_typ(
     &self,
     db: &'x0 TypedownDatabase,
-    _key_type: &TdTypEnum<'x0>,
+    _key_typ: &TdTypEnum<'x0>,
   ) -> Option<FuncSignature<'x0>> {
     if let Some(TdTypEnum::TdFuncTyp(func)) = self.lookup_field_typ(db, PROTOCOL_INDEX) {
       return Some(func.signature(db));
@@ -123,7 +123,7 @@ pub trait TdStaticTyp<'x0> {
   fn call_typ(
     &self,
     db: &'x0 TypedownDatabase,
-    _arg_types: Vec<TdTypEnum<'x0>>,
+    _arg_typs: Vec<TdTypEnum<'x0>>,
   ) -> Option<FuncSignature<'x0>> {
     if let Some(TdTypEnum::TdFuncTyp(func)) = self.lookup_field_typ(db, PROTOCOL_CALL) {
       return Some(func.signature(db));

@@ -17,10 +17,10 @@ pub struct TdSumTyp<'db> {
 impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
     let mut members: Vec<_> = self.members(db).into_iter().collect();
-    members.sort_by(|a, b| a.stable_cmp(db, b));
+    members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
     let parts: Vec<String> = members
       .iter()
-      .filter_map(|m| m.resolve(db).map(|t| t.display_name(db)))
+      .filter_map(|member| member.resolve(db).map(|typ| typ.display_name(db)))
       .collect();
     parts.join(" | ")
   }

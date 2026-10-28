@@ -79,7 +79,7 @@ pub trait SerializableQueryDatabase: QueryDatabase {
       .expect("Failed to construct QueryCache from serialized data");
 
     // Build InternedBlobs
-    let total_byte_size: u64 = intern_blobs.iter().map(|b| b.len() as u64).sum();
+    let total_byte_size: u64 = intern_blobs.iter().map(|blob| blob.len() as u64).sum();
     let interned_blobs = InternedBlobs {
       header: interned_blobs_format::FileHeader::new(),
       footer: interned_blobs_format::FileFooter {

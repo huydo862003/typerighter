@@ -19,7 +19,7 @@ fn rpc_schema_change_then_lsp() {
       "schema change should produce errors for missing required field"
     );
     assert!(
-      errors.iter().all(|e| e.contains("phone")),
+      errors.iter().all(|error| error.contains("phone")),
       "all errors should be about missing phone field, got:\n{}",
       errors.join("\n"),
     );

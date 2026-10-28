@@ -85,8 +85,8 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
   let key_names: Vec<_> = key_args
     .iter()
     .filter_map(|arg| {
-      if let syn::FnArg::Typed(pat_type) = arg
-        && let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref()
+      if let syn::FnArg::Typed(pat_typ) = arg
+        && let syn::Pat::Ident(pat_ident) = pat_typ.pat.as_ref()
       {
         return Some(&pat_ident.ident);
       }
@@ -96,8 +96,8 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
   let key_typs: Vec<_> = key_args
     .iter()
     .filter_map(|arg| {
-      if let syn::FnArg::Typed(pat_type) = arg {
-        return Some(pat_type.ty.as_ref());
+      if let syn::FnArg::Typed(pat_typ) = arg {
+        return Some(pat_typ.ty.as_ref());
       }
       None
     })
@@ -108,8 +108,8 @@ fn query_derived_fn_impl(func: ItemFn, modifiers: &CacheModifiers) -> TokenStrea
 
   let db_arg = &all_args[0];
 
-  let db_typ = if let syn::FnArg::Typed(pattern_type) = db_arg {
-    if let syn::Type::Reference(typ_reference) = pattern_type.ty.as_ref() {
+  let db_typ = if let syn::FnArg::Typed(pattern_typ) = db_arg {
+    if let syn::Type::Reference(typ_reference) = pattern_typ.ty.as_ref() {
       let has_db_lifetime = typ_reference
         .lifetime
         .as_ref()

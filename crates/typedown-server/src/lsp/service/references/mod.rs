@@ -2,7 +2,7 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::position::{lsp_position_to_text_offset, node_trimmed_range};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
 use crate::lsp::service::utils::symbol::{
-  CursorSymbol, find_symbol_at_cursor, str_content_node, symbol_file_path,
+  CursorSymbol, find_symbol_at_cursor, get_string_content_node, symbol_file_path,
 };
 use lsp_types::{Location, Range, ReferenceParams};
 use ropey::Rope;
@@ -59,8 +59,10 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
     })
     .collect();
 
-  if include_declaration && let Some(decl_location) = declaration_location(analysis, db, symbol) {
-    locations.push(decl_location);
+  if include_declaration
+    && let Some(declaration_location) = declaration_location(analysis, db, symbol)
+  {
+    locations.push(declaration_location);
   }
 
   if locations.is_empty() {
@@ -139,7 +141,7 @@ fn fref_path_range(
   {
     return None;
   }
-  let content = str_content_node(&arg_node)?;
+  let content = get_string_content_node(&arg_node)?;
   Some(node_trimmed_range(rope, &content))
 }
 #[cfg(test)]

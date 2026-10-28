@@ -15,7 +15,7 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 
 use crate::db::types::derived::obj_system::TdStaticTyp;
-use crate::db::types::typecheck::{is_nullable, is_subtype_of};
+use crate::db::types::typecheck::{is_nullable, is_subtyp_of};
 use crate::db::types::{File, Project, ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult};
 use crate::syntax::ast::{
   AstNode, Expr, IdentLit, InterpFragment, SourceFile, YamlFrontmatter, YamlMapping, YamlOpKind,
@@ -203,8 +203,8 @@ fn typecheck_body<'db>(
       }
     }
     // Typecheck each embedded expression in an interpolated string
-    Expr::StrLit(str_lit) => {
-      for fragment in str_lit.fragments() {
+    Expr::StrLit(string_lit) => {
+      for fragment in string_lit.fragments() {
         if let Either::Right(interp) = fragment
           && let Some(expr) = interp.expr()
         {
@@ -271,7 +271,7 @@ fn check_mapping_fields<'db>(
     if let Some(builtin_typ) = TdSchemaTyp::builtin_field_typ(db, key) {
       let value_result = actual_node_typ(db, value_node.clone());
       if let Some(actual_typ) = value_result.typ(db)
-        && !is_subtype_of(db, &actual_typ, &builtin_typ)
+        && !is_subtyp_of(db, &actual_typ, &builtin_typ)
       {
         let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
         diagnostics.push(
@@ -300,7 +300,7 @@ fn check_mapping_fields<'db>(
           expected_typ.as_td_schema_meta_typ().is_some() && value_node.mapping_entries().is_some();
         match value_result.typ(db) {
           Some(actual_typ)
-            if !is_subtype_of(db, &actual_typ, &field_typ) && !is_schema_meta_mapping =>
+            if !is_subtyp_of(db, &actual_typ, &field_typ) && !is_schema_meta_mapping =>
           {
             let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
             diagnostics.push(
@@ -426,7 +426,7 @@ fn check_tag<'db>(
   let inner_result = actual_node_typ(db, inner.clone());
   diagnostics.extend(inner_result.diagnostics(db).iter().cloned());
   if let Some(actual_typ) = inner_result.typ(db)
-    && !is_subtype_of(db, &actual_typ, expected_typ)
+    && !is_subtyp_of(db, &actual_typ, expected_typ)
   {
     let (trimmed_offset, trimmed_len) = inner.node.trimmed_range();
     diagnostics.push(
@@ -483,8 +483,8 @@ fn check_call(
   for (param, arg_node) in params.iter().zip(args.iter()) {
     let arg_result = actual_node_typ(db, arg_node.clone());
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
-    if let Some(arg_type) = arg_result.typ(db)
-      && !is_subtype_of(db, &arg_type, param)
+    if let Some(arg_typ) = arg_result.typ(db)
+      && !is_subtyp_of(db, &arg_typ, param)
     {
       let (trimmed_offset, trimmed_len) = arg_node.node.trimmed_range();
       diagnostics.push(
@@ -545,7 +545,7 @@ fn check_index(
       diagnostics.extend(index_result.diagnostics(db).iter().cloned());
       if let Some(index_typ) = index_result.typ(db) {
         let number_typ = get_number_typ(db);
-        if !is_subtype_of(db, &index_typ, &number_typ.into()) {
+        if !is_subtyp_of(db, &index_typ, &number_typ.into()) {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
           diagnostics.push(
             TdDiagnosticKind::IndexTypMismatch {
@@ -566,7 +566,7 @@ fn check_index(
         let index_result = actual_node_typ(db, index_node.clone());
         diagnostics.extend(index_result.diagnostics(db).iter().cloned());
         if let Some(index_typ) = index_result.typ(db)
-          && !is_subtype_of(db, &index_typ, &key_typ)
+          && !is_subtyp_of(db, &index_typ, &key_typ)
         {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
           diagnostics.push(
@@ -588,7 +588,7 @@ fn check_index(
       diagnostics.extend(index_result.diagnostics(db).iter().cloned());
       if let Some(index_typ) = index_result.typ(db) {
         let number_typ = get_number_typ(db);
-        if !is_subtype_of(db, &index_typ, &number_typ.into()) {
+        if !is_subtyp_of(db, &index_typ, &number_typ.into()) {
           let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
           diagnostics.push(
             TdDiagnosticKind::IndexTypMismatch {
@@ -629,7 +629,7 @@ fn check_prefix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Vec
     _ => return diagnostics,
   };
 
-  if !is_subtype_of(db, &operand_typ, &expected_typ) {
+  if !is_subtyp_of(db, &operand_typ, &expected_typ) {
     let (trimmed_offset, trimmed_len) = operand.node.trimmed_range();
     diagnostics.push(
       TdDiagnosticKind::OperandTypMismatch {
@@ -650,8 +650,8 @@ fn check_postfix(db: &TypedownDatabase, op: &str, operand: ProjectRedNode) -> Ve
 
   if op == "?" {
     let operand_result = actual_node_typ(db, operand.clone());
-    if let Some(operand_type) = operand_result.typ(db)
-      && !operand_type.is_typ(db)
+    if let Some(operand_typ) = operand_result.typ(db)
+      && !operand_typ.is_typ(db)
     {
       let (trimmed_offset, trimmed_len) = operand.node.trimmed_range();
       diagnostics.push(
@@ -688,7 +688,7 @@ fn check_binary(
     "+" | "-" | "*" | "/" | "%" | "**" => {
       let number_typ: TdTypEnum = get_number_typ(db).into();
       if let Some(left_typ) = &left_typ_result
-        && !is_subtype_of(db, left_typ, &number_typ)
+        && !is_subtyp_of(db, left_typ, &number_typ)
       {
         let (trimmed_offset, trimmed_len) = left.node.trimmed_range();
         diagnostics.push(
@@ -700,7 +700,7 @@ fn check_binary(
         );
       }
       if let Some(right_typ) = &right_typ_result
-        && !is_subtype_of(db, right_typ, &number_typ)
+        && !is_subtyp_of(db, right_typ, &number_typ)
       {
         let (trimmed_offset, trimmed_len) = right.node.trimmed_range();
         diagnostics.push(
@@ -716,7 +716,7 @@ fn check_binary(
     "&&" | "||" => {
       let bool_typ: TdTypEnum = get_bool_typ(db).into();
       if let Some(left_typ) = &left_typ_result
-        && !is_subtype_of(db, left_typ, &bool_typ)
+        && !is_subtyp_of(db, left_typ, &bool_typ)
       {
         let (trimmed_offset, trimmed_len) = left.node.trimmed_range();
         diagnostics.push(
@@ -727,8 +727,8 @@ fn check_binary(
           .into_error(trimmed_offset, trimmed_offset + trimmed_len),
         );
       }
-      if let Some(right_type) = &right_typ_result
-        && !is_subtype_of(db, right_type, &bool_typ)
+      if let Some(right_typ) = &right_typ_result
+        && !is_subtyp_of(db, right_typ, &bool_typ)
       {
         let (trimmed_offset, trimmed_len) = right.node.trimmed_range();
         diagnostics.push(
@@ -773,8 +773,8 @@ fn check_sequence<'db>(
 
     // Check item type against element type
     let item_result = actual_node_typ(db, item.clone());
-    if let Some(item_type) = item_result.typ(db)
-      && !is_subtype_of(db, &item_type, &element_typ)
+    if let Some(item_typ) = item_result.typ(db)
+      && !is_subtyp_of(db, &item_typ, &element_typ)
     {
       let (trimmed_offset, trimmed_len) = item.node.trimmed_range();
       diagnostics.push(
@@ -902,7 +902,7 @@ mod tests {
   }
 
   #[test]
-  fn typecheck_nested_wrong_type_has_diagnostics() {
+  fn typecheck_nested_wrong_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_wrong_type.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);

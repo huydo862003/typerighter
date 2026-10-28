@@ -86,7 +86,7 @@ fn resolve_call(db: &TypedownDatabase, project_node: ProjectRedNode) -> MaybeSym
     .file
     .handle(db)
     .path()
-    .and_then(|path| path.parent().map(|d| d.to_path_buf()))
+    .and_then(|path| path.parent().map(|diagnostic| diagnostic.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path, &file_dir, &root_dir);
   match project.files(db).get(&target_path) {

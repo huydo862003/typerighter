@@ -122,13 +122,13 @@ fn resolve_fref_icon(db: &TypedownDatabase, project: Project, symbol: &Symbol) -
       let obj = evaluate_resource(db, target_symbol).value(db)?;
       obj
         .get_builtin_field(db, "_icon")
-        .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
+        .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)))
     }
     SymbolKind::UserDefinedSchema(_, _) => {
       let typ = evaluate_typ(db, *symbol).typ(db)?;
       typ
         .get_builtin_field(db, "_icon")
-        .and_then(|o| o.as_td_icon_obj().map(|i| i.lucide_name(db)))
+        .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)))
     }
     _ => None,
   }
@@ -149,8 +149,8 @@ pub fn resolve_schema_label(db: &TypedownDatabase, project: Project, file: File)
   let handle = file.handle(db);
   let stem = handle
     .path()
-    .and_then(|p| p.file_stem())
-    .and_then(|s| s.to_str())
+    .and_then(|path| path.file_stem())
+    .and_then(|stem| stem.to_str())
     .unwrap_or("unknown");
   split_pascal_case(stem)
 }
@@ -187,13 +187,15 @@ fn resolve_display_name(db: &TypedownDatabase, project: Project, symbol: &Symbol
     | SymbolKind::UserDefinedSchema(_, target_file) => {
       let handle = target_file.handle(db);
       let path = handle.path();
-      let stem = path.and_then(|p| p.file_stem()).and_then(|s| s.to_str());
+      let stem = path
+        .and_then(|path| path.file_stem())
+        .and_then(|stem| stem.to_str());
 
       match stem {
         Some("index") => path
-          .and_then(|p| p.parent())
-          .and_then(|p| p.file_name())
-          .and_then(|n| n.to_str())
+          .and_then(|path| path.parent())
+          .and_then(|parent| parent.file_name())
+          .and_then(|name| name.to_str())
           .unwrap_or("index")
           .to_string(),
         Some(name) => name.to_string(),

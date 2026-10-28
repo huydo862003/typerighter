@@ -92,7 +92,7 @@ fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<TdDiagnostic>) {
   match node.kind() {
     SyntaxKind::MdMedia => {
       if let Some(media) = MdMedia::cast(node.clone()) {
-        let alt = media.alt().map(|t| t.value()).unwrap_or_default();
+        let alt = media.alt().map(|text| text.value()).unwrap_or_default();
         if alt.trim().is_empty() {
           let (offset, len) = node.trimmed_range();
           diagnostics.push(TdDiagnosticKind::MissingAltText {}.into_warning(offset, offset + len));
@@ -101,7 +101,7 @@ fn lint_inline_elements(node: &RedNode, diagnostics: &mut Vec<TdDiagnostic>) {
     }
     SyntaxKind::MdLink => {
       if let Some(link) = MdLink::cast(node.clone()) {
-        let text = link.alt().map(|t| t.value()).unwrap_or_default();
+        let text = link.alt().map(|text| text.value()).unwrap_or_default();
         let lower = text.trim().to_lowercase();
         if GENERIC_LINK_TEXTS.contains(&lower.as_str()) {
           let (offset, len) = node.trimmed_range();
@@ -239,8 +239,11 @@ mod tests {
     lint_markdown(&body)
   }
 
-  fn codes(diags: &[TdDiagnostic]) -> Vec<&str> {
-    diags.iter().map(|d| d.code_str()).collect()
+  fn codes(diagnostics: &[TdDiagnostic]) -> Vec<&str> {
+    diagnostics
+      .iter()
+      .map(|diagnostic| diagnostic.code_str())
+      .collect()
   }
 
   #[test]

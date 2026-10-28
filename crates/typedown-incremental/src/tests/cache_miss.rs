@@ -61,10 +61,10 @@ fn independent_query_stays_cached_after_unrelated_mutation() {
   let config = identity::VersionConfig::new(&db1, 1);
   identity::root_query_versioned_result(&db1, config);
 
-  let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let mut db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let input5_2 = identity::find_entry(
     identity::IdInput::iter(&db2),
-    |i| i.n(&db2) == 5,
+    |input| input.n(&db2) == 5,
     "IdInput(5)",
   );
   // Load from cache so it's accessible for the assertion below
@@ -72,7 +72,7 @@ fn independent_query_stays_cached_after_unrelated_mutation() {
 
   let config2 = identity::find_entry(
     identity::VersionConfig::iter(&db2),
-    |c| c.version(&db2) == 1,
+    |config| config.version(&db2) == 1,
     "VersionConfig(1)",
   );
   config2.set_version(&mut db2, 99);
@@ -94,10 +94,10 @@ fn mutation_after_roundtrip_causes_recomputation() {
   let config = identity::VersionConfig::new(&db1, 1);
   identity::root_query_versioned_result(&db1, config);
 
-  let mut db2 = identity::dump_and_reload(&db1, |s| IdDb { storage: s });
+  let mut db2 = identity::dump_and_reload(&db1, |storage| IdDb { storage });
   let config2 = identity::find_entry(
     identity::VersionConfig::iter(&db2),
-    |c| c.version(&db2) == 1,
+    |config| config.version(&db2) == 1,
     "VersionConfig(1)",
   );
 

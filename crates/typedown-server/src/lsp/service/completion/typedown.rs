@@ -19,7 +19,7 @@ use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use typedown_lang::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
-use typedown_lang::db::types::typecheck::{is_nullable, is_subtype_of};
+use typedown_lang::db::types::typecheck::{is_nullable, is_subtyp_of};
 use typedown_lang::db::types::{
   File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
 };
@@ -211,8 +211,8 @@ fn is_interp_position(node: &RedNode) -> bool {
 // Returns true if the cursor is inside the argument of a fref() call
 fn is_fref_arg_position(node: &RedNode) -> bool {
   // Walk up to find a CallExpr, checking for StrLit or direct position
-  let str_lit = find_ancestor(node, SyntaxKind::StrLit);
-  let call = match str_lit {
+  let string_lit = find_ancestor(node, SyntaxKind::StrLit);
+  let call = match string_lit {
     Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),
     None => find_ancestor(node, SyntaxKind::CallExpr),
   };
@@ -255,7 +255,7 @@ fn collect_fref_candidates(
       // Filter by expected type if provided
       if let Some(expected_typ) = expected_typ {
         let file_typ = get_symbol_typ(db, symbol).typ(db)?;
-        if !is_subtype_of(db, &file_typ, expected_typ) {
+        if !is_subtyp_of(db, &file_typ, expected_typ) {
           return None;
         }
       }
@@ -1808,7 +1808,7 @@ featured: fref("|")
       "/project"
     });
     let vault_root = project_root.join("vault");
-    let type_root = vault_root.join("_types");
+    let typ_root = vault_root.join("_types");
 
     let (content, offset) = cursor(
       r#"---
@@ -1843,22 +1843,22 @@ vault:
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        type_root.join("Directory.td"),
+        typ_root.join("Directory.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Directory.td"),
+            typ_root.join("Directory.td"),
             SCHEMA_DIRECTORY.to_string(),
             FileMetadata::default(),
           ),

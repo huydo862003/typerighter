@@ -309,8 +309,8 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
       Some(Either::Right(obj)) => Some(obj),
       // Missing fields: check schema for computed/default, then null
       None => {
-        if let Some(schema_type) = self.schema(db).as_td_schema_typ()
-          && let Some(prop_descriptor) = schema_type.fields(db).get(key)
+        if let Some(schema_typ) = self.schema(db).as_td_schema_typ()
+          && let Some(prop_descriptor) = schema_typ.fields(db).get(key)
         {
           if let Some(ref computed_enum) = prop_descriptor.computed_func
             && let Some(func_obj) = computed_enum.as_td_func_obj()

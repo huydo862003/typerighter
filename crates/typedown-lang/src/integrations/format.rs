@@ -32,7 +32,7 @@ pub fn format_markdown(body: &MdBody) -> String {
     &mut out,
     &blocks
       .iter()
-      .map(|b| b.syntax().clone())
+      .map(|block| block.syntax().clone())
       .collect::<Vec<_>>(),
     0,
   );
@@ -159,7 +159,7 @@ fn format_container_block(out: &mut String, node: &RedNode, depth: usize) {
       SyntaxKind::MdContainerSlot => {
         let blocks: Vec<_> = child
           .children()
-          .filter(|c| c.as_node().is_some() && is_block_element(c.kind()))
+          .filter(|child| child.as_node().is_some() && is_block_element(child.kind()))
           .collect();
         format_block_sequence(out, &blocks, depth);
       }
@@ -248,7 +248,7 @@ fn format_task_item(out: &mut String, item: &MdTaskListItem, depth: usize) {
   // Emit checkbox + first block inline
   let checkbox = item
     .checkbox()
-    .map(|c| c.syntax().text())
+    .map(|checkbox| checkbox.syntax().text())
     .unwrap_or_default();
   let mut blocks = item.block_elements();
   if let Some(first) = blocks.next() {

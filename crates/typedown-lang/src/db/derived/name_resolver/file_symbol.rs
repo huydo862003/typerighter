@@ -18,16 +18,16 @@ pub fn file_symbol<'db>(db: &'db TypedownDatabase, project: Project, file: File)
 
   let name = path
     .file_stem()
-    .and_then(|s| s.to_str())
+    .and_then(|stem| stem.to_str())
     .unwrap_or_default()
     .to_string();
 
-  let ext = path
+  let extension = path
     .extension()
-    .and_then(|e| e.to_str())
+    .and_then(|extension| extension.to_str())
     .unwrap_or_default();
 
-  let kind = if let Some(asset_kind) = AssetKind::from_extension(ext) {
+  let kind = if let Some(asset_kind) = AssetKind::from_extension(extension) {
     SymbolKind::Asset(asset_kind, project, file)
   } else if is_schema_file {
     SymbolKind::UserDefinedSchema(project, file)

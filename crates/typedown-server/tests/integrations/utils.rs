@@ -139,7 +139,7 @@ pub fn scan_project_files(dir: &Path) -> Vec<PathBuf> {
         .and_then(|ext| ext.to_str())
         .and_then(AssetKind::from_extension)
         .is_some();
-      let name = path.file_name().and_then(|n| n.to_str());
+      let name = path.file_name().and_then(|name| name.to_str());
       if is_content_file(&path)
         || is_asset
         || (path.parent() == Some(root)

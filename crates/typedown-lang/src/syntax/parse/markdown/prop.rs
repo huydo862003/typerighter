@@ -52,7 +52,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
       SyntaxKind::LBrace => self.parse_js_prop_dict(),
       // Unary minus
       _ if matches!(peek.token.kind(), SyntaxKind::MdSymbol | SyntaxKind::YamlOp)
-        && peek.token.text().is_some_and(|t| t == "-") =>
+        && peek.token.text().is_some_and(|text| text == "-") =>
       {
         let mut children = vec![];
         self.advance(&mut children, SKIP_NONE, mode);
@@ -164,7 +164,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           let peek = self.lex_ctx.peek(SKIP_NONE, mode);
           if peek.token.kind() == SyntaxKind::Colon
             || (peek.token.kind() == SyntaxKind::MdSymbol
-              && peek.token.text().is_some_and(|t| t == ":"))
+              && peek.token.text().is_some_and(|text| text == ":"))
           {
             self.advance(&mut children, SKIP_NONE, mode);
             // Skip whitespace after colon

@@ -91,13 +91,17 @@ pub fn actual_node_typ<'db>(
     } else {
       // A string whose only content is a math literal (e.g. "$x^2$") has math type
       let children: Vec<_> = node.children().collect();
-      let has_text = children.iter().any(|c| {
+      let has_text = children.iter().any(|child| {
         matches!(
-          c.kind(),
+          child.kind(),
           SyntaxKind::DqStrContent | SyntaxKind::SqStrContent
-        ) && !c.text().trim().is_empty()
+        ) && !child.text().trim().is_empty()
       });
-      if !has_text && children.iter().any(|c| c.kind() == SyntaxKind::MathLit) {
+      if !has_text
+        && children
+          .iter()
+          .any(|child| child.kind() == SyntaxKind::MathLit)
+      {
         return TypResult::new(db, Some(get_math_typ(db).into()), vec![]);
       }
       let value: String = string_lit
@@ -122,7 +126,10 @@ pub fn actual_node_typ<'db>(
   }
 
   if let Some(number) = NumberLit::cast(node.clone()) {
-    let value = number.value().map(|v| v.to_string()).unwrap_or_default();
+    let value = number
+      .value()
+      .map(|value| value.to_string())
+      .unwrap_or_default();
     return TypResult::new(
       db,
       Some(get_lit_typ(db, LitValue::Number(value)).into()),
@@ -342,7 +349,7 @@ fn get_field_access_typ<'db>(
     Some(typ) => typ,
     None => return TypResult::new(db, None, diagnostics),
   };
-  let field_name = match IdentLit::cast(right_node.node.clone()).and_then(|i| i.value()) {
+  let field_name = match IdentLit::cast(right_node.node.clone()).and_then(|ident| ident.value()) {
     Some(name) => name,
     None => return TypResult::new(db, None, diagnostics),
   };
@@ -466,7 +473,7 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
   if args.len() != 1 {
     let (trimmed_offset, trimmed_len) = args
       .first()
-      .map(|a| a.node.trimmed_range())
+      .map(|arg| arg.node.trimmed_range())
       .unwrap_or((0, 0));
     return TypResult::new(
       db,
@@ -516,7 +523,7 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
     .file
     .handle(db)
     .path()
-    .and_then(|parent| parent.parent().map(|d| d.to_path_buf()))
+    .and_then(|parent| parent.parent().map(|diagnostic| diagnostic.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 
@@ -630,12 +637,11 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
   };
 
   let params: Vec<String> = match closure.params() {
-    Some(typedown_types::either::Either::Left(param_list)) => {
-      param_list.params().filter_map(|p| p.value()).collect()
-    }
-    Some(typedown_types::either::Either::Right(ident)) => {
-      ident.value().map(|n| vec![n]).unwrap_or_default()
-    }
+    Some(Either::Left(param_list)) => param_list
+      .params()
+      .filter_map(|param| param.value())
+      .collect(),
+    Some(Either::Right(ident)) => ident.value().map(|node| vec![node]).unwrap_or_default(),
     None => vec![],
   };
 
@@ -765,12 +771,12 @@ mod tests {
     let has_a = members.iter().any(|member| {
       member
         .resolve(&db)
-        .is_some_and(|t| is_lit_string(&db, &t, "a"))
+        .is_some_and(|typ| is_lit_string(&db, &typ, "a"))
     });
     let has_3 = members.iter().any(|member| {
       member
         .resolve(&db)
-        .is_some_and(|t| is_lit_number(&db, &t, "3"))
+        .is_some_and(|typ| is_lit_number(&db, &typ, "3"))
     });
     assert!(has_a, "arms should contain literal str 'a'");
     assert!(has_3, "arms should contain literal num '3'");
@@ -904,14 +910,14 @@ mod tests {
 
   // Num literal returns Literal(Num)
   #[test]
-  fn actual_node_typ_num_returns_lit() {
+  fn actual_node_typ_number_returns_lit() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let entries = root_node.mapping_entries().expect("should have entries");
     let age_node = entries
       .into_iter()
-      .find(|(k, _)| k == "age")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "age")
+      .map(|(_, value)| value)
       .expect("should have age field");
     let result_typ = actual_node_typ(&db, age_node);
     let typ = result_typ.typ(&db).expect("should have a type");
@@ -948,9 +954,9 @@ mod tests {
       .map(|(_, v)| v)
       .expect("should have 'related' field");
     let result = actual_node_typ(&db, related_node);
-    let has_unresolved = result.diagnostics(&db).iter().any(|d| {
+    let has_unresolved = result.diagnostics(&db).iter().any(|diagnostic| {
       matches!(
-        d,
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::UnresolvedFileRef { .. },
           ..

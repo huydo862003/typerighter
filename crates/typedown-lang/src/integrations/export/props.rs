@@ -76,8 +76,8 @@ fn export_lazy_to_descriptor(db: &TypedownDatabase, lazy: &LazyTyp) -> serde_jso
 
     let mut lits: Vec<String> = non_null_members
       .iter()
-      .filter_map(|m| {
-        if let Some(TdTypEnum::TdLitTyp(lit)) = m.resolve(db)
+      .filter_map(|member| {
+        if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
           && let LitValue::String(string) = lit.value(db)
         {
           Some(string)

@@ -121,7 +121,7 @@ fn serialize(
       {
         let icon = schema_obj
           .get_builtin_field(db, "_icon")
-          .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
+          .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
         let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
         if let Some(icon_name) = icon {
           ref_obj["icon"] = serde_json::json!({ "name": icon_name });
@@ -156,7 +156,7 @@ fn serialize(
       {
         let icon = product
           .get_builtin_field(db, "_icon")
-          .and_then(|obj| obj.as_td_icon_obj().map(|i| i.lucide_name(db)));
+          .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
         let mut ref_obj = serde_json::json!({ "url": resolved.url, "name": resolved.name });
         if let Some(icon_name) = icon {
           ref_obj["icon"] = serde_json::json!({ "name": icon_name });
@@ -244,7 +244,7 @@ fn serialize_lazy_typ(
     Ok(serde_json::Value::String(
       lazy
         .resolve(db)
-        .map_or("?".to_string(), |t| t.display_name(db)),
+        .map_or("?".to_string(), |typ| typ.display_name(db)),
     ))
   }
 }
@@ -432,11 +432,11 @@ mod tests {
   fn nested_product_serializes_without_cycle() {
     let (db, project) = empty_db();
     let _product_typ: TdTypEnum = make_product_typ(&db, None, vec![]).into();
-    let str_typ: TdTypEnum = TdStringTyp::get(&db).into();
-    let num_typ: TdTypEnum = TdNumberTyp::get(&db).into();
-    let inner = make_product_obj(&db, str_typ, None, vec![]);
+    let string_typ: TdTypEnum = TdStringTyp::get(&db).into();
+    let number_typ: TdTypEnum = TdNumberTyp::get(&db).into();
+    let inner = make_product_obj(&db, string_typ, None, vec![]);
     let fields = vec![("inner".to_string(), Either::Right(TdObjEnum::from(inner)))];
-    let outer = make_product_obj(&db, num_typ, None, fields);
+    let outer = make_product_obj(&db, number_typ, None, fields);
 
     let result = serialize_to_json(&db, project, &TdObjEnum::from(outer));
     assert!(result.is_ok(), "non-cyclic nested product should serialize");

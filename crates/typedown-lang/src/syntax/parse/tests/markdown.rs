@@ -1183,8 +1183,8 @@ content
 "#,
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diags.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
         ..
@@ -5436,7 +5436,7 @@ fn parse_link_with_inline_code_text() {
 // Invalid token inside a list synchronizes to the next delimiter, no crash
 #[test]
 fn prop_list_invalid_element_synchronizes() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#":::card{data=[@bad]}
 :::
 "#,
@@ -5446,21 +5446,21 @@ fn prop_list_invalid_element_synchronizes() {
     "should still emit ListLit node: {tree}"
   );
   assert!(
-    diags.iter().any(|d| matches!(
-      d,
+    diagnostics.iter().any(|diagnostic| matches!(
+      diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
         ..
       }
     )),
-    "should report MissingContainerPropValueAfterEq, got: {diags:?}"
+    "should report MissingContainerPropValueAfterEq, got: {diagnostics:?}"
   );
 }
 
 // Error mid-list: synchronizes to next comma/bracket, parses what it can
 #[test]
 fn prop_list_error_mid_list_synchronizes() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#":::card{data=[1, @, 3]}
 :::
 "#,
@@ -5470,8 +5470,8 @@ fn prop_list_error_mid_list_synchronizes() {
     "should still emit ListLit node: {tree}"
   );
   assert!(
-    !diags.is_empty(),
-    "should report at least one diagnostic, got: {diags:?}"
+    !diagnostics.is_empty(),
+    "should report at least one diagnostic, got: {diagnostics:?}"
   );
 }
 

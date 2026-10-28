@@ -50,7 +50,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
   }
 
-  let field_types: Vec<_> = fields.iter().map(|field| &field.ty).collect();
+  let field_typs: Vec<_> = fields.iter().map(|field| &field.ty).collect();
   let field_names: Vec<_> = fields
     .iter()
     .map(|field| field.ident.as_ref().unwrap())
@@ -72,7 +72,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
             let start_index = factories.len() as u32;
             #(
               factories.push(|ingredient_id| {
-                Box::new(::typedown_incremental::InputIngredientStore::<#field_types>::new(
+                Box::new(::typedown_incremental::InputIngredientStore::<#field_typs>::new(
                   ingredient_id,
                   #struct_name_string,
                   #field_indices as u8,
@@ -271,7 +271,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[allow(clippy::too_many_arguments)]
-        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_types),*) -> Self {
+        pub fn new<DB: ::typedown_incremental::QueryDatabase + ?Sized>(db: &DB, #(#field_names: #field_typs),*) -> Self {
           let storage = unsafe { db.storage() };
           let id = Self::next_id();
           let start_index = Self::ingredient_start_index() as usize;
@@ -280,7 +280,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
           #(
             {
               let ingredient = (&*storage.inputs[start_index + #field_indices] as &dyn ::std::any::Any)
-                .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_types>>().expect("ingredient type mismatch");
+                .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_typs>>().expect("ingredient type mismatch");
               ingredient.data.insert(id, ::typedown_incremental::StampedInputField {
                 value: #field_names,
                 changed_at: current_revision,
@@ -323,7 +323,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
         fn decode(data: &mut &[u8], decoder: &::typedown_incremental::Decoder) -> Self {
           let index = decoder.read_u32(data);
           #(
-            let _ = <#field_types as ::typedown_incremental::Decodable>::field_decode(data, decoder);
+            let _ = <#field_typs as ::typedown_incremental::Decodable>::field_decode(data, decoder);
           )*
           let dep_id = decoder.get_or_deserialize_dep_node_id(index)
             .expect("DepNodeIndex not found in decoder dep_id_table");

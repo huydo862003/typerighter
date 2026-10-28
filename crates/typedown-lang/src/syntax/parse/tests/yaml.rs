@@ -1127,15 +1127,15 @@ fn seq_empty_dash_then_nested() {
 
 // Literal block string with insufficient indent emits InsufficientBlockIndent
 #[test]
-fn literal_block_str_insufficient_indent() {
-  let (_, diags) = parse_frontmatter_with_diagnostics(
+fn literal_block_string_insufficient_indent() {
+  let (_, diagnostics) = parse_frontmatter_with_diagnostics(
     r#"outer:
   desc: |
   line one
 "#,
   );
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::InsufficientBlockIndent { .. },
       ..
@@ -1146,14 +1146,14 @@ fn literal_block_str_insufficient_indent() {
 // Folded block string with insufficient indent emits InsufficientBlockIndent
 #[test]
 fn folded_block_str_insufficient_indent() {
-  let (_, diags) = parse_frontmatter_with_diagnostics(
+  let (_, diagnostics) = parse_frontmatter_with_diagnostics(
     r#"outer:
   desc: >
   line one
 "#,
   );
-  assert!(diags.iter().any(|d| matches!(
-    d,
+  assert!(diagnostics.iter().any(|diagnostic| matches!(
+    diagnostic,
     TdDiagnostic {
       kind: TdDiagnosticKind::InsufficientBlockIndent { .. },
       ..
