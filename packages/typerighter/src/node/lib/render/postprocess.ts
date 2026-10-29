@@ -9,7 +9,7 @@ import {
 } from '@/shared';
 
 let highlighterPromise:
-  | Promise<(code: string, language: string, attrs: string) => Promise<string>>
+  | Promise<(code: string, language: string, attrs: string, lineNumberStart?: number) => Promise<string>>
   | undefined;
 
 // Replace all placeholder elements with rendered output
@@ -135,9 +135,6 @@ function wrapCodeBlock (
 ): string {
   language ||= 'txt';
   const badge = languageAbbrev(language);
-  const displayLabel = options.title
-    ? escapeHtml(options.title)
-    : escapeHtml(language);
 
   const classes = [
     'td-code-block',
@@ -153,10 +150,10 @@ function wrapCodeBlock (
   // Header bar: [badge + label] left, [copy button] right
   result += '<figcaption class="td-code-header">';
   result += '<span class="td-code-left">';
+  result += `<span class="td-code-lang">${escapeHtml(badge)}</span>`;
   if (options.title) {
-    result += `<span class="td-code-lang">${escapeHtml(badge)}</span>`;
+    result += `<span class="td-code-label">${escapeHtml(options.title)}</span>`;
   }
-  result += `<span class="td-code-label">${displayLabel}</span>`;
   result += '</span>';
   result += '<span class="td-code-actions">';
   result +=
@@ -169,11 +166,7 @@ function wrapCodeBlock (
   result += '</figcaption>';
 
   // Code body - line number rows are already embedded by the Shiki transformer
-  if (options.lineNumbers !== undefined) {
-    result += `<div class="td-code-scroll">${highlighted}</div>`;
-  } else {
-    result += highlighted;
-  }
+  result += highlighted;
 
   result += '</figure>';
 

@@ -79,6 +79,7 @@
   padding: 1px 6px;
   border-radius: var(--radius-td-sm);
   border: 1px solid var(--color-td-line);
+  background-color: var(--color-td-code-bg);
 }
 
 /* File/language label */
@@ -207,8 +208,14 @@
 
 /* Row-based line number layout */
 
-.td-content .td-code-scroll {
-  overflow-x: auto;
+.td-content figure.td-code-block.line-numbers-mode pre {
+  padding: 0;
+}
+
+.td-content figure.td-code-block.line-numbers-mode code {
+  padding: 0;
+  width: auto;
+  min-width: auto;
 }
 
 .td-content .td-code-row {
@@ -216,7 +223,17 @@
   min-width: max-content;
   font-family: var(--font-mono);
   font-size: 13px;
-  line-height: var(--leading-td-loose);
+  line-height: 24px;
+}
+
+.td-content .td-code-row:first-child .td-code-num,
+.td-content .td-code-row:first-child .td-code-col {
+  padding-top: 12px;
+}
+
+.td-content .td-code-row:last-child .td-code-num,
+.td-content .td-code-row:last-child .td-code-col {
+  padding-bottom: 12px;
 }
 
 .td-content .td-code-row.highlighted {
@@ -226,7 +243,7 @@
 .td-content .td-code-num {
   position: sticky;
   left: 0;
-  flex: 0 0 44px;
+  flex: 0 0 52px;
   box-sizing: border-box;
   padding-right: 14px;
   text-align: right;

@@ -119,12 +119,12 @@
   --color-td-warning-bg: rgba(234, 179, 8, 0.12);
   --color-td-danger-bg: rgba(239, 68, 68, 0.12);
 
-  --color-td-code-bg: #0D1B2A;
-  --color-td-code-header-bg: #0A1520;
-  --color-td-code-num-bg: #091118;
+  --color-td-code-bg: #201D1A;
+  --color-td-code-header-bg: #282421;
+  --color-td-code-num-bg: #282421;
   --color-td-code-hl-bg: rgba(255, 255, 255, 0.06);
   --color-td-code-num-hl-bg: rgba(255, 255, 255, 0.09);
-  --color-td-code-fg: #DCE7F2;
+  --color-td-code-fg: #D4D0CE;
 }
 
 body {

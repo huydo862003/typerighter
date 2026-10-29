@@ -215,8 +215,10 @@ function transformerLineNumbers (startLine: number): ShikiTransformer {
     code (hast) {
       let lineIndex = 0;
 
-      hast.children = hast.children.map((node) => {
-        if (node.type !== 'element' || node.tagName !== 'span') return node;
+      hast.children = hast.children
+        .filter((node) => node.type === 'element')
+        .map((node) => {
+        if (node.tagName !== 'span') return node;
 
         const lineNum = startLine + lineIndex++;
         const classes = Array.isArray(node.properties.class) ? node.properties.class as string[] : [];
