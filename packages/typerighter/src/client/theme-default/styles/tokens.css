@@ -43,9 +43,9 @@
   --color-td-tooltip-bg: #000;
   --color-td-tooltip-fg: #fff;
 
-  /* Code block chrome (dark) */
-  --color-td-code-bg: #0A1F3A;
-  --color-td-code-fg: #DCE7F2;
+  /* Code block chrome */
+  --color-td-code-bg: #F3F0EA;
+  --color-td-code-fg: #3A362F;
 
   /* Type scale */
   --font-size-td-2xs: 11px;

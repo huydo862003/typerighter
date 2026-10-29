@@ -136,13 +136,21 @@
   color: var(--color-td-code-fg);
 }
 
-/* Shiki theme tokens */
+/* Shiki theme tokens: light mode uses light theme, dark mode uses dark theme */
 
 .td-content .shiki {
-  background-color: var(--shiki-dark-bg, var(--color-td-code-bg));
+  background-color: var(--shiki-light-bg, var(--color-td-code-bg));
 }
 
 .td-content .shiki span {
+  color: var(--shiki-light, inherit);
+}
+
+.dark .td-content .shiki {
+  background-color: var(--shiki-dark-bg, var(--color-td-code-bg));
+}
+
+.dark .td-content .shiki span {
   color: var(--shiki-dark, inherit);
 }
 
@@ -212,6 +220,10 @@
   margin: 0 -20px;
   padding: 0 20px;
   width: calc(100% + 40px);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.dark .td-content figure.td-code-block .line.highlighted {
   background-color: rgba(255, 255, 255, 0.06);
 }
 
