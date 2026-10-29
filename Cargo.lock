@@ -1449,7 +1449,7 @@ checksum = "ea68304e134ecd095ac6c3574494fc62b909f416c4fca77e440530221e549d3d"
 
 [[package]]
 name = "typedown-incremental"
-version = "0.48.1"
+version = "0.48.2"
 dependencies = [
  "dashmap",
  "fs2",
@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-lang"
-version = "0.48.1"
+version = "0.48.2"
 dependencies = [
  "ambassador",
  "bitflags 2.13.2",
@@ -1487,7 +1487,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-macros"
-version = "0.48.1"
+version = "0.48.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1496,7 +1496,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-server"
-version = "0.48.1"
+version = "0.48.2"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -1521,7 +1521,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-types"
-version = "0.48.1"
+version = "0.48.2"
 dependencies = [
  "html-escape",
  "num_enum",
@@ -1530,7 +1530,7 @@ dependencies = [
 
 [[package]]
 name = "typedown-zed"
-version = "0.48.1"
+version = "0.48.2"
 dependencies = [
  "zed_extension_api",
 ]

@@ -1,3 +1,10 @@
+## [0.48.2] - 2026-10-29
+
+### Fixed
+
+- crates/typedown-lang
+  - Bugs in parsing codeblock props with quotes
+
 ## [0.48.1] - 2026-10-29
 
 ### Fixed
