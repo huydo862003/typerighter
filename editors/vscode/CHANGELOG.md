@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.48.1] - 2026-10-29
+
+### Fixed
+
+- packages/typerighter
+  - Codeblock light mode color
+
 ## [0.48.0] - 2026-10-28
 
 ### Added
