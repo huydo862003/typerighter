@@ -95,13 +95,18 @@ function wrapCodeBlock (highlighted: string, language: string, options: CodeBloc
   // <figure> wrapper with <figcaption> header
   let result = `<figure class="${classes.join(' ')}">`;
 
-  // Header bar: language/title label left, copy button right
+  // Header bar: title/language left, language tag + copy button right
   result += '<figcaption class="td-code-header">';
   result += `<span class="td-code-label">${displayLabel}</span>`;
+  result += '<span class="td-code-actions">';
+  if (options.title) {
+    result += `<span class="td-code-lang">${escapeHtml(language.toUpperCase())}</span>`;
+  }
   result += '<button type="button" aria-label="Copy code" data-copied="Copied" class="td-code-copy">';
   result += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9"></path></svg>';
   result += '<span class="td-code-copy-text">Copy</span>';
   result += '</button>';
+  result += '</span>';
   result += '</figcaption>';
 
   // Code body

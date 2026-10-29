@@ -353,12 +353,8 @@ impl<'a> HtmlEmitter<'a> {
     let label = block.label().unwrap_or_default();
     let value = block.value().unwrap_or_default();
 
-    // Extract title from props for diagram captions
-    let title_prop = block
-      .props()
-      .iter()
-      .find(|(key, _)| key == "title")
-      .and_then(|(_, value)| value.clone());
+    // Extract title from props for diagram captions (strip quotes)
+    let title_prop = block.title();
 
     // Mermaid blocks use a separate placeholder for client-side rendering
     if lang == "mermaid" {

@@ -67,6 +67,28 @@
   user-select: none;
 }
 
+/* Actions wrapper (right side of header) */
+
+.td-content .td-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Language tag (shown next to copy button when title is set) */
+
+.td-content .td-code-lang {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-td-2xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-td-ink-4);
+  user-select: none;
+  padding: 2px 6px;
+  border-radius: var(--radius-td-sm);
+  background-color: var(--color-td-hov);
+}
+
 /* Copy button */
 
 .td-content .td-code-copy {

@@ -8,8 +8,6 @@ use typedown_macros::{AstNode, wrapper_ast_node};
 use typedown_types::either::Either;
 use typedown_types::unescape::{unescape, unescape_html_entity};
 
-use crate::integrations::export::utils::strip_quotes;
-
 use crate::syntax::red::RedNode;
 
 /// All AST nodes implement this trait
@@ -1187,21 +1185,7 @@ impl CodeBlock {
       return Vec::new();
     }
 
-    let mut props = Vec::new();
-    for part in inner.split_whitespace() {
-      // Skip numeric ranges like "1,3" or "5-8"
-      if part.chars().next().is_none_or(|char| char.is_ascii_digit()) {
-        continue;
-      }
-      if let Some(eq) = part.find('=') {
-        let key = &part[..eq];
-        let value = &part[eq + 1..];
-        props.push((key.to_string(), Some(value.to_string())));
-      } else {
-        props.push((part.to_string(), None));
-      }
-    }
-    props
+    parse_code_block_props(inner)
   }
 
   /// Get the title from {title="..."} or {title=...}
@@ -1221,7 +1205,7 @@ impl CodeBlock {
       .iter()
       .find(|(key, _)| key == name)
       .and_then(|(_, value)| value.clone())
-      .map(|value| strip_quotes(&value).to_string())
+      .map(|value| value.to_string())
   }
 
   pub fn value(&self) -> Option<String> {
@@ -1320,4 +1304,145 @@ fn extract_folded_block(node: &RedNode) -> String {
 
   result.push('\n');
   result
+}
+
+/// Parse code block props from the content inside `{...}`
+/// Supports: numeric ranges (skipped), `key=value`, `key="value with spaces"`, `key='value'`, flags
+fn parse_code_block_props(input: &str) -> Vec<(String, Option<String>)> {
+  let mut props = Vec::new();
+  let mut remaining = input.trim();
+
+  while !remaining.is_empty() {
+    // Skip leading whitespace
+    remaining = remaining.trim_start();
+    if remaining.is_empty() {
+      break;
+    }
+
+    // Skip numeric ranges (e.g. "1,3" or "5-8")
+    if remaining.starts_with(|character: char| character.is_ascii_digit()) {
+      match remaining.find(|character: char| character.is_whitespace()) {
+        Some(end) => remaining = &remaining[end..],
+        None => break,
+      }
+      continue;
+    }
+
+    // Parse key (letters, digits, hyphens, underscores)
+    let key_end = remaining
+      .find(|character: char| character == '=' || character.is_whitespace())
+      .unwrap_or(remaining.len());
+    let key = remaining[..key_end].to_string();
+    remaining = &remaining[key_end..];
+
+    if remaining.starts_with('=') {
+      remaining = &remaining[1..]; // skip =
+
+      if remaining.starts_with('"') || remaining.starts_with('\'') {
+        // Quoted value - find matching close quote
+        let quote = remaining.as_bytes()[0] as char;
+        remaining = &remaining[1..]; // skip opening quote
+        let close = remaining.find(quote).unwrap_or(remaining.len());
+        let value = remaining[..close].to_string();
+        remaining = if close < remaining.len() {
+          &remaining[close + 1..]
+        } else {
+          ""
+        };
+        props.push((key, Some(value)));
+      } else {
+        // Unquoted value - until whitespace
+        let end = remaining
+          .find(|character: char| character.is_whitespace())
+          .unwrap_or(remaining.len());
+        let value = remaining[..end].to_string();
+        remaining = &remaining[end..];
+        props.push((key, Some(value)));
+      }
+    } else {
+      // Flag prop (no value)
+      props.push((key, None));
+    }
+  }
+
+  props
+}
+
+#[cfg(test)]
+mod tests {
+  use super::parse_code_block_props;
+
+  #[test]
+  fn props_empty() {
+    assert!(parse_code_block_props("").is_empty());
+    assert!(parse_code_block_props("  ").is_empty());
+  }
+
+  #[test]
+  fn props_numeric_ranges_skipped() {
+    let props = parse_code_block_props("1,3,5-8");
+    assert!(props.is_empty(), "numeric ranges should be skipped");
+  }
+
+  #[test]
+  fn props_title_quoted() {
+    let props = parse_code_block_props(r#"title="foo.ts""#);
+    assert_eq!(props, vec![("title".into(), Some("foo.ts".into()))]);
+  }
+
+  #[test]
+  fn props_title_single_quoted() {
+    let props = parse_code_block_props("title='foo.ts'");
+    assert_eq!(props, vec![("title".into(), Some("foo.ts".into()))]);
+  }
+
+  #[test]
+  fn props_title_unquoted() {
+    let props = parse_code_block_props("title=foo.ts");
+    assert_eq!(props, vec![("title".into(), Some("foo.ts".into()))]);
+  }
+
+  #[test]
+  fn props_title_with_spaces() {
+    let props = parse_code_block_props(r#"title="System Architecture""#);
+    assert_eq!(
+      props,
+      vec![("title".into(), Some("System Architecture".into()))]
+    );
+  }
+
+  #[test]
+  fn props_flag() {
+    let props = parse_code_block_props("line-numbers");
+    assert_eq!(props, vec![("line-numbers".into(), None)]);
+  }
+
+  #[test]
+  fn props_mixed_ranges_title_flag() {
+    let props = parse_code_block_props(r#"1,3 title="vite.config.ts" line-numbers"#);
+    assert_eq!(
+      props,
+      vec![
+        ("title".into(), Some("vite.config.ts".into())),
+        ("line-numbers".into(), None),
+      ]
+    );
+  }
+
+  #[test]
+  fn props_line_numbers_with_value() {
+    let props = parse_code_block_props("line-numbers=5");
+    assert_eq!(props, vec![("line-numbers".into(), Some("5".into()))]);
+  }
+
+  #[test]
+  fn props_no_quotes_in_output() {
+    let props = parse_code_block_props(r#"title="hello world""#);
+    let (_, value) = &props[0];
+    let value = value.as_ref().unwrap();
+    assert!(
+      !value.contains('"'),
+      "value should not contain quotes: {value}"
+    );
+  }
 }
