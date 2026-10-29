@@ -1345,4 +1345,38 @@ properties:
       "seo_metadata should be None when not set"
     );
   }
+
+  #[test]
+  fn html_export_media_with_title() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "media_with_title.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("<figure>"),
+      "image with title should be wrapped in <figure>: {content}",
+    );
+    assert!(
+      content.contains(r#"title="The Typedown project logo""#),
+      "image should have title attribute: {content}",
+    );
+    assert!(
+      content.contains("<figcaption>The Typedown project logo</figcaption>"),
+      "image should have figcaption: {content}",
+    );
+  }
+
+  #[test]
+  fn html_export_link_with_title() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "link_with_title.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains(r#"title="Visit Example""#),
+      "link should have title attribute: {content}",
+    );
+    assert!(
+      content.contains("href=\"https://example.com"),
+      "link should have href: {content}",
+    );
+  }
 }

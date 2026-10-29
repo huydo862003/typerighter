@@ -35,7 +35,7 @@ const THEME = {
 };
 
 // Create a Shiki-based syntax highlighter with all features enabled
-export async function createHighlighter (): Promise<(string_: string, language: string, attrs: string) => Promise<string>> {
+export async function createHighlighter (): Promise<(string_: string, language: string, attrs: string, lineNumberStart?: number) => Promise<string>> {
   const highlighter = await _createHighlighter({
     themes: [
       THEME.light,
@@ -66,7 +66,7 @@ export async function createHighlighter (): Promise<(string_: string, language: 
 
   const loadedLanguages = new Set<string>(highlighter.getLoadedLanguages());
 
-  async function highlight (string_: string, language: string, attrs: string): Promise<string> {
+  async function highlight (string_: string, language: string, attrs: string, lineNumberStart?: number): Promise<string> {
     // Parse language and separate remaining attrs from the fence info
     // e.g. "js {1,3}" -> language="js", attrs="{1,3}"
     const extracted = extractLanguage(language);
@@ -112,7 +112,7 @@ export async function createHighlighter (): Promise<(string_: string, language: 
         ...transformers,
         {
           // Empty <span class="line"> elements collapse to zero height in the browser
-          // Inject a <wbr> to preserve blank line spacing
+          // When using line number rows, inject a zero-width space instead of <wbr> so the flex row still has height
           name: 'typedown:empty-line',
           code (hast) {
             hast.children.forEach((span) => {
@@ -123,16 +123,24 @@ export async function createHighlighter (): Promise<(string_: string, language: 
                 && span.properties.class.includes('line')
                 && span.children.length === 0
               ) {
-                span.children.push({
-                  type: 'element',
-                  tagName: 'wbr',
-                  properties: {},
-                  children: [],
-                });
+                span.children.push(
+                  lineNumberStart !== undefined
+                    ? {
+                      type: 'text',
+                      value: ' ',
+                    }
+                    : {
+                      type: 'element',
+                      tagName: 'wbr',
+                      properties: {},
+                      children: [],
+                    },
+                );
               }
             });
           },
         },
+        ...(lineNumberStart !== undefined ? [transformerLineNumbers(lineNumberStart)] : []),
       ],
       // Pass raw fence attributes (e.g. line highlight ranges `{1,3-5}`) to transformers
       meta: {
@@ -196,6 +204,58 @@ function transformerDisableShellSymbolSelect (): ShikiTransformer {
         tokens[0].htmlStyle['-webkit-user-select'] = 'none';
         tokens[1].content = tokens[1].content.slice(1);
       }
+    },
+  };
+}
+
+// Wrap each line span in a flex row with a line number cell and a code cell
+function transformerLineNumbers (startLine: number): ShikiTransformer {
+  return {
+    name: 'typedown:line-numbers',
+    code (hast) {
+      let lineIndex = 0;
+
+      hast.children = hast.children.map((node) => {
+        if (node.type !== 'element' || node.tagName !== 'span') return node;
+
+        const lineNum = startLine + lineIndex++;
+        const classes = Array.isArray(node.properties.class) ? node.properties.class as string[] : [];
+        const extraClasses = classes.filter((cls) => cls !== 'line');
+
+        return {
+          type: 'element',
+          tagName: 'div',
+          properties: {
+            class: [
+              'td-code-row',
+              ...extraClasses,
+            ],
+          },
+          children: [
+            {
+              type: 'element',
+              tagName: 'span',
+              properties: {
+                class: ['td-code-num'],
+              },
+              children: [
+                {
+                  type: 'text',
+                  value: String(lineNum),
+                },
+              ],
+            },
+            {
+              type: 'element',
+              tagName: 'span',
+              properties: {
+                class: ['td-code-col'],
+              },
+              children: node.children,
+            },
+          ],
+        };
+      });
     },
   };
 }

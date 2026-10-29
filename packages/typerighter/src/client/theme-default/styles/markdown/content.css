@@ -202,7 +202,6 @@
   margin-top: 8px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
-  font-style: italic;
 }
 
 .td-mermaid-placeholder,
@@ -272,7 +271,6 @@
   margin-top: 8px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
-  font-style: italic;
 }
 
 /* Tables */

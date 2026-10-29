@@ -45,26 +45,66 @@
   }
 }
 
-/* Header bar with language label + copy button */
+/* Header bar */
 
 .td-content .td-code-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
-  box-sizing: border-box;
-  padding: 0 8px 0 16px;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
   border-bottom: 1px solid var(--color-td-line);
-  background-color: var(--color-td-code-bg);
+  background-color: var(--color-td-code-header-bg);
 }
 
-.td-content .td-code-label {
+/* Left side of header: badge + label + line count */
+
+.td-content .td-code-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Language badge (short abbrev, e.g. TS, JS) */
+
+.td-content .td-code-lang {
+  flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--color-td-ink-4);
   user-select: none;
+  padding: 1px 6px;
+  border-radius: var(--radius-td-sm);
+  border: 1px solid var(--color-td-line);
+}
+
+/* File/language label */
+
+.td-content .td-code-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-td-ink-4);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.td-content figure.td-code-block.has-title .td-code-label {
+  color: var(--color-td-ink);
+}
+
+/* Line count ("16 lines") */
+
+.td-content .td-code-linecount {
+  font-size: 12px;
+  color: var(--color-td-ink-4);
+  user-select: none;
+  white-space: nowrap;
 }
 
 /* Actions wrapper (right side of header) */
@@ -72,21 +112,7 @@
 .td-content .td-code-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-/* Language tag (shown next to copy button when title is set) */
-
-.td-content .td-code-lang {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-td-2xs);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--color-td-ink-4);
-  user-select: none;
-  padding: 2px 6px;
-  border-radius: var(--radius-td-sm);
-  background-color: var(--color-td-hov);
+  flex-shrink: 0;
 }
 
 /* Copy button */
@@ -97,13 +123,13 @@
   gap: 6px;
   height: 32px;
   padding: 0 10px;
-  border: 0;
+  border: 1px solid var(--color-td-line);
   border-radius: var(--radius-td-md);
-  background: transparent;
+  background-color: var(--color-td-pg);
   font-family: var(--font-sans);
-  font-size: var(--font-size-td-2xs);
+  font-size: 13px;
   font-weight: 500;
-  color: var(--color-td-ink-4);
+  color: var(--color-td-ink-3);
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--duration-td-move) var(--ease-td-out-quart),
@@ -122,6 +148,7 @@
 .td-content .td-code-copy.copied {
   opacity: 1;
   color: var(--color-td-tip);
+  border-color: var(--color-td-tip);
 }
 
 .td-content .td-code-copy.copied .td-code-copy-text::after {
@@ -164,7 +191,8 @@
   background-color: var(--shiki-light-bg, var(--color-td-code-bg));
 }
 
-.td-content .shiki span {
+.td-content .shiki span,
+.td-content .td-code-col span {
   color: var(--shiki-light, inherit);
 }
 
@@ -172,28 +200,52 @@
   background-color: var(--shiki-dark-bg, var(--color-td-code-bg));
 }
 
-.dark .td-content .shiki span {
+.dark .td-content .shiki span,
+.dark .td-content .td-code-col span {
   color: var(--shiki-dark, inherit);
 }
 
-/* Line numbers */
+/* Row-based line number layout */
 
-.td-content figure.td-code-block.line-numbers-mode pre {
-  padding-left: 48px;
+.td-content .td-code-scroll {
+  overflow-x: auto;
 }
 
-.td-content figure.td-code-block .line-numbers-wrapper {
-  position: absolute;
-  top: 40px; /* below header */
-  left: 0;
-  padding: 14px 0;
-  width: 36px;
-  text-align: center;
-  font-size: var(--font-size-td-xs);
-  line-height: var(--leading-td-loose);
-  color: var(--color-td-ink-4);
+.td-content .td-code-row {
+  display: flex;
+  min-width: max-content;
   font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: var(--leading-td-loose);
+}
+
+.td-content .td-code-row.highlighted {
+  background-color: var(--color-td-code-hl-bg);
+}
+
+.td-content .td-code-num {
+  position: sticky;
+  left: 0;
+  flex: 0 0 44px;
+  box-sizing: border-box;
+  padding-right: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-td-ink-4);
+  background-color: var(--color-td-code-num-bg);
   border-right: 1px solid var(--color-td-line);
+  user-select: none;
+}
+
+.td-content .td-code-row.highlighted .td-code-num {
+  background-color: var(--color-td-code-num-hl-bg);
+  color: var(--color-td-ink-3);
+}
+
+.td-content .td-code-col {
+  white-space: pre;
+  padding: 0 24px 0 20px;
+  color: var(--color-td-code-fg);
 }
 
 /* Shiki diff/focus/highlight/error transformers */

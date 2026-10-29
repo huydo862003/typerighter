@@ -8,7 +8,9 @@ import {
   escapeHtml, unescapeHtml,
 } from '@/shared';
 
-let highlighterPromise: Promise<(code: string, language: string, attrs: string) => Promise<string>> | undefined;
+let highlighterPromise:
+  | Promise<(code: string, language: string, attrs: string) => Promise<string>>
+  | undefined;
 
 // Replace all placeholder elements with rendered output
 export async function postprocessHtml (html: string): Promise<string> {
@@ -29,7 +31,8 @@ function getHighlighter () {
 // Code block placeholder format from Rust:
 // <pre class="td-code-placeholder" data-lang="js" data-meta="js{1,3}" data-title="foo.ts" data-line-numbers="5"><code>escaped code</code></pre>
 // Safe: Rust HTML-escapes the code content, so </code> cannot appear inside the placeholder
-const CODE_PLACEHOLDER_RE = /<pre class="td-code-placeholder"([^>]*)><code>([\s\S]*?)<\/code><\/pre>/g;
+const CODE_PLACEHOLDER_RE =
+  /<pre class="td-code-placeholder"([^>]*)><code>([\s\S]*?)<\/code><\/pre>/g;
 
 interface CodeBlockOptions {
   title?: string;
@@ -58,7 +61,8 @@ async function highlightCodeBlocks (html: string): Promise<string> {
       const lineNumbers = getAttribute(attrs, 'data-line-numbers');
       const code = unescapeHtml(match[2]);
 
-      const highlighted = await highlight(code, language, meta);
+      const lineNumberStart = lineNumbers !== undefined ? (parseInt(lineNumbers) || 1) : undefined;
+      const highlighted = await highlight(code, language, meta, lineNumberStart);
 
       return wrapCodeBlock(highlighted, language, {
         title,
@@ -72,17 +76,68 @@ async function highlightCodeBlocks (html: string): Promise<string> {
   for (let index = matches.length - 1; 0 <= index; index--) {
     const match = matches[index];
 
-    result = result.slice(0, match.index) + replacements[index] + result.slice(match.index + match[0].length);
+    result =
+      result.slice(0, match.index)
+      + replacements[index]
+      + result.slice(match.index + match[0].length);
   }
 
   return result;
 }
 
-function wrapCodeBlock (highlighted: string, language: string, options: CodeBlockOptions): string {
+// Short display labels for common languages
+const LANG_ABBREV: Record<string, string> = {
+  typescript: 'TS',
+  javascript: 'JS',
+  tsx: 'TSX',
+  jsx: 'JSX',
+  python: 'PY',
+  rust: 'RS',
+  go: 'GO',
+  java: 'JAVA',
+  kotlin: 'KT',
+  swift: 'SWIFT',
+  ruby: 'RB',
+  php: 'PHP',
+  csharp: 'C#',
+  cpp: 'C++',
+  c: 'C',
+  bash: 'SH',
+  sh: 'SH',
+  shell: 'SH',
+  zsh: 'SH',
+  html: 'HTML',
+  css: 'CSS',
+  scss: 'SCSS',
+  sass: 'SASS',
+  json: 'JSON',
+  yaml: 'YML',
+  yml: 'YML',
+  toml: 'TOML',
+  xml: 'XML',
+  sql: 'SQL',
+  markdown: 'MD',
+  vue: 'VUE',
+  svelte: 'SV',
+  txt: 'TXT',
+};
+
+function languageAbbrev (language: string): string {
+  return (
+    LANG_ABBREV[language.toLowerCase()] ?? language.slice(0, 4).toUpperCase()
+  );
+}
+
+function wrapCodeBlock (
+  highlighted: string,
+  language: string,
+  options: CodeBlockOptions,
+): string {
   language ||= 'txt';
+  const badge = languageAbbrev(language);
   const displayLabel = options.title
     ? escapeHtml(options.title)
-    : escapeHtml(language.toUpperCase().replace(/_/g, ' '));
+    : escapeHtml(language);
 
   const classes = [
     'td-code-block',
@@ -95,33 +150,29 @@ function wrapCodeBlock (highlighted: string, language: string, options: CodeBloc
   // <figure> wrapper with <figcaption> header
   let result = `<figure class="${classes.join(' ')}">`;
 
-  // Header bar: title/language left, language tag + copy button right
+  // Header bar: [badge + label] left, [copy button] right
   result += '<figcaption class="td-code-header">';
-  result += `<span class="td-code-label">${displayLabel}</span>`;
-  result += '<span class="td-code-actions">';
+  result += '<span class="td-code-left">';
   if (options.title) {
-    result += `<span class="td-code-lang">${escapeHtml(language.toUpperCase())}</span>`;
+    result += `<span class="td-code-lang">${escapeHtml(badge)}</span>`;
   }
-  result += '<button type="button" aria-label="Copy code" data-copied="Copied" class="td-code-copy">';
-  result += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9"></path></svg>';
+  result += `<span class="td-code-label">${displayLabel}</span>`;
+  result += '</span>';
+  result += '<span class="td-code-actions">';
+  result +=
+    '<button type="button" aria-label="Copy code" data-copied="Copied" class="td-code-copy">';
+  result +=
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
   result += '<span class="td-code-copy-text">Copy</span>';
   result += '</button>';
   result += '</span>';
   result += '</figcaption>';
 
-  // Code body
-  result += highlighted;
-
+  // Code body - line number rows are already embedded by the Shiki transformer
   if (options.lineNumbers !== undefined) {
-    const startLineNumber = parseInt(options.lineNumbers) || 1;
-    const codeSection = result.slice(result.indexOf('<code>'), result.indexOf('</code>'));
-    const lineCount = codeSection.split('\n').length;
-
-    const lineNumbersHtml = [...Array(lineCount)]
-      .map((_, index) => `<span class="line-number">${index + startLineNumber}</span><br>`)
-      .join('');
-
-    result += `<div class="line-numbers-wrapper" aria-hidden="true">${lineNumbersHtml}</div>`;
+    result += `<div class="td-code-scroll">${highlighted}</div>`;
+  } else {
+    result += highlighted;
   }
 
   result += '</figure>';

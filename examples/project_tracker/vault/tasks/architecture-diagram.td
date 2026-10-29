@@ -49,6 +49,38 @@ graph LR
 redis-cli SET "session:abc123" '{"userId":"u1","refresh":"tok"}' EX 2592000
 ```
 
+## Auth Middleware
+
+```typescript{title="auth.ts" line-numbers}
+import { NextFunction, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+
+export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET!);
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+```
+
+## Error Codes
+
+```typescript{line-numbers=10}
+export const ERROR_CODES = {
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  INTERNAL: 500,
+};
+```
+
 ## Logo
 
 ![Typedown logo](/typedown.svg "The Typedown project logo")

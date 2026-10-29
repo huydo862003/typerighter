@@ -45,6 +45,10 @@
 
   /* Code block chrome */
   --color-td-code-bg: #F3F0EA;
+  --color-td-code-header-bg: #EDE9E1;
+  --color-td-code-num-bg: #E8E3DB;
+  --color-td-code-hl-bg: #E8E2D5;
+  --color-td-code-num-hl-bg: #E0D9CC;
   --color-td-code-fg: #3A362F;
 
   /* Type scale */
@@ -116,6 +120,10 @@
   --color-td-danger-bg: rgba(239, 68, 68, 0.12);
 
   --color-td-code-bg: #0D1B2A;
+  --color-td-code-header-bg: #0A1520;
+  --color-td-code-num-bg: #091118;
+  --color-td-code-hl-bg: rgba(255, 255, 255, 0.06);
+  --color-td-code-num-hl-bg: rgba(255, 255, 255, 0.09);
   --color-td-code-fg: #DCE7F2;
 }
 

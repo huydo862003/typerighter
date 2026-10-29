@@ -36,10 +36,11 @@ export function useD2 (): void {
         const compiled = await d2.compile(code.textContent ?? '', {
           layout: 'dagre',
         });
-        const svg = await d2.render(compiled.diagram, {
+        const rendered = await d2.render(compiled.diagram, {
           ...compiled.renderOptions,
           themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
         });
+        const svgString = typeof rendered === 'string' ? rendered : (rendered?.svg ?? '');
 
         const figure = document.createElement('figure');
 
@@ -48,7 +49,7 @@ export function useD2 (): void {
 
         const svgWrapper = document.createElement('div');
 
-        svgWrapper.innerHTML = svg;
+        svgWrapper.innerHTML = svgString;
         figure.appendChild(svgWrapper);
 
         if (title) {

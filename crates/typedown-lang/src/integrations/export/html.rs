@@ -128,6 +128,7 @@ impl<'a> HtmlEmitter<'a> {
       SyntaxKind::MdContainerShorthand => self.emit_container_shorthand(node),
       SyntaxKind::CodeBlock => self.emit_code_block(node),
       SyntaxKind::MathBlock => self.emit_math_block(node),
+      SyntaxKind::MdMedia => self.emit_media(node),
       _ => {}
     }
   }
