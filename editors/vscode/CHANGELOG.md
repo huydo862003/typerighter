@@ -1,6 +1,25 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.49.0] - 2026-10-30
+
+### Added
+
+- packages/typerighter
+  - GitHub embed: `![](https://github.com/owner/repo/blob/ref/path#L1-L10)` and gist URLs in media blocks render as embedded code snippets via emgithub
+  - Code block line numbers: row-based layout via Shiki transformer with sticky number column
+  - Lazy loading for D2, Mermaid, and GitHub embeds via `IntersectionObserver` (only loads when scrolled into view)
+  - CDN module preloading (`<link rel="modulepreload">`) for D2 and Mermaid when placeholders exist on the page
+
+### Fixed
+
+- crates/typedown-lang
+  - Block-level images (`![alt](url "title")` on its own line) were not exported - added `MdMedia` to `emit_block`
+- packages/typerighter
+  - D2 CDN version pinned to 0.1.32 to avoid breaking API change in 0.1.33
+  - Dark mode code blocks now use warm neutral background instead of cold blue
+  - Code block header styling updated to match design reference (language badge, compact header, border)
+
 ## [0.48.2] - 2026-10-29
 
 ### Fixed
