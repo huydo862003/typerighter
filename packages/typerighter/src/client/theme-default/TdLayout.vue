@@ -57,6 +57,9 @@ import {
   useD2,
 } from './composables/useD2';
 import {
+  useGithubEmbed,
+} from './composables/useGithubEmbed';
+import {
   useMenu,
 } from './composables/useMenu';
 import {
@@ -102,6 +105,7 @@ useCopyCode();
 useCopyHeadingAnchor();
 useMermaid();
 useD2();
+useGithubEmbed();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');

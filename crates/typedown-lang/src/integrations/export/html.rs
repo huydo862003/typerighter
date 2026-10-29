@@ -12,7 +12,7 @@ use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
 use crate::integrations::export::utils::is_string_quoted;
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
-  MdBoldItalic, MdHeading, MdInlineElement, MdItalic, MdLink, MdStrikethrough, MdTable,
+  MdBoldItalic, MdHeading, MdInlineElement, MdItalic, MdLink, MdMedia, MdStrikethrough, MdTable,
   MdTableCell,
 };
 use crate::syntax::red::RedNode;
@@ -671,14 +671,41 @@ impl<'a> HtmlEmitter<'a> {
     self.write("</a>");
   }
 
+  fn is_github_embed_url(url: &str) -> bool {
+    let url = url.trim();
+    // GitHub file permalink: github.com/owner/repo/blob/ref/path
+    if url.contains("github.com/") && url.contains("/blob/") {
+      return true;
+    }
+    // GitHub Gist: gist.github.com/owner/id
+    if url.contains("gist.github.com/") {
+      return true;
+    }
+    false
+  }
+
   fn emit_media(&mut self, node: &RedNode) {
-    let Some(media) = crate::syntax::ast::MdMedia::cast(node.clone()) else {
+    let Some(media) = MdMedia::cast(node.clone()) else {
       return;
     };
     let alt = media.alt().map(|text| text.value()).unwrap_or_default();
     let raw_url = media.url().map(|text| text.value()).unwrap_or_default();
     let url = self.resolve_url(&raw_url);
     let title = media.title().map(|text| text.value());
+
+    // GitHub file/gist URLs render as embedded code snippets
+    if Self::is_github_embed_url(&url) {
+      self.write("<div class=\"td-github-placeholder\"");
+      self.write(&format!(" data-url=\"{}\"", html_escape(url.trim())));
+      if !alt.is_empty() {
+        self.write(&format!(" data-label=\"{}\"", html_escape(&alt)));
+      }
+      if let Some(ref caption) = title {
+        self.write(&format!(" data-title=\"{}\"", html_escape(caption)));
+      }
+      self.write("></div>\n");
+      return;
+    }
 
     if let Some(ref caption) = title {
       self.write("<figure>");

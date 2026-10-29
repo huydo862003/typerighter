@@ -1379,4 +1379,38 @@ properties:
       "link should have href: {content}",
     );
   }
+
+  #[test]
+  fn html_export_github_file_embed() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "github_embed.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("class=\"td-github-placeholder\""),
+      "github file URL should emit placeholder: {content}",
+    );
+    assert!(
+      content.contains("data-url=\"https://github.com/vuejs/vite/blob/main/packages/vite/src/node/server/index.ts#L150-L165"),
+      "placeholder should have data-url: {content}",
+    );
+    assert!(
+      content.contains("data-label=\"server init\""),
+      "placeholder should have data-label from alt text: {content}",
+    );
+    assert!(
+      content.contains("data-title=\"Vite dev server\""),
+      "placeholder should have data-title: {content}",
+    );
+  }
+
+  #[test]
+  fn html_export_github_gist_embed() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "github_embed.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("data-url=\"https://gist.github.com/octocat/6cad326836d38bd3a7ae\""),
+      "gist URL should emit placeholder with data-url: {content}",
+    );
+  }
 }

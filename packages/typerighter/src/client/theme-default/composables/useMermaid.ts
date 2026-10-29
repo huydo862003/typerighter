@@ -7,68 +7,94 @@ const CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mj
 let mermaidModule: any;
 let idCounter = 0;
 
-// Lazy-load mermaid from CDN and render diagram placeholders
+// Lazy-load mermaid from CDN and render diagram placeholders when they scroll into view
 export function useMermaid (): void {
-  let observer: MutationObserver | undefined;
+  let mutationObserver: MutationObserver | undefined;
+  let intersectionObserver: IntersectionObserver | undefined;
+  const observed = new WeakSet<Element>();
 
-  async function renderMermaidBlocks () {
+  function observePlaceholders () {
     const container = document.getElementById('td-content');
 
-    if (!container) return;
+    if (!container || !intersectionObserver) return;
 
     const placeholders = container.querySelectorAll<HTMLPreElement>('.td-mermaid-placeholder');
 
-    if (placeholders.length === 0) return;
+    for (const placeholder of placeholders) {
+      if (!observed.has(placeholder)) {
+        observed.add(placeholder);
+        intersectionObserver.observe(placeholder);
+      }
+    }
+  }
+
+  async function renderPlaceholder (placeholder: HTMLPreElement) {
+    const code = placeholder.querySelector('code');
+
+    if (!code) return;
 
     const module_ = await loadMermaid();
 
     if (module_ === undefined) return;
 
-    for (const placeholder of placeholders) {
-      const code = placeholder.querySelector('code');
+    const id = `td-mermaid-${idCounter++}`;
+    const title = placeholder.getAttribute('data-title');
 
-      if (!code) continue;
+    try {
+      const {
+        svg,
+      } = await module_.default.render(id, code.textContent ?? '');
 
-      const id = `td-mermaid-${idCounter++}`;
-      const title = placeholder.getAttribute('data-title');
+      const figure = document.createElement('figure');
 
-      try {
-        const {
-          svg,
-        } = await module_.default.render(id, code.textContent ?? '');
+      figure.className = 'td-mermaid';
 
-        const figure = document.createElement('figure');
+      const svgWrapper = document.createElement('div');
 
-        figure.className = 'td-mermaid';
+      svgWrapper.innerHTML = svg;
+      figure.appendChild(svgWrapper);
 
-        const svgWrapper = document.createElement('div');
+      if (title) {
+        const caption = document.createElement('figcaption');
 
-        svgWrapper.innerHTML = svg;
-        figure.appendChild(svgWrapper);
-
-        if (title) {
-          const caption = document.createElement('figcaption');
-
-          caption.textContent = title;
-          figure.appendChild(caption);
-        }
-
-        placeholder.replaceWith(figure);
-      } catch {
-        placeholder.classList.add('td-mermaid-error');
+        caption.textContent = title;
+        figure.appendChild(caption);
       }
+
+      placeholder.replaceWith(figure);
+    } catch {
+      placeholder.classList.add('td-mermaid-error');
     }
   }
 
   onMounted(() => {
-    renderMermaidBlocks();
+    intersectionObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          intersectionObserver?.unobserve(entry.target);
+          renderPlaceholder(entry.target as HTMLPreElement);
+        }
+      }
+    }, {
+      rootMargin: '200px',
+    });
 
-    // Re-render when content changes (HMR, navigation)
+    observePlaceholders();
+
+    // Preload mermaid module if any placeholders exist
+    if (document.querySelector('.td-mermaid-placeholder')) {
+      const link = document.createElement('link');
+
+      link.rel = 'modulepreload';
+      link.href = CDN_URL;
+      document.head.appendChild(link);
+    }
+
     const container = document.getElementById('td-content');
 
     if (container) {
-      observer = new MutationObserver(renderMermaidBlocks);
-      observer.observe(container, {
+      mutationObserver = new MutationObserver(observePlaceholders);
+      mutationObserver.observe(container, {
         childList: true,
         subtree: true,
       });
@@ -76,7 +102,8 @@ export function useMermaid (): void {
   });
 
   onUnmounted(() => {
-    observer?.disconnect();
+    mutationObserver?.disconnect();
+    intersectionObserver?.disconnect();
   });
 }
 

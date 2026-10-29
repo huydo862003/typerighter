@@ -52,7 +52,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 10px 10px 16px;
+  padding: 6px 10px 6px 16px;
   border-bottom: 1px solid var(--color-td-line);
   background-color: var(--color-td-code-header-bg);
 }
@@ -198,7 +198,7 @@
 }
 
 .dark .td-content .shiki {
-  background-color: var(--shiki-dark-bg, var(--color-td-code-bg));
+  background-color: var(--color-td-code-bg);
 }
 
 .dark .td-content .shiki span,

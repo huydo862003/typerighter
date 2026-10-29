@@ -218,46 +218,46 @@ function transformerLineNumbers (startLine: number): ShikiTransformer {
       hast.children = hast.children
         .filter((node) => node.type === 'element')
         .map((node) => {
-        if (node.tagName !== 'span') return node;
+          if (node.tagName !== 'span') return node;
 
-        const lineNum = startLine + lineIndex++;
-        const classes = Array.isArray(node.properties.class) ? node.properties.class as string[] : [];
-        const extraClasses = classes.filter((cls) => cls !== 'line');
+          const lineNum = startLine + lineIndex++;
+          const classes = Array.isArray(node.properties.class) ? node.properties.class as string[] : [];
+          const extraClasses = classes.filter((cls) => cls !== 'line');
 
-        return {
-          type: 'element',
-          tagName: 'div',
-          properties: {
-            class: [
-              'td-code-row',
-              ...extraClasses,
-            ],
-          },
-          children: [
-            {
-              type: 'element',
-              tagName: 'span',
-              properties: {
-                class: ['td-code-num'],
-              },
-              children: [
-                {
-                  type: 'text',
-                  value: String(lineNum),
-                },
+          return {
+            type: 'element',
+            tagName: 'div',
+            properties: {
+              class: [
+                'td-code-row',
+                ...extraClasses,
               ],
             },
-            {
-              type: 'element',
-              tagName: 'span',
-              properties: {
-                class: ['td-code-col'],
+            children: [
+              {
+                type: 'element',
+                tagName: 'span',
+                properties: {
+                  class: ['td-code-num'],
+                },
+                children: [
+                  {
+                    type: 'text',
+                    value: String(lineNum),
+                  },
+                ],
               },
-              children: node.children,
-            },
-          ],
-        };
-      });
+              {
+                type: 'element',
+                tagName: 'span',
+                properties: {
+                  class: ['td-code-col'],
+                },
+                children: node.children,
+              },
+            ],
+          };
+        });
     },
   };
 }

@@ -81,6 +81,10 @@ export const ERROR_CODES = {
 };
 ```
 
+## Reference Implementation
+
+![server bootstrap](https://github.com/vuejs/vite/blob/main/packages/vite/src/node/server/index.ts#L150-L165)
+
 ## Logo
 
 ![Typedown logo](/typedown.svg "The Typedown project logo")

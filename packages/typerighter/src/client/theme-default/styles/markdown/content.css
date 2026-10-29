@@ -219,6 +219,30 @@
   border: 1px solid var(--color-td-danger);
 }
 
+/* GitHub embed (rendered by emgithub) */
+
+.td-github-placeholder {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--color-td-surf);
+  border-radius: var(--radius-td-md);
+  color: var(--color-td-ink-3);
+  font-size: var(--font-size-td-sm);
+}
+
+.td-github-error {
+  border: 1px solid var(--color-td-danger);
+}
+
+.td-content .td-github-wrapper {
+  margin: 16px 0;
+}
+
+.td-content .td-github-wrapper iframe {
+  display: block;
+  border: none;
+}
+
 /* Blockquotes */
 
 .td-content blockquote {

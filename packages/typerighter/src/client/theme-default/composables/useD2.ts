@@ -7,73 +7,99 @@ const CDN_URL = 'https://esm.sh/@terrastruct/d2@0.1.32';
 let d2Instance: any;
 let idCounter = 0;
 
-// Lazy-load D2 from CDN and render diagram placeholders
+// Lazy-load D2 from CDN and render diagram placeholders when they scroll into view
 export function useD2 (): void {
-  let observer: MutationObserver | undefined;
+  let mutationObserver: MutationObserver | undefined;
+  let intersectionObserver: IntersectionObserver | undefined;
+  const observed = new WeakSet<Element>();
 
-  async function renderD2Blocks () {
+  function observePlaceholders () {
     const container = document.getElementById('td-content');
 
-    if (!container) return;
+    if (!container || !intersectionObserver) return;
 
     const placeholders = container.querySelectorAll<HTMLPreElement>('.td-d2-placeholder');
 
-    if (placeholders.length === 0) return;
+    for (const placeholder of placeholders) {
+      if (!observed.has(placeholder)) {
+        observed.add(placeholder);
+        intersectionObserver.observe(placeholder);
+      }
+    }
+  }
+
+  async function renderPlaceholder (placeholder: HTMLPreElement) {
+    const code = placeholder.querySelector('code');
+
+    if (!code) return;
 
     const d2 = await loadD2();
 
     if (!d2) return;
 
-    for (const placeholder of placeholders) {
-      const code = placeholder.querySelector('code');
+    const id = `td-d2-${idCounter++}`;
+    const title = placeholder.getAttribute('data-title');
 
-      if (!code) continue;
+    try {
+      const compiled = await d2.compile(code.textContent ?? '', {
+        layout: 'dagre',
+      });
+      const svg = await d2.render(compiled.diagram, {
+        ...compiled.renderOptions,
+        themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
+      });
 
-      const id = `td-d2-${idCounter++}`;
-      const title = placeholder.getAttribute('data-title');
+      const figure = document.createElement('figure');
 
-      try {
-        const compiled = await d2.compile(code.textContent ?? '', {
-          layout: 'dagre',
-        });
-        const svg = await d2.render(compiled.diagram, {
-          ...compiled.renderOptions,
-          themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
-        });
+      figure.className = 'td-d2';
+      figure.id = id;
 
-        const figure = document.createElement('figure');
+      const svgWrapper = document.createElement('div');
 
-        figure.className = 'td-d2';
-        figure.id = id;
+      svgWrapper.innerHTML = svg;
+      figure.appendChild(svgWrapper);
 
-        const svgWrapper = document.createElement('div');
+      if (title) {
+        const caption = document.createElement('figcaption');
 
-        svgWrapper.innerHTML = svg;
-        figure.appendChild(svgWrapper);
-
-        if (title) {
-          const caption = document.createElement('figcaption');
-
-          caption.textContent = title;
-          figure.appendChild(caption);
-        }
-
-        placeholder.replaceWith(figure);
-      } catch {
-        placeholder.classList.add('td-d2-error');
+        caption.textContent = title;
+        figure.appendChild(caption);
       }
+
+      placeholder.replaceWith(figure);
+    } catch {
+      placeholder.classList.add('td-d2-error');
     }
   }
 
   onMounted(() => {
-    renderD2Blocks();
+    intersectionObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          intersectionObserver?.unobserve(entry.target);
+          renderPlaceholder(entry.target as HTMLPreElement);
+        }
+      }
+    }, {
+      rootMargin: '200px',
+    });
 
-    // Re-render when content changes (HMR, navigation)
+    observePlaceholders();
+
+    // Preload the D2 WASM module if any placeholders exist
+    if (document.querySelector('.td-d2-placeholder')) {
+      const link = document.createElement('link');
+
+      link.rel = 'modulepreload';
+      link.href = CDN_URL;
+      document.head.appendChild(link);
+    }
+
     const container = document.getElementById('td-content');
 
     if (container) {
-      observer = new MutationObserver(renderD2Blocks);
-      observer.observe(container, {
+      mutationObserver = new MutationObserver(observePlaceholders);
+      mutationObserver.observe(container, {
         childList: true,
         subtree: true,
       });
@@ -81,7 +107,8 @@ export function useD2 (): void {
   });
 
   onUnmounted(() => {
-    observer?.disconnect();
+    mutationObserver?.disconnect();
+    intersectionObserver?.disconnect();
   });
 }
 
