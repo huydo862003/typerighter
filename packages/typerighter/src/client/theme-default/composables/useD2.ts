@@ -2,7 +2,7 @@ import {
   onMounted, onUnmounted,
 } from 'vue';
 
-const CDN_URL = 'https://esm.sh/@terrastruct/d2';
+const CDN_URL = 'https://esm.sh/@terrastruct/d2@0.1.32';
 
 let d2Instance: any;
 let idCounter = 0;
@@ -36,11 +36,10 @@ export function useD2 (): void {
         const compiled = await d2.compile(code.textContent ?? '', {
           layout: 'dagre',
         });
-        const result = await d2.render(compiled.diagram, {
+        const svg = await d2.render(compiled.diagram, {
           ...compiled.renderOptions,
           themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
         });
-        const svg = typeof result === 'string' ? result : (result?.svg ?? String(result));
 
         const figure = document.createElement('figure');
 
