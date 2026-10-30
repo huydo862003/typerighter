@@ -69,6 +69,39 @@ def check_rate_limit(ip: str) -> bool:
 ```
 :::
 
+## RFC Reference
+
+> The JWT spec (RFC 7519) requires the `exp` claim to be a NumericDate:
+>
+> ```
+> NumericDate: a JSON numeric value representing the number
+> of seconds from 1970-01-01T00:00:00Z UTC
+> ```
+>
+> Validate on every request, do not cache decoded claims across requests.
+
+## Endpoints
+
+- `POST /auth/login` accepts email and password, issues a short-lived access token
+  and a long-lived refresh token. The access token expires in 15 minutes.
+
+  ```json
+  { "access_token": "...", "refresh_token": "...", "expires_in": 900 }
+  ```
+
+- `POST /auth/refresh` verifies the refresh token, revokes the old one, and issues
+  a new pair. This implements refresh token rotation to limit replay attacks.
+
+  ```json
+  { "access_token": "...", "refresh_token": "..." }
+  ```
+
+- `POST /auth/logout` deletes the session entry from Redis immediately.
+
+  ```bash
+  redis-cli DEL "session:abc123"
+  ```
+
 ## Blockers
 
 ::: danger Blocked
