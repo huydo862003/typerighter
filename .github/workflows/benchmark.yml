@@ -115,32 +115,33 @@ jobs:
             }
 
             const marker = '<!-- benchmark-comment -->';
-            const body = `${marker}
-## Build Benchmark
-
-**DX - Lib Build**
-
-| Metric | main | this PR |
-|--------|------|---------|
-| Lib build time | ${m.lib_build_s}s | ${c.lib_build_s}s${delta(c.lib_build_s, m.lib_build_s)} |
-| LSP binary size | ${m.binary_kb} KB | ${c.binary_kb} KB${delta(c.binary_kb, m.binary_kb)} |
-
-**Performance - Homepage Build**
-
-| Metric | main | this PR |
-|--------|------|---------|
-| SSG build time (median of 3) | ${m.ssg_build_s}s | ${c.ssg_build_s}s${delta(c.ssg_build_s, m.ssg_build_s)} |
-| Pages | ${m.pages} | ${c.pages} |
-
-**Output - Homepage Size**
-
-| Metric | main | this PR |
-|--------|------|---------|
-| Total output | ${m.total_size_kb} KB | ${c.total_size_kb} KB${delta(c.total_size_kb, m.total_size_kb)} |
-| JS bundle | ${m.js_kb} KB (${m.js_gz_kb} gz) | ${c.js_kb} KB (${c.js_gz_kb} gz)${delta(c.js_kb, m.js_kb)} |
-| CSS | ${m.css_kb} KB | ${c.css_kb} KB${delta(c.css_kb, m.css_kb)} |
-| HTML | ${m.html_kb} KB | ${c.html_kb} KB${delta(c.html_kb, m.html_kb)} |
-`;
+            const body = [
+              marker,
+              '## Build Benchmark',
+              '',
+              '**DX - Lib Build**',
+              '',
+              '| Metric | main | this PR |',
+              '|--------|------|---------|',
+              `| Lib build time | ${m.lib_build_s}s | ${c.lib_build_s}s${delta(c.lib_build_s, m.lib_build_s)} |`,
+              `| LSP binary size | ${m.binary_kb} KB | ${c.binary_kb} KB${delta(c.binary_kb, m.binary_kb)} |`,
+              '',
+              '**Performance - Homepage Build**',
+              '',
+              '| Metric | main | this PR |',
+              '|--------|------|---------|',
+              `| SSG build time (median of 3) | ${m.ssg_build_s}s | ${c.ssg_build_s}s${delta(c.ssg_build_s, m.ssg_build_s)} |`,
+              `| Pages | ${m.pages} | ${c.pages} |`,
+              '',
+              '**Output - Homepage Size**',
+              '',
+              '| Metric | main | this PR |',
+              '|--------|------|---------|',
+              `| Total output | ${m.total_size_kb} KB | ${c.total_size_kb} KB${delta(c.total_size_kb, m.total_size_kb)} |`,
+              `| JS bundle | ${m.js_kb} KB (${m.js_gz_kb} gz) | ${c.js_kb} KB (${c.js_gz_kb} gz)${delta(c.js_kb, m.js_kb)} |`,
+              `| CSS | ${m.css_kb} KB | ${c.css_kb} KB${delta(c.css_kb, m.css_kb)} |`,
+              `| HTML | ${m.html_kb} KB | ${c.html_kb} KB${delta(c.html_kb, m.html_kb)} |`,
+            ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,

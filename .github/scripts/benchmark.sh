@@ -12,15 +12,13 @@ lib_build_ms=$(( (end - start) / 1000000 ))
 lib_build_s=$(echo "scale=2; $lib_build_ms / 1000" | bc)
 
 # Binary size
-binary=$(find target/release -maxdepth 1 -name 'typedown-server' -type f | head -1)
+binary=$(find target/release -maxdepth 1 -name 'typedown-lsp' -type f | head -1)
 binary_size=$(stat --printf="%s" "$binary" 2>/dev/null || stat -f "%z" "$binary")
 binary_kb=$(echo "scale=1; $binary_size / 1024" | bc)
 
 # Typerighter package build
 
-cd packages/typerighter
-pnpm build 2>/dev/null
-cd ../..
+pnpm -r --filter typerighter... run build 2>/dev/null
 
 # Homepage SSG build (median of 3)
 
