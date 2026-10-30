@@ -45,9 +45,8 @@ function M.setup()
 	set_hl(0, "TypedownRenderCheckboxForwarded", { fg = "#fab387", default = true })
 	set_hl(0, "TypedownRenderCheckboxImportant", { fg = "#f38ba8", bold = true, default = true })
 
-	-- Links
-	set_hl(0, "TypedownRenderFrefIcon", { fg = "#89b4fa", default = true })
-	set_hl(0, "TypedownRenderFrefText", { fg = "#cba6f7", underline = true, default = true })
+	-- Links (fref, markdown links, media embeds)
+	set_hl(0, "TypedownRenderLink", { fg = "#89b4fa", underline = true, default = true })
 
 	-- Bullets
 	set_hl(0, "TypedownRenderBullet", { fg = "#89b4fa", default = true })

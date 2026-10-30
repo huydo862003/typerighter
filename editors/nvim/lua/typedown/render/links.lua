@@ -1,16 +1,18 @@
--- Link renderer: conceal fref("path") and ${fref("path")} with icon + name
+-- Link renderer: underline fref(), markdown links, and media embeds
 local state = require("typedown.render.state")
 
 local M = {}
 M.name = "links"
 
-local LINK_ICON = " "
+local HL = "TypedownRenderLink"
 
--- Extract display name from a fref path: "/people/alice.td" -> "alice"
-local function display_name(path)
-	local name = path:match("([^/]+)%.td$") or path:match("([^/]+)$") or path
-	-- Convert kebab-case/snake_case to title
-	return name:gsub("[-_]", " ")
+-- Apply underline highlight to col range on row
+local function underline(buf, ns, row, col, end_col)
+	vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+		end_col = end_col,
+		hl_group = HL,
+		priority = 110,
+	})
 end
 
 function M.render(buf)
@@ -21,71 +23,35 @@ function M.render(buf)
 	for i, line in ipairs(lines) do
 		local row = i - 1
 		if not state.is_hidden(buf, row) then
-			-- Match ${fref("...")} in markdown body
-			M.render_interpolated_frefs(buf, ns, row, line)
-			-- Match fref("...") in frontmatter YAML values
-			M.render_yaml_frefs(buf, ns, row, line)
+			M.render_frefs(buf, ns, row, line)
+			M.render_md_links(buf, ns, row, line)
 		end
 	end
 end
 
--- Render ${fref("path")} patterns (markdown body interpolations)
-function M.render_interpolated_frefs(buf, ns, row, line)
+-- Underline fref("...") and ${fref("...")} patterns
+function M.render_frefs(buf, ns, row, line)
 	local search_start = 1
 	while true do
-		local m_start, m_end, path = line:find('%${fref%("([^"]+)"%)}', search_start)
+		local m_start, m_end = line:find('fref%("([^"]+)"%)', search_start)
 		if not m_start then
 			break
 		end
-
-		local name = display_name(path)
-		local col = m_start - 1 -- 0-indexed
-		local end_col = m_end -- 0-indexed exclusive
-
-		vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-			end_col = end_col,
-			virt_text = {
-				{ LINK_ICON, "TypedownRenderFrefIcon" },
-				{ name, "TypedownRenderFrefText" },
-			},
-			virt_text_pos = "overlay",
-			priority = 110,
-		})
-
+		underline(buf, ns, row, m_start - 1, m_end)
 		search_start = m_end + 1
 	end
 end
 
--- Render fref("path") patterns (YAML frontmatter values)
-function M.render_yaml_frefs(buf, ns, row, line)
+-- Underline [text](url) and ![alt](url) — the entire pattern
+function M.render_md_links(buf, ns, row, line)
 	local search_start = 1
 	while true do
-		-- Match standalone fref("...") but NOT ${fref("...")} (already handled above)
-		local m_start, m_end, path = line:find('fref%("([^"]+)"%)', search_start)
+		local m_start, m_end = line:find("!?%[.-%]%(.-%)", search_start)
 		if not m_start then
 			break
 		end
-
-		-- Skip if preceded by ${ (already rendered as interpolation)
-		if m_start >= 3 and line:sub(m_start - 2, m_start - 1) == "${" then
-			search_start = m_end + 1
-		else
-			local name = display_name(path)
-			local col = m_start - 1
-			local end_col = m_end
-
-			vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
-				end_col = end_col,
-				virt_text = {
-					{ LINK_ICON, "TypedownRenderFrefIcon" },
-					{ name, "TypedownRenderFrefText" },
-				},
-				virt_text_pos = "overlay",
-				priority = 110,
-			})
-
-			search_start = m_end + 1
-		end
+		underline(buf, ns, row, m_start - 1, m_end)
+		search_start = m_end + 1
 	end
 end
 

@@ -117,8 +117,7 @@ h.test("all highlight groups are defined", function()
     "TypedownRenderCheckboxCancelled",
     "TypedownRenderCheckboxForwarded",
     "TypedownRenderCheckboxImportant",
-    "TypedownRenderFrefIcon",
-    "TypedownRenderFrefText",
+    "TypedownRenderLink",
     "TypedownRenderFrontmatterRule",
     "TypedownRenderFrontmatterContent",
     "TypedownRenderBullet",
@@ -349,6 +348,120 @@ h.test("commands are registered", function()
   local commands = vim.api.nvim_get_commands({})
   h.assert(commands["TypedownToggleCheckbox"], "TypedownToggleCheckbox command should exist")
   h.assert(commands["TypedownToggle"], "TypedownToggle command should exist")
+end)
+
+h.test("links: fref() gets underline extmark, no overlay text", function()
+  require("typedown.render.highlights").setup()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '---',
+    'friend: fref("alice.td")',
+    '---',
+  })
+
+  local links = require("typedown.render.links")
+  local ns = require("typedown.render.state").get_namespace(links.name)
+  links.render(buf)
+
+  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
+  h.assert(#marks >= 1, "should place at least one extmark for fref()")
+
+  local mark = marks[1]
+  local details = mark[4]
+  -- Must have hl_group underline, no virt_text overlay
+  h.assert_eq(details.hl_group, "TypedownRenderLink", "extmark should use TypedownRenderLink highlight")
+  h.assert(details.virt_text == nil or #details.virt_text == 0, "should not have overlay virt_text")
+end)
+
+h.test("links: markdown link [text](url) gets underline extmark", function()
+  require("typedown.render.highlights").setup()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '---', '---',
+    '[click here](https://example.com)',
+  })
+
+  local links = require("typedown.render.links")
+  local ns = require("typedown.render.state").get_namespace(links.name)
+  links.render(buf)
+
+  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, { 2, 0 }, { 2, -1 }, { details = true })
+  h.assert(#marks >= 1, "should place extmark on markdown link line")
+  h.assert_eq(marks[1][4].hl_group, "TypedownRenderLink", "md link extmark should use TypedownRenderLink")
+end)
+
+h.test("links: media embed ![alt](url) gets underline extmark", function()
+  require("typedown.render.highlights").setup()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '---', '---',
+    '![photo](image.png)',
+  })
+
+  local links = require("typedown.render.links")
+  local ns = require("typedown.render.state").get_namespace(links.name)
+  links.render(buf)
+
+  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, { 2, 0 }, { 2, -1 }, { details = true })
+  h.assert(#marks >= 1, "should place extmark on media embed line")
+  h.assert_eq(marks[1][4].hl_group, "TypedownRenderLink", "media embed extmark should use TypedownRenderLink")
+end)
+
+h.test("links: ${fref()} interpolation gets underline extmark", function()
+  require("typedown.render.highlights").setup()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '---', '---',
+    'See ${fref("alice.td")} for details.',
+  })
+
+  local links = require("typedown.render.links")
+  local ns = require("typedown.render.state").get_namespace(links.name)
+  links.render(buf)
+
+  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, { 2, 0 }, { 2, -1 }, { details = true })
+  h.assert(#marks >= 1, "should place extmark on ${fref()} interpolation")
+  h.assert_eq(marks[1][4].hl_group, "TypedownRenderLink", "interpolated fref extmark should use TypedownRenderLink")
+end)
+
+h.test("links: cursor line is not rendered (anti-conceal)", function()
+  require("typedown.render.highlights").setup()
+  vim.cmd("enew")
+  vim.bo.filetype = "typedown"
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    '---', '---',
+    'fref("alice.td")',
+  })
+
+  -- Mark line 2 (0-indexed) as cursor line so it is hidden
+  local render_state = require("typedown.render.state")
+  render_state.set_cursor_line(buf, 2)
+
+  local links = require("typedown.render.links")
+  local ns = render_state.get_namespace(links.name)
+  links.render(buf)
+
+  local marks = vim.api.nvim_buf_get_extmarks(buf, ns, { 2, 0 }, { 2, -1 }, { details = true })
+  h.assert_eq(#marks, 0, "cursor line should not have link extmarks (anti-conceal)")
+
+  -- Restore so other tests are unaffected
+  render_state.set_cursor_line(buf, -1)
+end)
+
+h.test("links: TypedownRenderLink highlight has underline", function()
+  require("typedown.render.highlights").setup()
+  local hl = vim.api.nvim_get_hl(0, { name = "TypedownRenderLink" })
+  h.assert(hl.underline, "TypedownRenderLink should have underline attribute")
+  h.assert(hl.fg, "TypedownRenderLink should have a foreground color")
 end)
 
 h.finish()
