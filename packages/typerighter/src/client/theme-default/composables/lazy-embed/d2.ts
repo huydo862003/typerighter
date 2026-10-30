@@ -1,0 +1,92 @@
+import {
+  inject, onMounted, onUnmounted,
+} from 'vue';
+import {
+  LAZY_EMBED_KEY,
+} from './types';
+
+const CDN_URL = 'https://esm.sh/@terrastruct/d2@0.1.32';
+
+let d2Instance: any;
+let idCounter = 0;
+
+export function useD2 (): void {
+  const context = inject(LAZY_EMBED_KEY);
+
+  if (!context) return;
+
+  const options = {
+    selector: '.td-d2-placeholder',
+    onRender: renderPlaceholder,
+    onVisible () {
+      const link = document.createElement('link');
+
+      link.rel = 'modulepreload';
+      link.href = CDN_URL;
+      document.head.appendChild(link);
+    },
+  };
+
+  onMounted(() => context.register(options));
+  onUnmounted(() => context.unregister(options));
+}
+
+async function loadD2 () {
+  if (d2Instance) return d2Instance;
+
+  try {
+    const module = await import(/* @vite-ignore */ CDN_URL);
+    const D2 = module.D2 || module.default?.D2 || module.default;
+
+    d2Instance = new D2();
+  } catch {
+    return undefined;
+  }
+
+  return d2Instance;
+}
+
+async function renderPlaceholder (element: Element) {
+  const placeholder = element as HTMLPreElement;
+  const code = placeholder.querySelector('code');
+
+  if (!code) return;
+
+  const d2 = await loadD2();
+
+  if (!d2) return;
+
+  const id = `td-d2-${idCounter++}`;
+  const title = placeholder.getAttribute('data-title');
+
+  try {
+    const compiled = await d2.compile(code.textContent ?? '', {
+      layout: 'dagre',
+    });
+    const svg = await d2.render(compiled.diagram, {
+      ...compiled.renderOptions,
+      themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
+    });
+
+    const figure = document.createElement('figure');
+
+    figure.className = 'td-d2';
+    figure.id = id;
+
+    const svgWrapper = document.createElement('div');
+
+    svgWrapper.innerHTML = svg;
+    figure.appendChild(svgWrapper);
+
+    if (title) {
+      const caption = document.createElement('figcaption');
+
+      caption.textContent = title;
+      figure.appendChild(caption);
+    }
+
+    placeholder.replaceWith(figure);
+  } catch {
+    placeholder.classList.add('td-d2-error');
+  }
+}

@@ -673,15 +673,12 @@ impl<'a> HtmlEmitter<'a> {
 
   fn is_github_embed_url(url: &str) -> bool {
     let url = url.trim();
-    // GitHub file permalink: github.com/owner/repo/blob/ref/path
-    if url.contains("github.com/") && url.contains("/blob/") {
-      return true;
+    if let Some(rest) = url.strip_prefix("https://github.com/") {
+      let segments: Vec<&str> = rest.splitn(4, '/').collect();
+      segments.len() >= 3 && segments[2] == "blob"
+    } else {
+      url.starts_with("https://gist.github.com/")
     }
-    // GitHub Gist: gist.github.com/owner/id
-    if url.contains("gist.github.com/") {
-      return true;
-    }
-    false
   }
 
   fn emit_media(&mut self, node: &RedNode) {

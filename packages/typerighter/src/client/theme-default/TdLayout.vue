@@ -51,14 +51,8 @@ import {
   useResizableTable,
 } from './composables/useResizableTable';
 import {
-  useMermaid,
-} from './composables/useMermaid';
-import {
-  useD2,
-} from './composables/useD2';
-import {
-  useGithubEmbed,
-} from './composables/useGithubEmbed';
+  useLazyEmbeds,
+} from './composables/lazy-embed';
 import {
   useMenu,
 } from './composables/useMenu';
@@ -103,9 +97,7 @@ watch(
 
 useCopyCode();
 useCopyHeadingAnchor();
-useMermaid();
-useD2();
-useGithubEmbed();
+useLazyEmbeds();
 
 const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');

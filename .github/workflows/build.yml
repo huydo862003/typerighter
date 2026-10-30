@@ -72,12 +72,16 @@ jobs:
       - name: Test
         run: cargo test --locked --workspace --exclude typedown-zed
 
+      - name: Build LSP binary
+        if: matrix.os == 'ubuntu-24.04'
+        run: cargo build --locked -p typedown-server
+
       - name: Upload LSP binary
         if: matrix.os == 'ubuntu-24.04'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: lsp-binary
-          path: target/debug/typedown-server
+          path: target/debug/typedown-lsp
           retention-days: 1
 
   tree-sitter:
@@ -114,7 +118,7 @@ jobs:
           path: target/debug
 
       - name: Make binary executable
-        run: chmod +x target/debug/typedown-server
+        run: chmod +x target/debug/typedown-lsp
 
       - name: Build tree-sitter parsers
         working-directory: packages/tree-sitter
@@ -152,7 +156,7 @@ jobs:
       - name: Make binary executable and setup
         working-directory: editors/vscode
         run: |
-          chmod +x ../../target/debug/typedown-server
+          chmod +x ../../target/debug/typedown-lsp
           TYPEDOWN_BINARY_SOURCE=local node scripts/setup-binary.mjs
 
       - name: Build extension
