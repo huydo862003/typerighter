@@ -49,7 +49,8 @@ jobs:
             exit 1
           fi
 
-  build:
+  # Cross-platform binaries and .so parsers
+  build-binaries:
     name: Build ${{ matrix.os-arch }}
     needs: validate-tag
     runs-on: ${{ matrix.runner }}
@@ -78,41 +79,28 @@ jobs:
             rpc-bin: typedown-rpc.exe
     env:
       VERSION: ${{ needs.validate-tag.outputs.version }}
-      REPO_URL: https://github.com/${{ github.repository }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Pin Zed grammar revisions
-        shell: bash
-        env:
-          COMMIT_SHA: ${{ github.sha }}
-        run: envsubst < editors/zed/extension.release.toml > editors/zed/extension.toml
+      - uses: ./.github/actions/setup
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # stable
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
+      - run: rustup target add ${{ matrix.target }}
 
       - name: Install musl tools
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.3
-
-      # LSP and RPC
       - name: Build LSP
         run: cargo build --locked --release -p typedown-server --target ${{ matrix.target }}
 
-      - name: Rename LSP binary
+      - name: Rename binaries
         shell: bash
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ matrix.lsp-bin }} \
              dist/typedown-lsp-${{ env.VERSION }}-${{ matrix.os-arch }}${{ matrix.lsp-bin == 'typedown-lsp.exe' && '.exe' || '' }}
+          cp target/${{ matrix.target }}/release/${{ matrix.rpc-bin }} \
+             dist/typedown-rpc-${{ env.VERSION }}-${{ matrix.os-arch }}${{ matrix.rpc-bin == 'typedown-rpc.exe' && '.exe' || '' }}
 
       - name: Upload LSP binary
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -121,49 +109,12 @@ jobs:
           path: dist/typedown-lsp-*
           retention-days: 2
 
-      - name: Rename RPC binary
-        shell: bash
-        run: |
-          cp target/${{ matrix.target }}/release/${{ matrix.rpc-bin }} \
-             dist/typedown-rpc-${{ env.VERSION }}-${{ matrix.os-arch }}${{ matrix.rpc-bin == 'typedown-rpc.exe' && '.exe' || '' }}
-
       - name: Upload RPC binary
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: typedown-rpc-${{ matrix.os-arch }}
           path: dist/typedown-rpc-*
           retention-days: 2
-
-      # VSCode (portable, no bundled binary, built once on ubuntu)
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        if: matrix.runner == 'ubuntu-24.04'
-        with:
-          node-version: "22"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install VSCode dependencies
-        if: matrix.runner == 'ubuntu-24.04'
-        run: pnpm install --frozen-lockfile
-        working-directory: editors/vscode
-
-      - name: Package VSIX
-        if: matrix.runner == 'ubuntu-24.04'
-        run: pnpm exec vsce package --no-dependencies --allow-missing-repository --out typedown-vscode-${{ env.VERSION }}.vsix
-        working-directory: editors/vscode
-
-      - name: Upload VSIX
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: matrix.runner == 'ubuntu-24.04'
-        with:
-          name: typedown-vscode
-          path: editors/vscode/typedown-vscode-*.vsix
-          retention-days: 2
-
-      # Tree-sitter (.so, platform-specific)
-      - name: Install Tree-sitter dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: packages/tree-sitter
 
       - name: Build .so parsers
         working-directory: packages/tree-sitter
@@ -185,14 +136,43 @@ jobs:
           path: dist/parsers/*.so
           retention-days: 2
 
-      # Tree-sitter (.wasm, platform-independent, ubuntu only)
+  # Platform-independent artifacts (VSIX, .wasm parsers, Zed extension)
+  build-portable:
+    name: Build Portable Artifacts
+    needs: validate-tag
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.validate-tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: ./.github/actions/setup
+
+      - run: rustup target add wasm32-wasip1
+
+      - name: Pin Zed grammar revisions
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: envsubst < editors/zed/extension.release.toml > editors/zed/extension.toml
+
+      # VSIX
+      - name: Package VSIX
+        working-directory: editors/vscode
+        run: pnpm exec vsce package --no-dependencies --allow-missing-repository --out typedown-vscode-${{ env.VERSION }}.vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: typedown-vscode
+          path: editors/vscode/typedown-vscode-*.vsix
+          retention-days: 2
+
+      # .wasm parsers
       - name: Build .wasm parsers
         working-directory: packages/tree-sitter
-        if: matrix.runner == 'ubuntu-24.04'
         run: pnpm run build:wasm
 
       - name: Rename .wasm parsers
-        if: matrix.runner == 'ubuntu-24.04'
         run: |
           mkdir -p dist/parsers-wasm
           for wasm in packages/tree-sitter/dist/tree-sitter-wasm/*.wasm; do
@@ -202,21 +182,16 @@ jobs:
 
       - name: Upload .wasm parsers
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: matrix.runner == 'ubuntu-24.04'
         with:
           name: typedown-treesitters-wasm
           path: dist/parsers-wasm/*.wasm
           retention-days: 2
 
-      # Zed extension (.wasm, platform-independent, ubuntu only)
+      # Zed extension
       - name: Build Zed extension
-        if: matrix.runner == 'ubuntu-24.04'
-        run: |
-          rustup target add wasm32-wasip1
-          cargo build --locked --release -p typedown-zed --target wasm32-wasip1
+        run: cargo build --locked --release -p typedown-zed --target wasm32-wasip1
 
       - name: Rename Zed extension
-        if: matrix.runner == 'ubuntu-24.04'
         run: |
           mkdir -p dist/zed
           cp target/wasm32-wasip1/release/typedown_zed.wasm \
@@ -224,7 +199,6 @@ jobs:
 
       - name: Upload Zed extension
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: matrix.runner == 'ubuntu-24.04'
         with:
           name: typedown-zed
           path: dist/zed/*.wasm
@@ -232,7 +206,7 @@ jobs:
 
   publish:
     name: ${{ needs.validate-tag.outputs.is_staging == 'true' && 'Publish Staging' || 'Publish Release' }}
-    needs: [validate-tag, build]
+    needs: [validate-tag, build-binaries, build-portable]
     environment: ${{ needs.validate-tag.outputs.is_staging == 'true' && 'staging' || 'release' }}
     runs-on: ubuntu-24.04
     steps:
@@ -275,18 +249,12 @@ jobs:
             artifacts/typedown-zed/*
             SHA256SUMS.txt
 
-      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: ./.github/actions/setup
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-          registry-url: "https://registry.npmjs.org"
-
-      # Publish to npm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Build npm packages
         run: pnpm -r --filter typerighter --filter @typerighter/rpc-client --filter @typerighter/rpc-server run build
@@ -301,7 +269,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Publish to crates.io
       - name: Publish to crates.io
         run: |
           cargo publish -p typedown-types --allow-dirty
