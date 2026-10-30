@@ -32,7 +32,11 @@ function M.setup()
 	-- Code
 	set_hl(0, "TypedownRenderCodeBlock", { bg = "#1e1e2e", default = true })
 	set_hl(0, "TypedownRenderCodeLanguage", { fg = "#89b4fa", italic = true, default = true })
-	set_hl(0, "TypedownRenderCodeBorder", { fg = "#585b70", default = true })
+	set_hl(0, "TypedownRenderCodeBorder", { fg = "#45475a", default = true })
+	set_hl(0, "TypedownRenderCodeHighlight", { bg = "#2a2b3d", default = true })
+
+	-- Block quotes
+	set_hl(0, "TypedownRenderBlockQuoteBorder", { fg = "#585b70", default = true })
 
 	-- Tables
 	set_hl(0, "TypedownRenderTableBorder", { fg = "#585b70", default = true })

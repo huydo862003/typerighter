@@ -1,7 +1,7 @@
 // Sets up the typedown-lsp binary in bin/ based on TYPEDOWN_BINARY_SOURCE:
 //   local   - copies from local build
 //   staging - downloads the prerelease binary of the current version
-import { copyFileSync, createWriteStream, mkdirSync, chmodSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync, createWriteStream, mkdirSync, chmodSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -15,13 +15,40 @@ const binDest = join(binDir, binName);
 
 const mode = env.TYPEDOWN_BINARY_SOURCE;
 
-if (mode === 'local') {
-  // local copy here
+// Pick the newer binary between target/debug and target/release
+function getNewerLocalBinary (root, name) {
+  const debugPath = join(root, 'target', 'debug', name);
+  const releasePath = join(root, 'target', 'release', name);
 
+  let debugStat;
+  let releaseStat;
+
+  try {
+    debugStat = statSync(debugPath);
+  } catch {}
+
+  try {
+    releaseStat = statSync(releasePath);
+  } catch {}
+
+  if (debugStat && releaseStat) {
+    return debugStat.mtimeMs >= releaseStat.mtimeMs ? debugPath : releasePath;
+  }
+  if (debugStat) return debugPath;
+  if (releaseStat) return releasePath;
+
+  return null;
+}
+
+if (mode === 'local') {
+  const source = getNewerLocalBinary(repoRoot, binName);
+  if (!source) {
+    console.error('No binary found in target/debug or target/release. Run cargo build first.');
+    process.exit(1);
+  }
   mkdirSync(binDir, { recursive: true });
-  const debugBinary = join(repoRoot, 'target', 'debug', binName);
-  copyFileSync(debugBinary, binDest);
-  console.log(`Copied ${debugBinary} -> ${binDest}`);
+  copyFileSync(source, binDest);
+  console.log(`Copied ${source} -> ${binDest}`);
 } else if (mode === 'staging') {
   // download binaries
 

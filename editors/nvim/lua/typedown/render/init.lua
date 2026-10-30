@@ -8,6 +8,7 @@ local containers = require("typedown.render.containers")
 local checkboxes = require("typedown.render.checkboxes")
 local bullets = require("typedown.render.bullets")
 local code = require("typedown.render.code")
+local blockquotes = require("typedown.render.blockquotes")
 local tables = require("typedown.render.tables")
 local toggle_list = require("typedown.render.toggle-list")
 local links = require("typedown.render.links")
@@ -22,6 +23,7 @@ local renderers = {
 	checkboxes,
 	bullets,
 	code,
+	blockquotes,
 	tables,
 	toggle_list,
 }

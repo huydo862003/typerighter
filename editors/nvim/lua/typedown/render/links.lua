@@ -42,7 +42,7 @@ function M.render_frefs(buf, ns, row, line)
 	end
 end
 
--- Underline [text](url) and ![alt](url) — the entire pattern
+-- Underline [text](url) and ![alt](url)
 function M.render_md_links(buf, ns, row, line)
 	local search_start = 1
 	while true do

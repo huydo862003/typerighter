@@ -5,9 +5,23 @@ local release = require("typedown.release")
 
 -- Resolve the LSP binary, downloading it if necessary.
 -- Returns the binary path, or nil if it could not be resolved.
+-- Pick the newer binary between target/debug and target/release
+local function get_newer_local_binary(root, name)
+  local debug_path = root .. "/target/debug/" .. name
+  local release_path = root .. "/target/release/" .. name
+  local debug_stat = vim.uv.fs_stat(debug_path)
+  local release_stat = vim.uv.fs_stat(release_path)
+  if debug_stat and release_stat then
+    return (debug_stat.mtime.sec >= release_stat.mtime.sec) and debug_path or release_path
+  end
+  if debug_stat then return debug_path end
+  if release_stat then return release_path end
+  return nil
+end
+
 local function resolve_lsp_binary()
   if vim.g.typedown_dev then
-    return release.repo_root() .. "/target/debug/typedown-lsp"
+    return get_newer_local_binary(release.repo_root(), "typedown-lsp")
   end
 
   -- Prefer Nix-provided binary if available

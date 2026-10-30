@@ -39,21 +39,48 @@ OAuth integration (GitHub, Google) is out of scope for this iteration.
 
 Use short-lived JWT access tokens with a refresh token rotation strategy.
 
-The token payload structure:
+The token validation logic:
 
-```json{2,5}
-{
-  "sub": "user-id",
-  "exp": 1720000000,
-  "iat": 1719996400,
-  "scope": "read write"
+```c{3,5-7}
+#include <jwt.h>
+#include <time.h>
+
+int validate_token(const char *token, jwt_t **out) {
+    jwt_t *jwt = NULL;
+    int ret = jwt_decode(&jwt, token, (unsigned char *)SECRET, strlen(SECRET));
+    if (ret != 0) return -1;
+    if (jwt_get_grant_int(jwt, "exp") < time(NULL)) {
+        jwt_free(jwt);
+        return -1;
+    }
+    *out = jwt;
+    return 0;
 }
 ```
 
-Session storage in Redis:
+Session management with refresh token rotation:
 
-```bash
-redis-cli SET "session:abc123" '{"userId":"u1","refresh":"tok"}' EX 2592000
+```rust{2-5}
+fn rotate_refresh_token(old_token: &str, redis: &mut Connection) -> Result<String> {
+    let session: String = redis.get(format!("session:{old_token}"))?;
+    redis.del(format!("session:{old_token}"))?;
+    let new_token = generate_token();
+    redis.set_ex(format!("session:{new_token}"), &session, 2592000)?;
+    Ok(new_token)
+}
+```
+
+Rate limit check using a sliding window:
+
+```cpp{4-6}
+#include <chrono>
+#include <unordered_map>
+
+bool check_rate_limit(const std::string &ip, std::unordered_map<std::string, int> &attempts) {
+    auto &count = attempts[ip];
+    if (++count > 10) return false;
+    return true;
+}
 ```
 
 ::: details Rate limiting strategy
@@ -85,21 +112,35 @@ def check_rate_limit(ip: str) -> bool:
 - `POST /auth/login` accepts email and password, issues a short-lived access token
   and a long-lived refresh token. The access token expires in 15 minutes.
 
-  ```json
-  { "access_token": "...", "refresh_token": "...", "expires_in": 900 }
+  ```c{3-5}
+  struct auth_response login(const char *email, const char *password) {
+      user_t *user = db_find_user(email);
+      if (!user || !verify_password(password, user->hash))
+          return (struct auth_response){ .error = AUTH_INVALID };
+      return issue_tokens(user->id);
+  }
   ```
 
 - `POST /auth/refresh` verifies the refresh token, revokes the old one, and issues
   a new pair. This implements refresh token rotation to limit replay attacks.
 
-  ```json
-  { "access_token": "...", "refresh_token": "..." }
+  ```rust{2-4}
+  fn refresh(token: &str, redis: &mut Connection) -> Result<TokenPair> {
+      let user_id: String = redis.get(&format!("refresh:{token}"))?;
+      redis.del(&format!("refresh:{token}"))?;
+      let pair = TokenPair::generate(&user_id);
+      redis.set_ex(&format!("refresh:{}", pair.refresh), &user_id, 2592000)?;
+      Ok(pair)
+  }
   ```
 
-- `POST /auth/logout` deletes the session entry from Redis immediately.
+- `POST /auth/logout` revokes the session and refresh token immediately.
 
-  ```bash
-  redis-cli DEL "session:abc123"
+  ```cpp
+  void logout(const std::string &session_id, redis::Client &redis) {
+      redis.del("session:" + session_id);
+      redis.del("refresh:" + session_id);
+  }
   ```
 
 ## Blockers

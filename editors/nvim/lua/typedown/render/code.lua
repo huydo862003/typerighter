@@ -147,6 +147,7 @@ local function get_query()
 			"typedown_md",
 			[[
       (fenced_code_block) @code_block
+      (math_block) @code_block
     ]]
 		)
 	end
@@ -164,10 +165,11 @@ function M.render(buf, md_tree)
 end
 
 function M.render_block(buf, ns, node)
-	local start_row, _, end_row = node:range()
+	local start_row, _, end_row, end_col = node:range()
+	local last_row = end_col > 0 and end_row or end_row - 1
 	local hidden = state.is_hidden
 
-	for row = start_row, end_row - 1 do
+	for row = start_row, last_row do
 		-- Background with hl_eol (always visible)
 		vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
 			end_row = row + 1,
@@ -186,12 +188,88 @@ function M.render_block(buf, ns, node)
 		end
 	end
 
+	-- Conceal delimiter lines (```, ~~~, $$) when not on cursor line
+	for child in node:iter_children() do
+		local kind = child:type()
+		if kind == "fenced_code_block_delimiter" or kind == "math_block_delimiter" then
+			local d_row, d_col, d_end_row, d_end_col = child:range()
+			if not hidden(buf, d_row) then
+				-- node may span to next line (delimiter includes trailing newline)
+				local conceal_end = d_end_row > d_row and #vim.api.nvim_buf_get_lines(buf, d_row, d_row + 1, false)[1] or d_end_col
+				vim.api.nvim_buf_set_extmark(buf, ns, d_row, d_col, {
+					end_col = conceal_end,
+					conceal = "",
+					priority = 100,
+				})
+			end
+		end
+	end
+
+	-- Parse and apply line range indicator ({1,3,5-8})
+	local highlighted_lines = {}
+	for child in node:iter_children() do
+		if child:type() == "line_range_indicator" then
+			local r_row, r_col, _, r_end_col = child:range()
+			if not hidden(buf, r_row) then
+				vim.api.nvim_buf_set_extmark(buf, ns, r_row, r_col, {
+					end_col = r_end_col,
+					conceal = "",
+					priority = 100,
+				})
+			end
+
+			-- Parse {2,5} or {1,3,5-8} into a set of 1-indexed line numbers
+			local spec = vim.treesitter.get_node_text(child, buf):match("^{(.*)}$") or ""
+			for part in spec:gmatch("[^,]+") do
+				local range_start, range_end = part:match("^(%d+)%-(%d+)$")
+				if range_start then
+					for n = tonumber(range_start), tonumber(range_end) do
+						highlighted_lines[n] = true
+					end
+				else
+					local num = tonumber(part)
+					if num then highlighted_lines[num] = true end
+				end
+			end
+		end
+	end
+
+	-- Apply highlight to specified content lines
+	if next(highlighted_lines) then
+		local content_line = 0
+		for child in node:iter_children() do
+			if child:type() == "code_fence_content_line" then
+				content_line = content_line + 1
+				if highlighted_lines[content_line] then
+					local c_row = child:range()
+					vim.api.nvim_buf_set_extmark(buf, ns, c_row, 0, {
+						end_row = c_row + 1,
+						hl_group = "TypedownRenderCodeHighlight",
+						hl_eol = true,
+						priority = 85,
+					})
+				end
+			end
+		end
+	end
+
 	-- Language badge on opening fence line (hidden on cursor line)
-	if not hidden(buf, start_row) then
-		local lang_nodes = node:field("language")
-		if lang_nodes and lang_nodes[1] then
-			local lang = vim.treesitter.get_node_text(lang_nodes[1], buf):lower()
-			lang = lang:gsub("{.*", "")
+	local lang_nodes = node:field("language")
+	if lang_nodes and lang_nodes[1] then
+		local lang_node = lang_nodes[1]
+		local lang = vim.treesitter.get_node_text(lang_node, buf):lower()
+		lang = lang:gsub("{.*", "")
+
+		if not hidden(buf, start_row) then
+			-- Conceal inline language text
+			local _, lc, _, le = lang_node:range()
+			vim.api.nvim_buf_set_extmark(buf, ns, start_row, lc, {
+				end_col = le,
+				conceal = "",
+				priority = 100,
+			})
+
+			-- Right-aligned badge
 			local icon = LANG_ICONS[lang]
 			local badge = icon and (icon .. " " .. lang) or lang
 			if badge ~= "" then
