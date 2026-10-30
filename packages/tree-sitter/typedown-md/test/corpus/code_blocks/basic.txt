@@ -13,7 +13,8 @@ print("hello")
     (fenced_code_block
       (fenced_code_block_delimiter)
       language: (language)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -30,7 +31,8 @@ some code
   (section
     (fenced_code_block
       (fenced_code_block_delimiter)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -46,6 +48,7 @@ Empty code block
   (section
     (fenced_code_block
       (fenced_code_block_delimiter)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -62,7 +65,8 @@ code here
   (section
     (fenced_code_block
       (fenced_code_block_delimiter)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -81,7 +85,8 @@ const x = 1;
       (fenced_code_block_delimiter)
       language: (language)
       line_ranges: (line_range_indicator)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -99,7 +104,8 @@ code
     (fenced_code_block
       (fenced_code_block_delimiter)
       line_ranges: (line_range_indicator)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -118,7 +124,8 @@ code
       (fenced_code_block_delimiter)
       language: (language)
       line_ranges: (line_range_indicator)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================
@@ -137,7 +144,9 @@ def hello():
     (fenced_code_block
       (fenced_code_block_delimiter)
       language: (language)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================================================================================
@@ -155,7 +164,8 @@ const a = 1
     (fenced_code_block
       (fenced_code_block_delimiter)
       language: (language)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================================================================================
@@ -174,7 +184,8 @@ const a = 1
       (fenced_code_block_delimiter)
       language: (language)
       line_ranges: (line_range_indicator)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================================================================================
@@ -194,7 +205,9 @@ let b = 2;
       (fenced_code_block_delimiter)
       language: (language)
       line_ranges: (line_range_indicator)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================================================================================
@@ -212,7 +225,8 @@ plain
     (fenced_code_block
       (fenced_code_block_delimiter)
       line_ranges: (line_range_indicator)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================================================================================
@@ -230,7 +244,8 @@ const o = { a: 1 }
     (fenced_code_block
       (fenced_code_block_delimiter)
       language: (language)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))))
 
 ================================================================================
@@ -261,6 +276,7 @@ const a = 1
         (fenced_code_block_delimiter)
         language: (language)
         line_ranges: (line_range_indicator)
-        (code_fence_content)
+        (code_fence_content_line)
+        (code_fence_content_line)
         (fenced_code_block_delimiter))
       (container_block_delimiter))))
