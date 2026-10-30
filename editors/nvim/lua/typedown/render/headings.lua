@@ -75,12 +75,16 @@ function M.render(buf, md_tree)
 			end
 
 			-- Full-line background (always visible)
-			vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, {
-				end_row = start_row + 1,
+			local line_count = vim.api.nvim_buf_line_count(buf)
+			local bg_opts = {
 				hl_group = HL_BG[level],
 				hl_eol = true,
 				priority = 100,
-			})
+			}
+			if start_row + 1 < line_count then
+				bg_opts.end_row = start_row + 1
+			end
+			vim.api.nvim_buf_set_extmark(buf, ns, start_row, 0, bg_opts)
 
 			-- Overlay marker with icon (hidden on cursor line)
 			if not hidden then
