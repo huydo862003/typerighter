@@ -7,7 +7,8 @@
 
 (fenced_code_block
   (language) @injection.language
-  (code_fence_content) @injection.content)
+  (code_fence_content_line) @injection.content
+  (#set! injection.combined true))
 
 ((math_block_content) @injection.content
   (#set! injection.language "latex"))
