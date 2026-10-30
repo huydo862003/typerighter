@@ -1,3 +1,29 @@
+## [0.50.0] - 2026-10-30
+
+### Added
+
+- packages/tree-sitter
+  - Per-line code fence content tokens (`code_fence_content_line`) replacing monolithic `code_fence_content`, enabling syntax highlighting inside blockquotes and list items via `injection.combined`
+- editors/nvim
+  - Blockquote renderer: grey left gutter bar on every line, conceals `>` markers
+  - Code block line range highlighting: `{2,5}` or `{1,3,5-8}` highlights specified content lines
+  - Math block rendering: background and left gutter bar matching code blocks
+  - Code fence delimiter concealment: `` ``` ``, `~~~`, `$$`, language text, and range indicators are concealed (anti-conceal on cursor line)
+  - Language badge: right-aligned icon + name on code block opening line
+  - Link rendering: underline-only for `fref()`, `[text](url)`, `![alt](url)` (replaced overlay text)
+- editors/nvim, editors/vscode
+  - Dev binary resolution picks the newer of `target/debug` and `target/release` by mtime
+
+### Fixed
+
+- packages/tree-sitter
+  - Code fence blocks inside blockquotes, list items, and nested containers now parse and highlight correctly
+  - Closing fence delimiter (`> ``` `) inside blockquotes was not detected by the monolithic content scanner
+- editors/nvim
+  - Closing code fence delimiter line was missing gutter and background highlight
+  - Opening `$$` math delimiter was not concealed (node range spans to next line)
+  - Smart action `<CR>` on markdown links now uses LSP definition instead of raw file open
+
 ## [0.49.0] - 2026-10-30
 
 ### Added
