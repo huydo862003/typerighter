@@ -890,6 +890,77 @@ fn parse_container_nested_in_ordered_list() {
   );
 }
 
+// Container closing fence at wrong indentation should not hang the parser
+#[test]
+fn parse_container_misindented_closing_fence() {
+  let input = "- Item one.
+  ::: details Title
+  Content.
+:::
+- Item two.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "one"
+            "."))
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "details"
+          " "
+          "Title"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "Content"
+                ".")))
+          "\n"
+          ":::"))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "two"
+            "."))))
+    "\n"))"#
+  );
+  assert_eq!(
+    diagnostics.len(),
+    1,
+    "should produce one diagnostic for misindented prefix"
+  );
+  assert!(
+    format!("{:?}", diagnostics[0].kind).contains("MissingExpectedMdPrefix"),
+    "diagnostic should be MissingExpectedMdPrefix: {:?}",
+    diagnostics[0].kind,
+  );
+}
+
 // Container block nested inside a blockquote
 #[test]
 fn parse_container_nested_in_blockquote() {
