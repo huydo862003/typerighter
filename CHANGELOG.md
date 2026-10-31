@@ -1,3 +1,10 @@
+## [0.51.1] - 2026-10-31
+
+### Fixed
+
+- crates/typwdown-lang
+  - Infinite loop when parsing indentation-mismatched closing ::: of container blocks
+
 ## [0.51.0] - 2026-10-31
 
 ### Added
