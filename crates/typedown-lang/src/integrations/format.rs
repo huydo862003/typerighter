@@ -5,7 +5,7 @@
 //! - Exactly one blank line before/after headings
 //! - No trailing whitespace
 //! - Collapse multiple consecutive blank lines to one
-//! - 2-space indent for nested list content
+//! - Indent nested list content by marker width (e.g. 2 for `- `, 3 for `1. `)
 //! - Code blocks pass through verbatim
 //! - Paragraph content passes through verbatim (no reflowing)
 //! - File ends with exactly one newline
@@ -34,7 +34,7 @@ pub fn format_markdown(body: &MdBody) -> String {
       .iter()
       .map(|block| block.syntax().clone())
       .collect::<Vec<_>>(),
-    0,
+    "",
   );
 
   let result = collapse_blank_lines(&out);
@@ -42,35 +42,36 @@ pub fn format_markdown(body: &MdBody) -> String {
 }
 
 /// Format a sequence of block elements with blank-line separation
-fn format_block_sequence(out: &mut String, blocks: &[RedNode], depth: usize) {
+fn format_block_sequence(out: &mut String, blocks: &[RedNode], indent: &str) {
   for (index, block) in blocks.iter().enumerate() {
     if index > 0 {
       ensure_blank_line(out);
     }
-    format_block(out, block, depth);
+    format_block(out, block, indent);
   }
 }
 
-fn format_block(out: &mut String, node: &RedNode, depth: usize) {
+fn format_block(out: &mut String, node: &RedNode, indent: &str) {
   match node.kind() {
-    SyntaxKind::MdHeading => format_heading(out, node, depth),
-    SyntaxKind::MdBulletList => format_bullet_list(out, node, depth),
-    SyntaxKind::MdOrderedList => format_ordered_list(out, node, depth),
-    SyntaxKind::MdBlockquote => format_blockquote(out, node, depth),
-    SyntaxKind::MdContainerBlock => format_container_block(out, node, depth),
+    SyntaxKind::MdHeading => format_heading(out, node, indent),
+    SyntaxKind::MdBulletList => format_bullet_list(out, node, indent),
+    SyntaxKind::MdOrderedList => format_ordered_list(out, node, indent),
+    SyntaxKind::MdBlockquote => format_blockquote(out, node, indent),
+    SyntaxKind::MdContainerBlock => format_container_block(out, node, indent),
     // Code and math blocks: preserve internal indentation verbatim, only add outer indent
-    SyntaxKind::CodeBlock | SyntaxKind::MathBlock => emit_verbatim_block(out, node, depth),
+    SyntaxKind::CodeBlock | SyntaxKind::MathBlock => emit_verbatim_block(out, node, indent),
+    // Blank line separators: just emit a newline
+    SyntaxKind::MdBlankLine => out.push('\n'),
     _ => {
       // Tables, paragraphs, horizontal rules: emit source text
-      emit_source_lines(out, node, depth);
+      emit_source_lines(out, node, indent);
     }
   }
 }
 
 /// Emit a code/math block verbatim: strip only the common leading indent from the source,
 /// then re-indent with `depth` levels so internal relative indentation is preserved
-fn emit_verbatim_block(out: &mut String, node: &RedNode, depth: usize) {
-  let indent = "  ".repeat(depth);
+fn emit_verbatim_block(out: &mut String, node: &RedNode, indent: &str) {
   let text = node.text();
   // Only the opening fence needs the depth-based indent
   // Content and closing fence carry the correct source indentation already
@@ -79,7 +80,7 @@ fn emit_verbatim_block(out: &mut String, node: &RedNode, depth: usize) {
     if first.trim().is_empty() {
       out.push('\n');
     } else {
-      out.push_str(&indent);
+      out.push_str(indent);
       out.push_str(first.trim_end());
       out.push('\n');
     }
@@ -95,8 +96,7 @@ fn emit_verbatim_block(out: &mut String, node: &RedNode, depth: usize) {
 }
 
 /// Format a heading: normalize to exactly one space after `#` symbols
-fn format_heading(out: &mut String, node: &RedNode, depth: usize) {
-  let indent = "  ".repeat(depth);
+fn format_heading(out: &mut String, node: &RedNode, indent: &str) {
   let text = node.text();
   let trimmed = text.trim();
 
@@ -122,8 +122,7 @@ fn format_heading(out: &mut String, node: &RedNode, depth: usize) {
   }
 }
 /// Format a blockquote: strip one level of `> ` prefix from source lines and re-emit with proper indent
-fn format_blockquote(out: &mut String, node: &RedNode, depth: usize) {
-  let indent = "  ".repeat(depth);
+fn format_blockquote(out: &mut String, node: &RedNode, indent: &str) {
   for line in node.text().lines() {
     // Strip one level of blockquote marker
     let inner = line
@@ -139,13 +138,11 @@ fn format_blockquote(out: &mut String, node: &RedNode, depth: usize) {
 }
 
 /// Format a container block: emit opening fence, recursively format slot content, emit closing fence
-fn format_container_block(out: &mut String, node: &RedNode, depth: usize) {
+fn format_container_block(out: &mut String, node: &RedNode, indent: &str) {
   let Some(_container) = MdContainerBlock::cast(node.clone()) else {
-    emit_source_lines(out, node, depth);
+    emit_source_lines(out, node, indent);
     return;
   };
-
-  let indent = "  ".repeat(depth);
 
   // Reconstruct the opening line: ::: label {props} title
   // We emit the source text of everything up to the first newline
@@ -161,7 +158,7 @@ fn format_container_block(out: &mut String, node: &RedNode, depth: usize) {
           .children()
           .filter(|child| child.as_node().is_some() && is_block_element(child.kind()))
           .collect();
-        format_block_sequence(out, &blocks, depth);
+        format_block_sequence(out, &blocks, indent);
       }
       SyntaxKind::MdContainerSlotSeparator => {
         let sep_text = child.text();
@@ -191,11 +188,12 @@ fn is_block_element(kind: SyntaxKind) -> bool {
       | SyntaxKind::MathBlock
       | SyntaxKind::MdHorizontalRule
       | SyntaxKind::MdMedia
+      | SyntaxKind::MdBlankLine
   )
 }
 
 /// Format a bullet list, applying 2-space indentation per nesting level
-fn format_bullet_list(out: &mut String, node: &RedNode, depth: usize) {
+fn format_bullet_list(out: &mut String, node: &RedNode, indent: &str) {
   if let Some(list) = MdBulletList::cast(node.clone()) {
     let list_text = node.text();
     let list_offset = node.start_offset();
@@ -210,7 +208,7 @@ fn format_bullet_list(out: &mut String, node: &RedNode, depth: usize) {
           ensure_blank_line(out);
         }
       }
-      format_bullet_item(out, item, depth);
+      format_bullet_item(out, item, indent);
     }
   }
   // Also handle task list items at this level
@@ -218,15 +216,13 @@ fn format_bullet_list(out: &mut String, node: &RedNode, depth: usize) {
     if child.kind() == SyntaxKind::MdTaskListItem
       && let Some(task) = MdTaskListItem::cast(child)
     {
-      format_task_item(out, &task, depth);
+      format_task_item(out, &task, indent);
     }
   }
 }
 
 /// Format a single bullet list item
-fn format_bullet_item(out: &mut String, item: &MdBulletListItem, depth: usize) {
-  let indent = "  ".repeat(depth);
-
+fn format_bullet_item(out: &mut String, item: &MdBulletListItem, indent: &str) {
   // Emit the first block element inline after the bullet marker
   let mut blocks = item.block_elements();
   if let Some(first) = blocks.next() {
@@ -235,16 +231,15 @@ fn format_bullet_item(out: &mut String, item: &MdBulletListItem, depth: usize) {
     push_trimmed_line(out, &format!("{indent}- {content}"));
   }
 
-  // Recurse into remaining child blocks (nested lists, paragraphs)
+  // Child content indented by marker width: `- ` = 2 spaces
+  let child_indent = format!("{indent}  ");
   for block in blocks {
-    format_block(out, block.syntax(), depth + 1);
+    format_block(out, block.syntax(), &child_indent);
   }
 }
 
 // Format a task list item: `- [ ] text` or `- [x] text`
-fn format_task_item(out: &mut String, item: &MdTaskListItem, depth: usize) {
-  let indent = "  ".repeat(depth);
-
+fn format_task_item(out: &mut String, item: &MdTaskListItem, indent: &str) {
   // Emit checkbox + first block inline
   let checkbox = item
     .checkbox()
@@ -257,14 +252,15 @@ fn format_task_item(out: &mut String, item: &MdTaskListItem, depth: usize) {
     push_trimmed_line(out, &format!("{indent}- {checkbox} {content}"));
   }
 
-  // Recurse into remaining child blocks
+  // Child content indented by marker width: `- ` = 2 spaces
+  let child_indent = format!("{indent}  ");
   for block in blocks {
-    format_block(out, block.syntax(), depth + 1);
+    format_block(out, block.syntax(), &child_indent);
   }
 }
 
 /// Format an ordered list
-fn format_ordered_list(out: &mut String, node: &RedNode, depth: usize) {
+fn format_ordered_list(out: &mut String, node: &RedNode, indent: &str) {
   if let Some(list) = MdOrderedList::cast(node.clone()) {
     let list_text = node.text();
     let list_offset = node.start_offset();
@@ -279,35 +275,34 @@ fn format_ordered_list(out: &mut String, node: &RedNode, depth: usize) {
           ensure_blank_line(out);
         }
       }
-      format_ordered_item(out, item, depth, index + 1);
+      format_ordered_item(out, item, indent, index + 1);
     }
   }
 }
 
 // Format a single ordered list item
-fn format_ordered_item(out: &mut String, item: &MdOrderedListItem, depth: usize, number: usize) {
-  let indent = "  ".repeat(depth);
-
+fn format_ordered_item(out: &mut String, item: &MdOrderedListItem, indent: &str, number: usize) {
   // Emit the first block element inline after the number marker
+  let marker = format!("{number}. ");
   let mut blocks = item.block_elements();
   if let Some(first) = blocks.next() {
     let text = first.syntax().text();
     let content = text.trim();
-    push_trimmed_line(out, &format!("{indent}{number}. {content}"));
+    push_trimmed_line(out, &format!("{indent}{marker}{content}"));
   }
 
-  // Recurse into remaining child blocks (nested lists, paragraphs)
+  // Child content indented by marker width (e.g. `1. ` = 3, `10. ` = 4)
+  let child_indent = format!("{indent}{}", " ".repeat(marker.len()));
   for block in blocks {
-    format_block(out, block.syntax(), depth + 1);
+    format_block(out, block.syntax(), &child_indent);
   }
 }
 
 /// Emit source text lines with trailing whitespace stripped, at the given indent depth
-fn emit_source_lines(out: &mut String, node: &RedNode, depth: usize) {
-  let indent = "  ".repeat(depth);
+fn emit_source_lines(out: &mut String, node: &RedNode, indent: &str) {
   let text = node.text();
   for line in text.lines() {
-    if depth == 0 {
+    if indent.is_empty() {
       push_trimmed_line(out, line);
     } else {
       let trimmed = line.trim();
@@ -767,8 +762,8 @@ Some text.
       r#"---
 ---
 - parent
- 1. first
- 2. second
+  1. first
+  2. second
 "#,
     );
     assert_eq!(
@@ -787,15 +782,15 @@ Some text.
       r#"---
 ---
 - level one
- 1. level two
-  - level three
+  1. level two
+     - level three
 "#,
     );
     assert_eq!(
       result,
       r#"- level one
   1. level two
-    - level three
+     - level three
 "#
     );
   }
@@ -953,11 +948,73 @@ if (x) {
     assert_eq!(
       result,
       r#"1. Example
-  ```js
+   ```js
    if (x) {
      doSomething();
    }
    ```
+"#
+    );
+  }
+
+  // Ordered list with two-digit numbers uses wider marker indent (4 spaces for `10. `)
+  #[test]
+  fn ordered_list_two_digit_marker_width() {
+    let result = fmt(
+      r#"---
+---
+10. First item
+    Continuation paragraph.
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"1. First item
+    Continuation paragraph.
+"#
+    );
+  }
+
+  // Container extra-indented inside bullet list normalizes to prefix width
+  #[test]
+  fn container_extra_indented_in_bullet_list() {
+    let result = fmt(
+      r#"---
+---
+- item
+    ::: note
+    content here
+    :::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"- item
+  ::: note
+  content here
+  :::
+"#
+    );
+  }
+
+  // Container extra-indented inside ordered list normalizes to prefix width
+  #[test]
+  fn container_extra_indented_in_ordered_list() {
+    let result = fmt(
+      r#"---
+---
+1. item
+      ::: note
+      content here
+      :::
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"1. item
+   ::: note
+   content here
+   :::
 "#
     );
   }
@@ -1009,7 +1066,9 @@ if (x) {
     assert_eq!(
       result,
       r#"- Outer
+
   - Inner
+
     ```js
     if (x) {
       doSomething();
@@ -1035,6 +1094,7 @@ if (x) {
     assert_eq!(
       result,
       r#"- Limitations:
+
   - Cannot use from browser:
     ```
     Browser --> backend --> API
@@ -1320,5 +1380,96 @@ Important note.
       first, second,
       "formatter should be idempotent with containers and blockquotes"
     );
+  }
+
+  /* Regression: container block nested inside list items caused parser panic/infinite loop */
+  #[test]
+  fn container_in_ordered_list() {
+    let source = "---
+---
+
+1. Item one.
+2. Item two.
+   ::: details Title
+   - Point A.
+   - Point B.
+
+   Summary.
+   :::
+
+## Next
+";
+    let (green, _) = parse(source);
+    let red = RedNode::from_green(0, green);
+    let file = SourceFile::cast(red).expect("should parse as SourceFile");
+    let body = file.body().expect("should have a body");
+    let result = format_markdown(&body);
+    assert!(!result.is_empty(), "formatter should produce output");
+  }
+
+  #[test]
+  fn container_in_bullet_list() {
+    let source = "---
+---
+
+- Item one.
+- Item two.
+  ::: note
+  Some content.
+  :::
+
+## Next
+";
+    let (green, _) = parse(source);
+    let red = RedNode::from_green(0, green);
+    let file = SourceFile::cast(red).expect("should parse as SourceFile");
+    let body = file.body().expect("should have a body");
+    let result = format_markdown(&body);
+    assert!(!result.is_empty(), "formatter should produce output");
+  }
+
+  #[test]
+  fn container_in_nested_bullet_list() {
+    let source = "\
+---
+---
+
+- Outer
+  - Inner
+    ::: warning
+    Deep content.
+    :::
+
+## Next
+";
+    let (green, _) = parse(source);
+    let red = RedNode::from_green(0, green);
+    let file = SourceFile::cast(red).expect("should parse as SourceFile");
+    let body = file.body().expect("should have a body");
+    let result = format_markdown(&body);
+    assert!(!result.is_empty(), "formatter should produce output");
+  }
+
+  #[test]
+  fn container_with_slots_in_ordered_list() {
+    let source = "\
+---
+---
+
+1. Item.
+   ::: tabs
+   First tab.
+   === second
+   Second tab.
+   :::
+
+## Next
+";
+    let (green, _) = parse(source);
+    let red = RedNode::from_green(0, green);
+    let file = SourceFile::cast(red).expect("should parse as SourceFile");
+    let body = file.body().expect("should have a body");
+    let result = format_markdown(&body);
+    assert!(!result.is_empty(), "formatter should produce output");
   }
 }

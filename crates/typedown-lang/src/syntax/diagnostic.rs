@@ -72,7 +72,7 @@ pub enum TdDiagnosticKind {
   #[message("italic closing delimiter does not match opening delimiter")]
   MismatchedItalicDelimiter,
   #[message("expected '{expected_prefix}' at start of line")]
-  MissingExpectMdPrefix { expected_prefix: String },
+  MissingExpectedMdPrefix { expected_prefix: String },
   #[message("missing separator row after table header")]
   MissingTableSeparatorRow,
   #[message("table row has {found} columns, expected {expected}")]
@@ -269,6 +269,8 @@ fn syntax_kind_label(kind: SyntaxKind) -> &'static str {
     SyntaxKind::MdTableCell => "a table cell",
     SyntaxKind::MdParagraph => "text content",
     SyntaxKind::MdText => "text",
+    SyntaxKind::MdBlankLine => "a blank line",
+    SyntaxKind::MdPrefix => "a line prefix",
     SyntaxKind::MdLink => "a link",
     SyntaxKind::MdMedia => "an image or media",
     SyntaxKind::MdContainerBlock => "a block",

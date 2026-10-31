@@ -782,11 +782,11 @@ fn parse_backslash_brace() {
 // Container block nested inside a bullet list item
 #[test]
 fn parse_container_nested_in_bullet_list() {
-  let input = r#"- item
+  let input = "- item
   ::: info
   content here
   :::
-"#;
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -806,24 +806,27 @@ fn parse_container_nested_in_bullet_list() {
           (MdText
             "item"))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdContainerBlock
           ":::"
           " "
           "info"
           "\n"
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "content"
                 " "
                 "here")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           ":::")))
     "\n"))"#
   );
@@ -833,11 +836,11 @@ fn parse_container_nested_in_bullet_list() {
 // 2-space indent: 1 for list prefix, 1 consumed by consume_md_indent
 #[test]
 fn parse_container_nested_in_ordered_list() {
-  let input = r#"1. item
-  ::: info
-  content here
-  :::
-"#;
+  let input = "1. item
+   ::: info
+   content here
+   :::
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -858,24 +861,30 @@ fn parse_container_nested_in_ordered_list() {
           (MdText
             "item"))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " "
+          " ")
         (MdContainerBlock
           ":::"
           " "
           "info"
           "\n"
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "content"
                 " "
                 "here")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " "
+            " ")
           ":::")))
     "\n"))"#
   );
@@ -908,8 +917,9 @@ fn parse_container_nested_in_blockquote() {
         "info"
         "\n"
         (MdContainerSlot
-          ">"
-          " "
+          (MdPrefix
+            ">"
+            " ")
           (MdParagraph
             (MdText
               " "
@@ -917,8 +927,9 @@ fn parse_container_nested_in_blockquote() {
               " "
               "here")))
         "\n"
-        ">"
-        " "
+        (MdPrefix
+          ">"
+          " ")
         ":::"))
     "\n"))"#
   );
@@ -927,13 +938,13 @@ fn parse_container_nested_in_blockquote() {
 // Container with slots nested inside a bullet list item
 #[test]
 fn parse_container_with_slots_nested_in_bullet_list() {
-  let input = r#"- item
+  let input = "- item
   ::: card
   front content
   === back
   back content
   :::
-"#;
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -953,40 +964,45 @@ fn parse_container_with_slots_nested_in_bullet_list() {
           (MdText
             "item"))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdContainerBlock
           ":::"
           " "
           "card"
           "\n"
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "front"
                 " "
                 "content")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           (MdContainerSlotSeparator
             "==="
             " "
             "back"
             "\n")
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "back"
                 " "
                 "content")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           ":::")))
     "\n"))"#
   );

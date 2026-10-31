@@ -23,8 +23,8 @@ fn parse_body_with_diagnostics(input: &str) -> (String, Vec<TdDiagnostic>) {
 {}",
     input
   );
-  let (ast, diags) = parse(&full_input);
-  (render_tree(&ast), diags)
+  let (ast, diagnostics) = parse(&full_input);
+  (render_tree(&ast), diagnostics)
 }
 
 // Simple block elements
@@ -107,8 +107,9 @@ fn parse_paragraph_with_nested_list() {
               " "
               "1")))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdBulletListItem
           "-"
           " "
@@ -318,31 +319,32 @@ fn parse_triple_nested_list() {
           (MdText
             "level"
             " "
-            "one"))
-        "\n"
-        " "
-        (MdOrderedList
-          (MdOrderedListItem
-            "1"
-            "."
-            " "
-            (MdParagraph
-              (MdText
-                "level"
-                " "
-                "two"))
-            "\n"
-            " "
-            " "
-            (MdBulletList
-              (MdBulletListItem
-                "-"
-                " "
-                (MdParagraph
-                  (MdText
-                    "level"
-                    " "
-                    "three"))))))))
+            "one"))))
+    "\n"
+    (MdParagraph
+      " "
+      (MdOrderedList
+        (MdOrderedListItem
+          "1"
+          "."
+          " "
+          (MdParagraph
+            (MdText
+              "level"
+              " "
+              "two"))))
+      "\n"
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "level"
+              " "
+              "three")))))
     "\n"))"####
   );
 }
@@ -555,30 +557,32 @@ fn parse_nested_task_list() {
             " "
             "parent"
             " "
-            "task"))
-        "\n"
-        " "
-        (MdOrderedList
-          (MdOrderedListItem
-            "1"
-            "."
-            " "
-            (MdParagraph
-              (MdText
-                "substep"
-                " "
-                "one")))
-          "\n"
+            "task"))))
+    "\n"
+    (MdParagraph
+      " "
+      (MdOrderedList
+        (MdOrderedListItem
+          "1"
+          "."
           " "
-          (MdOrderedListItem
-            "2"
-            "."
-            " "
-            (MdParagraph
-              (MdText
-                "substep"
-                " "
-                "two"))))))
+          (MdParagraph
+            (MdText
+              "substep"
+              " "
+              "one")))
+        "\n"
+        (MdPrefix
+          " ")
+        (MdOrderedListItem
+          "2"
+          "."
+          " "
+          (MdParagraph
+            (MdText
+              "substep"
+              " "
+              "two")))))
     "\n"))"####
   );
 }
@@ -1176,21 +1180,21 @@ content
 // A prop with `=` and no value should report MissingContainerPropValueAfterEq
 #[test]
 fn parse_container_block_with_missing_prop_value() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: card {title=}
 content
 :::
 "#,
   );
   assert!(
-    diags.iter().any(|diagnostic| matches!(
+    diagnostics.iter().any(|diagnostic| matches!(
       diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
         ..
       }
     )),
-    "should report MissingContainerPropValueAfterEq, got: {diags:?}"
+    "should report MissingContainerPropValueAfterEq, got: {diagnostics:?}"
   );
 }
 
@@ -1364,7 +1368,7 @@ content
 // Container with title and multi-line content should produce no diagnostics
 #[test]
 fn parse_container_block_with_title_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: tip Current status
 Design mockups are complete. Authentication is currently being implemented.
 Integration tests are next in the queue once auth is merged.
@@ -1372,15 +1376,15 @@ Integration tests are next in the queue once auth is merged.
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
 // Multiple containers with titles should produce no diagnostics
 #[test]
 fn parse_multiple_containers_with_titles_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: details Architecture overview
 Some content here.
 :::
@@ -1391,8 +1395,8 @@ More content here.
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -1469,7 +1473,7 @@ fn parse_container_block_empty() {
 
 #[test]
 fn parse_container_shorthand_simple() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"[[toc]]
 "#,
   );
@@ -1493,14 +1497,14 @@ fn parse_container_shorthand_simple() {
     "\n"))"####
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
 #[test]
 fn parse_container_shorthand_with_props() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"[[grid {cols=2}]]
 "#,
   );
@@ -1533,14 +1537,14 @@ fn parse_container_shorthand_with_props() {
     "\n"))"####
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
 #[test]
 fn parse_container_block_kebab_case() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"::: directory-index
 :::
 "#,
@@ -1567,55 +1571,55 @@ fn parse_container_block_kebab_case() {
     "\n"))"####
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
 // Space after ::: is optional: ::: td-alert and :::td-alert are both valid
 #[test]
 fn parse_container_block_kebab_case_with_space() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: td-alert
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics for '::: td-alert', got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics for '::: td-alert', got: {diagnostics:?}"
   );
 }
 
 #[test]
 fn parse_container_block_kebab_case_no_space() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#":::td-alert
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics for ':::td-alert', got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics for ':::td-alert', got: {diagnostics:?}"
   );
 }
 
 // Props can appear directly after label with no space: :::td-alert{kind="info"}
 #[test]
 fn parse_container_block_no_space_with_props() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#":::td-alert{kind="info"}
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    r#"should produce no diagnostics for ':::td-alert{{kind="info"}}', got: {diags:?}"#
+    diagnostics.is_empty(),
+    r#"should produce no diagnostics for ':::td-alert{{kind="info"}}', got: {diagnostics:?}"#
   );
 }
 
 #[test]
 fn parse_container_shorthand_kebab_case() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"[[directory-index]]
 "#,
   );
@@ -1641,8 +1645,8 @@ fn parse_container_shorthand_kebab_case() {
     "\n"))"####
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -1675,7 +1679,7 @@ code
 // Code block with line range indicator parses as CodeBlock
 #[test]
 fn parse_code_block_with_line_ranges() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"```js{1,3,5-8}
 code
 ```
@@ -1709,7 +1713,11 @@ code
       "```json{2,5}\n{\n  \"sub\": \"user-id\",\n  \"exp\": 1720000000,\n  \"iat\": 1719996400,\n  \"scope\": \"read write\"\n}\n```")
     "\n"))"####
   );
-  assert_eq!(diags, &[] as &[TdDiagnostic], "expected no diagnostics");
+  assert_eq!(
+    diagnostics,
+    &[] as &[TdDiagnostic],
+    "expected no diagnostics"
+  );
 }
 
 // Parses an empty body
@@ -2171,7 +2179,7 @@ fn parse_inline_code_simple() {
 // Inline code with braces should not produce range indicator diagnostics
 #[test]
 fn parse_inline_code_with_braces_object() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"`{ a: b }`
 "#,
   );
@@ -2191,25 +2199,25 @@ fn parse_inline_code_with_braces_object() {
         "`{ a: b }`"))
     "\n"))"####
   );
-  assert_eq!(diags, &[] as &[TdDiagnostic]);
+  assert_eq!(diagnostics, &[] as &[TdDiagnostic]);
 }
 
 #[test]
 fn parse_inline_code_with_range_like_braces() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r"`a{1,3}`
 ",
   );
-  assert_eq!(diags, &[] as &[TdDiagnostic]);
+  assert_eq!(diagnostics, &[] as &[TdDiagnostic]);
 }
 
 #[test]
 fn parse_inline_code_json_object() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"`{"key": "value"}`
 "#,
   );
-  assert_eq!(diags, &[] as &[TdDiagnostic]);
+  assert_eq!(diagnostics, &[] as &[TdDiagnostic]);
 }
 
 // Inline elements inside block elements
@@ -3640,8 +3648,9 @@ fn parse_indented_table_in_list() {
             "item"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdTable
           (MdTableHeaderRow
             "|"
@@ -3658,8 +3667,9 @@ fn parse_indented_table_in_list() {
                 " "))
             "|")
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           (MdTableSeparatorRow
             "|"
             " "
@@ -3671,8 +3681,9 @@ fn parse_indented_table_in_list() {
             " "
             "|")
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           (MdTableDataRow
             "|"
             (MdTableCell
@@ -3737,8 +3748,9 @@ fn parse_indented_table_in_blockquote() {
               " "))
           "|")
         "\n"
-        ">"
-        " "
+        (MdPrefix
+          ">"
+          " ")
         (MdTableSeparatorRow
           "|"
           " "
@@ -3750,8 +3762,9 @@ fn parse_indented_table_in_blockquote() {
           " "
           "|")
         "\n"
-        ">"
-        " "
+        (MdPrefix
+          ">"
+          " ")
         (MdTableDataRow
           "|"
           (MdTableCell
@@ -3802,8 +3815,9 @@ fn parse_indented_table_in_list_with_continuation() {
             "parent"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdTable
           (MdTableHeaderRow
             "|"
@@ -3820,8 +3834,9 @@ fn parse_indented_table_in_list_with_continuation() {
                 " "))
             "|")
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           (MdTableSeparatorRow
             "|"
             " "
@@ -3833,8 +3848,9 @@ fn parse_indented_table_in_list_with_continuation() {
             " "
             "|")
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           (MdTableDataRow
             "|"
             (MdTableCell
@@ -3851,8 +3867,9 @@ fn parse_indented_table_in_list_with_continuation() {
             "|"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdParagraph
           (MdText
             "continued"))))
@@ -3862,7 +3879,7 @@ fn parse_indented_table_in_list_with_continuation() {
 
 #[test]
 fn parse_container_after_list_item_no_diagnostics() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"- item
 
     indented content
@@ -3877,8 +3894,8 @@ content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
   assert_eq!(
     tree,
@@ -3900,8 +3917,9 @@ content
             "item"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         " "
         " "
         (MdParagraph
@@ -3919,8 +3937,7 @@ content
       "Title"
       "\n"
       (MdContainerSlot
-        (MdText
-          "\n")
+        "\n"
         (MdParagraph
           (MdText
             "content")))
@@ -3940,7 +3957,7 @@ content
 
 #[test]
 fn parse_sequential_containers_no_diagnostics() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"::: details Solution
 
 content
@@ -3957,8 +3974,8 @@ more content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
   assert_eq!(
     tree,
@@ -3979,8 +3996,7 @@ more content
       "Solution"
       "\n"
       (MdContainerSlot
-        (MdText
-          "\n")
+        "\n"
         (MdParagraph
           (MdText
             "content")))
@@ -3997,8 +4013,7 @@ more content
       "Solution"
       "\n"
       (MdContainerSlot
-        (MdText
-          "\n")
+        "\n"
         (MdParagraph
           (MdText
             "more"
@@ -4060,7 +4075,7 @@ content
 
 #[test]
 fn parse_container_multiple_blank_lines_before_close() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"::: note
 content
 
@@ -4070,8 +4085,8 @@ content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
   assert_eq!(
     tree,
@@ -4104,7 +4119,7 @@ content
 
 #[test]
 fn parse_container_with_slot_separator_blank_lines() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"::: tabs
 first
 
@@ -4115,8 +4130,8 @@ second content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
   assert_eq!(
     tree,
@@ -4159,13 +4174,399 @@ second content
   );
 }
 
+/* Regression: container blocks nested inside list items caused parser panic/infinite loop :( */
+
+#[test]
+fn parse_container_nested_in_ordered_list_no_panic() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"1. Item one.
+2. Item two.
+   ::: details Title
+   - Point A.
+   - Point B.
+
+   Summary.
+   :::
+
+## Next
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdOrderedList
+      (MdOrderedListItem
+        "1"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "one"
+            ".")))
+      "\n"
+      (MdOrderedListItem
+        "2"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "two"
+            "."))
+        "\n"
+        (MdPrefix
+          " "
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "details"
+          " "
+          "Title"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdBulletList
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "Point"
+                    " "
+                    "A"
+                    ".")))
+              "\n"
+              (MdPrefix
+                " "
+                " "
+                " ")
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "Point"
+                    " "
+                    "B"
+                    "."))))
+            "\n"
+            "\n"
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "Summary"
+                ".")))
+          "\n"
+          (MdPrefix
+            " "
+            " "
+            " ")
+          ":::")))
+    "\n"
+    "\n"
+    (MdHeading
+      "##"
+      " "
+      (MdText
+        "Next"))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_nested_in_bullet_list_no_panic() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- Item one.
+- Item two.
+  ::: note
+  Some content.
+  :::
+
+## Next
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "one"
+            ".")))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "two"
+            "."))
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "note"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "Some"
+                " "
+                "content"
+                ".")))
+          "\n"
+          (MdPrefix
+            " "
+            " ")
+          ":::")))
+    "\n"
+    "\n"
+    (MdHeading
+      "##"
+      " "
+      (MdText
+        "Next"))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_nested_in_deep_bullet_list_no_panic() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- Outer
+  - Inner
+    ::: warning
+    Deep content.
+    :::
+
+## Next
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Outer"))))
+    "\n"
+    (MdParagraph
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "Inner"))
+          "\n"
+          (MdPrefix
+            " "
+            " "
+            " "
+            " ")
+          (MdContainerBlock
+            ":::"
+            " "
+            "warning"
+            "\n"
+            (MdContainerSlot
+              (MdPrefix
+                " "
+                " "
+                " "
+                " ")
+              (MdParagraph
+                (MdText
+                  "Deep"
+                  " "
+                  "content"
+                  ".")))
+            "\n"
+            (MdPrefix
+              " "
+              " "
+              " "
+              " ")
+            ":::"))))
+    "\n"
+    "\n"
+    (MdHeading
+      "##"
+      " "
+      (MdText
+        "Next"))
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_with_slots_nested_in_ordered_list_no_panic() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"1. Item.
+   ::: tabs
+   First tab.
+   === second
+   Second tab.
+   :::
+
+## Next
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdOrderedList
+      (MdOrderedListItem
+        "1"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            "."))
+        "\n"
+        (MdPrefix
+          " "
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "tabs"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "First"
+                " "
+                "tab"
+                ".")))
+          "\n"
+          (MdPrefix
+            " "
+            " "
+            " ")
+          (MdContainerSlotSeparator
+            "==="
+            " "
+            "second"
+            "\n")
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "Second"
+                " "
+                "tab"
+                ".")))
+          "\n"
+          (MdPrefix
+            " "
+            " "
+            " ")
+          ":::")))
+    "\n"
+    "\n"
+    (MdHeading
+      "##"
+      " "
+      (MdText
+        "Next"))
+    "\n"))"####
+  );
+}
+
 // Error recovery
 
 // Recovers from unclosed link, emits UnclosedLink diagnostic
 // Unclosed [ before newline is treated as plain text, no diagnostic
 #[test]
 fn parse_unclosed_bracket_as_text() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"[text without closing
 "#,
   );
@@ -4192,8 +4593,8 @@ fn parse_unclosed_bracket_as_text() {
     "\n"))"####
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -4235,7 +4636,7 @@ fn parse_unclosed_media_bracket_as_text() {
 // Recovers from unclosed bold, emits UnclosedBold diagnostic
 #[test]
 fn recover_unclosed_bold() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"**unclosed bold
 "#,
   );
@@ -4260,7 +4661,7 @@ fn recover_unclosed_bold() {
         "\n"))))"####
   );
   assert_eq!(
-    diags,
+    diagnostics,
     vec![TdDiagnosticKind::UnclosedBold {}.into_error(10, 24),]
   );
 }
@@ -4268,7 +4669,7 @@ fn recover_unclosed_bold() {
 // Recovers from mismatched italic and bold markers
 #[test]
 fn recover_mismatched_inline_formatting() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"*italic **and bold*
 "#,
   );
@@ -4301,7 +4702,7 @@ fn recover_mismatched_inline_formatting() {
   );
 
   assert_eq!(
-    diags,
+    diagnostics,
     vec![
       TdDiagnosticKind::UnclosedItalic {}.into_error(27, 28),
       TdDiagnosticKind::UnclosedBold {}.into_error(18, 28),
@@ -4313,7 +4714,7 @@ fn recover_mismatched_inline_formatting() {
 // Square brackets without `(url)` are plain text, not links
 #[test]
 fn parse_brackets_without_url_are_plain_text() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"[Cardelli, 1996] is a reference.
 "#,
   );
@@ -4346,13 +4747,13 @@ fn parse_brackets_without_url_are_plain_text() {
         "."))
     "\n"))"####
   );
-  assert!(diags.is_empty());
+  assert!(diagnostics.is_empty());
 }
 
 // Tag-style brackets like [Rocq] are plain text
 #[test]
 fn parse_tag_brackets_are_plain_text() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"[Rocq] A command in Rocq.
 "#,
   );
@@ -4385,7 +4786,7 @@ fn parse_tag_brackets_are_plain_text() {
         "."))
     "\n"))"####
   );
-  assert!(diags.is_empty());
+  assert!(diagnostics.is_empty());
 }
 
 // $$ math block should not trigger missing-heading-space
@@ -4550,34 +4951,36 @@ fn parse_deep_nested_exits() {
           (MdText
             "level"
             " "
-            "1"))
-        "\n"
-        " "
-        " "
-        (MdBulletList
-          (MdBulletListItem
-            "-"
-            " "
-            (MdParagraph
-              (MdText
-                "level"
-                " "
-                "2"))
-            "\n"
-            " "
-            " "
-            " "
-            " "
-            (MdBulletList
-              (MdBulletListItem
-                "-"
-                " "
-                (MdParagraph
-                  (MdText
-                    "level"
-                    " "
-                    "3")))))))
+            "1"))))
+    "\n"
+    (MdParagraph
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "level"
+              " "
+              "2"))))
       "\n"
+      " "
+      " "
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "level"
+              " "
+              "3")))))
+    "\n"
+    (MdBulletList
       (MdBulletListItem
         "-"
         " "
@@ -4692,8 +5095,9 @@ fn parse_bullet_list_blank_line_before_continuation() {
             "1"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         " "
         " "
         (MdParagraph
@@ -4729,18 +5133,19 @@ fn parse_bullet_list_blank_line_before_nested_list() {
         " "
         (MdParagraph
           (MdText
-            "parent"))
-        "\n"
-        "\n"
-        " "
-        " "
-        (MdBulletList
-          (MdBulletListItem
-            "-"
-            " "
-            (MdParagraph
-              (MdText
-                "child"))))))
+            "parent"))))
+    "\n"
+    "\n"
+    (MdParagraph
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "child")))))
     "\n"))"####
   );
 }
@@ -4748,7 +5153,7 @@ fn parse_bullet_list_blank_line_before_nested_list() {
 // Loose list item: blank line before blockquote should nest inside li
 #[test]
 fn parse_bullet_list_blank_line_before_blockquote() {
-  let tree = parse_body(
+  let (tree, _diags) = parse_body_with_diagnostics(
     r#"- item
 
     > quoted text
@@ -4774,8 +5179,9 @@ fn parse_bullet_list_blank_line_before_blockquote() {
             "item"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         " "
         " "
         (MdBlockquote
@@ -4821,8 +5227,9 @@ fn parse_bullet_list_blank_line_before_nested_paragraphs() {
             "item"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         " "
         " "
         (MdParagraph
@@ -4832,8 +5239,9 @@ fn parse_bullet_list_blank_line_before_nested_paragraphs() {
             "paragraph"))
         "\n"
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         " "
         " "
         (MdParagraph
@@ -4877,9 +5285,10 @@ fn parse_ordered_list_blank_line_before_continuation() {
             "1"))
         "\n"
         "\n"
-        " "
-        " "
-        " "
+        (MdPrefix
+          " "
+          " "
+          " ")
         " "
         (MdParagraph
           (MdText
@@ -4915,18 +5324,19 @@ fn parse_ordered_list_blank_line_before_nested_list() {
         " "
         (MdParagraph
           (MdText
-            "parent"))
-        "\n"
-        "\n"
-        " "
-        " "
-        (MdBulletList
-          (MdBulletListItem
-            "-"
-            " "
-            (MdParagraph
-              (MdText
-                "child"))))))
+            "parent"))))
+    "\n"
+    "\n"
+    (MdParagraph
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "child")))))
     "\n"))"####
   );
 }
@@ -4979,7 +5389,7 @@ fn parse_ordered_list_blank_line_between_items() {
 // Ordered list: blank line before blockquote should nest inside li
 #[test]
 fn parse_ordered_list_blank_line_before_blockquote() {
-  let tree = parse_body(
+  let (tree, _diags) = parse_body_with_diagnostics(
     r#"1. item
 
     > quoted text
@@ -5006,9 +5416,10 @@ fn parse_ordered_list_blank_line_before_blockquote() {
             "item"))
         "\n"
         "\n"
-        " "
-        " "
-        " "
+        (MdPrefix
+          " "
+          " "
+          " ")
         " "
         (MdBlockquote
           ">"
@@ -5054,9 +5465,10 @@ fn parse_ordered_list_blank_line_before_nested_paragraphs() {
             "item"))
         "\n"
         "\n"
-        " "
-        " "
-        " "
+        (MdPrefix
+          " "
+          " "
+          " ")
         " "
         (MdParagraph
           (MdText
@@ -5065,9 +5477,10 @@ fn parse_ordered_list_blank_line_before_nested_paragraphs() {
             "paragraph"))
         "\n"
         "\n"
-        " "
-        " "
-        " "
+        (MdPrefix
+          " "
+          " "
+          " ")
         " "
         (MdParagraph
           (MdText
@@ -5109,17 +5522,18 @@ fn parse_bullet_list_blank_line_with_spaces() {
           (MdText
             " "
             " "
-            " "))
-        "\n"
-        " "
-        " "
-        (MdBulletList
-          (MdBulletListItem
-            "-"
-            " "
-            (MdParagraph
-              (MdText
-                "child"))))))
+            " "))))
+    "\n"
+    (MdParagraph
+      " "
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "child")))))
     "\n"))"####
   );
 }
@@ -5155,12 +5569,14 @@ fn parse_list_in_blockquote_blank_line_with_prefix() {
             (MdText
               "item"))
           "\n"
-          ">"
+          (MdPrefix
+            ">")
           "\n"
-          ">"
-          " "
-          " "
-          " "
+          (MdPrefix
+            ">"
+            " "
+            " "
+            " ")
           (MdParagraph
             (MdText
               "continuation")))))
@@ -5196,12 +5612,15 @@ fn parse_blockquote_multiple_bare_blank_lines() {
         (MdText
           "first"))
       "\n"
-      ">"
+      (MdPrefix
+        ">")
       "\n"
-      ">"
+      (MdPrefix
+        ">")
       "\n"
-      ">"
-      " "
+      (MdPrefix
+        ">"
+        " ")
       (MdParagraph
         (MdText
           "second")))
@@ -5271,10 +5690,12 @@ fn parse_blockquote_two_paragraphs_bare_separator() {
         (MdText
           "first"))
       "\n"
-      ">"
+      (MdPrefix
+        ">")
       "\n"
-      ">"
-      " "
+      (MdPrefix
+        ">"
+        " ")
       (MdParagraph
         (MdText
           "second")))
@@ -5285,7 +5706,7 @@ fn parse_blockquote_two_paragraphs_bare_separator() {
 // Nested blockquote with bare `>` blank line
 #[test]
 fn parse_nested_blockquote_bare_blank_line() {
-  let tree = parse_body(
+  let (tree, _diagnostics) = parse_body_with_diagnostics(
     r#"> > inner
 >
 > > continued
@@ -5312,10 +5733,12 @@ fn parse_nested_blockquote_bare_blank_line() {
           (MdText
             "inner")))
       "\n"
-      ">"
+      (MdPrefix
+        ">")
       "\n"
-      ">"
-      " "
+      (MdPrefix
+        ">"
+        " ")
       (MdBlockquote
         ">"
         " "
@@ -5358,14 +5781,17 @@ fn parse_list_in_blockquote_multiple_bare_blank_lines() {
             (MdText
               "item"))
           "\n"
-          ">"
+          (MdPrefix
+            ">")
           "\n"
-          ">"
+          (MdPrefix
+            ">")
           "\n"
-          ">"
-          " "
-          " "
-          " "
+          (MdPrefix
+            ">"
+            " "
+            " "
+            " ")
           (MdParagraph
             (MdText
               "continuation")))))
@@ -5376,7 +5802,7 @@ fn parse_list_in_blockquote_multiple_bare_blank_lines() {
 // Backslash escapes prevent markdown interpretation
 #[test]
 fn parse_backslash_escape_italic() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"\*not italic\*
 "#,
   );
@@ -5390,13 +5816,13 @@ fn parse_backslash_escape_italic() {
     r"escaped * should appear as literal:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 // Backslash escapes work for brackets
 #[test]
 fn parse_backslash_escape_bracket() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"\[not a link\]
 "#,
   );
@@ -5405,13 +5831,13 @@ fn parse_backslash_escape_bracket() {
     r"escaped [ should not create link:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 // Backslash escapes work for hash
 #[test]
 fn parse_backslash_escape_hash() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"\# not a heading
 "#,
   );
@@ -5420,13 +5846,13 @@ fn parse_backslash_escape_hash() {
     r"escaped # should not create heading:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 // Backslash before non-escapable char is kept as literal
 #[test]
 fn parse_backslash_non_escapable() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"\a plain text
 "#,
   );
@@ -5435,13 +5861,13 @@ fn parse_backslash_non_escapable() {
     r"backslash should be literal:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 // Horizontal rules
 #[test]
 fn parse_horizontal_rule_dashes() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r"---
 ",
   );
@@ -5450,12 +5876,12 @@ fn parse_horizontal_rule_dashes() {
     r"expected hr:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 #[test]
 fn parse_horizontal_rule_stars() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r"***
 ",
   );
@@ -5464,12 +5890,12 @@ fn parse_horizontal_rule_stars() {
     r"expected hr:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 #[test]
 fn parse_horizontal_rule_underscores() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r"___
 ",
   );
@@ -5478,7 +5904,7 @@ fn parse_horizontal_rule_underscores() {
     r"expected hr:
 {tree}"
   );
-  assert!(diags.is_empty(), "got: {diags:?}");
+  assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
 }
 
 #[test]
@@ -5584,7 +6010,7 @@ fn prop_list_unterminated_at_newline_no_crash() {
 // Invalid value in a dict entry: synchronizes, no crash
 #[test]
 fn prop_dict_invalid_value_synchronizes() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#":::card{config={color: @bad}}
 :::
 "#,
@@ -5594,14 +6020,14 @@ fn prop_dict_invalid_value_synchronizes() {
     "should still emit DictLit node: {tree}"
   );
   assert!(
-    diags.iter().any(|diagnostic| matches!(
+    diagnostics.iter().any(|diagnostic| matches!(
       diagnostic,
       TdDiagnostic {
         kind: TdDiagnosticKind::MissingContainerPropValueAfterEq,
         ..
       }
     )),
-    "should report MissingContainerPropValueAfterEq, got: {diags:?}"
+    "should report MissingContainerPropValueAfterEq, got: {diagnostics:?}"
   );
 }
 
@@ -5648,5 +6074,445 @@ fn prop_dict_nested_list_invalid_element_no_crash() {
   assert!(
     tree.contains("ListLit"),
     "should still emit ListLit node: {tree}"
+  );
+}
+
+// Ordered list with two-digit number uses wider marker prefix (4 spaces for `10. `)
+#[test]
+fn parse_ordered_list_two_digit_marker_width() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"10. item
+    continuation
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdOrderedList
+      (MdOrderedListItem
+        "10"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "item")
+          "\n"
+          (MdText
+            " "
+            " "
+            " "
+            " "
+            "continuation"))))
+    "\n"))"#
+  );
+}
+
+// Bullet list item prefix is 2 spaces (matching `- ` width)
+#[test]
+fn parse_bullet_list_continuation_two_space_prefix() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- item
+  continuation
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item")
+          "\n"
+          (MdText
+            " "
+            " "
+            "continuation"))))
+    "\n"))"#
+  );
+}
+
+// Container at exact prefix indent inside a bullet list
+#[test]
+fn parse_container_at_prefix_in_bullet_list() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- item
+  ::: note
+  content
+  :::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "note"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "content")))
+          "\n"
+          (MdPrefix
+            " "
+            " ")
+          ":::")))
+    "\n"))"#
+  );
+}
+
+// Container at exact prefix indent inside an ordered list
+#[test]
+fn parse_container_at_prefix_in_ordered_list() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"1. item
+   ::: note
+   content
+   :::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdOrderedList
+      (MdOrderedListItem
+        "1"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "item"))
+        "\n"
+        (MdPrefix
+          " "
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "note"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "content")))
+          "\n"
+          (MdPrefix
+            " "
+            " "
+            " ")
+          ":::")))
+    "\n"))"#
+  );
+}
+
+// Content indented beyond prefix is parsed as nested block inside list item
+#[test]
+fn parse_extra_indented_paragraph_in_bullet_list() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- item
+      extra indented paragraph
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "item")
+          "\n"
+          (MdText
+            " "
+            " "
+            " "
+            " "
+            " "
+            " "
+            "extra"
+            " "
+            "indented"
+            " "
+            "paragraph"))))
+    "\n"))"#
+  );
+}
+
+// Single-line blockquote in list item followed by blank line and top-level content
+#[test]
+fn parse_blockquote_in_list_then_top_level() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- Nodes are streamed.
+  > Remark: avoid unnecessary memory usage?
+
+**mmap for cache reads**: both files are memory-mapped.
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Nodes"
+            " "
+            "are"
+            " "
+            "streamed"
+            "."))
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdBlockquote
+          ">"
+          " "
+          (MdParagraph
+            (MdText
+              "Remark"
+              ":"
+              " "
+              "avoid"
+              " "
+              "unnecessary"
+              " "
+              "memory"
+              " "
+              "usage?")))))
+    "\n"
+    "\n"
+    (MdParagraph
+      (MdBold
+        "**"
+        (MdText
+          "mmap"
+          " "
+          "for"
+          " "
+          "cache"
+          " "
+          "reads")
+        "**")
+      (MdText
+        ":"
+        " "
+        "both"
+        " "
+        "files"
+        " "
+        "are"
+        " "
+        "memory"
+        "-"
+        "mapped"
+        "."))
+    "\n"))"####
+  );
+}
+
+// Blockquote nested inside unordered list item
+#[test]
+fn parse_blockquote_nested_in_bullet_list() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"- aaaa
+  > bbbb
+- cccc
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "aaaa"))
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdBlockquote
+          ">"
+          " "
+          (MdParagraph
+            (MdText
+              "bbbb"))))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "cccc"))))
+    "\n"))"#
+  );
+}
+
+// Blockquote nested inside ordered list item
+#[test]
+fn parse_blockquote_nested_in_ordered_list() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"1. aaaa
+   > bbbb
+2. cccc
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdOrderedList
+      (MdOrderedListItem
+        "1"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "aaaa"))
+        "\n"
+        (MdPrefix
+          " "
+          " "
+          " ")
+        (MdBlockquote
+          ">"
+          " "
+          (MdParagraph
+            (MdText
+              "bbbb"))))
+      "\n"
+      (MdOrderedListItem
+        "2"
+        "."
+        " "
+        (MdParagraph
+          (MdText
+            "cccc"))))
+    "\n"))"#
   );
 }

@@ -46,6 +46,8 @@ pub enum SyntaxKind {
   MdBoldItalic,             // ***text***
   MdStrikethrough,          // ~~text~~
   MdText,                   // plain text run
+  MdBlankLine,              // blank line separator (a consumed newline between blocks)
+  MdPrefix, // prefix tokens on continuation lines (e.g. `>` in blockquotes, indent in lists)
 
   // Expression nodes
   PrimaryExpr = 300, // An operand in an expression

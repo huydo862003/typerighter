@@ -111,7 +111,7 @@ impl Arbitrary for TdDiagnostic {
       arb_offsets()
         .prop_map(|(s, e)| TdDiagnosticKind::MismatchedItalicDelimiter {}.into_error(s, e)),
       (".*", arb_offsets()).prop_map(|(expected_prefix, (start_offset, end_offset))| {
-        TdDiagnosticKind::MissingExpectMdPrefix { expected_prefix }
+        TdDiagnosticKind::MissingExpectedMdPrefix { expected_prefix }
           .into_error(start_offset, end_offset)
       }),
       arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MissingTableSeparatorRow {}.into_error(s, e)),

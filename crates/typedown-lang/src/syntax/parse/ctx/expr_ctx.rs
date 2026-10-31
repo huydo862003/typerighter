@@ -35,19 +35,30 @@ pub(in crate::syntax::parse) enum ExprCtx {
   /// Top-level Markdown body context
   MarkdownBody,
   /// Inside a `:::` container block, closed by `:::`
-  /// The `usize` is the indentation level (spaces before `:::`) to append to the prefix
-  MdContainerBlock(usize),
+  MdContainerBlock {
+    /// Extra indentation beyond the parent prefix (spaces before `:::`)
+    indent: usize,
+  },
   MdContainerPropBlock,
   MdContainerPropItem,
   MdContainerSlot,
   /// Inside a `>` blockquote
   MdBlockQuote,
-  /// Inside an ordered list, `usize` = extra leading indentation
-  MdOrderedList(usize),
+  /// Inside an ordered list
+  MdOrderedList {
+    /// Extra leading indentation (spaces before the number)
+    indent: usize,
+  },
   /// Inside an ordered list item
-  MdOrderedListItem,
-  /// Inside an unordered list, `usize` = extra leading indentation
-  MdUnorderedList(usize),
+  MdOrderedListItem {
+    /// Marker width including trailing space (e.g. 3 for `1. `, 4 for `10. `)
+    marker_width: usize,
+  },
+  /// Inside an unordered list
+  MdUnorderedList {
+    /// Extra leading indentation (spaces before `-`)
+    indent: usize,
+  },
   /// Inside an unordered list item
   MdUnorderedListItem,
   /// Inside a task list item
@@ -165,27 +176,38 @@ impl ExprCtxStack {
     let mut cache = self.cache.borrow_mut();
     match ctx {
       ExprCtx::MdBlockQuote => {
-        // Only `>` is the prefix, space after it is consumed separately
+        // `>` followed by optional space (blank lines may omit the space)
         self
           .md_prefix_tokens
           .push(cache.token(SyntaxKind::MdSymbol, b">"));
+        self
+          .md_prefix_tokens
+          .push(cache.token(SyntaxKind::Whitespace, b" "));
       }
-      ExprCtx::MdUnorderedList(indent) | ExprCtx::MdOrderedList(indent) => {
+      ExprCtx::MdUnorderedList { indent }
+      | ExprCtx::MdOrderedList { indent }
+      | ExprCtx::MdContainerBlock { indent } => {
         for _ in 0..indent {
           self
             .md_prefix_tokens
             .push(cache.token(SyntaxKind::Whitespace, b" "));
         }
       }
-      ExprCtx::MdUnorderedListItem | ExprCtx::MdTaskListItem | ExprCtx::MdOrderedListItem => {
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
+      // Per CommonMark spec, continuation lines must be indented to the column where content starts after the list marker
+      // For `- ` that's 2, for `1. ` that's 3, etc
+      ExprCtx::MdUnorderedListItem | ExprCtx::MdTaskListItem => {
+        for _ in 0..2 {
+          self
+            .md_prefix_tokens
+            .push(cache.token(SyntaxKind::Whitespace, b" "));
+        }
       }
-      ExprCtx::MdContainerBlock(parent_prefix_count) if parent_prefix_count > 0 => {
-        self
-          .md_prefix_tokens
-          .push(cache.token(SyntaxKind::Whitespace, b" "));
+      ExprCtx::MdOrderedListItem { marker_width } => {
+        for _ in 0..marker_width {
+          self
+            .md_prefix_tokens
+            .push(cache.token(SyntaxKind::Whitespace, b" "));
+        }
       }
       _ => {}
     }
@@ -235,7 +257,7 @@ impl ExprCtx {
           | (ExprCtx::MdBoldItalic, "***")
           | (ExprCtx::MdBoldItalic, "___")
           | (ExprCtx::MdStrikethrough, "~~")
-          | (ExprCtx::MdContainerBlock(_), ":::")
+          | (ExprCtx::MdContainerBlock { .. }, ":::")
           | (ExprCtx::MdTableCell, "|")
       );
     }
@@ -262,10 +284,10 @@ impl ExprCtx {
         | (ExprCtx::BlockMap, SyntaxKind::Newline)
         | (ExprCtx::MdBlockQuote, SyntaxKind::Newline)
         | (ExprCtx::MdBlockQuote, SyntaxKind::Eof)
-        | (ExprCtx::MdOrderedList(_), SyntaxKind::Eof)
-        | (ExprCtx::MdOrderedListItem, SyntaxKind::Newline)
-        | (ExprCtx::MdOrderedListItem, SyntaxKind::Eof)
-        | (ExprCtx::MdUnorderedList(_), SyntaxKind::Eof)
+        | (ExprCtx::MdOrderedList { .. }, SyntaxKind::Eof)
+        | (ExprCtx::MdOrderedListItem { .. }, SyntaxKind::Newline)
+        | (ExprCtx::MdOrderedListItem { .. }, SyntaxKind::Eof)
+        | (ExprCtx::MdUnorderedList { .. }, SyntaxKind::Eof)
         | (ExprCtx::MdUnorderedListItem, SyntaxKind::Newline)
         | (ExprCtx::MdUnorderedListItem, SyntaxKind::Eof)
         | (ExprCtx::MdTaskListItem, SyntaxKind::Newline)
@@ -291,7 +313,7 @@ impl ExprCtx {
         | (ExprCtx::MdBoldItalic, SyntaxKind::Eof)
         | (ExprCtx::MdStrikethrough, SyntaxKind::Newline)
         | (ExprCtx::MdStrikethrough, SyntaxKind::Eof)
-        | (ExprCtx::MdContainerBlock(_), SyntaxKind::Eof)
+        | (ExprCtx::MdContainerBlock { .. }, SyntaxKind::Eof)
         | (ExprCtx::MdContainerPropBlock, SyntaxKind::RBrace)
     )
   }
