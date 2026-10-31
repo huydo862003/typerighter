@@ -1,6 +1,24 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.51.0] - 2026-10-31
+
+### Added
+
+- crates/typedown-lang
+  - `MdPrefix` CST node wrapping prefix tokens (blockquote `>`, list indent) for content filtering
+  - `MdBlankLine` CST node for blank line separators between block elements
+
+### Fixed
+
+- crates/typedown-lang
+  - Blockquote prefix now includes optional trailing space per CommonMark, fixing blockquote continuation in nested contexts
+  - List item prefix width matches CommonMark marker width (`- ` = 2, `1. ` = 3, `10. ` = 4), fixing container/blockquote nesting inside lists
+  - Container blocks track extra indentation, allowing `:::` indented beyond the parent prefix
+  - Container slot properly consumes newline + prefix before next block element (was panicking)
+  - LAX prefix matching no longer falsely continues blockquotes past blank lines
+  - Formatter uses actual marker width for nested content indentation instead of fixed 2-space depth
+
 ## [0.50.0] - 2026-10-30
 
 ### Added
