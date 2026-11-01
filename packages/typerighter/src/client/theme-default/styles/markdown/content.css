@@ -206,12 +206,27 @@
 
 .td-mermaid-placeholder,
 .td-d2-placeholder {
+  position: relative;
   margin: 1rem 0;
-  padding: 1rem;
+  min-height: 120px;
   background: var(--color-td-surf);
+  border: 1px solid var(--color-td-line);
   border-radius: var(--radius-td-md);
-  color: var(--color-td-ink-3);
-  font-size: var(--font-size-td-sm);
+}
+
+.td-mermaid-placeholder::before,
+.td-d2-placeholder::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 2px solid var(--color-td-line);
+  border-top-color: var(--color-td-ink-3);
+  border-radius: 50%;
+  animation: td-spin 0.6s linear infinite;
 }
 
 .td-mermaid-error,
@@ -222,12 +237,26 @@
 /* GitHub embed (rendered by emgithub) */
 
 .td-github-placeholder {
+  position: relative;
   margin: 1rem 0;
-  padding: 1rem;
+  min-height: 120px;
   background: var(--color-td-surf);
+  border: 1px solid var(--color-td-line);
   border-radius: var(--radius-td-md);
-  color: var(--color-td-ink-3);
-  font-size: var(--font-size-td-sm);
+}
+
+.td-github-placeholder::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 2px solid var(--color-td-line);
+  border-top-color: var(--color-td-ink-3);
+  border-radius: 50%;
+  animation: td-spin 0.6s linear infinite;
 }
 
 .td-github-error {
@@ -288,6 +317,16 @@
   border: none;
   outline: none;
   z-index: 1;
+}
+
+/* Service embeds with explicit sizing: no loading UI, no border */
+.td-content .td-embed-wrapper[style] {
+  background: transparent;
+  border: none;
+}
+
+.td-content .td-embed-wrapper[style]::before {
+  display: none;
 }
 
 /* Wrapper without inline style (generic iframes) */
