@@ -1,3 +1,10 @@
+## [0.52.1] - 2026-11-01
+
+### Fixed
+
+- crates/typedown-lang
+  - `fref()` with absolute paths (e.g. `fref("/design/concepts/affordance.td")`) resolved to null in frontmatter. `Path::join` with a leading `/` replaces the base path entirely, bypassing the vault root. Now uses `resolve_fref_path` consistently.
+
 ## [0.52.0] - 2026-11-01
 
 ### Added
