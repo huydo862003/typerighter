@@ -1,17 +1,10 @@
-<script lang="ts">
-// eslint-disable-next-line import/order
-import {
-  type InjectionKey,
-} from 'vue';
-
-export const tdGridContextKey: InjectionKey<true> = Symbol('td-grid-context');
-</script>
-
 <script setup lang="ts">
-// eslint-disable-next-line import/first
 import {
   inject,
 } from 'vue';
+import {
+  tdGridContextKey,
+} from '../../utils/injectionKeys';
 
 const {
   // eslint-disable-next-line unicorn/name-replacements
@@ -27,7 +20,7 @@ const {
 const inGrid = inject(tdGridContextKey, false);
 
 if (!inGrid) {
-  throw new Error('[TdGridCell] must be used inside a <Grid> component.');
+  console.warn('[TdGridCell] should be used inside a <TdGrid> component.');
 }
 </script>
 

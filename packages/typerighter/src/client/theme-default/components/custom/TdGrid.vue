@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   tdGridContextKey,
-} from './TdGridCell.vue';
+} from '../../utils/injectionKeys';
 
 const {
   columns, gap = 1,
