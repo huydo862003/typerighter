@@ -1,3 +1,27 @@
+## [0.52.0] - 2026-11-01
+
+### Added
+
+- crates/typedown-lang
+  - Centralized media embed system: `![](url)` detects URL type and renders as image, service embed, GitHub code snippet, or generic iframe
+  - Supported services: YouTube, Spotify, Apple Music, Vimeo, CodePen, CodeSandbox, Figma, Excalidraw
+  - Generic iframe fallback with sandbox for unknown external URLs
+  - Loading spinner for embed placeholders (Mermaid, D2, GitHub, iframes)
+
+- crates/typedown-lang
+  - Loose list items: blank line + indented content nests inside parent item instead of breaking as sibling
+
+### Fixed
+
+- crates/typedown-lang
+  - Parser infinite loop when container closing `:::` is at wrong indentation
+  - Block-level `![](url)` not exported (missing `MdMedia` in `emit_block`)
+
+- packages/typerighter
+  - Lazy embed composables: replace provide/inject with direct parameter passing (inject can't see provide in same component)
+  - Link color changed to warmer muted blue (#3D6B99)
+  - Embed wrapper reserves space to prevent layout shift
+
 ## [0.51.1] - 2026-10-31
 
 ### Fixed
