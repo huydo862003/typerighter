@@ -48,10 +48,6 @@ export function buildContractWithChecker (
 
         const schema = convertPropertyMetaToSchema(property.schema);
 
-        if (schema === undefined) {
-          console.error(`[WARN] Could not convert prop schema for ${component.name}.${property.name}:`, JSON.stringify(property.schema));
-        }
-
         if (schema !== undefined) {
           const entry: ComponentPropertyEntry = {
             schema: property.required ? schema : makeOptional(schema),
@@ -143,9 +139,9 @@ function convertPrimitiveTypeToSchema (type: string): JsonSchema | undefined {
     default: {
       // Handle raw union strings like 'number | "auto"' from strict:false mode
       if (type.includes(' | ')) {
-        const members = type.split(' | ').map((m) => m.trim());
-        const isNullable = members.some((m) => m === 'undefined' || m === 'null');
-        const concrete = members.filter((m) => m !== 'undefined' && m !== 'null');
+        const members = type.split(' | ').map((part) => part.trim());
+        const isNullable = members.some((part) => part === 'undefined' || part === 'null');
+        const concrete = members.filter((part) => part !== 'undefined' && part !== 'null');
 
         if (concrete.length === 0) return undefined;
         const schemas: JsonSchema[] = [];
