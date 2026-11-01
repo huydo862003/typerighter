@@ -300,8 +300,8 @@ fn build_component_hover(
 
   let mut lines = vec![format!("**{}**", component_name)];
 
-  if let Some(msg) = &entry.deprecated {
-    lines.push(format!("\n**Deprecated:** {}", msg));
+  if let Some(message) = &entry.deprecated {
+    lines.push(format!("\n**Deprecated:** {}", message));
   }
 
   lines.push(format!("\nSource: `{}`", entry.source));

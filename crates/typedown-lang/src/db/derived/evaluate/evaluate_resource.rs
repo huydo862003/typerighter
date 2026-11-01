@@ -879,16 +879,18 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
-    let header = exported
-      .header
-      .as_object()
-      .expect("header should be object");
+    let header = exported.header;
+    // Header uses bindings $kind format: fields are nested under "fields"
+    let fields = header
+      .get("fields")
+      .and_then(|val| val.as_object())
+      .expect("header should have fields object");
     assert!(
-      !header.contains_key("_imports"),
+      !fields.contains_key("_imports"),
       "_imports should be stripped from export"
     );
     assert_eq!(
-      header.get("brand").and_then(|value| value.as_str()),
+      fields.get("brand").and_then(|value| value.as_str()),
       Some("#4F6BCA"),
       "brand should resolve to imported color value"
     );

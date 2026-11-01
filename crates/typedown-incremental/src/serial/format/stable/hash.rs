@@ -335,15 +335,15 @@ impl<K: StableHash + StableCompare> StableHash for HashSet<K> {
 impl StableHash for SystemTime {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, _db: &DB, hasher: &mut StableHasher) {
     match self.duration_since(std::time::UNIX_EPOCH) {
-      Ok(dur) => {
+      Ok(duration) => {
         hasher.write_u8(0);
-        hasher.write_u64(dur.as_secs());
-        hasher.write_u32(dur.subsec_nanos());
+        hasher.write_u64(duration.as_secs());
+        hasher.write_u32(duration.subsec_nanos());
       }
-      Err(err) => {
+      Err(error) => {
         hasher.write_u8(1);
-        hasher.write_u64(err.duration().as_secs());
-        hasher.write_u32(err.duration().subsec_nanos());
+        hasher.write_u64(error.duration().as_secs());
+        hasher.write_u32(error.duration().subsec_nanos());
       }
     }
   }

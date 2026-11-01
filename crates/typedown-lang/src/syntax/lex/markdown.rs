@@ -125,7 +125,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       '\\' => {
         self.advance_avoid_invalid_utf8();
         match self.peek() {
-          Utf8Result::Char(c) if is_md_escapable_char(c) => {
+          Utf8Result::Char(char) if is_md_escapable_char(char) => {
             self.advance_avoid_invalid_utf8();
             self.emit(SyntaxKind::MdText)
           }
@@ -252,8 +252,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           Utf8Result::Char('x') | Utf8Result::Char('X') => {
             self.advance_avoid_invalid_utf8();
             let mut count = 0;
-            while let Utf8Result::Char(ch) = self.peek() {
-              if ch.is_ascii_hexdigit() {
+            while let Utf8Result::Char(char) = self.peek() {
+              if char.is_ascii_hexdigit() {
                 self.advance_avoid_invalid_utf8();
                 count += 1;
               } else {
@@ -269,8 +269,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           }
           _ => {
             let mut count = 0;
-            while let Utf8Result::Char(ch) = self.peek() {
-              if ch.is_ascii_digit() {
+            while let Utf8Result::Char(char) = self.peek() {
+              if char.is_ascii_digit() {
                 self.advance_avoid_invalid_utf8();
                 count += 1;
               } else {
@@ -289,13 +289,13 @@ impl<S: Utf8Stream> LexCtx<S> {
       // Named entity: &name;
       // Advance name chars into a local buffer (not text_buffer) so that on failure we can emit just `&` as MdSymbol
       // The name chars get queued as a separate Ident
-      Utf8Result::Char(ch) if ch.is_ascii_alphabetic() => {
+      Utf8Result::Char(char) if char.is_ascii_alphabetic() => {
         let mut name = String::new();
         loop {
           match self.peek() {
-            Utf8Result::Char(ch) if ch.is_ascii_alphanumeric() => {
+            Utf8Result::Char(char) if char.is_ascii_alphanumeric() => {
               self.stream.advance();
-              name.push(ch);
+              name.push(char);
             }
             _ => break,
           }
@@ -337,7 +337,7 @@ impl<S: Utf8Stream> LexCtx<S> {
         // Intraword underscore: a_b stays as one text token
         Utf8Result::Char('_') if last.is_alphanumeric() => {
           // Only absorb if followed by a word char (peek past the _)
-          if matches!(self.stream.peek_nth(1), Utf8Result::Char(c) if c.is_alphanumeric()) {
+          if matches!(self.stream.peek_nth(1), Utf8Result::Char(char) if char.is_alphanumeric()) {
             self.advance_avoid_invalid_utf8();
             last = '_';
           } else {
@@ -399,8 +399,8 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
 
     // Consume language tag (alphanumeric chars, underscore, hyphen)
-    while let Utf8Result::Char(c) = self.peek()
-      && (c.is_alphanumeric() || c == '_' || c == '-')
+    while let Utf8Result::Char(char) = self.peek()
+      && (char.is_alphanumeric() || char == '_' || char == '-')
     {
       self.advance_avoid_invalid_utf8();
     }
@@ -425,8 +425,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           Utf8Result::Char('\n') | Utf8Result::Char('\r') | Utf8Result::Eof => {
             break;
           }
-          Utf8Result::Char(c) => {
-            content.push(c);
+          Utf8Result::Char(char) => {
+            content.push(char);
             self.advance_avoid_invalid_utf8();
           }
           Utf8Result::Invalid { .. } => {
@@ -446,10 +446,10 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
 
     // Consume trailing whitespace before newline
-    while let Utf8Result::Char(c) = self.peek()
-      && c.is_whitespace()
-      && c != '\n'
-      && c != '\r'
+    while let Utf8Result::Char(char) = self.peek()
+      && char.is_whitespace()
+      && char != '\n'
+      && char != '\r'
     {
       self.advance_avoid_invalid_utf8();
     }

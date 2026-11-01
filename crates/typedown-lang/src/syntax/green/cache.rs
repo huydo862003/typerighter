@@ -61,10 +61,10 @@ impl Cache {
     });
 
     match entry {
-      RawEntryMut::Occupied(e) => e.key().clone(),
-      RawEntryMut::Vacant(e) => {
+      RawEntryMut::Occupied(entry) => entry.key().clone(),
+      RawEntryMut::Vacant(entry) => {
         let token = SyntaxToken::from_raw_parts(kind, bytes.to_vec());
-        e.insert_hashed_nocheck(hash, token.clone(), ());
+        entry.insert_hashed_nocheck(hash, token.clone(), ());
         token
       }
     }
@@ -73,10 +73,10 @@ impl Cache {
   /// Get or create an interned node
   pub fn node(&mut self, kind: SyntaxKind, children: &[GreenNode]) -> SyntaxNode {
     let hash = {
-      let mut h = self.nodes.hasher().build_hasher();
-      kind.hash(&mut h);
-      children.hash(&mut h);
-      h.finish()
+      let mut hasher = self.nodes.hasher().build_hasher();
+      kind.hash(&mut hasher);
+      children.hash(&mut hasher);
+      hasher.finish()
     };
 
     let entry = self.nodes.raw_entry_mut().from_hash(hash, |existing| {
@@ -84,10 +84,10 @@ impl Cache {
     });
 
     match entry {
-      RawEntryMut::Occupied(e) => e.key().clone(),
-      RawEntryMut::Vacant(e) => {
+      RawEntryMut::Occupied(entry) => entry.key().clone(),
+      RawEntryMut::Vacant(entry) => {
         let node = SyntaxNode::from_raw_parts(kind, children);
-        e.insert_hashed_nocheck(hash, node.clone(), ());
+        entry.insert_hashed_nocheck(hash, node.clone(), ());
         node
       }
     }

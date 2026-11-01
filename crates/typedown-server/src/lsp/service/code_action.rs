@@ -273,7 +273,7 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
   };
   match typ {
     TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
-      LitValue::String(s) => format!(r#""{s}""#),
+      LitValue::String(string) => format!(r#""{string}""#),
       _ => r#""""#.to_string(),
     },
     TdTypEnum::TdStringTyp(_) => r#""""#.to_string(),
@@ -307,9 +307,9 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
         .iter()
         .find_map(|member| {
           if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
-            && let LitValue::String(s) = lit.value(db)
+            && let LitValue::String(string) = lit.value(db)
           {
-            return Some(format!("\"{s}\""));
+            return Some(format!("\"{string}\""));
           }
           None
         })

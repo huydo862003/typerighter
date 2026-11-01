@@ -8,7 +8,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
   let modifiers = parse_cache_modifiers(attr);
   let struct_ast = match syn::parse::<ItemStruct>(item) {
     Ok(ast) => ast,
-    Err(err) => return err.to_compile_error().into(),
+    Err(error) => return error.to_compile_error().into(),
   };
 
   let visibility = &struct_ast.vis;

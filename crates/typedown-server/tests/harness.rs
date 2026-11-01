@@ -135,11 +135,11 @@ impl Server {
         text: content.to_string(),
       },
     };
-    let notif = lsp_server::Notification::new(
+    let notification = lsp_server::Notification::new(
       DidOpenTextDocument::METHOD.to_string(),
       serde_json::to_value(params).unwrap(),
     );
-    self.conn.sender.send(Message::Notification(notif)).unwrap();
+    self.conn.sender.send(Message::Notification(notification)).unwrap();
     // Drain any diagnostics notifications the server pushes back
     self.drain_notifications();
   }
@@ -153,25 +153,25 @@ impl Server {
     let id = self.req_id.get();
     self.req_id.set(id + 1);
 
-    let req = Request::new(id.into(), R::METHOD.to_string(), params);
-    self.conn.sender.send(Message::Request(req)).unwrap();
+    let request = Request::new(id.into(), R::METHOD.to_string(), params);
+    self.conn.sender.send(Message::Request(request)).unwrap();
 
     // Read messages until we get the response with our id
     loop {
-      let msg = self
+      let message = self
         .conn
         .receiver
         .recv_timeout(TIMEOUT)
         .expect("timeout waiting for LSP response");
-      match msg {
+      match message {
         Message::Response(Response {
-          id: resp_id,
+          id: response_id,
           result,
           error,
           ..
-        }) if resp_id == id.into() => {
-          if let Some(err) = error {
-            panic!("LSP error response: {err:?}");
+        }) if response_id == id.into() => {
+          if let Some(error) = error {
+            panic!("LSP error response: {error:?}");
           }
           return result.unwrap_or(Value::Null);
         }
@@ -183,15 +183,15 @@ impl Server {
   }
 
   /// Return the `file://` URI for a vault-relative path
-  pub fn file_uri(&self, rel_path: &str) -> Uri {
-    let abs = self._dir.path().join(rel_path);
-    Uri::from_str(&format!("file://{}", abs.display())).unwrap()
+  pub fn file_uri(&self, relative_path: &str) -> Uri {
+    let absolute_path = self._dir.path().join(relative_path);
+    Uri::from_str(&format!("file://{}", absolute_path.display())).unwrap()
   }
 
   /// Receive and discard any queued notifications (e.g. diagnostics pushes)
   fn drain_notifications(&self) {
-    while let Ok(msg) = self.conn.receiver.recv_timeout(Duration::from_millis(50)) {
-      match msg {
+    while let Ok(message) = self.conn.receiver.recv_timeout(Duration::from_millis(50)) {
+      match message {
         Message::Notification(_) => {}
         other => panic!("unexpected message while draining: {other:?}"),
       }

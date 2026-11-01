@@ -37,8 +37,8 @@ pub enum ReferenceKind {
 }
 
 impl Encodable for ReferenceKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (*self as u8).encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    (*self as u8).encode(buffer, encoder);
   }
 }
 
@@ -63,9 +63,9 @@ pub struct Reference {
 }
 
 impl Encodable for Reference {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.node.encode(buf, encoder);
-    self.kind.encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.node.encode(buffer, encoder);
+    self.kind.encode(buffer, encoder);
   }
 }
 
@@ -102,7 +102,7 @@ impl<'db> ResolutionIndex<'db> {
   }
 
   /// Get all def_ids referenced in this file
-  pub fn def_ids(&self, db: &'db TypedownDatabase) -> Vec<String> {
+  pub fn definition_ids(&self, db: &'db TypedownDatabase) -> Vec<String> {
     self.references(db).keys().cloned().collect()
   }
 }
@@ -188,18 +188,18 @@ fn collect_references_in_md_block(
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
   match block {
-    MdBlockElement::MdParagraph(p) => {
-      for inline in p.inline_elements() {
+    MdBlockElement::MdParagraph(paragraph) => {
+      for inline in paragraph.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdBlockElement::MdHeading(h) => {
-      for inline in h.inline_elements() {
+    MdBlockElement::MdHeading(heading) => {
+      for inline in heading.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdBlockElement::MdBlockquote(bq) => {
-      for inner_block in bq.block_elements() {
+    MdBlockElement::MdBlockquote(block_quote) => {
+      for inner_block in block_quote.block_elements() {
         collect_references_in_md_block(db, inner_block, project, file, map);
       }
     }
@@ -318,23 +318,23 @@ fn collect_references_in_md_inline(
         collect_references_in_expr(db, child, map);
       }
     }
-    MdInlineElement::MdBold(b) => {
-      for inner in b.inline_elements() {
+    MdInlineElement::MdBold(bold) => {
+      for inner in bold.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdItalic(i) => {
-      for inner in i.inline_elements() {
+    MdInlineElement::MdItalic(italic) => {
+      for inner in italic.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdBoldItalic(bi) => {
-      for inner in bi.inline_elements() {
+    MdInlineElement::MdBoldItalic(bold_italic) => {
+      for inner in bold_italic.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdStrikethrough(s) => {
-      for inner in s.inline_elements() {
+    MdInlineElement::MdStrikethrough(strikethrough) => {
+      for inner in strikethrough.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
@@ -529,7 +529,7 @@ fn collect_references_in_call(
   let file = call_project_node.file;
 
   let callee_expr = match call.callee() {
-    Some(c) => c,
+    Some(callee) => callee,
     None => return,
   };
   let callee_project_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
@@ -690,7 +690,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let index = resolution_index(&db, project, file);
     // valid_person.td has _type: Person, so "Person" should be in the index
-    let definition_ids = index.def_ids(&db);
+    let definition_ids = index.definition_ids(&db);
     assert!(!definition_ids.is_empty(), "should have symbols");
     // Look up the first symbol by def_id
     let references: Vec<_> = index
@@ -709,7 +709,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let index = resolution_index(&db, project, file);
     assert!(
-      index.def_ids(&db).is_empty(),
+      index.definition_ids(&db).is_empty(),
       "untyped file with no identifiers should have no symbols"
     );
   }

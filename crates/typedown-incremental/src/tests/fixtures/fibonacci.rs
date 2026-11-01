@@ -9,8 +9,8 @@ thread_local! {
   static FIB_LOG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
-pub fn log(msg: String) {
-  FIB_LOG.with(|log| log.borrow_mut().push(msg));
+pub fn log(message: String) {
+  FIB_LOG.with(|log| log.borrow_mut().push(message));
 }
 
 pub fn take_log() -> Vec<String> {

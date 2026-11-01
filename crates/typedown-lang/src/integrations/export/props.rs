@@ -1,6 +1,6 @@
 //! Export schema property descriptors for the client
 
-use crate::integrations::bindings::serialize_to_json;
+use crate::integrations::export::serialize::serialize_to_json;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;

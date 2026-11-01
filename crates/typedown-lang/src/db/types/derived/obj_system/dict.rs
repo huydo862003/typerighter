@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::hash::Hasher;
 use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
@@ -147,19 +148,19 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
   }
 
   fn typ_params(&self, db: &'db TypedownDatabase) -> Option<TypParams<'db>> {
-    let obj_type = LazyTyp::eager(get_obj_typ(db).into());
+    let obj_typ = LazyTyp::eager(get_obj_typ(db).into());
     let mut bindings = Vec::new();
-    if let Some(k) = self.key(db) {
-      bindings.push(k);
+    if let Some(key) = self.key(db) {
+      bindings.push(key);
     }
-    if let Some(v) = self.value(db) {
-      bindings.push(v);
+    if let Some(value) = self.value(db) {
+      bindings.push(value);
     }
     Some(TypParams::new(
       db,
       vec![
-        TypVariable::get(db, Some(obj_type.clone())),
-        TypVariable::get(db, Some(obj_type)),
+        TypVariable::get(db, Some(obj_typ.clone())),
+        TypVariable::get(db, Some(obj_typ)),
       ],
       bindings,
     ))
@@ -196,7 +197,7 @@ impl<'db> StableHash for TdDictObj<'db> {
     let storage = unsafe { db.storage() };
     let cache_key = (Self::ingredient_start_index(), self.0);
     if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
-      ::std::hash::Hasher::write(hasher, &cached.0);
+      Hasher::write(hasher, &cached.0);
       return;
     }
     let mut inner_hasher = StableHasher::new();
@@ -208,7 +209,7 @@ impl<'db> StableHash for TdDictObj<'db> {
     }
     let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
     storage.derived_fingerprints.insert(cache_key, fingerprint);
-    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+    Hasher::write(hasher, &fingerprint.0);
   }
 }
 

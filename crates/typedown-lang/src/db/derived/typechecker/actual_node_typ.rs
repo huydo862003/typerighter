@@ -107,7 +107,7 @@ pub fn actual_node_typ<'db>(
       let value: String = string_lit
         .fragments()
         .filter_map(|fragment| match fragment {
-          Either::Left(s) => Some(s),
+          Either::Left(string) => Some(string),
           _ => None,
         })
         .collect::<Vec<_>>()
@@ -144,9 +144,9 @@ pub fn actual_node_typ<'db>(
   if let Some(expr) = Expr::cast(node.clone()) {
     return match expr {
       Expr::YamlMapping(_) | Expr::DictLit(_) => get_mapping_typ(db, project_node),
-      Expr::YamlSequence(seq) => get_sequence_typ(
+      Expr::YamlSequence(sequence) => get_sequence_typ(
         db,
-        seq
+        sequence
           .values()
           .map(|expr| ProjectRedNode::new(project, file, expr.syntax().clone()))
           .collect(),
@@ -497,7 +497,7 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
     Some(string_lit) if !string_lit.is_interpolated() => string_lit
       .fragments()
       .filter_map(|fragment| match fragment {
-        Either::Left(s) => Some(s),
+        Either::Left(string) => Some(string),
         _ => None,
       })
       .collect::<Vec<_>>()
@@ -623,7 +623,7 @@ fn get_index_typ<'db>(
 // actual(closure) = fn(params from expected, return from actual(body))
 fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> TypResult<'db> {
   let closure = match ClosureExpr::cast(project_node.node.clone()) {
-    Some(c) => c,
+    Some(closure) => closure,
     None => return TypResult::new(db, None, vec![]),
   };
 
@@ -661,7 +661,7 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
   }
 
   let body_expr = match closure.body() {
-    Some(b) => b,
+    Some(body) => body,
     None => return TypResult::new(db, None, vec![]),
   };
   let body_node = ProjectRedNode::new(project, file, body_expr.syntax().clone());

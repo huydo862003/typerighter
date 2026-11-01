@@ -49,7 +49,7 @@ fn get_func_param_typ<'db>(
 ) -> TypResult<'db> {
   let expected = expected_node_typ(db, closure_node.clone()).typ(db);
   let func_typ = match expected {
-    Some(TdTypEnum::TdFuncTyp(f)) => f,
+    Some(TdTypEnum::TdFuncTyp(fnc)) => fnc,
     _ => return TypResult::new(db, None, vec![]),
   };
 

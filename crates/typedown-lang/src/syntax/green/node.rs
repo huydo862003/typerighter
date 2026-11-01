@@ -45,8 +45,8 @@ impl SyntaxNode {
 
       // Clone each child (bumps ref-count) and write into the allocation
       let children_ptr = base.add(children_offset) as *mut GreenNode;
-      for (i, child) in children.iter().enumerate() {
-        children_ptr.add(i).write(child.clone());
+      for (index, child) in children.iter().enumerate() {
+        children_ptr.add(index).write(child.clone());
       }
 
       Self(base as *const NodeHeader)
@@ -99,8 +99,8 @@ impl Drop for SyntaxNode {
       let n = (*self.0).n_children as usize;
       let (layout, offset) = Self::layout(n);
       let children_ptr = (self.0 as *mut u8).add(offset) as *mut GreenNode;
-      for i in 0..n {
-        std::ptr::drop_in_place(children_ptr.add(i));
+      for index in 0..n {
+        std::ptr::drop_in_place(children_ptr.add(index));
       }
       dealloc(self.0 as *mut u8, layout);
     }

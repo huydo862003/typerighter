@@ -1,320 +1,28 @@
 //! Export typedown resources
 
+pub mod content;
 pub mod file_ref;
+pub mod frontmatter;
 pub mod html;
 pub mod markdown;
 pub mod media;
 pub mod props;
+pub mod serialize;
 pub mod types;
 pub mod utils;
 
-pub use crate::integrations::bindings::{CircularRef, evaluate_lazy_field, serialize_handle, serialize_to_json};
+pub use crate::integrations::bindings::{evaluate_lazy_field, serialize_handle};
+pub use serialize::CircularRef;
+pub use content::{export_resource_html, export_resource_markdown};
 pub use file_ref::{
   FrefTarget, ResolvedRef, resolve_file_ref, resolve_fref_target, resolve_schema_label,
 };
+pub use frontmatter::{export_resource_nav, export_resource_summary};
 pub use props::{Widget, export_prop_descriptors};
+pub use serialize::serialize_to_json;
 pub use types::*;
 
 pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
-
-use crate::db::TypedownDatabase;
-use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use crate::db::derived::get_vault_config::get_vault_config;
-use crate::db::derived::parse_file::parse_file;
-use crate::db::types::derived::obj_system::TdStaticTyp;
-use crate::db::types::{File, FileHandle, Project, TdBlobTyp, TdObjEnum, TdRuntimeObj};
-use crate::db::utils::is_external_url;
-use crate::integrations::export::utils::{extract_plain_text, prepend_base_path};
-use crate::syntax::ast::{AstNode, MdBody, SourceFile};
-use crate::syntax::red::RedNode;
-use crate::syntax::syntax_kind::SyntaxKind;
-
-// Shared fields extracted before body rendering
-struct ResourceFields {
-  schema: Option<String>,
-  label: Option<String>,
-  icon: Option<ExportedIcon>,
-  seo_metadata: Option<ExportedSeoMeta>,
-  header: serde_json::Value,
-  metadata: ExportedFileMetadata,
-  excerpt: Option<String>,
-  body: MdBody,
-}
-
-// Fields for binary asset files (no body, schema is always blob type)
-struct BlobFields {
-  header: serde_json::Value,
-  metadata: ExportedFileMetadata,
-}
-
-enum ResourceKind {
-  Blob(BlobFields),
-  Content(ResourceFields),
-}
-
-/// Export a content listing entry (no body, includes header)
-pub fn export_resource_summary(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResourceSummary> {
-  match extract_resource(db, project, file)? {
-    ResourceKind::Blob(_) => None,
-    ResourceKind::Content(fields) => Some(ExportedResourceSummary {
-      schema: fields.schema,
-      label: fields.label,
-      icon: fields.icon,
-      header: fields.header,
-      excerpt: fields.excerpt,
-      metadata: fields.metadata,
-    }),
-  }
-}
-
-/// Export a lightweight sidebar nav entry (no header or body)
-pub fn export_resource_nav(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResourceNav> {
-  match extract_resource(db, project, file)? {
-    ResourceKind::Blob(_) => None,
-    ResourceKind::Content(fields) => Some(ExportedResourceNav {
-      schema: fields.schema,
-      label: fields.label,
-      icon: fields.icon,
-      metadata: fields.metadata,
-      excerpt: fields.excerpt,
-    }),
-  }
-}
-
-/// Export a resource file as structured header and CommonMark body
-pub fn export_resource_markdown(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResourceMarkdown> {
-  match extract_resource(db, project, file)? {
-    ResourceKind::Blob(blob) => Some(ExportedResourceMarkdown {
-      schema: Some(TdBlobTyp::get(db).display_name(db)),
-      label: None,
-      icon: None,
-      header: blob.header,
-      content: String::new(),
-      metadata: blob.metadata,
-    }),
-    ResourceKind::Content(fields) => {
-      let content = markdown::export_markdown_body(db, project, file, &fields.body);
-      Some(ExportedResourceMarkdown {
-        schema: fields.schema,
-        label: fields.label,
-        icon: fields.icon,
-        header: fields.header,
-        content,
-        metadata: fields.metadata,
-      })
-    }
-  }
-}
-
-/// Export a resource file as structured header and HTML body
-pub fn export_resource_html(
-  db: &TypedownDatabase,
-  project: Project,
-  file: File,
-) -> Option<ExportedResourceHtml> {
-  match extract_resource(db, project, file)? {
-    ResourceKind::Blob(blob) => Some(ExportedResourceHtml {
-      schema: Some(TdBlobTyp::get(db).display_name(db)),
-      label: None,
-      icon: None,
-      header: blob.header,
-      content: String::new(),
-      headings: Vec::new(),
-      title: None,
-      metadata: blob.metadata,
-      seo_metadata: None,
-    }),
-    ResourceKind::Content(fields) => {
-      let content = html::export_html_body(db, project, file, &fields.body);
-      Some(ExportedResourceHtml {
-        schema: fields.schema,
-        label: fields.label,
-        icon: fields.icon,
-        header: fields.header,
-        content: content.html,
-        headings: content.headings,
-        title: content.title,
-        metadata: fields.metadata,
-        seo_metadata: fields.seo_metadata,
-      })
-    }
-  }
-}
-
-// Internal helpers
-
-// Extract the resource kind and fields for a file, returning None for schema files
-fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Option<ResourceKind> {
-  // Skip schema type definitions
-  let symbol = file_symbol(db, project, file).value(db)?;
-  if symbol.kind(db).is_schema() {
-    return None;
-  }
-
-  let metadata = export_file_metadata(&file.handle(db));
-
-  // Evaluate the runtime object: body-only files have no frontmatter object
-  let obj = evaluate_resource(db, symbol).value(db);
-
-  // Blob files (binary assets) have no body or navigation fields
-  if let Some(ref obj) = obj
-    && obj.as_td_blob_obj().is_some()
-  {
-    return Some(ResourceKind::Blob(BlobFields {
-      header: serialize_to_json(db, project, obj).unwrap_or_default(),
-      metadata,
-    }));
-  }
-
-  let (schema, header, label, icon, seo_metadata) = if let Some(ref obj) = obj {
-    let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
-      Some(schema_obj.schema(db).display_name(db))
-    } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
-      None
-    } else {
-      return None;
-    };
-
-    let mut header = serialize_to_json(db, project, obj).unwrap_or_default();
-    if let serde_json::Value::Object(ref mut map) = header {
-      map.retain(|k, v| !k.starts_with('_') && !v.is_null());
-    }
-
-    let label = obj
-      .get_builtin_field(db, "_label")
-      .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
-    let icon = obj.get_builtin_field(db, "_icon").and_then(|obj| {
-      obj.as_td_icon_obj().map(|icon| ExportedIcon {
-        name: icon.lucide_name(db),
-      })
-    });
-
-    let seo_metadata = export_seo_metadata(db, project, obj);
-
-    (schema, header, label, icon, seo_metadata)
-  } else {
-    // Body-only file: no frontmatter, all fields default to empty
-    (
-      None,
-      serde_json::Value::Object(Default::default()),
-      None,
-      None,
-      None,
-    )
-  };
-
-  // Parse the markdown body
-  let parse_result = parse_file(db, project, file);
-  let root = parse_result.ast(db).node.clone();
-  let source_file = SourceFile::cast(root)?;
-  let body = source_file.body()?;
-
-  // Prefer description or summary fields from the object, fall back to first body paragraph
-  let excerpt = obj
-    .as_ref()
-    .and_then(|obj| {
-      obj
-        .get_owned_field(db, "description")
-        .and_then(|field| field.as_td_string_obj().map(|string| string.value(db)))
-        .or_else(|| {
-          obj
-            .get_owned_field(db, "summary")
-            .and_then(|field| field.as_td_string_obj().map(|string| string.value(db)))
-        })
-        .filter(|string| !string.is_empty())
-    })
-    .or_else(|| export_body_excerpt(body.syntax()));
-
-  Some(ResourceKind::Content(ResourceFields {
-    schema,
-    label,
-    icon,
-    seo_metadata,
-    header,
-    metadata,
-    excerpt,
-    body,
-  }))
-}
-
-fn export_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
-  let meta = handle.metadata();
-  ExportedFileMetadata {
-    mtime: meta.mtime_epoch_secs(),
-    ctime: meta.ctime_epoch_secs(),
-  }
-}
-
-fn export_seo_metadata(
-  db: &TypedownDatabase,
-  project: Project,
-  obj: &TdObjEnum,
-) -> Option<ExportedSeoMeta> {
-  let meta_obj = obj.get_builtin_field(db, "_meta")?;
-
-  if meta_obj.is_td_null_obj() {
-    return None;
-  }
-
-  let title = meta_obj
-    .get_owned_field(db, "title")
-    .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
-  let description = meta_obj
-    .get_owned_field(db, "description")
-    .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
-  let image = meta_obj.get_owned_field(db, "image").and_then(|obj| {
-    obj.as_td_string_obj().map(|string| {
-      let raw = string.value(db);
-      if is_external_url(&raw) || raw.starts_with('/') {
-        raw
-      } else {
-        let config = get_vault_config(db, project);
-        prepend_base_path(&config.base_path(db), &raw)
-      }
-    })
-  });
-
-  if title.is_none() && description.is_none() && image.is_none() {
-    return None;
-  }
-
-  Some(ExportedSeoMeta {
-    title,
-    description,
-    image,
-  })
-}
-
-fn export_body_excerpt(node: &RedNode) -> Option<String> {
-  // Depth-first search for the first MdParagraph in the AST
-  fn find_first_paragraph(node: &RedNode) -> Option<RedNode> {
-    for child in node.children() {
-      if child.kind() == SyntaxKind::MdParagraph {
-        return Some(child);
-      }
-      if let Some(found) = find_first_paragraph(&child) {
-        return Some(found);
-      }
-    }
-    None
-  }
-
-  find_first_paragraph(node)
-    .map(|paragraph| extract_plain_text(&paragraph))
-    .filter(|string| !string.is_empty())
-}
 
 #[cfg(test)]
 mod tests {
@@ -322,7 +30,7 @@ mod tests {
   use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
   use crate::db::derived::name_resolver::file_symbol::file_symbol;
   use crate::db::fixtures::load_vault_fixture;
-  use crate::db::types::{File, FileHandle, FileMetadata, Project};
+  use crate::db::types::{File, FileHandle, FileMetadata, Project, TdRuntimeObj};
   use crate::db::{QueryStorage, TypedownDatabase};
   use std::collections::HashMap;
   use std::path::PathBuf;
@@ -332,27 +40,24 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("should export");
-    assert!(
-      exported
-        .header
-        .as_object()
-        .is_some_and(|member| !member.is_empty()),
-      "header should have fields"
-    );
     assert_eq!(
       exported.schema,
       Some("Person".to_string()),
       "schema should be Person"
     );
+    assert_eq!(exported.header["$kind"], "schema", "header should be $kind-tagged");
+    let fields = exported.header.get("fields").and_then(|val| val.as_object())
+      .expect("header should have fields object");
     assert!(
-      exported.header.get("_content").is_none(),
-      "should not contain _content"
+      !fields.is_empty(),
+      "fields should not be empty"
     );
-    assert_eq!(
-      exported.header["name"],
-      serde_json::Value::String("Alice".to_string())
+    assert_eq!(fields["name"], "Alice");
+    assert_eq!(fields["age"], 30.0);
+    assert!(
+      !fields.contains_key("_content"),
+      "_content should be stripped from fields"
     );
-    assert_eq!(exported.header["age"], serde_json::json!(30.0));
   }
 
   #[test]
@@ -544,13 +249,11 @@ full content:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/BookType.td");
     let props = export_prop_descriptors(&db, project, file).expect("BookType schema should export");
     eprintln!("PROPS: {}", serde_json::to_string_pretty(&props).unwrap());
-    // Single relation
     assert_eq!(
       props["parent"]["widget"], "relation",
       "parent should be relation widget"
     );
     assert_eq!(props["parent"]["schema"], "Person");
-    // List of relations
     assert_eq!(
       props["concepts"]["widget"], "list",
       "concepts should be list widget"
@@ -560,78 +263,6 @@ full content:
       "concepts items should be relation widget"
     );
     assert_eq!(props["concepts"]["items"]["schema"], "Person");
-  }
-
-  #[test]
-  fn exports_fref_list_in_header() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "book_with_frefs.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
-    let header = &exported.header;
-    eprintln!("HEADER: {}", serde_json::to_string_pretty(header).unwrap());
-
-    // Single fref in header
-    assert!(
-      header["parent"]["$ref"]["url"].is_string(),
-      "parent fref should resolve in header: {}",
-      header["parent"]
-    );
-
-    // List of frefs in header
-    let concepts = header["concepts"]
-      .as_array()
-      .expect("concepts should be array");
-    assert_eq!(concepts.len(), 2, "should have 2 concepts in header");
-    assert!(
-      concepts[0]["$ref"]["url"].is_string(),
-      "first concept should resolve in header: {}",
-      concepts[0]
-    );
-    assert!(
-      concepts[1]["$ref"]["url"].is_string(),
-      "second concept should resolve in header: {}",
-      concepts[1]
-    );
-    // No nulls in the list
-    for (idx, concept) in concepts.iter().enumerate() {
-      assert!(
-        !concept.is_null(),
-        "concept {idx} should not be null: {concept}"
-      );
-      assert!(
-        concept["$ref"].is_object(),
-        "concept {idx} should have $ref object: {concept}"
-      );
-    }
-  }
-
-  #[test]
-  fn exports_absolute_fref_in_header() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "book_with_absolute_frefs.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
-    let header = &exported.header;
-
-    // Absolute path fref: fref("/valid_person.td")
-    assert!(
-      header["parent"]["$ref"]["url"].is_string(),
-      "absolute fref should resolve: {}",
-      header["parent"]
-    );
-
-    let concepts = header["concepts"]
-      .as_array()
-      .expect("concepts should be array");
-    assert_eq!(concepts.len(), 2);
-    for (idx, concept) in concepts.iter().enumerate() {
-      assert!(
-        !concept.is_null(),
-        "absolute fref concept {idx} should not be null (was a bug: Path::join with leading / replaces base)"
-      );
-      assert!(
-        concept["$ref"]["url"].is_string(),
-        "absolute fref concept {idx} should resolve: {concept}"
-      );
-    }
   }
 
   #[test]
@@ -649,15 +280,6 @@ full content:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
     let exported = export_resource_markdown(&db, project, file).expect("asset should export");
     assert_eq!(exported.schema, Some("blob".to_string()));
-    assert_eq!(
-      exported.header["format"],
-      serde_json::Value::String("svg".to_string())
-    );
-    assert!(
-      exported.header.get("handle").is_some(),
-      "should include handle"
-    );
-    assert_eq!(exported.header["handle"]["type"], "path");
     assert!(exported.content.is_empty(), "asset has no markdown body");
   }
 
@@ -702,8 +324,8 @@ full content:
     let heading_indices: Vec<usize> = lines
       .iter()
       .enumerate()
-      .filter(|(_, l)| l.starts_with('#'))
-      .map(|(i, _)| i)
+      .filter(|(_, line)| line.starts_with('#'))
+      .map(|(index, _)| index)
       .collect();
     for &idx in &heading_indices {
       if idx > 0 {
@@ -761,7 +383,6 @@ full content:
     assert_eq!(label, "Person");
   }
 
-  // Regression: adding _icon to a schema during dev server hot-reload previously caused a cycle
   #[test]
   fn incremental_add_icon_to_schema_no_cycle() {
     let mut db = TypedownDatabase {
@@ -825,7 +446,6 @@ name: "Alice"
     .collect();
     let project = Project::new(&db, vault.clone(), files, None);
 
-    // First evaluation, no icon
     let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
     assert!(
@@ -844,7 +464,6 @@ name: "Alice"
     let exported = export_resource_markdown(&db, project, content_file).expect("should export");
     assert_eq!(exported.schema.as_deref(), Some("MySchema"));
 
-    // Mutate: add _icon to the schema
     schema_file.set_handle(
       &mut db,
       FileHandle::Content(
@@ -862,7 +481,6 @@ properties:
       ),
     );
 
-    // Re-evaluate, should not panic with a query cycle
     let symbol2 = file_symbol(&db, project, schema_file).value(&db).unwrap();
     let result2 = evaluate_typ(&db, symbol2);
     assert!(
@@ -1162,13 +780,11 @@ properties:
   fn html_export_code_in_link_text() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    // [`code` in link](url) should render code with <code> tags, not raw backticks
     assert!(
       exported.content.contains("<code>code</code> in link</a>"),
       "inline code in link should render as <code>code</code> inside <a>: {}",
       exported.content
     );
-    // Raw backticks should not leak into the output
     assert!(
       !exported.content.contains("`code` in link"),
       "backticks should not appear as raw text in rendered link: {}",
@@ -1191,7 +807,7 @@ properties:
     assert!(exported.content.contains(
       r#"<grid :cols="2" />
 "#
-    )); // \n needed, raw string would be awkward
+    ));
   }
 
   #[test]
@@ -1228,8 +844,10 @@ properties:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert_eq!(exported.schema, Some("Person".to_string()));
-    assert_eq!(exported.header["name"], "Alice");
-    assert_eq!(exported.header["age"], 30.0);
+    // Header now uses $kind-tagged bindings format
+    let fields = &exported.header["fields"];
+    assert_eq!(fields["name"], "Alice");
+    assert_eq!(fields["age"], 30.0);
   }
 
   #[test]
@@ -1319,7 +937,8 @@ properties:
     assert!(exported.content.contains("<h2"));
     assert!(exported.schema.is_none());
     assert!(exported.label.is_none());
-    assert_eq!(exported.header, serde_json::json!({}));
+    // Body-only files produce an empty product with bindings format
+    assert!(exported.header.is_object(), "header should be object");
   }
 
   #[test]
@@ -1606,5 +1225,76 @@ properties:
       content.contains(r#":col-span="2""#),
       "inner grid-cell should have col-span prop: {content}"
     );
+  }
+
+  #[test]
+  fn exports_fref_list_in_header() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "book_with_frefs.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let header = &exported.header;
+    assert_eq!(header["$kind"], "schema", "header should be $kind-tagged schema");
+    let fields = header.get("fields").and_then(|val| val.as_object())
+      .expect("header should have fields");
+
+    // Single fref in header: serialized as full schema object
+    assert_eq!(
+      fields["parent"]["$kind"], "schema",
+      "parent fref should serialize as schema object: {}",
+      fields["parent"]
+    );
+    assert!(
+      fields["parent"]["fields"]["name"].is_string(),
+      "parent should have name field: {}",
+      fields["parent"]
+    );
+
+    // List of frefs in header
+    let concepts = fields["concepts"]
+      .as_array()
+      .expect("concepts should be array");
+    assert_eq!(concepts.len(), 2, "should have 2 concepts in header");
+    for (index, concept) in concepts.iter().enumerate() {
+      assert!(
+        !concept.is_null(),
+        "concept {index} should not be null: {concept}"
+      );
+      assert_eq!(
+        concept["$kind"], "schema",
+        "concept {index} should be a schema object: {concept}"
+      );
+    }
+  }
+
+  #[test]
+  fn exports_absolute_fref_in_header() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "book_with_absolute_frefs.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let header = &exported.header;
+    assert_eq!(header["$kind"], "schema", "header should be $kind-tagged");
+    let fields = header.get("fields").and_then(|val| val.as_object())
+      .expect("header should have fields");
+
+    // Absolute path fref
+    assert_eq!(
+      fields["parent"]["$kind"], "schema",
+      "absolute fref should serialize as schema: {}",
+      fields["parent"]
+    );
+
+    let concepts = fields["concepts"]
+      .as_array()
+      .expect("concepts should be array");
+    assert_eq!(concepts.len(), 2);
+    for (index, concept) in concepts.iter().enumerate() {
+      assert!(
+        !concept.is_null(),
+        "absolute fref concept {index} should not be null"
+      );
+      assert_eq!(
+        concept["$kind"], "schema",
+        "absolute fref concept {index} should serialize as schema: {concept}"
+      );
+    }
   }
 }

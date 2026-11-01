@@ -277,7 +277,7 @@ fn detect_extends_cycle(
 
     let root_node = parse_file(db, project, file).ast(db);
     let entries = root_node.mapping_entries()?;
-    let (_, extends_node) = entries.iter().find(|(k, _)| k == "_extends")?;
+    let (_, extends_node) = entries.iter().find(|(key, _)| key == "_extends")?;
 
     let resolved = referee(db, extends_node.clone());
     let next_symbol = resolved.value(db)?;
@@ -484,7 +484,11 @@ fn resolve_typ_lazy<'db>(
   if let Some(ident) = IdentLit::cast(node.clone()) {
     match ident.value().as_deref() {
       Some("null") => return Some(LazyTyp::eager(get_null_typ(db).into())),
-      Some("true") => return Some(LazyTyp::eager(get_lit_typ(db, LitValue::Bool(true)).into())),
+      Some("true") => {
+        return Some(LazyTyp::eager(
+          get_lit_typ(db, LitValue::Bool(true)).into(),
+        ));
+      }
       Some("false") => {
         return Some(LazyTyp::eager(
           get_lit_typ(db, LitValue::Bool(false)).into(),
@@ -520,7 +524,7 @@ fn resolve_typ_lazy<'db>(
     let value: String = string_lit
       .fragments()
       .filter_map(|fragment| match fragment {
-        Either::Left(s) => Some(s),
+        Either::Left(string) => Some(string),
         _ => None,
       })
       .collect::<Vec<_>>()
@@ -962,8 +966,8 @@ mod tests {
     let person_file = project
       .files(&db)
       .iter()
-      .find(|(p, _)| p.ends_with("Person.td"))
-      .map(|(_, f)| *f)
+      .find(|(path, _)| path.ends_with("Person.td"))
+      .map(|(_, field)| *field)
       .unwrap();
     let grad_symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
@@ -1673,9 +1677,9 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+    let (_, prop_node) = props_entries.iter().find(|(key, _)| key == "age").unwrap();
 
     let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
@@ -1701,9 +1705,9 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+    let (_, prop_node) = props_entries.iter().find(|(key, _)| key == "age").unwrap();
 
     let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
@@ -1749,9 +1753,12 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let (_, prop_node) = props_entries
+      .iter()
+      .find(|(key, _)| key == "fullName")
+      .unwrap();
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
@@ -1782,9 +1789,12 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let (_, prop_node) = props_entries
+      .iter()
+      .find(|(key, _)| key == "fullName")
+      .unwrap();
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
@@ -1816,9 +1826,12 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let (_, prop_node) = props_entries
+      .iter()
+      .find(|(key, _)| key == "fullName")
+      .unwrap();
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_none());

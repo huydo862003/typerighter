@@ -223,8 +223,8 @@ impl RpcServer {
 
         match rx.recv_timeout(dump_timeout) {
           Ok(Ok(serialized)) => {
-            if let Err(err) = self.cache_session.finalize(&serialized, revision) {
-              log::error!("Failed to save incremental cache: {err}");
+            if let Err(error) = self.cache_session.finalize(&serialized, revision) {
+              log::error!("Failed to save incremental cache: {error}");
             }
           }
           Ok(Err(_)) => {
@@ -241,13 +241,13 @@ impl RpcServer {
   }
 
   pub fn run(&self) -> anyhow::Result<()> {
-    for msg in &self.connection.receiver {
-      match msg {
-        Message::Request(req) => {
-          if self.connection.handle_shutdown(&req)? {
+    for message in &self.connection.receiver {
+      match message {
+        Message::Request(request) => {
+          if self.connection.handle_shutdown(&request)? {
             return Ok(());
           }
-          self.handle_request(req);
+          self.handle_request(request);
         }
         Message::Notification(_) | Message::Response(_) => {}
       }
@@ -269,7 +269,7 @@ impl RpcServer {
 
       let response = match result {
         Ok(Ok(value)) => Response::new_ok(request_id, value),
-        Ok(Err(err)) => Response::new_err(request_id, err.code, err.message),
+        Ok(Err(error)) => Response::new_err(request_id, error.code, error.message),
         Err(payload) => {
           if payload.downcast_ref::<Cancelled>().is_some() {
             Response::new_err(
@@ -515,12 +515,12 @@ impl RpcServer {
 }
 
 fn send_notification<T: serde::Serialize>(sender: &Sender<Message>, method: &str, params: &T) {
-  let notif = Notification::new(method.to_string(), serde_json::to_value(params).unwrap());
-  let _ = sender.send(Message::Notification(notif));
+  let notififcation = Notification::new(method.to_string(), serde_json::to_value(params).unwrap());
+  let _ = sender.send(Message::Notification(notififcation));
 }
 
 fn parse_params<T: serde::de::DeserializeOwned>(params: serde_json::Value) -> RpcResult<T> {
-  serde_json::from_value(params).map_err(|err| RpcError::invalid_params(err.to_string()))
+  serde_json::from_value(params).map_err(|error| RpcError::invalid_params(error.to_string()))
 }
 
 fn dispatch_request(

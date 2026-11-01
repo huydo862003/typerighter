@@ -3,7 +3,6 @@
 //! Determines whether a URL should render as an image, a known service embed,
 //! a GitHub code snippet, or a generic iframe.
 
-use std::fmt::Write;
 use std::path::Path;
 
 use crate::db::utils::{is_external_url, percent_encode};
@@ -307,9 +306,9 @@ mod tests {
 
   fn assert_embed(url: &str, expected_embed_url: &str) {
     match classify_media_url(url) {
-      MediaKind::ServiceEmbed(e) => {
+      MediaKind::ServiceEmbed(embed) => {
         assert_eq!(
-          e.embed_url, expected_embed_url,
+          embed.embed_url, expected_embed_url,
           "embed URL mismatch for {url}"
         );
       }

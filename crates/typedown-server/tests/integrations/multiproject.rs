@@ -130,10 +130,10 @@ fn load_nearest_project_errors_without_config() {
   let result = multiproject.load_nearest_project(&tmp.path().join("no_vault/deep/nested"));
 
   assert!(result.is_err());
-  let err_msg = result.unwrap_err().to_string();
+  let error_message = result.unwrap_err().to_string();
   assert!(
-    err_msg.contains("No typedown.yaml found"),
-    "unexpected error: {err_msg}"
+    error_message.contains("No typedown.yaml found"),
+    "unexpected error: {error_message}"
   );
 }
 

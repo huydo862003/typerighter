@@ -31,9 +31,9 @@ impl<'db> TdRuntimeObj<'db> for TdLitTyp<'db> {
 impl<'db> TdStaticTyp<'db> for TdLitTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match self.value(db) {
-      LitValue::String(s) => format!("\"{}\"", s),
-      LitValue::Number(n) => n,
-      LitValue::Bool(b) => b.to_string(),
+      LitValue::String(string) => format!("\"{}\"", string),
+      LitValue::Number(number) => number,
+      LitValue::Bool(bool) => bool.to_string(),
     }
   }
 

@@ -7,7 +7,7 @@ use super::{erase_db_lifetime_tokens, has_return_ref};
 pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
   let struct_ast = match syn::parse::<ItemStruct>(item) {
     Ok(ast) => ast,
-    Err(err) => return err.to_compile_error().into(),
+    Err(error) => return error.to_compile_error().into(),
   };
 
   let visibility = &struct_ast.vis;

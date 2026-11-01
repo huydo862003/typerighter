@@ -116,10 +116,10 @@ pub fn is_typ_file(path: &Path) -> bool {
 }
 
 /// Strip a content file extension (.td or .md) from a string
-pub fn strip_content_extension(s: &str) -> &str {
-  s.strip_suffix(".td")
-    .or_else(|| s.strip_suffix(".md"))
-    .unwrap_or(s)
+pub fn strip_content_extension(string: &str) -> &str {
+  string.strip_suffix(".td")
+    .or_else(|| string.strip_suffix(".md"))
+    .unwrap_or(string)
 }
 
 /// Check if a file has no frontmatter (schemaless)

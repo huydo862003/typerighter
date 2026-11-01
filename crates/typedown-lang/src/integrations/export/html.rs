@@ -355,8 +355,8 @@ impl<'a> HtmlEmitter<'a> {
 
     if let Some(header) = table.header() {
       self.write("<thead><tr>\n");
-      for (i, cell) in header.cells().enumerate() {
-        self.emit_table_cell(&cell, "th", alignments.get(i).copied().flatten());
+      for (index, cell) in header.cells().enumerate() {
+        self.emit_table_cell(&cell, "th", alignments.get(index).copied().flatten());
       }
       self.write("</tr></thead>\n");
     }
@@ -364,8 +364,8 @@ impl<'a> HtmlEmitter<'a> {
     self.write("<tbody>\n");
     for row in table.rows() {
       self.write("<tr>\n");
-      for (i, cell) in row.cells().enumerate() {
-        self.emit_table_cell(&cell, "td", alignments.get(i).copied().flatten());
+      for (index, cell) in row.cells().enumerate() {
+        self.emit_table_cell(&cell, "td", alignments.get(index).copied().flatten());
       }
       self.write("</tr>\n");
     }
@@ -373,8 +373,8 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_table_cell(&mut self, cell: &MdTableCell, tag: &str, align: Option<&str>) {
-    if let Some(a) = align {
-      self.write(&format!("<{tag} style=\"text-align:{a}\">"));
+    if let Some(align) = align {
+      self.write(&format!("<{tag} style=\"text-align:{align}\">"));
     } else {
       self.write(&format!("<{tag}>"));
     }

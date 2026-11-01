@@ -112,7 +112,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     matches!(self.stream.peek_nth(0), Utf8Result::Char('-'))
       && matches!(self.stream.peek_nth(1), Utf8Result::Char('-'))
       && matches!(self.stream.peek_nth(2), Utf8Result::Char('-'))
-      && !matches!(self.stream.peek_nth(3), Utf8Result::Char(c) if is_op_char(c))
+      && !matches!(self.stream.peek_nth(3), Utf8Result::Char(char) if is_op_char(char))
   }
 
   /// Current byte offset in the source stream

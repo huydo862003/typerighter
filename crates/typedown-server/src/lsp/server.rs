@@ -69,16 +69,16 @@ impl Server {
     self.register_file_watcher()?;
     self.register_file_operations()?;
 
-    for msg in &self.connection.receiver {
-      match msg {
-        Message::Request(req) => {
-          if let Err(err) = self.handle_request(req) {
-            log::error!("Failed to handle request: {err}");
+    for message in &self.connection.receiver {
+      match message {
+        Message::Request(request) => {
+          if let Err(error) = self.handle_request(request) {
+            log::error!("Failed to handle request: {error}");
           }
         }
-        Message::Notification(note) => {
-          if let Err(err) = self.handle_notification(note) {
-            log::error!("Failed to handle notification: {err}");
+        Message::Notification(notification) => {
+          if let Err(error) = self.handle_notification(notification) {
+            log::error!("Failed to handle notification: {error}");
           }
         }
         Message::Response(_) => {}
@@ -87,18 +87,18 @@ impl Server {
     Ok(())
   }
 
-  fn handle_request(&self, req: Request) -> anyhow::Result<()> {
-    if self.connection.handle_shutdown(&req)? {
+  fn handle_request(&self, request: Request) -> anyhow::Result<()> {
+    if self.connection.handle_shutdown(&request)? {
       return Ok(());
     }
 
     // executeCommand needs the connection for sending applyEdit/showDocument back
-    if req.method == ExecuteCommand::METHOD {
-      return self.handle_execute_command(req);
+    if request.method == ExecuteCommand::METHOD {
+      return self.handle_execute_command(request);
     }
 
     // Resolve to the owning project
-    let uri = try_extract_path_from_request(&req)?;
+    let uri = try_extract_path_from_request(&request)?;
     let path = uri_to_path(&uri).ok_or_else(|| Error::msg("Failed to convert URI to path"))?;
     let project_entry = self.multiproject.load_nearest_project(&path)?;
 
@@ -112,12 +112,12 @@ impl Server {
     // Cancelled::catch handles didChange cancellation; the outer catch_unwind
     // guards against unexpected panics so the thread pool thread survives and
     // the client always receives a response
-    let method = req.method.clone();
+    let method = request.method.clone();
     let sender = self.connection.sender.clone();
-    let request_id = req.id.clone();
+    let request_id = request.id.clone();
     self.thread_pool.execute(move || {
       let resp = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        Cancelled::catch(|| service::dispatch(&analysis, req))
+        Cancelled::catch(|| service::dispatch(&analysis, request))
       })) {
         Ok(Ok(response)) => response,
         Ok(Err(_)) => Response::new_err(
@@ -170,8 +170,8 @@ impl Server {
           .map_err(|_| Error::msg("RwLock poisoned"))?
           .snapshot();
 
-        if let Err(err) = create_linked::execute(&analysis, args, &self.connection) {
-          log::error!("createLinkedResource failed: {err}");
+        if let Err(error) = create_linked::execute(&analysis, args, &self.connection) {
+          log::error!("createLinkedResource failed: {error}");
         }
 
         // Send success response
@@ -212,9 +212,9 @@ impl Server {
         };
         let project_entry = match self.multiproject.load_nearest_project(&path) {
           Ok(entry) => entry,
-          Err(err) => {
+          Err(error) => {
             log::warn!(
-              "No project found for watched file {}: {err}",
+              "No project found for watched file {}: {error}",
               path.display()
             );
             continue;
@@ -333,16 +333,16 @@ impl Server {
         })
       }));
       let notifications = match result {
-        Ok(Ok(n)) => n,
+        Ok(Ok(notification)) => notification,
         Ok(Err(_)) => return,
         Err(payload) => {
           log::error!("diagnostics panicked: {}", panic_message(&payload));
           return;
         }
       };
-      for notif in notifications {
-        if let Err(err) = sender.send(Message::Notification(notif)) {
-          log::error!("Failed to send diagnostics: {err}");
+      for notification in notifications {
+        if let Err(error) = sender.send(Message::Notification(notification)) {
+          log::error!("Failed to send diagnostics: {error}");
           break;
         }
       }
@@ -410,7 +410,7 @@ impl Server {
       )?),
     };
 
-    let req = Request::new(
+    let request = Request::new(
       RequestId::from("typedown-register-watcher".to_string()),
       RegisterCapability::METHOD.to_string(),
       RegistrationParams {
@@ -418,7 +418,7 @@ impl Server {
       },
     );
 
-    self.connection.sender.send(Message::Request(req))?;
+    self.connection.sender.send(Message::Request(request))?;
     Ok(())
   }
 
@@ -457,13 +457,13 @@ impl Server {
       },
     ];
 
-    let req = Request::new(
+    let request = Request::new(
       RequestId::from("typedown-register-file-ops".to_string()),
       RegisterCapability::METHOD.to_string(),
       RegistrationParams { registrations },
     );
 
-    self.connection.sender.send(Message::Request(req))?;
+    self.connection.sender.send(Message::Request(request))?;
     Ok(())
   }
 }

@@ -68,7 +68,7 @@ impl<'a> Utf8Stream for StringStream<'a> {
       }
     }
     match chars.next() {
-      Some(c) => Utf8Result::Char(c),
+      Some(char) => Utf8Result::Char(char),
       None => Utf8Result::Eof,
     }
   }

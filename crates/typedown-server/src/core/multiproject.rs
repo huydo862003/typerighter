@@ -95,9 +95,9 @@ impl Multiproject {
 
       let revision = db.storage.revision.load(Ordering::Acquire) as u64;
       let serialized = db.dump();
-      if let Err(err) = session.finalize(&serialized, revision) {
+      if let Err(error) = session.finalize(&serialized, revision) {
         log::error!(
-          "Failed to save incremental cache for {}: {err}",
+          "Failed to save incremental cache for {}: {error}",
           root_dir.display()
         );
       }
