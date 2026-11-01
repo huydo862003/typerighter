@@ -104,9 +104,10 @@ fn validate(
 
   for prop_name in &provided_props {
     // Match both exact name and kebab-to-camel conversion (col-span -> colSpan)
-    if !props.iter().any(|prop| {
-      prop.name == *prop_name || prop.name == kebab_to_camel(prop_name)
-    }) {
+    if !props
+      .iter()
+      .any(|prop| prop.name == *prop_name || prop.name == kebab_to_camel(prop_name))
+    {
       diagnostics.push(
         TdDiagnosticKind::UnknownProp {
           prop: prop_name.clone(),
