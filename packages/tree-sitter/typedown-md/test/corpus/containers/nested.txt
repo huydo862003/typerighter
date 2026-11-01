@@ -24,3 +24,72 @@ Container containing a list
           (paragraph
             (inline))))
       (container_block_delimiter))))
+
+================
+Nested container
+================
+
+:::grid
+:::grid-cell
+Alpha
+:::
+:::grid-cell
+Beta
+:::
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      (container_block
+        (container_block_delimiter)
+        type: (container_type)
+        (paragraph
+          (inline))
+        (container_block_delimiter))
+      (container_block
+        (container_block_delimiter)
+        type: (container_type)
+        (paragraph
+          (inline))
+        (container_block_delimiter))
+      (container_block_delimiter))))
+
+================
+Nested container with props
+================
+
+:::grid{columns=3}
+:::grid-cell{col-span=2}
+Content
+:::
+:::
+
+---
+
+(document
+  (section
+    (container_block
+      (container_block_delimiter)
+      type: (container_type)
+      props: (container_prop_block
+        (container_prop_item
+          key: (container_prop_key)
+          value: (container_prop_value
+            (container_prop_number))))
+      (container_block
+        (container_block_delimiter)
+        type: (container_type)
+        props: (container_prop_block
+          (container_prop_item
+            key: (container_prop_key)
+            value: (container_prop_value
+              (container_prop_number))))
+        (paragraph
+          (inline))
+        (container_block_delimiter))
+      (container_block_delimiter))))

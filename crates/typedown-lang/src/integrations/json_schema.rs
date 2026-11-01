@@ -14,6 +14,20 @@ pub fn parse_json_schema<'db>(
   db: &'db TypedownDatabase,
   value: &serde_json::Value,
 ) -> Option<TdTypEnum<'db>> {
+  // { const: "auto" }
+  if let Some(constant) = value.get("const") {
+    let typ: TdTypEnum = match constant {
+      serde_json::Value::String(string) => get_lit_typ(db, LitValue::String(string.clone())).into(),
+      serde_json::Value::Number(number) => {
+        get_lit_typ(db, LitValue::Number(number.to_string())).into()
+      }
+      serde_json::Value::Bool(bool) => get_lit_typ(db, LitValue::Bool(*bool)).into(),
+      serde_json::Value::Null => get_null_typ(db).into(),
+      _ => return None,
+    };
+    return Some(typ);
+  }
+
   // { enum: [...] }
   if let Some(members) = value.get("enum").and_then(|r#enum| r#enum.as_array()) {
     return parse_enum(db, members);

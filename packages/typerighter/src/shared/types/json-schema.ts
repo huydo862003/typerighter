@@ -11,6 +11,11 @@ export interface ArraySchema {
   items: JsonSchema;
 }
 
+// { const: "auto" }
+export interface ConstSchema {
+  const: string | number | boolean | null;
+}
+
 // { type: "object", additionalProperties: <schema> }
 export interface DictSchema {
   type: 'object';
@@ -26,6 +31,7 @@ export type JsonSchema =
   | PrimitiveSchema
   | MultiTypeSchema
   | EnumSchema
+  | ConstSchema
   | ArraySchema
   | ProductSchema
   | DictSchema

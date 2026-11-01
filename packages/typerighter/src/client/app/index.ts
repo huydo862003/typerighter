@@ -13,6 +13,8 @@ import {
 } from 'vue';
 import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
 import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
+import TdGrid from '../theme-default/components/custom/TdGrid.vue';
+import TdGridCell from '../theme-default/components/custom/TdGridCell.vue';
 import TdGlossaryIndex from '../theme-default/components/custom/glossary/TdGlossaryIndex.vue';
 import TdLucideIcon from '../theme-default/components/TdLucideIcon.vue';
 import {
@@ -175,6 +177,8 @@ export async function createTypedownApp (
   app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('GlossaryIndex', TdGlossaryIndex);
   app.component('Flashcard', TdFlashcard);
+  app.component('Grid', TdGrid);
+  app.component('GridCell', TdGridCell);
   app.component('LucideIcon', TdLucideIcon);
   /* eslint-enable vue/multi-word-component-names */
 

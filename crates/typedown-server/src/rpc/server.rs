@@ -30,7 +30,7 @@ use typedown_lang::integrations::export::{
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
-use typedown_lang::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
+use typedown_lang::syntax::diagnostic::{Severity, TdDiagnostic, TdDiagnosticKind};
 
 use typedown_types::path::normalize_path;
 
@@ -973,11 +973,15 @@ fn collect_file_diagnostics(
       continue;
     }
 
+    let severity = match diagnostic.severity {
+      Severity::Error => "error",
+      Severity::Warning => "warning",
+    };
     items.push(TdDiagnosticItem {
       filepath: filepath.to_string(),
       line,
       column,
-      severity: "error".to_string(),
+      severity: severity.to_string(),
       code,
       message: diagnostic.message(),
     });
