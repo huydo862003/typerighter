@@ -856,8 +856,12 @@ bool tree_sitter_typedown_md_external_scanner_scan(void *payload,
     }
   }
 
-  // :::
-  if (lexer->lookahead == ':' && valid_symbols[CONTAINER_CLOSE]) {
+  // ::: (container open or close)
+  // When both are valid, peek after `:::` to decide:
+  // - Followed by a label (letter, _, {) -> CONTAINER_OPEN
+  // - Followed by newline/EOF (bare :::) -> CONTAINER_CLOSE
+  if (lexer->lookahead == ':' &&
+      (valid_symbols[CONTAINER_CLOSE] || valid_symbols[CONTAINER_OPEN])) {
     lexer->mark_end(lexer);
     lexer->advance(lexer, false);
     if (lexer->lookahead == ':') {
@@ -865,8 +869,31 @@ bool tree_sitter_typedown_md_external_scanner_scan(void *payload,
       if (lexer->lookahead == ':') {
         lexer->advance(lexer, false);
         lexer->mark_end(lexer);
-        lexer->result_symbol = CONTAINER_CLOSE;
-        return true;
+
+        // Peek past optional whitespace
+        bool has_label = false;
+        while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+          lexer->advance(lexer, false);
+        }
+        if ((lexer->lookahead >= 'a' && lexer->lookahead <= 'z') ||
+            (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z') ||
+            lexer->lookahead == '_' || lexer->lookahead == '{') {
+          has_label = true;
+        }
+
+        if (has_label && valid_symbols[CONTAINER_OPEN]) {
+          lexer->mark_end(lexer);
+          lexer->result_symbol = CONTAINER_OPEN;
+          return true;
+        }
+        if (valid_symbols[CONTAINER_CLOSE]) {
+          lexer->result_symbol = CONTAINER_CLOSE;
+          return true;
+        }
+        if (valid_symbols[CONTAINER_OPEN]) {
+          lexer->result_symbol = CONTAINER_OPEN;
+          return true;
+        }
       }
     }
   }
@@ -881,23 +908,6 @@ bool tree_sitter_typedown_md_external_scanner_scan(void *payload,
         lexer->advance(lexer, false);
         lexer->mark_end(lexer);
         lexer->result_symbol = CONTAINER_SLOT_SEPARATOR;
-        return true;
-      }
-    }
-  }
-
-  if (lexer->lookahead == ':' && valid_symbols[CONTAINER_OPEN]) {
-    lexer->mark_end(lexer);
-    lexer->advance(lexer, false);
-    if (lexer->lookahead == ':') {
-      lexer->advance(lexer, false);
-      if (lexer->lookahead == ':') {
-        lexer->advance(lexer, false);
-        while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
-          lexer->advance(lexer, false);
-        }
-        lexer->mark_end(lexer);
-        lexer->result_symbol = CONTAINER_OPEN;
         return true;
       }
     }

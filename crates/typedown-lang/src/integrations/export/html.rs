@@ -180,9 +180,44 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_paragraph(&mut self, node: &RedNode) {
-    self.write("<p>");
-    self.emit_inline(node);
-    self.write("</p>\n");
+    // Check if paragraph contains block-level children (e.g. indented nested containers)
+    let has_blocks = node.children().any(|child| {
+      matches!(
+        child.kind(),
+        SyntaxKind::MdContainerBlock | SyntaxKind::MdContainerShorthand
+      )
+    });
+    if has_blocks {
+      // Emit inline content as <p>, block children as blocks
+      let mut in_inline = false;
+      for child in node.children() {
+        if matches!(
+          child.kind(),
+          SyntaxKind::MdContainerBlock | SyntaxKind::MdContainerShorthand
+        ) {
+          if in_inline {
+            self.write("</p>\n");
+            in_inline = false;
+          }
+          self.emit_block(&child);
+        } else if matches!(child.kind(), SyntaxKind::Whitespace | SyntaxKind::Newline) {
+          continue;
+        } else {
+          if !in_inline {
+            self.write("<p>");
+            in_inline = true;
+          }
+          self.emit_inline(&child);
+        }
+      }
+      if in_inline {
+        self.write("</p>\n");
+      }
+    } else {
+      self.write("<p>");
+      self.emit_inline(node);
+      self.write("</p>\n");
+    }
   }
 
   fn emit_blockquote(&mut self, node: &RedNode) {

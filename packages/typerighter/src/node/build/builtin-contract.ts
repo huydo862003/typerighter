@@ -32,10 +32,9 @@ function discoverBuiltinComponents (): Array<{ name: string; absolutePath: strin
 }
 
 export function buildBuiltinContract (): Record<string, ContractEntry> {
-  // Use minimal checker options to get simple type strings (no T | undefined unions from strict mode)
   const checker = createCheckerByJson(PACKAGE_ROOT, {
     compilerOptions: {
-      strict: false,
+      strict: true,
       jsx: 'preserve',
       jsxImportSource: 'vue',
     },

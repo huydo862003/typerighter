@@ -1549,4 +1549,63 @@ properties:
 "##
     );
   }
+
+  #[test]
+  fn html_export_nested_container_indented() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_nested_container.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("<grid"),
+      "should contain outer grid component: {content}"
+    );
+    assert!(
+      content.contains("<grid-cell>"),
+      "should contain inner grid-cell component: {content}"
+    );
+    assert!(
+      content.contains("</grid-cell>"),
+      "grid-cell should be closed: {content}"
+    );
+    assert!(
+      content.contains("<p>Alpha</p>"),
+      "first cell content should render: {content}"
+    );
+    assert!(
+      content.contains("<p>Beta</p>"),
+      "second cell content should render: {content}"
+    );
+  }
+
+  #[test]
+  fn html_export_nested_container_not_indented() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "md_nested_container_flat.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains("<grid-cell>"),
+      "should contain grid-cell: {content}"
+    );
+    assert!(
+      content.contains("<p>Alpha</p>"),
+      "first cell content should render: {content}"
+    );
+  }
+
+  #[test]
+  fn html_export_nested_container_with_props() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "md_nested_container_props.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains(r#":columns="3""#),
+      "outer grid should have columns prop: {content}"
+    );
+    assert!(
+      content.contains(r#":col-span="2""#),
+      "inner grid-cell should have col-span prop: {content}"
+    );
+  }
 }
