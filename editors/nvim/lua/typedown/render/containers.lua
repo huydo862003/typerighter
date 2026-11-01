@@ -44,7 +44,7 @@ function M.render(buf, md_tree)
 end
 
 function M.render_container(buf, ns, node)
-	local start_row, _, end_row = node:range()
+	local start_row, _, end_row, end_col = node:range()
 	local hidden = state.is_hidden
 
 	-- Find container type via field
@@ -52,8 +52,10 @@ function M.render_container(buf, ns, node)
 	local container_type = type_node and vim.treesitter.get_node_text(type_node, buf) or ""
 	local style = CONTAINER_STYLES[container_type] or DEFAULT_STYLE
 
-	-- Left border on each line (always visible for visual continuity)
-	for row = start_row, end_row - 1 do
+	-- Left border on every line of the container
+	local has_content_on_end_row = end_col > 0
+	local last_row = has_content_on_end_row and end_row or end_row - 1
+	for row = start_row, last_row do
 		vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
 			virt_text = { { "┃ ", style.hl } },
 			virt_text_pos = "inline",

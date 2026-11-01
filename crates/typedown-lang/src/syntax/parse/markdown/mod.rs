@@ -1055,15 +1055,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
         prefix_len
       };
 
-      let after_nth_token = self.lex_ctx.peek_md_nth(check_position, SKIP_NONE);
-
-      // Found closing :::, done
-      if after_nth_token.token.kind() == SyntaxKind::MdSymbol
-        && matches!(
-          after_nth_token.token.chars().collect::<String>().as_str(),
-          ":::"
-        )
-      {
+      // Found closing ::: (bare, not followed by a label for nested container)
+      if self.is_container_close_at(check_position) {
         break;
       }
 
@@ -1383,8 +1376,20 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.enter(ExprCtx::MdContainerPropItem);
 
-    // Consume identifier
+    // Consume identifier (supports kebab-case like col-span)
     self.advance_md(&mut children, SKIP_WCN);
+    loop {
+      let peek = self.lex_ctx.peek_md(SKIP_NONE);
+      if peek.token.kind() == SyntaxKind::MdSymbol
+        && peek.token.chars().collect::<String>() == "-"
+        && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::Ident
+      {
+        self.advance_md(&mut children, SKIP_NONE); // -
+        self.advance_md(&mut children, SKIP_NONE); // ident
+      } else {
+        break;
+      }
+    }
 
     let maybe_eq_token = self.lex_ctx.peek_md(SKIP_NONE);
     if maybe_eq_token.token.kind() != SyntaxKind::MdSymbol
@@ -1435,13 +1440,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
         self.expr_ctx_stack.md_prefix_tokens().len()
       };
 
+      // `===` is always a slot separator
       let after_nth = self.lex_ctx.peek_md_nth(check_position, SKIP_NONE);
       if after_nth.token.kind() == SyntaxKind::MdSymbol
-        && matches!(
-          after_nth.token.chars().collect::<String>().as_str(),
-          ":::" | "==="
-        )
+        && after_nth.token.chars().collect::<String>() == "==="
       {
+        break;
+      }
+      // `:::` closes only if bare (not followed by a label for nested container)
+      if self.is_container_close_at(check_position) {
         break;
       }
 
@@ -2584,6 +2591,25 @@ impl<S: Utf8Stream> ParseCtx<S> {
   fn is_container_start(&mut self, skip: usize) -> bool {
     let next = self.lex_ctx.peek_md(skip);
     next.token.kind() == SyntaxKind::MdSymbol && next.token.chars().collect::<String>() == ":::"
+  }
+
+  /// Check if `:::` at `position` is a bare closing delimiter vs a nested container opening
+  /// Closing `:::` is followed only by whitespace/newline/EOF
+  /// Opening `:::` is followed by a label (Ident) or props (`{`)
+  fn is_container_close_at(&mut self, position: usize) -> bool {
+    let token = self.lex_ctx.peek_md_nth(position, SKIP_NONE);
+    if token.token.kind() != SyntaxKind::MdSymbol
+      || token.token.chars().collect::<String>() != ":::"
+    {
+      return false;
+    }
+    // Skip whitespace after `:::` to check for a label
+    let mut position = position + 1;
+    while self.lex_ctx.peek_md_nth(position, SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
+      position += 1;
+    }
+    let after = self.lex_ctx.peek_md_nth(position, SKIP_NONE);
+    !matches!(after.token.kind(), SyntaxKind::Ident | SyntaxKind::LBrace)
   }
 
   fn is_container_shorthand_start(&mut self, skip: usize) -> bool {

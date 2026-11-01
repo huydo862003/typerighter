@@ -6516,3 +6516,318 @@ fn parse_blockquote_nested_in_ordered_list() {
     "\n"))"#
   );
 }
+
+// Nested container: :::inner inside :::outer is parsed as nested, not as close+text
+#[test]
+fn parse_nested_container_not_close() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::outer
+:::inner
+content
+:::
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "outer"
+      "\n"
+      (MdContainerSlot
+        (MdContainerBlock
+          ":::"
+          "inner"
+          "\n"
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                "content")))
+          "\n"
+          ":::"))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+// Nested container with space: ::: inner (space before label)
+#[test]
+fn parse_nested_container_with_space() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::outer
+::: inner
+content
+:::
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "outer"
+      "\n"
+      (MdContainerSlot
+        (MdContainerBlock
+          ":::"
+          " "
+          "inner"
+          "\n"
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                "content")))
+          "\n"
+          ":::"))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+// Bare ::: is still recognized as closing delimiter
+#[test]
+fn parse_bare_close_still_works() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::note
+content
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+// Nested container with props: :::inner{key=val}
+#[test]
+fn parse_nested_container_with_props_open() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::outer
+:::inner{key=1}
+content
+:::
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "outer"
+      "\n"
+      (MdContainerSlot
+        (MdContainerBlock
+          ":::"
+          "inner"
+          (MdContainerPropBlock
+            "{"
+            (MdContainerPropItem
+              "key"
+              "="
+              (NumberLit
+                "1"))
+            "}")
+          "\n"
+          (MdContainerSlot
+            (MdParagraph
+              (MdText
+                "content")))
+          "\n"
+          ":::"))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+// Kebab-case prop key like col-span
+#[test]
+fn parse_container_kebab_prop_key() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::grid{col-span=2}
+content
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "grid"
+      (MdContainerPropBlock
+        "{"
+        (MdContainerPropItem
+          "col"
+          "-"
+          "span"
+          "="
+          (NumberLit
+            "2"))
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_multiple_kebab_props() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::grid{col-span=2 row-span=3}
+content
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "grid"
+      (MdContainerPropBlock
+        "{"
+        (MdContainerPropItem
+          "col"
+          "-"
+          "span"
+          "="
+          (NumberLit
+            "2"))
+        " "
+        (MdContainerPropItem
+          "row"
+          "-"
+          "span"
+          "="
+          (NumberLit
+            "3"))
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+// Nested container with indentation
+#[test]
+fn parse_nested_container_indented() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::grid{columns=3}
+  :::grid-cell
+  Alpha
+  :::
+  :::grid-cell
+  Beta
+  :::
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert!(
+    tree.match_indices("MdContainerBlock").count() >= 2,
+    "should have nested containers, got: {tree}"
+  );
+}

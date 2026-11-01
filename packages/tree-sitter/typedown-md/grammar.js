@@ -362,7 +362,7 @@ export default grammar({
       ),
 
     container_prop_key: () =>
-      /[a-zA-Z_]\w*/,
+      /[a-zA-Z_][\w-]*/,
 
     container_prop_value: ($) =>
       choice($.container_prop_number, $.container_prop_string),

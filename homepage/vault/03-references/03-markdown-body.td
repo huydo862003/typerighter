@@ -346,6 +346,66 @@ Content goes here.
 | `danger` | Danger callout | `::: danger ... :::` |
 | `info` | Info callout | `::: info ... :::` |
 | `details` | Collapsible section with title | `::: details Title ... :::` |
+| `grid` | Grid layout container | `::: grid{columns=3} ... :::` |
+| `grid-cell` | Cell within a grid | `::: grid-cell ... :::` |
+
+#### Grid layout
+
+The `grid` component creates a CSS grid layout. Nest `grid-cell` components inside to define each cell:
+
+```markdown
+:::grid{columns=3}
+:::grid-cell
+First column
+:::
+:::grid-cell
+Second column
+:::
+:::grid-cell
+Third column
+:::
+:::
+```
+
+:::grid{columns=3}
+:::grid-cell
+First column
+:::
+:::grid-cell
+Second column
+:::
+:::grid-cell
+Third column
+:::
+:::
+
+**Props:**
+
+| Prop | Type | Description |
+| ---- | ---- | ----------- |
+| `columns` | number or `"auto"` | Number of equal columns, or `"auto"` for content-sized columns |
+
+`grid-cell` accepts `col-span` and `row-span` props to span multiple columns or rows:
+
+```markdown
+:::grid{columns=3}
+:::grid-cell{col-span=2}
+This cell spans two columns
+:::
+:::grid-cell
+Normal cell
+:::
+:::
+```
+
+:::grid{columns=3}
+:::grid-cell{col-span=2}
+This cell spans two columns
+:::
+:::grid-cell
+Normal cell
+:::
+:::
 
 ### User-defined components
 
