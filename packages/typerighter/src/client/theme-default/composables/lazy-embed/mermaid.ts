@@ -1,8 +1,8 @@
 import {
-  inject, onMounted, onUnmounted,
+  onMounted, onUnmounted,
 } from 'vue';
-import {
-  LAZY_EMBED_KEY,
+import type {
+  LazyEmbedContext,
 } from './types';
 
 const CDN_URL =
@@ -11,10 +11,7 @@ const CDN_URL =
 let mermaidModule: any;
 let idCounter = 0;
 
-export function useMermaid (): void {
-  const context = inject(LAZY_EMBED_KEY);
-
-  if (!context) return;
+export function useMermaid (context: LazyEmbedContext): void {
 
   const options = {
     selector: '.td-mermaid-placeholder',

@@ -1,8 +1,8 @@
 import {
-  inject, onMounted, onUnmounted,
+  onMounted, onUnmounted,
 } from 'vue';
-import {
-  LAZY_EMBED_KEY,
+import type {
+  LazyEmbedContext,
 } from './types';
 
 const CDN_URL = 'https://esm.sh/@terrastruct/d2@0.1.32';
@@ -10,11 +10,7 @@ const CDN_URL = 'https://esm.sh/@terrastruct/d2@0.1.32';
 let d2Instance: any;
 let idCounter = 0;
 
-export function useD2 (): void {
-  const context = inject(LAZY_EMBED_KEY);
-
-  if (!context) return;
-
+export function useD2 (context: LazyEmbedContext): void {
   const options = {
     selector: '.td-d2-placeholder',
     onRender: renderPlaceholder,

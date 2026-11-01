@@ -85,6 +85,24 @@ export const ERROR_CODES = {
 
 ![server bootstrap](https://github.com/vuejs/vite/blob/main/packages/vite/src/node/server/index.ts#L150-L165)
 
+## Embeds
+
+### YouTube
+
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+
+### Spotify
+
+![](https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT)
+
+### Vimeo
+
+![](https://vimeo.com/76979871)
+
+### dbdiagram (generic iframe)
+
+![Database schema](https://dbdiagram.io/embed#c=ClRhYmxlIHVzZXJzIHsKICBpZCBpbnQgW3BrXQogIG5hbWUgdmFyY2hhcgogIGVtYWlsIHZhcmNoYXIKfQoKVGFibGUgcG9zdHMgewogIGlkIGludCBbcGtdCiAgdXNlcl9pZCBpbnQgW3JlZjogPiB1c2Vycy5pZF0KICB0aXRsZSB2YXJjaGFyCiAgY29udGVudCB0ZXh0Cn0KClRhYmxlIGNvbW1lbnRzIHsKICBpZCBpbnQgW3BrXQogIHBvc3RfaWQgaW50IFtyZWY6ID4gcG9zdHMuaWRdCiAgdXNlcl9pZCBpbnQgW3JlZjogPiB1c2Vycy5pZF0KICBib2R5IHRleHQKfQo%3D "Project ERD")
+
 ## Logo
 
 ![Typedown logo](/typedown.svg "The Typedown project logo")

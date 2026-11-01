@@ -246,6 +246,35 @@ Add a quoted title to an image to render it as a figure with a caption:
 
 The image is wrapped in a `<figure>` element with the title rendered as a `<figcaption>` below it.
 
+### Embeds
+
+Use image syntax with a URL to embed external content. Typerighter detects the URL and renders the appropriate embed.
+
+**Supported services** with custom embed rendering:
+
+| Service | Example URL |
+|---------|------------|
+| YouTube | `https://www.youtube.com/watch?v=ID` or `https://youtu.be/ID` |
+| Spotify | `https://open.spotify.com/track/ID` |
+| Apple Music | `https://music.apple.com/...` |
+| Vimeo | `https://vimeo.com/ID` |
+| CodePen | `https://codepen.io/user/pen/ID` |
+| CodeSandbox | `https://codesandbox.io/s/ID` |
+| Figma | `https://www.figma.com/file/ID` |
+| Excalidraw | `https://excalidraw.com/...` |
+| GitHub | `https://github.com/user/repo/blob/ref/path#L1-L10` |
+| GitHub Gist | `https://gist.github.com/user/ID` |
+
+```markdown
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+
+![server.ts](https://github.com/user/repo/blob/main/src/server.ts#L10-L20)
+```
+
+Any other `https://` URL without an image extension is rendered as a generic `<iframe>`. If the iframe fails to load (e.g. the site blocks framing), a fallback link is shown instead.
+
+URLs with image extensions (`.png`, `.jpg`, `.svg`, `.webp`, etc.) and relative paths are always rendered as images.
+
 ## String interpolation
 
 Use `${...}` to embed expressions in the body:

@@ -1,17 +1,13 @@
 import {
-  inject, onMounted, onUnmounted,
+  onMounted, onUnmounted,
 } from 'vue';
-import {
-  LAZY_EMBED_KEY,
+import type {
+  LazyEmbedContext,
 } from './types';
 
 const EMGITHUB_SCRIPT = 'https://emgithub.com/embed-v2.js';
 
-export function useGithubEmbed (): void {
-  const context = inject(LAZY_EMBED_KEY);
-
-  if (!context) return;
-
+export function useGithubEmbed (context: LazyEmbedContext): void {
   let themeObserver: MutationObserver | undefined;
   const rendered: Array<{
     container: HTMLElement;

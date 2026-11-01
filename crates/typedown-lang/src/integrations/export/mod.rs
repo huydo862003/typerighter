@@ -4,6 +4,7 @@ pub mod file_ref;
 pub mod html;
 pub mod json;
 pub mod markdown;
+pub mod media;
 pub mod props;
 pub mod types;
 pub mod utils;

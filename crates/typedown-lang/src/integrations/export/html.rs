@@ -9,6 +9,7 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
+use crate::integrations::export::media::{MediaKind, ServiceEmbed, classify_media_url};
 use crate::integrations::export::utils::is_string_quoted;
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
@@ -671,16 +672,6 @@ impl<'a> HtmlEmitter<'a> {
     self.write("</a>");
   }
 
-  fn is_github_embed_url(url: &str) -> bool {
-    let url = url.trim();
-    if let Some(rest) = url.strip_prefix("https://github.com/") {
-      let segments: Vec<&str> = rest.splitn(4, '/').collect();
-      segments.len() >= 3 && segments[2] == "blob"
-    } else {
-      url.starts_with("https://gist.github.com/")
-    }
-  }
-
   fn emit_media(&mut self, node: &RedNode) {
     let Some(media) = MdMedia::cast(node.clone()) else {
       return;
@@ -690,26 +681,25 @@ impl<'a> HtmlEmitter<'a> {
     let url = self.resolve_url(&raw_url);
     let title = media.title().map(|text| text.value());
 
-    // GitHub file/gist URLs render as embedded code snippets
-    if Self::is_github_embed_url(&url) {
-      self.write("<div class=\"td-github-placeholder\"");
-      self.write(&format!(" data-url=\"{}\"", html_escape(url.trim())));
-      if !alt.is_empty() {
-        self.write(&format!(" data-label=\"{}\"", html_escape(&alt)));
+    match classify_media_url(&url) {
+      MediaKind::Image => self.emit_media_image(&url, &alt, title.as_deref()),
+      MediaKind::GithubCode => self.emit_media_github(&url, &alt, title.as_deref()),
+      MediaKind::ServiceEmbed(embed) => {
+        self.emit_media_iframe(&alt, title.as_deref(), &embed);
       }
-      if let Some(ref caption) = title {
-        self.write(&format!(" data-title=\"{}\"", html_escape(caption)));
+      MediaKind::GenericIframe => {
+        self.emit_media_iframe(&alt, title.as_deref(), &ServiceEmbed::generic_iframe(&url));
       }
-      self.write("></div>\n");
-      return;
     }
+  }
 
-    if let Some(ref caption) = title {
+  fn emit_media_image(&mut self, url: &str, alt: &str, title: Option<&str>) {
+    if let Some(caption) = title {
       self.write("<figure>");
       self.write(&format!(
         "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\">",
-        html_escape(&url),
-        html_escape(&alt),
+        html_escape(url),
+        html_escape(alt),
         html_escape(caption)
       ));
       self.write("<figcaption>");
@@ -719,9 +709,57 @@ impl<'a> HtmlEmitter<'a> {
     } else {
       self.write(&format!(
         "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
-        html_escape(&url),
-        html_escape(&alt)
+        html_escape(url),
+        html_escape(alt)
       ));
+    }
+  }
+
+  fn emit_media_github(&mut self, url: &str, alt: &str, title: Option<&str>) {
+    self.write("<div class=\"td-github-placeholder\"");
+    self.write(&format!(" data-url=\"{}\"", html_escape(url.trim())));
+    if !alt.is_empty() {
+      self.write(&format!(" data-label=\"{}\"", html_escape(alt)));
+    }
+    if let Some(caption) = title {
+      self.write(&format!(" data-title=\"{}\"", html_escape(caption)));
+    }
+    self.write("></div>\n");
+  }
+
+  fn emit_media_iframe(&mut self, alt: &str, title: Option<&str>, embed: &ServiceEmbed) {
+    let has_caption = title.is_some();
+    if has_caption {
+      self.write("<figure class=\"td-embed\">");
+    }
+
+    // Wrapper reserves space (via style) and shows loading state
+    self.write("<div class=\"td-embed-wrapper\"");
+    if !embed.style.is_empty() {
+      self.write(&format!(" style=\"{}\"", html_escape(embed.style)));
+    }
+    self.write(">");
+
+    self.write("<iframe");
+    self.write(&format!(" src=\"{}\"", html_escape(&embed.embed_url)));
+    if !alt.is_empty() {
+      self.write(&format!(" title=\"{}\"", html_escape(alt)));
+    }
+    if !embed.allow.is_empty() {
+      self.write(&format!(" allow=\"{}\"", html_escape(embed.allow)));
+    }
+    if !embed.sandbox.is_empty() {
+      self.write(&format!(" sandbox=\"{}\"", html_escape(embed.sandbox)));
+    }
+    self.write(" loading=\"lazy\" frameborder=\"0\" allowfullscreen");
+    self.write("></iframe>");
+    self.write("</div>\n");
+
+    if let Some(caption) = title {
+      self.write("<figcaption>");
+      self.write_escaped(caption);
+      self.write("</figcaption>");
+      self.write("</figure>\n");
     }
   }
 

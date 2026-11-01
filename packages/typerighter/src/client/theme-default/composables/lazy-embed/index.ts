@@ -1,9 +1,6 @@
 import {
-  onMounted, onUnmounted, provide,
+  onMounted, onUnmounted,
 } from 'vue';
-import {
-  LAZY_EMBED_KEY,
-} from './types';
 import type {
   LazyEmbedContext, LazyEmbedOptions,
 } from './types';
@@ -99,9 +96,7 @@ export function useLazyEmbeds (): void {
     },
   };
 
-  provide(LAZY_EMBED_KEY, context);
-
-  useMermaid();
-  useD2();
-  useGithubEmbed();
+  useMermaid(context);
+  useD2(context);
+  useGithubEmbed(context);
 }
