@@ -6,7 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{CustomComponentCheckResult, CustomComponentTyp, File, Project};
-use crate::db::utils::{is_callout, kebab_to_pascal};
+use crate::db::utils::{is_callout, kebab_to_camel, kebab_to_pascal};
 use crate::syntax::ast::{AstNode, MdContainerBlock, MdContainerShorthand};
 use crate::syntax::diagnostic::*;
 use crate::syntax::red::RedNode;
@@ -103,7 +103,10 @@ fn validate(
   }
 
   for prop_name in &provided_props {
-    if !props.iter().any(|prop| &prop.name == prop_name) {
+    // Match both exact name and kebab-to-camel conversion (col-span -> colSpan)
+    if !props.iter().any(|prop| {
+      prop.name == *prop_name || prop.name == kebab_to_camel(prop_name)
+    }) {
       diagnostics.push(
         TdDiagnosticKind::UnknownProp {
           prop: prop_name.clone(),

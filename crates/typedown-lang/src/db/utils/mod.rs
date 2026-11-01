@@ -37,6 +37,25 @@ pub fn kebab_to_pascal(name: &str) -> String {
     .collect()
 }
 
+/// Convert kebab-case to camelCase: `col-span` -> `colSpan`
+pub fn kebab_to_camel(name: &str) -> String {
+  let mut parts = name.split('-');
+  let first = parts.next().unwrap_or("");
+  let rest: String = parts
+    .map(|segment| {
+      let mut chars = segment.chars();
+      match chars.next() {
+        Some(first) => {
+          let upper: String = first.to_uppercase().collect();
+          upper + chars.as_str()
+        }
+        None => String::new(),
+      }
+    })
+    .collect();
+  format!("{first}{rest}")
+}
+
 // Convert a snake_case string to kebab-case
 // e.g. "layout_top" -> "layout-top"
 pub fn snake_to_kebab(name: &str) -> String {

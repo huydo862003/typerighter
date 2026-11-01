@@ -125,19 +125,35 @@ function convertObjectToSchema (
 function convertPrimitiveTypeToSchema (type: string): JsonSchema | undefined {
   switch (type) {
     case 'string':
-      return {
-        type: 'string',
-      };
+      return { type: 'string' };
     case 'number':
-      return {
-        type: 'number',
-      };
+      return { type: 'number' };
     case 'boolean':
-      return {
-        type: 'boolean',
-      };
-    default:
+      return { type: 'boolean' };
+    default: {
+      // Handle raw union strings like 'number | "auto"' from strict:false mode
+      if (type.includes(' | ')) {
+        const members = type.split(' | ').map((m) => m.trim());
+        const isNullable = members.some((m) => m === 'undefined' || m === 'null');
+        const concrete = members.filter((m) => m !== 'undefined' && m !== 'null');
+        if (concrete.length === 0) return undefined;
+        const schemas: JsonSchema[] = [];
+        for (const member of concrete) {
+          // Quoted string literal like '"auto"'
+          if (member.startsWith('"') || member.startsWith("'")) {
+            const unquoted = member.replace(/^["']|["']$/g, '');
+            schemas.push({ const: unquoted });
+          } else {
+            const inner = convertPrimitiveTypeToSchema(member);
+            if (inner === undefined) return undefined;
+            schemas.push(inner);
+          }
+        }
+        const schema = schemas.length === 1 ? schemas[0] : { oneOf: schemas } as JsonSchema;
+        return isNullable ? makeOptional(schema) : schema;
+      }
       return undefined;
+    }
   }
 }
 
@@ -184,6 +200,11 @@ function convertPropertyMetaToSchema (schema: PropertyMetaSchema): JsonSchema | 
       return convertArrayElementsToSchema(schema.schema);
     case 'object':
       return convertObjectToSchema(schema.type, schema.schema);
+    case 'literal':
+      if ('value' in schema) {
+        return { const: schema.value as string | number | boolean };
+      }
+      return undefined;
     default:
       return undefined;
   }
@@ -226,5 +247,17 @@ function convertUnionMembersToSchema (members: PropertyMetaSchema[] | undefined)
     return isNullable ? makeOptional(schema) : schema;
   }
 
-  return undefined;
+  // Mixed union (e.g. number | 'auto'): convert each member individually
+  const schemas: JsonSchema[] = [];
+
+  for (const member of concrete) {
+    const inner = convertPropertyMetaToSchema(member);
+    if (inner === undefined) return undefined;
+    schemas.push(inner);
+  }
+
+  if (schemas.length === 0) return undefined;
+
+  const schema: JsonSchema = { oneOf: schemas };
+  return isNullable ? makeOptional(schema) : schema;
 }

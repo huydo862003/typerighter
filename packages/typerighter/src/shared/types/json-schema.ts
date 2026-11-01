@@ -22,10 +22,16 @@ export interface EnumSchema {
   enum: (string | number | boolean | null)[];
 }
 
+// { const: "auto" }
+export interface ConstSchema {
+  const: string | number | boolean | null;
+}
+
 export type JsonSchema =
   | PrimitiveSchema
   | MultiTypeSchema
   | EnumSchema
+  | ConstSchema
   | ArraySchema
   | ProductSchema
   | DictSchema
