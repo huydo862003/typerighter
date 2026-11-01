@@ -6807,3 +6807,27 @@ content
     "\n"))"####
   );
 }
+
+// Nested container with indentation
+#[test]
+fn parse_nested_container_indented() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::grid{columns=3}
+  :::grid-cell
+  Alpha
+  :::
+  :::grid-cell
+  Beta
+  :::
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert!(
+    tree.match_indices("MdContainerBlock").count() >= 2,
+    "should have nested containers, got: {tree}"
+  );
+}
