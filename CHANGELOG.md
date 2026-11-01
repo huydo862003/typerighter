@@ -1,3 +1,26 @@
+## [0.52.2] - 2026-11-01
+
+### Added
+
+- crates/typedown-server
+  - Integration tests for concurrent multiproject loading and querying
+
+### Fixed
+
+- crates/typedown-lang (parser)
+  - Tight nested lists (e.g. `- Parent\n    - Child`) now correctly nest as children instead of being treated as siblings. Sibling detection moved from item parser to list parser where indent level is correct.
+  - 3+ level deep nesting preserved through formatting round-trips
+
+- crates/typedown-lang (formatter)
+  - Child blocks in list items always get a blank line separator (consistent across bullet, ordered, and task lists)
+
+- crates/typedown-server
+  - LSP no longer crashes when opening files from multiple projects. Transport layer gracefully handles connection resets instead of panicking.
+
+- packages/typerighter
+  - Navbar active item shows background highlight with smooth transition
+  - Sidebar fref list icons align to first baseline instead of center
+
 ## [0.52.1] - 2026-11-01
 
 ### Fixed
