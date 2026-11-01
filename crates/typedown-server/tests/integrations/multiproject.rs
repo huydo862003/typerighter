@@ -1,7 +1,11 @@
+use std::sync::Arc;
+use std::thread;
+
 use tempfile::TempDir;
 use typedown_server::core::multiproject::Multiproject;
 
-use super::utils::{copy_dir_recursive, example_vault};
+use super::server_simulation::{run_lsp_queries, run_rpc_queries};
+use super::utils::{copy_dir_recursive, example_vault, setup_db_fresh};
 
 // Create a temp directory with two independent vault projects
 fn setup_two_projects() -> TempDir {
@@ -153,6 +157,61 @@ fn projects_iterator_lists_loaded() {
   assert_eq!(roots.len(), 2);
   assert!(roots.contains(&tmp.path().join("project_a")));
   assert!(roots.contains(&tmp.path().join("project_b")));
+}
+
+// Concurrent queries on two separate databases should not crash
+#[test]
+fn concurrent_queries_on_two_projects() {
+  let tmp = setup_two_projects();
+  let path_a = tmp.path().join("project_a");
+  let path_b = tmp.path().join("project_b");
+
+  let handle_a = thread::spawn(move || {
+    let db = setup_db_fresh(&path_a);
+    run_lsp_queries(&db);
+    run_rpc_queries(&db);
+  });
+
+  let handle_b = thread::spawn(move || {
+    let db = setup_db_fresh(&path_b);
+    run_lsp_queries(&db);
+    run_rpc_queries(&db);
+  });
+
+  handle_a.join().expect("project A queries should not panic");
+  handle_b.join().expect("project B queries should not panic");
+}
+
+// Loading two projects via Multiproject concurrently should not crash
+#[test]
+fn multiproject_concurrent_load() {
+  let tmp = setup_two_projects();
+  let multiproject = Arc::new(Multiproject::default());
+
+  let multiproject_a = multiproject.clone();
+  let path_a = tmp.path().join("project_a");
+  let handle_a = thread::spawn(move || {
+    multiproject_a
+      .load_nearest_project(&path_a)
+      .expect("project A should load");
+  });
+
+  let multiproject_b = multiproject.clone();
+  let path_b = tmp.path().join("project_b");
+  let handle_b = thread::spawn(move || {
+    multiproject_b
+      .load_nearest_project(&path_b)
+      .expect("project B should load");
+  });
+
+  handle_a.join().expect("project A load should not panic");
+  handle_b.join().expect("project B load should not panic");
+
+  let roots: Vec<_> = multiproject
+    .projects()
+    .map(|entry| entry.root_dir.clone())
+    .collect();
+  assert_eq!(roots.len(), 2);
 }
 
 // save() consumes the multiproject and does not panic
