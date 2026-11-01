@@ -6532,7 +6532,9 @@ content
     diagnostics.is_empty(),
     "should produce no diagnostics, got: {diagnostics:?}"
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -6558,7 +6560,8 @@ content
           ":::"))
       "\n"
       ":::")
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Nested container with space: ::: inner (space before label)
@@ -6576,7 +6579,9 @@ content
     diagnostics.is_empty(),
     "should produce no diagnostics, got: {diagnostics:?}"
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -6603,7 +6608,8 @@ content
           ":::"))
       "\n"
       ":::")
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Bare ::: is still recognized as closing delimiter
@@ -6619,7 +6625,9 @@ content
     diagnostics.is_empty(),
     "should produce no diagnostics, got: {diagnostics:?}"
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -6638,7 +6646,8 @@ content
             "content")))
       "\n"
       ":::")
-    "\n"))"####);
+    "\n"))"####
+  );
 }
 
 // Nested container with props: :::inner{key=val}
@@ -6656,7 +6665,9 @@ content
     diagnostics.is_empty(),
     "should produce no diagnostics, got: {diagnostics:?}"
   );
-  assert_eq!(tree, r####"(SourceFile
+  assert_eq!(
+    tree,
+    r####"(SourceFile
   (YamlFrontmatter
     ""
     "---"
@@ -6690,5 +6701,109 @@ content
           ":::"))
       "\n"
       ":::")
-    "\n"))"####);
+    "\n"))"####
+  );
+}
+
+// Kebab-case prop key like col-span
+#[test]
+fn parse_container_kebab_prop_key() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::grid{col-span=2}
+content
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "grid"
+      (MdContainerPropBlock
+        "{"
+        (MdContainerPropItem
+          "col"
+          "-"
+          "span"
+          "="
+          (NumberLit
+            "2"))
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
+}
+
+#[test]
+fn parse_container_multiple_kebab_props() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#":::grid{col-span=2 row-span=3}
+content
+:::
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      "grid"
+      (MdContainerPropBlock
+        "{"
+        (MdContainerPropItem
+          "col"
+          "-"
+          "span"
+          "="
+          (NumberLit
+            "2"))
+        " "
+        (MdContainerPropItem
+          "row"
+          "-"
+          "span"
+          "="
+          (NumberLit
+            "3"))
+        "}")
+      "\n"
+      (MdContainerSlot
+        (MdParagraph
+          (MdText
+            "content")))
+      "\n"
+      ":::")
+    "\n"))"####
+  );
 }

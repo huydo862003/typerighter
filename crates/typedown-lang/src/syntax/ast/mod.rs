@@ -440,10 +440,16 @@ impl MdContainerBlock {
       .children()
       .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
       .filter_map(|item| {
-        item
+        // Collect key tokens (Ident and `-` for kebab-case like `col-span`)
+        let key: String = item
           .children()
-          .find(|child| child.kind() == SyntaxKind::Ident)
-          .map(|ident| ident.text().to_string())
+          .take_while(|child| {
+            child.kind() == SyntaxKind::Ident
+              || (child.kind() == SyntaxKind::MdSymbol && child.text() == "-")
+          })
+          .map(|child| child.text().to_string())
+          .collect();
+        if key.is_empty() { None } else { Some(key) }
       })
       .collect()
   }
@@ -509,10 +515,16 @@ impl MdContainerShorthand {
       .children()
       .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
       .filter_map(|item| {
-        item
+        // Collect key tokens (Ident and `-` for kebab-case like `col-span`)
+        let key: String = item
           .children()
-          .find(|child| child.kind() == SyntaxKind::Ident)
-          .map(|ident| ident.text().to_string())
+          .take_while(|child| {
+            child.kind() == SyntaxKind::Ident
+              || (child.kind() == SyntaxKind::MdSymbol && child.text() == "-")
+          })
+          .map(|child| child.text().to_string())
+          .collect();
+        if key.is_empty() { None } else { Some(key) }
       })
       .collect()
   }

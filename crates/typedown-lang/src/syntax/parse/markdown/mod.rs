@@ -1376,8 +1376,20 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     self.expr_ctx_stack.enter(ExprCtx::MdContainerPropItem);
 
-    // Consume identifier
+    // Consume identifier (supports kebab-case like col-span)
     self.advance_md(&mut children, SKIP_WCN);
+    loop {
+      let peek = self.lex_ctx.peek_md(SKIP_NONE);
+      if peek.token.kind() == SyntaxKind::MdSymbol
+        && peek.token.chars().collect::<String>() == "-"
+        && self.lex_ctx.peek_md_nth(1, SKIP_NONE).token.kind() == SyntaxKind::Ident
+      {
+        self.advance_md(&mut children, SKIP_NONE); // -
+        self.advance_md(&mut children, SKIP_NONE); // ident
+      } else {
+        break;
+      }
+    }
 
     let maybe_eq_token = self.lex_ctx.peek_md(SKIP_NONE);
     if maybe_eq_token.token.kind() != SyntaxKind::MdSymbol
