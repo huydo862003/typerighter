@@ -374,9 +374,9 @@ mod tests {
       slots: vec![],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
-    assert!(diags.is_empty(), "expected no diagnostics, got: {diags:?}");
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
+    assert!(diagnostics.is_empty(), "expected no diagnostics, got: {diagnostics:?}");
   }
 
   #[test]
@@ -450,9 +450,9 @@ content
     let block = find_block(&root);
     let name = block.label().unwrap();
     let contract: Vec<CustomComponentTyp> = vec![];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
-    assert!(diags.is_empty(), "callouts should produce no diagnostics");
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
+    assert!(diagnostics.is_empty(), "callouts should produce no diagnostics");
   }
 
   #[test]
@@ -566,11 +566,11 @@ the answer
       slots: vec!["key".to_string()],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags.is_empty(),
-      "valid slot should produce no diagnostics, got: {diags:?}"
+      diagnostics.is_empty(),
+      "valid slot should produce no diagnostics, got: {diagnostics:?}"
     );
   }
 }

@@ -33,12 +33,12 @@ end
 ---@return vim.Diagnostic[]
 function M.wait_for_diagnostics(timeout_ms)
   timeout_ms = timeout_ms or 10000
-  local diags = {}
+  local diagnostics = {}
   vim.wait(timeout_ms, function()
-    diags = vim.diagnostic.get(0)
-    return #diags > 0
+    diagnostics = vim.diagnostic.get(0)
+    return #diagnostics > 0
   end, 50)
-  return diags
+  return diagnostics
 end
 
 --- Wait for diagnostics to be empty on the current buffer

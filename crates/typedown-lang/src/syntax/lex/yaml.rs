@@ -211,7 +211,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     // Emit YamlIndent for any non-empty line (including 0-indented lines)
     if !self.text_buffer.is_empty() {
       return Some(match diagnostic {
-        Some(diag) => self.emit_with(SyntaxKind::YamlIndent, diag),
+        Some(diagnostic) => self.emit_with(SyntaxKind::YamlIndent, diagnostic),
         None => self.emit(SyntaxKind::YamlIndent),
       });
     }

@@ -91,8 +91,8 @@ pub fn collect_type_errors(db: &TypedownDatabase) -> Vec<String> {
     let parse_result = parse_file(db, project, *file);
     let root = parse_result.ast(db).node.clone();
     let typecheck_result = typecheck(db, ProjectRedNode::new(project, *file, root));
-    for diag in typecheck_result.diagnostics(db).iter() {
-      errors.push(format!("{}: {}", path.display(), diag.message()));
+    for diagnostic in typecheck_result.diagnostics(db).iter() {
+      errors.push(format!("{}: {}", path.display(), diagnostic.message()));
     }
   }
   errors

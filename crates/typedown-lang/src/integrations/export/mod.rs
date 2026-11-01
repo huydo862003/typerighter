@@ -2,17 +2,16 @@
 
 pub mod file_ref;
 pub mod html;
-pub mod json;
 pub mod markdown;
 pub mod media;
 pub mod props;
 pub mod types;
 pub mod utils;
 
+pub use crate::integrations::bindings::{CircularRef, evaluate_lazy_field, serialize_handle, serialize_to_json};
 pub use file_ref::{
   FrefTarget, ResolvedRef, resolve_file_ref, resolve_fref_target, resolve_schema_label,
 };
-pub use json::evaluate_lazy_field;
 pub use props::{Widget, export_prop_descriptors};
 pub use types::*;
 
@@ -174,7 +173,7 @@ fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
     && obj.as_td_blob_obj().is_some()
   {
     return Some(ResourceKind::Blob(BlobFields {
-      header: json::serialize_to_json(db, project, obj).unwrap_or_default(),
+      header: serialize_to_json(db, project, obj).unwrap_or_default(),
       metadata,
     }));
   }
@@ -188,7 +187,7 @@ fn extract_resource(db: &TypedownDatabase, project: Project, file: File) -> Opti
       return None;
     };
 
-    let mut header = json::serialize_to_json(db, project, obj).unwrap_or_default();
+    let mut header = serialize_to_json(db, project, obj).unwrap_or_default();
     if let serde_json::Value::Object(ref mut map) = header {
       map.retain(|k, v| !k.starts_with('_') && !v.is_null());
     }

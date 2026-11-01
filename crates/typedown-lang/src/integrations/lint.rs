@@ -248,51 +248,51 @@ mod tests {
 
   #[test]
   fn missing_alt_text() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 ![](image.png)
 "#,
     );
-    assert!(codes(&diags).contains(&"missing-alt-text"));
+    assert!(codes(&diagnostics).contains(&"missing-alt-text"));
   }
 
   #[test]
   fn image_with_alt_text() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 ![A cat](cat.png)
 "#,
     );
-    assert!(!codes(&diags).contains(&"missing-alt-text"));
+    assert!(!codes(&diagnostics).contains(&"missing-alt-text"));
   }
 
   #[test]
   fn generic_link_text() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 [click here](https://example.com)
 "#,
     );
-    assert!(codes(&diags).contains(&"generic-link-text"));
+    assert!(codes(&diagnostics).contains(&"generic-link-text"));
   }
 
   #[test]
   fn descriptive_link_text() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 [the full documentation](https://example.com)
 "#,
     );
-    assert!(!codes(&diags).contains(&"generic-link-text"));
+    assert!(!codes(&diagnostics).contains(&"generic-link-text"));
   }
 
   #[test]
   fn multiple_h1() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 # First
@@ -300,12 +300,12 @@ mod tests {
 # Second
 "#,
     );
-    assert!(codes(&diags).contains(&"multiple-h1"));
+    assert!(codes(&diagnostics).contains(&"multiple-h1"));
   }
 
   #[test]
   fn single_h1() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 # Title
@@ -313,12 +313,12 @@ mod tests {
 ## Section
 "#,
     );
-    assert!(!codes(&diags).contains(&"multiple-h1"));
+    assert!(!codes(&diagnostics).contains(&"multiple-h1"));
   }
 
   #[test]
   fn duplicate_headings() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 ## Summary
@@ -328,12 +328,12 @@ Text.
 ## Summary
 "#,
     );
-    assert!(codes(&diags).contains(&"duplicate-heading"));
+    assert!(codes(&diagnostics).contains(&"duplicate-heading"));
   }
 
   #[test]
   fn unique_headings() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 ## Overview
@@ -341,57 +341,57 @@ Text.
 ## Details
 "#,
     );
-    assert!(!codes(&diags).contains(&"duplicate-heading"));
+    assert!(!codes(&diagnostics).contains(&"duplicate-heading"));
   }
 
   #[test]
   fn trailing_whitespace() {
-    let diags = lint(
+    let diagnostics = lint(
       r"---
 ---
 Hello   
 ",
     );
-    assert!(codes(&diags).contains(&"trailing-whitespace"));
+    assert!(codes(&diagnostics).contains(&"trailing-whitespace"));
   }
 
   #[test]
   fn no_trailing_whitespace() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 Hello
 "#,
     );
-    assert!(!codes(&diags).contains(&"trailing-whitespace"));
+    assert!(!codes(&diagnostics).contains(&"trailing-whitespace"));
   }
 
   #[test]
   fn heading_missing_space() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 ##Heading
 "#,
     );
-    assert!(codes(&diags).contains(&"heading-missing-space"));
+    assert!(codes(&diagnostics).contains(&"heading-missing-space"));
   }
 
   #[test]
   fn heading_missing_blank_line() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 Some text.
 ## Heading
 "#,
     );
-    assert!(codes(&diags).contains(&"block-blank-line"));
+    assert!(codes(&diagnostics).contains(&"block-blank-line"));
   }
 
   #[test]
   fn list_then_paragraph_missing_blank_line() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 - Item one
@@ -399,24 +399,24 @@ Some text.
 Some text.
 "#,
     );
-    assert!(codes(&diags).contains(&"block-blank-line"));
+    assert!(codes(&diagnostics).contains(&"block-blank-line"));
   }
 
   #[test]
   fn paragraph_then_list_missing_blank_line() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 Some text.
 - Item one
 "#,
     );
-    assert!(codes(&diags).contains(&"block-blank-line"));
+    assert!(codes(&diagnostics).contains(&"block-blank-line"));
   }
 
   #[test]
   fn blocks_with_blank_lines() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 Some text.
@@ -426,12 +426,12 @@ Some text.
 More text.
 "#,
     );
-    assert!(!codes(&diags).contains(&"block-blank-line"));
+    assert!(!codes(&diagnostics).contains(&"block-blank-line"));
   }
 
   #[test]
   fn consecutive_blank_lines() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 First.
@@ -441,12 +441,12 @@ First.
 Second.
 "#,
     );
-    assert!(codes(&diags).contains(&"consecutive-blank-lines"));
+    assert!(codes(&diagnostics).contains(&"consecutive-blank-lines"));
   }
 
   #[test]
   fn heading_after_frontmatter_no_blank_line_warning() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 
@@ -455,35 +455,35 @@ Second.
 Some text.
 "#,
     );
-    assert!(!codes(&diags).contains(&"block-blank-line"));
+    assert!(!codes(&diagnostics).contains(&"block-blank-line"));
   }
 
   #[test]
   fn blank_line_after_frontmatter_missing() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 ## Heading
 "#,
     );
-    assert!(codes(&diags).contains(&"blank-line-after-frontmatter"));
+    assert!(codes(&diagnostics).contains(&"blank-line-after-frontmatter"));
   }
 
   #[test]
   fn blank_line_after_frontmatter_present() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 
 ## Heading
 "#,
     );
-    assert!(!codes(&diags).contains(&"blank-line-after-frontmatter"));
+    assert!(!codes(&diagnostics).contains(&"blank-line-after-frontmatter"));
   }
 
   #[test]
   fn clean_file() {
-    let diags = lint(
+    let diagnostics = lint(
       r#"---
 ---
 
@@ -492,6 +492,6 @@ Some text.
 Some text.
 "#,
     );
-    assert!(diags.is_empty(), "unexpected warnings: {:?}", codes(&diags));
+    assert!(diagnostics.is_empty(), "unexpected warnings: {:?}", codes(&diagnostics));
   }
 }

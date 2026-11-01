@@ -477,7 +477,7 @@ impl<S: Utf8Stream> LexCtx<S> {
             };
             // Range diagnostics only apply to code blocks, not inline code
             return match range_diagnostic {
-              Some(diag) if is_block => self.emit_with(kind, diag),
+              Some(diagnostic) if is_block => self.emit_with(kind, diagnostic),
               _ => self.emit(kind),
             };
           }

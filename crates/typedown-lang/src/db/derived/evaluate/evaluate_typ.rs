@@ -733,12 +733,12 @@ mod tests {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "_types/DuplicateProperty.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    let diags = evaluate_typ(&db, symbol).diagnostics(&db);
+    let diagnostics = evaluate_typ(&db, symbol).diagnostics(&db);
     assert!(
-      diags.iter().any(
+      diagnostics.iter().any(
         |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::DuplicateKey { key, ..}, .. } if key == "name")
       ),
-      "expected DuplicateKey diagnostic for 'name': {diags:?}"
+      "expected DuplicateKey diagnostic for 'name': {diagnostics:?}"
     );
   }
 
@@ -760,16 +760,16 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/DefaultInvalid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diags = result.diagnostics(&db);
-    assert_eq!(diags.len(), 1);
+    let diagnostics = result.diagnostics(&db);
+    assert_eq!(diagnostics.len(), 1);
     assert!(
       matches!(
-        &diags[0],
+        &diagnostics[0],
         TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. }
           if field == "default" && expected == "string"
       ),
       "expected FieldTypeMismatch for 'default', got {:?}",
-      diags
+      diagnostics
     );
   }
 

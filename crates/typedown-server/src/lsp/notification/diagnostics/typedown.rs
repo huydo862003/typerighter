@@ -64,12 +64,12 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
     let uri = path_to_uri(path, scheme);
     let diagnostics: Vec<Diagnostic> = config_diagnostics
       .iter()
-      .map(|diag| Diagnostic {
+      .map(|diagnostic| Diagnostic {
         range: lsp_types::Range::default(),
         severity: Some(lsp_types::DiagnosticSeverity::ERROR),
-        code: Some(NumberOrString::String(diag.code_str().into())),
+        code: Some(NumberOrString::String(diagnostic.code_str().into())),
         source: Some("typedown".into()),
-        message: diag.message(),
+        message: diagnostic.message(),
         ..Default::default()
       })
       .collect();
@@ -85,11 +85,11 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
 
   // Check for duplicate schema files
   let schema_check = check_schemas(db, project);
-  for diag in schema_check.diagnostics(db) {
+  for diagnostic in schema_check.diagnostics(db) {
     if let TdDiagnostic {
       kind: TdDiagnosticKind::DuplicateSchemaName { ref path, .. },
       ..
-    } = diag
+    } = diagnostic
     {
       let root_dir = get_vault_config(db, project).root_dir(db);
       let full_path = root_dir.join(path);
@@ -106,9 +106,9 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
           diagnostics: vec![Diagnostic {
             range: lsp_types::Range::default(),
             severity: Some(lsp_types::DiagnosticSeverity::ERROR),
-            code: Some(lsp_types::NumberOrString::String(diag.code_str().into())),
+            code: Some(lsp_types::NumberOrString::String(diagnostic.code_str().into())),
             source: Some("typedown".into()),
-            message: diag.message(),
+            message: diagnostic.message(),
             ..Default::default()
           }],
           version: None,
@@ -150,35 +150,35 @@ fn get_diagnostics_for_file(
 ) -> Notification {
   // Parse errors
   let parse_result = parse_file(db, project, file);
-  let mut td_diags: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
+  let mut td_diagnostics: Vec<TdDiagnostic> = parse_result.diagnostics(db).to_vec();
 
   // Typecheck errors
   let root = parse_result.ast(db).node.clone();
   let project_node = ProjectRedNode::new(project, file, root);
   let typecheck_result = typecheck(db, project_node);
-  td_diags.extend(typecheck_result.diagnostics(db).iter().cloned());
+  td_diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
 
   // Evaluation errors
   if let Some(symbol) = file_symbol(db, project, file).value(db) {
     if symbol.kind(db).is_schema() {
       let evaluated_result = evaluate_typ(db, symbol);
-      td_diags.extend(evaluated_result.diagnostics(db).iter().cloned());
+      td_diagnostics.extend(evaluated_result.diagnostics(db).iter().cloned());
     } else {
       let evaluated_result = evaluate_resource(db, symbol);
-      td_diags.extend(evaluated_result.diagnostics(db).iter().cloned());
+      td_diagnostics.extend(evaluated_result.diagnostics(db).iter().cloned());
     }
   }
 
-  let mut lsp_diags: Vec<Diagnostic> = td_diags
+  let mut lsp_diagnostics: Vec<Diagnostic> = td_diagnostics
     .iter()
-    .filter_map(|diag| to_lsp_diagnostic(diag, rope))
+    .filter_map(|diagnostic| to_lsp_diagnostic(diagnostic, rope))
     .collect();
 
   // Lint warnings (markdown body only)
   let root = parse_result.ast(db).node.clone();
-  if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
-    for diag in lint_markdown(&body) {
-      lsp_diags.push(lint_diag_to_lsp(&diag, rope));
+  if let Some(body) = SourceFile::cast(root.clone()).and_then(|source_file| source_file.body()) {
+    for diagnostic in lint_markdown(&body) {
+      lsp_diagnostics.push(lint_diag_to_lsp(&diagnostic, rope));
     }
   }
 
@@ -190,7 +190,7 @@ fn get_diagnostics_for_file(
   let uri = path_to_uri(path, scheme);
   let params = PublishDiagnosticsParams {
     uri,
-    diagnostics: lsp_diags,
+    diagnostics: lsp_diagnostics,
     version: None,
   };
 
@@ -290,16 +290,16 @@ properties:
   /// Extract deduplicated diagnostic codes from the notification for file.td
   fn diagnostic_codes(analysis: &Analysis) -> Vec<String> {
     let notifications = publish_diagnostics_for_project(analysis);
-    let notif = notifications
+    let notification = notifications
       .iter()
-      .find(|notif| notif.params.to_string().contains("file.td"))
+      .find(|notification| notification.params.to_string().contains("file.td"))
       .expect("expected a notification for file.td");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
+    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
     let mut codes: Vec<String> = params["diagnostics"]
       .as_array()
       .unwrap()
       .iter()
-      .filter_map(|diag| diag["code"].as_str().map(String::from))
+      .filter_map(|diagnostic| diagnostic["code"].as_str().map(String::from))
       .collect();
     codes.dedup();
     codes
@@ -443,14 +443,14 @@ age: 30
     );
 
     let notifications = publish_diagnostics_for_project(&analysis);
-    let config_notif = notifications
+    let config_notification = notifications
       .iter()
-      .find(|notif| notif.params.to_string().contains("typedown.yaml"));
-    let notif = config_notif.expect("expected a diagnostic for the config file");
-    let params: serde_json::Value = serde_json::from_str(&notif.params.to_string()).unwrap();
-    let diags = params["diagnostics"].as_array().unwrap();
+      .find(|notification| notification.params.to_string().contains("typedown.yaml"));
+    let notification = config_notification.expect("expected a diagnostic for the config file");
+    let params: serde_json::Value = serde_json::from_str(&notification.params.to_string()).unwrap();
+    let diagnostics = params["diagnostics"].as_array().unwrap();
     assert!(
-      !diags.is_empty(),
+      !diagnostics.is_empty(),
       "invalid config should produce at least one diagnostic"
     );
   }

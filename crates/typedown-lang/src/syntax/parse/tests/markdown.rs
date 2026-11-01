@@ -881,15 +881,15 @@ content
 // A well-formed numeric prop should not produce diagnostics
 #[test]
 fn parse_container_block_with_number_prop_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: grid {cols=2}
 content
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -966,15 +966,15 @@ content
 
 #[test]
 fn parse_container_block_with_bare_boolean_prop_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: card {collapsed}
 content
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -1033,7 +1033,7 @@ content
 
 #[test]
 fn parse_container_block_with_leading_slot_separator_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: tabs
 === one
 content
@@ -1041,15 +1041,15 @@ content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "a container may start with a slot separator, got: {diags:?}"
+    diagnostics.is_empty(),
+    "a container may start with a slot separator, got: {diagnostics:?}"
   );
 }
 
 // Same, with a prop block between the label and the first separator
 #[test]
 fn parse_container_block_with_props_and_leading_slot_separator_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: tabs {variant="pill"}
 === one
 content
@@ -1057,15 +1057,15 @@ content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "a container with props may start with a slot separator, got: {diags:?}"
+    diagnostics.is_empty(),
+    "a container with props may start with a slot separator, got: {diagnostics:?}"
   );
 }
 
 // Two separators back to back: the slot between them is empty
 #[test]
 fn parse_container_block_with_consecutive_slot_separators_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: tabs
 === one
 === two
@@ -1074,8 +1074,8 @@ content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "an empty slot between separators is allowed, got: {diags:?}"
+    diagnostics.is_empty(),
+    "an empty slot between separators is allowed, got: {diagnostics:?}"
   );
 }
 
@@ -1123,15 +1123,15 @@ content
 // A well-formed prop block should not produce diagnostics
 #[test]
 fn parse_container_block_with_props_no_diagnostics() {
-  let (_, diags) = parse_body_with_diagnostics(
+  let (_, diagnostics) = parse_body_with_diagnostics(
     r#"::: card {title="Hello" variant="wide"}
 content
 :::
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -4035,7 +4035,7 @@ more content
 
 #[test]
 fn parse_container_blank_line_before_close() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"::: note
 content
 
@@ -4043,8 +4043,8 @@ content
 "#,
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
   assert_eq!(
     tree,
@@ -4601,7 +4601,7 @@ fn parse_unclosed_bracket_as_text() {
 // Unclosed ![ before newline is treated as plain text, no diagnostic
 #[test]
 fn parse_unclosed_media_bracket_as_text() {
-  let (tree, diags) = parse_body_with_diagnostics(
+  let (tree, diagnostics) = parse_body_with_diagnostics(
     r#"![alt without closing
 "#,
   );
@@ -4628,8 +4628,8 @@ fn parse_unclosed_media_bracket_as_text() {
     "\n"))"####
   );
   assert!(
-    diags.is_empty(),
-    "should produce no diagnostics, got: {diags:?}"
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
   );
 }
 
@@ -5153,7 +5153,7 @@ fn parse_bullet_list_blank_line_before_nested_list() {
 // Loose list item: blank line before blockquote should nest inside li
 #[test]
 fn parse_bullet_list_blank_line_before_blockquote() {
-  let (tree, _diags) = parse_body_with_diagnostics(
+  let (tree, _diagnostics) = parse_body_with_diagnostics(
     r#"- item
 
     > quoted text
@@ -5389,7 +5389,7 @@ fn parse_ordered_list_blank_line_between_items() {
 // Ordered list: blank line before blockquote should nest inside li
 #[test]
 fn parse_ordered_list_blank_line_before_blockquote() {
-  let (tree, _diags) = parse_body_with_diagnostics(
+  let (tree, _diagnostics) = parse_body_with_diagnostics(
     r#"1. item
 
     > quoted text

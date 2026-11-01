@@ -32,7 +32,7 @@ pub fn typecheck<'db>(
   // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping for type resolution
   let node = project_node.node.clone();
   if let Some(source_file) = SourceFile::cast(node.clone()) {
-    let mut diags = check_custom_components(db, project_node.project, project_node.file)
+    let mut diagnostics = check_custom_components(db, project_node.project, project_node.file)
       .diagnostics(db)
       .clone();
     if let Some(frontmatter) = source_file.frontmatter()
@@ -43,7 +43,7 @@ pub fn typecheck<'db>(
         project_node.file,
         mapping.syntax().clone(),
       );
-      diags.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
+      diagnostics.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
     }
     if let Some(body) = source_file.body() {
       typecheck_md_body(
@@ -51,10 +51,10 @@ pub fn typecheck<'db>(
         project_node.project,
         project_node.file,
         body.syntax().clone(),
-        &mut diags,
+        &mut diagnostics,
       );
     }
-    return TypecheckResult::new(db, diags);
+    return TypecheckResult::new(db, diagnostics);
   }
   if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
     if let Some(mapping) = frontmatter.mapping() {
@@ -906,13 +906,13 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_wrong_type.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags
+      diagnostics
         .iter()
         .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "address")),
       "expected FieldTypeMismatch for 'address', got: {:?}",
-      diags
+      diagnostics
     );
   }
 

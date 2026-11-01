@@ -1002,7 +1002,7 @@ fn construct_fref<'db>(
     .file
     .handle(db)
     .path()
-    .and_then(|path| path.parent().map(|p| p.to_path_buf()))
+    .and_then(|path| path.parent().map(|path| path.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 

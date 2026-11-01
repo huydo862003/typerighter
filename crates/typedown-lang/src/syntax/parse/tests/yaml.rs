@@ -49,7 +49,7 @@ fn recover_yaml_missing_closing_marker() {
   let full = r#"---
 key: 1
 "#;
-  let (ast, diags) = parse(full);
+  let (ast, diagnostics) = parse(full);
   let root = ast.as_node().unwrap();
   let frontmatter = &root.children()[0];
   let tree = render_tree(frontmatter);
@@ -74,7 +74,7 @@ key: 1
     ""))"####
   );
   assert_eq!(
-    diags,
+    diagnostics,
     vec![TdDiagnosticKind::MissingFrontmatterMarker {}.into_error(11, 11)]
   );
 }
@@ -611,8 +611,8 @@ fn seq_alternating_list_and_map() {
   - - 40
     - 50"#
   );
-  let (ast, diags) = parse(&full);
-  assert_eq!(diags, vec![]);
+  let (ast, diagnostics) = parse(&full);
+  assert_eq!(diagnostics, vec![]);
   let tree = render_tree(&ast);
   let expected = r#"(SourceFile
   (YamlFrontmatter
@@ -883,8 +883,8 @@ fn inline_seq_first_map_then_list() {
     - y
   - c: 3"#
   );
-  let (ast, diags) = parse(&full);
-  assert_eq!(diags, vec![]);
+  let (ast, diagnostics) = parse(&full);
+  assert_eq!(diagnostics, vec![]);
   let tree = render_tree(&ast);
   let expected = r#"(SourceFile
   (YamlFrontmatter
@@ -1164,9 +1164,9 @@ fn folded_block_str_insufficient_indent() {
 // Unquoted multi-word value should produce a parse error
 #[test]
 fn unquoted_multiword_value_has_parse_error() {
-  let (_, diags) = parse_frontmatter_with_diagnostics("title: hello world");
+  let (_, diagnostics) = parse_frontmatter_with_diagnostics("title: hello world");
   assert!(
-    !diags.is_empty(),
+    !diagnostics.is_empty(),
     "unquoted multi-word value should produce parse errors, got none"
   );
 }
@@ -1195,11 +1195,11 @@ fn document_empty() {
 
 #[test]
 fn document_simple_mapping() {
-  let (tree, diags) = parse_document_with_diagnostics(
+  let (tree, diagnostics) = parse_document_with_diagnostics(
     r"key: value
 ",
   );
-  assert!(diags.is_empty(), "unexpected diagnostics: {diags:?}");
+  assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
   assert!(
     tree.contains("YamlMapping"),
     "should contain a mapping: {tree}"
@@ -1214,13 +1214,13 @@ fn document_simple_mapping() {
 
 #[test]
 fn document_nested_mapping() {
-  let (tree, diags) = parse_document_with_diagnostics(
+  let (tree, diagnostics) = parse_document_with_diagnostics(
     r#"site:
   title: "My Site"
   description: "A description"
 "#,
   );
-  assert!(diags.is_empty(), "unexpected diagnostics: {diags:?}");
+  assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
   assert!(
     tree.contains(r#""site""#),
     "should contain site key: {tree}"

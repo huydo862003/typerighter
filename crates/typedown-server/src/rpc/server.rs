@@ -848,11 +848,11 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
 
   // Check for duplicate schema files
   let schema_check = check_schemas(db, project);
-  for diag in schema_check.diagnostics(db) {
+  for diagnostic in schema_check.diagnostics(db) {
     let filepath = if let TdDiagnostic {
       kind: TdDiagnosticKind::DuplicateSchemaName { ref path, .. },
       ..
-    } = diag
+    } = diagnostic
     {
       path.clone()
     } else {
@@ -863,8 +863,8 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
       line: 0,
       column: 0,
       severity: "error".to_string(),
-      code: diag.code_str().to_string(),
-      message: diag.message(),
+      code: diagnostic.code_str().to_string(),
+      message: diagnostic.message(),
     });
   }
 
@@ -990,8 +990,8 @@ fn collect_file_diagnostics(
   // Lint warnings
   let root = parse_result.ast(db).node.clone();
   if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
-    for diag in lint_markdown(&body) {
-      items.push(lint_diag_to_item(&diag, filepath, rope));
+    for diagnostic in lint_markdown(&body) {
+      items.push(lint_diag_to_item(&diagnostic, filepath, rope));
     }
   }
 

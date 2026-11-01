@@ -69,18 +69,18 @@ if (mode === 'local') {
     console.error(`Unsupported platform: ${platformKey}`);
     process.exit(1);
   }
-  const ext = platform === 'win32' ? '.exe' : '';
-  const releaseArtifact = `typedown-lsp-${version}-${osArch}${ext}`;
+  const extension = platform === 'win32' ? '.exe' : '';
+  const releaseArtifact = `typedown-lsp-${version}-${osArch}${extension}`;
 
   const downloadUrl = `https://github.com/huydo862003/typedown/releases/download/${encodeURIComponent(releaseTag)}/${releaseArtifact}`;
   console.log(`Downloading ${downloadUrl} -> ${binDest}`);
 
-  const res = await fetch(downloadUrl);
-  if (!res.ok) {
-    console.error(`HTTP ${res.status}`);
+  const result = await fetch(downloadUrl);
+  if (!result.ok) {
+    console.error(`HTTP ${result.status}`);
     process.exit(1);
   }
-  if (!res.body) {
+  if (!result.body) {
     console.error('Response body is empty');
     process.exit(1);
   }
@@ -90,7 +90,7 @@ if (mode === 'local') {
 
   try {
     await pipeline(
-      Readable.fromWeb(res.body),
+      Readable.fromWeb(result.body),
       createWriteStream(binTmp)
     );
 

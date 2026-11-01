@@ -1,6 +1,6 @@
 //! Export schema property descriptors for the client
 
-use super::json;
+use crate::integrations::bindings::serialize_to_json;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -38,7 +38,7 @@ pub fn export_prop_descriptors(
   for (name, prop_descriptor) in fields {
     let mut prop_json = export_lazy_to_descriptor(db, &prop_descriptor.field_typ);
     if let Some(ref definition_obj) = prop_descriptor.default_value
-      && let Ok(definition_json) = json::serialize_to_json(db, project, definition_obj)
+      && let Ok(definition_json) = serialize_to_json(db, project, definition_obj)
       && let serde_json::Value::Object(ref mut map) = prop_json
     {
       map.insert("default".to_string(), definition_json);

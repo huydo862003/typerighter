@@ -173,7 +173,7 @@ fn try_service_embed(url: &str) -> Option<ServiceEmbed> {
         .trim_start_matches('/')
         .split(['?', '&', '#'])
         .next()
-        .filter(|s| !s.is_empty())?;
+        .filter(|string| !string.is_empty())?;
       Some(ServiceEmbed {
         embed_url: format!("https://www.youtube.com/embed/{id}"),
         allow: YOUTUBE_ALLOW,
@@ -220,7 +220,7 @@ fn try_service_embed(url: &str) -> Option<ServiceEmbed> {
     }),
     "vimeo.com" => {
       let id = path.trim_start_matches('/').split(['/', '?', '#']).next()?;
-      if !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) {
+      if !id.is_empty() && id.chars().all(|char| char.is_ascii_digit()) {
         Some(ServiceEmbed {
           embed_url: format!("https://player.vimeo.com/video/{id}"),
           allow: VIMEO_ALLOW,

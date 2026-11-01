@@ -47,20 +47,20 @@ fn lex_markdown_with_diagnostics(input: &str) -> (Vec<(SyntaxKind, String)>, Vec
   let mut lexer = LexCtx::new(stream, cache);
   lexer.set_mode(LexMode::MarkdownBody);
   let mut tokens = vec![];
-  let mut diags = vec![];
+  let mut diagnostics = vec![];
   loop {
     let result = lexer.lex();
     let kind = result.token.kind();
     let text: String = result.token.chars().collect();
-    if let Some(diag) = result.diagnostic {
-      diags.push(diag);
+    if let Some(diagnostic) = result.diagnostic {
+      diagnostics.push(diagnostic);
     }
     tokens.push((kind, text));
     if kind == SyntaxKind::Eof {
       break;
     }
   }
-  (tokens, diags)
+  (tokens, diagnostics)
 }
 
 /// Assert that the token sequence matches exactly (kind + text), including Eof.
