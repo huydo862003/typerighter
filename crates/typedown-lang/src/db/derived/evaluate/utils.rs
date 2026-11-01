@@ -17,6 +17,7 @@ use crate::db::types::{
   TdIconObj, TdListObj, TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdProductTyp,
   TdRuntimeObj, TdSchemaObj, TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
 };
+use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, DictLit, Expr, IdentLit, IndexExpr,
   InlineCode, InlineMath, InterpFragment, ListLit, MathBlock, MathLit, MdBody, NumberLit,
@@ -997,7 +998,13 @@ fn construct_fref<'db>(
   let project = arg.project;
   let files = project.files(db);
   let root_dir = get_vault_config(db, project).root_dir(db);
-  let target_path = root_dir.join(&path_string);
+  let file_dir = arg
+    .file
+    .handle(db)
+    .path()
+    .and_then(|path| path.parent().map(|p| p.to_path_buf()))
+    .unwrap_or_else(|| root_dir.clone());
+  let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 
   let target_file = *files.get(&target_path)?;
   let target_symbol = file_symbol(db, project, target_file).value(db)?;

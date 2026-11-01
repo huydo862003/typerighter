@@ -541,6 +541,101 @@ full content:
   }
 
   #[test]
+  fn exports_schema_list_relation_prop() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/BookType.td");
+    let props = export_prop_descriptors(&db, project, file).expect("BookType schema should export");
+    eprintln!("PROPS: {}", serde_json::to_string_pretty(&props).unwrap());
+    // Single relation
+    assert_eq!(
+      props["parent"]["widget"], "relation",
+      "parent should be relation widget"
+    );
+    assert_eq!(props["parent"]["schema"], "Person");
+    // List of relations
+    assert_eq!(
+      props["concepts"]["widget"], "list",
+      "concepts should be list widget"
+    );
+    assert_eq!(
+      props["concepts"]["items"]["widget"], "relation",
+      "concepts items should be relation widget"
+    );
+    assert_eq!(props["concepts"]["items"]["schema"], "Person");
+  }
+
+  #[test]
+  fn exports_fref_list_in_header() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "book_with_frefs.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let header = &exported.header;
+    eprintln!("HEADER: {}", serde_json::to_string_pretty(header).unwrap());
+
+    // Single fref in header
+    assert!(
+      header["parent"]["$ref"]["url"].is_string(),
+      "parent fref should resolve in header: {}",
+      header["parent"]
+    );
+
+    // List of frefs in header
+    let concepts = header["concepts"]
+      .as_array()
+      .expect("concepts should be array");
+    assert_eq!(concepts.len(), 2, "should have 2 concepts in header");
+    assert!(
+      concepts[0]["$ref"]["url"].is_string(),
+      "first concept should resolve in header: {}",
+      concepts[0]
+    );
+    assert!(
+      concepts[1]["$ref"]["url"].is_string(),
+      "second concept should resolve in header: {}",
+      concepts[1]
+    );
+    // No nulls in the list
+    for (idx, concept) in concepts.iter().enumerate() {
+      assert!(
+        !concept.is_null(),
+        "concept {idx} should not be null: {concept}"
+      );
+      assert!(
+        concept["$ref"].is_object(),
+        "concept {idx} should have $ref object: {concept}"
+      );
+    }
+  }
+
+  #[test]
+  fn exports_absolute_fref_in_header() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "book_with_absolute_frefs.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let header = &exported.header;
+
+    // Absolute path fref: fref("/valid_person.td")
+    assert!(
+      header["parent"]["$ref"]["url"].is_string(),
+      "absolute fref should resolve: {}",
+      header["parent"]
+    );
+
+    let concepts = header["concepts"]
+      .as_array()
+      .expect("concepts should be array");
+    assert_eq!(concepts.len(), 2);
+    for (idx, concept) in concepts.iter().enumerate() {
+      assert!(
+        !concept.is_null(),
+        "absolute fref concept {idx} should not be null (was a bug: Path::join with leading / replaces base)"
+      );
+      assert!(
+        concept["$ref"]["url"].is_string(),
+        "absolute fref concept {idx} should resolve: {concept}"
+      );
+    }
+  }
+
+  #[test]
   fn returns_none_for_non_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let result = export_prop_descriptors(&db, project, file);
