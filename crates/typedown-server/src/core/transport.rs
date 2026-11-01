@@ -56,11 +56,7 @@ pub fn connect_tcp(
 
   let reader = std::thread::spawn(move || {
     let mut buf_read = BufReader::new(reader_stream);
-    loop {
-      let message = match Message::read(&mut buf_read) {
-        Ok(Some(message)) => message,
-        Ok(None) | Err(_) => break,
-      };
+    while let Ok(Some(message)) = Message::read(&mut buf_read) {
       let is_exit = matches!(&message, Message::Notification(n) if n.method == "exit");
       reader_sender.send(message).unwrap();
       if is_exit {
