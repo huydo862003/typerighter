@@ -84,61 +84,61 @@ impl<'a> Encoder<'a> {
     index
   }
 
-  pub fn emit_raw(&self, buf: &mut Vec<u8>, bytes: &[u8]) -> usize {
-    buf.extend_from_slice(bytes);
+  pub fn emit_raw(&self, buffer: &mut Vec<u8>, bytes: &[u8]) -> usize {
+    buffer.extend_from_slice(bytes);
     bytes.len()
   }
 
-  pub fn emit_u8(&self, buf: &mut Vec<u8>, v: u8) -> usize {
-    self.emit_raw(buf, &[v])
+  pub fn emit_u8(&self, buffer: &mut Vec<u8>, value: u8) -> usize {
+    self.emit_raw(buffer, &[value])
   }
-  pub fn emit_u16(&self, buf: &mut Vec<u8>, v: u16) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_u16(&self, buffer: &mut Vec<u8>, value: u16) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_u32(&self, buf: &mut Vec<u8>, v: u32) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_u32(&self, buffer: &mut Vec<u8>, value: u32) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_u64(&self, buf: &mut Vec<u8>, v: u64) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_u64(&self, buffer: &mut Vec<u8>, value: u64) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_u128(&self, buf: &mut Vec<u8>, v: u128) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_u128(&self, buffer: &mut Vec<u8>, value: u128) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_usize(&self, buf: &mut Vec<u8>, v: usize) -> usize {
-    self.emit_u64(buf, v as u64)
+  pub fn emit_usize(&self, buffer: &mut Vec<u8>, value: usize) -> usize {
+    self.emit_u64(buffer, value as u64)
   }
-  pub fn emit_isize(&self, buf: &mut Vec<u8>, v: isize) -> usize {
-    self.emit_i64(buf, v as i64)
+  pub fn emit_isize(&self, buffer: &mut Vec<u8>, value: isize) -> usize {
+    self.emit_i64(buffer, value as i64)
   }
-  pub fn emit_i8(&self, buf: &mut Vec<u8>, v: i8) -> usize {
-    self.emit_raw(buf, &[v as u8])
+  pub fn emit_i8(&self, buffer: &mut Vec<u8>, value: i8) -> usize {
+    self.emit_raw(buffer, &[value as u8])
   }
-  pub fn emit_i16(&self, buf: &mut Vec<u8>, v: i16) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_i16(&self, buffer: &mut Vec<u8>, value: i16) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_i32(&self, buf: &mut Vec<u8>, v: i32) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_i32(&self, buffer: &mut Vec<u8>, value: i32) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_i64(&self, buf: &mut Vec<u8>, v: i64) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_i64(&self, buffer: &mut Vec<u8>, value: i64) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_i128(&self, buf: &mut Vec<u8>, v: i128) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_i128(&self, buffer: &mut Vec<u8>, value: i128) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_f64(&self, buf: &mut Vec<u8>, v: f64) -> usize {
-    self.emit_raw(buf, &v.to_le_bytes())
+  pub fn emit_f64(&self, buffer: &mut Vec<u8>, value: f64) -> usize {
+    self.emit_raw(buffer, &value.to_le_bytes())
   }
-  pub fn emit_bool(&self, buf: &mut Vec<u8>, v: bool) -> usize {
-    self.emit_u8(buf, v as u8)
+  pub fn emit_bool(&self, buffer: &mut Vec<u8>, value: bool) -> usize {
+    self.emit_u8(buffer, value as u8)
   }
-  pub fn emit_char(&self, buf: &mut Vec<u8>, v: char) -> usize {
-    self.emit_u32(buf, v as u32)
+  pub fn emit_char(&self, buffer: &mut Vec<u8>, value: char) -> usize {
+    self.emit_u32(buffer, value as u32)
   }
-  pub fn emit_str(&self, buf: &mut Vec<u8>, v: &str) -> usize {
-    self.emit_u32(buf, v.len() as u32) + self.emit_raw(buf, v.as_bytes())
+  pub fn emit_str(&self, buffer: &mut Vec<u8>, value: &str) -> usize {
+    self.emit_u32(buffer, value.len() as u32) + self.emit_raw(buffer, value.as_bytes())
   }
-  pub fn emit_bytes(&self, buf: &mut Vec<u8>, v: &[u8]) -> usize {
-    self.emit_u32(buf, v.len() as u32) + self.emit_raw(buf, v)
+  pub fn emit_bytes(&self, buffer: &mut Vec<u8>, value: &[u8]) -> usize {
+    self.emit_u32(buffer, value.len() as u32) + self.emit_raw(buffer, value)
   }
 }
 
@@ -183,26 +183,26 @@ impl Decoder {
 
     match node {
       DepNode::InputField { .. } => {
-        for &idx in ctx.inputs_by_name(&name) {
-          let input = &self.storage.inputs[idx];
+        for &_index in ctx.inputs_by_name(&name) {
+          let input = &self.storage.inputs[_index];
           if Some(input.field_index()) == node_field_index {
             return input.deserialize(ctx, index);
           }
         }
       }
       DepNode::Interned { .. } => {
-        if let Some(&idx) = ctx.interned_by_name(&name).iter().next() {
-          return self.storage.interned[idx].deserialize(ctx, index);
+        if let Some(&_index) = ctx.interned_by_name(&name).iter().next() {
+          return self.storage.interned[_index].deserialize(ctx, index);
         }
       }
       DepNode::DerivedQuery { .. } => {
-        if let Some(&idx) = ctx.queries_by_name(&name).iter().next() {
-          return self.storage.queries[idx].deserialize(ctx, index);
+        if let Some(&_index) = ctx.queries_by_name(&name).iter().next() {
+          return self.storage.queries[_index].deserialize(ctx, index);
         }
       }
       DepNode::DerivedField { .. } => {
-        for &idx in ctx.fields_by_name(&name) {
-          let field = &self.storage.fields[idx];
+        for &_index in ctx.fields_by_name(&name) {
+          let field = &self.storage.fields[_index];
           if Some(field.field_index()) == node_field_index {
             return field.deserialize(ctx, index);
           }
@@ -219,37 +219,37 @@ impl Decoder {
     &self.intern_blobs[index as usize]
   }
 
-  pub fn read_raw(&self, data: &mut &[u8], buf: &mut [u8]) -> usize {
-    let len = buf.len();
-    buf.copy_from_slice(&data[..len]);
-    *data = &data[len..];
-    len
+  pub fn read_raw(&self, data: &mut &[u8], buffer: &mut [u8]) -> usize {
+    let length = buffer.len();
+    buffer.copy_from_slice(&data[..length]);
+    *data = &data[length..];
+    length
   }
 
   pub fn read_u8(&self, data: &mut &[u8]) -> u8 {
-    let mut buf = [0u8; 1];
-    self.read_raw(data, &mut buf);
-    buf[0]
+    let mut buffer = [0u8; 1];
+    self.read_raw(data, &mut buffer);
+    buffer[0]
   }
   pub fn read_u16(&self, data: &mut &[u8]) -> u16 {
-    let mut buf = [0u8; 2];
-    self.read_raw(data, &mut buf);
-    u16::from_le_bytes(buf)
+    let mut buffer = [0u8; 2];
+    self.read_raw(data, &mut buffer);
+    u16::from_le_bytes(buffer)
   }
   pub fn read_u32(&self, data: &mut &[u8]) -> u32 {
-    let mut buf = [0u8; 4];
-    self.read_raw(data, &mut buf);
-    u32::from_le_bytes(buf)
+    let mut buffer = [0u8; 4];
+    self.read_raw(data, &mut buffer);
+    u32::from_le_bytes(buffer)
   }
   pub fn read_u64(&self, data: &mut &[u8]) -> u64 {
-    let mut buf = [0u8; 8];
-    self.read_raw(data, &mut buf);
-    u64::from_le_bytes(buf)
+    let mut buffer = [0u8; 8];
+    self.read_raw(data, &mut buffer);
+    u64::from_le_bytes(buffer)
   }
   pub fn read_u128(&self, data: &mut &[u8]) -> u128 {
-    let mut buf = [0u8; 16];
-    self.read_raw(data, &mut buf);
-    u128::from_le_bytes(buf)
+    let mut buffer = [0u8; 16];
+    self.read_raw(data, &mut buffer);
+    u128::from_le_bytes(buffer)
   }
   pub fn read_usize(&self, data: &mut &[u8]) -> usize {
     self.read_u64(data) as usize
@@ -261,29 +261,29 @@ impl Decoder {
     self.read_u8(data) as i8
   }
   pub fn read_i16(&self, data: &mut &[u8]) -> i16 {
-    let mut buf = [0u8; 2];
-    self.read_raw(data, &mut buf);
-    i16::from_le_bytes(buf)
+    let mut buffer = [0u8; 2];
+    self.read_raw(data, &mut buffer);
+    i16::from_le_bytes(buffer)
   }
   pub fn read_i32(&self, data: &mut &[u8]) -> i32 {
-    let mut buf = [0u8; 4];
-    self.read_raw(data, &mut buf);
-    i32::from_le_bytes(buf)
+    let mut buffer = [0u8; 4];
+    self.read_raw(data, &mut buffer);
+    i32::from_le_bytes(buffer)
   }
   pub fn read_i64(&self, data: &mut &[u8]) -> i64 {
-    let mut buf = [0u8; 8];
-    self.read_raw(data, &mut buf);
-    i64::from_le_bytes(buf)
+    let mut buffer = [0u8; 8];
+    self.read_raw(data, &mut buffer);
+    i64::from_le_bytes(buffer)
   }
   pub fn read_i128(&self, data: &mut &[u8]) -> i128 {
-    let mut buf = [0u8; 16];
-    self.read_raw(data, &mut buf);
-    i128::from_le_bytes(buf)
+    let mut buffer = [0u8; 16];
+    self.read_raw(data, &mut buffer);
+    i128::from_le_bytes(buffer)
   }
   pub fn read_f64(&self, data: &mut &[u8]) -> f64 {
-    let mut buf = [0u8; 8];
-    self.read_raw(data, &mut buf);
-    f64::from_le_bytes(buf)
+    let mut buffer = [0u8; 8];
+    self.read_raw(data, &mut buffer);
+    f64::from_le_bytes(buffer)
   }
   pub fn read_bool(&self, data: &mut &[u8]) -> bool {
     self.read_u8(data) != 0
@@ -292,16 +292,16 @@ impl Decoder {
     char::from_u32(self.read_u32(data)).unwrap()
   }
   pub fn read_str(&self, data: &mut &[u8]) -> String {
-    let len = self.read_u32(data) as usize;
-    let mut buf = vec![0u8; len];
-    self.read_raw(data, &mut buf);
-    String::from_utf8(buf).unwrap()
+    let length = self.read_u32(data) as usize;
+    let mut buffer = vec![0u8; length];
+    self.read_raw(data, &mut buffer);
+    String::from_utf8(buffer).unwrap()
   }
   pub fn read_bytes_owned(&self, data: &mut &[u8]) -> Vec<u8> {
-    let len = self.read_u32(data) as usize;
-    let mut buf = vec![0u8; len];
-    self.read_raw(data, &mut buf);
-    buf
+    let length = self.read_u32(data) as usize;
+    let mut buffer = vec![0u8; length];
+    self.read_raw(data, &mut buffer);
+    buffer
   }
 }
 
@@ -330,8 +330,8 @@ pub trait Decodable: Sized {
 
 // u8
 impl Encodable for u8 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u8(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u8(buffer, *self);
   }
 }
 impl Decodable for u8 {
@@ -342,8 +342,8 @@ impl Decodable for u8 {
 
 // u16
 impl Encodable for u16 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u16(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u16(buffer, *self);
   }
 }
 impl Decodable for u16 {
@@ -354,8 +354,8 @@ impl Decodable for u16 {
 
 // u32
 impl Encodable for u32 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, *self);
   }
 }
 impl Decodable for u32 {
@@ -366,8 +366,8 @@ impl Decodable for u32 {
 
 // u64
 impl Encodable for u64 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u64(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u64(buffer, *self);
   }
 }
 impl Decodable for u64 {
@@ -378,8 +378,8 @@ impl Decodable for u64 {
 
 // usize (encoded as u64)
 impl Encodable for usize {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_usize(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_usize(buffer, *self);
   }
 }
 impl Decodable for usize {
@@ -390,8 +390,8 @@ impl Decodable for usize {
 
 // u128
 impl Encodable for u128 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u128(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u128(buffer, *self);
   }
 }
 impl Decodable for u128 {
@@ -402,8 +402,8 @@ impl Decodable for u128 {
 
 // isize
 impl Encodable for isize {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_isize(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_isize(buffer, *self);
   }
 }
 impl Decodable for isize {
@@ -414,8 +414,8 @@ impl Decodable for isize {
 
 // i8
 impl Encodable for i8 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_i8(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_i8(buffer, *self);
   }
 }
 impl Decodable for i8 {
@@ -426,8 +426,8 @@ impl Decodable for i8 {
 
 // i16
 impl Encodable for i16 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_i16(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_i16(buffer, *self);
   }
 }
 impl Decodable for i16 {
@@ -438,8 +438,8 @@ impl Decodable for i16 {
 
 // i32
 impl Encodable for i32 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_i32(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_i32(buffer, *self);
   }
 }
 impl Decodable for i32 {
@@ -450,8 +450,8 @@ impl Decodable for i32 {
 
 // i64
 impl Encodable for i64 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_i64(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_i64(buffer, *self);
   }
 }
 impl Decodable for i64 {
@@ -462,8 +462,8 @@ impl Decodable for i64 {
 
 // i128
 impl Encodable for i128 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_i128(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_i128(buffer, *self);
   }
 }
 impl Decodable for i128 {
@@ -474,8 +474,8 @@ impl Decodable for i128 {
 
 // f64
 impl Encodable for f64 {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_f64(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_f64(buffer, *self);
   }
 }
 impl Decodable for f64 {
@@ -486,8 +486,8 @@ impl Decodable for f64 {
 
 // bool
 impl Encodable for bool {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_bool(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_bool(buffer, *self);
   }
 }
 impl Decodable for bool {
@@ -498,8 +498,8 @@ impl Decodable for bool {
 
 // char
 impl Encodable for char {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_char(buf, *self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_char(buffer, *self);
   }
 }
 impl Decodable for char {
@@ -510,15 +510,15 @@ impl Decodable for char {
 
 // str
 impl Encodable for str {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_str(buf, self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_str(buffer, self);
   }
 }
 
 // String
 impl Encodable for String {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_str(buf, self);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_str(buffer, self);
   }
 }
 impl Decodable for String {
@@ -529,9 +529,9 @@ impl Decodable for String {
 
 // PathBuf
 impl Encodable for PathBuf {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    let s = self.to_str().expect("non-UTF-8 path in cache encode");
-    encoder.emit_str(buf, s);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    let string = self.to_str().expect("non-UTF-8 path in cache encode");
+    encoder.emit_str(buffer, string);
   }
 }
 impl Decodable for PathBuf {
@@ -542,14 +542,14 @@ impl Decodable for PathBuf {
 
 // Option
 impl<T: Encodable> Encodable for Option<T> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       None => {
-        encoder.emit_u8(buf, 0);
+        encoder.emit_u8(buffer, 0);
       }
       Some(value) => {
-        encoder.emit_u8(buf, 1);
-        value.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, 1);
+        value.field_encode(buffer, encoder);
       }
     }
   }
@@ -565,41 +565,41 @@ impl<T: Decodable> Decodable for Option<T> {
 
 // [T]
 impl<T: Encodable> Encodable for [T] {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, self.len() as u32);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, self.len() as u32);
     for item in self {
-      item.field_encode(buf, encoder);
+      item.field_encode(buffer, encoder);
     }
   }
 }
 
 // &T
 impl<T: Encodable + ?Sized> Encodable for &T {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (**self).field_encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).field_encode(buffer, encoder);
   }
 }
 
 // Vec
 impl<T: Encodable> Encodable for Vec<T> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, self.len() as u32);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, self.len() as u32);
     for item in self {
-      item.field_encode(buf, encoder);
+      item.field_encode(buffer, encoder);
     }
   }
 }
 impl<T: Decodable> Decodable for Vec<T> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let len = decoder.read_u32(data) as usize;
-    (0..len).map(|_| T::field_decode(data, decoder)).collect()
+    let length = decoder.read_u32(data) as usize;
+    (0..length).map(|_| T::field_decode(data, decoder)).collect()
   }
 }
 
 // Box
 impl<T: Encodable> Encodable for Box<T> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (**self).field_encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).field_encode(buffer, encoder);
   }
 }
 impl<T: Decodable> Decodable for Box<T> {
@@ -610,7 +610,7 @@ impl<T: Decodable> Decodable for Box<T> {
 
 // ()
 impl Encodable for () {
-  fn encode(&self, _buf: &mut Vec<u8>, _encoder: &mut Encoder) {}
+  fn encode(&self, _buffer: &mut Vec<u8>, _encoder: &mut Encoder) {}
 }
 impl Decodable for () {
   fn decode(_data: &mut &[u8], _decoder: &Decoder) -> Self {}
@@ -618,8 +618,8 @@ impl Decodable for () {
 
 // (A,) tuple
 impl<A: Encodable> Encodable for (A,) {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.field_encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.field_encode(buffer, encoder);
   }
 }
 impl<A: Decodable> Decodable for (A,) {
@@ -630,10 +630,10 @@ impl<A: Decodable> Decodable for (A,) {
 
 // (A, B, C) tuple
 impl<A: Encodable, B: Encodable, C: Encodable> Encodable for (A, B, C) {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.field_encode(buf, encoder);
-    self.1.field_encode(buf, encoder);
-    self.2.field_encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.field_encode(buffer, encoder);
+    self.1.field_encode(buffer, encoder);
+    self.2.field_encode(buffer, encoder);
   }
 }
 impl<A: Decodable, B: Decodable, C: Decodable> Decodable for (A, B, C) {
@@ -648,9 +648,9 @@ impl<A: Decodable, B: Decodable, C: Decodable> Decodable for (A, B, C) {
 
 // (A, B) tuple
 impl<A: Encodable, B: Encodable> Encodable for (A, B) {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.field_encode(buf, encoder);
-    self.1.field_encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.field_encode(buffer, encoder);
+    self.1.field_encode(buffer, encoder);
   }
 }
 impl<A: Decodable, B: Decodable> Decodable for (A, B) {
@@ -664,19 +664,19 @@ impl<A: Decodable, B: Decodable> Decodable for (A, B) {
 
 // BTreeMap, already sorted so no StableCompare needed for encode
 impl<K: Encodable + Ord, V: Encodable> Encodable for BTreeMap<K, V> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, self.len() as u32);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, self.len() as u32);
     for (key, value) in self {
-      key.field_encode(buf, encoder);
-      value.field_encode(buf, encoder);
+      key.field_encode(buffer, encoder);
+      value.field_encode(buffer, encoder);
     }
   }
 }
 impl<K: Decodable + Ord, V: Decodable> Decodable for BTreeMap<K, V> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let len = decoder.read_u32(data) as usize;
+    let length = decoder.read_u32(data) as usize;
     let mut map = BTreeMap::new();
-    for _ in 0..len {
+    for _ in 0..length {
       map.insert(
         K::field_decode(data, decoder),
         V::field_decode(data, decoder),
@@ -688,18 +688,18 @@ impl<K: Decodable + Ord, V: Decodable> Decodable for BTreeMap<K, V> {
 
 // BTreeSet
 impl<V: Encodable + Ord> Encodable for BTreeSet<V> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, self.len() as u32);
-    for v in self {
-      v.field_encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, self.len() as u32);
+    for value in self {
+      value.field_encode(buffer, encoder);
     }
   }
 }
 impl<V: Decodable + Ord> Decodable for BTreeSet<V> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let len = decoder.read_u32(data) as usize;
+    let length = decoder.read_u32(data) as usize;
     let mut set = BTreeSet::new();
-    for _ in 0..len {
+    for _ in 0..length {
       set.insert(V::field_decode(data, decoder));
     }
     set
@@ -708,21 +708,21 @@ impl<V: Decodable + Ord> Decodable for BTreeSet<V> {
 
 // HashMap
 impl<K: Encodable + StableCompare, V: Encodable> Encodable for HashMap<K, V> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, self.len() as u32);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, self.len() as u32);
     let mut entries: Vec<(&K, &V)> = self.iter().collect();
-    entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(encoder.db(), k2));
+    entries.sort_by(|(left_key, _), (right_key, _)| left_key.stable_cmp(encoder.db(), right_key));
     for (key, value) in entries {
-      key.field_encode(buf, encoder);
-      value.field_encode(buf, encoder);
+      key.field_encode(buffer, encoder);
+      value.field_encode(buffer, encoder);
     }
   }
 }
 impl<K: Decodable + Eq + Hash, V: Decodable> Decodable for HashMap<K, V> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let len = decoder.read_u32(data) as usize;
-    let mut map = HashMap::with_capacity(len);
-    for _ in 0..len {
+    let length = decoder.read_u32(data) as usize;
+    let mut map = HashMap::with_capacity(length);
+    for _ in 0..length {
       map.insert(
         K::field_decode(data, decoder),
         V::field_decode(data, decoder),
@@ -734,20 +734,20 @@ impl<K: Decodable + Eq + Hash, V: Decodable> Decodable for HashMap<K, V> {
 
 // HashSet
 impl<V: Encodable + StableCompare> Encodable for HashSet<V> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u32(buf, self.len() as u32);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u32(buffer, self.len() as u32);
     let mut entries: Vec<&V> = self.iter().collect();
-    entries.sort_by(|v1, v2| v1.stable_cmp(encoder.db(), v2));
-    for v in entries {
-      v.field_encode(buf, encoder);
+    entries.sort_by(|left_value, right_value| left_value.stable_cmp(encoder.db(), right_value));
+    for value in entries {
+      value.field_encode(buffer, encoder);
     }
   }
 }
 impl<V: Decodable + Eq + Hash> Decodable for HashSet<V> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    let len = decoder.read_u32(data) as usize;
-    let mut map = HashSet::with_capacity(len);
-    for _ in 0..len {
+    let length = decoder.read_u32(data) as usize;
+    let mut map = HashSet::with_capacity(length);
+    for _ in 0..length {
       map.insert(V::field_decode(data, decoder));
     }
     map
@@ -756,15 +756,15 @@ impl<V: Decodable + Eq + Hash> Decodable for HashSet<V> {
 
 // Either
 impl<L: Encodable, R: Encodable> Encodable for Either<L, R> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       Either::Left(value) => {
-        encoder.emit_u8(buf, 0);
-        value.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, 0);
+        value.field_encode(buffer, encoder);
       }
       Either::Right(value) => {
-        encoder.emit_u8(buf, 1);
-        value.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, 1);
+        value.field_encode(buffer, encoder);
       }
     }
   }

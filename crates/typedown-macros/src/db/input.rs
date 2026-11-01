@@ -90,7 +90,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
 
   // Generate getters and setters
   let mut getter_setter_tokens = quote! {};
-  for (idx, field) in fields.iter().enumerate() {
+  for (index, field) in fields.iter().enumerate() {
     let field_name = field.ident.as_ref().unwrap();
     let field_ty = &field.ty;
     let setter_name = quote::format_ident!("set_{}", field_name);
@@ -102,7 +102,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
       quote! {
         pub fn #field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'__db DB) -> ::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInputField<#field_ty>, #field_ty> {
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
             .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&self.0).expect("invalid input id");
@@ -129,7 +129,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
       quote! {
         pub fn #field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> #field_ty {
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
             .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
           let entry = ingredient.data.get(&self.0).expect("invalid input id");
@@ -160,7 +160,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
       quote! {
         pub fn #try_field_name<'__db, DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &'__db DB) -> Option<::typedown_incremental::MappedRef<'__db, ::typedown_incremental::StampedInputField<#field_ty>, #field_ty>> {
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
             .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
           Some(::typedown_incremental::MappedRef::new(ingredient.data.get(&self.0)?, |stamped| &stamped.value))
@@ -170,7 +170,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
       quote! {
         pub fn #try_field_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &DB) -> Option<#field_ty> {
           let storage = unsafe { db.storage() };
-          let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+          let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
           let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
             .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
           Some(ingredient.data.get(&self.0)?.value.clone())
@@ -182,7 +182,7 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     getter_setter_tokens.extend(quote! {
       pub fn #setter_name<DB: ::typedown_incremental::QueryDatabase + ?Sized>(&self, db: &mut DB, value: #field_ty) {
         let storage = unsafe { db.storage() };
-        let ingredient_id = (Self::ingredient_start_index() + #idx as u32) as usize;
+        let ingredient_id = (Self::ingredient_start_index() + #index as u32) as usize;
         let ingredient = (&*storage.inputs[ingredient_id] as &dyn ::std::any::Any)
           .downcast_ref::<::typedown_incremental::InputIngredientStore<#field_ty>>().expect("ingredient type mismatch");
         let mut entry = ingredient.data.get_mut(&self.0).expect("invalid input id");
@@ -208,10 +208,10 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
       if has_return_ref(field) {
         quote! {
           let __ref = self.#name(encoder.db);
-          ::typedown_incremental::Encodable::field_encode(&*__ref, buf, encoder);
+          ::typedown_incremental::Encodable::field_encode(&*__ref, buffer, encoder);
         }
       } else {
-        quote! { ::typedown_incremental::Encodable::field_encode(&self.#name(encoder.db()), buf, encoder); }
+        quote! { ::typedown_incremental::Encodable::field_encode(&self.#name(encoder.db()), buffer, encoder); }
       }
     })
     .collect();
@@ -307,15 +307,15 @@ pub fn query_input_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
       }
 
       impl ::typedown_incremental::Encodable for #struct_name {
-        fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+        fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
-          encoder.emit_u32(buf, index);
+          encoder.emit_u32(buffer, index);
           #( #encode_field_tokens )*
         }
 
-        fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+        fn field_encode(&self, buffer: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
-          encoder.emit_u32(buf, index);
+          encoder.emit_u32(buffer, index);
         }
       }
 

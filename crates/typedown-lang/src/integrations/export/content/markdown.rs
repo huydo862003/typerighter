@@ -2,11 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
-use super::file_ref::try_resolve_fref;
-use super::utils;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_vault_config::get_vault_config;
+use crate::integrations::bindings::file_ref::try_resolve_fref;
+use crate::integrations::export::utils;
 
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};

@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use typedown_incremental::{CacheSession, SerializableQueryDatabase};
 
 use super::{run_diagnostics, session1_dump};
-use crate::server_simulation::collect_type_errors;
+use crate::server_simulation::collect_typ_errors;
 use crate::utils::{run_child_test, setup_db_cached};
 
 #[test]
@@ -18,7 +18,7 @@ fn double_roundtrip_zero_errors() {
       let db = setup_db_cached(&cache_dir, &project_dir);
       run_diagnostics(&db);
 
-      let errors = collect_type_errors(&db);
+      let errors = collect_typ_errors(&db);
       assert!(
         errors.is_empty(),
         "session 2 should have zero type errors, got:\n{}",
@@ -37,7 +37,7 @@ fn double_roundtrip_zero_errors() {
       let cache_dir = PathBuf::from(std::env::var("CACHE").unwrap());
 
       let db = setup_db_cached(&cache_dir, &project_dir);
-      let errors = collect_type_errors(&db);
+      let errors = collect_typ_errors(&db);
       assert!(
         errors.is_empty(),
         "session 3 should have zero type errors after double roundtrip, got:\n{}",

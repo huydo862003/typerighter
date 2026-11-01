@@ -262,7 +262,7 @@ fn is_subtyp_of_env<'db>(
   }
 
   // Phase 2: Check type arguments and parameter variance between compatible constructors
-  fn are_type_args_compatible<'db>(
+  fn are_typ_args_compatible<'db>(
     db: &'db TypedownDatabase,
     subtyp: &TdTypEnum<'db>,
     supertyp: &TdTypEnum<'db>,
@@ -307,7 +307,7 @@ fn is_subtyp_of_env<'db>(
         if subtyp_params.len() != supertyp_params.len() {
           return false;
         }
-        // Function parameters are contravariant: supertype_param must be a subtype of subtype_param
+        // Function parameters are contravariant: supertyp_param must be a subtype of subtyp_param
         for (subtyp_param, supertyp_param) in subtyp_params.iter().zip(supertyp_params.iter()) {
           if !is_subtyp_of_env(db, supertyp_param, subtyp_param, env) {
             return false;
@@ -419,7 +419,7 @@ fn is_subtyp_of_env<'db>(
       }
 
       // Phase 2: Same-nature parameter and variance check
-      are_type_args_compatible(db, subtyp, supertyp, env)
+      are_typ_args_compatible(db, subtyp, supertyp, env)
     }
   }
 }
@@ -1237,14 +1237,14 @@ mod tests {
   // is_type tests
 
   #[test]
-  fn builtin_type_is_typ() {
+  fn builtin_typ_is_typ() {
     let db = make_db();
-    let string_type: TdTypEnum = get_string_typ(&db).into();
-    assert!(!string_type.is_typ(&db), "string is not a metatype");
+    let string_typ: TdTypEnum = get_string_typ(&db).into();
+    assert!(!string_typ.is_typ(&db), "string is not a metatype");
   }
 
   #[test]
-  fn type_type_is_typ() {
+  fn typ_typ_is_typ() {
     let db = make_db();
     let typ_typ: TdTypEnum = get_typ_typ(&db).into();
     assert!(typ_typ.is_typ(&db), "type is a metatype");
@@ -1342,7 +1342,7 @@ mod tests {
   // Type variable (TdVariableType) tests
 
   #[test]
-  fn type_variable_strict_equality() {
+  fn typ_variable_strict_equality() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
@@ -1355,7 +1355,7 @@ mod tests {
   }
 
   #[test]
-  fn type_variable_bounded_delegation() {
+  fn typ_variable_bounded_delegation() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
@@ -1366,7 +1366,7 @@ mod tests {
   }
 
   #[test]
-  fn type_variable_unbound_rejects_concrete_type() {
+  fn typ_variable_unbound_rejects_concrete_typ() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let typ_variable_unbound = TypVariable::get(&db, None);
@@ -1375,7 +1375,7 @@ mod tests {
   }
 
   #[test]
-  fn type_variable_transitive_variable_bound() {
+  fn typ_variable_transitive_variable_bound() {
     let db = make_db();
     let typ_variable2 = TypVariable::get(&db, None);
     let variable2: TdTypEnum = TdVariableTyp::new(&db, 1, typ_variable2).into();
@@ -1631,7 +1631,7 @@ mod tests {
   }
 
   #[test]
-  fn bare_type_and_existential_reciprocal_subtyping() {
+  fn bare_typ_and_existential_reciprocal_subtyping() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let object_typ: TdTypEnum = get_obj_typ(&db).into();

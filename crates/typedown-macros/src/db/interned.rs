@@ -266,11 +266,11 @@ pub fn query_interned_impl(_attr: TokenStream, item: TokenStream) -> TokenStream
       }
 
       #impl_trait_prefix ::typedown_incremental::Encodable for #impl_trait_for {
-        fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+        fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
-          encoder.emit_u32(buf, index);
+          encoder.emit_u32(buffer, index);
           #(
-            ::typedown_incremental::Encodable::field_encode(&Self::#field_names(*self, encoder.db()), buf, encoder);
+            ::typedown_incremental::Encodable::field_encode(&Self::#field_names(*self, encoder.db()), buffer, encoder);
           )*
         }
       }

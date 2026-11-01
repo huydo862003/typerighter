@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::server_simulation::{
-  cached_session_db, collect_type_errors, fresh_session, run_lsp_queries, run_rpc_queries,
+  cached_session_db, collect_typ_errors, fresh_session, run_lsp_queries, run_rpc_queries,
 };
 use crate::utils::{copy_dir_recursive, example_vault, run_child_test};
 
@@ -12,7 +12,7 @@ fn rpc_schema_change_then_lsp() {
     let project_dir = PathBuf::from(std::env::var("PROJECT").unwrap());
     let db = cached_session_db(&project_dir);
     run_lsp_queries(&db);
-    let errors = collect_type_errors(&db);
+    let errors = collect_typ_errors(&db);
     // Adding phone field to Person means all Person files should report missing phone
     assert!(
       !errors.is_empty(),

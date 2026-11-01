@@ -139,7 +139,11 @@ impl Server {
       DidOpenTextDocument::METHOD.to_string(),
       serde_json::to_value(params).unwrap(),
     );
-    self.conn.sender.send(Message::Notification(notification)).unwrap();
+    self
+      .conn
+      .sender
+      .send(Message::Notification(notification))
+      .unwrap();
     // Drain any diagnostics notifications the server pushes back
     self.drain_notifications();
   }

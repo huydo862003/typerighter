@@ -27,8 +27,8 @@ function toggle () {
 
 <template>
   <span
-    v-for="(item, idx) in visible"
-    :key="idx"
+    v-for="(item, index) in visible"
+    :key="index"
     class="td-widget-pill"
     :style="getPillColor(item)"
   >{{ item }}</span>

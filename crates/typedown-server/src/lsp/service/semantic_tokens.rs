@@ -61,9 +61,9 @@ fn emit(
   modifiers: u32,
   out: &mut Vec<(usize, usize, SemanticTokenType, u32)>,
 ) {
-  let len = node.text_len();
-  if len > 0 {
-    out.push((node.start_offset(), len, token_typ, modifiers));
+  let length = node.text_len();
+  if length > 0 {
+    out.push((node.start_offset(), length, token_typ, modifiers));
   }
 }
 

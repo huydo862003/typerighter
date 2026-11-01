@@ -191,8 +191,8 @@ pub enum TdDiagnosticKind {
   UnknownSlot { slot: String, component: String },
   #[message("component \"{component}\" is deprecated: {message}")]
   DeprecatedComponent { component: String, message: String },
-  #[message("type '{type_name}' is not constructible at runtime")]
-  NotConstructible { type_name: String },
+  #[message("type '{typ_name}' is not constructible at runtime")]
+  NotConstructible { typ_name: String },
 
   /* Lint */
   #[message("image is missing alt text")]

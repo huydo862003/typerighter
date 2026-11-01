@@ -344,8 +344,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           match self.peek() {
             Utf8Result::Char('{') => {
               self.advance_avoid_invalid_utf8();
-              let buf_len = self.text_buffer.len();
-              let string_text: String = self.text_buffer.drain(..buf_len - 2).collect();
+              let buffer_length = self.text_buffer.len();
+              let string_text: String = self.text_buffer.drain(..buffer_length - 2).collect();
               self.text_buffer.clear();
 
               self
@@ -377,8 +377,8 @@ impl<S: Utf8Stream> LexCtx<S> {
             }
             _ => {
               // Single $ not followed by {: inline math
-              let buf_len = self.text_buffer.len();
-              let string_text: String = self.text_buffer.drain(..buf_len - 1).collect();
+              let buffer_length = self.text_buffer.len();
+              let string_text: String = self.text_buffer.drain(..buffer_length - 1).collect();
 
               let math_token = self.lex_inline_math_content();
 

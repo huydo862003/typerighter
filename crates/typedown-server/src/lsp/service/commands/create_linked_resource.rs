@@ -101,9 +101,10 @@ pub fn execute(
 
   // Build the fref text to insert
   let fref_text = if args.is_list {
-    format!("\n  - fref(\"{}\")", relative_path)
+    format!(r#"
+  - fref("{}")"#, relative_path)
   } else {
-    format!("fref(\"{}\")", relative_path)
+    format!(r#"fref("{}")"#, relative_path)
   };
 
   // Create workspace edit: create file + write frontmatter + insert fref at source
@@ -191,8 +192,8 @@ fn find_nearest_schema_directory(
   root_dir: &Path,
   source_path: &Path,
 ) -> Option<PathBuf> {
-  let mut best: Option<std::path::PathBuf> = None;
-  let mut best_prefix_len = 0;
+  let mut best: Option<PathBuf> = None;
+  let mut best_prefix_length = 0;
 
   for (path, file) in project.files(db).iter() {
     if !path.starts_with(root_dir) {
@@ -211,9 +212,9 @@ fn find_nearest_schema_directory(
       continue;
     }
     let Some(dir) = path.parent() else { continue };
-    let prefix_len = common_prefix_len(dir, source_path);
-    if prefix_len > best_prefix_len {
-      best_prefix_len = prefix_len;
+    let prefix_length = common_prefix_len(dir, source_path);
+    if prefix_length > best_prefix_length {
+      best_prefix_length = prefix_length;
       best = Some(dir.to_path_buf());
     }
   }
@@ -221,16 +222,18 @@ fn find_nearest_schema_directory(
 }
 
 // Count how many path components two paths share from the root
-fn common_prefix_len(a: &Path, b: &Path) -> usize {
-  a.components()
-    .zip(b.components())
-    .take_while(|(x, y)| x == y)
+fn common_prefix_len(left_path: &Path, right_path: &Path) -> usize {
+  left_path.components()
+    .zip(right_path.components())
+    .take_while(|(left_component, right_component)| left_component == right_component)
     .count()
 }
 
 // Build a frontmatter template with all fields from the schema
 fn build_template(db: &TypedownDatabase, project: Project, schema_name: &str) -> String {
-  let mut template = format!("---\n_type: {schema_name}\n");
+  let mut template = format!("---
+_type: {schema_name}
+");
 
   let typ = members(db, Scope::new(db, ScopeKind::Project(project)))
     .members(db)

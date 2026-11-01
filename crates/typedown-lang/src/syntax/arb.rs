@@ -44,7 +44,13 @@ impl Arbitrary for RedNode {
 }
 
 fn arb_offsets() -> impl Strategy<Value = (usize, usize)> {
-  (0..10000usize, 0..10000usize).prop_map(|(a, b)| if a <= b { (a, b) } else { (b, a) })
+  (0..10000usize, 0..10000usize).prop_map(|(left_offset, right_offset)| {
+    if left_offset <= right_offset {
+      (left_offset, right_offset)
+    } else {
+      (right_offset, left_offset)
+    }
+  })
 }
 
 impl Arbitrary for TdDiagnostic {

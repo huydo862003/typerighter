@@ -86,7 +86,7 @@ fn init_factories<T: ?Sized>(
     factories
       .iter()
       .enumerate()
-      .map(|(idx, factory)| factory(DepId::ingredient(kind, idx as u32)))
+      .map(|(index, factory)| factory(DepId::ingredient(kind, index as u32)))
       .collect(),
   )
 }
@@ -140,12 +140,12 @@ impl QueryStorage {
 
   /// Re-execute a dependency
   pub fn re_execute_dep(&self, db: &dyn crate::QueryDatabase, dep: &Dependency) {
-    let idx = dep.dep_id.ingredient_id() as usize;
+    let index = dep.dep_id.ingredient_id() as usize;
     let entry_id = dep.dep_id.entry_id();
     match dep.dep_id.kind() {
       IngredientKind::Input => {}    // Nothing to recompute
       IngredientKind::Interned => {} // Nothing to recompute
-      IngredientKind::Query => self.queries[idx].re_execute(db, entry_id),
+      IngredientKind::Query => self.queries[index].re_execute(db, entry_id),
       IngredientKind::Field => {} // Fields are set by their parent query
     }
   }
@@ -153,8 +153,8 @@ impl QueryStorage {
   /// Remove field entries for a given field start_index
   pub fn remove_field_entries(&self, start_index: u32, removed: &HashSet<u32>) {
     let start = start_index as usize;
-    for (i, field) in self.fields[start..].iter().enumerate() {
-      if field.field_index() != i as u8 {
+    for (index, field) in self.fields[start..].iter().enumerate() {
+      if field.field_index() != index as u8 {
         break;
       }
       for &id in removed {

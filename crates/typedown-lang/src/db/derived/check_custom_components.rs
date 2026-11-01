@@ -376,7 +376,10 @@ mod tests {
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
-    assert!(diagnostics.is_empty(), "expected no diagnostics, got: {diagnostics:?}");
+    assert!(
+      diagnostics.is_empty(),
+      "expected no diagnostics, got: {diagnostics:?}"
+    );
   }
 
   #[test]
@@ -452,7 +455,10 @@ content
     let contract: Vec<CustomComponentTyp> = vec![];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
-    assert!(diagnostics.is_empty(), "callouts should produce no diagnostics");
+    assert!(
+      diagnostics.is_empty(),
+      "callouts should produce no diagnostics"
+    );
   }
 
   #[test]

@@ -99,12 +99,12 @@ enum FileHandleTag {
   Content = 1,
 }
 
-fn encode_system_time(time: &SystemTime, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+fn encode_system_time(time: &SystemTime, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
   let duration = time
     .duration_since(SystemTime::UNIX_EPOCH)
     .unwrap_or_default();
-  duration.as_secs().encode(buf, encoder);
-  duration.subsec_nanos().encode(buf, encoder);
+  duration.as_secs().encode(buffer, encoder);
+  duration.subsec_nanos().encode(buffer, encoder);
 }
 
 fn decode_system_time(data: &mut &[u8], decoder: &Decoder) -> SystemTime {
@@ -114,9 +114,9 @@ fn decode_system_time(data: &mut &[u8], decoder: &Decoder) -> SystemTime {
 }
 
 impl Encodable for FileMetadata {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encode_system_time(&self.mtime, buf, encoder);
-    encode_system_time(&self.ctime, buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encode_system_time(&self.mtime, buffer, encoder);
+    encode_system_time(&self.ctime, buffer, encoder);
   }
 }
 
@@ -129,18 +129,18 @@ impl Decodable for FileMetadata {
 }
 
 impl Encodable for FileHandle {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       FileHandle::Path(path, metadata) => {
-        encoder.emit_u8(buf, FileHandleTag::Path as u8);
-        path.encode(buf, encoder);
-        metadata.encode(buf, encoder);
+        encoder.emit_u8(buffer, FileHandleTag::Path as u8);
+        path.encode(buffer, encoder);
+        metadata.encode(buffer, encoder);
       }
       FileHandle::Content(path, content, metadata) => {
-        encoder.emit_u8(buf, FileHandleTag::Content as u8);
-        path.encode(buf, encoder);
-        content.encode(buf, encoder);
-        metadata.encode(buf, encoder);
+        encoder.emit_u8(buffer, FileHandleTag::Content as u8);
+        path.encode(buffer, encoder);
+        content.encode(buffer, encoder);
+        metadata.encode(buffer, encoder);
       }
     }
   }

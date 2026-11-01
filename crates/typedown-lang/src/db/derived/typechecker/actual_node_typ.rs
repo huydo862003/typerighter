@@ -783,7 +783,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_of_schema_file_top_level_mapping_is_schema_type() {
+  fn actual_node_typ_of_schema_file_top_level_mapping_is_schema_typ() {
     let vault = vault_root();
     let schema_file_path = vault.join("_types/Person.td");
 
@@ -821,8 +821,8 @@ mod tests {
     let entries = root_node.mapping_entries().expect("should have entries");
     let name_node = entries
       .into_iter()
-      .find(|(k, _)| k == "name")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "name")
+      .map(|(_, value)| value)
       .expect("should have name field");
     let result_typ = actual_node_typ(&db, name_node);
     let typ = result_typ.typ(&db).expect("should have a type");
@@ -839,8 +839,8 @@ mod tests {
     let entries = root_node.mapping_entries().expect("should have entries");
     let active_node = entries
       .into_iter()
-      .find(|(k, _)| k == "active")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "active")
+      .map(|(_, value)| value)
       .expect("should have active field");
     let result_typ = actual_node_typ(&db, active_node);
     let typ = result_typ.typ(&db).expect("should have a type");
@@ -857,8 +857,8 @@ mod tests {
     let entries = root_node.mapping_entries().expect("should have entries");
     let tags_node = entries
       .into_iter()
-      .find(|(k, _)| k == "tags")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "tags")
+      .map(|(_, value)| value)
       .expect("should have tags field");
     let result_typ = actual_node_typ(&db, tags_node);
     let typ = result_typ.typ(&db).expect("should have a type");
@@ -873,8 +873,8 @@ mod tests {
     let entries = root_node.mapping_entries().expect("should have entries");
     let date_node = entries
       .into_iter()
-      .find(|(k, _)| k == "date")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "date")
+      .map(|(_, value)| value)
       .expect("should have date field");
     let result_typ = actual_node_typ(&db, date_node);
     let typ = result_typ.typ(&db).expect("should have a type");
@@ -885,7 +885,7 @@ mod tests {
     );
   }
 
-  // Fref returns the resource's schema type, not type_type
+  // Fref returns the resource's schema type, not typ_typ
   #[test]
   fn actual_node_typ_fref_returns_resource_typ() {
     let (db, project, file) =
@@ -895,15 +895,15 @@ mod tests {
     // status: fref("summary.td").status
     let status_node = entries
       .into_iter()
-      .find(|(k, _)| k == "status")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "status")
+      .map(|(_, value)| value)
       .expect("should have status field");
     let result_typ = actual_node_typ(&db, status_node);
     if let Some(typ) = result_typ.typ(&db) {
       assert_ne!(
         typ.display_name(&db),
         "type",
-        "fref field access should not return type_type"
+        "fref field access should not return typ_typ"
       );
     }
   }
@@ -928,7 +928,7 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_typ_to_string_field_access_returns_func_type() {
+  fn actual_node_typ_to_string_field_access_returns_func_typ() {
     let (db, _, _) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let number_lit: TdTypEnum<'_> = get_lit_typ(&db, LitValue::Number("42".to_string())).into();
 
@@ -950,8 +950,8 @@ mod tests {
     let entries = root_node.mapping_entries().expect("should have entries");
     let related_node = entries
       .into_iter()
-      .find(|(k, _)| k == "related")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "related")
+      .map(|(_, value)| value)
       .expect("should have 'related' field");
     let result = actual_node_typ(&db, related_node);
     let has_unresolved = result.diagnostics(&db).iter().any(|diagnostic| {
@@ -975,14 +975,14 @@ mod tests {
   }
 
   #[test]
-  fn actual_node_type_method_call_to_string_returns_string_type() {
+  fn actual_node_typ_method_call_to_string_returns_string_typ() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "method_call.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let entries = root_node.mapping_entries().expect("should have entries");
     let result_node = entries
       .into_iter()
-      .find(|(k, _)| k == "result")
-      .map(|(_, v)| v)
+      .find(|(key, _)| key == "result")
+      .map(|(_, value)| value)
       .expect("should have result field");
     let result = actual_node_typ(&db, result_node);
     let typ = result.typ(&db).expect("should have a type");

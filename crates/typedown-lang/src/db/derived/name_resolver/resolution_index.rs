@@ -610,8 +610,8 @@ fn collect_references_in_index(
     let child = ProjectRedNode::new(project, file, expr.syntax().clone());
     collect_references_in_expr(db, child, map);
   }
-  for idx in index.indices() {
-    let child = ProjectRedNode::new(project, file, idx.syntax().clone());
+  for index in index.indices() {
+    let child = ProjectRedNode::new(project, file, index.syntax().clone());
     collect_references_in_expr(db, child, map);
   }
 }
@@ -686,7 +686,7 @@ mod tests {
 
   // resolution_index finds schema references in a typed content file
   #[test]
-  fn resolution_index_finds_type_reference() {
+  fn resolution_index_finds_typ_reference() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let index = resolution_index(&db, project, file);
     // valid_person.td has _type: Person, so "Person" should be in the index

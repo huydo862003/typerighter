@@ -201,10 +201,10 @@ fn format_bullet_list(out: &mut String, node: &RedNode, indent: &str) {
     for (index, item) in items.iter().enumerate() {
       if index > 0 {
         // Preserve blank lines between item groups in the source
-        let prev = &items[index - 1];
-        let prev_end = prev.syntax().end_offset() - list_offset;
-        let curr_start = item.syntax().start_offset() - list_offset;
-        if list_text[prev_end..curr_start].contains("\n\n") {
+        let previous = &items[index - 1];
+        let previous_end = previous.syntax().end_offset() - list_offset;
+        let current_start = item.syntax().start_offset() - list_offset;
+        if list_text[previous_end..current_start].contains("\n\n") {
           ensure_blank_line(out);
         }
       }
@@ -272,10 +272,10 @@ fn format_ordered_list(out: &mut String, node: &RedNode, indent: &str) {
     for (index, item) in items.iter().enumerate() {
       if index > 0 {
         // Preserve blank lines between item groups in the source
-        let prev = &items[index - 1];
-        let prev_end = prev.syntax().end_offset() - list_offset;
-        let curr_start = item.syntax().start_offset() - list_offset;
-        if list_text[prev_end..curr_start].contains("\n\n") {
+        let previous = &items[index - 1];
+        let previous_end = previous.syntax().end_offset() - list_offset;
+        let current_start = item.syntax().start_offset() - list_offset;
+        if list_text[previous_end..current_start].contains("\n\n") {
           ensure_blank_line(out);
         }
       }

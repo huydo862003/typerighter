@@ -375,7 +375,7 @@ fn construct_from_mapping_expr<'db>(
       let (start, len) = mapping_project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -433,7 +433,7 @@ fn construct_sequence_items<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -468,7 +468,7 @@ fn construct_from_string_lit<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -521,7 +521,7 @@ fn construct_from_number<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -550,7 +550,7 @@ fn construct_from_math<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -744,14 +744,14 @@ fn evaluate_index<'db>(
   let index_obj = evaluate_node(db, index_node.clone(), runtime_scope).value(db)?;
 
   if let Some(number) = index_obj.as_td_number_obj()
-    && let Some(len) = container.len(db)
+    && let Some(length) = container.len(db)
   {
     let index = number.value(db) as usize;
-    if index >= len {
-      let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
+    if index >= length {
+      let (trimmed_offset, trimmed_length) = index_node.node.trimmed_range();
       diagnostics.push(
-        TdDiagnosticKind::IndexOutOfBounds { index, length: len }
-          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        TdDiagnosticKind::IndexOutOfBounds { index, length }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_length),
       );
       return None;
     }
@@ -873,7 +873,7 @@ fn mapping_entries_from_yaml_mapping(
 ) -> Vec<(String, ProjectRedNode)> {
   mapping
     .entries()
-    .map(|(k, v)| (k, ProjectRedNode::new(project, file, v.syntax().clone())))
+    .map(|(key, value)| (key, ProjectRedNode::new(project, file, value.syntax().clone())))
     .collect()
 }
 

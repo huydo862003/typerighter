@@ -18,9 +18,9 @@ impl<
       return;
     };
 
-    let mut buf = vec![];
-    entry.value.encode(&mut buf, &mut ctx.encoder);
-    let blob_index = ctx.encoder.intern_blob::<T>(buf, Some(entry_id));
+    let mut buffer = vec![];
+    entry.value.encode(&mut buffer, &mut ctx.encoder);
+    let blob_index = ctx.encoder.intern_blob::<T>(buffer, Some(entry_id));
 
     let dep_id = self.ingredient_id.with_entry(entry_id);
     let node_index = ctx.encoder.add_dep_id(dep_id);

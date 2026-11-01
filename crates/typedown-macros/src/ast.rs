@@ -78,7 +78,7 @@ pub fn wrapper_ast_node_impl(attr: TokenStream, item: TokenStream) -> TokenStrea
 
   // syntax() arms: Name::X(n) => n.syntax()
   let syntax_arms = kinds.iter().map(|kind| {
-    quote! { #name::#kind(n) => n.syntax(), }
+    quote! { #name::#kind(node) => node.syntax(), }
   });
 
   let from_impls = kinds.iter().map(|kind| {
@@ -93,7 +93,7 @@ pub fn wrapper_ast_node_impl(attr: TokenStream, item: TokenStream) -> TokenStrea
         type Error = ();
         fn try_from(node: #name) -> Result<Self, ()> {
           match node {
-            #name::#kind(n) => Ok(n),
+            #name::#kind(node) => Ok(node),
             _ => Err(()),
           }
         }

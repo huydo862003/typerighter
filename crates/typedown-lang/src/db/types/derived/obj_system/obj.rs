@@ -73,7 +73,7 @@ mod tests {
   }
 
   #[test]
-  fn object_type_to_string_lookup_returns_func_type() {
+  fn object_typ_to_string_lookup_returns_func_type() {
     let db = make_db();
     let obj_typ = get_obj_typ(&db);
 

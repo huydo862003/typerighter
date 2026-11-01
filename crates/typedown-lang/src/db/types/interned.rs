@@ -38,8 +38,8 @@ impl StableHash for Variance {
 }
 
 impl Encodable for Variance {
-  fn encode(&self, buf: &mut Vec<u8>, _encoder: &mut Encoder) {
-    buf.push(*self as u8);
+  fn encode(&self, buffer: &mut Vec<u8>, _encoder: &mut Encoder) {
+    buffer.push(*self as u8);
   }
 }
 
@@ -172,8 +172,8 @@ impl<'db> LazyTyp<'db> {
 }
 
 impl<'db> Encodable for LazyTyp<'db> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.encode(buffer, encoder);
   }
 }
 
@@ -207,19 +207,19 @@ enum LitValueTag {
 }
 
 impl Encodable for LitValue {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       LitValue::String(value) => {
-        encoder.emit_u8(buf, LitValueTag::String as u8);
-        value.encode(buf, encoder);
+        encoder.emit_u8(buffer, LitValueTag::String as u8);
+        value.encode(buffer, encoder);
       }
       LitValue::Bool(value) => {
-        encoder.emit_u8(buf, LitValueTag::Bool as u8);
-        value.encode(buf, encoder);
+        encoder.emit_u8(buffer, LitValueTag::Bool as u8);
+        value.encode(buffer, encoder);
       }
       LitValue::Number(value) => {
-        encoder.emit_u8(buf, LitValueTag::Number as u8);
-        value.encode(buf, encoder);
+        encoder.emit_u8(buffer, LitValueTag::Number as u8);
+        value.encode(buffer, encoder);
       }
     }
   }

@@ -134,7 +134,7 @@ mod tests {
 
   // A field value that doesn't match the declared schema type produces diagnostics
   #[test]
-  fn evaluate_resource_wrong_type_has_diagnostics() {
+  fn evaluate_resource_wrong_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "wrong_field_type.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
@@ -739,7 +739,7 @@ mod tests {
 
   // string? field with wrong type produces typecheck error
   #[test]
-  fn optional_field_wrong_type_has_diagnostics() {
+  fn optional_field_wrong_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "wrong_type.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
@@ -751,7 +751,7 @@ mod tests {
 
   // _type: Schema? should produce a diagnostic
   #[test]
-  fn nullable_type_ref_has_diagnostics() {
+  fn nullable_typ_ref_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "nullable_type_ref.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);

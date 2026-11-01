@@ -97,8 +97,8 @@ function visible<T> (list: T[]): T[] {
     <div>
       <ul class="td-widget-list">
         <li
-          v-for="(item, idx) in visible(items)"
-          :key="idx"
+          v-for="(item, index) in visible(items)"
+          :key="index"
         >
           <TdWidgetRelation
             v-if="extractRef(item)"

@@ -492,6 +492,10 @@ Some text.
 Some text.
 "#,
     );
-    assert!(diagnostics.is_empty(), "unexpected warnings: {:?}", codes(&diagnostics));
+    assert!(
+      diagnostics.is_empty(),
+      "unexpected warnings: {:?}",
+      codes(&diagnostics)
+    );
   }
 }

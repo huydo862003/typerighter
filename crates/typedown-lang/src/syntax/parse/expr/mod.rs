@@ -423,8 +423,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     // Parse first index
-    let (idx, early_exit) = self.parse_expr(block_indent);
-    children.push(idx);
+    let (index, early_exit) = self.parse_expr(block_indent);
+    children.push(index);
     if early_exit.is_some_and(|ctx| ctx != ExprCtx::Index) {
       self.expr_ctx_stack.exit(ExprCtx::Index);
       return (self.emit(SyntaxKind::IndexExpr, &children), early_exit);
@@ -448,8 +448,8 @@ impl<S: Utf8Stream> ParseCtx<S> {
             break;
           }
 
-          let (idx, early_exit) = self.parse_expr(block_indent);
-          children.push(idx);
+          let (index, early_exit) = self.parse_expr(block_indent);
+          children.push(index);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::Index) {
             self.expr_ctx_stack.exit(ExprCtx::Index);
             return (self.emit(SyntaxKind::IndexExpr, &children), early_exit);

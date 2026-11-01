@@ -169,8 +169,8 @@ impl<'db> TdRuntimeObj<'db> for TdListObj<'db> {
     TdListTyp::get(db).into()
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
-    let idx: usize = key.parse().ok()?;
-    self.get(db, idx)
+    let index: usize = key.parse().ok()?;
+    self.get(db, index)
   }
   fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjEnum<'db>> {
     None
@@ -193,8 +193,8 @@ impl<'db> TdListObj<'db> {
     self.items(db).len()
   }
 
-  pub fn get(self, db: &'db TypedownDatabase, idx: usize) -> Option<TdObjEnum<'db>> {
-    match self.items(db).into_iter().nth(idx)? {
+  pub fn get(self, db: &'db TypedownDatabase, index: usize) -> Option<TdObjEnum<'db>> {
+    match self.items(db).into_iter().nth(index)? {
       Either::Left(project_node) => {
         let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
         evaluate_node(db, project_node, file_scope).value(db)

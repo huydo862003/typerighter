@@ -31,9 +31,9 @@ impl<T: StableHash + std::fmt::Debug + Send + Sync + Encodable + Decodable + 'st
       },
     );
 
-    let mut buf = vec![];
-    entry.value.encode(&mut buf, &mut ctx.encoder);
-    ctx.query_cache.set(node_index, &buf);
+    let mut buffer = vec![];
+    entry.value.encode(&mut buffer, &mut ctx.encoder);
+    ctx.query_cache.set(node_index, &buffer);
   }
 
   fn deserialize(&self, ctx: &DeserializeContext, node_index: DepNodeIndex) -> Option<DepId> {

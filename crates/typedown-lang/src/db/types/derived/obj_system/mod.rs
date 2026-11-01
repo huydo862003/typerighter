@@ -258,7 +258,7 @@ impl typedown_incremental::StableHash for TdTypEnum<'_> {
       TdTypEnum::TdDateTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdTimeTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdProductTyp(value) => value.stable_hash(db, hasher),
-      TdTypEnum::TdSchemaMetaTyp(v) => v.stable_hash(db, hasher),
+      TdTypEnum::TdSchemaMetaTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdSchemaTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdBlobTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdNullTyp(value) => value.stable_hash(db, hasher),

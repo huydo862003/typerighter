@@ -2,11 +2,11 @@
 
 use typedown_types::string::split_pascal_case;
 
-use super::utils;
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_vault_config::get_vault_config;
+use crate::db::utils::prepend_base_path;
 
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
@@ -38,7 +38,7 @@ pub fn resolve_file_ref(
       let relative = path.strip_prefix(&root_dir).unwrap_or(path);
       let relative_string = relative.to_string_lossy();
       let without_ext = strip_content_extension(&relative_string);
-      let url = utils::prepend_base_path(&config.base_path(db), without_ext);
+      let url = prepend_base_path(&config.base_path(db), without_ext);
       Some(ResolvedRef { name, url })
     }
     SymbolKind::Asset(_, _, target_file) => {
@@ -47,7 +47,7 @@ pub fn resolve_file_ref(
       let config = get_vault_config(db, project);
       let root_dir = config.root_dir(db);
       let relative = path.strip_prefix(&root_dir).unwrap_or(path);
-      let url = utils::prepend_base_path(&config.base_path(db), &relative.to_string_lossy());
+      let url = prepend_base_path(&config.base_path(db), &relative.to_string_lossy());
       Some(ResolvedRef { name, url })
     }
     _ => None,
@@ -94,7 +94,7 @@ pub fn resolve_fref_target(
 }
 
 // Resolve a fref interpolation to a markdown link string, returns None if the target cannot be resolved
-pub(super) fn try_resolve_fref(
+pub fn try_resolve_fref(
   db: &TypedownDatabase,
   project: Project,
   file: File,

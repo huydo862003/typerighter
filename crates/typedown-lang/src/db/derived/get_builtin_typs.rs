@@ -577,7 +577,7 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_bounded_type_violating_bound_produces_diagnostic() {
+  fn instantiate_bounded_typ_violating_bound_produces_diagnostic() {
     let db = make_db();
     let number_typ = TdTypEnum::from(get_number_typ(&db));
     let string_typ = TdTypEnum::from(get_string_typ(&db));

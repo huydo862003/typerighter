@@ -185,9 +185,9 @@ fn pascal_to_kebab(name: &str) -> String {
     if char.is_uppercase() {
       if !result.is_empty() {
         let next_is_lower = chars.peek().is_some_and(|name| name.is_lowercase());
-        let prev_is_lower_or_digit =
+        let previous_is_lower_or_digit =
           result.ends_with(|char: char| char.is_ascii_lowercase() || char.is_ascii_digit());
-        if prev_is_lower_or_digit || next_is_lower {
+        if previous_is_lower_or_digit || next_is_lower {
           result.push('-');
         }
       }

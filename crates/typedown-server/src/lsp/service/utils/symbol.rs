@@ -108,9 +108,9 @@ fn find_md_link_url_symbol(
   };
 
   // Check that the cursor is actually inside the URL node, not the alt/text part
-  let (url_start, url_len) = url_node.trimmed_range();
+  let (url_start, url_length) = url_node.trimmed_range();
   let (node_start, _) = node.trimmed_range();
-  if node_start < url_start || node_start >= url_start + url_len {
+  if node_start < url_start || node_start >= url_start + url_length {
     return None;
   }
 

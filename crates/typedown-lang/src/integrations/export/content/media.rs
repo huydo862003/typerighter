@@ -1,7 +1,6 @@
-//! Centralized media URL classification for `![alt](url "title")` syntax.
+//! Centralized media URL classification for `![alt](url "title")` syntax
 //!
-//! Determines whether a URL should render as an image, a known service embed,
-//! a GitHub code snippet, or a generic iframe.
+//! Determines whether a URL should render as an image, a known service embed, a GitHub code snippet, or a generic iframe.
 
 use std::path::Path;
 

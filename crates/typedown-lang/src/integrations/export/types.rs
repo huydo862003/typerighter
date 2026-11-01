@@ -1,6 +1,6 @@
 //! Public types for resource export results
 
-use super::html::ExportedHeading;
+use super::content::html::ExportedHeading;
 
 /// Structured export result for markdown output
 #[derive(serde::Serialize)]

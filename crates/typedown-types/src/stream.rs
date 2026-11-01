@@ -47,7 +47,7 @@ impl Utf8Stream for Box<dyn Utf8Stream> {
     (**self).exhausted()
   }
 
-  fn peek_nth(&mut self, n: usize) -> Utf8Result {
-    (**self).peek_nth(n)
+  fn peek_nth(&mut self, nth: usize) -> Utf8Result {
+    (**self).peek_nth(nth)
   }
 }

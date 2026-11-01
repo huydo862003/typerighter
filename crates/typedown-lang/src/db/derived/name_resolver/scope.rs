@@ -16,15 +16,15 @@ pub fn scope<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> Sc
   let file = project_node.file;
 
   // Walk successively up to find the closest closure and return file symbol once reaching root
-  let mut curr = project_node.node.parent();
-  while let Some(p) = curr {
-    if p.kind() == SyntaxKind::ClosureExpr {
+  let mut current = project_node.node.parent();
+  while let Some(parent) = current {
+    if parent.kind() == SyntaxKind::ClosureExpr {
       return Scope::new(
         db,
-        ScopeKind::Func(project, file, ProjectRedNode::new(project, file, p)),
+        ScopeKind::Func(project, file, ProjectRedNode::new(project, file, parent)),
       );
     }
-    curr = p.parent();
+    current = parent.parent();
   }
 
   Scope::new(db, ScopeKind::File(project, file))
@@ -169,12 +169,12 @@ fn: (a, b) -> a + b
     );
 
     let entries = root_node.mapping_entries().expect("expected mapping");
-    let fn_node = entries
+    let func_node = entries
       .iter()
-      .find(|(k, _)| k == "fn")
-      .map(|(_, v)| v.clone())
+      .find(|(key, _)| key == "fn")
+      .map(|(_, value)| value.clone())
       .expect("expected fn field");
-    let closure = ClosureExpr::cast(fn_node.node.clone()).expect("expected closure");
+    let closure = ClosureExpr::cast(func_node.node.clone()).expect("expected closure");
     let body_expr = closure.body().expect("expected closure body");
     let body_node = ProjectRedNode::new(project, file, body_expr.syntax().clone());
 
@@ -228,14 +228,14 @@ age: 30
     let entries = root_node.mapping_entries().expect("expected mapping");
     let title_node = entries
       .iter()
-      .find(|(k, _)| k == "title")
-      .map(|(_, v)| v.clone())
+      .find(|(key, _)| key == "title")
+      .map(|(_, value)| value.clone())
       .expect("expected title field");
 
     let yaml_scope = scope(&db, title_node);
     assert!(matches!(
       yaml_scope.kind(&db),
-      ScopeKind::File(p, f) if p == project && f == file
+      ScopeKind::File(yaml_project, yaml_file) if yaml_project == project && yaml_file == file
     ));
   }
 
@@ -262,7 +262,7 @@ Hello world ${(a, b) -> a + b}
     let md_scope = scope(&db, md_node);
     assert!(matches!(
       md_scope.kind(&db),
-      ScopeKind::File(p, f) if p == project && f == file
+      ScopeKind::File(md_project, md_file) if md_project == project && md_file == file
     ));
 
     // Find closure body inside markdown body
@@ -323,7 +323,7 @@ outer: (a) -> (b) -> a + b
     let file_scope = parent_scope(&db, outer_scope).value(&db).unwrap();
     assert!(matches!(
       file_scope.kind(&db),
-      ScopeKind::File(p, f) if p == project && f == file
+      ScopeKind::File(parent_project, parent_file) if parent_project == project && parent_file == file
     ));
   }
 
@@ -381,7 +381,7 @@ ${(a) -> (b) -> a + b}
     let file_scope = parent_scope(&db, outer_scope).value(&db).unwrap();
     assert!(matches!(
       file_scope.kind(&db),
-      ScopeKind::File(p, f) if p == project && f == file
+      ScopeKind::File(parent_project, parent_file) if parent_project == project && parent_file == file
     ));
   }
 }

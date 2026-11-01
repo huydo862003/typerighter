@@ -318,7 +318,7 @@ age: 25
   }
   // Cursor on _type: Person in a content file finds all usages
   #[test]
-  fn references_on_type_ident_finds_all_usages() {
+  fn references_on_typ_ident_finds_all_usages() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
     let test_path = root.join("file.td");
     let content_raw = r#"---
@@ -353,16 +353,16 @@ name: Alice
       "third should be file.td"
     );
     // All point to "Person" on line 1, col 7-13
-    for loc in &locations {
+    for location in &locations {
       assert_eq!(
-        loc.range.start,
+        location.range.start,
         Position {
           line: 1,
           character: 7
         }
       );
       assert_eq!(
-        loc.range.end,
+        location.range.end,
         Position {
           line: 1,
           character: 13

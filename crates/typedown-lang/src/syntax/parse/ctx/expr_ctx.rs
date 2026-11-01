@@ -133,8 +133,8 @@ impl ExprCtxStack {
       entry.as_ref().unwrap().ctx,
     );
     if let Some(entry) = entry {
-      let new_len = self.md_prefix_tokens.len() - entry.prefix_token_count;
-      self.md_prefix_tokens.truncate(new_len);
+      let new_length = self.md_prefix_tokens.len() - entry.prefix_token_count;
+      self.md_prefix_tokens.truncate(new_length);
     }
   }
 

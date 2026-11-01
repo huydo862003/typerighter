@@ -122,27 +122,27 @@ pub struct QueryCache {
 impl QueryCache {
   pub fn new(mmap: memmap2::Mmap, backing_path: PathBuf, backing: BackingFile) -> Option<Self> {
     let data = &*mmap;
-    let len = data.len();
+    let length = data.len();
 
     // Last 8 bytes: footer_pos
-    let footer_pos = u64::from_le_bytes(data[len - 8..].try_into().ok()?) as usize;
+    let footer_position = u64::from_le_bytes(data[length - 8..].try_into().ok()?) as usize;
 
     // Footer: entry_count (8 bytes) + entries
     let entry_count =
-      u64::from_le_bytes(data[footer_pos..footer_pos + 8].try_into().ok()?) as usize;
-    let entries_start = footer_pos + 8;
+      u64::from_le_bytes(data[footer_position..footer_position + 8].try_into().ok()?) as usize;
+    let entries_start = footer_position + 8;
 
-    let mut index = HashMap::with_capacity(entry_count);
-    for idx in 0..entry_count {
-      let offset = entries_start + idx * CACHE_ENTRY_SIZE;
+    let mut query_cache_index = HashMap::with_capacity(entry_count);
+    for index in 0..entry_count {
+      let offset = entries_start + index * CACHE_ENTRY_SIZE;
       let entry =
         FooterCacheEntry::from_bytes(data[offset..offset + CACHE_ENTRY_SIZE].try_into().unwrap());
-      index.insert(entry.node_index, entry.offset);
+      query_cache_index.insert(entry.node_index, entry.offset);
     }
 
     Some(QueryCache {
       mmap,
-      index,
+      index: query_cache_index,
       backing_path,
       backing,
     })

@@ -297,7 +297,7 @@ age: 30
 
   // Rename an identifier in _type position
   #[test]
-  fn rename_ident_in_type_field() {
+  fn rename_ident_in_typ_field() {
     let (raw, offset) = cursor(
       r#"---
 _type: |Person

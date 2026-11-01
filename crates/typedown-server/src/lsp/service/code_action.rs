@@ -361,7 +361,7 @@ properties:
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
@@ -382,22 +382,22 @@ properties:
         ),
       ),
       (
-        type_root.join("Task.td"),
+        typ_root.join("Task.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Task.td"),
+            typ_root.join("Task.td"),
             SCHEMA_TASK.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),

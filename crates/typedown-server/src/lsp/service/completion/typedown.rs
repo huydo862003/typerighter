@@ -1101,7 +1101,7 @@ properties:
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -1121,7 +1121,7 @@ properties:
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -1129,7 +1129,7 @@ properties:
     let event_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Event.td"),
+        typ_root.join("Event.td"),
         SCHEMA_EVENT.to_string(),
         FileMetadata::default(),
       ),
@@ -1137,7 +1137,7 @@ properties:
     let task_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Task.td"),
+        typ_root.join("Task.td"),
         SCHEMA_TASK.to_string(),
         FileMetadata::default(),
       ),
@@ -1145,7 +1145,7 @@ properties:
     let person_with_address_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("PersonWithAddress.td"),
+        typ_root.join("PersonWithAddress.td"),
         SCHEMA_PERSON_WITH_ADDRESS.to_string(),
         FileMetadata::default(),
       ),
@@ -1716,7 +1716,7 @@ date: 2024-01-01
   fn setup_with_content(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -1736,7 +1736,7 @@ date: 2024-01-01
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -1744,7 +1744,7 @@ date: 2024-01-01
     let event_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Event.td"),
+        typ_root.join("Event.td"),
         SCHEMA_EVENT.to_string(),
         FileMetadata::default(),
       ),
@@ -1752,7 +1752,7 @@ date: 2024-01-01
     let directory_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Directory.td"),
+        typ_root.join("Directory.td"),
         SCHEMA_DIRECTORY.to_string(),
         FileMetadata::default(),
       ),
@@ -1760,7 +1760,7 @@ date: 2024-01-01
     let task_reference_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("TaskRef.td"),
+        typ_root.join("TaskRef.td"),
         SCHEMA_TASK_REF.to_string(),
         FileMetadata::default(),
       ),
@@ -1768,7 +1768,7 @@ date: 2024-01-01
     let collection_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Collection.td"),
+        typ_root.join("Collection.td"),
         SCHEMA_COLLECTION.to_string(),
         FileMetadata::default(),
       ),
@@ -2277,7 +2277,7 @@ age: |
   }
 
   #[test]
-  fn resource_files_not_suggested_in_object_type_field() {
+  fn resource_files_not_suggested_in_object_typ_field() {
     let (content, offset) = cursor(
       r#"---
 _type: PersonWithAddress
@@ -3286,7 +3286,7 @@ $$
       .as_ref()
       .expect("'kind' should have documentation");
     let doc_text = match doc {
-      lsp_types::Documentation::MarkupContent(m) => m.value.as_str(),
+      lsp_types::Documentation::MarkupContent(markup) => markup.value.as_str(),
       _ => panic!("expected markup content"),
     };
     assert!(

@@ -289,8 +289,8 @@ fn write_interned_blobs(path: &Path, blobs: &InternedBlobs) -> io::Result<()> {
   let mut file = BufWriter::new(File::create(path)?);
   file.write_all(&blobs.header.to_bytes())?;
   for record in &blobs.records {
-    let len = record.len() as u32;
-    file.write_all(&len.to_le_bytes())?;
+    let length = record.len() as u32;
+    file.write_all(&length.to_le_bytes())?;
     file.write_all(record)?;
   }
   file.write_all(&blobs.footer.to_bytes())?;
@@ -315,13 +315,13 @@ fn read_interned_blobs(path: &Path) -> Option<InternedBlobs> {
     if position + 4 > record_end {
       return None;
     }
-    let len = u32::from_le_bytes(data[position..position + 4].try_into().ok()?) as usize;
+    let length = u32::from_le_bytes(data[position..position + 4].try_into().ok()?) as usize;
     position += 4;
-    if position + len > record_end {
+    if position + length > record_end {
       return None;
     }
-    records.push(data[position..position + len].to_vec());
-    position += len;
+    records.push(data[position..position + length].to_vec());
+    position += length;
   }
   Some(InternedBlobs {
     header,

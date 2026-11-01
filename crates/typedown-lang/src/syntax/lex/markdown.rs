@@ -665,8 +665,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           match self.peek() {
             Utf8Result::Char('{') => {
               self.advance_avoid_invalid_utf8();
-              let buf_len = self.text_buffer.len();
-              let string_text: String = self.text_buffer.drain(..buf_len - 2).collect();
+              let buffer_length = self.text_buffer.len();
+              let string_text: String = self.text_buffer.drain(..buffer_length - 2).collect();
               self.text_buffer.clear();
 
               self
@@ -698,8 +698,8 @@ impl<S: Utf8Stream> LexCtx<S> {
             }
             _ => {
               // Single $ inside string: inline math
-              let buf_len = self.text_buffer.len();
-              let string_text: String = self.text_buffer.drain(..buf_len - 1).collect();
+              let buffer_length = self.text_buffer.len();
+              let string_text: String = self.text_buffer.drain(..buffer_length - 1).collect();
               self.text_buffer.clear();
 
               let math_token = self.lex_inline_math_content();
@@ -817,73 +817,73 @@ fn validate_code_block_props(content: &str, offset: usize) -> Option<TdDiagnosti
     return None;
   }
 
-  let mut pos = 0;
+  let mut position = 0;
   let chars: Vec<char> = trimmed.chars().collect();
 
-  while pos < chars.len() {
+  while position < chars.len() {
     // Skip whitespace
-    while pos < chars.len() && chars[pos] == ' ' {
-      pos += 1;
+    while position < chars.len() && chars[position] == ' ' {
+      position += 1;
     }
-    if pos >= chars.len() {
+    if position >= chars.len() {
       break;
     }
 
     // Line range: digit or digit-range or comma-separated
-    if chars[pos].is_ascii_digit() {
-      while pos < chars.len()
-        && (chars[pos].is_ascii_digit() || chars[pos] == '-' || chars[pos] == ',')
+    if chars[position].is_ascii_digit() {
+      while position < chars.len()
+        && (chars[position].is_ascii_digit() || chars[position] == '-' || chars[position] == ',')
       {
-        pos += 1;
+        position += 1;
       }
       // Skip trailing space after range
-      while pos < chars.len() && chars[pos] == ' ' {
-        pos += 1;
+      while position < chars.len() && chars[position] == ' ' {
+        position += 1;
       }
       continue;
     }
 
     // Named prop or flag: identifier (letters, digits, hyphens, underscores)
-    if chars[pos].is_ascii_alphabetic() || chars[pos] == '_' {
-      let name_start = pos;
-      while pos < chars.len()
-        && (chars[pos].is_ascii_alphanumeric() || chars[pos] == '-' || chars[pos] == '_')
+    if chars[position].is_ascii_alphabetic() || chars[position] == '_' {
+      let name_start = position;
+      while position < chars.len()
+        && (chars[position].is_ascii_alphanumeric() || chars[position] == '-' || chars[position] == '_')
       {
-        pos += 1;
+        position += 1;
       }
-      let name: String = chars[name_start..pos].iter().collect();
+      let name: String = chars[name_start..position].iter().collect();
 
       // Check if it's a known prop
       if !KNOWN_CODE_PROPS.contains(&name.as_str()) {
         return Some(
           TdDiagnosticKind::InvalidCodeRangeIndicator {}
-            .into_error(offset + name_start, offset + pos),
+            .into_error(offset + name_start, offset + position),
         );
       }
 
       // Check for = (named prop with value)
-      if pos < chars.len() && chars[pos] == '=' {
-        pos += 1; // skip =
-        if pos >= chars.len() {
+      if position < chars.len() && chars[position] == '=' {
+        position += 1; // skip =
+        if position >= chars.len() {
           return Some(
             TdDiagnosticKind::InvalidCodeRangeIndicator {}
-              .into_error(offset + pos - 1, offset + pos),
+              .into_error(offset + position - 1, offset + position),
           );
         }
         // Quoted value
-        if chars[pos] == '"' || chars[pos] == '\'' {
-          let quote = chars[pos];
-          pos += 1;
-          while pos < chars.len() && chars[pos] != quote {
-            pos += 1;
+        if chars[position] == '"' || chars[position] == '\'' {
+          let quote = chars[position];
+          position += 1;
+          while position < chars.len() && chars[position] != quote {
+            position += 1;
           }
-          if pos < chars.len() {
-            pos += 1; // closing quote
+          if position < chars.len() {
+            position += 1; // closing quote
           }
         } else {
           // Unquoted value: consume until space or end
-          while pos < chars.len() && chars[pos] != ' ' && chars[pos] != '}' {
-            pos += 1;
+          while position < chars.len() && chars[position] != ' ' && chars[position] != '}' {
+            position += 1;
           }
         }
       }
@@ -892,7 +892,7 @@ fn validate_code_block_props(content: &str, offset: usize) -> Option<TdDiagnosti
 
     // Unknown character
     return Some(
-      TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(offset + pos, offset + pos + 1),
+      TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(offset + position, offset + position + 1),
     );
   }
 

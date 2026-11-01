@@ -39,7 +39,7 @@ impl SourceFile {
   pub fn has_nonempty_frontmatter(&self) -> bool {
     self
       .frontmatter()
-      .is_some_and(|fm| fm.syntax().children().count() > 0)
+      .is_some_and(|frontmatter| frontmatter.syntax().children().count() > 0)
   }
 
   /// Return the frontmatter of the source file

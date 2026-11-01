@@ -33,21 +33,21 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
       }
     },
     Data::Enum(data) => {
-      let disc_arms: Vec<_> = data
+      let discriminator_arms: Vec<_> = data
         .variants
         .iter()
         .enumerate()
-        .map(|(i, variant)| {
+        .map(|(index, variant)| {
           let vname = &variant.ident;
           match &variant.fields {
-            Fields::Named(_) => quote! { #name::#vname { .. } => #i, },
-            Fields::Unnamed(_) => quote! { #name::#vname(..) => #i, },
-            Fields::Unit => quote! { #name::#vname => #i, },
+            Fields::Named(_) => quote! { #name::#vname { .. } => #index, },
+            Fields::Unnamed(_) => quote! { #name::#vname(..) => #index, },
+            Fields::Unit => quote! { #name::#vname => #index, },
           }
         })
         .collect();
 
-      let cmp_arms: Vec<_> = data
+      let compare_arms: Vec<_> = data
         .variants
         .iter()
         .map(|variant| {
@@ -115,15 +115,15 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
 
       quote! {
         {
-          let __disc_idx = |v: &Self| -> usize {
-            match v {
-              #(#disc_arms)*
+          let __discriminator_index = |value: &Self| -> usize {
+            match value {
+              #(#discriminator_arms)*
             }
           };
           let _ = db;
           match (self, other) {
-            #(#cmp_arms)*
-            _ => __disc_idx(self).cmp(&__disc_idx(other)),
+            #(#compare_arms)*
+            _ => __discriminator_index(self).cmp(&__discriminator_index(other)),
           }
         }
       }

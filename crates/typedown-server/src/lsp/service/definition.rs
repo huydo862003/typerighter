@@ -92,8 +92,8 @@ pub fn resolve_definition(
     FileHandle::Content(_, _, _) => project
       .files(db)
       .iter()
-      .find(|(_, f)| **f == target_file)
-      .map(|(p, _)| p.clone())?,
+      .find(|(_, file)| **file == target_file)
+      .map(|(project, _)| project.clone())?,
   };
 
   let scheme = analysis
@@ -394,7 +394,7 @@ age: 30
   // Accept a `content` as the current editing content
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -414,7 +414,7 @@ age: 30
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -456,7 +456,7 @@ age: 30
   }
 
   #[test]
-  fn definition_on_type_value_jumps_to_schema_file() {
+  fn definition_on_typ_value_jumps_to_schema_file() {
     let (content, offset) = cursor(
       r#"---
 _type: Per|son
@@ -511,7 +511,7 @@ name: fref("ali|ce.td")
       "/project"
     });
     let vault_root = project_root.join("vault");
-    let type_root = vault_root.join("_types");
+    let typ_root = vault_root.join("_types");
 
     let (content, offset) = cursor(
       r#"---
@@ -546,11 +546,11 @@ vault:
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
@@ -634,7 +634,7 @@ na|me: "Alice"
   #[test]
   fn definition_on_inherited_field_jumps_to_parent_schema() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let contractor_schema = r#"---
 _type: schema
@@ -674,22 +674,22 @@ agency: "Acme"
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        type_root.join("Contractor.td"),
+        typ_root.join("Contractor.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Contractor.td"),
+            typ_root.join("Contractor.td"),
             contractor_schema.to_string(),
             FileMetadata::default(),
           ),
@@ -915,7 +915,7 @@ name: "Test"
   #[test]
   fn definition_on_extends_jumps_to_parent_schema() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let _child_schema = r#"---
 _type: schema
@@ -937,7 +937,7 @@ properties:
 "#,
     );
 
-    let test_path = type_root.join("Contractor.td");
+    let test_path = typ_root.join("Contractor.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -957,11 +957,11 @@ properties:
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),

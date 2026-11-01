@@ -47,9 +47,9 @@ fn encode_green_node(node: &GreenNode, encoder: &mut Encoder) -> u32 {
 }
 
 impl Encodable for GreenNode {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     let index = encode_green_node(self, encoder);
-    encoder.emit_u32(buf, index);
+    encoder.emit_u32(buffer, index);
   }
 }
 
@@ -74,8 +74,8 @@ fn decode_green_blob(index: usize, decoder: &Decoder) -> GreenNode {
       GreenNode::from_node(syntax_node)
     }
     1 => {
-      let byte_len = u32::from_le_bytes(blob[3..7].try_into().unwrap()) as usize;
-      let bytes = &blob[7..7 + byte_len];
+      let byte_lenth = u32::from_le_bytes(blob[3..7].try_into().unwrap()) as usize;
+      let bytes = &blob[7..7 + byte_lenth];
       let token = with_green_cache(|cache| cache.token(kind, bytes));
       GreenNode::from_token(token)
     }
@@ -92,10 +92,10 @@ impl Decodable for GreenNode {
 
 // RedNode
 impl Encodable for RedNode {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.start_offset().encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.start_offset().encode(buffer, encoder);
     let root = self.root();
-    (*root).encode(buf, encoder);
+    (*root).encode(buffer, encoder);
   }
 }
 
@@ -138,8 +138,8 @@ impl StableHash for FileHandle {
 // SyntaxKind
 
 impl Encodable for SyntaxKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u16(buf, *self as u16);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u16(buffer, *self as u16);
   }
 }
 
@@ -171,18 +171,18 @@ mod tests {
   use typedown_incremental::{Decoder, Encoder, QueryStorage};
 
   /// Check that encode and decode return the original value
-  fn encode_decode_roundtrip<T: Encodable + Decodable + PartialEq + Debug>(v: &T) {
+  fn encode_decode_roundtrip<T: Encodable + Decodable + PartialEq + Debug>(value: &T) {
     let db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-    let mut buf = Vec::new();
-    let mut enc = Encoder::new(&db);
-    v.encode(&mut buf, &mut enc);
-    let intern_blobs = enc.finish();
+    let mut buffer = Vec::new();
+    let mut encoder = Encoder::new(&db);
+    value.encode(&mut buffer, &mut encoder);
+    let intern_blobs = encoder.finish();
     let decoder = Decoder::new(Arc::new(db.storage.clone()), Arc::new(intern_blobs));
-    let mut data: &[u8] = &buf;
+    let mut data: &[u8] = &buffer;
     let decoded = T::decode(&mut data, &decoder);
-    assert_eq!(*v, decoded);
+    assert_eq!(*value, decoded);
   }
 
   // Boolean encode/decode
@@ -192,9 +192,9 @@ mod tests {
       storage: QueryStorage::default(),
     };
     let encoder = Encoder::new(&db);
-    let mut buf = Vec::new();
-    encoder.emit_bool(&mut buf, false);
-    assert_eq!(buf, vec![0]);
+    let mut buffer = Vec::new();
+    encoder.emit_bool(&mut buffer, false);
+    assert_eq!(buffer, vec![0]);
   }
 
   #[test]
@@ -203,9 +203,9 @@ mod tests {
       storage: QueryStorage::default(),
     };
     let encoder = Encoder::new(&db);
-    let mut buf = Vec::new();
-    encoder.emit_bool(&mut buf, true);
-    assert_eq!(buf, vec![1]);
+    let mut buffer = Vec::new();
+    encoder.emit_bool(&mut buffer, true);
+    assert_eq!(buffer, vec![1]);
   }
 
   #[test]

@@ -185,11 +185,11 @@ fn extract_nav<'db>(
   };
 
   let mut items = Vec::new();
-  let Some(len) = list_obj.len(db) else {
+  let Some(length) = list_obj.len(db) else {
     return items;
   };
-  for i in 0..len {
-    let Some(item) = list_obj.get(db, i) else {
+  for index in 0..length {
+    let Some(item) = list_obj.get(db, index) else {
       continue;
     };
     let title = get_string_field(db, &item, "title").unwrap_or_default();
@@ -219,11 +219,11 @@ fn extract_theme_components<'db>(
   };
 
   let mut entries = Vec::new();
-  let Some(len) = list.len(db) else {
+  let Some(length) = list.len(db) else {
     return entries;
   };
-  for i in 0..len {
-    let Some(item) = list.get(db, i) else {
+  for index in 0..length {
+    let Some(item) = list.get(db, index) else {
       continue;
     };
 

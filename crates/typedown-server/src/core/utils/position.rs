@@ -12,9 +12,9 @@ pub fn text_offset_to_lsp_position(rope: &Rope, char_offset: usize) -> Position 
   }
 }
 
-pub fn lsp_position_to_text_offset(rope: &Rope, pos: Position) -> Option<usize> {
-  let line_start = rope.try_line_to_char(pos.line as usize).ok()?;
-  Some(line_start + pos.character as usize)
+pub fn lsp_position_to_text_offset(rope: &Rope, position: Position) -> Option<usize> {
+  let line_start = rope.try_line_to_char(position.line as usize).ok()?;
+  Some(line_start + position.character as usize)
 }
 
 pub fn text_range_to_lsp_range(rope: &Rope, range: TextRange) -> Range {

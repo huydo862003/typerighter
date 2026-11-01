@@ -51,7 +51,10 @@ impl<T: Read> FileStream<T> {
         Ok(_) => {
           filled += 1;
           if let Ok(string) = std::str::from_utf8(&bytes[..filled]) {
-            let char = string.chars().next().expect("valid UTF-8 must yield a char");
+            let char = string
+              .chars()
+              .next()
+              .expect("valid UTF-8 must yield a char");
             break Utf8Result::Char(char);
           }
           if filled >= 4 {

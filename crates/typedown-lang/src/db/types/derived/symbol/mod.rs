@@ -261,8 +261,8 @@ impl StableHash for BuiltinMacroKind {
 }
 
 impl Encodable for BuiltinMacroKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u8(buf, *self as u8);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u8(buffer, *self as u8);
   }
 }
 
@@ -287,8 +287,8 @@ impl StableHash for BuiltinGlobalKind {
 }
 
 impl Encodable for BuiltinGlobalKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u8(buf, *self as u8);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u8(buffer, *self as u8);
   }
 }
 
@@ -324,8 +324,8 @@ impl StableHash for BuiltinSchemaKind {
 }
 
 impl Encodable for BuiltinSchemaKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u8(buf, *self as u8);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u8(buffer, *self as u8);
   }
 }
 

@@ -105,17 +105,17 @@ mod tests {
   }
 
   #[test]
-  fn sum_type_lookup_field_type_unions_field_types_when_present_on_all_members() {
+  fn sum_typ_lookup_field_typ_unions_field_types_when_present_on_all_members() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let number_type: TdTypEnum = get_number_typ(&db).into();
+    let number_typ: TdTypEnum = get_number_typ(&db).into();
 
     let mut fields1 = BTreeMap::new();
     fields1.insert("val".to_string(), LazyTyp::eager(string_typ.clone()));
     let struct1: TdTypEnum = TdProductTyp::new(&db, None, fields1).into();
 
     let mut fields2 = BTreeMap::new();
-    fields2.insert("val".to_string(), LazyTyp::eager(number_type.clone()));
+    fields2.insert("val".to_string(), LazyTyp::eager(number_typ.clone()));
     let struct2: TdTypEnum = TdProductTyp::new(&db, None, fields2).into();
 
     let sum_typ = get_sum_typ(&db, vec![LazyTyp::eager(struct1), LazyTyp::eager(struct2)]);
@@ -125,14 +125,14 @@ mod tests {
       value_typ,
       get_sum_typ(
         &db,
-        vec![LazyTyp::eager(string_typ), LazyTyp::eager(number_type)]
+        vec![LazyTyp::eager(string_typ), LazyTyp::eager(number_typ)]
       )
       .into()
     );
   }
 
   #[test]
-  fn sum_type_lookup_field_type_returns_none_if_missing_on_any_member() {
+  fn sum_typ_lookup_field_typ_returns_none_if_missing_on_any_member() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();

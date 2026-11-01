@@ -29,11 +29,11 @@ pub struct Cache {
 }
 
 /// Access the thread-local green cache
-pub fn with_green_cache<F, R>(f: F) -> R
+pub fn with_green_cache<F, R>(func: F) -> R
 where
   F: FnOnce(&mut Cache) -> R,
 {
-  CACHE.with(|cache| f(&mut cache.borrow_mut()))
+  CACHE.with(|cache| func(&mut cache.borrow_mut()))
 }
 
 /// Get a clone of the thread-local green cache handle
@@ -50,10 +50,10 @@ impl Cache {
   pub fn token(&mut self, kind: SyntaxKind, bytes: &[u8]) -> SyntaxToken {
     // Hash from borrowed data to avoid allocating a String on cache hit
     let hash = {
-      let mut h = self.tokens.hasher().build_hasher();
-      kind.hash(&mut h);
-      bytes.hash(&mut h);
-      h.finish()
+      let mut hasher = self.tokens.hasher().build_hasher();
+      kind.hash(&mut hasher);
+      bytes.hash(&mut hasher);
+      hasher.finish()
     };
 
     let entry = self.tokens.raw_entry_mut().from_hash(hash, |existing| {

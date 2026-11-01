@@ -989,7 +989,7 @@ fn collect_file_diagnostics(
 
   // Lint warnings
   let root = parse_result.ast(db).node.clone();
-  if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
+  if let Some(body) = SourceFile::cast(root.clone()).and_then(|source_file| source_file.body()) {
     for diagnostic in lint_markdown(&body) {
       items.push(lint_diag_to_item(&diagnostic, filepath, rope));
     }

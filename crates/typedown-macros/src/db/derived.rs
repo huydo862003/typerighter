@@ -483,7 +483,7 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
   let mut new_body_tokens = quote! {};
 
   let phantom_encode_tokens = if has_phantom {
-    quote! { ::typedown_incremental::Encodable::encode(&(), buf, encoder); }
+    quote! { ::typedown_incremental::Encodable::encode(&(), buffer, encoder); }
   } else {
     quote! {}
   };
@@ -636,18 +636,18 @@ fn query_derived_struct_impl(struct_ast: ItemStruct, modifiers: &CacheModifiers)
       }
 
       impl<'db> ::typedown_incremental::Encodable for #struct_name<'db> {
-        fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+        fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
-          encoder.emit_u32(buf, index);
+          encoder.emit_u32(buffer, index);
           #(
-            ::typedown_incremental::Encodable::field_encode(&Self::#field_names(*self, encoder.db()), buf, encoder);
+            ::typedown_incremental::Encodable::field_encode(&Self::#field_names(*self, encoder.db()), buffer, encoder);
           )*
           #phantom_encode_tokens
         }
 
-        fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+        fn field_encode(&self, buffer: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
           let index = encoder.add_dep_id(::typedown_incremental::Id::as_id(self));
-          encoder.emit_u32(buf, index);
+          encoder.emit_u32(buffer, index);
         }
       }
 

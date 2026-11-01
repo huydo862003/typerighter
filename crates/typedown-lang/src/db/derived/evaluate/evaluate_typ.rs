@@ -485,9 +485,7 @@ fn resolve_typ_lazy<'db>(
     match ident.value().as_deref() {
       Some("null") => return Some(LazyTyp::eager(get_null_typ(db).into())),
       Some("true") => {
-        return Some(LazyTyp::eager(
-          get_lit_typ(db, LitValue::Bool(true)).into(),
-        ));
+        return Some(LazyTyp::eager(get_lit_typ(db, LitValue::Bool(true)).into()));
       }
       Some("false") => {
         return Some(LazyTyp::eager(

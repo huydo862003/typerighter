@@ -210,11 +210,11 @@ pub fn make_property_descriptors<'db>(
 ) -> BTreeMap<String, PropertyDescriptor<'db>> {
   fields
     .into_iter()
-    .map(|(k, v)| {
+    .map(|(key, value)| {
       (
-        k,
+        key,
         PropertyDescriptor {
-          field_typ: v,
+          field_typ: value,
           default_value: None,
           computed_func: None,
         },

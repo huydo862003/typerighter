@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 
+use super::media::{MediaKind, ServiceEmbed, classify_media_url};
 use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
-use crate::integrations::export::media::{MediaKind, ServiceEmbed, classify_media_url};
 use crate::integrations::export::utils::is_string_quoted;
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
@@ -19,10 +19,11 @@ use crate::syntax::ast::{
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use super::utils::{
+use crate::db::utils::is_external_url;
+use crate::integrations::bindings::file_ref::resolve_fref_target;
+use crate::integrations::export::utils::{
   extract_plain_text, html_escape, is_callout, resolve_vault_url, slugify, strip_quotes,
 };
-use crate::db::utils::is_external_url;
 use crate::syntax::ast::MdContainerShorthand;
 
 /// Heading extracted during HTML emission
@@ -863,7 +864,7 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn try_resolve_fref_html(&self, node: &RedNode) -> Option<String> {
-    let target = super::resolve_fref_target(self.db, self.project, self.file, node)?;
+    let target = resolve_fref_target(self.db, self.project, self.file, node)?;
 
     if target.is_image {
       return Some(format!(

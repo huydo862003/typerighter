@@ -99,7 +99,7 @@ impl AnalysisHost {
   }
 
   /// Cancel all in-flight snapshots, wait for them to finish, then apply a write
-  pub fn write<R>(&mut self, f: impl FnOnce(&mut TypedownDatabase) -> R) -> R {
+  pub fn write<R>(&mut self, func: impl FnOnce(&mut TypedownDatabase) -> R) -> R {
     self.db.storage.cancelled.store(true, Ordering::Relaxed);
 
     let mut clones = self.snapshot_counter.0.lock().unwrap();
@@ -109,7 +109,7 @@ impl AnalysisHost {
     drop(clones);
 
     self.db.storage.cancelled.store(false, Ordering::Relaxed);
-    f(&mut self.db)
+    func(&mut self.db)
   }
 
   fn sync_files(&mut self) {

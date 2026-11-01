@@ -32,8 +32,8 @@ impl StableHash for NativeFuncKind {
 }
 
 impl Encodable for NativeFuncKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    encoder.emit_u8(buf, *self as u8);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    encoder.emit_u8(buffer, *self as u8);
   }
 }
 
@@ -91,16 +91,16 @@ impl<'db> StableHash for FuncKind<'db> {
 }
 
 impl<'db> Encodable for FuncKind<'db> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       FuncKind::Native(kind) => {
-        encoder.emit_u8(buf, FuncKindTag::Native as u8);
-        kind.encode(buf, encoder);
+        encoder.emit_u8(buffer, FuncKindTag::Native as u8);
+        kind.encode(buffer, encoder);
       }
       FuncKind::UserDefined(hir, runtime_scope) => {
-        encoder.emit_u8(buf, FuncKindTag::UserDefined as u8);
-        hir.field_encode(buf, encoder);
-        runtime_scope.field_encode(buf, encoder);
+        encoder.emit_u8(buffer, FuncKindTag::UserDefined as u8);
+        hir.field_encode(buffer, encoder);
+        runtime_scope.field_encode(buffer, encoder);
       }
     }
   }

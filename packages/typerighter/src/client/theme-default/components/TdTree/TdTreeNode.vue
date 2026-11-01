@@ -60,10 +60,10 @@ const hasContent = computed(() => 0 < node.entries.length);
 
 const totalCount = computed(() => countItems(node));
 
-function countItems (n: ContentTreeNode): number {
+function countItems (node: ContentTreeNode): number {
   let count = 0;
 
-  for (const entry of n.entries) {
+  for (const entry of node.entries) {
     if (entry.kind === 'file') {
       count++;
     } else {

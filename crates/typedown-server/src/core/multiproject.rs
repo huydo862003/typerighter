@@ -1,5 +1,7 @@
 use std::{
-  fmt::Debug, path::{Path, PathBuf}, sync::{Arc, RwLock, atomic::Ordering},
+  fmt::Debug,
+  path::{Path, PathBuf},
+  sync::{Arc, RwLock, atomic::Ordering},
 };
 
 use dashmap::DashMap;

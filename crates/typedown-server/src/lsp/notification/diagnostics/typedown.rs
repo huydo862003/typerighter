@@ -106,7 +106,9 @@ pub fn publish_diagnostics_for_project(analysis: &Analysis) -> Vec<Notification>
           diagnostics: vec![Diagnostic {
             range: lsp_types::Range::default(),
             severity: Some(lsp_types::DiagnosticSeverity::ERROR),
-            code: Some(lsp_types::NumberOrString::String(diagnostic.code_str().into())),
+            code: Some(lsp_types::NumberOrString::String(
+              diagnostic.code_str().into(),
+            )),
             source: Some("typedown".into()),
             message: diagnostic.message(),
             ..Default::default()
@@ -370,7 +372,7 @@ name: "Alice"
   }
 
   #[test]
-  fn meta_with_wrong_type_produces_diagnostic() {
+  fn meta_with_wrong_typ_produces_diagnostic() {
     let analysis = setup(
       r#"---
 _type: Person

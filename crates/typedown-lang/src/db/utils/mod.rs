@@ -2,8 +2,8 @@
 
 pub mod static_type;
 
-use std::path::{Component, Path, PathBuf};
 use std::fmt::Write;
+use std::path::{Component, Path, PathBuf};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::parse_file::parse_file;
@@ -117,7 +117,8 @@ pub fn is_typ_file(path: &Path) -> bool {
 
 /// Strip a content file extension (.td or .md) from a string
 pub fn strip_content_extension(string: &str) -> &str {
-  string.strip_suffix(".td")
+  string
+    .strip_suffix(".td")
     .or_else(|| string.strip_suffix(".md"))
     .unwrap_or(string)
 }
@@ -209,6 +210,15 @@ pub fn resolve_md_link_path(
     vault_root.join(vault_relative)
   } else {
     source_file_dir.join(url)
+  }
+}
+
+/// Prepend a base path to a vault-relative path to produce a URL.
+pub fn prepend_base_path(base_path: &str, vault_path: &str) -> String {
+  if base_path == "/" {
+    format!("/{vault_path}")
+  } else {
+    format!("{base_path}/{vault_path}")
   }
 }
 

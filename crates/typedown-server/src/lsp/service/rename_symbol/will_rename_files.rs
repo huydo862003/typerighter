@@ -229,7 +229,7 @@ avatar: fref("icon.svg")
 
   // Renaming a schema file updates _type references
   #[test]
-  fn will_rename_schema_updates_type_references() {
+  fn will_rename_schema_updates_typ_references() {
     let analysis = setup(CONTENT_ALICE);
     let params = make_params("_types/Person.td", "_types/Human.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");
@@ -297,7 +297,7 @@ avatar: fref("icon.svg")
 
   // Renaming schema to nested dir updates type references if name changes
   #[test]
-  fn will_rename_schema_to_nested_dir_updates_type_references() {
+  fn will_rename_schema_to_nested_dir_updates_typ_references() {
     let analysis = setup(CONTENT_ALICE);
     let params = make_params("_types/Person.td", "_types/nested/Human.td");
     let edit = will_rename_files(&analysis, params).expect("should produce edits");

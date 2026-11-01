@@ -1048,11 +1048,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
         }
       } else {
         // Cannot satisfy prefix, break
-        let prefix_len = self.expr_ctx_stack.md_prefix_tokens().len();
-        if prefix_len > 0 && self.peek_md_prefix_at(0, MD_PREFIX_EXACT).is_none() {
+        let prefix_length = self.expr_ctx_stack.md_prefix_tokens().len();
+        if prefix_length > 0 && self.peek_md_prefix_at(0, MD_PREFIX_EXACT).is_none() {
           break;
         }
-        prefix_len
+        prefix_length
       };
 
       // Found closing ::: (bare, not followed by a label for nested container)

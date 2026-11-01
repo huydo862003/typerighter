@@ -23,7 +23,7 @@ fn dispatches_to_default_for_non_display() {
 }
 
 #[test]
-fn type_dispatch_to_display() {
+fn typ_dispatch_to_display() {
   let result = specialize!(type i32 {
     where Display => "display";
     default => "other";
@@ -32,7 +32,7 @@ fn type_dispatch_to_display() {
 }
 
 #[test]
-fn type_dispatch_to_default() {
+fn typ_dispatch_to_default() {
   struct Opaque;
   let result = specialize!(type Opaque {
     where Display => "display";
@@ -43,11 +43,11 @@ fn type_dispatch_to_default() {
 
 #[test]
 fn captures_outer_scope() {
-  let mut buf: Vec<String> = Vec::new();
+  let mut buffer: Vec<String> = Vec::new();
   let value = 42i32;
   specialize!(value {
-    where Display => buf.push(format!("{}", value));
-    default => buf.push("opaque".to_string());
+    where Display => buffer.push(format!("{}", value));
+    default => buffer.push("opaque".to_string());
   });
-  assert_eq!(buf, vec!["42"]);
+  assert_eq!(buffer, vec!["42"]);
 }

@@ -181,10 +181,10 @@ pub fn unwrap_optional<'db>(db: &'db TypedownDatabase, typ: TdTypEnum<'db>) -> T
 // Map a concrete JSON Schema type string to a td type
 fn parse_typ_string<'db>(
   db: &'db TypedownDatabase,
-  type_str: &str,
+  typ_str: &str,
   schema: &serde_json::Value,
 ) -> Option<TdTypEnum<'db>> {
-  match type_str {
+  match typ_str {
     "string" => Some(get_string_typ(db).into()),
     "number" => Some(get_number_typ(db).into()),
     "boolean" => Some(get_bool_typ(db).into()),

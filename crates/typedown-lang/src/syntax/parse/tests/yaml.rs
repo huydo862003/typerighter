@@ -1199,7 +1199,10 @@ fn document_simple_mapping() {
     r"key: value
 ",
   );
-  assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+  assert!(
+    diagnostics.is_empty(),
+    "unexpected diagnostics: {diagnostics:?}"
+  );
   assert!(
     tree.contains("YamlMapping"),
     "should contain a mapping: {tree}"
@@ -1220,7 +1223,10 @@ fn document_nested_mapping() {
   description: "A description"
 "#,
   );
-  assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+  assert!(
+    diagnostics.is_empty(),
+    "unexpected diagnostics: {diagnostics:?}"
+  );
   assert!(
     tree.contains(r#""site""#),
     "should contain site key: {tree}"

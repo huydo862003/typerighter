@@ -182,7 +182,7 @@ fn typecheck_body<'db>(
         let index_nodes: Vec<_> = index
           .indices()
           .into_iter()
-          .map(|idx| ProjectRedNode::new(project, file, idx.syntax().clone()))
+          .map(|index| ProjectRedNode::new(project, file, index.syntax().clone()))
           .collect();
         diagnostics.extend(check_index(db, expr_node, index_nodes));
       }
@@ -363,8 +363,8 @@ fn check_mapping_fields<'db>(
       {
         for (_, descriptor_node) in &descriptors {
           if let Some(descriptor_entries) = descriptor_node.mapping_entries() {
-            let has_type_field = descriptor_entries.iter().any(|(k, _)| k == "type");
-            if !has_type_field {
+            let has_typ_field = descriptor_entries.iter().any(|(key, _)| key == "type");
+            if !has_typ_field {
               let (offset, len) = descriptor_node.node.trimmed_range();
               diagnostics.push(
                 TdDiagnosticKind::MissingRequiredField {

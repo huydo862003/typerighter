@@ -19,8 +19,8 @@ pub enum IngredientKind {
 }
 
 impl IngredientKind {
-  pub const fn from_u8(v: u8) -> Self {
-    match v {
+  pub const fn from_u8(value: u8) -> Self {
+    match value {
       0 => Self::Input,
       1 => Self::Interned,
       2 => Self::Query,
