@@ -1109,6 +1109,7 @@ if (x) {
       r#"- Limitations:
 
   - Cannot use from browser:
+
     ```
     Browser --> backend --> API
     ```
@@ -1484,5 +1485,37 @@ Important note.
     let body = file.body().expect("should have a body");
     let result = format_markdown(&body);
     assert!(!result.is_empty(), "formatter should produce output");
+  }
+
+  // 3-level tight nesting preserves indentation
+  #[test]
+  fn three_level_nested_bullet_list() {
+    let result = fmt(
+      r#"---
+---
+- **Parent**: description.
+
+  - **Child one**: info.
+    - Sub-child one.
+  - **Child two**: info.
+    - Sub-child two.
+
+  Trailing text.
+"#,
+    );
+    assert_eq!(
+      result,
+      r#"- **Parent**: description.
+
+  - **Child one**: info.
+
+    - Sub-child one.
+  - **Child two**: info.
+
+    - Sub-child two.
+
+  Trailing text.
+"#
+    );
   }
 }

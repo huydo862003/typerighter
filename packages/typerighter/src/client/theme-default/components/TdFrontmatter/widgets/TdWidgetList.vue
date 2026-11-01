@@ -125,7 +125,7 @@ function visible<T> (list: T[]): T[] {
 
 .td-widget-list-icons li {
   display: flex;
-  align-items: center;
+  align-items: first baseline;
   gap: 6px;
 }
 

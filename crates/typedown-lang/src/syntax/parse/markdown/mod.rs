@@ -702,20 +702,13 @@ impl<S: Utf8Stream> ParseCtx<S> {
       if next_kind == SyntaxKind::Eof {
         break;
       }
+      // Newline: peek past blank lines and check if the expected prefix still matches (if not it breaks the current item)
       if next_kind == SyntaxKind::Newline {
-        let Some(after_prefix) = self.peek_md_multinewline_and_prefix(MD_PREFIX_EXACT) else {
+        if self
+          .peek_md_multinewline_and_prefix(MD_PREFIX_EXACT)
+          .is_none()
+        {
           break;
-        };
-        // A blank line makes this a loose list item: the content after it is nested, not a sibling
-        let min_after_prefix = 1 + self.expr_ctx_stack.md_prefix_tokens().len();
-        let has_blank_line = after_prefix > min_after_prefix;
-        if !has_blank_line {
-          let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
-          if after.token.kind() == SyntaxKind::MdSymbol
-            && after.token.chars().collect::<String>() == bullet
-          {
-            break;
-          }
         }
         self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
@@ -744,7 +737,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     (self.emit(SyntaxKind::MdBulletListItem, &children), None)
   }
 
-  fn parse_task_list_item(&mut self, bullet: &str) -> (GreenNode, Option<ExprCtx>) {
+  fn parse_task_list_item(&mut self, _bullet: &str) -> (GreenNode, Option<ExprCtx>) {
     let mut children = vec![];
 
     self.expr_ctx_stack.enter(ExprCtx::MdTaskListItem);
@@ -769,34 +762,21 @@ impl<S: Utf8Stream> ParseCtx<S> {
     loop {
       let next_kind = self.lex_ctx.peek_md(SKIP_NONE).token.kind();
 
-      // EOF -> end of list
       if next_kind == SyntaxKind::Eof {
         break;
       }
 
-      // Newline -> either end of list, basic continuation, nested or sibling
+      // Newline: continue if prefix matches, break if indent dropped
+      // Sibling detection is in the parent list parser
       if next_kind == SyntaxKind::Newline {
-        let Some(after_prefix) = self.peek_md_multinewline_and_prefix(MD_PREFIX_EXACT) else {
+        if self
+          .peek_md_multinewline_and_prefix(MD_PREFIX_EXACT)
+          .is_none()
+        {
           break;
-        };
-
-        // Blank line (loose list) if the forward index is larger than the prefix length
-        let min_after_prefix = 1 + self.expr_ctx_stack.md_prefix_tokens().len();
-        let has_blank_line = after_prefix > min_after_prefix;
-        // No blank line, peek prefix
-        if !has_blank_line {
-          let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
-          if after.token.kind() == SyntaxKind::MdSymbol
-            && after.token.chars().collect::<String>() == bullet
-          {
-            break;
-          }
         }
-
-        // Nested
         self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
-
         let next = self.lex_ctx.peek_md(SKIP_NONE);
         if matches!(next.token.kind(), SyntaxKind::Newline | SyntaxKind::Eof) {
           break;
@@ -927,30 +907,15 @@ impl<S: Utf8Stream> ParseCtx<S> {
       if next_kind == SyntaxKind::Eof {
         break;
       }
-      // Newline -> either end of list, basic continuation, nested or sibling
+      // Newline: continue if prefix matches, break if indent dropped.
+      // Sibling detection is in the parent list parser.
       if next_kind == SyntaxKind::Newline {
-        let Some(after_prefix) = self.peek_md_multinewline_and_prefix(MD_PREFIX_EXACT) else {
+        if self
+          .peek_md_multinewline_and_prefix(MD_PREFIX_EXACT)
+          .is_none()
+        {
           break;
-        };
-
-        // Blank line (loose list) if the forward index is larger than the prefix length
-        let min_after_prefix = 1 + self.expr_ctx_stack.md_prefix_tokens().len();
-        let has_blank_line = after_prefix > min_after_prefix;
-
-        // No blank line, peek
-        if !has_blank_line {
-          let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
-          if after.token.kind() == SyntaxKind::MdNumber {
-            let dot = self.lex_ctx.peek_md_nth(after_prefix + 1, SKIP_NONE);
-            if dot.token.kind() == SyntaxKind::MdSymbol
-              && dot.token.chars().collect::<String>() == "."
-            {
-              break;
-            }
-          }
         }
-
-        // Nested
         self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
         let next = self.lex_ctx.peek_md(SKIP_NONE);

@@ -4411,48 +4411,48 @@ fn parse_container_nested_in_deep_bullet_list_no_panic() {
         " "
         (MdParagraph
           (MdText
-            "Outer"))))
-    "\n"
-    (MdParagraph
-      " "
-      " "
-      (MdBulletList
-        (MdBulletListItem
-          "-"
+            "Outer"))
+        "\n"
+        (MdPrefix
           " "
-          (MdParagraph
-            (MdText
-              "Inner"))
-          "\n"
-          (MdPrefix
+          " ")
+        (MdBulletList
+          (MdBulletListItem
+            "-"
             " "
-            " "
-            " "
-            " ")
-          (MdContainerBlock
-            ":::"
-            " "
-            "warning"
-            "\n"
-            (MdContainerSlot
-              (MdPrefix
-                " "
-                " "
-                " "
-                " ")
-              (MdParagraph
-                (MdText
-                  "Deep"
-                  " "
-                  "content"
-                  ".")))
+            (MdParagraph
+              (MdText
+                "Inner"))
             "\n"
             (MdPrefix
               " "
               " "
               " "
               " ")
-            ":::"))))
+            (MdContainerBlock
+              ":::"
+              " "
+              "warning"
+              "\n"
+              (MdContainerSlot
+                (MdPrefix
+                  " "
+                  " "
+                  " "
+                  " ")
+                (MdParagraph
+                  (MdText
+                    "Deep"
+                    " "
+                    "content"
+                    ".")))
+              "\n"
+              (MdPrefix
+                " "
+                " "
+                " "
+                " ")
+              ":::")))))
     "\n"
     "\n"
     (MdHeading
@@ -4951,36 +4951,36 @@ fn parse_deep_nested_exits() {
           (MdText
             "level"
             " "
-            "1"))))
-    "\n"
-    (MdParagraph
-      " "
-      " "
-      (MdBulletList
-        (MdBulletListItem
-          "-"
+            "1"))
+        "\n"
+        (MdPrefix
           " "
-          (MdParagraph
-            (MdText
-              "level"
+          " ")
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "level"
+                " "
+                "2"))
+            "\n"
+            (MdPrefix
               " "
-              "2"))))
+              " "
+              " "
+              " ")
+            (MdBulletList
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "level"
+                    " "
+                    "3")))))))
       "\n"
-      " "
-      " "
-      " "
-      " "
-      (MdBulletList
-        (MdBulletListItem
-          "-"
-          " "
-          (MdParagraph
-            (MdText
-              "level"
-              " "
-              "3")))))
-    "\n"
-    (MdBulletList
       (MdBulletListItem
         "-"
         " "
@@ -5522,18 +5522,18 @@ fn parse_bullet_list_blank_line_with_spaces() {
           (MdText
             " "
             " "
-            " "))))
-    "\n"
-    (MdParagraph
-      " "
-      " "
-      (MdBulletList
-        (MdBulletListItem
-          "-"
+            " "))
+        "\n"
+        (MdPrefix
           " "
-          (MdParagraph
-            (MdText
-              "child")))))
+          " ")
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "child"))))))
     "\n"))"####
   );
 }
