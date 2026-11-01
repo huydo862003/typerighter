@@ -17,8 +17,7 @@ import type {
 } from '@/shared';
 
 const {
-  definition,
-  value,
+  definition, value,
 } = defineProps<{
   /** Property descriptor */
   definition: PropertyDescriptor;
@@ -29,16 +28,21 @@ const {
 const MAX_VISIBLE = 5;
 const expanded = ref(false);
 
-const items = computed(() => Array.isArray(value) ? value as unknown[] : []);
+const items = computed(() =>
+  Array.isArray(value) ? (value as unknown[]) : []);
 const isRelationList = computed(() => definition.items?.widget === 'relation');
 
-const resolvedRefs = computed(() => isRelationList.value
-  ? items.value.map((item) => extractRef(item)).filter((ref_): ref_ is ResolvedRef => ref_ !== undefined)
-  : []);
+const resolvedRefs = computed(() =>
+  isRelationList.value
+    ? items.value
+      .map((item) => extractRef(item))
+      .filter((ref_): ref_ is ResolvedRef => ref_ !== undefined)
+    : []);
 
-const hiddenCount = computed(() => isRelationList.value
-  ? Math.max(0, resolvedRefs.value.length - MAX_VISIBLE)
-  : Math.max(0, items.value.length - MAX_VISIBLE));
+const hiddenCount = computed(() =>
+  isRelationList.value
+    ? Math.max(0, resolvedRefs.value.length - MAX_VISIBLE)
+    : Math.max(0, items.value.length - MAX_VISIBLE));
 
 function toggle () {
   expanded.value = !expanded.value;
@@ -55,14 +59,20 @@ function visible<T> (list: T[]): T[] {
     <div>
       <ul class="td-widget-list td-widget-list-icons">
         <li
-          v-for="(resolvedItem, idx) in visible(resolvedRefs)"
-          :key="idx"
+          v-for="(resolvedItem, index) in visible(resolvedRefs)"
+          :key="index"
         >
-          <component
-            :is="resolvedItem.icon ? getPageIcon(resolvedItem.icon.name) ?? File : File"
-            :size="14"
-            class="td-widget-list-icon"
-          />
+          <div>
+            <component
+              :is="
+                resolvedItem.icon
+                  ? (getPageIcon(resolvedItem.icon.name) ?? File)
+                  : File
+              "
+              :size="14"
+              class="td-widget-list-icon"
+            />
+          </div>
           <TdWidgetRelation
             :value="{
               $ref: resolvedItem,
@@ -77,7 +87,7 @@ function visible<T> (list: T[]): T[] {
         type="button"
         @click="toggle"
       >
-        {{ expanded ? 'show less' : `+${hiddenCount} more` }}
+        {{ expanded ? "show less" : `+${hiddenCount} more` }}
       </button>
     </div>
   </template>
@@ -105,7 +115,7 @@ function visible<T> (list: T[]): T[] {
         type="button"
         @click="toggle"
       >
-        {{ expanded ? 'show less' : `+${hiddenCount} more` }}
+        {{ expanded ? "show less" : `+${hiddenCount} more` }}
       </button>
     </div>
   </template>
@@ -130,6 +140,8 @@ function visible<T> (list: T[]): T[] {
 }
 
 .td-widget-list-icon {
+  position: relative;
+  top: 2.5px;
   flex-shrink: 0;
   color: var(--color-td-link);
 }
