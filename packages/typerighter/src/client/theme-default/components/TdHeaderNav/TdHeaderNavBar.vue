@@ -50,7 +50,7 @@ function isActive (link: string): boolean {
 .td-header-nav {
   display: none;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.25rem;
   margin-left: auto;
   margin-right: 1rem;
 }
@@ -65,17 +65,23 @@ function isActive (link: string): boolean {
   display: inline-flex;
   align-items: center;
   gap: 0.125rem;
+  padding: 4px 10px;
+  border-radius: var(--radius-td-sm);
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-4);
   text-decoration: none;
-  transition: color var(--duration-td-move) var(--ease-td-out-quart);
+  transition:
+    color var(--duration-td-move) var(--ease-td-out-quart),
+    background-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-header-nav-link:hover {
   color: var(--color-td-accent);
+  background-color: var(--color-td-hov);
 }
 
 .td-header-nav-link.is-active {
   color: var(--color-td-accent);
+  background-color: var(--color-td-sel);
 }
 </style>
