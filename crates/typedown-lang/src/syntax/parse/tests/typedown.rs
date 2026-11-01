@@ -961,6 +961,305 @@ fn parse_container_misindented_closing_fence() {
   );
 }
 
+// Nested bullet list with blank line separator and 2-space indent (loose list item)
+#[test]
+fn parse_nested_bullet_list_with_blank_line() {
+  let input = "- Parent item.
+
+  - Child one.
+  - Child two.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics: {diagnostics:?}",
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Parent"
+            " "
+            "item"
+            "."))
+        "\n"
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "Child"
+                " "
+                "one"
+                ".")))
+          "\n"
+          (MdPrefix
+            " "
+            " ")
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "Child"
+                " "
+                "two"
+                "."))))))
+    "\n"))"#
+  );
+}
+
+// Loose bullet list: blank line + indented bullet nests inside parent in blockquote
+#[test]
+fn parse_loose_bullet_list_nested_in_blockquote() {
+  let input = "> - Parent.
+>
+>   - Child one.
+>   - Child two.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "Parent"
+              "."))
+          "\n"
+          (MdPrefix
+            ">")
+          "\n"
+          (MdPrefix
+            ">"
+            " "
+            " "
+            " ")
+          (MdBulletList
+            (MdBulletListItem
+              "-"
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  " "
+                  "one"
+                  ".")))
+            "\n"
+            (MdPrefix
+              ">"
+              " "
+              " "
+              " ")
+            (MdBulletListItem
+              "-"
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  " "
+                  "two"
+                  ".")))))))
+    "\n"))"#,
+    "blank line in blockquote should nest child list inside parent item",
+  );
+}
+
+// Loose ordered list: blank line + indented ordered item nests inside parent in blockquote
+#[test]
+fn parse_loose_ordered_list_nested_in_blockquote() {
+  let input = "> 1. Parent.
+>
+>    1. Child.
+>    2. Child.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdOrderedList
+        (MdOrderedListItem
+          "1"
+          "."
+          " "
+          (MdParagraph
+            (MdText
+              "Parent"
+              "."))
+          "\n"
+          (MdPrefix
+            ">")
+          "\n"
+          (MdPrefix
+            ">"
+            " "
+            " "
+            " "
+            " ")
+          (MdOrderedList
+            (MdOrderedListItem
+              "1"
+              "."
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  ".")))
+            "\n"
+            (MdPrefix
+              ">"
+              " "
+              " "
+              " "
+              " ")
+            (MdOrderedListItem
+              "2"
+              "."
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  ".")))))))
+    "\n"))"#,
+    "blank line in blockquote should nest child ordered list inside parent item",
+  );
+}
+
+// Loose bullet list nested inside a container
+#[test]
+fn parse_loose_bullet_list_nested_in_container() {
+  let input = "::: note
+- Parent.
+
+  - Child.
+:::
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "Parent"
+                "."))
+            "\n"
+            "\n"
+            (MdPrefix
+              " "
+              " ")
+            (MdBulletList
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "Child"
+                    ".")))))))
+      "\n"
+      ":::")
+    "\n"))"#,
+    "blank line in container should nest child list inside parent item",
+  );
+}
+
+// Loose ordered list nested inside a container
+#[test]
+fn parse_loose_ordered_list_nested_in_container() {
+  let input = "::: note
+1. Parent.
+
+   1. Child.
+:::
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdOrderedList
+          (MdOrderedListItem
+            "1"
+            "."
+            " "
+            (MdParagraph
+              (MdText
+                "Parent"
+                "."))
+            "\n"
+            "\n"
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdOrderedList
+              (MdOrderedListItem
+                "1"
+                "."
+                " "
+                (MdParagraph
+                  (MdText
+                    "Child"
+                    ".")))))))
+      "\n"
+      ":::")
+    "\n"))"#,
+    "blank line in container should nest child ordered list inside parent item",
+  );
+}
+
 // Container block nested inside a blockquote
 #[test]
 fn parse_container_nested_in_blockquote() {

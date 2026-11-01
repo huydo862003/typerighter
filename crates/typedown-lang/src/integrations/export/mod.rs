@@ -1413,4 +1413,44 @@ properties:
       "gist URL should emit placeholder with data-url: {content}",
     );
   }
+
+  #[test]
+  fn html_export_nested_bullet_list() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "nested_list.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    assert_eq!(
+      exported.content,
+      r##"<ul>
+<li>
+<p><strong><LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://github.com/huydo862003/typerighter" class="td-external-link" target="_blank" rel="noopener noreferrer">typerighter</a></strong>: A typed content framework.</p>
+<ul>
+<li>
+<p>Somewhat stabilized with lots of optimizations!</p>
+</li>
+<li>
+<p><code>npm</code> package: <LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://www.npmjs.com/package/typerighter" class="td-external-link" target="_blank" rel="noopener noreferrer">npm</a></p>
+</li>
+<li>
+<p>documentation: <LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://huydo862003.github.io/typerighter" class="td-external-link" target="_blank" rel="noopener noreferrer">docs</a></p>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://github.com/huydo862003/sqlingo" class="td-external-link" target="_blank" rel="noopener noreferrer">sqlingo</a></strong>: Porting sqlglot to TypeScript.</p>
+<ul>
+<li>
+<p>Stabilized &amp; Synced with sqlglot version 30.0.0.</p>
+</li>
+<li>
+<p><code>npm</code> package: <LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://www.npmjs.com/package/sqlingo" class="td-external-link" target="_blank" rel="noopener noreferrer">npm</a></p>
+</li>
+<li>
+<p>documentation: <LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://huydo862003.github.io/sqlingo/" class="td-external-link" target="_blank" rel="noopener noreferrer">docs</a></p>
+</li>
+</ul>
+</li>
+</ul>
+"##
+    );
+  }
 }

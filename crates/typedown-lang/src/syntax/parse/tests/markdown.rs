@@ -5133,19 +5133,19 @@ fn parse_bullet_list_blank_line_before_nested_list() {
         " "
         (MdParagraph
           (MdText
-            "parent"))))
-    "\n"
-    "\n"
-    (MdParagraph
-      " "
-      " "
-      (MdBulletList
-        (MdBulletListItem
-          "-"
+            "parent"))
+        "\n"
+        "\n"
+        (MdPrefix
           " "
-          (MdParagraph
-            (MdText
-              "child")))))
+          " ")
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "child"))))))
     "\n"))"####
   );
 }

@@ -706,12 +706,16 @@ impl<S: Utf8Stream> ParseCtx<S> {
         let Some(after_prefix) = self.peek_md_multinewline_and_prefix(MD_PREFIX_EXACT) else {
           break;
         };
-        // Peek past prefix to check for sibling bullet
-        let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
-        if after.token.kind() == SyntaxKind::MdSymbol
-          && after.token.chars().collect::<String>() == bullet
-        {
-          break;
+        // A blank line makes this a loose list item: the content after it is nested, not a sibling
+        let min_after_prefix = 1 + self.expr_ctx_stack.md_prefix_tokens().len();
+        let has_blank_line = after_prefix > min_after_prefix;
+        if !has_blank_line {
+          let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
+          if after.token.kind() == SyntaxKind::MdSymbol
+            && after.token.chars().collect::<String>() == bullet
+          {
+            break;
+          }
         }
         self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
@@ -776,14 +780,20 @@ impl<S: Utf8Stream> ParseCtx<S> {
           break;
         };
 
-        // Peek past prefix to check for sibling bullet
-        let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
-        if after.token.kind() == SyntaxKind::MdSymbol
-          && after.token.chars().collect::<String>() == bullet
-        {
-          break;
+        // Blank line (loose list) if the forward index is larger than the prefix length
+        let min_after_prefix = 1 + self.expr_ctx_stack.md_prefix_tokens().len();
+        let has_blank_line = after_prefix > min_after_prefix;
+        // No blank line, peek prefix
+        if !has_blank_line {
+          let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
+          if after.token.kind() == SyntaxKind::MdSymbol
+            && after.token.chars().collect::<String>() == bullet
+          {
+            break;
+          }
         }
 
+        // Nested
         self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
 
@@ -917,20 +927,30 @@ impl<S: Utf8Stream> ParseCtx<S> {
       if next_kind == SyntaxKind::Eof {
         break;
       }
+      // Newline -> either end of list, basic continuation, nested or sibling
       if next_kind == SyntaxKind::Newline {
         let Some(after_prefix) = self.peek_md_multinewline_and_prefix(MD_PREFIX_EXACT) else {
           break;
         };
-        // Peek past prefix to check for sibling ordered item
-        let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
-        if after.token.kind() == SyntaxKind::MdNumber {
-          let dot = self.lex_ctx.peek_md_nth(after_prefix + 1, SKIP_NONE);
-          if dot.token.kind() == SyntaxKind::MdSymbol
-            && dot.token.chars().collect::<String>() == "."
-          {
-            break;
+
+        // Blank line (loose list) if the forward index is larger than the prefix length
+        let min_after_prefix = 1 + self.expr_ctx_stack.md_prefix_tokens().len();
+        let has_blank_line = after_prefix > min_after_prefix;
+
+        // No blank line, peek
+        if !has_blank_line {
+          let after = self.lex_ctx.peek_md_nth(after_prefix, SKIP_NONE);
+          if after.token.kind() == SyntaxKind::MdNumber {
+            let dot = self.lex_ctx.peek_md_nth(after_prefix + 1, SKIP_NONE);
+            if dot.token.kind() == SyntaxKind::MdSymbol
+              && dot.token.chars().collect::<String>() == "."
+            {
+              break;
+            }
           }
         }
+
+        // Nested
         self.consume_md_multinewline_and_prefix(&mut children);
         block_indent = self.consume_md_indent(&mut children);
         let next = self.lex_ctx.peek_md(SKIP_NONE);

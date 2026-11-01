@@ -233,8 +233,10 @@ fn format_bullet_item(out: &mut String, item: &MdBulletListItem, indent: &str) {
 
   // Child content indented by marker width: `- ` = 2 spaces
   let child_indent = format!("{indent}  ");
-  for block in blocks {
-    format_block(out, block.syntax(), &child_indent);
+  let remaining: Vec<_> = blocks.map(|block| block.syntax().clone()).collect();
+  if !remaining.is_empty() {
+    ensure_blank_line(out);
+    format_block_sequence(out, &remaining, &child_indent);
   }
 }
 
@@ -254,8 +256,10 @@ fn format_task_item(out: &mut String, item: &MdTaskListItem, indent: &str) {
 
   // Child content indented by marker width: `- ` = 2 spaces
   let child_indent = format!("{indent}  ");
-  for block in blocks {
-    format_block(out, block.syntax(), &child_indent);
+  let remaining: Vec<_> = blocks.map(|block| block.syntax().clone()).collect();
+  if !remaining.is_empty() {
+    ensure_blank_line(out);
+    format_block_sequence(out, &remaining, &child_indent);
   }
 }
 
@@ -293,8 +297,10 @@ fn format_ordered_item(out: &mut String, item: &MdOrderedListItem, indent: &str,
 
   // Child content indented by marker width (e.g. `1. ` = 3, `10. ` = 4)
   let child_indent = format!("{indent}{}", " ".repeat(marker.len()));
-  for block in blocks {
-    format_block(out, block.syntax(), &child_indent);
+  let remaining: Vec<_> = blocks.map(|block| block.syntax().clone()).collect();
+  if !remaining.is_empty() {
+    ensure_blank_line(out);
+    format_block_sequence(out, &remaining, &child_indent);
   }
 }
 
@@ -769,6 +775,7 @@ Some text.
     assert_eq!(
       result,
       r#"- parent
+
   1. first
   2. second
 "#
@@ -789,7 +796,9 @@ Some text.
     assert_eq!(
       result,
       r#"- level one
+
   1. level two
+
      - level three
 "#
     );
@@ -948,6 +957,7 @@ if (x) {
     assert_eq!(
       result,
       r#"1. Example
+
    ```js
    if (x) {
      doSomething();
@@ -990,6 +1000,7 @@ if (x) {
     assert_eq!(
       result,
       r#"- item
+
   ::: note
   content here
   :::
@@ -1012,6 +1023,7 @@ if (x) {
     assert_eq!(
       result,
       r#"1. item
+
    ::: note
    content here
    :::
@@ -1037,6 +1049,7 @@ if (x) {
     assert_eq!(
       result,
       r#"- Example
+
   ```js
   if (x) {
     doSomething();
