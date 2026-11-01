@@ -6,7 +6,7 @@
 use std::fmt::Write;
 use std::path::Path;
 
-use crate::db::utils::is_external_url;
+use crate::db::utils::{is_external_url, percent_encode};
 
 const IMAGE_EXTENSIONS: &[&str] = &[
   "png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "ico", "bmp", "tiff",
@@ -99,7 +99,7 @@ fn extract_path(url: &str) -> &str {
     .unwrap_or(url);
   let after_host = after_scheme
     .find('/')
-    .map_or("", |idx| &after_scheme[idx..]);
+    .map_or("", |index| &after_scheme[index..]);
   after_host.split(['?', '#']).next().unwrap_or(after_host)
 }
 
@@ -117,11 +117,11 @@ fn has_image_extension(url: &str) -> bool {
   let path = extract_path(url);
   Path::new(path)
     .extension()
-    .and_then(|ext| ext.to_str())
-    .is_some_and(|ext| {
+    .and_then(|extension| extension.to_str())
+    .is_some_and(|extension| {
       IMAGE_EXTENSIONS
         .iter()
-        .any(|img_ext| ext.eq_ignore_ascii_case(img_ext))
+        .any(|image_extension| extension.eq_ignore_ascii_case(image_extension))
     })
 }
 
@@ -278,21 +278,6 @@ fn extract_youtube_id(url: &str) -> Option<&str> {
     .split('&')
     .find_map(|param| param.strip_prefix("v="))
     .map(|id| id.split('&').next().unwrap_or(id))
-}
-
-fn percent_encode(input: &str) -> String {
-  let mut out = String::with_capacity(input.len() * 3);
-  for byte in input.bytes() {
-    match byte {
-      b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-        out.push(byte as char);
-      }
-      _ => {
-        let _ = write!(out, "%{byte:02X}");
-      }
-    }
-  }
-  out
 }
 
 #[cfg(test)]

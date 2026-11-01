@@ -3,6 +3,7 @@
 pub mod static_type;
 
 use std::path::{Component, Path, PathBuf};
+use std::fmt::Write;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::parse_file::parse_file;
@@ -60,6 +61,21 @@ pub fn kebab_to_camel(name: &str) -> String {
 // e.g. "layout_top" -> "layout-top"
 pub fn snake_to_kebab(name: &str) -> String {
   name.replace('_', "-")
+}
+
+pub fn percent_encode(input: &str) -> String {
+  let mut out = String::with_capacity(input.len() * 3);
+  for byte in input.bytes() {
+    match byte {
+      b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+        out.push(byte as char);
+      }
+      _ => {
+        let _ = write!(out, "%{byte:02X}");
+      }
+    }
+  }
+  out
 }
 
 pub fn is_external_url(url: &str) -> bool {
