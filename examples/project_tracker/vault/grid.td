@@ -39,28 +39,6 @@ Two equal columns:
   :::
 :::
 
-## Auto Columns
-
-Columns sized by content, wrapping when the container is too narrow:
-
-:::grid{columns="auto"}
-  :::grid-cell
-  Short
-  :::
-  :::grid-cell
-  A bit longer cell
-  :::
-  :::grid-cell
-  Another cell
-  :::
-  :::grid-cell
-  Short again
-  :::
-  :::grid-cell
-  One more
-  :::
-:::
-
 ## Column Span
 
 A cell spanning two columns in a three-column grid:

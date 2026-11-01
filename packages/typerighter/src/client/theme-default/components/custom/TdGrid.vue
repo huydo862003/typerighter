@@ -9,18 +9,15 @@ import {
 const {
   columns, gap = 1,
 } = defineProps<{
-  /** Number of equal columns, or 'auto' to fill based on intrinsic content width */
-  columns: number | 'auto';
+  /** Number of equal columns */
+  columns: number;
   /** Gap between cells in rem (default 1) */
   gap?: number;
 }>();
 
 provide(tdGridContextKey, true);
 
-const gridTemplateColumns = computed(() =>
-  columns === 'auto'
-    ? 'repeat(auto-fill, minmax(auto, 1fr))'
-    : `repeat(${columns}, 1fr)`);
+const gridTemplateColumns = computed(() => `repeat(${columns}, 1fr)`);
 </script>
 
 <template>

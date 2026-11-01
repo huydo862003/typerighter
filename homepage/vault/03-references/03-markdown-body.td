@@ -383,7 +383,7 @@ Third column
 
 | Prop | Type | Description |
 | ---- | ---- | ----------- |
-| `columns` | number or `"auto"` | Number of equal columns, or `"auto"` for content-sized columns |
+| `columns` | number | Number of equal columns |
 
 `grid-cell` accepts `col-span` and `row-span` props to span multiple columns or rows:
 
