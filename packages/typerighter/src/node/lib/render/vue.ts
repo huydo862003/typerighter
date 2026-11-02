@@ -37,7 +37,7 @@ export async function buildPageData (
     schemaLabel: resource.schemaLabel,
     label: resource.label,
     icon: resource.icon,
-    frontmatter: resource.header ?? {},
+    frontmatter: resource.header?.fields ?? resource.header ?? {},
     headings: buildHeadingTree(resource.headings),
     title,
     titleHtml: renderInlineTitleHtml(title),
