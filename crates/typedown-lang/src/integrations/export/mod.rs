@@ -8,7 +8,7 @@ pub mod utils;
 
 pub use crate::integrations::bindings::{
   FrefTarget, ResolvedRef, evaluate_lazy_field, resolve_file_ref, resolve_fref_target,
-  resolve_schema_label, serialize_handle, serialize_value, serialize_value_with_project,
+  resolve_schema_label, serialize_handle, serialize_value,
 };
 pub use content::{export_resource_html, export_resource_markdown};
 pub use frontmatter::{export_resource_nav, export_resource_summary};

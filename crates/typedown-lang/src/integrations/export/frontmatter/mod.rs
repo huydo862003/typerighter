@@ -96,7 +96,7 @@ pub(crate) fn extract_resource(
     && obj.as_td_blob_obj().is_some()
   {
     return Some(ResourceKind::Blob(BlobFields {
-      header: serialize_value(db, obj),
+      header: serialize_value(db, project, obj),
       metadata,
     }));
   }
@@ -110,7 +110,7 @@ pub(crate) fn extract_resource(
       return None;
     };
 
-    let mut header = serialize_value(db, obj);
+    let mut header = serialize_value(db, project, obj);
     // Strip _-prefixed keys and nulls from fields
     if let serde_json::Value::Object(ref mut map) = header {
       if let Some(serde_json::Value::Object(fields)) = map.get_mut("fields") {

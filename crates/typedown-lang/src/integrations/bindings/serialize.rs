@@ -1,15 +1,4 @@
 //! Serialize Typedown objects to JSON (_type-tagged, round-trippable)
-//!
-//! Two entry points:
-//!   - `serialize_value(db, obj)` - pure, no project context
-//!   - `serialize_value_with_project(db, project, obj)` - resolves nested file-scoped
-//!     objects as `$ref` links (url/name)
-//!
-//! Encoding rules:
-//!   POD (plain JSON, no tag):  null, bool, finite number, string, array
-//!   _type-tagged:              nan/inf/-inf, math/date/datetime/time, icon, blob,
-//!                              dict, schema, product, type:*
-//!   $ref (project mode only):  nested file-scoped schema/product/blob objects
 
 use std::collections::HashSet;
 
@@ -25,7 +14,7 @@ use crate::db::types::{FileHandle, LazyTyp, Project, ProjectRedNode, TdObjEnum, 
 
 use super::file_ref::resolve_file_ref;
 
-/// Evaluate a lazy field (either a deferred AST node or an already-evaluated object).
+/// Evaluate a lazy field (either a deferred AST node or an already-evaluated object)
 pub fn evaluate_lazy_field<'db>(
   db: &'db TypedownDatabase,
   field: Either<ProjectRedNode, TdObjEnum<'db>>,
@@ -39,7 +28,7 @@ pub fn evaluate_lazy_field<'db>(
   }
 }
 
-/// Serialize a FileHandle to a JSON object.
+/// Serialize a FileHandle to a JSON object
 pub fn serialize_handle(handle: &FileHandle) -> serde_json::Value {
   let meta = handle.metadata();
   let metadata = serde_json::json!({
@@ -61,24 +50,17 @@ pub fn serialize_handle(handle: &FileHandle) -> serde_json::Value {
   }
 }
 
-/// Serialize a Typedown object to JSON with _type tags. No $ref resolution.
-pub fn serialize_value(db: &TypedownDatabase, obj: &TdObjEnum) -> serde_json::Value {
-  serialize(db, None, obj, &mut HashSet::new(), false)
-}
-
-/// Serialize a Typedown object to JSON with _type tags and $ref resolution
-/// for nested file-scoped objects.
-pub fn serialize_value_with_project(
+pub fn serialize_value(
   db: &TypedownDatabase,
   project: Project,
   obj: &TdObjEnum,
 ) -> serde_json::Value {
-  serialize(db, Some(project), obj, &mut HashSet::new(), false)
+  serialize(db, project, obj, &mut HashSet::new(), false)
 }
 
 fn serialize(
   db: &TypedownDatabase,
-  project: Option<Project>,
+  project: Project,
   obj: &TdObjEnum,
   visiting: &mut HashSet<typedown_incremental::DepId>,
   nested: bool,
@@ -148,15 +130,15 @@ fn serialize(
 
       // $ref for nested file-scoped objects when project is available
       if nested
-        && let Some(proj) = project
+        && true // project always present
         && let Some(symbol) = schema_obj.file_symbol(db)
-        && let Some(resolved) = resolve_file_ref(db, proj, &symbol)
+        && let Some(resolved) = resolve_file_ref(db, project, &symbol)
       {
         let icon = schema_obj
           .get_builtin_field(db, "_icon")
           .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
         let mut ref_obj = serde_json::json!({
-          "_type": "ref",
+          "$kind": "ref",
           "schema": schema_name,
           "$ref": { "url": resolved.url, "name": resolved.name }
         });
@@ -168,7 +150,7 @@ fn serialize(
 
       let id = schema_obj.as_id();
       if !visiting.insert(id) {
-        return serde_json::json!({"_type": "ref", "schema": schema_name});
+        return serde_json::json!({"$kind": "ref", "schema": schema_name});
       }
       let fields = serialize_object_fields(
         db,
@@ -189,15 +171,15 @@ fn serialize(
       let typ_name = product.product_typ(db).display_name(db);
 
       if nested
-        && let Some(proj) = project
+        && true // project always present
         && let Some(symbol) = product.file_symbol(db)
-        && let Some(resolved) = resolve_file_ref(db, proj, &symbol)
+        && let Some(resolved) = resolve_file_ref(db, project, &symbol)
       {
         let icon = product
           .get_builtin_field(db, "_icon")
           .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
         let mut ref_obj = serde_json::json!({
-          "_type": "ref",
+          "$kind": "ref",
           "type": typ_name,
           "$ref": { "url": resolved.url, "name": resolved.name }
         });
@@ -209,7 +191,7 @@ fn serialize(
 
       let id = product.as_id();
       if !visiting.insert(id) {
-        return serde_json::json!({"_type": "ref", "type": typ_name});
+        return serde_json::json!({"$kind": "ref", "type": typ_name});
       }
       let fields = serialize_object_fields(
         db,
@@ -230,12 +212,12 @@ fn serialize(
       let file = blob.file(db);
 
       if nested
-        && let Some(proj) = project
-        && let Some(symbol) = file_symbol(db, proj, file).value(db)
-        && let Some(resolved) = resolve_file_ref(db, proj, &symbol)
+        && true // project always present
+        && let Some(symbol) = file_symbol(db, project, file).value(db)
+        && let Some(resolved) = resolve_file_ref(db, project, &symbol)
       {
         return serde_json::json!({
-          "_type": "ref",
+          "$kind": "ref",
           "$ref": { "url": resolved.url, "name": resolved.name, "format": format }
         });
       }
@@ -244,16 +226,16 @@ fn serialize(
       serde_json::json!({"_type": "blob", "format": format, "handle": handle})
     }
 
-    TdObjEnum::TdTypObj(typ) => serialize_typ_enum(db, typ, visiting),
+    TdObjEnum::TdTypObj(typ) => serialize_typ_helper(db, typ, visiting),
 
     _ => serde_json::Value::Null,
   }
 }
 
-/// Serialize builtins and fields from a schema or product object into a JSON map.
+/// Serialize builtins and fields from a schema or product object into a JSON map
 fn serialize_object_fields<'db>(
   db: &'db TypedownDatabase,
-  project: Option<Project>,
+  project: Project,
   builtins: impl IntoIterator<Item = (String, Either<ProjectRedNode, TdObjEnum<'db>>)>,
   fields: impl IntoIterator<Item = (String, Either<ProjectRedNode, TdObjEnum<'db>>)>,
   visiting: &mut HashSet<typedown_incremental::DepId>,
@@ -267,35 +249,40 @@ fn serialize_object_fields<'db>(
   map
 }
 
-/// Serialize a type enum to a _type-tagged JSON value.
-fn serialize_typ_enum(
+/// Serialize a type to its canonical JSON representation.
+/// Uses `$kind: "type"` as the envelope with JSON Schema-compatible fields inside.
+pub fn serialize_typ(db: &TypedownDatabase, typ: &TdTypEnum) -> serde_json::Value {
+  serialize_typ_helper(db, typ, &mut HashSet::new())
+}
+
+fn serialize_typ_helper(
   db: &TypedownDatabase,
   typ: &TdTypEnum,
   visiting: &mut HashSet<typedown_incremental::DepId>,
 ) -> serde_json::Value {
   match typ {
-    TdTypEnum::TdNullTyp(_) => serde_json::json!({"_type": "type:null"}),
-    TdTypEnum::TdBoolTyp(_) => serde_json::json!({"_type": "type:bool"}),
-    TdTypEnum::TdNumberTyp(_) => serde_json::json!({"_type": "type:number"}),
-    TdTypEnum::TdStringTyp(_) => serde_json::json!({"_type": "type:string"}),
-    TdTypEnum::TdMathTyp(_) => serde_json::json!({"_type": "type:math"}),
-    TdTypEnum::TdDateTyp(_) => serde_json::json!({"_type": "type:date"}),
-    TdTypEnum::TdDateTimeTyp(_) => serde_json::json!({"_type": "type:datetime"}),
-    TdTypEnum::TdTimeTyp(_) => serde_json::json!({"_type": "type:time"}),
+    TdTypEnum::TdNullTyp(_) => serde_json::json!({"$kind": "type", "type": "null"}),
+    TdTypEnum::TdBoolTyp(_) => serde_json::json!({"$kind": "type", "type": "boolean"}),
+    TdTypEnum::TdNumberTyp(_) => serde_json::json!({"$kind": "type", "type": "number"}),
+    TdTypEnum::TdStringTyp(_) => serde_json::json!({"$kind": "type", "type": "string"}),
+    TdTypEnum::TdMathTyp(_) => serde_json::json!({"$kind": "type", "type": "math"}),
+    TdTypEnum::TdDateTyp(_) => serde_json::json!({"$kind": "type", "type": "date"}),
+    TdTypEnum::TdDateTimeTyp(_) => serde_json::json!({"$kind": "type", "type": "datetime"}),
+    TdTypEnum::TdTimeTyp(_) => serde_json::json!({"$kind": "type", "type": "time"}),
     TdTypEnum::TdListTyp(list) => {
       if let Some(element) = list.element(db) {
         let items = serialize_lazy_typ(db, &element, visiting);
-        serde_json::json!({"_type": "type:array", "items": items})
+        serde_json::json!({"$kind": "type", "type": "array", "items": items})
       } else {
-        serde_json::json!({"_type": "type:array"})
+        serde_json::json!({"$kind": "type", "type": "array"})
       }
     }
     TdTypEnum::TdDictTyp(dict) => {
       if let Some(val) = dict.value(db) {
-        let values = serialize_lazy_typ(db, &val, visiting);
-        serde_json::json!({"_type": "type:dict", "values": values})
+        let additional = serialize_lazy_typ(db, &val, visiting);
+        serde_json::json!({"$kind": "type", "type": "object", "additionalProperties": additional})
       } else {
-        serde_json::json!({"_type": "type:dict"})
+        serde_json::json!({"$kind": "type", "type": "object", "additionalProperties": true})
       }
     }
     TdTypEnum::TdSumTyp(sum) => {
@@ -306,40 +293,31 @@ fn serialize_typ_enum(
           .map(|typ| typ.display_name(db))
           .cmp(&right_member.resolve(db).map(|typ| typ.display_name(db)))
       });
-      let members: Vec<_> = members_lazy
+      let any_of: Vec<_> = members_lazy
         .iter()
         .map(|member| serialize_lazy_typ(db, member, visiting))
         .collect();
-      serde_json::json!({"_type": "type:union", "members": members})
+      serde_json::json!({"$kind": "type", "anyOf": any_of})
     }
     TdTypEnum::TdSchemaTyp(schema) => {
-      let id = schema.as_id();
-      if !visiting.insert(id) {
-        return serde_json::json!({"_type": "type:schema", "name": schema.name(db)});
-      }
-      let mut fields = serde_json::Map::new();
-      for (name, prop) in schema.fields(db) {
-        fields.insert(name, serialize_lazy_typ(db, &prop.field_typ, visiting));
-      }
-      visiting.remove(&id);
-      serde_json::json!({
-        "_type": "type:schema",
-        "name": schema.name(db),
-        "fields": serde_json::Value::Object(fields),
-      })
+      // Serialize as a schema reference by name, properties are looked up from the live schema on deserialization rather than embedded inline
+      serde_json::json!({"$kind": "type", "type": "schema", "name": schema.name(db)})
     }
     TdTypEnum::TdProductTyp(product) => {
-      let mut fields = serde_json::Map::new();
+      let mut properties = serde_json::Map::new();
       for (name, lazy) in product.fields(db) {
-        fields.insert(name, serialize_lazy_typ(db, &lazy, visiting));
+        properties.insert(name, serialize_lazy_typ(db, &lazy, visiting));
       }
-      serde_json::json!({
-        "_type": "type:product",
-        "name": product.name(db),
-        "fields": serde_json::Value::Object(fields),
-      })
+      let mut obj = serde_json::Map::new();
+      obj.insert("$kind".into(), serde_json::json!("type"));
+      obj.insert("type".into(), serde_json::json!("object"));
+      if let Some(name) = product.name(db) {
+        obj.insert("name".into(), serde_json::Value::String(name));
+      }
+      obj.insert("properties".into(), serde_json::Value::Object(properties));
+      serde_json::Value::Object(obj)
     }
-    _ => serde_json::json!({"_type": format!("type:{}", typ.display_name(db))}),
+    _ => serde_json::json!({"$kind": "type", "type": typ.display_name(db)}),
   }
 }
 
@@ -349,8 +327,8 @@ fn serialize_lazy_typ(
   visiting: &mut HashSet<typedown_incremental::DepId>,
 ) -> serde_json::Value {
   match lazy.resolve(db) {
-    Some(typ) => serialize_typ_enum(db, &typ, visiting),
-    None => serde_json::json!({"_type": "type:unknown"}),
+    Some(typ) => serialize_typ_helper(db, &typ, visiting),
+    None => serde_json::json!({"$kind": "type", "type": "unknown"}),
   }
 }
 
@@ -360,70 +338,63 @@ mod tests {
   use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
   use crate::db::fixtures::*;
   use crate::db::types::*;
-  use crate::db::{QueryStorage, TypedownDatabase};
   use std::path::PathBuf;
   use typedown_types::either::Either;
 
-  fn empty_db() -> TypedownDatabase {
-    TypedownDatabase {
-      storage: QueryStorage::default(),
-    }
-  }
-
   #[test]
   fn nan_serializes_as_kind() {
-    let db = empty_db();
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let obj = TdObjEnum::from(make_number_obj(&db, f64::NAN.to_bits()));
-    let value = serialize_value(&db, &obj);
+    let value = serialize_value(&db, project, &obj);
     assert_eq!(value["_type"], "nan");
   }
 
   #[test]
   fn infinity_serializes_as_kind() {
-    let db = empty_db();
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let obj = TdObjEnum::from(make_number_obj(&db, f64::INFINITY.to_bits()));
-    let value = serialize_value(&db, &obj);
+    let value = serialize_value(&db, project, &obj);
     assert_eq!(value["_type"], "inf");
   }
 
   #[test]
   fn neg_infinity_serializes_as_kind() {
-    let db = empty_db();
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let obj = TdObjEnum::from(make_number_obj(&db, f64::NEG_INFINITY.to_bits()));
-    let value = serialize_value(&db, &obj);
+    let value = serialize_value(&db, project, &obj);
     assert_eq!(value["_type"], "-inf");
   }
 
   #[test]
   fn serializes_math_as_kind() {
-    let db = empty_db();
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let obj = TdObjEnum::from(make_math_obj(&db, "$E = mc^2$".to_string()));
-    let value = serialize_value(&db, &obj);
+    let value = serialize_value(&db, project, &obj);
     assert_eq!(value["_type"], "math");
     assert_eq!(value["value"], "$E = mc^2$");
   }
 
   #[test]
   fn serializes_product_with_kind() {
-    let db = empty_db();
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let string_typ: TdTypEnum = TdStringTyp::get(&db).into();
     let number_typ: TdTypEnum = TdNumberTyp::get(&db).into();
     let inner = make_product_obj(&db, string_typ, None, vec![]);
     let fields = vec![("inner".to_string(), Either::Right(TdObjEnum::from(inner)))];
     let outer = make_product_obj(&db, number_typ, None, fields);
-    let value = serialize_value(&db, &TdObjEnum::from(outer));
+    let value = serialize_value(&db, project, &TdObjEnum::from(outer));
     assert_eq!(value["_type"], "product");
     assert!(value["fields"].is_object());
   }
 
   #[test]
   fn blob_serializes_with_kind() {
-    let db = empty_db();
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let path = PathBuf::from("/vault/_assets/photo.png");
     let file = File::new(&db, FileHandle::Path(path.clone(), FileMetadata::default()));
     let blob = make_blob_obj(&db, AssetKind::Png, file);
     let obj = TdObjEnum::from(blob);
-    let value = serialize_value(&db, &obj);
+    let value = serialize_value(&db, project, &obj);
     assert_eq!(value["_type"], "blob");
     assert_eq!(value["format"], "png");
     assert_eq!(value["handle"]["path"], "/vault/_assets/photo.png");
@@ -434,27 +405,14 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
-    let value = serialize_value_with_project(&db, project, &obj);
+    let value = serialize_value(&db, project, &obj);
     assert_eq!(
-      value["fields"]["friend"]["_type"], "ref",
+      value["fields"]["friend"]["$kind"], "ref",
       "friend should be $ref: {value}"
     );
     assert!(
       value["fields"]["friend"]["$ref"]["url"].is_string(),
       "ref should have url: {value}",
-    );
-  }
-
-  #[test]
-  fn fref_field_serializes_inline_without_project() {
-    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
-    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
-    let obj = result.value(&db).expect("should evaluate resource");
-    let value = serialize_value(&db, &obj);
-    // Without project, nested objects are fully expanded
-    assert_eq!(
-      value["fields"]["friend"]["_type"], "schema",
-      "friend should be inline schema without project: {value}"
     );
   }
 }

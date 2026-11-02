@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{
-  get_bool_typ, get_dict_typ, get_list_typ, get_lit_typ, get_null_typ, get_number_typ,
-  get_string_typ, get_sum_typ,
+  get_bool_typ, get_date_typ, get_datetime_typ, get_dict_typ, get_list_typ, get_lit_typ,
+  get_math_typ, get_null_typ, get_number_typ, get_string_typ, get_sum_typ, get_time_typ,
 };
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::{LazyTyp, LitValue, TdProductTyp, TdTypEnum};
@@ -188,6 +188,10 @@ fn parse_typ_string<'db>(
     "string" => Some(get_string_typ(db).into()),
     "number" => Some(get_number_typ(db).into()),
     "boolean" => Some(get_bool_typ(db).into()),
+    "math" => Some(get_math_typ(db).into()),
+    "date" => Some(get_date_typ(db).into()),
+    "datetime" => Some(get_datetime_typ(db).into()),
+    "time" => Some(get_time_typ(db).into()),
     "array" => {
       // Parse element schema, instantiate list[T]
       let element = parse_json_schema(db, schema.get("items")?)?;
