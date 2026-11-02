@@ -33,8 +33,11 @@ pub fn run_rpc_queries(db: &TypedownDatabase) {
       let _ = evaluate_resource(db, symbol);
       if let Some(exported) = export_resource_html(db, project, *file) {
         assert!(
-          !exported.header.is_null(),
-          "export header should not be null for {}",
+          !matches!(
+            exported.frontmatter,
+            typedown_lang::integrations::bindings::types::TdValue::Null
+          ),
+          "export frontmatter should not be null for {}",
           path.display()
         );
         export_count += 1;

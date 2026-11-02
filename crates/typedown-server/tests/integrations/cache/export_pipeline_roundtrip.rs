@@ -32,8 +32,11 @@ fn export_pipeline_roundtrip() {
       }
       if let Some(exported) = export_resource_html(&db, project, *file) {
         assert!(
-          !exported.header.is_null(),
-          "header should not be null for {}",
+          !matches!(
+            exported.frontmatter,
+            typedown_lang::integrations::bindings::types::TdValue::Null
+          ),
+          "frontmatter should not be null for {}",
           path.display()
         );
       }

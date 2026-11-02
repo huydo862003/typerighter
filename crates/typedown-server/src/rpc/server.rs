@@ -632,33 +632,39 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
 
     let schema_label = get_schema_label(db, project, exported.schema.as_deref());
 
+    let headings: Vec<TdHeading> = exported
+      .headings
+      .into_iter()
+      .map(|heading| TdHeading {
+        level: heading.level,
+        title: heading.title,
+        title_html: heading.title_html,
+        slug: heading.slug,
+      })
+      .collect();
     results.push(TdBuiltResource {
-      schema: exported.schema,
-      schema_label,
-      label: exported.label,
-      icon: exported.icon.map(|icon| TdIcon { name: icon.name }),
-      header: exported.header,
-      content: exported.content,
-      headings: exported
-        .headings
-        .into_iter()
-        .map(|heading| TdHeading {
-          level: heading.level,
-          title: heading.title,
-          title_html: heading.title_html,
-          slug: heading.slug,
-        })
-        .collect(),
-      title: exported.title,
-      file_metadata: TdFileMetadata {
-        mtime: exported.metadata.mtime,
-        ctime: exported.metadata.ctime,
+      meta: TdMeta {
+        schema: exported.schema,
+        schema_label,
+        label: exported.meta.label,
+        title: exported.title,
+        icon: exported.meta.icon.map(|icon| TdIcon { name: icon.name }),
+        excerpt: exported.meta.excerpt,
+        seo: exported.meta.seo.map(|seo| TdSeoMeta {
+          title: seo.title,
+          description: seo.description,
+          image: seo.image,
+        }),
+        headings: if headings.is_empty() {
+          None
+        } else {
+          Some(headings)
+        },
+        mtime: exported.meta.mtime,
+        ctime: exported.meta.ctime,
       },
-      seo_metadata: exported.seo_metadata.map(|metadata| TdSeoMeta {
-        title: metadata.title,
-        description: metadata.description,
-        image: metadata.image,
-      }),
+      frontmatter: exported.frontmatter,
+      content: exported.content,
     });
   }
 
@@ -712,16 +718,19 @@ fn list_files_grouped_by_schema(
       let schema_label = get_schema_label(db, project, summary.schema.as_deref());
       groups.entry(group_key).or_default().push(TdContentSummary {
         filepath: relative,
-        schema: summary.schema,
-        schema_label,
-        label: summary.label,
-        icon: summary.icon.map(|icon| TdIcon { name: icon.name }),
-        header: summary.header,
-        excerpt: summary.excerpt,
-        file_metadata: TdFileMetadata {
-          mtime: summary.metadata.mtime,
-          ctime: summary.metadata.ctime,
+        meta: TdMeta {
+          schema: summary.schema,
+          schema_label,
+          label: summary.meta.label,
+          title: None,
+          icon: summary.meta.icon.map(|icon| TdIcon { name: icon.name }),
+          excerpt: summary.meta.excerpt,
+          seo: None,
+          headings: None,
+          mtime: summary.meta.mtime,
+          ctime: summary.meta.ctime,
         },
+        frontmatter: summary.frontmatter,
       });
     }
   }
@@ -747,14 +756,17 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
       let schema_label = get_schema_label(db, project, nav.schema.as_deref());
       items.push(TdSidebarItem {
         filepath: relative,
-        schema: nav.schema,
-        schema_label,
-        label: nav.label,
-        icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
-        excerpt: nav.excerpt,
-        file_metadata: TdFileMetadata {
-          mtime: nav.metadata.mtime,
-          ctime: nav.metadata.ctime,
+        meta: TdMeta {
+          schema: nav.schema,
+          schema_label,
+          label: nav.meta.label,
+          title: None,
+          icon: nav.meta.icon.map(|icon| TdIcon { name: icon.name }),
+          excerpt: nav.meta.excerpt,
+          seo: None,
+          headings: None,
+          mtime: nav.meta.mtime,
+          ctime: nav.meta.ctime,
         },
       });
     }

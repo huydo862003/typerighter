@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use typedown_lang::integrations::bindings::types::TdValue;
 
 /// Server-defined JSON-RPC error code for query cancellation
 /// NOTE: -32000 to -32099 are server-reserved in JSON-RPC
@@ -119,79 +120,54 @@ pub struct TdNavItem {
   pub icon: Option<String>,
 }
 
+/// Resource metadata
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdMeta {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub schema_label: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub icon: Option<TdIcon>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub excerpt: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub seo: Option<TdSeoMeta>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub headings: Option<Vec<TdHeading>>,
+  pub mtime: u64,
+  pub ctime: u64,
+}
+
 /// Lightweight summary of a content file (no body content)
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TdContentSummary {
-  /// File path relative to the vault root
   pub filepath: String,
-  /// Schema type name
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema: Option<String>,
-  /// Human-readable schema label
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema_label: Option<String>,
-  /// Display label
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub label: Option<String>,
-  /// Page icon
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub icon: Option<TdIcon>,
-  /// Frontmatter header as JSON
-  pub header: serde_json::Value,
-  /// First paragraph of the body content
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub excerpt: Option<String>,
-  /// File metadata
-  pub file_metadata: TdFileMetadata,
+  pub meta: TdMeta,
+  pub frontmatter: TdValue,
 }
 
-/// Lightweight sidebar item (no header/content/excerpt)
+/// Lightweight sidebar item (no frontmatter or body)
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TdSidebarItem {
   pub filepath: String,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema_label: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub label: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub icon: Option<TdIcon>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub excerpt: Option<String>,
-  pub file_metadata: TdFileMetadata,
+  pub meta: TdMeta,
 }
 
-/// Structured build result: header (frontmatter), HTML content, and extracted headings
+/// Structured build result: frontmatter and HTML content
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TdBuiltResource {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema: Option<String>,
-  /// Human-readable schema label
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub schema_label: Option<String>,
-  /// Display label
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub label: Option<String>,
-  /// Page icon
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub icon: Option<TdIcon>,
-  pub header: serde_json::Value,
-  /// HTML body with placeholders for code/math post-processing
+  pub meta: TdMeta,
+  pub frontmatter: TdValue,
   pub content: String,
-  /// Headings extracted during HTML emission
-  pub headings: Vec<TdHeading>,
-  /// Page title extracted from the first h1
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub title: Option<String>,
-  /// File metadata
-  pub file_metadata: TdFileMetadata,
-  /// SEO metadata from _meta builtin
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub seo_metadata: Option<TdSeoMeta>,
 }
 
 /// SEO fields from the _meta builtin field

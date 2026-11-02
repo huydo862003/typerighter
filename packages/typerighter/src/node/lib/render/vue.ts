@@ -28,22 +28,23 @@ export async function buildPageData (
   resource: TdBuiltResource,
   filepath: string,
 ): Promise<PageData> {
-  const title = resource.title || resource.label || (isIndexFile(filepath)
+  const meta = resource.meta;
+  const title = meta.title || meta.label || (isIndexFile(filepath)
     ? getTdIndexTitle(filepath, (await context.getConfig()).siteTitle)
     : getTdResourceTitle(filepath));
 
   return {
-    schema: resource.schema,
-    schemaLabel: resource.schemaLabel,
-    label: resource.label,
-    icon: resource.icon,
-    frontmatter: resource.header?.fields ?? resource.header ?? {},
-    headings: buildHeadingTree(resource.headings),
+    schema: meta.schema,
+    schemaLabel: meta.schemaLabel,
+    label: meta.label,
+    icon: meta.icon,
+    frontmatter: resource.frontmatter ?? {},
+    headings: buildHeadingTree(meta.headings ?? []),
     title,
     titleHtml: renderInlineTitleHtml(title),
     filepath,
-    fileMetadata: resource.fileMetadata,
-    seoMetadata: resource.seoMetadata,
+    fileMetadata: { mtime: meta.mtime, ctime: meta.ctime },
+    seoMetadata: meta.seo,
   };
 }
 

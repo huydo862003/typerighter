@@ -4,7 +4,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::types::{File, LazyTyp, LitValue, Project, TdTypEnum};
-use crate::integrations::bindings::serialize::serialize_value_with_project;
+use crate::integrations::bindings::serialize::serialize_value;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,8 +40,10 @@ pub fn export_prop_descriptors(
     if let Some(ref definition_obj) = prop_descriptor.default_value
       && let serde_json::Value::Object(ref mut map) = prop_json
     {
-      let definition_json = serialize_value_with_project(db, project, definition_obj);
-      map.insert("default".to_string(), definition_json);
+      let definition = serialize_value(db, project, definition_obj);
+      if let Ok(json) = serde_json::to_value(&definition) {
+        map.insert("default".to_string(), json);
+      }
     }
     props.insert(name, prop_json);
   }

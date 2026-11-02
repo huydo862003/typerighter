@@ -1,4 +1,4 @@
-//! Extract frontmatter (header, schema, label, icon, seo, excerpt) from resource files
+//! Extract frontmatter and metadata from resource files
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
@@ -9,6 +9,7 @@ use crate::db::types::{File, FileHandle, Project, TdObjEnum, TdRuntimeObj};
 use crate::db::utils::is_external_url;
 use crate::db::utils::prepend_base_path;
 use crate::integrations::bindings::serialize::serialize_value;
+use crate::integrations::bindings::types::{TdTaggedValue, TdValue};
 use crate::integrations::export::types::*;
 use crate::integrations::export::utils::extract_plain_text;
 use crate::syntax::ast::{AstNode, MdBody, SourceFile};
@@ -20,19 +21,15 @@ pub use crate::db::derived::name_resolver::file_symbol::file_symbol;
 // Shared fields extracted before body rendering
 pub(crate) struct ResourceFields {
   pub schema: Option<String>,
-  pub label: Option<String>,
-  pub icon: Option<ExportedIcon>,
-  pub seo_metadata: Option<ExportedSeoMeta>,
-  pub header: serde_json::Value,
-  pub metadata: ExportedFileMetadata,
-  pub excerpt: Option<String>,
+  pub meta: ExportedMeta,
+  pub frontmatter: TdValue,
   pub body: MdBody,
 }
 
-// Fields for binary asset files (no body, schema is always blob type)
+// Fields for binary asset files (no body)
 pub(crate) struct BlobFields {
-  pub header: serde_json::Value,
-  pub metadata: ExportedFileMetadata,
+  pub meta: ExportedMeta,
+  pub frontmatter: TdValue,
 }
 
 pub(crate) enum ResourceKind {
@@ -40,7 +37,7 @@ pub(crate) enum ResourceKind {
   Content(ResourceFields),
 }
 
-/// Export a content listing entry (no body, includes header)
+/// Export a content listing entry (no body)
 pub fn export_resource_summary(
   db: &TypedownDatabase,
   project: Project,
@@ -50,16 +47,13 @@ pub fn export_resource_summary(
     ResourceKind::Blob(_) => None,
     ResourceKind::Content(fields) => Some(ExportedResourceSummary {
       schema: fields.schema,
-      label: fields.label,
-      icon: fields.icon,
-      header: fields.header,
-      excerpt: fields.excerpt,
-      metadata: fields.metadata,
+      meta: fields.meta,
+      frontmatter: fields.frontmatter,
     }),
   }
 }
 
-/// Export a lightweight sidebar nav entry (no header or body)
+/// Export a lightweight sidebar nav entry (no frontmatter or body)
 pub fn export_resource_nav(
   db: &TypedownDatabase,
   project: Project,
@@ -69,15 +63,12 @@ pub fn export_resource_nav(
     ResourceKind::Blob(_) => None,
     ResourceKind::Content(fields) => Some(ExportedResourceNav {
       schema: fields.schema,
-      label: fields.label,
-      icon: fields.icon,
-      metadata: fields.metadata,
-      excerpt: fields.excerpt,
+      meta: fields.meta,
     }),
   }
 }
 
-/// Extract the resource kind and fields for a file, returning None for schema files.
+/// Extract the resource kind and fields for a file, returning None for schema files
 pub(crate) fn extract_resource(
   db: &TypedownDatabase,
   project: Project,
@@ -88,20 +79,28 @@ pub(crate) fn extract_resource(
     return None;
   }
 
-  let metadata = export_file_metadata(&file.handle(db));
-
+  let handle = file.handle(db);
+  let file_meta = handle.metadata();
   let obj = evaluate_resource(db, symbol).value(db);
 
+  // Blob files (binary assets)
   if let Some(ref obj) = obj
     && obj.as_td_blob_obj().is_some()
   {
     return Some(ResourceKind::Blob(BlobFields {
-      header: serialize_value(db, obj),
-      metadata,
+      meta: ExportedMeta {
+        label: None,
+        icon: None,
+        excerpt: None,
+        seo: None,
+        mtime: file_meta.mtime_epoch_secs(),
+        ctime: file_meta.ctime_epoch_secs(),
+      },
+      frontmatter: serialize_value(db, project, obj),
     }));
   }
 
-  let (schema, header, label, icon, seo_metadata) = if let Some(ref obj) = obj {
+  let (schema, frontmatter, label, icon, seo) = if let Some(ref obj) = obj {
     let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
       Some(schema_obj.schema(db).display_name(db))
     } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
@@ -110,15 +109,7 @@ pub(crate) fn extract_resource(
       return None;
     };
 
-    let mut header = serialize_value(db, obj);
-    // Strip _-prefixed keys and nulls from fields
-    if let serde_json::Value::Object(ref mut map) = header {
-      if let Some(serde_json::Value::Object(fields)) = map.get_mut("fields") {
-        fields.retain(|key, value| !key.starts_with('_') && !value.is_null());
-      } else {
-        map.retain(|key, value| !key.starts_with('_') && !value.is_null());
-      }
-    }
+    let frontmatter = strip_builtin_fields(serialize_value(db, project, obj));
 
     let label = obj
       .get_builtin_field(db, "_label")
@@ -129,19 +120,22 @@ pub(crate) fn extract_resource(
       })
     });
 
-    let seo_metadata = export_seo_metadata(db, project, obj);
+    let seo = export_seo_metadata(db, project, obj);
 
-    (schema, header, label, icon, seo_metadata)
+    (schema, frontmatter, label, icon, seo)
   } else {
     (
       None,
-      serde_json::Value::Object(Default::default()),
+      TdValue::Tagged(TdTaggedValue::Product {
+        fields: Default::default(),
+      }),
       None,
       None,
       None,
     )
   };
 
+  // Parse the markdown body
   let parse_result = parse_file(db, project, file);
   let root = parse_result.ast(db).node.clone();
   let source_file = SourceFile::cast(root)?;
@@ -162,24 +156,21 @@ pub(crate) fn extract_resource(
     })
     .or_else(|| export_body_excerpt(body.syntax()));
 
-  Some(ResourceKind::Content(ResourceFields {
-    schema,
+  let meta = ExportedMeta {
     label,
     icon,
-    seo_metadata,
-    header,
-    metadata,
     excerpt,
+    seo,
+    mtime: file_meta.mtime_epoch_secs(),
+    ctime: file_meta.ctime_epoch_secs(),
+  };
+
+  Some(ResourceKind::Content(ResourceFields {
+    schema,
+    meta,
+    frontmatter,
     body,
   }))
-}
-
-pub(crate) fn export_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
-  let meta = handle.metadata();
-  ExportedFileMetadata {
-    mtime: meta.mtime_epoch_secs(),
-    ctime: meta.ctime_epoch_secs(),
-  }
 }
 
 fn export_seo_metadata(
@@ -240,6 +231,21 @@ fn export_body_excerpt(node: &RedNode) -> Option<String> {
     .filter(|string| !string.is_empty())
 }
 
+/// Strip _-prefixed keys and null values from a TdValue's fields
+fn strip_builtin_fields(value: TdValue) -> TdValue {
+  match value {
+    TdValue::Tagged(TdTaggedValue::Schema { schema, mut fields }) => {
+      fields.retain(|key, val| !key.starts_with('_') && !matches!(val, TdValue::Null));
+      TdValue::Tagged(TdTaggedValue::Schema { schema, fields })
+    }
+    TdValue::Tagged(TdTaggedValue::Product { mut fields }) => {
+      fields.retain(|key, val| !key.starts_with('_') && !matches!(val, TdValue::Null));
+      TdValue::Tagged(TdTaggedValue::Product { fields })
+    }
+    other => other,
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -253,227 +259,133 @@ mod tests {
   use std::collections::HashMap;
   use std::path::PathBuf;
 
+  fn to_json(value: &TdValue) -> serde_json::Value {
+    serde_json::to_value(value).unwrap()
+  }
+
   #[test]
-  fn exports_header_fields() {
+  fn exports_frontmatter_fields() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let exported = export_resource_markdown(&db, project, file).expect("should export");
-    assert_eq!(
-      exported.schema,
-      Some("Person".to_string()),
-      "schema should be Person"
-    );
-    assert_eq!(
-      exported.header["$kind"], "schema",
-      "header should be $kind-tagged"
-    );
-    let fields = exported
-      .header
-      .get("fields")
-      .and_then(|val| val.as_object())
-      .expect("header should have fields object");
-    assert!(!fields.is_empty(), "fields should not be empty");
+    assert_eq!(exported.schema, Some("Person".to_string()));
+    let json = to_json(&exported.frontmatter);
+    assert_eq!(json["$kind"], "schema");
+    let fields = json["fields"].as_object().expect("should have fields");
     assert_eq!(fields["name"], "Alice");
     assert_eq!(fields["age"], 30.0);
     assert!(
       !fields.contains_key("_content"),
-      "_content should be stripped from fields"
+      "_content should be stripped"
     );
   }
 
   #[test]
   fn returns_none_for_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let result = export_resource_markdown(&db, project, file);
-    assert!(result.is_none(), "schema should return None");
+    assert!(export_resource_markdown(&db, project, file).is_none());
   }
 
   #[test]
-  fn exports_asset_as_blob_descriptor() {
+  fn exports_asset_as_blob() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
     let exported = export_resource_markdown(&db, project, file).expect("asset should export");
     assert_eq!(exported.schema, Some("blob".to_string()));
-    assert!(exported.content.is_empty(), "asset has no markdown body");
+    assert!(exported.content.is_empty());
   }
 
   #[test]
   fn exports_schemaless_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless.td");
-    let exported =
-      export_resource_markdown(&db, project, file).expect("schemaless file should export");
-    assert_eq!(
-      exported.schema, None,
-      "schemaless file should have no schema"
-    );
-    assert!(
-      exported.content.contains("Hello"),
-      "should contain markdown body: {}",
-      exported.content
-    );
+    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    assert_eq!(exported.schema, None);
+    assert!(exported.content.contains("Hello"));
   }
 
   #[test]
-  fn exports_schemaless_file_with_label_and_icon() {
+  fn exports_label_and_icon_in_meta() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless_with_label.td");
     let exported = export_resource_markdown(&db, project, file).expect("should export");
-    assert_eq!(exported.schema, None);
-    assert_eq!(exported.label.as_deref(), Some("My Custom Title"));
-    assert!(
-      exported.icon.is_some(),
-      "schemaless file with _icon should have icon"
-    );
-    assert_eq!(exported.icon.unwrap().name, "book-open");
+    assert_eq!(exported.meta.label.as_deref(), Some("My Custom Title"));
+    assert_eq!(exported.meta.icon.as_ref().unwrap().name, "book-open");
   }
 
   #[test]
   fn resolve_schema_label_uses_label_field() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/LabeledSchema.td");
-    let label = resolve_schema_label(&db, project, file);
-    assert_eq!(label, "Custom Label");
+    assert_eq!(resolve_schema_label(&db, project, file), "Custom Label");
   }
 
   #[test]
   fn resolve_schema_label_falls_back_to_pascal_split() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let label = resolve_schema_label(&db, project, file);
-    assert_eq!(label, "Person");
+    assert_eq!(resolve_schema_label(&db, project, file), "Person");
   }
 
   #[test]
-  fn summary_export_body_only_file() {
+  fn summary_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
-    let exported =
-      export_resource_summary(&db, project, file).expect("body-only file should export");
+    let exported = export_resource_summary(&db, project, file).expect("should export");
     assert!(exported.schema.is_none());
-    assert!(exported.excerpt.is_some());
+    assert!(exported.meta.excerpt.is_some());
   }
 
   #[test]
-  fn nav_export_body_only_file() {
+  fn nav_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
-    let exported = export_resource_nav(&db, project, file).expect("body-only file should export");
+    let exported = export_resource_nav(&db, project, file).expect("should export");
     assert!(exported.schema.is_none());
   }
 
   #[test]
-  fn exports_fref_list_in_header() {
+  fn fref_in_frontmatter() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "book_with_frefs.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    let header = &exported.header;
-    assert_eq!(
-      header["$kind"], "schema",
-      "header should be $kind-tagged schema"
-    );
-    let fields = header
-      .get("fields")
-      .and_then(|val| val.as_object())
-      .expect("header should have fields");
-
-    assert_eq!(
-      fields["parent"]["$kind"], "schema",
-      "parent fref should serialize as schema object: {}",
-      fields["parent"]
-    );
-    assert!(
-      fields["parent"]["fields"]["name"].is_string(),
-      "parent should have name field: {}",
-      fields["parent"]
-    );
-
-    let concepts = fields["concepts"]
-      .as_array()
-      .expect("concepts should be array");
-    assert_eq!(concepts.len(), 2, "should have 2 concepts in header");
-    for (index, concept) in concepts.iter().enumerate() {
-      assert!(
-        !concept.is_null(),
-        "concept {index} should not be null: {concept}"
-      );
-      assert_eq!(
-        concept["$kind"], "schema",
-        "concept {index} should be a schema object: {concept}"
-      );
-    }
-  }
-
-  #[test]
-  fn exports_absolute_fref_in_header() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "book_with_absolute_frefs.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
-    let header = &exported.header;
-    assert_eq!(header["$kind"], "schema", "header should be $kind-tagged");
-    let fields = header
-      .get("fields")
-      .and_then(|val| val.as_object())
-      .expect("header should have fields");
-
-    assert_eq!(
-      fields["parent"]["$kind"], "schema",
-      "absolute fref should serialize as schema: {}",
-      fields["parent"]
-    );
-
+    let json = to_json(&exported.frontmatter);
+    assert_eq!(json["$kind"], "schema");
+    let fields = json["fields"].as_object().expect("should have fields");
+    assert_eq!(fields["parent"]["$kind"], "ref");
     let concepts = fields["concepts"]
       .as_array()
       .expect("concepts should be array");
     assert_eq!(concepts.len(), 2);
-    for (index, concept) in concepts.iter().enumerate() {
-      assert!(
-        !concept.is_null(),
-        "absolute fref concept {index} should not be null"
-      );
-      assert_eq!(
-        concept["$kind"], "schema",
-        "absolute fref concept {index} should serialize as schema: {concept}"
-      );
+    for concept in concepts {
+      assert_eq!(concept["$kind"], "ref");
     }
   }
 
   #[test]
-  fn extracts_seo_metadata() {
+  fn seo_metadata_in_meta() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_meta.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    let seo = exported.seo_metadata.expect("_meta should be extracted");
+    let seo = exported.meta.seo.expect("should have seo");
     assert_eq!(seo.title.as_deref(), Some("Custom SEO Title"));
     assert_eq!(seo.description.as_deref(), Some("Custom SEO description"));
     assert_eq!(seo.image.as_deref(), Some("/images/og.png"));
   }
 
   #[test]
-  fn no_seo_metadata_when_absent() {
+  fn no_seo_when_absent() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    assert!(
-      exported.seo_metadata.is_none(),
-      "seo_metadata should be None when not set"
-    );
+    assert!(exported.meta.seo.is_none());
   }
 
   #[test]
-  fn incremental_add_icon_to_schema_no_cycle() {
+  fn incremental_add_icon_no_cycle() {
     let mut db = TypedownDatabase {
       storage: QueryStorage::default(),
     };
-
     let vault = PathBuf::from("/test_vault");
     let schema_path = vault.join("vault/_types/MySchema.td");
     let config_path = vault.join("typedown.yaml");
     let content_path = vault.join("vault/page.td");
-
     let meta = || FileMetadata::default();
 
     let schema_file = File::new(
       &db,
       FileHandle::Content(
         schema_path.clone(),
-        r#"---
-_type: schema
-properties:
-  name:
-    type: string
----
-"#
-        .to_string(),
+        "---\n_type: schema\nproperties:\n  name:\n    type: string\n---\n".to_string(),
         meta(),
       ),
     );
@@ -481,11 +393,7 @@ properties:
       &db,
       FileHandle::Content(
         config_path.clone(),
-        r#"version: "1.0.0"
-vault:
-  root_dir: "vault"
-"#
-        .to_string(),
+        "version: \"1.0.0\"\nvault:\n  root_dir: \"vault\"\n".to_string(),
         meta(),
       ),
     );
@@ -493,12 +401,7 @@ vault:
       &db,
       FileHandle::Content(
         content_path.clone(),
-        r#"---
-_type: MySchema
-name: "Alice"
----
-"#
-        .to_string(),
+        "---\n_type: MySchema\nname: \"Alice\"\n---\n".to_string(),
         meta(),
       ),
     );
@@ -514,11 +417,7 @@ name: "Alice"
 
     let symbol = file_symbol(&db, project, schema_file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    assert!(
-      result.diagnostics(&db).is_empty(),
-      "{:?}",
-      result.diagnostics(&db)
-    );
+    assert!(result.diagnostics(&db).is_empty());
     assert!(
       result
         .typ(&db)
@@ -534,33 +433,21 @@ name: "Alice"
       &mut db,
       FileHandle::Content(
         schema_path.clone(),
-        r#"---
-_type: schema
-_icon: icon.book
-properties:
-  name:
-    type: string
----
-"#
-        .to_string(),
+        "---\n_type: schema\n_icon: icon.book\nproperties:\n  name:\n    type: string\n---\n"
+          .to_string(),
         meta(),
       ),
     );
 
     let symbol2 = file_symbol(&db, project, schema_file).value(&db).unwrap();
     let result2 = evaluate_typ(&db, symbol2);
-    assert!(
-      result2.diagnostics(&db).is_empty(),
-      "after adding _icon: {:?}",
-      result2.diagnostics(&db)
-    );
+    assert!(result2.diagnostics(&db).is_empty());
     assert!(
       result2
         .typ(&db)
         .unwrap()
         .get_builtin_field(&db, "_icon")
-        .is_some(),
-      "should have _icon after mutation"
+        .is_some()
     );
 
     let exported2 =

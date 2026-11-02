@@ -879,12 +879,8 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
-    let header = exported.header;
-    // Header uses bindings $kind format: fields are nested under "fields"
-    let fields = header
-      .get("fields")
-      .and_then(|val| val.as_object())
-      .expect("header should have fields object");
+    let json = serde_json::to_value(&exported.frontmatter).unwrap();
+    let fields = json["fields"].as_object().expect("should have fields");
     assert!(
       !fields.contains_key("_imports"),
       "_imports should be stripped from export"
