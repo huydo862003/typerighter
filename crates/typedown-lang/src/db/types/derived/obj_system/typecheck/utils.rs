@@ -34,14 +34,14 @@ pub fn validate_typ_params(
     for (index, (param, arg)) in params_vec.iter().zip(args.iter()).enumerate() {
       if let Some(bound) = param.upper_bound(db).resolve(db)
         && bound.as_td_obj_typ().is_none()
-        && let Some(arg_type) = arg.resolve(db)
-        && !is_subtyp_of(db, &arg_type, &bound)
+        && let Some(arg_typ) = arg.resolve(db)
+        && !is_subtyp_of(db, &arg_typ, &bound)
       {
         diagnostics.push(
           TdDiagnosticKind::TypArgBoundViolation {
             index,
             expected_bound: bound.display_name(db),
-            got: arg_type.display_name(db),
+            got: arg_typ.display_name(db),
           }
           .into_error(0, 0),
         );

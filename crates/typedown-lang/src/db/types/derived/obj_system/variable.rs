@@ -4,7 +4,7 @@ use typedown_macros::query_derived;
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
-use crate::db::types::{FuncSignature, LazyTyp, TypVariable};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp, TypVariable};
 
 /// A type variable reference within a type expression
 #[query_derived]
@@ -71,12 +71,14 @@ impl<'db> TdStaticTyp<'db> for TdVariableTyp<'db> {
     &self,
     db: &'db TypedownDatabase,
     arg_typs: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    self
-      .variable(db)
-      .upper_bound(db)
-      .resolve(db)?
-      .call_typ(db, arg_typs)
+  ) -> CallTypResult<'db> {
+    let Some(resolved) = self.variable(db).upper_bound(db).resolve(db) else {
+      return CallTypResult {
+        signature: None,
+        diagnostics: vec![],
+      };
+    };
+    resolved.call_typ(db, arg_typs)
   }
 }
 

@@ -421,7 +421,6 @@ fn get_call_typ<'db>(
     return TypResult::new(db, None, vec![]);
   };
   let callee_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
-
   // Check if callee is a macro
   let resolved = referee(db, callee_node.clone());
   if let Some(symbol) = resolved.value(db)
@@ -451,7 +450,7 @@ fn get_call_typ<'db>(
     })
     .collect();
 
-  if let Some(signature) = callee_typ.call_typ(db, arg_typs) {
+  if let Some(signature) = callee_typ.call_typ(db, arg_typs).signature {
     return TypResult::new(db, Some(signature.ret(db)), diagnostics);
   }
 

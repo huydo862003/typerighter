@@ -580,12 +580,12 @@ fn resolve_typ_lazy<'db>(
     if base_typ.arity(db) == 0 {
       return Some(LazyTyp::eager(base_typ));
     }
-    let mut arg_types = vec![];
+    let mut arg_typs = vec![];
     for index_expr_item in index_expr.indices() {
       let index_node = ProjectRedNode::new(project, file, index_expr_item.syntax().clone());
-      arg_types.push(resolve_typ_lazy(db, index_node, diagnostics)?);
+      arg_typs.push(resolve_typ_lazy(db, index_node, diagnostics)?);
     }
-    let instantiate_result = base_typ.instantiate(db, arg_types);
+    let instantiate_result = base_typ.instantiate(db, arg_typs);
     diagnostics.extend(instantiate_result.diagnostics(db).iter().cloned());
     return Some(LazyTyp::eager(instantiate_result.typ(db)));
   }

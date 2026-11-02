@@ -459,17 +459,19 @@ fn check_call(
     .filter_map(|arg| actual_node_typ(db, arg.clone()).typ(db))
     .collect();
 
-  let Some(signature) = callee_typ.call_typ(db, arg_typs) else {
-    let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
+  let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
+  let call_result = callee_typ.call_typ(db, arg_typs);
+  for kind in call_result.diagnostics {
+    diagnostics.push(kind.into_error(trimmed_offset, trimmed_offset + trimmed_len));
+  }
+  let Some(signature) = call_result.signature else {
     diagnostics
       .push(TdDiagnosticKind::NotCallable.into_error(trimmed_offset, trimmed_offset + trimmed_len));
     return diagnostics;
   };
-
   let params = signature.params(db);
 
   if params.len() != args.len() {
-    let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
     diagnostics.push(
       TdDiagnosticKind::WrongArgCount {
         expected: params.len(),

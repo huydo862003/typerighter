@@ -4,7 +4,7 @@ use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::get_never_typ;
-use crate::db::types::FuncSignature;
+use crate::db::types::{CallTypResult, FuncSignature};
 
 #[query_derived]
 pub struct TdNeverTyp<'db> {}
@@ -50,13 +50,16 @@ impl<'db> TdStaticTyp<'db> for TdNeverTyp<'db> {
     &self,
     db: &'db TypedownDatabase,
     arg_typs: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    Some(FuncSignature::new(
-      db,
-      None,
-      arg_typs,
-      get_never_typ(db).into(),
-    ))
+  ) -> CallTypResult<'db> {
+    CallTypResult {
+      signature: Some(FuncSignature::new(
+        db,
+        None,
+        arg_typs,
+        get_never_typ(db).into(),
+      )),
+      diagnostics: vec![],
+    }
   }
 }
 
@@ -96,7 +99,8 @@ mod tests {
     assert_eq!(index_signature.ret(&db), never_enum);
 
     // call type returns signature returning never
-    let call_signature = never_typ.call_typ(&db, vec![number_typ]).unwrap();
-    assert_eq!(call_signature.ret(&db), never_enum);
+    let call_result = never_typ.call_typ(&db, vec![number_typ]);
+    assert!(call_result.diagnostics.is_empty());
+    assert_eq!(call_result.signature.unwrap().ret(&db), never_enum);
   }
 }

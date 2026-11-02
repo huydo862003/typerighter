@@ -1180,7 +1180,9 @@ mod tests {
       Some(signature)
     );
     assert_eq!(
-      schema_enum.call_typ(&db, vec![get_string_typ(&db).into()]),
+      schema_enum
+        .call_typ(&db, vec![get_string_typ(&db).into()])
+        .signature,
       Some(signature)
     );
   }

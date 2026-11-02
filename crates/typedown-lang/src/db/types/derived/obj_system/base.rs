@@ -1,6 +1,7 @@
 //! Type system core traits
 //! - TdStaticType: static properties for the typechecker (display_name, arity, etc)
 //! - TdRuntimeObject: runtime object protocol for the evaluator (field access, method dispatch)
+#![allow(clippy::crate_in_macro_def)]
 
 use std::collections::BTreeMap;
 
@@ -11,7 +12,7 @@ use super::typecheck::validate_typ_params;
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{get_obj_typ, get_typ_typ};
-use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams};
+use crate::db::types::{CallTypResult, FuncSignature, InstantiateResult, LazyTyp, TypParams};
 use typedown_incremental::Id;
 use typedown_macros::query_derived;
 
@@ -124,11 +125,17 @@ pub trait TdStaticTyp<'x0> {
     &self,
     db: &'x0 TypedownDatabase,
     _arg_typs: Vec<TdTypEnum<'x0>>,
-  ) -> Option<FuncSignature<'x0>> {
+  ) -> ::typedown_lang::db::types::CallTypResult<'x0> {
     if let Some(TdTypEnum::TdFuncTyp(func)) = self.lookup_field_typ(db, PROTOCOL_CALL) {
-      return Some(func.signature(db));
+      return CallTypResult {
+        signature: Some(func.signature(db)),
+        diagnostics: vec![],
+      };
     }
-    None
+    CallTypResult {
+      signature: None,
+      diagnostics: vec![],
+    }
   }
 }
 
