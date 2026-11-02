@@ -96,7 +96,9 @@ fn deserialize_tagged<'db>(
       let fields_map = fields_value.as_object()?;
       let entries: BTreeMap<String, _> = fields_map
         .iter()
-        .map(|(key, value)| deserialize_value(db, value.clone()).map(|obj| (key.clone(), Either::Right(obj))))
+        .map(|(key, value)| {
+          deserialize_value(db, value.clone()).map(|obj| (key.clone(), Either::Right(obj)))
+        })
         .collect::<Option<Vec<_>>>()?
         .into_iter()
         .collect();

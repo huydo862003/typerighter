@@ -101,8 +101,11 @@ pub fn execute(
 
   // Build the fref text to insert
   let fref_text = if args.is_list {
-    format!(r#"
-  - fref("{}")"#, relative_path)
+    format!(
+      r#"
+  - fref("{}")"#,
+      relative_path
+    )
   } else {
     format!(r#"fref("{}")"#, relative_path)
   };
@@ -223,7 +226,8 @@ fn find_nearest_schema_directory(
 
 // Count how many path components two paths share from the root
 fn common_prefix_len(left_path: &Path, right_path: &Path) -> usize {
-  left_path.components()
+  left_path
+    .components()
     .zip(right_path.components())
     .take_while(|(left_component, right_component)| left_component == right_component)
     .count()
@@ -231,9 +235,11 @@ fn common_prefix_len(left_path: &Path, right_path: &Path) -> usize {
 
 // Build a frontmatter template with all fields from the schema
 fn build_template(db: &TypedownDatabase, project: Project, schema_name: &str) -> String {
-  let mut template = format!("---
+  let mut template = format!(
+    "---
 _type: {schema_name}
-");
+"
+  );
 
   let typ = members(db, Scope::new(db, ScopeKind::Project(project)))
     .members(db)

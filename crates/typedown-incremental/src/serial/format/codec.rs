@@ -592,7 +592,9 @@ impl<T: Encodable> Encodable for Vec<T> {
 impl<T: Decodable> Decodable for Vec<T> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let length = decoder.read_u32(data) as usize;
-    (0..length).map(|_| T::field_decode(data, decoder)).collect()
+    (0..length)
+      .map(|_| T::field_decode(data, decoder))
+      .collect()
   }
 }
 

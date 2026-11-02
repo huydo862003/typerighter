@@ -873,7 +873,12 @@ fn mapping_entries_from_yaml_mapping(
 ) -> Vec<(String, ProjectRedNode)> {
   mapping
     .entries()
-    .map(|(key, value)| (key, ProjectRedNode::new(project, file, value.syntax().clone())))
+    .map(|(key, value)| {
+      (
+        key,
+        ProjectRedNode::new(project, file, value.syntax().clone()),
+      )
+    })
     .collect()
 }
 

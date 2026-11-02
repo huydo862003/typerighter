@@ -847,7 +847,9 @@ fn validate_code_block_props(content: &str, offset: usize) -> Option<TdDiagnosti
     if chars[position].is_ascii_alphabetic() || chars[position] == '_' {
       let name_start = position;
       while position < chars.len()
-        && (chars[position].is_ascii_alphanumeric() || chars[position] == '-' || chars[position] == '_')
+        && (chars[position].is_ascii_alphanumeric()
+          || chars[position] == '-'
+          || chars[position] == '_')
       {
         position += 1;
       }
@@ -892,7 +894,8 @@ fn validate_code_block_props(content: &str, offset: usize) -> Option<TdDiagnosti
 
     // Unknown character
     return Some(
-      TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(offset + position, offset + position + 1),
+      TdDiagnosticKind::InvalidCodeRangeIndicator {}
+        .into_error(offset + position, offset + position + 1),
     );
   }
 

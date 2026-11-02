@@ -45,7 +45,9 @@ pub fn html_escape(text: &str) -> String {
 }
 
 pub fn strip_quotes(string: &str) -> &str {
-  if (string.starts_with('"') && string.ends_with('"')) || (string.starts_with('\'') && string.ends_with('\'')) {
+  if (string.starts_with('"') && string.ends_with('"'))
+    || (string.starts_with('\'') && string.ends_with('\''))
+  {
     &string[1..string.len() - 1]
   } else {
     string
