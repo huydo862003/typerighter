@@ -369,13 +369,8 @@ mod tests {
       .expect("header should have fields");
 
     assert_eq!(
-      fields["parent"]["_type"], "schema",
-      "parent fref should serialize as schema object: {}",
-      fields["parent"]
-    );
-    assert!(
-      fields["parent"]["fields"]["name"].is_string(),
-      "parent should have name field: {}",
+      fields["parent"]["$kind"], "ref",
+      "parent fref should serialize as ref: {}",
       fields["parent"]
     );
 
@@ -389,8 +384,8 @@ mod tests {
         "concept {index} should not be null: {concept}"
       );
       assert_eq!(
-        concept["_type"], "schema",
-        "concept {index} should be a schema object: {concept}"
+        concept["$kind"], "ref",
+        "concept {index} should be a ref: {concept}"
       );
     }
   }
@@ -408,8 +403,8 @@ mod tests {
       .expect("header should have fields");
 
     assert_eq!(
-      fields["parent"]["_type"], "schema",
-      "absolute fref should serialize as schema: {}",
+      fields["parent"]["$kind"], "ref",
+      "absolute fref should serialize as ref: {}",
       fields["parent"]
     );
 
@@ -423,8 +418,8 @@ mod tests {
         "absolute fref concept {index} should not be null"
       );
       assert_eq!(
-        concept["_type"], "schema",
-        "absolute fref concept {index} should serialize as schema: {concept}"
+        concept["$kind"], "ref",
+        "absolute fref concept {index} should serialize as ref: {concept}"
       );
     }
   }
