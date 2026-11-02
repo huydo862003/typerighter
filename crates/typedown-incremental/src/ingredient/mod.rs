@@ -25,8 +25,8 @@ impl Hasher for IdHasher {
   fn write(&mut self, _: &[u8]) {
     unreachable!()
   }
-  fn write_u32(&mut self, i: u32) {
-    self.0 = i as u64;
+  fn write_u32(&mut self, id: u32) {
+    self.0 = id as u64;
   }
   fn finish(&self) -> u64 {
     self.0

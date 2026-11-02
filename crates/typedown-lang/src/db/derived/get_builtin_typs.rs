@@ -263,7 +263,7 @@ pub fn get_sum_typ<'db>(db: &'db TypedownDatabase, members: Vec<LazyTyp<'db>>) -
 
   let flat_members = {
     let mut members = flatten_sum_members(db, &members);
-    members.sort_by(|a, b| a.stable_cmp(db, b));
+    members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
     members.dedup();
     members
   };

@@ -182,7 +182,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       self.text_buffer.is_empty(),
       "Do not call advance()/consume() before try_consume_invalid_utf8()"
     );
-    if let Utf8Result::Invalid { len, bytes } = self.peek() {
+    if let Utf8Result::Invalid { length: len, bytes } = self.peek() {
       Some(LexResult {
         token: self
           .cache

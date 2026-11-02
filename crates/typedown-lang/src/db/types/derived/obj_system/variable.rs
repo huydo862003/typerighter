@@ -17,8 +17,8 @@ pub struct TdVariableTyp<'db> {
 
 impl<'db> TdStaticTyp<'db> for TdVariableTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
-    let var = Self::variable(*self, db);
-    if let Some(bound) = var.upper_bound(db).resolve(db) {
+    let variable = Self::variable(*self, db);
+    if let Some(bound) = variable.upper_bound(db).resolve(db) {
       if bound.as_td_obj_typ().is_some() {
         format!("T{}", Self::index(*self, db))
       } else {

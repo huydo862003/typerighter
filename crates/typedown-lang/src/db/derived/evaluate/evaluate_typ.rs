@@ -1367,7 +1367,7 @@ age: 42
     let friend_node = entries
       .into_iter()
       .find(|(key, _)| key == "friend")
-      .map(|(_, v)| v)
+      .map(|(_, value)| value)
       .expect("should have friend field");
     let typ_result = actual_node_typ(&db, friend_node);
     let typ = typ_result.typ(&db).expect("fref should return a type");

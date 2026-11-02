@@ -349,8 +349,8 @@ mod tests {
 
   fn get_bool_field(db: &TypedownDatabase, obj: &TdObjEnum, field: &str) -> bool {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
-    let b = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
-    b.value(db)
+    let bool = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
+    bool.value(db)
   }
 
   // 1 + 2 evaluates to 3

@@ -251,7 +251,7 @@ fn parse_all_project_tracker_files() {
   let project = Project::new(&db, project_dir, file_map.clone(), None);
 
   let mut sorted_files: Vec<_> = file_map.iter().collect();
-  sorted_files.sort_by_key(|(p, _)| *p);
+  sorted_files.sort_by_key(|(path, _)| *path);
   for (path, file) in sorted_files {
     if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;

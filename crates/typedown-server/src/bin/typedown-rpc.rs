@@ -31,7 +31,7 @@ pub fn main() -> anyhow::Result<()> {
     return Ok(());
   }
 
-  // CLI flags take precedence over env vars
+  // CLI flags take precedence over env variables
   let root: PathBuf = args
     .opt_value_from_str("--root")?
     .or_else(|| std::env::var("TYPEDOWN_RPC_ROOT").ok().map(PathBuf::from))

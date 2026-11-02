@@ -55,37 +55,37 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
           match &variant.fields {
             Fields::Named(fields) => {
               let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
-              let self_vars: Vec<_> = (0..field_names.len())
+              let self_variables: Vec<_> = (0..field_names.len())
                 .map(|ident| {
                   syn::Ident::new(&format!("__self_{ident}"), proc_macro2::Span::call_site())
                 })
                 .collect();
-              let other_vars: Vec<_> = (0..field_names.len())
+              let other_variables: Vec<_> = (0..field_names.len())
                 .map(|ident| {
                   syn::Ident::new(&format!("__other_{ident}"), proc_macro2::Span::call_site())
                 })
                 .collect();
               let self_bindings: Vec<_> = field_names
                 .iter()
-                .zip(self_vars.iter())
+                .zip(self_variables.iter())
                 .map(|(name, var)| quote! { #name: #var })
                 .collect();
               let other_bindings: Vec<_> = field_names
                 .iter()
-                .zip(other_vars.iter())
+                .zip(other_variables.iter())
                 .map(|(name, var)| quote! { #name: #var })
                 .collect();
               quote! {
                 (#name::#vname { #(#self_bindings),* }, #name::#vname { #(#other_bindings),* }) => {
                   ::std::cmp::Ordering::Equal
                   #(
-                    .then_with(|| #self_vars.stable_cmp(db, #other_vars))
+                    .then_with(|| #self_variables.stable_cmp(db, #other_variables))
                   )*
                 }
               }
             }
             Fields::Unnamed(fields) => {
-              let self_vars: Vec<_> = (0..fields.unnamed.len())
+              let self_variables: Vec<_> = (0..fields.unnamed.len())
                 .map(|ident| {
                   syn::Ident::new(&format!("__self_{ident}"), proc_macro2::Span::call_site())
                 })
@@ -96,10 +96,10 @@ pub fn stable_compare_derive_impl(item: TokenStream) -> TokenStream {
                 })
                 .collect();
               quote! {
-                (#name::#vname(#(#self_vars),*), #name::#vname(#(#other_variables),*)) => {
+                (#name::#vname(#(#self_variables),*), #name::#vname(#(#other_variables),*)) => {
                   ::std::cmp::Ordering::Equal
                   #(
-                    .then_with(|| #self_vars.stable_cmp(db, #other_variables))
+                    .then_with(|| #self_variables.stable_cmp(db, #other_variables))
                   )*
                 }
               }
