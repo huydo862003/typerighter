@@ -1,3 +1,8 @@
+## [0.53.1] - 2026-11-02
+
+- packages/typerighter
+  - Broken RPC contract on the client side
+
 ## [0.53.0] - 2026-11-02 (retracted)
 
 ### Added
