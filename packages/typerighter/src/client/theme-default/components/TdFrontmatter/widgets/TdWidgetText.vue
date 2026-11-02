@@ -53,6 +53,18 @@ const isFileDownload = computed(() => {
 
 function format (value_: unknown): string {
   if (value_ === undefined || value_ === null) return '';
+
+  if (typeof value_ === 'object' && !Array.isArray(value_)) {
+    const object = value_ as Record<string, unknown>;
+
+    switch (object['_type']) {
+    case 'date':
+    case 'datetime':
+    case 'time':
+      return typeof object['value'] === 'string' ? formatDateString(object['value']) : '';
+    }
+  }
+
   if (definition.widget === 'date') return formatDateString(String(value_));
 
   return String(value_);
