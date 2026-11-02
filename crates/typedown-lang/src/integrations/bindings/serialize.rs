@@ -1,4 +1,4 @@
-//! Serialize Typedown objects to JSON ($kind-tagged, round-trippable)
+//! Serialize Typedown objects to JSON (_type-tagged, round-trippable)
 //!
 //! Two entry points:
 //!   - `serialize_value(db, obj)` - pure, no project context
@@ -7,7 +7,7 @@
 //!
 //! Encoding rules:
 //!   POD (plain JSON, no tag):  null, bool, finite number, string, array
-//!   $kind-tagged:              nan/inf/-inf, math/date/datetime/time, icon, blob,
+//!   _type-tagged:              nan/inf/-inf, math/date/datetime/time, icon, blob,
 //!                              dict, schema, product, type:*
 //!   $ref (project mode only):  nested file-scoped schema/product/blob objects
 
@@ -61,12 +61,12 @@ pub fn serialize_handle(handle: &FileHandle) -> serde_json::Value {
   }
 }
 
-/// Serialize a Typedown object to JSON with $kind tags. No $ref resolution.
+/// Serialize a Typedown object to JSON with _type tags. No $ref resolution.
 pub fn serialize_value(db: &TypedownDatabase, obj: &TdObjEnum) -> serde_json::Value {
   serialize(db, None, obj, &mut HashSet::new(), false)
 }
 
-/// Serialize a Typedown object to JSON with $kind tags and $ref resolution
+/// Serialize a Typedown object to JSON with _type tags and $ref resolution
 /// for nested file-scoped objects.
 pub fn serialize_value_with_project(
   db: &TypedownDatabase,
@@ -90,11 +90,11 @@ fn serialize(
     TdObjEnum::TdNumberObj(number_obj) => {
       let value = number_obj.value(db);
       if value.is_nan() {
-        serde_json::json!({"$kind": "nan"})
+        serde_json::json!({"_type": "nan"})
       } else if value == f64::INFINITY {
-        serde_json::json!({"$kind": "inf"})
+        serde_json::json!({"_type": "inf"})
       } else if value == f64::NEG_INFINITY {
-        serde_json::json!({"$kind": "-inf"})
+        serde_json::json!({"_type": "-inf"})
       } else {
         serde_json::Value::Number(serde_json::Number::from_f64(value).unwrap())
       }
@@ -103,20 +103,20 @@ fn serialize(
     TdObjEnum::TdStringObj(string_obj) => serde_json::Value::String(string_obj.value(db)),
 
     TdObjEnum::TdMathObj(math_obj) => {
-      serde_json::json!({"$kind": "math", "value": math_obj.value(db)})
+      serde_json::json!({"_type": "math", "value": math_obj.value(db)})
     }
     TdObjEnum::TdDateObj(date) => {
-      serde_json::json!({"$kind": "date", "value": date.value(db)})
+      serde_json::json!({"_type": "date", "value": date.value(db)})
     }
     TdObjEnum::TdDateTimeObj(datetime) => {
-      serde_json::json!({"$kind": "datetime", "value": datetime.value(db)})
+      serde_json::json!({"_type": "datetime", "value": datetime.value(db)})
     }
     TdObjEnum::TdTimeObj(time) => {
-      serde_json::json!({"$kind": "time", "value": time.value(db)})
+      serde_json::json!({"_type": "time", "value": time.value(db)})
     }
 
     TdObjEnum::TdIconObj(icon_obj) => serde_json::json!({
-      "$kind": "icon",
+      "_type": "icon",
       "name": icon_obj.name(db),
       "lucide_name": icon_obj.lucide_name(db),
     }),
@@ -156,7 +156,7 @@ fn serialize(
           .get_builtin_field(db, "_icon")
           .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
         let mut ref_obj = serde_json::json!({
-          "$kind": "ref",
+          "_type": "ref",
           "schema": schema_name,
           "$ref": { "url": resolved.url, "name": resolved.name }
         });
@@ -168,7 +168,7 @@ fn serialize(
 
       let id = schema_obj.as_id();
       if !visiting.insert(id) {
-        return serde_json::json!({"$kind": "ref", "schema": schema_name});
+        return serde_json::json!({"_type": "ref", "schema": schema_name});
       }
       let fields = serialize_object_fields(
         db,
@@ -179,7 +179,7 @@ fn serialize(
       );
       visiting.remove(&id);
       serde_json::json!({
-        "$kind": "schema",
+        "_type": "schema",
         "schema": schema_name,
         "fields": serde_json::Value::Object(fields),
       })
@@ -197,7 +197,7 @@ fn serialize(
           .get_builtin_field(db, "_icon")
           .and_then(|obj| obj.as_td_icon_obj().map(|icon| icon.lucide_name(db)));
         let mut ref_obj = serde_json::json!({
-          "$kind": "ref",
+          "_type": "ref",
           "type": typ_name,
           "$ref": { "url": resolved.url, "name": resolved.name }
         });
@@ -209,7 +209,7 @@ fn serialize(
 
       let id = product.as_id();
       if !visiting.insert(id) {
-        return serde_json::json!({"$kind": "ref", "type": typ_name});
+        return serde_json::json!({"_type": "ref", "type": typ_name});
       }
       let fields = serialize_object_fields(
         db,
@@ -220,7 +220,7 @@ fn serialize(
       );
       visiting.remove(&id);
       serde_json::json!({
-        "$kind": "product",
+        "_type": "product",
         "fields": serde_json::Value::Object(fields),
       })
     }
@@ -235,13 +235,13 @@ fn serialize(
         && let Some(resolved) = resolve_file_ref(db, proj, &symbol)
       {
         return serde_json::json!({
-          "$kind": "ref",
+          "_type": "ref",
           "$ref": { "url": resolved.url, "name": resolved.name, "format": format }
         });
       }
 
       let handle = serialize_handle(&file.handle(db));
-      serde_json::json!({"$kind": "blob", "format": format, "handle": handle})
+      serde_json::json!({"_type": "blob", "format": format, "handle": handle})
     }
 
     TdObjEnum::TdTypObj(typ) => serialize_typ_enum(db, typ, visiting),
@@ -267,35 +267,35 @@ fn serialize_object_fields<'db>(
   map
 }
 
-/// Serialize a type enum to a $kind-tagged JSON value.
+/// Serialize a type enum to a _type-tagged JSON value.
 fn serialize_typ_enum(
   db: &TypedownDatabase,
   typ: &TdTypEnum,
   visiting: &mut HashSet<typedown_incremental::DepId>,
 ) -> serde_json::Value {
   match typ {
-    TdTypEnum::TdNullTyp(_) => serde_json::json!({"$kind": "type:null"}),
-    TdTypEnum::TdBoolTyp(_) => serde_json::json!({"$kind": "type:bool"}),
-    TdTypEnum::TdNumberTyp(_) => serde_json::json!({"$kind": "type:number"}),
-    TdTypEnum::TdStringTyp(_) => serde_json::json!({"$kind": "type:string"}),
-    TdTypEnum::TdMathTyp(_) => serde_json::json!({"$kind": "type:math"}),
-    TdTypEnum::TdDateTyp(_) => serde_json::json!({"$kind": "type:date"}),
-    TdTypEnum::TdDateTimeTyp(_) => serde_json::json!({"$kind": "type:datetime"}),
-    TdTypEnum::TdTimeTyp(_) => serde_json::json!({"$kind": "type:time"}),
+    TdTypEnum::TdNullTyp(_) => serde_json::json!({"_type": "type:null"}),
+    TdTypEnum::TdBoolTyp(_) => serde_json::json!({"_type": "type:bool"}),
+    TdTypEnum::TdNumberTyp(_) => serde_json::json!({"_type": "type:number"}),
+    TdTypEnum::TdStringTyp(_) => serde_json::json!({"_type": "type:string"}),
+    TdTypEnum::TdMathTyp(_) => serde_json::json!({"_type": "type:math"}),
+    TdTypEnum::TdDateTyp(_) => serde_json::json!({"_type": "type:date"}),
+    TdTypEnum::TdDateTimeTyp(_) => serde_json::json!({"_type": "type:datetime"}),
+    TdTypEnum::TdTimeTyp(_) => serde_json::json!({"_type": "type:time"}),
     TdTypEnum::TdListTyp(list) => {
       if let Some(element) = list.element(db) {
         let items = serialize_lazy_typ(db, &element, visiting);
-        serde_json::json!({"$kind": "type:array", "items": items})
+        serde_json::json!({"_type": "type:array", "items": items})
       } else {
-        serde_json::json!({"$kind": "type:array"})
+        serde_json::json!({"_type": "type:array"})
       }
     }
     TdTypEnum::TdDictTyp(dict) => {
       if let Some(val) = dict.value(db) {
         let values = serialize_lazy_typ(db, &val, visiting);
-        serde_json::json!({"$kind": "type:dict", "values": values})
+        serde_json::json!({"_type": "type:dict", "values": values})
       } else {
-        serde_json::json!({"$kind": "type:dict"})
+        serde_json::json!({"_type": "type:dict"})
       }
     }
     TdTypEnum::TdSumTyp(sum) => {
@@ -310,12 +310,12 @@ fn serialize_typ_enum(
         .iter()
         .map(|member| serialize_lazy_typ(db, member, visiting))
         .collect();
-      serde_json::json!({"$kind": "type:union", "members": members})
+      serde_json::json!({"_type": "type:union", "members": members})
     }
     TdTypEnum::TdSchemaTyp(schema) => {
       let id = schema.as_id();
       if !visiting.insert(id) {
-        return serde_json::json!({"$kind": "type:schema", "name": schema.name(db)});
+        return serde_json::json!({"_type": "type:schema", "name": schema.name(db)});
       }
       let mut fields = serde_json::Map::new();
       for (name, prop) in schema.fields(db) {
@@ -323,7 +323,7 @@ fn serialize_typ_enum(
       }
       visiting.remove(&id);
       serde_json::json!({
-        "$kind": "type:schema",
+        "_type": "type:schema",
         "name": schema.name(db),
         "fields": serde_json::Value::Object(fields),
       })
@@ -334,12 +334,12 @@ fn serialize_typ_enum(
         fields.insert(name, serialize_lazy_typ(db, &lazy, visiting));
       }
       serde_json::json!({
-        "$kind": "type:product",
+        "_type": "type:product",
         "name": product.name(db),
         "fields": serde_json::Value::Object(fields),
       })
     }
-    _ => serde_json::json!({"$kind": format!("type:{}", typ.display_name(db))}),
+    _ => serde_json::json!({"_type": format!("type:{}", typ.display_name(db))}),
   }
 }
 
@@ -350,7 +350,7 @@ fn serialize_lazy_typ(
 ) -> serde_json::Value {
   match lazy.resolve(db) {
     Some(typ) => serialize_typ_enum(db, &typ, visiting),
-    None => serde_json::json!({"$kind": "type:unknown"}),
+    None => serde_json::json!({"_type": "type:unknown"}),
   }
 }
 
@@ -375,7 +375,7 @@ mod tests {
     let db = empty_db();
     let obj = TdObjEnum::from(make_number_obj(&db, f64::NAN.to_bits()));
     let value = serialize_value(&db, &obj);
-    assert_eq!(value["$kind"], "nan");
+    assert_eq!(value["_type"], "nan");
   }
 
   #[test]
@@ -383,7 +383,7 @@ mod tests {
     let db = empty_db();
     let obj = TdObjEnum::from(make_number_obj(&db, f64::INFINITY.to_bits()));
     let value = serialize_value(&db, &obj);
-    assert_eq!(value["$kind"], "inf");
+    assert_eq!(value["_type"], "inf");
   }
 
   #[test]
@@ -391,7 +391,7 @@ mod tests {
     let db = empty_db();
     let obj = TdObjEnum::from(make_number_obj(&db, f64::NEG_INFINITY.to_bits()));
     let value = serialize_value(&db, &obj);
-    assert_eq!(value["$kind"], "-inf");
+    assert_eq!(value["_type"], "-inf");
   }
 
   #[test]
@@ -399,7 +399,7 @@ mod tests {
     let db = empty_db();
     let obj = TdObjEnum::from(make_math_obj(&db, "$E = mc^2$".to_string()));
     let value = serialize_value(&db, &obj);
-    assert_eq!(value["$kind"], "math");
+    assert_eq!(value["_type"], "math");
     assert_eq!(value["value"], "$E = mc^2$");
   }
 
@@ -412,7 +412,7 @@ mod tests {
     let fields = vec![("inner".to_string(), Either::Right(TdObjEnum::from(inner)))];
     let outer = make_product_obj(&db, number_typ, None, fields);
     let value = serialize_value(&db, &TdObjEnum::from(outer));
-    assert_eq!(value["$kind"], "product");
+    assert_eq!(value["_type"], "product");
     assert!(value["fields"].is_object());
   }
 
@@ -424,7 +424,7 @@ mod tests {
     let blob = make_blob_obj(&db, AssetKind::Png, file);
     let obj = TdObjEnum::from(blob);
     let value = serialize_value(&db, &obj);
-    assert_eq!(value["$kind"], "blob");
+    assert_eq!(value["_type"], "blob");
     assert_eq!(value["format"], "png");
     assert_eq!(value["handle"]["path"], "/vault/_assets/photo.png");
   }
@@ -436,7 +436,7 @@ mod tests {
     let obj = result.value(&db).expect("should evaluate resource");
     let value = serialize_value_with_project(&db, project, &obj);
     assert_eq!(
-      value["fields"]["friend"]["$kind"], "ref",
+      value["fields"]["friend"]["_type"], "ref",
       "friend should be $ref: {value}"
     );
     assert!(
@@ -453,7 +453,7 @@ mod tests {
     let value = serialize_value(&db, &obj);
     // Without project, nested objects are fully expanded
     assert_eq!(
-      value["fields"]["friend"]["$kind"], "schema",
+      value["fields"]["friend"]["_type"], "schema",
       "friend should be inline schema without project: {value}"
     );
   }

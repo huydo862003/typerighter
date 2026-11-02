@@ -1,6 +1,6 @@
 //! Deserialize JSON values back into Typedown objects (round-trip support)
 //!
-//! Handles both plain POD values and $kind-tagged values
+//! Handles both plain POD values and _type-tagged values
 
 use std::collections::BTreeMap;
 use typedown_types::either::Either;
@@ -33,9 +33,9 @@ pub fn deserialize_value<'db>(
       Some(TdListObj::new(db, items).into())
     }
     serde_json::Value::Object(map) => {
-      // Check for $kind tag
+      // Check for _type tag
       if let Some(kind) = map
-        .get("$kind")
+        .get("_type")
         .and_then(|value| value.as_str())
         .map(|string| string.to_string())
       {
@@ -53,7 +53,7 @@ pub fn deserialize_value<'db>(
   }
 }
 
-/// Deserialize a $kind-tagged JSON object
+/// Deserialize a _type-tagged JSON object
 fn deserialize_tagged<'db>(
   db: &'db TypedownDatabase,
   kind: &str,
@@ -121,7 +121,7 @@ fn deserialize_tagged<'db>(
       Some(TdDictObj::new(db, entries).into())
     }
 
-    // Type descriptors: return as dict with $kind preserved
+    // Type descriptors: return as dict with _type preserved
     _ if kind.starts_with("type:") => {
       let mut entries = BTreeMap::new();
       for (key, value) in &map {
@@ -132,7 +132,7 @@ fn deserialize_tagged<'db>(
       Some(TdDictObj::new(db, entries).into())
     }
 
-    // Unknown $kind: return as plain dict
+    // Unknown _type: return as plain dict
     _ => {
       let entries: BTreeMap<String, _> = map
         .into_iter()
@@ -231,11 +231,11 @@ mod tests {
       .unwrap()
   }
 
-  // $kind round-trip wrappers
+  // _type round-trip wrappers
 
   #[query_derived]
   fn deserialize_kind_nan<'db>(db: &'db TypedownDatabase) -> TdNumberObj<'db> {
-    *deserialize_value(db, serde_json::json!({"$kind": "nan"}))
+    *deserialize_value(db, serde_json::json!({"_type": "nan"}))
       .unwrap()
       .as_td_number_obj()
       .unwrap()
@@ -243,7 +243,7 @@ mod tests {
 
   #[query_derived]
   fn deserialize_kind_inf<'db>(db: &'db TypedownDatabase) -> TdNumberObj<'db> {
-    *deserialize_value(db, serde_json::json!({"$kind": "inf"}))
+    *deserialize_value(db, serde_json::json!({"_type": "inf"}))
       .unwrap()
       .as_td_number_obj()
       .unwrap()
@@ -251,7 +251,7 @@ mod tests {
 
   #[query_derived]
   fn deserialize_kind_neg_inf<'db>(db: &'db TypedownDatabase) -> TdNumberObj<'db> {
-    *deserialize_value(db, serde_json::json!({"$kind": "-inf"}))
+    *deserialize_value(db, serde_json::json!({"_type": "-inf"}))
       .unwrap()
       .as_td_number_obj()
       .unwrap()
@@ -259,7 +259,7 @@ mod tests {
 
   #[query_derived]
   fn deserialize_kind_math<'db>(db: &'db TypedownDatabase) -> TdMathObj<'db> {
-    *deserialize_value(db, serde_json::json!({"$kind": "math", "value": "x^2"}))
+    *deserialize_value(db, serde_json::json!({"_type": "math", "value": "x^2"}))
       .unwrap()
       .as_td_math_obj()
       .unwrap()
@@ -269,7 +269,7 @@ mod tests {
   fn deserialize_kind_date<'db>(db: &'db TypedownDatabase) -> TdDateObj<'db> {
     *deserialize_value(
       db,
-      serde_json::json!({"$kind": "date", "value": "2024-01-15"}),
+      serde_json::json!({"_type": "date", "value": "2024-01-15"}),
     )
     .unwrap()
     .as_td_date_obj()
@@ -280,7 +280,7 @@ mod tests {
   fn deserialize_kind_datetime<'db>(db: &'db TypedownDatabase) -> TdDateTimeObj<'db> {
     *deserialize_value(
       db,
-      serde_json::json!({"$kind": "datetime", "value": "2024-01-15T10:30:00Z"}),
+      serde_json::json!({"_type": "datetime", "value": "2024-01-15T10:30:00Z"}),
     )
     .unwrap()
     .as_td_date_time_obj()
@@ -291,7 +291,7 @@ mod tests {
   fn deserialize_kind_time<'db>(db: &'db TypedownDatabase) -> TdTimeObj<'db> {
     *deserialize_value(
       db,
-      serde_json::json!({"$kind": "time", "value": "10:30:00"}),
+      serde_json::json!({"_type": "time", "value": "10:30:00"}),
     )
     .unwrap()
     .as_td_time_obj()
@@ -302,7 +302,7 @@ mod tests {
   fn deserialize_kind_icon<'db>(db: &'db TypedownDatabase) -> TdIconObj<'db> {
     *deserialize_value(
       db,
-      serde_json::json!({"$kind": "icon", "name": "icon.book", "lucide_name": "book"}),
+      serde_json::json!({"_type": "icon", "name": "icon.book", "lucide_name": "book"}),
     )
     .unwrap()
     .as_td_icon_obj()
@@ -313,7 +313,7 @@ mod tests {
   fn deserialize_kind_schema_fields<'db>(db: &'db TypedownDatabase) -> TdDictObj<'db> {
     *deserialize_value(
       db,
-      serde_json::json!({"$kind": "schema", "schema": "Person", "fields": {"name": "Alice", "age": 30}}),
+      serde_json::json!({"_type": "schema", "schema": "Person", "fields": {"name": "Alice", "age": 30}}),
     )
     .unwrap()
     .as_td_dict_obj()
@@ -386,7 +386,7 @@ mod tests {
     let _ = deserialize_math_expr(&db);
   }
 
-  // $kind round-trip tests
+  // _type round-trip tests
 
   #[test]
   fn round_trips_nan() {

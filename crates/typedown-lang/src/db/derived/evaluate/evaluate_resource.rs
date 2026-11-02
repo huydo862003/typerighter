@@ -875,7 +875,7 @@ mod tests {
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
     let header = exported.header;
-    // Header uses bindings $kind format: fields are nested under "fields"
+    // Header uses bindings _type format: fields are nested under "fields"
     let fields = header
       .get("fields")
       .and_then(|val| val.as_object())

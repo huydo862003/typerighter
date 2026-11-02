@@ -627,7 +627,7 @@ full content:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert_eq!(exported.schema, Some("Person".to_string()));
-    // Header now uses $kind-tagged bindings format
+    // Header now uses _type-tagged bindings format
     let fields = &exported.header["fields"];
     assert_eq!(fields["name"], "Alice");
     assert_eq!(fields["age"], 30.0);

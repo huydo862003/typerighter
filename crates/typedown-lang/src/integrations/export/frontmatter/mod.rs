@@ -263,8 +263,8 @@ mod tests {
       "schema should be Person"
     );
     assert_eq!(
-      exported.header["$kind"], "schema",
-      "header should be $kind-tagged"
+      exported.header["_type"], "schema",
+      "header should be _type-tagged"
     );
     let fields = exported
       .header
@@ -360,8 +360,8 @@ mod tests {
     let exported = export_resource_html(&db, project, file).expect("should export");
     let header = &exported.header;
     assert_eq!(
-      header["$kind"], "schema",
-      "header should be $kind-tagged schema"
+      header["_type"], "schema",
+      "header should be _type-tagged schema"
     );
     let fields = header
       .get("fields")
@@ -369,7 +369,7 @@ mod tests {
       .expect("header should have fields");
 
     assert_eq!(
-      fields["parent"]["$kind"], "schema",
+      fields["parent"]["_type"], "schema",
       "parent fref should serialize as schema object: {}",
       fields["parent"]
     );
@@ -389,7 +389,7 @@ mod tests {
         "concept {index} should not be null: {concept}"
       );
       assert_eq!(
-        concept["$kind"], "schema",
+        concept["_type"], "schema",
         "concept {index} should be a schema object: {concept}"
       );
     }
@@ -401,14 +401,14 @@ mod tests {
       load_vault_fixture("evaluate/my_vault", "book_with_absolute_frefs.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     let header = &exported.header;
-    assert_eq!(header["$kind"], "schema", "header should be $kind-tagged");
+    assert_eq!(header["_type"], "schema", "header should be _type-tagged");
     let fields = header
       .get("fields")
       .and_then(|val| val.as_object())
       .expect("header should have fields");
 
     assert_eq!(
-      fields["parent"]["$kind"], "schema",
+      fields["parent"]["_type"], "schema",
       "absolute fref should serialize as schema: {}",
       fields["parent"]
     );
@@ -423,7 +423,7 @@ mod tests {
         "absolute fref concept {index} should not be null"
       );
       assert_eq!(
-        concept["$kind"], "schema",
+        concept["_type"], "schema",
         "absolute fref concept {index} should serialize as schema: {concept}"
       );
     }
