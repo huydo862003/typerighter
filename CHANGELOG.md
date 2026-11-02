@@ -1,3 +1,16 @@
+## [0.53.1] - 2026-11-03
+
+### Fixed
+
+- crates/typedown-lang, packages/typerighter
+  - Frontmatter properties panel not showing on pages with `_type: schema/product` structure
+  - Date, datetime, and time fields rendered as `[object Object]` in properties panel
+  - File reference fields in lists rendered as empty instead of links
+  - `serialize_value` now requires project; nested frefs emit `{"$kind": "ref", "$ref": {"url": "...", "name": "..."}}` instead of inline objects
+  - `$kind` reserved for infrastructure markers (`ref`, `type`); `_type` for semantic data types
+  - `serialize_typ` emits `{"$kind": "type", "type": "..."}` with JSON Schema-compatible fields
+  - `deserialize_value` accepts project and resolves `$kind: "ref"` URLs back to evaluated objects
+
 ## [0.53.0] - 2026-11-02
 
 ### Added
