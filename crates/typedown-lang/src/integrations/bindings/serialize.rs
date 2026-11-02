@@ -25,7 +25,7 @@ use crate::db::types::{FileHandle, LazyTyp, Project, ProjectRedNode, TdObjEnum, 
 
 use super::file_ref::resolve_file_ref;
 
-/// Evaluate a lazy field (either a deferred AST node or an already-evaluated object).
+/// Evaluate a lazy field (either a deferred AST node or an already-evaluated object)
 pub fn evaluate_lazy_field<'db>(
   db: &'db TypedownDatabase,
   field: Either<ProjectRedNode, TdObjEnum<'db>>,
@@ -39,7 +39,7 @@ pub fn evaluate_lazy_field<'db>(
   }
 }
 
-/// Serialize a FileHandle to a JSON object.
+/// Serialize a FileHandle to a JSON object
 pub fn serialize_handle(handle: &FileHandle) -> serde_json::Value {
   let meta = handle.metadata();
   let metadata = serde_json::json!({
@@ -61,13 +61,12 @@ pub fn serialize_handle(handle: &FileHandle) -> serde_json::Value {
   }
 }
 
-/// Serialize a Typedown object to JSON with $kind tags. No $ref resolution.
+/// Serialize a Typedown object to JSON with $kind tags. No $ref resolution
 pub fn serialize_value(db: &TypedownDatabase, obj: &TdObjEnum) -> serde_json::Value {
   serialize(db, None, obj, &mut HashSet::new(), false)
 }
 
-/// Serialize a Typedown object to JSON with $kind tags and $ref resolution
-/// for nested file-scoped objects.
+/// Serialize a Typedown object to JSON with $kind tags and $ref resolution for nested file-scoped objects
 pub fn serialize_value_with_project(
   db: &TypedownDatabase,
   project: Project,
