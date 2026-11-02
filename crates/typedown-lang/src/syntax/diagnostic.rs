@@ -104,9 +104,9 @@ pub enum TdDiagnosticKind {
   UnresolvedSchema { name: String },
   #[message("wrong number of type arguments: expected {expected}, got {got}")]
   WrongTypArgCount { expected: usize, got: usize },
-  #[message("type argument at index {index} violates bound '{expected_bound}': got '{got}'")]
+  #[message("type argument '{name}' violates bound '{expected_bound}': got '{got}'")]
   TypArgBoundViolation {
-    index: usize,
+    name: String,
     expected_bound: String,
     got: String,
   },

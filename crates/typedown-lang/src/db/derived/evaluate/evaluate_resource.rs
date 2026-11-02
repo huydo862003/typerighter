@@ -598,12 +598,7 @@ mod tests {
       [(path, file)].into_iter().collect(),
       None,
     );
-    let symbol = Symbol::new(
-      &db,
-      SymbolKind::Asset(AssetKind::Png, project, file),
-      "photo".to_string(),
-      "@vault::_assets/photo.png".to_string(),
-    );
+    let symbol = Symbol::new(&db, SymbolKind::Asset(AssetKind::Png, project, file));
 
     let result = evaluate_resource(&db, symbol);
     assert!(

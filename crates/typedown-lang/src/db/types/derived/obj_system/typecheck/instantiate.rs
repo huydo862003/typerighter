@@ -1,5 +1,7 @@
 //! Generic type instantiation utilities: inference, substitution, and variable checking
 
+use std::collections::BTreeMap;
+
 use hashbrown::HashMap;
 
 use crate::db::TypedownDatabase;
@@ -9,28 +11,28 @@ use crate::db::types::LazyTyp;
 use crate::db::types::derived::obj_system::dict::TdDictTyp;
 use crate::db::types::derived::obj_system::func::TdFuncTyp;
 use crate::db::types::derived::obj_system::list::TdListTyp;
+use crate::db::types::derived::obj_system::product::TdProductTyp;
 use crate::db::types::derived::obj_system::variable::TdVariableTyp;
 use crate::db::types::derived::obj_system::{TdStaticTyp, TdTypEnum};
 
 /// Infer type variable bindings by matching parameter types against argument types
-/// When a variable appears multiple times, computes the least upper bound (sum type)
+/// When a variable appears multiple times, returns the least upper bound
 pub fn infer_bindings<'db>(
   db: &'db TypedownDatabase,
   params: &[TdTypEnum<'db>],
   args: &[TdTypEnum<'db>],
-) -> HashMap<usize, TdTypEnum<'db>> {
+) -> HashMap<TdVariableTyp<'db>, TdTypEnum<'db>> {
   // Infer param from arg & update bindings
   fn infer_from_pair<'db>(
     db: &'db TypedownDatabase,
     param: &TdTypEnum<'db>,
     arg: &TdTypEnum<'db>,
-    bindings: &mut HashMap<usize, TdTypEnum<'db>>,
+    bindings: &mut HashMap<TdVariableTyp<'db>, TdTypEnum<'db>>,
   ) {
     match param {
       TdTypEnum::TdVariableTyp(variable) => {
-        let index = TdVariableTyp::index(*variable, db);
         bindings
-          .entry(index)
+          .entry(*variable)
           .and_modify(|existing| {
             if *existing != *arg {
               *existing = get_sum_typ(
@@ -101,15 +103,19 @@ pub fn infer_bindings<'db>(
 pub fn substitute_variables<'db>(
   db: &'db TypedownDatabase,
   typ: &TdTypEnum<'db>,
-  bindings: &[LazyTyp<'db>],
+  bindings: &HashMap<TdVariableTyp<'db>, LazyTyp<'db>>,
 ) -> TdTypEnum<'db> {
   match typ {
     TdTypEnum::TdVariableTyp(variable) => {
-      let index = TdVariableTyp::index(*variable, db);
-      if let Some(binding) = bindings.get(index) {
+      if let Some(binding) = bindings.get(variable) {
         binding.resolve(db).unwrap_or_else(|| typ.clone())
       } else {
-        typ.clone()
+        // Fall back to upper bound for uninferred variables
+        variable
+          .variable(db)
+          .upper_bound(db)
+          .resolve(db)
+          .unwrap_or_else(|| typ.clone())
       }
     }
     TdTypEnum::TdFuncTyp(func) => {
@@ -134,12 +140,12 @@ pub fn substitute_variables<'db>(
     TdTypEnum::TdDictTyp(dict) => {
       let new_key = dict
         .key(db)
-        .and_then(|k| k.resolve(db))
-        .map(|k| LazyTyp::eager(substitute_variables(db, &k, bindings)));
+        .and_then(|key| key.resolve(db))
+        .map(|key| LazyTyp::eager(substitute_variables(db, &key, bindings)));
       let new_value = dict
         .value(db)
-        .and_then(|v| v.resolve(db))
-        .map(|v| LazyTyp::eager(substitute_variables(db, &v, bindings)));
+        .and_then(|value| value.resolve(db))
+        .map(|value| LazyTyp::eager(substitute_variables(db, &value, bindings)));
       if new_key.is_some() || new_value.is_some() {
         return TdDictTyp::new(db, new_key, new_value).into();
       }
@@ -158,6 +164,20 @@ pub fn substitute_variables<'db>(
         .collect();
       get_sum_typ(db, new_members).into()
     }
+    TdTypEnum::TdProductTyp(product) => {
+      let new_fields: BTreeMap<String, LazyTyp<'db>> = product
+        .fields(db)
+        .into_iter()
+        .map(|(name, lazy)| {
+          let substituted = lazy
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(substitute_variables(db, &resolved, bindings)))
+            .unwrap_or(lazy);
+          (name, substituted)
+        })
+        .collect();
+      TdProductTyp::new(db, None, new_fields).into()
+    }
     _ => typ.clone(),
   }
 }
@@ -174,8 +194,13 @@ mod tests {
   use crate::db::derived::get_builtin_typs::{
     get_bool_typ, get_func_typ, get_number_typ, get_obj_typ, get_string_typ,
   };
-  use crate::db::types::{FuncSignature, LazyTyp, TypParams, TypVariable};
+  use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
+  use crate::db::types::{FuncSignature, LazyTyp, Symbol, TdVariableTyp, TypParams, TypVariable};
   use crate::syntax::diagnostic::TdDiagnosticKind;
+
+  fn create_test_symbol(db: &TypedownDatabase, kind: BuiltinSchemaKind) -> Symbol {
+    Symbol::new(db, SymbolKind::BuiltinSchema(kind))
+  }
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
@@ -187,10 +212,18 @@ mod tests {
   fn infer_simple_variable() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None));
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
 
-    let bindings = infer_bindings(&db, &[variable.into()], std::slice::from_ref(&string_typ));
-    assert_eq!(bindings.get(&0), Some(&string_typ));
+    let bindings = infer_bindings(
+      &db,
+      &[variable_typ.into()],
+      std::slice::from_ref(&string_typ),
+    );
+    assert_eq!(bindings.get(&variable_typ), Some(&string_typ));
   }
 
   #[test]
@@ -198,14 +231,19 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
+    let variable: TdTypEnum = variable_typ.into();
 
     let bindings = infer_bindings(
       &db,
       &[variable.clone(), variable],
       &[string_typ, number_typ],
     );
-    let inferred = bindings.get(&0).unwrap();
+    let inferred = bindings.get(&variable_typ).unwrap();
     // Should be a sum type (String | Number)
     assert!(
       matches!(inferred, TdTypEnum::TdSumTyp(_)),
@@ -218,14 +256,19 @@ mod tests {
   fn infer_same_type_no_widen() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
+    let variable: TdTypEnum = variable_typ.into();
 
     let bindings = infer_bindings(
       &db,
       &[variable.clone(), variable],
       &[string_typ.clone(), string_typ.clone()],
     );
-    assert_eq!(bindings.get(&0), Some(&string_typ));
+    assert_eq!(bindings.get(&variable_typ), Some(&string_typ));
   }
 
   #[test]
@@ -233,26 +276,39 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
-    let variable_t: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
-    let variable_u: TdTypEnum = TdVariableTyp::new(&db, 1, TypVariable::get(&db, None)).into();
+    let variable_typ_t = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
+    let variable_typ_u = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::Number),
+    );
 
     // param: (T) -> U, arg: (String) -> Number
-    let param_func = TdFuncTyp::get(&db, vec![variable_t], variable_u).into();
+    let param_func = TdFuncTyp::get(&db, vec![variable_typ_t.into()], variable_typ_u.into()).into();
     let arg_func: TdTypEnum =
       TdFuncTyp::get(&db, vec![string_typ.clone()], number_typ.clone()).into();
 
     let bindings = infer_bindings(&db, &[param_func], &[arg_func]);
-    assert_eq!(bindings.get(&0), Some(&string_typ));
-    assert_eq!(bindings.get(&1), Some(&number_typ));
+    assert_eq!(bindings.get(&variable_typ_t), Some(&string_typ));
+    assert_eq!(bindings.get(&variable_typ_u), Some(&number_typ));
   }
 
   #[test]
   fn substitute_simple() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
+    let bindings = HashMap::from_iter([(variable_typ, LazyTyp::eager(string_typ.clone()))]);
 
-    let result = substitute_variables(&db, &variable, &[LazyTyp::eager(string_typ.clone())]);
+    let result = substitute_variables(&db, &variable_typ.into(), &bindings);
     assert_eq!(result, string_typ);
   }
 
@@ -260,11 +316,17 @@ mod tests {
   fn substitute_in_function_return() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
+    let bindings = HashMap::from_iter([(variable_typ, LazyTyp::eager(string_typ.clone()))]);
 
     // fn(String) -> T, substitute T=String
-    let func_typ: TdTypEnum = TdFuncTyp::get(&db, vec![string_typ.clone()], variable).into();
-    let result = substitute_variables(&db, &func_typ, &[LazyTyp::eager(string_typ.clone())]);
+    let func_typ: TdTypEnum =
+      TdFuncTyp::get(&db, vec![string_typ.clone()], variable_typ.into()).into();
+    let result = substitute_variables(&db, &func_typ, &bindings);
 
     if let TdTypEnum::TdFuncTyp(func) = result {
       assert_eq!(func.signature(&db).ret(&db), string_typ);
@@ -277,11 +339,16 @@ mod tests {
   fn substitute_in_list() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
+    let bindings = HashMap::from_iter([(variable_typ, LazyTyp::eager(string_typ.clone()))]);
 
     // list[T], substitute T=String
-    let list_typ: TdTypEnum = TdListTyp::new(&db, Some(LazyTyp::eager(variable))).into();
-    let result = substitute_variables(&db, &list_typ, &[LazyTyp::eager(string_typ.clone())]);
+    let list_typ: TdTypEnum = TdListTyp::new(&db, Some(LazyTyp::eager(variable_typ.into()))).into();
+    let result = substitute_variables(&db, &list_typ, &bindings);
 
     if let TdTypEnum::TdListTyp(list) = result {
       let args = list.get_typ_args(&db);
@@ -295,7 +362,12 @@ mod tests {
   #[test]
   fn contains_variable_true() {
     let db = make_db();
-    let variable_typ: TdTypEnum = TdVariableTyp::new(&db, 0, TypVariable::get(&db, None)).into();
+    let variable_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      TypVariable::get(&db, None),
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     assert!(contains_variable(&variable_typ));
   }
 
@@ -311,7 +383,12 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let variable_t = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(&db, 0, variable_t).into();
+    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      variable_t,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
 
     // Generic function: <T>(T) -> T
     let typ_params = TypParams::new(&db, vec![variable_t], vec![]);
@@ -339,7 +416,12 @@ mod tests {
 
     // T <: String
     let variable_t = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(&db, 0, variable_t).into();
+    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      variable_t,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
 
     // Generic function: <T <: String>(T) -> T
     let typ_params = TypParams::new(&db, vec![variable_t], vec![]);
@@ -374,8 +456,18 @@ mod tests {
     let obj_typ: TdTypEnum = get_obj_typ(&db).into();
     let variable_t = TypVariable::get(&db, None);
     let variable_u = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(&db, 0, variable_t).into();
-    let variable_u_typ: TdTypEnum = TdVariableTyp::new(&db, 1, variable_u).into();
+    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      variable_t,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
+    let variable_u_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      variable_u,
+      create_test_symbol(&db, BuiltinSchemaKind::Number),
+    )
+    .into();
 
     // Generic function: <T, U>(T) -> U  (U cannot be inferred from args)
     let typ_params = TypParams::new(&db, vec![variable_t, variable_u], vec![]);
@@ -399,7 +491,12 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let bool_typ: TdTypEnum = get_bool_typ(&db).into();
     let variable_t = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(&db, 0, variable_t).into();
+    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      variable_t,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
 
     let list_of_t: TdTypEnum =
       TdListTyp::new(&db, Some(LazyTyp::eager(variable_t_typ.clone()))).into();
@@ -459,7 +556,12 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let bool_typ: TdTypEnum = get_bool_typ(&db).into();
     let variable_t = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(&db, 0, variable_t).into();
+    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      variable_t,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
 
     let list_of_t: TdTypEnum =
       TdListTyp::new(&db, Some(LazyTyp::eager(variable_t_typ.clone()))).into();

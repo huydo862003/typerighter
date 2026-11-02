@@ -39,7 +39,7 @@ pub fn validate_typ_params(
       {
         diagnostics.push(
           TdDiagnosticKind::TypArgBoundViolation {
-            index,
+            name: format!("T{}", index),
             expected_bound: bound.display_name(db),
             got: arg_typ.display_name(db),
           }
@@ -454,12 +454,18 @@ mod tests {
     get_never_typ, get_null_typ, get_number_typ, get_obj_typ, get_schema_meta_typ, get_string_typ,
     get_sum_typ, get_time_typ, get_typ_typ,
   };
+  use crate::db::types::Symbol;
+  use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
   use crate::db::types::{
     LazyTyp, LitValue, TdExistentialTyp, TdFuncTyp, TdProductTyp, TdSchemaTyp, TdVariableTyp,
     TypVariable, make_property_descriptors,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
   use std::collections::BTreeMap;
+
+  fn create_test_symbol(db: &TypedownDatabase, kind: BuiltinSchemaKind) -> Symbol {
+    Symbol::new(db, SymbolKind::BuiltinSchema(kind))
+  }
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
@@ -1348,8 +1354,18 @@ mod tests {
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let typ_variable1 = TypVariable::get(&db, Some(LazyTyp::eager(string_typ)));
     let typ_variable2 = TypVariable::get(&db, Some(LazyTyp::eager(number_typ)));
-    let variable1: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable1).into();
-    let variable2: TdTypEnum = TdVariableTyp::new(&db, 1, typ_variable2).into();
+    let variable1: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable1,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
+    let variable2: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable2,
+      create_test_symbol(&db, BuiltinSchemaKind::Number),
+    )
+    .into();
     assert!(is_subtyp_of(&db, &variable1, &variable1));
     assert!(!is_subtyp_of(&db, &variable1, &variable2));
   }
@@ -1360,7 +1376,12 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let typ_variable = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable).into();
+    let variable: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     assert!(is_subtyp_of(&db, &variable, &string_typ));
     assert!(!is_subtyp_of(&db, &variable, &number_typ));
   }
@@ -1370,7 +1391,12 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let typ_variable_unbound = TypVariable::get(&db, None);
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_unbound).into();
+    let variable: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_unbound,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     assert!(!is_subtyp_of(&db, &string_typ, &variable));
   }
 
@@ -1378,9 +1404,19 @@ mod tests {
   fn typ_variable_transitive_variable_bound() {
     let db = make_db();
     let typ_variable2 = TypVariable::get(&db, None);
-    let variable2: TdTypEnum = TdVariableTyp::new(&db, 1, typ_variable2).into();
+    let variable2: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable2,
+      create_test_symbol(&db, BuiltinSchemaKind::Number),
+    )
+    .into();
     let typ_variable1 = TypVariable::get(&db, Some(LazyTyp::eager(variable2.clone())));
-    let variable1: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable1).into();
+    let variable1: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable1,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
 
     assert!(is_subtyp_of(&db, &variable1, &variable2));
     assert!(!is_subtyp_of(&db, &variable2, &variable1));
@@ -1413,7 +1449,12 @@ mod tests {
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
     let typ_variable_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_string_typ: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_string).into();
+    let variable_string_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_string,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let existential_variable_typ: TdTypEnum = TdExistentialTyp::new(
       &db,
       TypParams::new(&db, vec![typ_variable_string], vec![]),
@@ -1426,7 +1467,12 @@ mod tests {
     assert!(is_subtyp_of(&db, &existential_variable_typ, &string_typ));
 
     let typ_variable_obj = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable_obj_typ: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_obj).into();
+    let variable_obj_typ: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_obj,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let list_variable_typ: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_obj_typ)])
       .typ(&db);
@@ -1460,7 +1506,12 @@ mod tests {
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
     let typ_variable = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable).into();
+    let variable: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
 
     let list_string: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(string_typ.clone())])
@@ -1480,8 +1531,12 @@ mod tests {
     assert!(is_subtyp_of(&db, &list_string, &existential_list_typ));
 
     let typ_variable_number_bound = TypVariable::get(&db, Some(LazyTyp::eager(number_typ.clone())));
-    let variable_number_bound: TdTypEnum =
-      TdVariableTyp::new(&db, 0, typ_variable_number_bound).into();
+    let variable_number_bound: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_number_bound,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let list_variable_number: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_number_bound)])
       .typ(&db);
@@ -1531,8 +1586,18 @@ mod tests {
 
     let typ_variable1 = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
     let typ_variable2 = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable1: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable1).into();
-    let variable2: TdTypEnum = TdVariableTyp::new(&db, 1, typ_variable2).into();
+    let variable1: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable1,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
+    let variable2: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable2,
+      create_test_symbol(&db, BuiltinSchemaKind::Number),
+    )
+    .into();
 
     let dict_variable: TdTypEnum = get_dict_typ(&db)
       .instantiate(
@@ -1567,7 +1632,12 @@ mod tests {
     ));
 
     let typ_variable2_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable2_string: TdTypEnum = TdVariableTyp::new(&db, 1, typ_variable2_string).into();
+    let variable2_string: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable2_string,
+      create_test_symbol(&db, BuiltinSchemaKind::Number),
+    )
+    .into();
     let dict_variable_string_bound: TdTypEnum = get_dict_typ(&db)
       .instantiate(
         &db,
@@ -1597,7 +1667,12 @@ mod tests {
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
     let typ_variable_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_string: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_string).into();
+    let variable_string: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_string,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let list_variable_string: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_string)])
       .typ(&db);
@@ -1610,7 +1685,12 @@ mod tests {
     .into();
 
     let typ_variable_obj = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable_obj: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_obj).into();
+    let variable_obj: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_obj,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let list_variable_obj: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_obj)])
       .typ(&db);
@@ -1637,7 +1717,12 @@ mod tests {
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
     let typ_variable_obj = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable_obj: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_obj).into();
+    let variable_obj: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_obj,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let list_variable_obj: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_obj)])
       .typ(&db);
@@ -1657,7 +1742,12 @@ mod tests {
     assert!(is_subtyp_of(&db, &list_string, &existential_obj));
 
     let typ_variable_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_string: TdTypEnum = TdVariableTyp::new(&db, 0, typ_variable_string).into();
+    let variable_string: TdTypEnum = TdVariableTyp::new(
+      &db,
+      typ_variable_string,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    )
+    .into();
     let list_variable_string: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_string)])
       .typ(&db);

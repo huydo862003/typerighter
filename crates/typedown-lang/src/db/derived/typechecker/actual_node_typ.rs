@@ -13,14 +13,15 @@ use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::expected_node_typ::expected_node_typ;
-use crate::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
+use crate::db::derived::typechecker::get_symbol_typ::{get_symbol_typ, infer_param_typ_from_body};
 use crate::db::types::derived::obj_system::{
   TdProductTyp, TdStaticTyp, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
-  BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, SymbolKind, TdTypEnum,
-  TypResult,
+  BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, Symbol, SymbolKind,
+  TdTypEnum, TdVariableTyp, TypParams, TypResult, TypVariable,
 };
+use crate::db::types::{File, Project};
 use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, CallExpr, ClosureExpr, DictLit, Expr, IdentLit, IndexExpr, MathLit, NumberLit,
@@ -323,8 +324,8 @@ fn get_postfix_typ<'db>(
   db: &'db TypedownDatabase,
   op_text: &str,
   postfix: PostfixExpr,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
 ) -> TypResult<'db> {
   match op_text {
     "?" => {
@@ -421,6 +422,7 @@ fn get_call_typ<'db>(
     return TypResult::new(db, None, vec![]);
   };
   let callee_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
+
   // Check if callee is a macro
   let resolved = referee(db, callee_node.clone());
   if let Some(symbol) = resolved.value(db)
@@ -557,8 +559,8 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
 fn get_index_typ<'db>(
   db: &'db TypedownDatabase,
   index: IndexExpr,
-  project: crate::db::types::Project,
-  file: crate::db::types::File,
+  project: Project,
+  file: File,
 ) -> TypResult<'db> {
   let Some(base_expr) = index.expr() else {
     return TypResult::new(db, None, vec![]);
@@ -619,7 +621,8 @@ fn get_index_typ<'db>(
   TypResult::new(db, None, diagnostics)
 }
 
-// actual(closure) = fn(params from expected, return from actual(body))
+// actual(closure) = fn(params, return from actual(body))
+// When expected type provides param types, use those, otherwise infer from body usage
 fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> TypResult<'db> {
   let closure = match ClosureExpr::cast(project_node.node.clone()) {
     Some(closure) => closure,
@@ -628,12 +631,6 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
 
   let project = project_node.project;
   let file = project_node.file;
-
-  let expected = expected_node_typ(db, project_node.clone()).typ(db);
-  let param_typs = match expected {
-    Some(TdTypEnum::TdFuncTyp(func)) => func.signature(db).params(db),
-    _ => return TypResult::new(db, None, vec![]),
-  };
 
   let params: Vec<String> = match closure.params() {
     Some(Either::Left(param_list)) => param_list
@@ -644,25 +641,50 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     None => vec![],
   };
 
-  if param_typs.len() != params.len() {
-    let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
-    return TypResult::new(
-      db,
-      None,
-      vec![
-        TdDiagnosticKind::WrongArgCount {
-          expected: param_typs.len(),
-          got: params.len(),
-        }
-        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-      ],
-    );
-  }
-
   let body_expr = match closure.body() {
     Some(body) => body,
     None => return TypResult::new(db, None, vec![]),
   };
+
+  let expected = expected_node_typ(db, project_node.clone()).typ(db);
+  let param_typs: Vec<TdTypEnum> = match expected {
+    Some(TdTypEnum::TdFuncTyp(func)) => {
+      let typs = func.signature(db).params(db);
+      if typs.len() != params.len() {
+        let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
+        return TypResult::new(
+          db,
+          None,
+          vec![
+            TdDiagnosticKind::WrongArgCount {
+              expected: typs.len(),
+              got: params.len(),
+            }
+            .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+          ],
+        );
+      }
+      typs
+    }
+    _ => {
+      // No expected type: infer each param type from body usage
+      // Params with no inferred type become generic type variables
+      params
+        .iter()
+        .map(|param_name| {
+          let param_symbol = Symbol::new(
+            db,
+            SymbolKind::FuncParam(project, file, project_node.clone(), param_name.clone()),
+          );
+          infer_param_typ_from_body(db, project, file, body_expr.syntax(), param_symbol)
+            .unwrap_or_else(|| {
+              TdVariableTyp::new(db, TypVariable::get(db, None), param_symbol).into()
+            })
+        })
+        .collect()
+    }
+  };
+
   let body_node = ProjectRedNode::new(project, file, body_expr.syntax().clone());
   let body_result = actual_node_typ(db, body_node);
   let ret = match body_result.typ(db) {
@@ -670,7 +692,24 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     None => return TypResult::new(db, None, body_result.diagnostics(db).clone()),
   };
 
-  let signature = FuncSignature::new(db, None, param_typs, ret);
+  // Collect generic variables from unconstrained params to build TypParams
+  let generic_variables: Vec<TypVariable> = param_typs
+    .iter()
+    .filter_map(|typ| {
+      if let TdTypEnum::TdVariableTyp(var_typ) = typ {
+        Some(TdVariableTyp::variable(*var_typ, db))
+      } else {
+        None
+      }
+    })
+    .collect();
+  let typ_params = if generic_variables.is_empty() {
+    None
+  } else {
+    Some(TypParams::new(db, generic_variables, vec![]))
+  };
+
+  let signature = FuncSignature::new(db, typ_params, param_typs, ret);
   let func_typ = get_func_typ(db, signature);
   TypResult::new(
     db,
@@ -683,7 +722,7 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
 mod tests {
   use super::actual_node_typ;
   use crate::db::derived::get_builtin_typs::{
-    get_func_typ, get_lit_typ, get_schema_meta_typ, get_string_typ,
+    get_func_typ, get_lit_typ, get_number_typ, get_schema_meta_typ, get_string_typ,
   };
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
@@ -987,5 +1026,59 @@ mod tests {
     let typ = result.typ(&db).expect("should have a type");
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     assert_eq!(typ, string_typ);
+  }
+
+  // When a closure has no expected type context, param types are inferred from body usage
+  #[test]
+  fn actual_node_typ_closure_infers_param_typ_from_body() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "closure_infer_from_binary_op.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let result_node = entries
+      .into_iter()
+      .find(|(key, _)| key == "result")
+      .map(|(_, value)| value)
+      .expect("should have result field");
+    let result = actual_node_typ(&db, result_node);
+    // The call should type-check: closure infers x: number from x + 1, returns number
+    let typ = result.typ(&db).expect("should have a type");
+    let number_typ: TdTypEnum = get_number_typ(&db).into();
+    assert_eq!(
+      typ.display_name(&db),
+      number_typ.display_name(&db),
+      "((x) -> x + 1)(5) should return number"
+    );
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "should have no diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn actual_node_typ_generic_identity_closure_instantiates_to_arg_typ() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "closure_identity_generic.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let result_node = entries
+      .into_iter()
+      .find(|(key, _)| key == "result")
+      .map(|(_, value)| value)
+      .expect("should have result field");
+    let result = actual_node_typ(&db, result_node);
+    // ((x) -> x)("hello") infers T = literal "hello", so return type is the literal type
+    let typ = result.typ(&db).expect("should have a type");
+    assert_eq!(
+      typ.display_name(&db),
+      r#""hello""#,
+      "expected literal hello type"
+    );
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "should have no diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
   }
 }

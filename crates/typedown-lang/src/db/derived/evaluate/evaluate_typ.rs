@@ -58,7 +58,7 @@ pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult
     SymbolKind::UserDefinedResource(_, _)
     | SymbolKind::BuiltinMacro(_)
     | SymbolKind::BuiltinGlobal(_) => TypResult::new(db, None, vec![]),
-    SymbolKind::FuncParam(_, _, _) => TypResult::new(db, None, vec![]),
+    SymbolKind::FuncParam(_, _, _, _) => TypResult::new(db, None, vec![]),
   }
 }
 
@@ -657,12 +657,7 @@ mod tests {
   #[test]
   fn evaluate_typ_builtin_schema_returns_schema_typ() {
     let db = make_db();
-    let symbol = Symbol::new(
-      &db,
-      SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
-      "schema".to_string(),
-      "@builtin::schema".to_string(),
-    );
+    let symbol = Symbol::new(&db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema));
     let result = evaluate_typ(&db, symbol);
     assert!(result.typ(&db) == Some(TdTypEnum::from(get_schema_meta_typ(&db))));
     assert!(result.diagnostics(&db).is_empty());
@@ -1164,7 +1159,7 @@ mod tests {
       matches!(
         diagnostics[0],
         TdDiagnostic {
-          kind: TdDiagnosticKind::TypArgBoundViolation { index: 0, .. },
+          kind: TdDiagnosticKind::TypArgBoundViolation { .. },
           ..
         }
       ),
