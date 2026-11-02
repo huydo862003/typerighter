@@ -199,7 +199,7 @@ fn get_expected_call_callee_typ<'db>(
     }
   }
 
-  let signature = FuncSignature::new(db, param_typs, ret);
+  let signature = FuncSignature::new(db, None, param_typs, ret);
   let func_typ = get_func_typ(db, signature);
   TypResult::new(db, Some(func_typ.into()), vec![])
 }

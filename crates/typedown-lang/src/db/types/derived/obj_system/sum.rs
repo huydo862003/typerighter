@@ -5,7 +5,7 @@ use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::get_sum_typ;
-use crate::db::types::{FuncSignature, LazyTyp};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp};
 use typedown_incremental::StableCompare;
 
 // A union type: accepts any of its member types
@@ -53,25 +53,49 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
       return None;
     }
     let union_ret = get_sum_typ(db, ret_typs).into();
-    Some(FuncSignature::new(db, vec![key_typ.clone()], union_ret))
+    Some(FuncSignature::new(
+      db,
+      None,
+      vec![key_typ.clone()],
+      union_ret,
+    ))
   }
 
   fn call_typ(
     &self,
     db: &'db TypedownDatabase,
     arg_typs: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
+  ) -> CallTypResult<'db> {
     let mut ret_typs = vec![];
+    let mut diagnostics = vec![];
     for member in self.members(db) {
-      let resolved = member.resolve(db)?;
-      let signature = resolved.call_typ(db, arg_typs.clone())?;
+      let Some(resolved) = member.resolve(db) else {
+        return CallTypResult {
+          signature: None,
+          diagnostics,
+        };
+      };
+      let member_result = resolved.call_typ(db, arg_typs.clone());
+      diagnostics.extend(member_result.diagnostics);
+      let Some(signature) = member_result.signature else {
+        return CallTypResult {
+          signature: None,
+          diagnostics,
+        };
+      };
       ret_typs.push(LazyTyp::eager(signature.ret(db)));
     }
     if ret_typs.is_empty() {
-      return None;
+      return CallTypResult {
+        signature: None,
+        diagnostics,
+      };
     }
     let union_ret = get_sum_typ(db, ret_typs).into();
-    Some(FuncSignature::new(db, arg_typs, union_ret))
+    CallTypResult {
+      signature: Some(FuncSignature::new(db, None, arg_typs, union_ret)),
+      diagnostics,
+    }
   }
 }
 

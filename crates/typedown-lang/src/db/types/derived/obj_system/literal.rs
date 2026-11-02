@@ -6,7 +6,7 @@ use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{get_bool_typ, get_number_typ, get_string_typ};
-use crate::db::types::{FuncSignature, LazyTyp, LitValue};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp, LitValue};
 
 #[query_derived]
 pub struct TdLitTyp<'db> {
@@ -64,9 +64,9 @@ impl<'db> TdStaticTyp<'db> for TdLitTyp<'db> {
   fn call_typ(
     &self,
     db: &'db TypedownDatabase,
-    arg_types: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    self.underlying_typ(db).call_typ(db, arg_types)
+    arg_typs: Vec<TdTypEnum<'db>>,
+  ) -> CallTypResult<'db> {
+    self.underlying_typ(db).call_typ(db, arg_typs)
   }
 }
 

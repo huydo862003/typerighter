@@ -95,10 +95,10 @@ impl<K: StableCompare + Ord, V: StableCompare> StableCompare for BTreeMap<K, V> 
       self
         .iter()
         .zip(other.iter())
-        .map(|((left_key, left_value), (k2, v2))| {
+        .map(|((left_key, left_value), (right_key, right_value))| {
           left_key
-            .stable_cmp(db, k2)
-            .then_with(|| left_value.stable_cmp(db, v2))
+            .stable_cmp(db, right_key)
+            .then_with(|| left_value.stable_cmp(db, right_value))
         })
         .find(|obj| obj.is_ne())
         .unwrap_or(Ordering::Equal)

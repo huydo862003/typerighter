@@ -4,7 +4,7 @@ use typedown_macros::query_derived;
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
-use crate::db::types::{FuncSignature, LazyTyp, TypParams};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp, TypParams};
 
 /// Existential type: `exists <T0 <: Bound, ...>. Body`
 #[query_derived]
@@ -83,11 +83,14 @@ impl<'db> TdStaticTyp<'db> for TdExistentialTyp<'db> {
     &self,
     db: &'db TypedownDatabase,
     arg_typs: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    self
-      .body(db)
-      .and_then(|body| body.resolve(db))?
-      .call_typ(db, arg_typs)
+  ) -> CallTypResult<'db> {
+    let Some(resolved) = self.body(db).and_then(|body| body.resolve(db)) else {
+      return CallTypResult {
+        signature: None,
+        diagnostics: vec![],
+      };
+    };
+    resolved.call_typ(db, arg_typs)
   }
 }
 
@@ -169,14 +172,15 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
 
-    let signature = FuncSignature::new(&db, vec![string_typ.clone()], number_typ.clone());
+    let signature = FuncSignature::new(&db, None, vec![string_typ.clone()], number_typ.clone());
     let func_typ: TdTypEnum = get_func_typ(&db, signature).into();
 
     let existential_params = TypParams::new(&db, vec![], vec![]);
     let existential_typ =
       TdExistentialTyp::new(&db, existential_params, Some(LazyTyp::eager(func_typ)));
 
-    let call_signature = existential_typ.call_typ(&db, vec![string_typ]).unwrap();
-    assert_eq!(call_signature.ret(&db), number_typ);
+    let call_result = existential_typ.call_typ(&db, vec![string_typ]);
+    assert!(call_result.diagnostics.is_empty());
+    assert_eq!(call_result.signature.unwrap().ret(&db), number_typ);
   }
 }

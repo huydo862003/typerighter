@@ -274,7 +274,7 @@ fn construct_from_call<'db>(
     let left_result = evaluate_node(db, left_node, runtime_scope);
     let this = left_result.value(db)?;
     let func_obj = this.lookup_method(db, &method_name)?;
-    let arg_objs: Vec<_> = call
+    let mut arg_objs: Vec<_> = call
       .args()
       .into_iter()
       .filter_map(|arg| {
@@ -282,6 +282,13 @@ fn construct_from_call<'db>(
         evaluate_node(db, arg_node, runtime_scope).value(db)
       })
       .collect();
+    let func_typ = func_obj.get_typ(db);
+    if let TdTypEnum::TdFuncTyp(func_typ) = func_typ {
+      let param_count = func_typ.signature(db).params(db).len();
+      while arg_objs.len() < param_count {
+        arg_objs.push(TdNullObj::get(db).into());
+      }
+    }
     let scope = runtime_scope.scope(db);
     let call_project = scope.project(db);
     return func_obj.call(db, call_project, Some(this), arg_objs).ok();
@@ -303,7 +310,7 @@ fn construct_from_call<'db>(
 
   // Plain function call: evaluate callee, call via protocol
   let callee_obj = evaluate_node(db, callee_node, runtime_scope).value(db)?;
-  let arg_objs: Vec<_> = call
+  let mut arg_objs: Vec<_> = call
     .args()
     .into_iter()
     .filter_map(|arg| {
@@ -311,6 +318,13 @@ fn construct_from_call<'db>(
       evaluate_node(db, arg_node, runtime_scope).value(db)
     })
     .collect();
+  let callee_typ = callee_obj.get_typ(db);
+  if let TdTypEnum::TdFuncTyp(func_typ) = callee_typ {
+    let param_count = func_typ.signature(db).params(db).len();
+    while arg_objs.len() < param_count {
+      arg_objs.push(TdNullObj::get(db).into());
+    }
+  }
   let scope = runtime_scope.scope(db);
   let call_project = scope.project(db);
   callee_obj.call(db, call_project, None, arg_objs).ok()
@@ -1147,7 +1161,7 @@ mod tests {
   fn test_dunder_methods_call_and_index() {
     let db = make_db();
     let string_typ: TdTypEnum<'_> = get_string_typ(&db).into();
-    let signature = FuncSignature::new(&db, vec![string_typ.clone()], string_typ.clone());
+    let signature = FuncSignature::new(&db, None, vec![string_typ.clone()], string_typ.clone());
     let index_func = TdFuncObj::new(
       &db,
       PROTOCOL_INDEX.to_string(),
@@ -1180,7 +1194,9 @@ mod tests {
       Some(signature)
     );
     assert_eq!(
-      schema_enum.call_typ(&db, vec![get_string_typ(&db).into()]),
+      schema_enum
+        .call_typ(&db, vec![get_string_typ(&db).into()])
+        .signature,
       Some(signature)
     );
   }

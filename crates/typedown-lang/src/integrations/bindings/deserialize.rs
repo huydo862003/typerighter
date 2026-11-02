@@ -183,7 +183,7 @@ mod tests {
 
   #[query_derived]
   fn deserialize_number_314<'db>(db: &'db TypedownDatabase) -> TdNumberObj<'db> {
-    *deserialize_value(db, serde_json::json!(3.14))
+    *deserialize_value(db, serde_json::json!(std::f64::consts::PI))
       .unwrap()
       .as_td_number_obj()
       .unwrap()
@@ -339,10 +339,10 @@ mod tests {
   fn deserializes_number() {
     let db = make_db();
     let number = deserialize_number_314(&db);
-    let delta = (number.value(&db) - 3.14).abs();
+    let delta = (number.value(&db) - std::f64::consts::PI).abs();
     assert!(
       delta < f64::EPSILON,
-      "expected ~3.14, got {}",
+      "expected ~PI, got {}",
       number.value(&db)
     );
   }

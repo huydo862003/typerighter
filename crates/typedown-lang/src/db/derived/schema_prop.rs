@@ -14,12 +14,7 @@ use crate::db::derived::get_builtin_typs::{
 use crate::db::types::{BuiltinSchemaKind, LazyTyp, Symbol, SymbolKind, TdProductTyp, TdStaticTyp};
 
 fn get_schema_prop_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::SchemaProp),
-    "SchemaProperty".to_string(),
-    "@builtin::schema_property".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::SchemaProp))
 }
 
 #[query_derived]

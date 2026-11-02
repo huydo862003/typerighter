@@ -59,7 +59,10 @@ impl<T: Read> FileStream<T> {
           }
           if filled >= 4 {
             self.skip.set(filled);
-            break Utf8Result::Invalid { len: filled, bytes };
+            break Utf8Result::Invalid {
+              length: filled,
+              bytes,
+            };
           }
         }
         Err(_) => break Utf8Result::Eof,

@@ -289,7 +289,7 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
 
     TdTypEnum::TdSumTyp(sum) => {
       let mut members: Vec<_> = sum.members(db).into_iter().collect();
-      members.sort_by(|a, b| a.stable_cmp(db, b));
+      members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
       // Optional type: use non-null member's default
       let non_null: Vec<_> = members
         .iter()

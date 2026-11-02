@@ -22,8 +22,8 @@ pub fn publish_diagnostics_for_file(analysis: &Analysis, path: &Path) -> Vec<Not
 }
 
 // Convert our diagnostics to lsp diagnostics
-pub(super) fn to_lsp_diagnostic(diag: &TdDiagnostic, rope: &Rope) -> Option<Diagnostic> {
-  let (start_offset, end_offset) = diag.offsets();
+pub(super) fn to_lsp_diagnostic(diagnostic: &TdDiagnostic, rope: &Rope) -> Option<Diagnostic> {
+  let (start_offset, end_offset) = diagnostic.offsets();
 
   let start_offset = start_offset.min(rope.len_chars());
   let end_offset = end_offset.min(rope.len_chars());
@@ -36,9 +36,9 @@ pub(super) fn to_lsp_diagnostic(diag: &TdDiagnostic, rope: &Rope) -> Option<Diag
   Some(Diagnostic {
     range,
     severity: Some(DiagnosticSeverity::ERROR),
-    code: Some(NumberOrString::String(diag.code_str().into())),
+    code: Some(NumberOrString::String(diagnostic.code_str().into())),
     source: Some("typedown".into()),
-    message: diag.message(),
+    message: diagnostic.message(),
     ..Default::default()
   })
 }

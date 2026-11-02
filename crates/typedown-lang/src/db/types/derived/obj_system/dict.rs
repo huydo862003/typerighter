@@ -176,7 +176,7 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
       .key(db)
       .and_then(|key| key.resolve(db))
       .unwrap_or_else(|| get_string_typ(db).into());
-    Some(FuncSignature::new(db, vec![key], value))
+    Some(FuncSignature::new(db, None, vec![key], value))
   }
 }
 

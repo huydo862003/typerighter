@@ -32,30 +32,15 @@ pub fn builtin_scope<'db>(db: &'db TypedownDatabase) -> BuiltinScopeMembers<'db>
     ("type".to_string(), get_typ_typ_symbol(db)),
     (
       "fref".to_string(),
-      Symbol::new(
-        db,
-        SymbolKind::BuiltinMacro(BuiltinMacroKind::Fref),
-        "fref".to_string(),
-        "@builtin::fref".to_string(),
-      ),
+      Symbol::new(db, SymbolKind::BuiltinMacro(BuiltinMacroKind::Fref)),
     ),
     (
       "vault".to_string(),
-      Symbol::new(
-        db,
-        SymbolKind::BuiltinGlobal(BuiltinGlobalKind::Vault),
-        "vault".to_string(),
-        "@builtin::vault".to_string(),
-      ),
+      Symbol::new(db, SymbolKind::BuiltinGlobal(BuiltinGlobalKind::Vault)),
     ),
     (
       "icon".to_string(),
-      Symbol::new(
-        db,
-        SymbolKind::BuiltinGlobal(BuiltinGlobalKind::Icon),
-        "icon".to_string(),
-        "@builtin::icon".to_string(),
-      ),
+      Symbol::new(db, SymbolKind::BuiltinGlobal(BuiltinGlobalKind::Icon)),
     ),
   ]);
   BuiltinScopeMembers::new(db, members)

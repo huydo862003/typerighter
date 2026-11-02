@@ -349,8 +349,8 @@ mod tests {
 
   fn get_bool_field(db: &TypedownDatabase, obj: &TdObjEnum, field: &str) -> bool {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
-    let b = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
-    b.value(db)
+    let bool = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
+    bool.value(db)
   }
 
   // 1 + 2 evaluates to 3
@@ -598,12 +598,7 @@ mod tests {
       [(path, file)].into_iter().collect(),
       None,
     );
-    let symbol = Symbol::new(
-      &db,
-      SymbolKind::Asset(AssetKind::Png, project, file),
-      "photo".to_string(),
-      "@vault::_assets/photo.png".to_string(),
-    );
+    let symbol = Symbol::new(&db, SymbolKind::Asset(AssetKind::Png, project, file));
 
     let result = evaluate_resource(&db, symbol);
     assert!(

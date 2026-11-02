@@ -57,7 +57,7 @@ pub enum TdDiagnosticKind {
   MissingMarkdownHeadingHash,
   #[message("missing required space after block marker")]
   MissingRequiredSpace,
-  #[message("expected {}", syntax_kind_label(*expected))]
+  #[message("expected {}", get_syntax_kind_label(*expected))]
   MissingSyntaxNode { expected: SyntaxKind },
   #[message("unclosed link '[', expected '](url)'")]
   UnclosedLink,
@@ -104,12 +104,16 @@ pub enum TdDiagnosticKind {
   UnresolvedSchema { name: String },
   #[message("wrong number of type arguments: expected {expected}, got {got}")]
   WrongTypArgCount { expected: usize, got: usize },
-  #[message("type argument at index {index} violates bound '{expected_bound}': got '{got}'")]
+  #[message("type argument '{name}' violates bound '{expected_bound}': got '{got}'")]
   TypArgBoundViolation {
-    index: usize,
+    name: String,
     expected_bound: String,
     got: String,
   },
+  #[message("could not infer type argument at position {index}")]
+  TypArgNotInferred { index: usize },
+  #[message("return type '{ret}' is still generic after instantiation")]
+  UnresolvedGenericReturnTyp { ret: String },
   #[message("cannot resolve extended schema '{name}'")]
   UnresolvedExtends { name: String },
   #[message("circular extension chain involving '{}': {}", name, cycle.join(" -> "))]
@@ -245,7 +249,7 @@ impl TdDiagnostic {
   }
 }
 
-fn syntax_kind_label(kind: SyntaxKind) -> &'static str {
+fn get_syntax_kind_label(kind: SyntaxKind) -> &'static str {
   match kind {
     SyntaxKind::PrimaryExpr => "an expression",
     SyntaxKind::Ident => "an identifier",

@@ -1,5 +1,4 @@
 use typedown_macros::{query_derived, query_interned};
-use typedown_types::path::normalize_path;
 
 use crate::db::TypedownDatabase;
 use crate::db::types::{AssetKind, File, Project, Symbol, SymbolKind};
@@ -16,12 +15,6 @@ pub fn file_symbol<'db>(db: &'db TypedownDatabase, project: Project, file: File)
   let path = file.handle(db).path().cloned().unwrap_or_default();
   let is_schema_file = is_typ_file(&path);
 
-  let name = path
-    .file_stem()
-    .and_then(|stem| stem.to_str())
-    .unwrap_or_default()
-    .to_string();
-
   let extension = path
     .extension()
     .and_then(|extension| extension.to_str())
@@ -35,9 +28,5 @@ pub fn file_symbol<'db>(db: &'db TypedownDatabase, project: Project, file: File)
     SymbolKind::UserDefinedResource(project, file)
   };
 
-  let root = project.root_dir(db);
-  let relative = path.strip_prefix(&*root).unwrap_or(&path);
-  let def_id = format!("@vault::{}", normalize_path(relative));
-
-  MaybeSymbol::new(db, Some(Symbol::new(db, kind, name, def_id)))
+  MaybeSymbol::new(db, Some(Symbol::new(db, kind)))
 }

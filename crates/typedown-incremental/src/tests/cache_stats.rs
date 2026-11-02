@@ -96,8 +96,8 @@ fn dump_promote_cached_capped_at_lru_capacity() {
   let db1 = IdDb {
     storage: QueryStorage::default(),
   };
-  for i in 0..=(LRU_CAPACITY + 50) {
-    identity::identity(&db1, IdInput::new(&db1, i));
+  for index in 0..=(LRU_CAPACITY + 50) {
+    identity::identity(&db1, IdInput::new(&db1, index));
   }
 
   // Session 2: load but access nothing, then dump

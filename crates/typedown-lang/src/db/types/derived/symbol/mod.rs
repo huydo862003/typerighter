@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use strum::FromRepr;
 use typedown_macros::{StableCompare, query_derived, query_interned};
+use typedown_types::path::normalize_path;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::name_resolver::scope::{
@@ -20,7 +21,7 @@ pub enum SymbolKind {
   BuiltinSchema(BuiltinSchemaKind),
   BuiltinMacro(BuiltinMacroKind),
   BuiltinGlobal(BuiltinGlobalKind),
-  FuncParam(Project, File, ProjectRedNode),
+  FuncParam(Project, File, ProjectRedNode, String),
 }
 
 #[derive(FromRepr)]
@@ -57,7 +58,7 @@ impl SymbolKind {
       SymbolKind::UserDefinedSchema(_, _)
         | SymbolKind::UserDefinedResource(_, _)
         | SymbolKind::Asset(_, _, _)
-        | SymbolKind::FuncParam(_, _, _)
+        | SymbolKind::FuncParam(_, _, _, _)
     )
   }
 
@@ -75,10 +76,11 @@ impl StableHash for SymbolKind {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
       }
-      SymbolKind::FuncParam(project, file, closure) => {
+      SymbolKind::FuncParam(project, file, closure, name) => {
         project.stable_hash(db, hasher);
         file.stable_hash(db, hasher);
         closure.stable_hash(db, hasher);
+        name.stable_hash(db, hasher);
       }
       SymbolKind::Asset(asset_kind, project, file) => {
         asset_kind.stable_hash(db, hasher);
@@ -123,11 +125,12 @@ impl Encodable for SymbolKind {
         encoder.emit_u8(buffer, SymbolKindTag::BuiltinGlobal as u8);
         kind.encode(buffer, encoder);
       }
-      SymbolKind::FuncParam(project, file, closure) => {
+      SymbolKind::FuncParam(project, file, closure, name) => {
         encoder.emit_u8(buffer, SymbolKindTag::FnParam as u8);
         project.field_encode(buffer, encoder);
         file.field_encode(buffer, encoder);
         closure.field_encode(buffer, encoder);
+        name.encode(buffer, encoder);
       }
     }
   }
@@ -163,6 +166,7 @@ impl Decodable for SymbolKind {
         Project::field_decode(data, decoder),
         File::field_decode(data, decoder),
         ProjectRedNode::field_decode(data, decoder),
+        String::decode(data, decoder),
       ),
     }
   }
@@ -254,6 +258,14 @@ pub enum BuiltinMacroKind {
   Fref = 0,
 }
 
+impl BuiltinMacroKind {
+  pub fn name_str(&self) -> &'static str {
+    match self {
+      BuiltinMacroKind::Fref => "fref",
+    }
+  }
+}
+
 impl StableHash for BuiltinMacroKind {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
@@ -278,6 +290,15 @@ impl Decodable for BuiltinMacroKind {
 pub enum BuiltinGlobalKind {
   Vault = 0,
   Icon = 1,
+}
+
+impl BuiltinGlobalKind {
+  pub fn name_str(&self) -> &'static str {
+    match self {
+      BuiltinGlobalKind::Vault => "vault",
+      BuiltinGlobalKind::Icon => "icon",
+    }
+  }
 }
 
 impl StableHash for BuiltinGlobalKind {
@@ -315,6 +336,26 @@ pub enum BuiltinSchemaKind {
   Math = 10,
   SchemaProp = 11,
   Obj = 12,
+}
+
+impl BuiltinSchemaKind {
+  pub fn name_str(&self) -> &'static str {
+    match self {
+      BuiltinSchemaKind::TypTyp => "type",
+      BuiltinSchemaKind::Schema => "schema",
+      BuiltinSchemaKind::String => "string",
+      BuiltinSchemaKind::Number => "number",
+      BuiltinSchemaKind::Bool => "boolean",
+      BuiltinSchemaKind::Date => "date",
+      BuiltinSchemaKind::DateTime => "datetime",
+      BuiltinSchemaKind::Time => "time",
+      BuiltinSchemaKind::List => "list",
+      BuiltinSchemaKind::Dict => "dict",
+      BuiltinSchemaKind::Math => "math",
+      BuiltinSchemaKind::SchemaProp => "schema_prop",
+      BuiltinSchemaKind::Obj => "obj",
+    }
+  }
 }
 
 impl StableHash for BuiltinSchemaKind {
@@ -542,8 +583,49 @@ impl<'db> RuntimeScope<'db> {
 #[query_interned]
 pub struct Symbol {
   kind: SymbolKind,
-  name: String,
-  definition_id: String,
+}
+
+impl Symbol {
+  pub fn name(&self, db: &TypedownDatabase) -> String {
+    match self.kind(db) {
+      SymbolKind::UserDefinedSchema(_, file)
+      | SymbolKind::UserDefinedResource(_, file)
+      | SymbolKind::Asset(_, _, file) => file
+        .handle(db)
+        .path()
+        .and_then(|path| path.file_stem())
+        .and_then(|stem| stem.to_str())
+        .unwrap_or_default()
+        .to_string(),
+      SymbolKind::BuiltinSchema(kind) => kind.name_str().to_string(),
+      SymbolKind::BuiltinMacro(kind) => kind.name_str().to_string(),
+      SymbolKind::BuiltinGlobal(kind) => kind.name_str().to_string(),
+      SymbolKind::FuncParam(_, _, _, name) => name,
+    }
+  }
+
+  pub fn definition_id(&self, db: &TypedownDatabase) -> String {
+    match self.kind(db) {
+      SymbolKind::UserDefinedSchema(project, file)
+      | SymbolKind::UserDefinedResource(project, file)
+      | SymbolKind::Asset(_, project, file) => {
+        let root = project.root_dir(db);
+        let path = file.handle(db).path().cloned().unwrap_or_default();
+        let relative = path.strip_prefix(&*root).unwrap_or(&path);
+        format!("@vault::{}", normalize_path(relative))
+      }
+      SymbolKind::BuiltinSchema(kind) => format!("@builtin::{}", kind.name_str()),
+      SymbolKind::BuiltinMacro(kind) => format!("@builtin::{}", kind.name_str()),
+      SymbolKind::BuiltinGlobal(kind) => format!("@builtin::{}", kind.name_str()),
+      SymbolKind::FuncParam(project, file, closure, name) => {
+        let root = project.root_dir(db);
+        let path = file.handle(db).path().cloned().unwrap_or_default();
+        let relative = path.strip_prefix(&*root).unwrap_or(&path);
+        let offset = closure.node.start_offset();
+        format!("@param::{}:{}:{}", normalize_path(relative), offset, name)
+      }
+    }
+  }
 }
 
 #[query_derived]

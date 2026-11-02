@@ -1,31 +1,30 @@
 use std::collections::BTreeMap;
-use typedown_macros::query_derived;
+use typedown_macros::query_interned;
 
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
-use crate::db::types::{FuncSignature, LazyTyp, TypVariable};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp, Symbol, TypVariable};
 
-/// A type variable reference within a type expression
-#[query_derived]
+/// A reference to a type variable, uniquely identified by its closure-param symbol
+#[query_interned]
 pub struct TdVariableTyp<'db> {
-  #[id]
-  pub index: usize,
-  #[id]
   pub variable: TypVariable<'db>,
+  pub symbol: Symbol,
 }
 
 impl<'db> TdStaticTyp<'db> for TdVariableTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
-    let var = Self::variable(*self, db);
-    if let Some(bound) = var.upper_bound(db).resolve(db) {
+    let variable = Self::variable(*self, db);
+    let name = Self::symbol(*self, db).name(db);
+    if let Some(bound) = variable.upper_bound(db).resolve(db) {
       if bound.as_td_obj_typ().is_some() {
-        format!("T{}", Self::index(*self, db))
+        name
       } else {
-        format!("T{} <: {}", Self::index(*self, db), bound.display_name(db))
+        format!("{} <: {}", name, bound.display_name(db))
       }
     } else {
-      format!("T{}", Self::index(*self, db))
+      name
     }
   }
 
@@ -71,12 +70,14 @@ impl<'db> TdStaticTyp<'db> for TdVariableTyp<'db> {
     &self,
     db: &'db TypedownDatabase,
     arg_typs: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    self
-      .variable(db)
-      .upper_bound(db)
-      .resolve(db)?
-      .call_typ(db, arg_typs)
+  ) -> CallTypResult<'db> {
+    let Some(resolved) = self.variable(db).upper_bound(db).resolve(db) else {
+      return CallTypResult {
+        signature: None,
+        diagnostics: vec![],
+      };
+    };
+    resolved.call_typ(db, arg_typs)
   }
 }
 
@@ -100,12 +101,17 @@ mod tests {
   use super::*;
   use crate::db::derived::get_builtin_typs::get_string_typ;
   use crate::db::types::derived::obj_system::TdProductTyp;
+  use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
   use crate::db::{QueryStorage, TypedownDatabase};
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
       storage: QueryStorage::default(),
     }
+  }
+
+  fn create_test_symbol(db: &TypedownDatabase, kind: BuiltinSchemaKind) -> Symbol {
+    Symbol::new(db, SymbolKind::BuiltinSchema(kind))
   }
 
   #[test]
@@ -118,7 +124,11 @@ mod tests {
     let struct_typ: TdTypEnum = TdProductTyp::new(&db, None, fields).into();
 
     let variable = TypVariable::get(&db, Some(LazyTyp::eager(struct_typ)));
-    let variable_typ = TdVariableTyp::new(&db, 0, variable);
+    let variable_typ = TdVariableTyp::new(
+      &db,
+      variable,
+      create_test_symbol(&db, BuiltinSchemaKind::String),
+    );
 
     // field lookup delegates to Upper
     assert_eq!(variable_typ.lookup_field_typ(&db, "name"), Some(string_typ));

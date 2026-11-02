@@ -58,7 +58,7 @@ pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult
     SymbolKind::UserDefinedResource(_, _)
     | SymbolKind::BuiltinMacro(_)
     | SymbolKind::BuiltinGlobal(_) => TypResult::new(db, None, vec![]),
-    SymbolKind::FuncParam(_, _, _) => TypResult::new(db, None, vec![]),
+    SymbolKind::FuncParam(_, _, _, _) => TypResult::new(db, None, vec![]),
   }
 }
 
@@ -580,12 +580,12 @@ fn resolve_typ_lazy<'db>(
     if base_typ.arity(db) == 0 {
       return Some(LazyTyp::eager(base_typ));
     }
-    let mut arg_types = vec![];
+    let mut arg_typs = vec![];
     for index_expr_item in index_expr.indices() {
       let index_node = ProjectRedNode::new(project, file, index_expr_item.syntax().clone());
-      arg_types.push(resolve_typ_lazy(db, index_node, diagnostics)?);
+      arg_typs.push(resolve_typ_lazy(db, index_node, diagnostics)?);
     }
-    let instantiate_result = base_typ.instantiate(db, arg_types);
+    let instantiate_result = base_typ.instantiate(db, arg_typs);
     diagnostics.extend(instantiate_result.diagnostics(db).iter().cloned());
     return Some(LazyTyp::eager(instantiate_result.typ(db)));
   }
@@ -657,12 +657,7 @@ mod tests {
   #[test]
   fn evaluate_typ_builtin_schema_returns_schema_typ() {
     let db = make_db();
-    let symbol = Symbol::new(
-      &db,
-      SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
-      "schema".to_string(),
-      "@builtin::schema".to_string(),
-    );
+    let symbol = Symbol::new(&db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema));
     let result = evaluate_typ(&db, symbol);
     assert!(result.typ(&db) == Some(TdTypEnum::from(get_schema_meta_typ(&db))));
     assert!(result.diagnostics(&db).is_empty());
@@ -1164,7 +1159,7 @@ mod tests {
       matches!(
         diagnostics[0],
         TdDiagnostic {
-          kind: TdDiagnosticKind::TypArgBoundViolation { index: 0, .. },
+          kind: TdDiagnosticKind::TypArgBoundViolation { .. },
           ..
         }
       ),
@@ -1367,7 +1362,7 @@ age: 42
     let friend_node = entries
       .into_iter()
       .find(|(key, _)| key == "friend")
-      .map(|(_, v)| v)
+      .map(|(_, value)| value)
       .expect("should have friend field");
     let typ_result = actual_node_typ(&db, friend_node);
     let typ = typ_result.typ(&db).expect("fref should return a type");
