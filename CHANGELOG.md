@@ -1,4 +1,4 @@
-## [0.53.1] - 2026-11-03
+## [0.53.2] - 2026-11-03
 
 ### Fixed
 
@@ -11,7 +11,7 @@
   - `serialize_typ` emits `{"$kind": "type", "type": "..."}` with JSON Schema-compatible fields
   - `deserialize_value` accepts project and resolves `$kind: "ref"` URLs back to evaluated objects
 
-## [0.53.0] - 2026-11-02
+## [0.53.0] - 2026-11-02 (retracted)
 
 ### Added
 
