@@ -130,7 +130,7 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   ) -> Option<FuncSignature<'db>> {
     let element = self.element(db).and_then(|element| element.resolve(db))?;
     let key_typ: TdTypEnum = get_number_typ(db).into();
-    Some(FuncSignature::new(db, vec![key_typ], element))
+    Some(FuncSignature::new(db, None, vec![key_typ], element))
   }
 }
 

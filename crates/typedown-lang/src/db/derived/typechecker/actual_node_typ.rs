@@ -671,7 +671,7 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     None => return TypResult::new(db, None, body_result.diagnostics(db).clone()),
   };
 
-  let signature = FuncSignature::new(db, param_typs, ret);
+  let signature = FuncSignature::new(db, None, param_typs, ret);
   let func_typ = get_func_typ(db, signature);
   TypResult::new(
     db,
@@ -935,7 +935,7 @@ mod tests {
     let field_typ = number_lit
       .lookup_field_typ(&db, "to_string")
       .expect("should have to_string method");
-    let expected_signature = FuncSignature::new(&db, vec![], get_string_typ(&db).into());
+    let expected_signature = FuncSignature::new(&db, None, vec![], get_string_typ(&db).into());
     let expected_func_typ: TdTypEnum = get_func_typ(&db, expected_signature).into();
 
     assert_eq!(field_typ, expected_func_typ);

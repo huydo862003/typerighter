@@ -53,7 +53,12 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
       return None;
     }
     let union_ret = get_sum_typ(db, ret_typs).into();
-    Some(FuncSignature::new(db, vec![key_typ.clone()], union_ret))
+    Some(FuncSignature::new(
+      db,
+      None,
+      vec![key_typ.clone()],
+      union_ret,
+    ))
   }
 
   fn call_typ(
@@ -71,7 +76,7 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
       return None;
     }
     let union_ret = get_sum_typ(db, ret_typs).into();
-    Some(FuncSignature::new(db, arg_typs, union_ret))
+    Some(FuncSignature::new(db, None, arg_typs, union_ret))
   }
 }
 

@@ -164,7 +164,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
       .parent_typ(db)
       .map(|parent| parent.runtime_vtable(db))
       .unwrap_or_default();
-    let signature = FuncSignature::new(db, vec![], get_string_typ(db).into());
+    let signature = FuncSignature::new(db, None, vec![], get_string_typ(db).into());
     let to_string_func = TdFuncObj::new(
       db,
       BUILTIN_TO_STRING.to_string(),
@@ -182,7 +182,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
       .parent_typ(db)
       .map(|parent| parent.static_vtable(db))
       .unwrap_or_default();
-    let signature = FuncSignature::new(db, vec![], get_string_typ(db).into());
+    let signature = FuncSignature::new(db, None, vec![], get_string_typ(db).into());
     let func_typ = get_func_typ(db, signature).into();
     result
       .entry(BUILTIN_TO_STRING.to_string())

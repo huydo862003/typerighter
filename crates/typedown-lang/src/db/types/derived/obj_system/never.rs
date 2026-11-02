@@ -40,6 +40,7 @@ impl<'db> TdStaticTyp<'db> for TdNeverTyp<'db> {
   ) -> Option<FuncSignature<'db>> {
     Some(FuncSignature::new(
       db,
+      None,
       vec![key_typ.clone()],
       get_never_typ(db).into(),
     ))
@@ -50,7 +51,12 @@ impl<'db> TdStaticTyp<'db> for TdNeverTyp<'db> {
     db: &'db TypedownDatabase,
     arg_typs: Vec<TdTypEnum<'db>>,
   ) -> Option<FuncSignature<'db>> {
-    Some(FuncSignature::new(db, arg_typs, get_never_typ(db).into()))
+    Some(FuncSignature::new(
+      db,
+      None,
+      arg_typs,
+      get_never_typ(db).into(),
+    ))
   }
 }
 

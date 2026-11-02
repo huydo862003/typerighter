@@ -17,6 +17,7 @@ use crate::db::types::Symbol;
 
 #[query_interned]
 pub struct FuncSignature<'db> {
+  pub typ_params: Option<TypParams<'db>>,
   pub params: Vec<TdTypEnum<'db>>,
   pub ret: TdTypEnum<'db>,
 }

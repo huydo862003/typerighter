@@ -169,7 +169,7 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
 
-    let signature = FuncSignature::new(&db, vec![string_typ.clone()], number_typ.clone());
+    let signature = FuncSignature::new(&db, None, vec![string_typ.clone()], number_typ.clone());
     let func_typ: TdTypEnum = get_func_typ(&db, signature).into();
 
     let existential_params = TypParams::new(&db, vec![], vec![]);

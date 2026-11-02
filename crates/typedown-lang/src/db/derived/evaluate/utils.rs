@@ -1147,7 +1147,7 @@ mod tests {
   fn test_dunder_methods_call_and_index() {
     let db = make_db();
     let string_typ: TdTypEnum<'_> = get_string_typ(&db).into();
-    let signature = FuncSignature::new(&db, vec![string_typ.clone()], string_typ.clone());
+    let signature = FuncSignature::new(&db, None, vec![string_typ.clone()], string_typ.clone());
     let index_func = TdFuncObj::new(
       &db,
       PROTOCOL_INDEX.to_string(),
