@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.53.0] - 2026-11-02
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - Support grid component
+
 ## [0.52.2] - 2026-11-01
 
 ### Added
