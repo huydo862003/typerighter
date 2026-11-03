@@ -260,8 +260,7 @@ fn is_subtyp_of_env<'db>(
         TdTypEnum::TdLitTyp(lit)
           if matches!(lit.underlying_typ(db), TdTypEnum::TdSchemaMetaTyp(_))
       ),
-      TdTypEnum::TdVariableTyp(_)
-      | TdTypEnum::TdExistentialTyp(_) => false,
+      TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => false,
     }
   }
 
@@ -453,11 +452,14 @@ pub fn is_nullable(db: &TypedownDatabase, typ: &TdTypEnum) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
   use crate::db::derived::get_builtin_typs::{
     get_bool_typ, get_date_typ, get_datetime_typ, get_dict_typ, get_list_typ, get_lit_typ,
     get_never_typ, get_null_typ, get_number_typ, get_obj_typ, get_schema_meta_typ, get_string_typ,
     get_sum_typ, get_time_typ, get_typ_typ,
   };
+  use crate::db::derived::name_resolver::file_symbol::file_symbol;
+  use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::Symbol;
   use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
   use crate::db::types::{
@@ -1780,9 +1782,9 @@ mod tests {
   }
 
   /* lit<T> subtyping rules
-     Rule 1: lit<A> <: lit<B> only if A == B
-     Rule 2: lit<A> <: B iff A is an instance of B
-     Rule 3: A <: lit<B> never (except identity or never) */
+  Rule 1: lit<A> <: lit<B> only if A == B
+  Rule 2: lit<A> <: B iff A is an instance of B
+  Rule 3: A <: lit<B> never (except identity or never) */
 
   fn create_lit_typ<'a>(db: &'a TypedownDatabase, typ: TdTypEnum<'a>) -> TdTypEnum<'a> {
     get_lit_typ(db, LitValue::Typ(typ)).into()
@@ -1872,10 +1874,6 @@ mod tests {
 
   #[test]
   fn lit_schema_subtype_of_schema_meta() {
-    use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
-    use crate::db::derived::name_resolver::file_symbol::file_symbol;
-    use crate::db::fixtures::load_vault_fixture;
-
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let person_typ = evaluate_typ(&db, symbol).typ(&db).unwrap();
@@ -1888,10 +1886,6 @@ mod tests {
 
   #[test]
   fn lit_schema_not_subtype_of_different_lit_schema() {
-    use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
-    use crate::db::derived::name_resolver::file_symbol::file_symbol;
-    use crate::db::fixtures::load_vault_fixture;
-
     let (db, project, _) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
 
     let person_file = *project
