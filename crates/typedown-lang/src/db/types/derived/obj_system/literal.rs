@@ -77,7 +77,7 @@ impl<'db> TdLitTyp<'db> {
       LitValue::String(_) => get_string_typ(db).into(),
       LitValue::Number(_) => get_number_typ(db).into(),
       LitValue::Bool(_) => get_bool_typ(db).into(),
-      LitValue::Typ(_) => TdTypTyp::get(db).into(),
+      LitValue::Typ(typ) => typ.get_typ(db),
     }
   }
 }

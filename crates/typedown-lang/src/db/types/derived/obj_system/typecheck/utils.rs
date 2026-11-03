@@ -255,8 +255,12 @@ fn is_subtyp_of_env<'db>(
       | TdTypEnum::TdTimeTyp(_)
       | TdTypEnum::TdNullTyp(_) => false,
       TdTypEnum::TdIconTyp(_) => matches!(subtyp, TdTypEnum::TdIconTyp(_)),
-      TdTypEnum::TdSchemaMetaTyp(_)
-      | TdTypEnum::TdVariableTyp(_)
+      TdTypEnum::TdSchemaMetaTyp(_) => matches!(
+        subtyp,
+        TdTypEnum::TdLitTyp(lit)
+          if matches!(lit.underlying_typ(db), TdTypEnum::TdSchemaMetaTyp(_))
+      ),
+      TdTypEnum::TdVariableTyp(_)
       | TdTypEnum::TdExistentialTyp(_) => false,
     }
   }
