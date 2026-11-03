@@ -1,7 +1,8 @@
 //! Shared type compatibility utilities for typechecking
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_typs::get_null_typ;
+use crate::db::derived::get_builtin_typs::{get_null_typ, get_obj_typ};
+use crate::db::types::LitValue;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::fields_compatible;
 use crate::db::types::{
@@ -162,6 +163,18 @@ fn is_subtyp_of_env<'db>(
     if subtyp.as_id() == supertyp.as_id() {
       return true;
     }
+    debug_assert!(
+      !subtyp.is_td_metatype_instance_typ()
+        && !subtyp.is_td_variable_typ()
+        && !subtyp.is_td_existential_typ(),
+      "InstanceTyp/VariableTyp/ExistentialTyp must be handled in phase 0"
+    );
+    debug_assert!(
+      !supertyp.is_td_metatype_instance_typ()
+        && !supertyp.is_td_variable_typ()
+        && !supertyp.is_td_existential_typ(),
+      "InstanceTyp/VariableTyp/ExistentialTyp must be handled in phase 0"
+    );
     match supertyp {
       TdTypEnum::TdObjTyp(_) | TdTypEnum::TdTypTyp(_) => true,
       TdTypEnum::TdNeverTyp(_) => false,
@@ -255,7 +268,13 @@ fn is_subtyp_of_env<'db>(
       | TdTypEnum::TdTimeTyp(_)
       | TdTypEnum::TdNullTyp(_) => false,
       TdTypEnum::TdIconTyp(_) => matches!(subtyp, TdTypEnum::TdIconTyp(_)),
-      TdTypEnum::TdSchemaMetaTyp(_)
+      TdTypEnum::TdSchemaMetaTyp(_) => matches!(
+        subtyp,
+        TdTypEnum::TdLitTyp(lit)
+          if matches!(lit.underlying_typ(db), TdTypEnum::TdSchemaMetaTyp(_))
+      ),
+      // Handled in phase 0, should not reach here
+      TdTypEnum::TdMetatypeInstanceTyp(_)
       | TdTypEnum::TdVariableTyp(_)
       | TdTypEnum::TdExistentialTyp(_) => false,
     }
@@ -325,8 +344,78 @@ fn is_subtyp_of_env<'db>(
     }
   }
 
-  // Phase 0: Special pre-check (variables, existentials)
+  // Phase 0: Special pre-check (instance types, variables, existentials)
   match (subtyp, supertyp) {
+    // metatype_instance<T> on sub side (including when both sides are instance)
+    (TdTypEnum::TdMetatypeInstanceTyp(sub_instance_typ), _) => {
+      match &sub_instance_typ.inner(db) {
+        // metatype_instance<lit<X>>: unwrap to X
+        TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
+          LitValue::Typ(unwrapped) => is_subtyp_of_env(db, &unwrapped, supertyp, env),
+          _ => is_subtyp_of_env(db, &lit.underlying_typ(db), supertyp, env),
+        },
+        // metatype_instance<schema_meta>: sum of all schema types
+        TdTypEnum::TdSchemaMetaTyp(_) => match supertyp {
+          // subtype of obj and type (top types)
+          TdTypEnum::TdObjTyp(_) | TdTypEnum::TdTypTyp(_) => true,
+          // subtype of metatype_instance<schema_meta|type|obj> (same or wider)
+          TdTypEnum::TdMetatypeInstanceTyp(super_instance_typ) => matches!(
+            &super_instance_typ.inner(db),
+            TdTypEnum::TdSchemaMetaTyp(_) | TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_)
+          ),
+          _ => false,
+        },
+        // metatype_instance<type>: all values (every value has a type)
+        // metatype_instance<obj>: all values (every value is an obj)
+        // These are equivalent
+        TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_) => match supertyp {
+          // subtype of obj and type (top types)
+          TdTypEnum::TdObjTyp(_) | TdTypEnum::TdTypTyp(_) => true,
+          // subtype of metatype_instance<type|obj> (equivalent)
+          TdTypEnum::TdMetatypeInstanceTyp(super_instance_typ) => matches!(
+            &super_instance_typ.inner(db),
+            TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_)
+          ),
+          _ => false,
+        },
+        // metatype_instance<never>: uninhabited, subtype of everything
+        TdTypEnum::TdNeverTyp(_) => true,
+        // metatype_instance<instance<T>>: recurse
+        TdTypEnum::TdMetatypeInstanceTyp(_) => {
+          is_subtyp_of_env(db, &sub_instance_typ.inner(db), supertyp, env)
+        }
+        // metatype_instance<variable/existential>: unresolvable, treat as obj
+        TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => {
+          is_subtyp_of_env(db, &get_obj_typ(db).into(), supertyp, env)
+        }
+        // metatype_instance of non-metatype is never (uninhabited), subtype of everything
+        _ => true,
+      }
+    }
+    // metatype_instance<T> on super side
+    (_, TdTypEnum::TdMetatypeInstanceTyp(super_instance_typ)) => {
+      match &super_instance_typ.inner(db) {
+        // metatype_instance<lit<X>>: sub must be subtype of X
+        TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
+          LitValue::Typ(unwrapped) => is_subtyp_of_env(db, subtyp, &unwrapped, env),
+          _ => is_subtyp_of_env(db, subtyp, &lit.underlying_typ(db), env),
+        },
+        // metatype_instance<schema_meta>: sub must be a schema type
+        TdTypEnum::TdSchemaMetaTyp(_) => subtyp.as_td_schema_typ().is_some(),
+        // metatype_instance<type|obj>: all values (every value has a type, every type is an obj)
+        TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_) => true,
+        // metatype_instance<never>: nothing
+        TdTypEnum::TdNeverTyp(_) => false,
+        // metatype_instance<instance<T>>: recurse
+        TdTypEnum::TdMetatypeInstanceTyp(_) => {
+          is_subtyp_of_env(db, subtyp, &super_instance_typ.inner(db), env)
+        }
+        // metatype_instance<variable/existential>: unresolvable
+        TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => false,
+        // metatype_instance of non-metatype is never, nothing is its subtype
+        _ => false,
+      }
+    }
     // Universal variables: T1 <: T2 requires identity or checking T1's declared upper bound
     (TdTypEnum::TdVariableTyp(variable_subtyp), TdTypEnum::TdVariableTyp(_variable_supertyp)) => {
       if subtyp == supertyp {
@@ -377,7 +466,7 @@ fn is_subtyp_of_env<'db>(
       // - This should imply that x is also of type P2[T2]
       // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless
 
-      // Well this is already resolved due to the type variable invariant listed above
+      // Well this is already unwrapped due to the type variable invariant listed above
       existential_subtyp
         .body(db)
         .and_then(|body| body.resolve(db))
@@ -449,11 +538,14 @@ pub fn is_nullable(db: &TypedownDatabase, typ: &TdTypEnum) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
   use crate::db::derived::get_builtin_typs::{
     get_bool_typ, get_date_typ, get_datetime_typ, get_dict_typ, get_list_typ, get_lit_typ,
     get_never_typ, get_null_typ, get_number_typ, get_obj_typ, get_schema_meta_typ, get_string_typ,
     get_sum_typ, get_time_typ, get_typ_typ,
   };
+  use crate::db::derived::name_resolver::file_symbol::file_symbol;
+  use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::Symbol;
   use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
   use crate::db::types::{
@@ -550,7 +642,7 @@ mod tests {
   }
 
   #[test]
-  fn lit_number_compatible_with_number() {
+  fn lit_numberber_compatible_with_number() {
     let db = make_db();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let lit = create_lit_number(&db, "42");
@@ -558,7 +650,7 @@ mod tests {
   }
 
   #[test]
-  fn lit_number_incompatible_with_string() {
+  fn lit_numberber_incompatible_with_string() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let lit_typ = create_lit_number(&db, "42");
@@ -1773,5 +1865,143 @@ mod tests {
     // open T bound Object <= string is false
     // (exists T <: Object. List[T]) <= List[string]
     assert!(!is_subtyp_of(&db, &existential_obj, &list_string));
+  }
+
+  /* lit<T> subtyping rules
+  Rule 1: lit<A> <: lit<B> only if A == B
+  Rule 2: lit<A> <: B iff A is an instance of B
+  Rule 3: A <: lit<B> never (except identity or never) */
+
+  fn create_lit_typ<'a>(db: &'a TypedownDatabase, typ: TdTypEnum<'a>) -> TdTypEnum<'a> {
+    get_lit_typ(db, LitValue::Typ(typ)).into()
+  }
+
+  // Rule 1
+
+  #[test]
+  fn lit_typ_subtype_of_itself() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    assert!(is_subtyp_of(&db, &lit_string, &lit_string));
+  }
+
+  #[test]
+  fn lit_typ_not_subtype_of_different_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let lit_number = create_lit_typ(&db, get_number_typ(&db).into());
+    assert!(!is_subtyp_of(&db, &lit_string, &lit_number));
+    assert!(!is_subtyp_of(&db, &lit_number, &lit_string));
+  }
+
+  // Rule 2
+
+  #[test]
+  fn lit_typ_subtype_of_underlying() {
+    let db = make_db();
+    // string_typ has type TdTypTyp, so lit<string> <: type
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let typ_typ: TdTypEnum = get_typ_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_string, &typ_typ));
+  }
+
+  #[test]
+  fn lit_typ_subtype_of_obj() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let obj: TdTypEnum = get_obj_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_string, &obj));
+  }
+
+  #[test]
+  fn lit_typ_not_subtype_of_unrelated() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let number: TdTypEnum = get_number_typ(&db).into();
+    assert!(!is_subtyp_of(&db, &lit_string, &number));
+  }
+
+  #[test]
+  fn lit_schema_meta_subtype_of_schema_meta_underlying() {
+    let db = make_db();
+    // schema_meta has type TdTypTyp, so lit<schema_meta> <: type
+    let lit_schema_meta = create_lit_typ(&db, get_schema_meta_typ(&db).into());
+    let typ_typ: TdTypEnum = get_typ_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_schema_meta, &typ_typ));
+  }
+
+  // Rule 3
+
+  #[test]
+  fn typ_not_subtype_of_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let typ_typ: TdTypEnum = get_typ_typ(&db).into();
+    assert!(!is_subtyp_of(&db, &typ_typ, &lit_string));
+  }
+
+  #[test]
+  fn obj_not_subtype_of_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let obj: TdTypEnum = get_obj_typ(&db).into();
+    assert!(!is_subtyp_of(&db, &obj, &lit_string));
+  }
+
+  #[test]
+  fn never_subtype_of_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let never: TdTypEnum = get_never_typ(&db).into();
+    assert!(is_subtyp_of(&db, &never, &lit_string));
+  }
+
+  // Rule 2 with real schema: lit<Person> <: schema_meta
+
+  #[test]
+  fn lit_schema_subtype_of_schema_meta() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let person_typ = evaluate_typ(&db, symbol).typ(&db).unwrap();
+
+    let lit_person = create_lit_typ(&db, person_typ);
+    let schema_meta: TdTypEnum = get_schema_meta_typ(&db).into();
+
+    assert!(is_subtyp_of(&db, &lit_person, &schema_meta));
+  }
+
+  #[test]
+  fn lit_schema_not_subtype_of_different_lit_schema() {
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
+
+    let person_file = *project
+      .files(&db)
+      .iter()
+      .find(|(p, _)| p.ends_with("_types/Person.td"))
+      .unwrap()
+      .1;
+    let student_file = *project
+      .files(&db)
+      .iter()
+      .find(|(p, _)| p.ends_with("_types/Student.td"))
+      .unwrap()
+      .1;
+
+    let person_sym = file_symbol(&db, project, person_file).value(&db).unwrap();
+    let student_sym = file_symbol(&db, project, student_file).value(&db).unwrap();
+    let person_typ = evaluate_typ(&db, person_sym).typ(&db).unwrap();
+    let student_typ = evaluate_typ(&db, student_sym).typ(&db).unwrap();
+
+    let lit_person = create_lit_typ(&db, person_typ);
+    let lit_student = create_lit_typ(&db, student_typ);
+
+    // lit<Person> != lit<Student> even though Student extends Person
+    assert!(!is_subtyp_of(&db, &lit_person, &lit_student));
+    assert!(!is_subtyp_of(&db, &lit_student, &lit_person));
+
+    // but both are subtypes of schema_meta
+    let schema_meta: TdTypEnum = get_schema_meta_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_person, &schema_meta));
+    assert!(is_subtyp_of(&db, &lit_student, &schema_meta));
   }
 }

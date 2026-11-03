@@ -192,11 +192,12 @@ impl<'db> StableHash for LazyTyp<'db> {
 
 /// A concrete literal value used in literal constraints
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum LitValue {
+pub enum LitValue<'db> {
   String(String),
   Bool(bool),
   // f64 cannot be hashed so we store in string
   Number(String),
+  Typ(TdTypEnum<'db>),
 }
 
 #[derive(FromRepr)]
@@ -205,9 +206,10 @@ enum LitValueTag {
   String = 0,
   Bool = 1,
   Number = 2,
+  Typ = 3,
 }
 
-impl Encodable for LitValue {
+impl Encodable for LitValue<'_> {
   fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       LitValue::String(value) => {
@@ -222,28 +224,34 @@ impl Encodable for LitValue {
         encoder.emit_u8(buffer, LitValueTag::Number as u8);
         value.encode(buffer, encoder);
       }
+      LitValue::Typ(value) => {
+        encoder.emit_u8(buffer, LitValueTag::Typ as u8);
+        value.encode(buffer, encoder);
+      }
     }
   }
 }
 
-impl Decodable for LitValue {
+impl Decodable for LitValue<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match LitValueTag::from_repr(tag).expect("unknown LiteralValue tag") {
       LitValueTag::String => LitValue::String(String::decode(data, decoder)),
       LitValueTag::Bool => LitValue::Bool(bool::decode(data, decoder)),
       LitValueTag::Number => LitValue::Number(String::decode(data, decoder)),
+      LitValueTag::Typ => LitValue::Typ(TdTypEnum::decode(data, decoder)),
     }
   }
 }
 
-impl StableHash for LitValue {
+impl StableHash for LitValue<'_> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
       LitValue::String(value) => value.stable_hash(db, hasher),
       LitValue::Bool(value) => value.stable_hash(db, hasher),
       LitValue::Number(value) => value.stable_hash(db, hasher),
+      LitValue::Typ(value) => value.stable_hash(db, hasher),
     }
   }
 }

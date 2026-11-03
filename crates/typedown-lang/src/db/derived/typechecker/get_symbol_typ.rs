@@ -5,7 +5,8 @@ use std::collections::VecDeque;
 use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_typs::{get_schema_meta_typ, get_typ_typ};
+use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use crate::db::derived::get_builtin_typs::{get_lit_typ, get_schema_meta_typ, get_typ_typ};
 use crate::db::derived::icon::get_icon_module_typ;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
@@ -13,8 +14,8 @@ use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use crate::db::derived::vault::get_vault_typ;
 use crate::db::types::{
-  BuiltinGlobalKind, File, Project, ProjectRedNode, Symbol, SymbolKind, TdBlobTyp, TdTypEnum,
-  TdVariableTyp, TypResult, TypVariable,
+  BuiltinGlobalKind, File, LitValue, Project, ProjectRedNode, Symbol, SymbolKind, TdBlobTyp,
+  TdTypEnum, TdVariableTyp, TypResult, TypVariable,
 };
 use crate::syntax::ast::{AstNode, ClosureExpr, IdentLit};
 use crate::syntax::red::RedNode;
@@ -26,7 +27,11 @@ pub fn get_symbol_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResu
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(_) => TypResult::new(db, Some(get_typ_typ(db).into()), vec![]),
     SymbolKind::UserDefinedSchema(_, _) => {
-      TypResult::new(db, Some(get_schema_meta_typ(db).into()), vec![])
+      let typ = evaluate_typ(db, symbol)
+        .typ(db)
+        .map(|typ| get_lit_typ(db, LitValue::Typ(typ)).into())
+        .unwrap_or_else(|| get_schema_meta_typ(db).into());
+      TypResult::new(db, Some(typ), vec![])
     }
     SymbolKind::UserDefinedResource(project, file) => {
       let project_node = parse_file(db, project, file).ast(db);

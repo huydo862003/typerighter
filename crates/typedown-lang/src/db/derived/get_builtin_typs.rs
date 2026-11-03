@@ -150,7 +150,7 @@ pub fn get_never_typ<'db>(db: &'db TypedownDatabase) -> TdNeverTyp<'db> {
 }
 
 #[query_derived]
-pub fn get_lit_typ<'db>(db: &'db TypedownDatabase, value: LitValue) -> TdLitTyp<'db> {
+pub fn get_lit_typ<'db>(db: &'db TypedownDatabase, value: LitValue<'db>) -> TdLitTyp<'db> {
   TdLitTyp::new(db, value)
 }
 

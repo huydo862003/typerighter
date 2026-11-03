@@ -6,6 +6,7 @@ mod dict;
 mod existential;
 mod func;
 mod icon;
+mod instance;
 mod list;
 mod literal;
 mod math;
@@ -37,6 +38,7 @@ pub use dict::*;
 pub use existential::*;
 pub use func::*;
 pub use icon::*;
+pub use instance::*;
 pub use list::*;
 pub use literal::*;
 pub use math::*;
@@ -62,12 +64,15 @@ use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams};
 use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_incremental::{DepId, Id};
 
-// Use this instead of dyn
-// The primitive types are fixed anyways
+/* All type variants in the system
+ * Split into two categories:
+ * 1. Runtime types: can be returned by TdRuntimeObj::get_typ(), the actual type of a value at runtime.
+ * 2. Static-only types: exist only in type signatures and typechecking, never the type of a runtime value. */
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
 #[delegate(TdRuntimeObj<'x>, generics = "'x")]
 #[delegate(TdStaticTyp<'x>, generics = "'x")]
 pub enum TdTypEnum<'db> {
+  /* Runtime types */
   TdTypTyp(TdTypTyp<'db>),
   TdBoolTyp(TdBoolTyp<'db>),
   TdStringTyp(TdStringTyp<'db>),
@@ -84,13 +89,15 @@ pub enum TdTypEnum<'db> {
   TdSchemaTyp(TdSchemaTyp<'db>),
   TdBlobTyp(TdBlobTyp<'db>),
   TdNullTyp(TdNullTyp<'db>),
+  TdObjTyp(TdObjTyp<'db>),
+  TdIconTyp(TdIconTyp<'db>),
+  /* Static-only types: exist as objects in the database for meta inspection, but get_typ() can only return runtime types */
   TdNeverTyp(TdNeverTyp<'db>),
   TdLitTyp(TdLitTyp<'db>),
   TdSumTyp(TdSumTyp<'db>),
   TdVariableTyp(TdVariableTyp<'db>),
   TdExistentialTyp(TdExistentialTyp<'db>),
-  TdObjTyp(TdObjTyp<'db>),
-  TdIconTyp(TdIconTyp<'db>),
+  TdMetatypeInstanceTyp(TdMetatypeInstanceTyp<'db>),
 }
 
 // Use this instead of dyn
@@ -156,6 +163,7 @@ impl_from_typ_for_obj_enum!(
   TdExistentialTyp,
   TdObjTyp,
   TdIconTyp,
+  TdMetatypeInstanceTyp,
 );
 
 impl Id for TdTypEnum<'_> {
@@ -184,6 +192,7 @@ impl Id for TdTypEnum<'_> {
       TdTypEnum::TdExistentialTyp(value) => value.as_id(),
       TdTypEnum::TdObjTyp(value) => value.as_id(),
       TdTypEnum::TdIconTyp(value) => value.as_id(),
+      TdTypEnum::TdMetatypeInstanceTyp(value) => value.as_id(),
     }
   }
 }
@@ -269,6 +278,7 @@ impl typedown_incremental::StableHash for TdTypEnum<'_> {
       TdTypEnum::TdExistentialTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdObjTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdIconTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdMetatypeInstanceTyp(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -328,6 +338,7 @@ pub enum TdTypeKind {
   Existential = 20,
   Variable = 21,
   Icon = 22,
+  MetatypeInstance = 23,
 }
 
 #[derive(FromRepr)]
@@ -450,6 +461,10 @@ impl Encodable for TdTypEnum<'_> {
         encoder.emit_u8(buffer, TdTypeKind::Icon as u8);
         value.field_encode(buffer, encoder);
       }
+      TdTypEnum::TdMetatypeInstanceTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::MetatypeInstance as u8);
+        value.field_encode(buffer, encoder);
+      }
     }
   }
 }
@@ -481,6 +496,7 @@ impl Decodable for TdTypEnum<'_> {
       TdTypeKind::Variable => TdVariableTyp::field_decode(data, decoder).into(),
       TdTypeKind::Obj => TdObjTyp::field_decode(data, decoder).into(),
       TdTypeKind::Icon => TdIconTyp::field_decode(data, decoder).into(),
+      TdTypeKind::MetatypeInstance => TdMetatypeInstanceTyp::field_decode(data, decoder).into(),
     }
   }
 }
