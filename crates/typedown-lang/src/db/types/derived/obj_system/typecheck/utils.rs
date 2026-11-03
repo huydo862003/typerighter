@@ -1867,4 +1867,61 @@ mod tests {
     let never: TdTypEnum = get_never_typ(&db).into();
     assert!(is_subtyp_of(&db, &never, &lit_string));
   }
+
+  // Rule 2 with real schema: lit<Person> <: schema_meta
+
+  #[test]
+  fn lit_schema_subtype_of_schema_meta() {
+    use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+    use crate::db::derived::name_resolver::file_symbol::file_symbol;
+    use crate::db::fixtures::load_vault_fixture;
+
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let person_typ = evaluate_typ(&db, symbol).typ(&db).unwrap();
+
+    let lit_person = create_lit_typ(&db, person_typ);
+    let schema_meta: TdTypEnum = get_schema_meta_typ(&db).into();
+
+    assert!(is_subtyp_of(&db, &lit_person, &schema_meta));
+  }
+
+  #[test]
+  fn lit_schema_not_subtype_of_different_lit_schema() {
+    use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+    use crate::db::derived::name_resolver::file_symbol::file_symbol;
+    use crate::db::fixtures::load_vault_fixture;
+
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
+
+    let person_file = *project
+      .files(&db)
+      .iter()
+      .find(|(p, _)| p.ends_with("_types/Person.td"))
+      .unwrap()
+      .1;
+    let student_file = *project
+      .files(&db)
+      .iter()
+      .find(|(p, _)| p.ends_with("_types/Student.td"))
+      .unwrap()
+      .1;
+
+    let person_sym = file_symbol(&db, project, person_file).value(&db).unwrap();
+    let student_sym = file_symbol(&db, project, student_file).value(&db).unwrap();
+    let person_typ = evaluate_typ(&db, person_sym).typ(&db).unwrap();
+    let student_typ = evaluate_typ(&db, student_sym).typ(&db).unwrap();
+
+    let lit_person = create_lit_typ(&db, person_typ);
+    let lit_student = create_lit_typ(&db, student_typ);
+
+    // lit<Person> != lit<Student> even though Student extends Person
+    assert!(!is_subtyp_of(&db, &lit_person, &lit_student));
+    assert!(!is_subtyp_of(&db, &lit_student, &lit_person));
+
+    // but both are subtypes of schema_meta
+    let schema_meta: TdTypEnum = get_schema_meta_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_person, &schema_meta));
+    assert!(is_subtyp_of(&db, &lit_student, &schema_meta));
+  }
 }
