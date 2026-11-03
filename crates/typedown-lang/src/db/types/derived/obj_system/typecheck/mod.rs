@@ -1,7 +1,7 @@
-//! Typecheck utilities and subtyping engine
-
+mod instance;
 mod instantiate;
-mod utils;
+mod subtyp;
 
+pub use instance::*;
 pub use instantiate::*;
-pub use utils::*;
+pub use subtyp::*;

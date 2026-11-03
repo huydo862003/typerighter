@@ -1,7 +1,8 @@
 //! Shared type compatibility utilities for typechecking
 
 use crate::db::TypedownDatabase;
-use crate::db::derived::get_builtin_typs::get_null_typ;
+use crate::db::derived::get_builtin_typs::{get_null_typ, get_obj_typ};
+use crate::db::types::LitValue;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::fields_compatible;
 use crate::db::types::{
@@ -162,6 +163,18 @@ fn is_subtyp_of_env<'db>(
     if subtyp.as_id() == supertyp.as_id() {
       return true;
     }
+    debug_assert!(
+      !subtyp.is_td_metatype_instance_typ()
+        && !subtyp.is_td_variable_typ()
+        && !subtyp.is_td_existential_typ(),
+      "InstanceTyp/VariableTyp/ExistentialTyp must be handled in phase 0"
+    );
+    debug_assert!(
+      !supertyp.is_td_metatype_instance_typ()
+        && !supertyp.is_td_variable_typ()
+        && !supertyp.is_td_existential_typ(),
+      "InstanceTyp/VariableTyp/ExistentialTyp must be handled in phase 0"
+    );
     match supertyp {
       TdTypEnum::TdObjTyp(_) | TdTypEnum::TdTypTyp(_) => true,
       TdTypEnum::TdNeverTyp(_) => false,
@@ -260,7 +273,10 @@ fn is_subtyp_of_env<'db>(
         TdTypEnum::TdLitTyp(lit)
           if matches!(lit.underlying_typ(db), TdTypEnum::TdSchemaMetaTyp(_))
       ),
-      TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => false,
+      // Handled in phase 0, should not reach here
+      TdTypEnum::TdMetatypeInstanceTyp(_)
+      | TdTypEnum::TdVariableTyp(_)
+      | TdTypEnum::TdExistentialTyp(_) => false,
     }
   }
 
@@ -328,8 +344,78 @@ fn is_subtyp_of_env<'db>(
     }
   }
 
-  // Phase 0: Special pre-check (variables, existentials)
+  // Phase 0: Special pre-check (instance types, variables, existentials)
   match (subtyp, supertyp) {
+    // metatype_instance<T> on sub side (including when both sides are instance)
+    (TdTypEnum::TdMetatypeInstanceTyp(sub_instance_typ), _) => {
+      match &sub_instance_typ.inner(db) {
+        // metatype_instance<lit<X>>: unwrap to X
+        TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
+          LitValue::Typ(unwrapped) => is_subtyp_of_env(db, &unwrapped, supertyp, env),
+          _ => is_subtyp_of_env(db, &lit.underlying_typ(db), supertyp, env),
+        },
+        // metatype_instance<schema_meta>: sum of all schema types
+        TdTypEnum::TdSchemaMetaTyp(_) => match supertyp {
+          // subtype of obj and type (top types)
+          TdTypEnum::TdObjTyp(_) | TdTypEnum::TdTypTyp(_) => true,
+          // subtype of metatype_instance<schema_meta|type|obj> (same or wider)
+          TdTypEnum::TdMetatypeInstanceTyp(super_instance_typ) => matches!(
+            &super_instance_typ.inner(db),
+            TdTypEnum::TdSchemaMetaTyp(_) | TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_)
+          ),
+          _ => false,
+        },
+        // metatype_instance<type>: all values (every value has a type)
+        // metatype_instance<obj>: all values (every value is an obj)
+        // These are equivalent
+        TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_) => match supertyp {
+          // subtype of obj and type (top types)
+          TdTypEnum::TdObjTyp(_) | TdTypEnum::TdTypTyp(_) => true,
+          // subtype of metatype_instance<type|obj> (equivalent)
+          TdTypEnum::TdMetatypeInstanceTyp(super_instance_typ) => matches!(
+            &super_instance_typ.inner(db),
+            TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_)
+          ),
+          _ => false,
+        },
+        // metatype_instance<never>: uninhabited, subtype of everything
+        TdTypEnum::TdNeverTyp(_) => true,
+        // metatype_instance<instance<T>>: recurse
+        TdTypEnum::TdMetatypeInstanceTyp(_) => {
+          is_subtyp_of_env(db, &sub_instance_typ.inner(db), supertyp, env)
+        }
+        // metatype_instance<variable/existential>: unresolvable, treat as obj
+        TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => {
+          is_subtyp_of_env(db, &get_obj_typ(db).into(), supertyp, env)
+        }
+        // metatype_instance of non-metatype is never (uninhabited), subtype of everything
+        _ => true,
+      }
+    }
+    // metatype_instance<T> on super side
+    (_, TdTypEnum::TdMetatypeInstanceTyp(super_instance_typ)) => {
+      match &super_instance_typ.inner(db) {
+        // metatype_instance<lit<X>>: sub must be subtype of X
+        TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
+          LitValue::Typ(unwrapped) => is_subtyp_of_env(db, subtyp, &unwrapped, env),
+          _ => is_subtyp_of_env(db, subtyp, &lit.underlying_typ(db), env),
+        },
+        // metatype_instance<schema_meta>: sub must be a schema type
+        TdTypEnum::TdSchemaMetaTyp(_) => subtyp.as_td_schema_typ().is_some(),
+        // metatype_instance<type|obj>: all values (every value has a type, every type is an obj)
+        TdTypEnum::TdTypTyp(_) | TdTypEnum::TdObjTyp(_) => true,
+        // metatype_instance<never>: nothing
+        TdTypEnum::TdNeverTyp(_) => false,
+        // metatype_instance<instance<T>>: recurse
+        TdTypEnum::TdMetatypeInstanceTyp(_) => {
+          is_subtyp_of_env(db, subtyp, &super_instance_typ.inner(db), env)
+        }
+        // metatype_instance<variable/existential>: unresolvable
+        TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => false,
+        // metatype_instance of non-metatype is never, nothing is its subtype
+        _ => false,
+      }
+    }
     // Universal variables: T1 <: T2 requires identity or checking T1's declared upper bound
     (TdTypEnum::TdVariableTyp(variable_subtyp), TdTypEnum::TdVariableTyp(_variable_supertyp)) => {
       if subtyp == supertyp {
@@ -380,7 +466,7 @@ fn is_subtyp_of_env<'db>(
       // - This should imply that x is also of type P2[T2]
       // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless
 
-      // Well this is already resolved due to the type variable invariant listed above
+      // Well this is already unwrapped due to the type variable invariant listed above
       existential_subtyp
         .body(db)
         .and_then(|body| body.resolve(db))
