@@ -648,6 +648,26 @@ impl<A: Decodable, B: Decodable, C: Decodable> Decodable for (A, B, C) {
   }
 }
 
+// (A, B, C, D) tuple
+impl<A: Encodable, B: Encodable, C: Encodable, D: Encodable> Encodable for (A, B, C, D) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.0.field_encode(buffer, encoder);
+    self.1.field_encode(buffer, encoder);
+    self.2.field_encode(buffer, encoder);
+    self.3.field_encode(buffer, encoder);
+  }
+}
+impl<A: Decodable, B: Decodable, C: Decodable, D: Decodable> Decodable for (A, B, C, D) {
+  fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
+    (
+      A::field_decode(data, decoder),
+      B::field_decode(data, decoder),
+      C::field_decode(data, decoder),
+      D::field_decode(data, decoder),
+    )
+  }
+}
+
 // (A, B) tuple
 impl<A: Encodable, B: Encodable> Encodable for (A, B) {
   fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {

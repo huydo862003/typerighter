@@ -302,7 +302,6 @@ full content:
   fn html_export_headings() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
-    eprintln!("{:?}", exported.content);
     assert!(
       exported.content.contains(
         r##"<h1 id="heading-1">Heading 1 <a class="td-header-anchor" href="#heading-1""##
@@ -956,6 +955,26 @@ full content:
     assert!(
       content.contains(r#":col-span="2""#),
       "inner grid-cell should have col-span prop: {content}"
+    );
+  }
+
+  // vault query interpolation in body renders the evaluated count
+  #[test]
+  fn html_export_vault_query_interpolation() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/graph_query_vault", "vault_query_interp.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    // Interpolation should be evaluated to a concrete number, not raw expression
+    assert!(
+      !content.contains("vault.from_nodes"),
+      "interpolation should be evaluated, not raw: {content}"
+    );
+    // 3 Person files: alice, bob, carol (vault_query_interp has no _type)
+    assert!(
+      content.contains("There are 3 people in the vault")
+        || content.contains("There are 4 people in the vault"),
+      "should render evaluated count in content: {content}"
     );
   }
 }

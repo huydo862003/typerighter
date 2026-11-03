@@ -2,6 +2,8 @@ mod base;
 mod blob;
 mod bool;
 mod bound_variable;
+mod builtin_schemas;
+mod computed_typ;
 mod datetime;
 mod dict;
 mod existential;
@@ -22,7 +24,6 @@ mod string;
 mod sum;
 pub mod typecheck;
 mod variable;
-mod vault;
 
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
@@ -35,6 +36,9 @@ pub use base::*;
 pub use blob::*;
 pub use bool::*;
 pub use bound_variable::*;
+pub use builtin_schemas::node_set::*;
+pub use builtin_schemas::vault::*;
+pub use computed_typ::*;
 pub use datetime::*;
 pub use dict::*;
 pub use existential::*;
@@ -54,7 +58,6 @@ pub use schema::*;
 pub use string::*;
 pub use sum::*;
 pub use variable::*;
-pub use vault::*;
 
 use ambassador::Delegate;
 use derive_more::From;
@@ -102,6 +105,7 @@ pub enum TdTypEnum<'db> {
   TdExistentialVariableTyp(TdExistentialVariableTyp<'db>),
   TdMetatypeInstanceTyp(TdMetatypeInstanceTyp<'db>),
   TdBoundVariableTyp(TdBoundVariableTyp<'db>),
+  TdComputedTyp(TdComputedTyp<'db>),
 }
 
 // Use this instead of dyn
@@ -128,6 +132,7 @@ pub enum TdObjEnum<'db> {
   TdNullObj(TdNullObj<'db>),
   TdVaultObj(TdVaultObj<'db>),
   TdIconObj(TdIconObj<'db>),
+  TdNodeSetObj(TdNodeSetObj<'db>),
 }
 
 // Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
@@ -170,6 +175,7 @@ impl_from_typ_for_obj_enum!(
   TdIconTyp,
   TdMetatypeInstanceTyp,
   TdBoundVariableTyp,
+  TdComputedTyp,
 );
 
 impl Id for TdTypEnum<'_> {
@@ -201,6 +207,7 @@ impl Id for TdTypEnum<'_> {
       TdTypEnum::TdIconTyp(value) => value.as_id(),
       TdTypEnum::TdMetatypeInstanceTyp(value) => value.as_id(),
       TdTypEnum::TdBoundVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdComputedTyp(value) => value.as_id(),
     }
   }
 }
@@ -225,6 +232,7 @@ impl Id for TdObjEnum<'_> {
       TdObjEnum::TdNullObj(value) => value.as_id(),
       TdObjEnum::TdVaultObj(value) => value.as_id(),
       TdObjEnum::TdIconObj(value) => value.as_id(),
+      TdObjEnum::TdNodeSetObj(value) => value.as_id(),
     }
   }
 }
@@ -289,6 +297,7 @@ impl typedown_incremental::StableHash for TdTypEnum<'_> {
       TdTypEnum::TdIconTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdMetatypeInstanceTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdBoundVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdComputedTyp(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -318,6 +327,7 @@ impl typedown_incremental::StableHash for TdObjEnum<'_> {
       TdObjEnum::TdNullObj(value) => value.stable_hash(db, hasher),
       TdObjEnum::TdVaultObj(value) => value.stable_hash(db, hasher),
       TdObjEnum::TdIconObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdNodeSetObj(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -351,6 +361,7 @@ pub enum TdTypeKind {
   MetatypeInstance = 23,
   BoundVariable = 24,
   ExistentialVariable = 25,
+  Computed = 26,
 }
 
 #[derive(FromRepr)]
@@ -375,6 +386,7 @@ pub enum TdObjectKind {
   NullObj = 141,
   SchemaObj = 142,
   IconObj = 143,
+  NodeSetObj = 144,
 }
 
 // TdTypeEnum
@@ -485,6 +497,10 @@ impl Encodable for TdTypEnum<'_> {
         encoder.emit_u8(buffer, TdTypeKind::ExistentialVariable as u8);
         value.field_encode(buffer, encoder);
       }
+      TdTypEnum::TdComputedTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Computed as u8);
+        value.field_encode(buffer, encoder);
+      }
     }
   }
 }
@@ -521,6 +537,7 @@ impl Decodable for TdTypEnum<'_> {
       TdTypeKind::ExistentialVariable => {
         TdExistentialVariableTyp::field_decode(data, decoder).into()
       }
+      TdTypeKind::Computed => TdComputedTyp::field_decode(data, decoder).into(),
     }
   }
 }
@@ -598,6 +615,10 @@ impl Encodable for TdObjEnum<'_> {
         encoder.emit_u8(buffer, TdObjectKind::IconObj as u8);
         value.field_encode(buffer, encoder);
       }
+      TdObjEnum::TdNodeSetObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::NodeSetObj as u8);
+        value.field_encode(buffer, encoder);
+      }
     }
   }
 }
@@ -623,6 +644,7 @@ impl Decodable for TdObjEnum<'_> {
       Some(TdObjectKind::NullObj) => TdNullObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::VaultObj) => TdVaultObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::IconObj) => TdIconObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::NodeSetObj) => TdNodeSetObj::field_decode(data, decoder).into(),
       None => panic!("unknown TdObjectKind tag: {}", tag),
     }
   }

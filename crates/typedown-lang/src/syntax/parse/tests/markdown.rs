@@ -5927,7 +5927,6 @@ fn parse_link_with_inline_code_text() {
     "# [`def1`](http://example.com)
 ",
   );
-  eprintln!("{tree}");
   assert!(
     tree.contains("MdLink"),
     r"should parse as a link:

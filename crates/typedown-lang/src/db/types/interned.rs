@@ -7,12 +7,11 @@ use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
-use typedown_types::either::Either;
-
 use super::{TdBoundVariableTyp, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::types::Symbol;
+use crate::db::types::typecheck::substitute_variables;
 
 #[query_interned]
 pub struct FuncSignature<'db> {
@@ -125,49 +124,84 @@ impl<'db> TypParams<'db> {
   }
 }
 
-// A type reference that may be eagerly resolved or lazily deferred to a symbol
+// A type reference that may be eagerly resolved or lazily deferred to a symbol with optional pending substitution bindings
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub struct LazyTyp<'db>(Either<TdTypEnum<'db>, Symbol>);
+pub enum LazyTyp<'db> {
+  Eager(TdTypEnum<'db>),
+  Lazy(Symbol, Vec<(TdBoundVariableTyp<'db>, LazyTyp<'db>)>),
+}
 
 impl<'db> LazyTyp<'db> {
   pub fn eager(typ: TdTypEnum<'db>) -> Self {
-    LazyTyp(Either::Left(typ))
+    LazyTyp::Eager(typ)
   }
 
   pub fn lazy(symbol: Symbol) -> Self {
-    LazyTyp(Either::Right(symbol))
+    LazyTyp::Lazy(symbol, vec![])
   }
 
   pub fn resolve(&self, db: &'db TypedownDatabase) -> Option<TdTypEnum<'db>> {
-    match &self.0 {
-      Either::Left(typ) => Some(typ.clone()),
-      Either::Right(symbol) => evaluate_typ(db, *symbol).typ(db),
+    match self {
+      LazyTyp::Eager(typ) => Some(typ.clone()),
+      LazyTyp::Lazy(symbol, bindings) => {
+        let base = evaluate_typ(db, *symbol).typ(db)?;
+        if bindings.is_empty() {
+          return Some(base);
+        }
+        let binding_map: hashbrown::HashMap<TdBoundVariableTyp<'db>, LazyTyp<'db>> =
+          bindings.iter().cloned().collect();
+        Some(substitute_variables(db, &base, &binding_map))
+      }
     }
   }
 
   pub fn as_eager(&self) -> Option<TdTypEnum<'db>> {
-    match &self.0 {
-      Either::Left(typ) => Some(typ.clone()),
-      Either::Right(_) => None,
+    match self {
+      LazyTyp::Eager(typ) => Some(typ.clone()),
+      _ => None,
     }
   }
 }
 
 impl<'db> Encodable for LazyTyp<'db> {
   fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.encode(buffer, encoder);
+    match self {
+      LazyTyp::Eager(typ) => {
+        encoder.emit_u8(buffer, 0);
+        typ.encode(buffer, encoder);
+      }
+      LazyTyp::Lazy(symbol, bindings) => {
+        encoder.emit_u8(buffer, 1);
+        symbol.encode(buffer, encoder);
+        bindings.encode(buffer, encoder);
+      }
+    }
   }
 }
 
 impl<'db> Decodable for LazyTyp<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    LazyTyp(Either::<TdTypEnum, Symbol>::decode(data, decoder))
+    match decoder.read_u8(data) {
+      0 => LazyTyp::Eager(TdTypEnum::decode(data, decoder)),
+      1 => LazyTyp::Lazy(Symbol::decode(data, decoder), Vec::decode(data, decoder)),
+      _ => panic!("unknown LazyTyp tag"),
+    }
   }
 }
 
 impl<'db> StableHash for LazyTyp<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.0.stable_hash(db, hasher);
+    match self {
+      LazyTyp::Eager(typ) => {
+        0u8.stable_hash(db, hasher);
+        typ.stable_hash(db, hasher);
+      }
+      LazyTyp::Lazy(symbol, bindings) => {
+        1u8.stable_hash(db, hasher);
+        symbol.stable_hash(db, hasher);
+        bindings.stable_hash(db, hasher);
+      }
+    }
   }
 }
 

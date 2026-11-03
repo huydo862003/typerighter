@@ -99,6 +99,12 @@ pub fn is_instance_of<'db>(
       _ => false,
     },
 
+    // Resolve computed type and delegate
+    TdTypEnum::TdComputedTyp(computed) => match computed.try_resolve(db) {
+      Some(resolved) => is_instance_of(db, obj, &resolved),
+      None => false,
+    },
+
     // Delegate to subtyping for type variables
     TdTypEnum::TdFreeVariableTyp(_)
     | TdTypEnum::TdBoundVariableTyp(_)

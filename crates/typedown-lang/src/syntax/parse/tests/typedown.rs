@@ -256,7 +256,6 @@ fn parse_all_project_tracker_files() {
     if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
-    eprintln!("parsing: {}", path.display());
     let result = parse_file(&db, project, *file);
     let _ = result.diagnostics(&db);
   }

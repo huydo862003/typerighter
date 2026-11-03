@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use std::collections::BTreeMap;
 use std::hash::Hasher;
 use typedown_incremental::{Fingerprint, QueryDatabase, StableHash, StableHasher};
@@ -6,9 +7,11 @@ use typedown_macros::query_derived;
 use super::base::{
   BUILTIN_TO_STRING, PROTOCOL_CALL, PROTOCOL_INDEX, TdRuntimeObj, TdStaticTyp, TdTypTyp,
 };
+use super::bound_variable::TdBoundVariableTyp;
 use super::func::TdFuncObj;
 use super::null::TdNullObj;
 use super::product::{PropertyDescriptor, TdProductTyp};
+use super::typecheck::substitute_bound_variables;
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
@@ -18,8 +21,10 @@ use crate::db::derived::get_builtin_typs::{
 };
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
+use crate::db::types::TypParams;
 use crate::db::types::{
-  FuncKind, FuncSignature, LazyTyp, NativeFuncKind, Project, ProjectRedNode, Symbol,
+  FuncKind, FuncSignature, InstantiateResult, LazyTyp, NativeFuncKind, Project, ProjectRedNode,
+  Symbol,
 };
 use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_types::either::Either;
@@ -95,6 +100,7 @@ pub struct TdSchemaTyp<'db> {
   pub fields: BTreeMap<String, PropertyDescriptor<'db>>,
   pub vtable: BTreeMap<String, TdFuncObj<'db>>,
   pub parent: Option<TdTypEnum<'db>>,
+  pub schema_typ_params: Option<TypParams<'db>>,
 }
 
 // Schema types are uniquely identified by name
@@ -208,6 +214,34 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
   }
   fn is_typ(&self, _db: &'db TypedownDatabase) -> bool {
     true
+  }
+  fn arity(&self, db: &'db TypedownDatabase) -> usize {
+    self
+      .schema_typ_params(db)
+      .map(|tp| tp.arity(db))
+      .unwrap_or(0)
+  }
+  fn instantiate(
+    &self,
+    db: &'db TypedownDatabase,
+    args: Vec<LazyTyp<'db>>,
+  ) -> InstantiateResult<'db> {
+    let self_type: TdTypEnum = (*self).into();
+    let Some(typ_params) = self.schema_typ_params(db) else {
+      return InstantiateResult::new(db, self_type, vec![]);
+    };
+    let params = typ_params.params(db);
+    if params.is_empty() {
+      return InstantiateResult::new(db, self_type, vec![]);
+    }
+    let target_binder = TdBoundVariableTyp::binder(params[0], db);
+    let bindings: HashMap<usize, LazyTyp<'db>> = params
+      .into_iter()
+      .map(|bound| TdBoundVariableTyp::offset(bound, db))
+      .zip(args.iter().cloned())
+      .collect();
+    let substituted = substitute_bound_variables(db, &self_type, &target_binder, &bindings);
+    InstantiateResult::new(db, substituted, vec![])
   }
 }
 
