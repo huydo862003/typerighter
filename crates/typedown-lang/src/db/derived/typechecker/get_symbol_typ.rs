@@ -29,7 +29,7 @@ pub fn get_symbol_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResu
     SymbolKind::UserDefinedSchema(_, _) => {
       let typ = evaluate_typ(db, symbol)
         .typ(db)
-        .map(|t| get_lit_typ(db, LitValue::Typ(t)).into())
+        .map(|typ| get_lit_typ(db, LitValue::Typ(typ)).into())
         .unwrap_or_else(|| get_schema_meta_typ(db).into());
       TypResult::new(db, Some(typ), vec![])
     }

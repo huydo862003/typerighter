@@ -554,7 +554,7 @@ mod tests {
   }
 
   #[test]
-  fn lit_number_compatible_with_number() {
+  fn lit_numberber_compatible_with_number() {
     let db = make_db();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let lit = create_lit_number(&db, "42");
@@ -562,7 +562,7 @@ mod tests {
   }
 
   #[test]
-  fn lit_number_incompatible_with_string() {
+  fn lit_numberber_incompatible_with_string() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let lit_typ = create_lit_number(&db, "42");
@@ -1777,5 +1777,94 @@ mod tests {
     // open T bound Object <= string is false
     // (exists T <: Object. List[T]) <= List[string]
     assert!(!is_subtyp_of(&db, &existential_obj, &list_string));
+  }
+
+  /* lit<T> subtyping rules
+     Rule 1: lit<A> <: lit<B> only if A == B
+     Rule 2: lit<A> <: B iff A is an instance of B
+     Rule 3: A <: lit<B> never (except identity or never) */
+
+  fn create_lit_typ<'a>(db: &'a TypedownDatabase, typ: TdTypEnum<'a>) -> TdTypEnum<'a> {
+    get_lit_typ(db, LitValue::Typ(typ)).into()
+  }
+
+  // Rule 1
+
+  #[test]
+  fn lit_typ_subtype_of_itself() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    assert!(is_subtyp_of(&db, &lit_string, &lit_string));
+  }
+
+  #[test]
+  fn lit_typ_not_subtype_of_different_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let lit_number = create_lit_typ(&db, get_number_typ(&db).into());
+    assert!(!is_subtyp_of(&db, &lit_string, &lit_number));
+    assert!(!is_subtyp_of(&db, &lit_number, &lit_string));
+  }
+
+  // Rule 2
+
+  #[test]
+  fn lit_typ_subtype_of_underlying() {
+    let db = make_db();
+    // string_typ has type TdTypTyp, so lit<string> <: type
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let typ_typ: TdTypEnum = get_typ_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_string, &typ_typ));
+  }
+
+  #[test]
+  fn lit_typ_subtype_of_obj() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let obj: TdTypEnum = get_obj_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_string, &obj));
+  }
+
+  #[test]
+  fn lit_typ_not_subtype_of_unrelated() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let number: TdTypEnum = get_number_typ(&db).into();
+    assert!(!is_subtyp_of(&db, &lit_string, &number));
+  }
+
+  #[test]
+  fn lit_schema_meta_subtype_of_schema_meta_underlying() {
+    let db = make_db();
+    // schema_meta has type TdTypTyp, so lit<schema_meta> <: type
+    let lit_schema_meta = create_lit_typ(&db, get_schema_meta_typ(&db).into());
+    let typ_typ: TdTypEnum = get_typ_typ(&db).into();
+    assert!(is_subtyp_of(&db, &lit_schema_meta, &typ_typ));
+  }
+
+  // Rule 3
+
+  #[test]
+  fn typ_not_subtype_of_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let typ_typ: TdTypEnum = get_typ_typ(&db).into();
+    assert!(!is_subtyp_of(&db, &typ_typ, &lit_string));
+  }
+
+  #[test]
+  fn obj_not_subtype_of_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let obj: TdTypEnum = get_obj_typ(&db).into();
+    assert!(!is_subtyp_of(&db, &obj, &lit_string));
+  }
+
+  #[test]
+  fn never_subtype_of_lit_typ() {
+    let db = make_db();
+    let lit_string = create_lit_typ(&db, get_string_typ(&db).into());
+    let never: TdTypEnum = get_never_typ(&db).into();
+    assert!(is_subtyp_of(&db, &never, &lit_string));
   }
 }
