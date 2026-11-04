@@ -9,10 +9,9 @@ use typedown_incremental::{
 
 use typedown_types::either::Either;
 
-use super::TdTypEnum;
+use super::{TdBoundVariableTyp, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
-use crate::db::derived::get_builtin_typs::get_obj_typ;
 use crate::db::types::Symbol;
 
 #[query_interned]
@@ -53,30 +52,8 @@ impl Decodable for Variance {
 }
 
 #[query_interned]
-pub struct TypVariable<'db> {
-  pub upper_bound: LazyTyp<'db>,
-  pub variance: Variance, // Existential type variables always have INVARIANCE because variance is irrelevant
-}
-
-impl<'db> TypVariable<'db> {
-  pub fn get(db: &'db TypedownDatabase, upper_bound: Option<LazyTyp<'db>>) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyTyp::eager(get_obj_typ(db).into()));
-    TypVariable::new(db, upper_bound, Variance::Covariant)
-  }
-
-  pub fn get_with_variance(
-    db: &'db TypedownDatabase,
-    upper_bound: Option<LazyTyp<'db>>,
-    variance: Variance,
-  ) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyTyp::eager(get_obj_typ(db).into()));
-    TypVariable::new(db, upper_bound, variance)
-  }
-}
-
-#[query_interned]
 pub struct TypParams<'db> {
-  pub params: Vec<TypVariable<'db>>,
+  pub params: Vec<TdBoundVariableTyp<'db>>,
   pub bindings: Vec<LazyTyp<'db>>,
 }
 
@@ -111,7 +88,7 @@ impl<'db> TypParams<'db> {
     Some(TypParams::new(db, params, bindings))
   }
 
-  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypVariable<'_>> {
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TdBoundVariableTyp<'_>> {
     self.params(db).get(index).copied()
   }
 
@@ -119,7 +96,11 @@ impl<'db> TypParams<'db> {
     self.bindings(db).get(index).cloned()
   }
 
-  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypVariable<'_>> {
+  pub fn get_by_index(
+    &self,
+    db: &TypedownDatabase,
+    index: usize,
+  ) -> Option<TdBoundVariableTyp<'_>> {
     self.params(db).get(index).copied()
   }
 

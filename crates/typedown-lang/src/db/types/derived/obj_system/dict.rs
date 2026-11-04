@@ -11,7 +11,9 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{get_dict_typ, get_obj_typ, get_string_typ};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams, TypVariable};
+use crate::db::types::{
+  FuncSignature, InstantiateResult, LazyTyp, TdBoundVariableTyp, TypParams, Variance,
+};
 use crate::db::types::{Project, ProjectRedNode};
 use crate::syntax::diagnostic::*;
 
@@ -159,8 +161,8 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
     Some(TypParams::new(
       db,
       vec![
-        TypVariable::get(db, Some(obj_typ.clone())),
-        TypVariable::get(db, Some(obj_typ)),
+        TdBoundVariableTyp::new(db, 0, obj_typ.clone(), Variance::Covariant),
+        TdBoundVariableTyp::new(db, 1, obj_typ, Variance::Covariant),
       ],
       bindings,
     ))

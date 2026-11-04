@@ -2,12 +2,14 @@
 // This is the idea of bidirectional typechecking
 
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_builtin_typs::{
   get_bool_typ, get_date_typ, get_datetime_typ, get_func_typ, get_list_typ, get_lit_typ,
-  get_math_typ, get_null_typ, get_number_typ, get_string_typ, get_sum_typ, get_time_typ,
+  get_math_typ, get_null_typ, get_number_typ, get_obj_typ, get_string_typ, get_sum_typ,
+  get_time_typ,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -19,7 +21,8 @@ use crate::db::types::derived::obj_system::{
 };
 use crate::db::types::{
   BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, Symbol, SymbolKind,
-  TdTypEnum, TdVariableTyp, TypParams, TypResult, TypVariable,
+  TdBoundVariableTyp, TdDictTyp, TdFreeVariableTyp, TdFuncTyp, TdListTyp, TdTypEnum, TypParams,
+  TypResult, Variance,
 };
 use crate::db::types::{File, Project};
 use crate::db::utils::resolve_fref_path;
@@ -621,8 +624,91 @@ fn get_index_typ<'db>(
   TypResult::new(db, None, diagnostics)
 }
 
+// Generalize free variables back to bound variables (free -> bound)
+fn generalize_free_variables<'db>(
+  db: &'db TypedownDatabase,
+  typ: &TdTypEnum<'db>,
+  mapping: &HashMap<TdFreeVariableTyp<'db>, TdBoundVariableTyp<'db>>,
+) -> TdTypEnum<'db> {
+  match typ {
+    TdTypEnum::TdFreeVariableTyp(free_variable) => {
+      if let Some(bound) = mapping.get(free_variable) {
+        (*bound).into()
+      } else {
+        typ.clone()
+      }
+    }
+    TdTypEnum::TdFuncTyp(func) => {
+      let signature = func.signature(db);
+      let new_params: Vec<TdTypEnum<'db>> = signature
+        .params(db)
+        .iter()
+        .map(|param| generalize_free_variables(db, param, mapping))
+        .collect();
+      let new_ret = generalize_free_variables(db, &signature.ret(db), mapping);
+      TdFuncTyp::get(db, new_params, new_ret).into()
+    }
+    TdTypEnum::TdListTyp(list) => {
+      if let Some(element) = list.element(db).and_then(|element| element.resolve(db)) {
+        let substituted = generalize_free_variables(db, &element, mapping);
+        return TdListTyp::new(db, Some(LazyTyp::eager(substituted))).into();
+      }
+      typ.clone()
+    }
+    TdTypEnum::TdDictTyp(dict) => {
+      let new_key = dict
+        .key(db)
+        .and_then(|key| key.resolve(db))
+        .map(|key| LazyTyp::eager(generalize_free_variables(db, &key, mapping)));
+      let new_value = dict
+        .value(db)
+        .and_then(|value| value.resolve(db))
+        .map(|value| LazyTyp::eager(generalize_free_variables(db, &value, mapping)));
+      if new_key.is_some() || new_value.is_some() {
+        return TdDictTyp::new(db, new_key, new_value).into();
+      }
+      typ.clone()
+    }
+    TdTypEnum::TdProductTyp(product) => {
+      let new_fields: BTreeMap<String, LazyTyp<'db>> = product
+        .fields(db)
+        .into_iter()
+        .map(|(name, lazy)| {
+          let substituted = lazy
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(generalize_free_variables(db, &resolved, mapping)))
+            .unwrap_or(lazy);
+          (name, substituted)
+        })
+        .collect();
+      TdProductTyp::new(db, None, new_fields).into()
+    }
+    TdTypEnum::TdSumTyp(sum) => {
+      let new_members: Vec<LazyTyp<'db>> = sum
+        .members(db)
+        .iter()
+        .map(|member| {
+          member
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(generalize_free_variables(db, &resolved, mapping)))
+            .unwrap_or_else(|| member.clone())
+        })
+        .collect();
+      get_sum_typ(db, new_members).into()
+    }
+    // Existential variables should not appear in closure return types
+    TdTypEnum::TdExistentialVariableTyp(_) => typ.clone(),
+    // Self-contained, no free variables inside
+    TdTypEnum::TdExistentialTyp(_) => typ.clone(),
+    TdTypEnum::TdMetatypeInstanceTyp(_) => typ.clone(),
+    // Primitives
+    _ => typ.clone(),
+  }
+}
+
 // actual(closure) = fn(params, return from actual(body))
 // When expected type provides param types, use those, otherwise infer from body usage
+
 fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> TypResult<'db> {
   let closure = match ClosureExpr::cast(project_node.node.clone()) {
     Some(closure) => closure,
@@ -671,14 +757,21 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
       // Params with no inferred type become generic type variables
       params
         .iter()
-        .map(|param_name| {
+        .enumerate()
+        .map(|(index, param_name)| {
           let param_symbol = Symbol::new(
             db,
             SymbolKind::FuncParam(project, file, project_node.clone(), param_name.clone()),
           );
           infer_param_typ_from_body(db, project, file, body_expr.syntax(), param_symbol)
             .unwrap_or_else(|| {
-              TdVariableTyp::new(db, TypVariable::get(db, None), param_symbol).into()
+              TdFreeVariableTyp::new(
+                db,
+                project_node.clone(),
+                index,
+                LazyTyp::eager(get_obj_typ(db).into()),
+              )
+              .into()
             })
         })
         .collect()
@@ -692,21 +785,28 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     None => return TypResult::new(db, None, body_result.diagnostics(db).clone()),
   };
 
-  // Collect generic variables from unconstrained params to build TypParams
-  let generic_variables: Vec<TypVariable> = param_typs
-    .iter()
-    .filter_map(|typ| {
-      if let TdTypEnum::TdVariableTyp(var_typ) = typ {
-        Some(TdVariableTyp::variable(*var_typ, db))
+  let mut bound_variables: Vec<TdBoundVariableTyp> = vec![];
+  let mut free_to_bound: HashMap<TdFreeVariableTyp, TdBoundVariableTyp> = HashMap::new();
+  let param_typs: Vec<TdTypEnum> = param_typs
+    .into_iter()
+    .enumerate()
+    .map(|(index, typ)| {
+      if let TdTypEnum::TdFreeVariableTyp(free_variable) = &typ {
+        let upper_bound = TdFreeVariableTyp::upper_bound(*free_variable, db);
+        let bound_variable = TdBoundVariableTyp::new(db, index, upper_bound, Variance::Covariant);
+        bound_variables.push(bound_variable);
+        free_to_bound.insert(*free_variable, bound_variable);
+        bound_variable.into()
       } else {
-        None
+        typ
       }
     })
     .collect();
-  let typ_params = if generic_variables.is_empty() {
+  let ret = generalize_free_variables(db, &ret, &free_to_bound);
+  let typ_params = if bound_variables.is_empty() {
     None
   } else {
-    Some(TypParams::new(db, generic_variables, vec![]))
+    Some(TypParams::new(db, bound_variables, vec![]))
   };
 
   let signature = FuncSignature::new(db, typ_params, param_typs, ret);
@@ -720,17 +820,21 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
 
 #[cfg(test)]
 mod tests {
-  use super::actual_node_typ;
+  use super::{actual_node_typ, generalize_free_variables};
   use crate::db::derived::get_builtin_typs::{
-    get_func_typ, get_lit_typ, get_number_typ, get_schema_meta_typ, get_string_typ,
+    get_func_typ, get_lit_typ, get_number_typ, get_obj_typ, get_schema_meta_typ, get_string_typ,
   };
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::derived::obj_system::TdStaticTyp;
-  use crate::db::types::{File, FileHandle, FileMetadata, LitValue, Project};
+  use crate::db::types::{
+    File, FileHandle, FileMetadata, LazyTyp, LitValue, Project, ProjectRedNode, TdBoundVariableTyp,
+    TdFreeVariableTyp, TdFuncTyp, TdListTyp, TdProductTyp, Variance,
+  };
   use crate::db::types::{FuncSignature, TdTypEnum};
   use crate::db::{QueryStorage, TypedownDatabase};
   use crate::syntax::diagnostic::*;
+  use std::collections::BTreeMap;
   use std::{collections::HashMap, path::PathBuf};
 
   fn is_lit_string(db: &TypedownDatabase, typ: &TdTypEnum, expected: &str) -> bool {
@@ -1080,5 +1184,184 @@ mod tests {
       "should have no diagnostics: {:?}",
       result.diagnostics(&db)
     );
+  }
+
+  // generalize_free_variables tests
+
+  fn create_test_mapping<'db>(
+    db: &'db TypedownDatabase,
+    site: ProjectRedNode,
+    count: usize,
+  ) -> (
+    Vec<TdFreeVariableTyp<'db>>,
+    Vec<TdBoundVariableTyp<'db>>,
+    HashMap<TdFreeVariableTyp<'db>, TdBoundVariableTyp<'db>>,
+  ) {
+    let mut free_variables = vec![];
+    let mut bound_variables = vec![];
+    let mut mapping = HashMap::new();
+    for index in 0..count {
+      let free = TdFreeVariableTyp::new(
+        db,
+        site.clone(),
+        index,
+        LazyTyp::eager(get_obj_typ(db).into()),
+      );
+      let bound = TdBoundVariableTyp::new(
+        db,
+        index,
+        LazyTyp::eager(get_obj_typ(db).into()),
+        Variance::Covariant,
+      );
+      mapping.insert(free, bound);
+      free_variables.push(free);
+      bound_variables.push(bound);
+    }
+    (free_variables, bound_variables, mapping)
+  }
+
+  #[test]
+  fn check_generalize_product_with_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+
+    // { name: FreeVariable(0) } -> { name: BoundVariable(0) }
+    let product: TdTypEnum = TdProductTyp::new(
+      &db,
+      None,
+      BTreeMap::from([("name".to_string(), LazyTyp::eager(free_variables[0].into()))]),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &product, &mapping);
+    if let TdTypEnum::TdProductTyp(result_product) = result {
+      let name_typ = result_product
+        .fields(&db)
+        .get("name")
+        .unwrap()
+        .resolve(&db)
+        .unwrap();
+      assert_eq!(name_typ, bound_variables[0].into());
+    } else {
+      panic!("expected product type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_list_with_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+
+    // list[FreeVariable(0)] -> list[BoundVariable(0)]
+    let list: TdTypEnum =
+      TdListTyp::new(&db, Some(LazyTyp::eager(free_variables[0].into()))).into();
+
+    let result = generalize_free_variables(&db, &list, &mapping);
+    if let TdTypEnum::TdListTyp(result_list) = result {
+      let element = result_list.get_typ_args(&db);
+      assert_eq!(element[0], bound_variables[0].into());
+    } else {
+      panic!("expected list type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_function_with_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+
+    // (FreeVariable(0)) -> FreeVariable(0) should become (BoundVariable(0)) -> BoundVariable(0)
+    let func: TdTypEnum = TdFuncTyp::get(
+      &db,
+      vec![free_variables[0].into()],
+      free_variables[0].into(),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &func, &mapping);
+    if let TdTypEnum::TdFuncTyp(result_func) = result {
+      let signature = result_func.signature(&db);
+      assert_eq!(signature.params(&db)[0], bound_variables[0].into());
+      assert_eq!(signature.ret(&db), bound_variables[0].into());
+    } else {
+      panic!("expected function type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_skips_unmapped_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site.clone(), 1);
+
+    // A free variable from a different site, not in the mapping
+    let other_free = TdFreeVariableTyp::new(
+      &db,
+      {
+        let files: Vec<_> = project.files(&db).values().copied().collect();
+        parse_file(&db, project, files[1]).ast(&db)
+      },
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+    );
+
+    // { mapped: FreeVariable(0), unmapped: other_free }
+    let product: TdTypEnum = TdProductTyp::new(
+      &db,
+      None,
+      BTreeMap::from([
+        (
+          "mapped".to_string(),
+          LazyTyp::eager(free_variables[0].into()),
+        ),
+        ("unmapped".to_string(), LazyTyp::eager(other_free.into())),
+      ]),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &product, &mapping);
+    if let TdTypEnum::TdProductTyp(result_product) = result {
+      let fields = result_product.fields(&db);
+      let mapped = fields.get("mapped").unwrap().resolve(&db).unwrap();
+      let unmapped = fields.get("unmapped").unwrap().resolve(&db).unwrap();
+      assert_eq!(mapped, bound_variables[0].into());
+      // Unmapped free variable passes through unchanged
+      assert_eq!(unmapped, other_free.into());
+    } else {
+      panic!("expected product type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_mixed_concrete_and_free() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+    let number_typ: TdTypEnum = get_number_typ(&db).into();
+
+    // { name: FreeVariable(0), age: number } -> { name: BoundVariable(0), age: number }
+    let product: TdTypEnum = TdProductTyp::new(
+      &db,
+      None,
+      BTreeMap::from([
+        ("name".to_string(), LazyTyp::eager(free_variables[0].into())),
+        ("age".to_string(), LazyTyp::eager(number_typ.clone())),
+      ]),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &product, &mapping);
+    if let TdTypEnum::TdProductTyp(result_product) = result {
+      let fields = result_product.fields(&db);
+      let name = fields.get("name").unwrap().resolve(&db).unwrap();
+      let age = fields.get("age").unwrap().resolve(&db).unwrap();
+      assert_eq!(name, bound_variables[0].into());
+      assert_eq!(age, number_typ);
+    } else {
+      panic!("expected product type");
+    }
   }
 }

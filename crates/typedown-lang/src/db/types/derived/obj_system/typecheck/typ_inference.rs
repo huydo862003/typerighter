@@ -1,4 +1,4 @@
-//! Generic type instantiation utilities: inference, substitution, and variable checking
+//! Type inference primitives: binding inference and bound variable substitution
 
 use std::collections::BTreeMap;
 
@@ -8,31 +8,116 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::get_sum_typ;
 use crate::db::types::LazyTyp;
 
+use crate::db::types::derived::obj_system::bound_variable::TdBoundVariableTyp;
 use crate::db::types::derived::obj_system::dict::TdDictTyp;
 use crate::db::types::derived::obj_system::func::TdFuncTyp;
 use crate::db::types::derived::obj_system::list::TdListTyp;
 use crate::db::types::derived::obj_system::product::TdProductTyp;
-use crate::db::types::derived::obj_system::variable::TdVariableTyp;
 use crate::db::types::derived::obj_system::{TdStaticTyp, TdTypEnum};
 
-/// Infer type variable bindings by matching parameter types against argument types
-/// When a variable appears multiple times, returns the least upper bound
-pub fn infer_bindings<'db>(
+pub(crate) fn substitute_bound_variables<'db>(
+  db: &'db TypedownDatabase,
+  typ: &TdTypEnum<'db>,
+  bindings: &HashMap<usize, LazyTyp<'db>>,
+) -> TdTypEnum<'db> {
+  match typ {
+    TdTypEnum::TdBoundVariableTyp(bound_variable) => {
+      let index = TdBoundVariableTyp::index(*bound_variable, db);
+      if let Some(binding) = bindings.get(&index) {
+        binding.resolve(db).unwrap_or_else(|| typ.clone())
+      } else {
+        TdBoundVariableTyp::upper_bound(*bound_variable, db)
+          .resolve(db)
+          .unwrap_or_else(|| typ.clone())
+      }
+    }
+    TdTypEnum::TdFreeVariableTyp(_) | TdTypEnum::TdExistentialVariableTyp(_) => typ.clone(),
+    TdTypEnum::TdFuncTyp(func) => {
+      let signature = func.signature(db);
+      let new_params: Vec<TdTypEnum<'db>> = signature
+        .params(db)
+        .iter()
+        .map(|param| substitute_bound_variables(db, param, bindings))
+        .collect();
+      let new_ret = substitute_bound_variables(db, &signature.ret(db), bindings);
+      TdFuncTyp::get(db, new_params, new_ret).into()
+    }
+    TdTypEnum::TdListTyp(list) => {
+      if let Some(element) = list.element(db)
+        && let Some(resolved_element) = element.resolve(db)
+      {
+        let substituted = substitute_bound_variables(db, &resolved_element, bindings);
+        return TdListTyp::new(db, Some(LazyTyp::eager(substituted))).into();
+      }
+      typ.clone()
+    }
+    TdTypEnum::TdDictTyp(dict) => {
+      let new_key = dict
+        .key(db)
+        .and_then(|key| key.resolve(db))
+        .map(|key| LazyTyp::eager(substitute_bound_variables(db, &key, bindings)));
+      let new_value = dict
+        .value(db)
+        .and_then(|value| value.resolve(db))
+        .map(|value| LazyTyp::eager(substitute_bound_variables(db, &value, bindings)));
+      if new_key.is_some() || new_value.is_some() {
+        return TdDictTyp::new(db, new_key, new_value).into();
+      }
+      typ.clone()
+    }
+    TdTypEnum::TdSumTyp(sum) => {
+      let new_members: Vec<LazyTyp<'db>> = sum
+        .members(db)
+        .iter()
+        .map(|member| {
+          member
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(substitute_bound_variables(db, &resolved, bindings)))
+            .unwrap_or_else(|| member.clone())
+        })
+        .collect();
+      get_sum_typ(db, new_members).into()
+    }
+    TdTypEnum::TdProductTyp(product) => {
+      let new_fields: BTreeMap<String, LazyTyp<'db>> = product
+        .fields(db)
+        .into_iter()
+        .map(|(name, lazy)| {
+          let substituted = lazy
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(substitute_bound_variables(db, &resolved, bindings)))
+            .unwrap_or(lazy);
+          (name, substituted)
+        })
+        .collect();
+      TdProductTyp::new(db, None, new_fields).into()
+    }
+    // Existentials bind their own variables, substituting outer bindings would be incorrect
+    TdTypEnum::TdExistentialTyp(_) => typ.clone(),
+    // Metatype instances wrap a type constructor, not a variable carrier
+    TdTypEnum::TdMetatypeInstanceTyp(_) => typ.clone(),
+    // Primitives, no internal type structure
+    _ => typ.clone(),
+  }
+}
+
+// Infer type variable bindings by matching parameter types against argument types
+pub(crate) fn infer_bindings<'db>(
   db: &'db TypedownDatabase,
   params: &[TdTypEnum<'db>],
   args: &[TdTypEnum<'db>],
-) -> HashMap<TdVariableTyp<'db>, TdTypEnum<'db>> {
-  // Infer param from arg & update bindings
+) -> HashMap<usize, TdTypEnum<'db>> {
   fn infer_from_pair<'db>(
     db: &'db TypedownDatabase,
     param: &TdTypEnum<'db>,
     arg: &TdTypEnum<'db>,
-    bindings: &mut HashMap<TdVariableTyp<'db>, TdTypEnum<'db>>,
+    bindings: &mut HashMap<usize, TdTypEnum<'db>>,
   ) {
     match param {
-      TdTypEnum::TdVariableTyp(variable) => {
+      TdTypEnum::TdBoundVariableTyp(bound_variable) => {
+        let index = TdBoundVariableTyp::index(*bound_variable, db);
         bindings
-          .entry(*variable)
+          .entry(index)
           .and_modify(|existing| {
             if *existing != *arg {
               *existing = get_sum_typ(
@@ -47,6 +132,7 @@ pub fn infer_bindings<'db>(
           })
           .or_insert_with(|| arg.clone());
       }
+      TdTypEnum::TdFreeVariableTyp(_) | TdTypEnum::TdExistentialVariableTyp(_) => {}
       TdTypEnum::TdFuncTyp(func_param) => {
         if let TdTypEnum::TdFuncTyp(func_arg) = arg {
           let param_signature = func_param.signature(db);
@@ -99,94 +185,6 @@ pub fn infer_bindings<'db>(
   bindings
 }
 
-/// Substitute type variables with their resolved bindings.
-pub fn substitute_variables<'db>(
-  db: &'db TypedownDatabase,
-  typ: &TdTypEnum<'db>,
-  bindings: &HashMap<TdVariableTyp<'db>, LazyTyp<'db>>,
-) -> TdTypEnum<'db> {
-  match typ {
-    TdTypEnum::TdVariableTyp(variable) => {
-      if let Some(binding) = bindings.get(variable) {
-        binding.resolve(db).unwrap_or_else(|| typ.clone())
-      } else {
-        // Fall back to upper bound for uninferred variables
-        variable
-          .variable(db)
-          .upper_bound(db)
-          .resolve(db)
-          .unwrap_or_else(|| typ.clone())
-      }
-    }
-    TdTypEnum::TdFuncTyp(func) => {
-      let signature = func.signature(db);
-      let new_params: Vec<TdTypEnum<'db>> = signature
-        .params(db)
-        .iter()
-        .map(|param| substitute_variables(db, param, bindings))
-        .collect();
-      let new_ret = substitute_variables(db, &signature.ret(db), bindings);
-      TdFuncTyp::get(db, new_params, new_ret).into()
-    }
-    TdTypEnum::TdListTyp(list) => {
-      if let Some(element) = list.element(db)
-        && let Some(resolved_element) = element.resolve(db)
-      {
-        let substituted = substitute_variables(db, &resolved_element, bindings);
-        return TdListTyp::new(db, Some(LazyTyp::eager(substituted))).into();
-      }
-      typ.clone()
-    }
-    TdTypEnum::TdDictTyp(dict) => {
-      let new_key = dict
-        .key(db)
-        .and_then(|key| key.resolve(db))
-        .map(|key| LazyTyp::eager(substitute_variables(db, &key, bindings)));
-      let new_value = dict
-        .value(db)
-        .and_then(|value| value.resolve(db))
-        .map(|value| LazyTyp::eager(substitute_variables(db, &value, bindings)));
-      if new_key.is_some() || new_value.is_some() {
-        return TdDictTyp::new(db, new_key, new_value).into();
-      }
-      typ.clone()
-    }
-    TdTypEnum::TdSumTyp(sum) => {
-      let new_members: Vec<LazyTyp<'db>> = sum
-        .members(db)
-        .iter()
-        .map(|member| {
-          member
-            .resolve(db)
-            .map(|resolved| LazyTyp::eager(substitute_variables(db, &resolved, bindings)))
-            .unwrap_or_else(|| member.clone())
-        })
-        .collect();
-      get_sum_typ(db, new_members).into()
-    }
-    TdTypEnum::TdProductTyp(product) => {
-      let new_fields: BTreeMap<String, LazyTyp<'db>> = product
-        .fields(db)
-        .into_iter()
-        .map(|(name, lazy)| {
-          let substituted = lazy
-            .resolve(db)
-            .map(|resolved| LazyTyp::eager(substitute_variables(db, &resolved, bindings)))
-            .unwrap_or(lazy);
-          (name, substituted)
-        })
-        .collect();
-      TdProductTyp::new(db, None, new_fields).into()
-    }
-    _ => typ.clone(),
-  }
-}
-
-/// Check if a type contains any unresolved type variables.
-pub fn contains_variable(typ: &TdTypEnum) -> bool {
-  matches!(typ, TdTypEnum::TdVariableTyp(_))
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -194,13 +192,8 @@ mod tests {
   use crate::db::derived::get_builtin_typs::{
     get_bool_typ, get_func_typ, get_number_typ, get_obj_typ, get_string_typ,
   };
-  use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
-  use crate::db::types::{FuncSignature, LazyTyp, Symbol, TdVariableTyp, TypParams, TypVariable};
+  use crate::db::types::{FuncSignature, LazyTyp, TdBoundVariableTyp, TypParams, Variance};
   use crate::syntax::diagnostic::TdDiagnosticKind;
-
-  fn create_test_symbol(db: &TypedownDatabase, kind: BuiltinSchemaKind) -> Symbol {
-    Symbol::new(db, SymbolKind::BuiltinSchema(kind))
-  }
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
@@ -212,18 +205,19 @@ mod tests {
   fn infer_simple_variable() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable_typ = TdVariableTyp::new(
+    let bound_variable = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
 
     let bindings = infer_bindings(
       &db,
-      &[variable_typ.into()],
+      &[bound_variable.into()],
       std::slice::from_ref(&string_typ),
     );
-    assert_eq!(bindings.get(&variable_typ), Some(&string_typ));
+    assert_eq!(bindings.get(&0), Some(&string_typ));
   }
 
   #[test]
@@ -231,19 +225,20 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
-    let variable_typ = TdVariableTyp::new(
+    let bound_variable = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
-    let variable: TdTypEnum = variable_typ.into();
+    let variable: TdTypEnum = bound_variable.into();
 
     let bindings = infer_bindings(
       &db,
       &[variable.clone(), variable],
       &[string_typ, number_typ],
     );
-    let inferred = bindings.get(&variable_typ).unwrap();
+    let inferred = bindings.get(&0).unwrap();
     // Should be a sum type (String | Number)
     assert!(
       matches!(inferred, TdTypEnum::TdSumTyp(_)),
@@ -256,19 +251,20 @@ mod tests {
   fn infer_same_type_no_widen() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable_typ = TdVariableTyp::new(
+    let bound_variable = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
-    let variable: TdTypEnum = variable_typ.into();
+    let variable: TdTypEnum = bound_variable.into();
 
     let bindings = infer_bindings(
       &db,
       &[variable.clone(), variable],
       &[string_typ.clone(), string_typ.clone()],
     );
-    assert_eq!(bindings.get(&variable_typ), Some(&string_typ));
+    assert_eq!(bindings.get(&0), Some(&string_typ));
   }
 
   #[test]
@@ -276,39 +272,44 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
-    let variable_typ_t = TdVariableTyp::new(
+    let bound_variable_t = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
-    let variable_typ_u = TdVariableTyp::new(
+    let bound_variable_u = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::Number),
+      1,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
 
     // param: (T) -> U, arg: (String) -> Number
-    let param_func = TdFuncTyp::get(&db, vec![variable_typ_t.into()], variable_typ_u.into()).into();
+    let param_func =
+      TdFuncTyp::get(&db, vec![bound_variable_t.into()], bound_variable_u.into()).into();
     let arg_func: TdTypEnum =
       TdFuncTyp::get(&db, vec![string_typ.clone()], number_typ.clone()).into();
 
     let bindings = infer_bindings(&db, &[param_func], &[arg_func]);
-    assert_eq!(bindings.get(&variable_typ_t), Some(&string_typ));
-    assert_eq!(bindings.get(&variable_typ_u), Some(&number_typ));
+    assert_eq!(bindings.get(&0), Some(&string_typ));
+    assert_eq!(bindings.get(&1), Some(&number_typ));
   }
 
   #[test]
   fn substitute_simple() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable_typ = TdVariableTyp::new(
+    let bound_variable = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
-    let bindings = HashMap::from_iter([(variable_typ, LazyTyp::eager(string_typ.clone()))]);
+    let bindings: HashMap<usize, LazyTyp> =
+      HashMap::from_iter([(0, LazyTyp::eager(string_typ.clone()))]);
 
-    let result = substitute_variables(&db, &variable_typ.into(), &bindings);
+    let result = substitute_bound_variables(&db, &bound_variable.into(), &bindings);
     assert_eq!(result, string_typ);
   }
 
@@ -316,17 +317,19 @@ mod tests {
   fn substitute_in_function_return() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable_typ = TdVariableTyp::new(
+    let bound_variable = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
-    let bindings = HashMap::from_iter([(variable_typ, LazyTyp::eager(string_typ.clone()))]);
+    let bindings: HashMap<usize, LazyTyp> =
+      HashMap::from_iter([(0, LazyTyp::eager(string_typ.clone()))]);
 
     // fn(String) -> T, substitute T=String
     let func_typ: TdTypEnum =
-      TdFuncTyp::get(&db, vec![string_typ.clone()], variable_typ.into()).into();
-    let result = substitute_variables(&db, &func_typ, &bindings);
+      TdFuncTyp::get(&db, vec![string_typ.clone()], bound_variable.into()).into();
+    let result = substitute_bound_variables(&db, &func_typ, &bindings);
 
     if let TdTypEnum::TdFuncTyp(func) = result {
       assert_eq!(func.signature(&db).ret(&db), string_typ);
@@ -339,16 +342,19 @@ mod tests {
   fn substitute_in_list() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable_typ = TdVariableTyp::new(
+    let bound_variable = TdBoundVariableTyp::new(
       &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
     );
-    let bindings = HashMap::from_iter([(variable_typ, LazyTyp::eager(string_typ.clone()))]);
+    let bindings: HashMap<usize, LazyTyp> =
+      HashMap::from_iter([(0, LazyTyp::eager(string_typ.clone()))]);
 
     // list[T], substitute T=String
-    let list_typ: TdTypEnum = TdListTyp::new(&db, Some(LazyTyp::eager(variable_typ.into()))).into();
-    let result = substitute_variables(&db, &list_typ, &bindings);
+    let list_typ: TdTypEnum =
+      TdListTyp::new(&db, Some(LazyTyp::eager(bound_variable.into()))).into();
+    let result = substitute_bound_variables(&db, &list_typ, &bindings);
 
     if let TdTypEnum::TdListTyp(list) = result {
       let args = list.get_typ_args(&db);
@@ -360,43 +366,24 @@ mod tests {
   }
 
   #[test]
-  fn contains_variable_true() {
-    let db = make_db();
-    let variable_typ: TdTypEnum = TdVariableTyp::new(
-      &db,
-      TypVariable::get(&db, None),
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
-    assert!(contains_variable(&variable_typ));
-  }
-
-  #[test]
-  fn contains_variable_false() {
-    let db = make_db();
-    let string_typ: TdTypEnum = get_string_typ(&db).into();
-    assert!(!contains_variable(&string_typ));
-  }
-
-  #[test]
   fn call_typ_infers_and_substitutes() {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let variable_t = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_t = TdBoundVariableTyp::new(
       &db,
-      variable_t,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
+    );
+    let bound_variable_t_typ: TdTypEnum = bound_variable_t.into();
 
     // Generic function: <T>(T) -> T
-    let typ_params = TypParams::new(&db, vec![variable_t], vec![]);
+    let typ_params = TypParams::new(&db, vec![bound_variable_t], vec![]);
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![variable_t_typ.clone()],
-      variable_t_typ,
+      vec![bound_variable_t_typ.clone()],
+      bound_variable_t_typ,
     );
     let func = get_func_typ(&db, signature);
 
@@ -415,21 +402,21 @@ mod tests {
     let number_typ: TdTypEnum = get_number_typ(&db).into();
 
     // T <: String
-    let variable_t = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_t = TdBoundVariableTyp::new(
       &db,
-      variable_t,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(string_typ.clone()),
+      Variance::Covariant,
+    );
+    let bound_variable_t_typ: TdTypEnum = bound_variable_t.into();
 
     // Generic function: <T <: String>(T) -> T
-    let typ_params = TypParams::new(&db, vec![variable_t], vec![]);
+    let typ_params = TypParams::new(&db, vec![bound_variable_t], vec![]);
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![variable_t_typ.clone()],
-      variable_t_typ,
+      vec![bound_variable_t_typ.clone()],
+      bound_variable_t_typ,
     );
     let func = get_func_typ(&db, signature);
 
@@ -454,24 +441,29 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let obj_typ: TdTypEnum = get_obj_typ(&db).into();
-    let variable_t = TypVariable::get(&db, None);
-    let variable_u = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_t = TdBoundVariableTyp::new(
       &db,
-      variable_t,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
-    let variable_u_typ: TdTypEnum = TdVariableTyp::new(
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
+    );
+    let bound_variable_u = TdBoundVariableTyp::new(
       &db,
-      variable_u,
-      create_test_symbol(&db, BuiltinSchemaKind::Number),
-    )
-    .into();
+      1,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
+    );
+    let bound_variable_t_typ: TdTypEnum = bound_variable_t.into();
+    let bound_variable_u_typ: TdTypEnum = bound_variable_u.into();
 
     // Generic function: <T, U>(T) -> U  (U cannot be inferred from args)
-    let typ_params = TypParams::new(&db, vec![variable_t, variable_u], vec![]);
-    let signature = FuncSignature::new(&db, Some(typ_params), vec![variable_t_typ], variable_u_typ);
+    let typ_params = TypParams::new(&db, vec![bound_variable_t, bound_variable_u], vec![]);
+    let signature = FuncSignature::new(
+      &db,
+      Some(typ_params),
+      vec![bound_variable_t_typ],
+      bound_variable_u_typ,
+    );
     let func = get_func_typ(&db, signature);
 
     // U falls back to upper bound (Obj)
@@ -490,27 +482,27 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let bool_typ: TdTypEnum = get_bool_typ(&db).into();
-    let variable_t = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_t = TdBoundVariableTyp::new(
       &db,
-      variable_t,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
+    );
+    let bound_variable_t_typ: TdTypEnum = bound_variable_t.into();
 
     let list_of_t: TdTypEnum =
-      TdListTyp::new(&db, Some(LazyTyp::eager(variable_t_typ.clone()))).into();
+      TdListTyp::new(&db, Some(LazyTyp::eager(bound_variable_t_typ.clone()))).into();
     let list_of_string: TdTypEnum =
       TdListTyp::new(&db, Some(LazyTyp::eager(string_typ.clone()))).into();
     // closure param: (T) -> bool
     let closure_of_t: TdTypEnum =
-      TdFuncTyp::get(&db, vec![variable_t_typ.clone()], bool_typ.clone()).into();
+      TdFuncTyp::get(&db, vec![bound_variable_t_typ.clone()], bool_typ.clone()).into();
     // concrete closure arg: (string) -> bool
     let closure_of_string: TdTypEnum =
       TdFuncTyp::get(&db, vec![string_typ.clone()], bool_typ.clone()).into();
 
     // filter: <T>(list[T], (T) -> bool) -> list[T]
-    let typ_params = TypParams::new(&db, vec![variable_t], vec![]);
+    let typ_params = TypParams::new(&db, vec![bound_variable_t], vec![]);
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
@@ -555,25 +547,25 @@ mod tests {
     let db = make_db();
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let bool_typ: TdTypEnum = get_bool_typ(&db).into();
-    let variable_t = TypVariable::get(&db, None);
-    let variable_t_typ: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_t = TdBoundVariableTyp::new(
       &db,
-      variable_t,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
+    );
+    let bound_variable_t_typ: TdTypEnum = bound_variable_t.into();
 
     let list_of_t: TdTypEnum =
-      TdListTyp::new(&db, Some(LazyTyp::eager(variable_t_typ.clone()))).into();
+      TdListTyp::new(&db, Some(LazyTyp::eager(bound_variable_t_typ.clone()))).into();
     let list_of_string: TdTypEnum =
       TdListTyp::new(&db, Some(LazyTyp::eager(string_typ.clone()))).into();
     let closure_of_t: TdTypEnum =
-      TdFuncTyp::get(&db, vec![variable_t_typ.clone()], bool_typ.clone()).into();
+      TdFuncTyp::get(&db, vec![bound_variable_t_typ.clone()], bool_typ.clone()).into();
     let closure_of_string: TdTypEnum =
       TdFuncTyp::get(&db, vec![string_typ.clone()], bool_typ.clone()).into();
 
     // filter: <T>((T) -> bool, list[T]) -> list[T]
-    let typ_params = TypParams::new(&db, vec![variable_t], vec![]);
+    let typ_params = TypParams::new(&db, vec![bound_variable_t], vec![]);
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),

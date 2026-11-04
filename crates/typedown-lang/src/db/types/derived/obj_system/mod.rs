@@ -1,6 +1,7 @@
 mod base;
 mod blob;
 mod bool;
+mod bound_variable;
 mod datetime;
 mod dict;
 mod existential;
@@ -33,6 +34,7 @@ use typedown_incremental::{Decodable, Decoder, Encodable, Encoder};
 pub use base::*;
 pub use blob::*;
 pub use bool::*;
+pub use bound_variable::*;
 pub use datetime::*;
 pub use dict::*;
 pub use existential::*;
@@ -95,9 +97,11 @@ pub enum TdTypEnum<'db> {
   TdNeverTyp(TdNeverTyp<'db>),
   TdLitTyp(TdLitTyp<'db>),
   TdSumTyp(TdSumTyp<'db>),
-  TdVariableTyp(TdVariableTyp<'db>),
+  TdFreeVariableTyp(TdFreeVariableTyp<'db>),
   TdExistentialTyp(TdExistentialTyp<'db>),
+  TdExistentialVariableTyp(TdExistentialVariableTyp<'db>),
   TdMetatypeInstanceTyp(TdMetatypeInstanceTyp<'db>),
+  TdBoundVariableTyp(TdBoundVariableTyp<'db>),
 }
 
 // Use this instead of dyn
@@ -159,11 +163,13 @@ impl_from_typ_for_obj_enum!(
   TdNeverTyp,
   TdLitTyp,
   TdSumTyp,
-  TdVariableTyp,
+  TdFreeVariableTyp,
   TdExistentialTyp,
+  TdExistentialVariableTyp,
   TdObjTyp,
   TdIconTyp,
   TdMetatypeInstanceTyp,
+  TdBoundVariableTyp,
 );
 
 impl Id for TdTypEnum<'_> {
@@ -188,11 +194,13 @@ impl Id for TdTypEnum<'_> {
       TdTypEnum::TdNeverTyp(value) => value.as_id(),
       TdTypEnum::TdLitTyp(value) => value.as_id(),
       TdTypEnum::TdSumTyp(value) => value.as_id(),
-      TdTypEnum::TdVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdFreeVariableTyp(value) => value.as_id(),
       TdTypEnum::TdExistentialTyp(value) => value.as_id(),
+      TdTypEnum::TdExistentialVariableTyp(value) => value.as_id(),
       TdTypEnum::TdObjTyp(value) => value.as_id(),
       TdTypEnum::TdIconTyp(value) => value.as_id(),
       TdTypEnum::TdMetatypeInstanceTyp(value) => value.as_id(),
+      TdTypEnum::TdBoundVariableTyp(value) => value.as_id(),
     }
   }
 }
@@ -274,11 +282,13 @@ impl typedown_incremental::StableHash for TdTypEnum<'_> {
       TdTypEnum::TdNeverTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdLitTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdSumTyp(value) => value.stable_hash(db, hasher),
-      TdTypEnum::TdVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdFreeVariableTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdExistentialTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdExistentialVariableTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdObjTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdIconTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdMetatypeInstanceTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdBoundVariableTyp(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -339,6 +349,8 @@ pub enum TdTypeKind {
   Variable = 21,
   Icon = 22,
   MetatypeInstance = 23,
+  BoundVariable = 24,
+  ExistentialVariable = 25,
 }
 
 #[derive(FromRepr)]
@@ -445,7 +457,7 @@ impl Encodable for TdTypEnum<'_> {
         encoder.emit_u8(buffer, TdTypeKind::Sum as u8);
         value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdVariableTyp(value) => {
+      TdTypEnum::TdFreeVariableTyp(value) => {
         encoder.emit_u8(buffer, TdTypeKind::Variable as u8);
         value.field_encode(buffer, encoder);
       }
@@ -463,6 +475,14 @@ impl Encodable for TdTypEnum<'_> {
       }
       TdTypEnum::TdMetatypeInstanceTyp(value) => {
         encoder.emit_u8(buffer, TdTypeKind::MetatypeInstance as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdBoundVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::BoundVariable as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdExistentialVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::ExistentialVariable as u8);
         value.field_encode(buffer, encoder);
       }
     }
@@ -493,10 +513,14 @@ impl Decodable for TdTypEnum<'_> {
       TdTypeKind::Lit => TdLitTyp::field_decode(data, decoder).into(),
       TdTypeKind::Sum => TdSumTyp::field_decode(data, decoder).into(),
       TdTypeKind::Existential => TdExistentialTyp::field_decode(data, decoder).into(),
-      TdTypeKind::Variable => TdVariableTyp::field_decode(data, decoder).into(),
+      TdTypeKind::Variable => TdFreeVariableTyp::field_decode(data, decoder).into(),
       TdTypeKind::Obj => TdObjTyp::field_decode(data, decoder).into(),
       TdTypeKind::Icon => TdIconTyp::field_decode(data, decoder).into(),
       TdTypeKind::MetatypeInstance => TdMetatypeInstanceTyp::field_decode(data, decoder).into(),
+      TdTypeKind::BoundVariable => TdBoundVariableTyp::field_decode(data, decoder).into(),
+      TdTypeKind::ExistentialVariable => {
+        TdExistentialVariableTyp::field_decode(data, decoder).into()
+      }
     }
   }
 }

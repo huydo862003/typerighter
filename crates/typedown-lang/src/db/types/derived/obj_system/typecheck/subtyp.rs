@@ -6,8 +6,11 @@ use crate::db::types::LitValue;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::fields_compatible;
 use crate::db::types::{
-  LazyTyp, TdExistentialTyp, TdSchemaTyp, TdSumTyp, TdTypEnum, TypParams, TypVariable,
+  LazyTyp, TdBoundVariableTyp, TdExistentialTyp, TdExistentialVariableTyp, TdFreeVariableTyp,
+  TdSchemaTyp, TdSumTyp, TdTypEnum, TypParams,
 };
+
+use super::substitute_bound_variables;
 use crate::syntax::diagnostic::*;
 use std::collections::{HashMap, HashSet};
 use typedown_incremental::Id;
@@ -58,12 +61,11 @@ pub fn is_subtyp_of(db: &TypedownDatabase, subtyp: &TdTypEnum, supertyp: &TdTypE
   is_subtyp_of_env(db, subtyp, supertyp, &mut env)
 }
 
-/// Witness environment for existential subtyping constraints
+// Witness environment for existential subtyping constraints
 #[derive(Default)]
 struct SubtypEnv<'db> {
-  lower_bounds: HashMap<TypVariable<'db>, Vec<TdTypEnum<'db>>>,
-  upper_bounds: HashMap<TypVariable<'db>, Vec<TdTypEnum<'db>>>,
-  existential_variables: HashSet<TypVariable<'db>>,
+  lower_bounds: HashMap<TdExistentialVariableTyp<'db>, Vec<TdTypEnum<'db>>>,
+  upper_bounds: HashMap<TdExistentialVariableTyp<'db>, Vec<TdTypEnum<'db>>>,
 }
 
 impl<'db> SubtypEnv<'db> {
@@ -71,24 +73,13 @@ impl<'db> SubtypEnv<'db> {
     Self {
       lower_bounds: HashMap::new(),
       upper_bounds: HashMap::new(),
-      existential_variables: HashSet::new(),
     }
   }
 
-  /// Register an existential variable in the environment and push its declared upper bound
-  fn track_existential_variable(&mut self, db: &'db TypedownDatabase, variable: TypVariable<'db>) {
-    self.existential_variables.insert(variable);
-    if let Some(upper_bound) = variable.upper_bound(db).resolve(db) {
-      self.add_upper_bound(db, variable, &upper_bound);
-    }
-  }
-
-  /// Record a lower bound for an existential variable
-  /// Returning `false` early if a conflict with any existing upper bound is detected (`lower <= upper` fails)
   fn add_lower_bound(
     &mut self,
     db: &'db TypedownDatabase,
-    variable: TypVariable<'db>,
+    variable: TdExistentialVariableTyp<'db>,
     lower_bound: &TdTypEnum<'db>,
   ) -> bool {
     if let Some(upper_bounds) = self.upper_bounds.get(&variable).cloned() {
@@ -106,12 +97,10 @@ impl<'db> SubtypEnv<'db> {
     true
   }
 
-  /// Record an upper bound for an existential variable
-  /// Returning `false` early if a conflict with any existing lower bound is detected (`lower <= upper` fails)
   fn add_upper_bound(
     &mut self,
     db: &'db TypedownDatabase,
-    variable: TypVariable<'db>,
+    variable: TdExistentialVariableTyp<'db>,
     upper_bound: &TdTypEnum<'db>,
   ) -> bool {
     if let Some(lower_bounds) = self.lower_bounds.get(&variable).cloned() {
@@ -165,13 +154,13 @@ fn is_subtyp_of_env<'db>(
     }
     debug_assert!(
       !subtyp.is_td_metatype_instance_typ()
-        && !subtyp.is_td_variable_typ()
+        && !subtyp.is_td_free_variable_typ()
         && !subtyp.is_td_existential_typ(),
       "InstanceTyp/VariableTyp/ExistentialTyp must be handled in phase 0"
     );
     debug_assert!(
       !supertyp.is_td_metatype_instance_typ()
-        && !supertyp.is_td_variable_typ()
+        && !supertyp.is_td_free_variable_typ()
         && !supertyp.is_td_existential_typ(),
       "InstanceTyp/VariableTyp/ExistentialTyp must be handled in phase 0"
     );
@@ -275,8 +264,10 @@ fn is_subtyp_of_env<'db>(
       ),
       // Handled in phase 0, should not reach here
       TdTypEnum::TdMetatypeInstanceTyp(_)
-      | TdTypEnum::TdVariableTyp(_)
-      | TdTypEnum::TdExistentialTyp(_) => false,
+      | TdTypEnum::TdFreeVariableTyp(_)
+      | TdTypEnum::TdBoundVariableTyp(_)
+      | TdTypEnum::TdExistentialTyp(_)
+      | TdTypEnum::TdExistentialVariableTyp(_) => false,
     }
   }
 
@@ -385,7 +376,10 @@ fn is_subtyp_of_env<'db>(
           is_subtyp_of_env(db, &sub_instance_typ.inner(db), supertyp, env)
         }
         // metatype_instance<variable/existential>: unresolvable, treat as obj
-        TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => {
+        TdTypEnum::TdFreeVariableTyp(_)
+        | TdTypEnum::TdBoundVariableTyp(_)
+        | TdTypEnum::TdExistentialTyp(_)
+        | TdTypEnum::TdExistentialVariableTyp(_) => {
           is_subtyp_of_env(db, &get_obj_typ(db).into(), supertyp, env)
         }
         // metatype_instance of non-metatype is never (uninhabited), subtype of everything
@@ -411,80 +405,90 @@ fn is_subtyp_of_env<'db>(
           is_subtyp_of_env(db, subtyp, &super_instance_typ.inner(db), env)
         }
         // metatype_instance<variable/existential>: unresolvable
-        TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => false,
+        TdTypEnum::TdFreeVariableTyp(_)
+        | TdTypEnum::TdBoundVariableTyp(_)
+        | TdTypEnum::TdExistentialTyp(_)
+        | TdTypEnum::TdExistentialVariableTyp(_) => false,
         // metatype_instance of non-metatype is never, nothing is its subtype
         _ => false,
       }
     }
-    // Universal variables: T1 <: T2 requires identity or checking T1's declared upper bound
-    (TdTypEnum::TdVariableTyp(variable_subtyp), TdTypEnum::TdVariableTyp(_variable_supertyp)) => {
+    /* Bound variables: delegate to upper bound */
+    (TdTypEnum::TdBoundVariableTyp(bound_sub), _) => {
+      if let Some(upper) = TdBoundVariableTyp::upper_bound(*bound_sub, db).resolve(db) {
+        is_subtyp_of_env(db, &upper, supertyp, env)
+      } else {
+        false
+      }
+    }
+    (_, TdTypEnum::TdBoundVariableTyp(_)) => false,
+
+    /* Free variables: from closure param inference, delegate to upper bound */
+    (TdTypEnum::TdFreeVariableTyp(free_sub), _) => {
       if subtyp == supertyp {
         return true;
       }
-      let variable_subtyp = variable_subtyp.variable(db);
-      if let Some(upper_bound) = variable_subtyp.upper_bound(db).resolve(db) {
-        is_subtyp_of_env(db, &upper_bound, supertyp, env)
+      if let Some(upper) = TdFreeVariableTyp::upper_bound(*free_sub, db).resolve(db) {
+        is_subtyp_of_env(db, &upper, supertyp, env)
       } else {
         false
       }
     }
-    // Subtype candidate is variable
-    (TdTypEnum::TdVariableTyp(variable_subtyp), _) => {
-      let variable_subtyp = variable_subtyp.variable(db);
-      if env.existential_variables.contains(&variable_subtyp) {
-        // If existential variable, accumulate upper bound
-        env.add_upper_bound(db, variable_subtyp, supertyp)
-      } else if let Some(upper_bound) = variable_subtyp.upper_bound(db).resolve(db) {
-        // If parameterized type variable, proceed as normal type checking
-        is_subtyp_of_env(db, &upper_bound, supertyp, env)
-      } else {
-        false
-      }
-    }
-    // Supertype is variable
-    (_, TdTypEnum::TdVariableTyp(variable_supertyp)) => {
-      let variable_supertyp = variable_supertyp.variable(db);
-      // Only existential variables on supertype accumulate lower bounds
-      if env.existential_variables.contains(&variable_supertyp) {
-        env.add_lower_bound(db, variable_supertyp, subtyp)
-      } else {
-        false
-      }
-    }
-    (TdTypEnum::TdExistentialTyp(existential_subtyp), TdTypEnum::TdExistentialTyp(_)) => {
-      // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
-      // Well this is just a special case of the below case, technically can be merged
-      existential_subtyp
-        .body(db)
-        .and_then(|body| body.resolve(db))
-        .is_some_and(|body| is_subtyp_of_env(db, &body, supertyp, env))
-    }
-    (TdTypEnum::TdExistentialTyp(existential_subtyp), supertyp) => {
-      // (exists T1 <: S1. P1[T1]) <: P2[T2]
-      // iff
-      // - A value x of candidate type means that x is of type P1[T1] for some T1 <: S1
-      // - This should imply that x is also of type P2[T2]
-      // So basically, P1[T1] must be <: P2[T2] for all T1 <: S1 regardless
+    (_, TdTypEnum::TdFreeVariableTyp(_)) => false,
 
-      // Well this is already unwrapped due to the type variable invariant listed above
+    /* Existential variables: witness variables from opened existentials */
+    (TdTypEnum::TdExistentialVariableTyp(existential_sub), _) => {
+      if subtyp == supertyp {
+        return true;
+      }
+      env.add_upper_bound(db, *existential_sub, supertyp)
+    }
+    (_, TdTypEnum::TdExistentialVariableTyp(existential_super)) => {
+      env.add_lower_bound(db, *existential_super, subtyp)
+    }
+
+    /* Existential types */
+    // (exists T1 <: S1. P1[T1]) <: (exists T2 <: S2. P2[T2])
+    // Special case of the below, can be merged
+    (TdTypEnum::TdExistentialTyp(existential_subtyp), TdTypEnum::TdExistentialTyp(_)) => {
       existential_subtyp
         .body(db)
         .and_then(|body| body.resolve(db))
         .is_some_and(|body| is_subtyp_of_env(db, &body, supertyp, env))
     }
+    // (exists T1 <: S1. P1[T1]) <: P2[T2]
+    // P1[T1] must be <: P2[T2] for all T1 <: S1
+    // Body is already unwrapped due to the type variable invariant
+    (TdTypEnum::TdExistentialTyp(existential_subtyp), supertyp) => existential_subtyp
+      .body(db)
+      .and_then(|body| body.resolve(db))
+      .is_some_and(|body| is_subtyp_of_env(db, &body, supertyp, env)),
     (subtyp, TdTypEnum::TdExistentialTyp(existential_supertyp)) => {
-      // P1[T1] <: (exists T2 <: S2. P2[T2])
-      // iff
-      // P1[T1] is a subtype of some P2[T2] where T2 <: S2
-      // We just proceed product decomposition, then accumulate bounds
+      // Open the existential: instantiate bound variables to existential variables
       let params = TdExistentialTyp::typ_params(*existential_supertyp, db).params(db);
-      for param in &params {
-        env.track_existential_variable(db, *param);
-      }
-      existential_supertyp
+      let Some(body) = existential_supertyp
         .body(db)
         .and_then(|body| body.resolve(db))
-        .is_some_and(|body| is_subtyp_of_env(db, subtyp, &body, env))
+      else {
+        return false;
+      };
+      let mut bindings: hashbrown::HashMap<usize, LazyTyp<'db>> = hashbrown::HashMap::new();
+      for bound_variable in &params {
+        let index = TdBoundVariableTyp::index(*bound_variable, db);
+        let upper_bound = TdBoundVariableTyp::upper_bound(*bound_variable, db);
+        let existential_variable =
+          TdExistentialVariableTyp::new(db, *existential_supertyp, index, upper_bound.clone());
+        bindings.insert(index, LazyTyp::eager(existential_variable.into()));
+        if let Some(resolved_bound) = upper_bound.resolve(db) {
+          env
+            .upper_bounds
+            .entry(existential_variable)
+            .or_default()
+            .push(resolved_bound);
+        }
+      }
+      let opened_body = substitute_bound_variables(db, &body, &bindings);
+      is_subtyp_of_env(db, subtyp, &opened_body, env)
     }
     _ => {
       if subtyp.as_td_never_typ().is_some() {
@@ -546,18 +550,12 @@ mod tests {
   };
   use crate::db::derived::name_resolver::file_symbol::file_symbol;
   use crate::db::fixtures::load_vault_fixture;
-  use crate::db::types::Symbol;
-  use crate::db::types::derived::symbol::{BuiltinSchemaKind, SymbolKind};
   use crate::db::types::{
-    LazyTyp, LitValue, TdExistentialTyp, TdFuncTyp, TdProductTyp, TdSchemaTyp, TdVariableTyp,
-    TypVariable, make_property_descriptors,
+    LazyTyp, LitValue, TdBoundVariableTyp, TdExistentialTyp, TdFreeVariableTyp, TdFuncTyp,
+    TdProductTyp, TdSchemaTyp, Variance, make_property_descriptors,
   };
   use crate::db::{QueryStorage, TypedownDatabase};
   use std::collections::BTreeMap;
-
-  fn create_test_symbol(db: &TypedownDatabase, kind: BuiltinSchemaKind) -> Symbol {
-    Symbol::new(db, SymbolKind::BuiltinSchema(kind))
-  }
 
   fn make_db() -> TypedownDatabase {
     TypedownDatabase {
@@ -1437,81 +1435,86 @@ mod tests {
     assert!(!is_subtyp_of(&db, &actual_typ, &expected_typ));
   }
 
-  // Type variable (TdVariableType) tests
+  // Type variable (TdFreeVariableType) tests
+
+  fn get_test_site(
+    db: &TypedownDatabase,
+    project: crate::db::types::Project,
+    file: crate::db::types::File,
+  ) -> crate::db::types::ProjectRedNode {
+    crate::db::derived::parse_file::parse_file(db, project, file).ast(db)
+  }
 
   #[test]
   fn typ_variable_strict_equality() {
-    let db = make_db();
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = get_test_site(&db, project, file);
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
-    let typ_variable1 = TypVariable::get(&db, Some(LazyTyp::eager(string_typ)));
-    let typ_variable2 = TypVariable::get(&db, Some(LazyTyp::eager(number_typ)));
-    let variable1: TdTypEnum = TdVariableTyp::new(
-      &db,
-      typ_variable1,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
-    let variable2: TdTypEnum = TdVariableTyp::new(
-      &db,
-      typ_variable2,
-      create_test_symbol(&db, BuiltinSchemaKind::Number),
-    )
-    .into();
+    let variable1: TdTypEnum =
+      TdFreeVariableTyp::new(&db, site.clone(), 0, LazyTyp::eager(string_typ)).into();
+    let variable2: TdTypEnum =
+      TdFreeVariableTyp::new(&db, site, 1, LazyTyp::eager(number_typ)).into();
     assert!(is_subtyp_of(&db, &variable1, &variable1));
     assert!(!is_subtyp_of(&db, &variable1, &variable2));
   }
 
   #[test]
   fn typ_variable_bounded_delegation() {
-    let db = make_db();
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = get_test_site(&db, project, file);
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
-    let typ_variable = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable: TdTypEnum = TdVariableTyp::new(
-      &db,
-      typ_variable,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+    let variable: TdTypEnum =
+      TdFreeVariableTyp::new(&db, site, 0, LazyTyp::eager(string_typ.clone())).into();
     assert!(is_subtyp_of(&db, &variable, &string_typ));
     assert!(!is_subtyp_of(&db, &variable, &number_typ));
   }
 
   #[test]
   fn typ_variable_unbound_rejects_concrete_typ() {
-    let db = make_db();
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = get_test_site(&db, project, file);
     let string_typ: TdTypEnum = get_string_typ(&db).into();
-    let typ_variable_unbound = TypVariable::get(&db, None);
-    let variable: TdTypEnum = TdVariableTyp::new(
-      &db,
-      typ_variable_unbound,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+    let variable: TdTypEnum =
+      TdFreeVariableTyp::new(&db, site, 0, LazyTyp::eager(get_obj_typ(&db).into())).into();
     assert!(!is_subtyp_of(&db, &string_typ, &variable));
   }
 
   #[test]
   fn typ_variable_transitive_variable_bound() {
-    let db = make_db();
-    let typ_variable2 = TypVariable::get(&db, None);
-    let variable2: TdTypEnum = TdVariableTyp::new(
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = get_test_site(&db, project, file);
+    let variable2: TdTypEnum = TdFreeVariableTyp::new(
       &db,
-      typ_variable2,
-      create_test_symbol(&db, BuiltinSchemaKind::Number),
+      site.clone(),
+      1,
+      LazyTyp::eager(get_obj_typ(&db).into()),
     )
     .into();
-    let typ_variable1 = TypVariable::get(&db, Some(LazyTyp::eager(variable2.clone())));
-    let variable1: TdTypEnum = TdVariableTyp::new(
-      &db,
-      typ_variable1,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+    let variable1: TdTypEnum =
+      TdFreeVariableTyp::new(&db, site, 0, LazyTyp::eager(variable2.clone())).into();
 
     assert!(is_subtyp_of(&db, &variable1, &variable2));
     assert!(!is_subtyp_of(&db, &variable2, &variable1));
+  }
+
+  #[test]
+  fn check_free_variable_different_sites_are_not_subtypes() {
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let files: Vec<_> = project.files(&db).values().copied().collect();
+    let site_a = get_test_site(&db, project, files[0]);
+    let site_b = get_test_site(&db, project, files[1]);
+    let upper_bound = LazyTyp::eager(get_obj_typ(&db).into());
+
+    // Same index and upper bound, different instantiation sites
+    let variable_a: TdTypEnum = TdFreeVariableTyp::new(&db, site_a, 0, upper_bound.clone()).into();
+    let variable_b: TdTypEnum = TdFreeVariableTyp::new(&db, site_b, 0, upper_bound).into();
+
+    // Without instantiation site, these would collide and be subtypes of each other
+    assert!(is_subtyp_of(&db, &variable_a, &variable_a));
+    assert!(!is_subtyp_of(&db, &variable_a, &variable_b));
+    assert!(!is_subtyp_of(&db, &variable_b, &variable_a));
   }
 
   // Existential type precheck test
@@ -1540,38 +1543,38 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
-    let typ_variable_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_string_typ: TdTypEnum = TdVariableTyp::new(
+    // exists T0 <: string. T0
+    let bound_variable_0_string = TdBoundVariableTyp::new(
       &db,
-      typ_variable_string,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
-    let existential_variable_typ: TdTypEnum = TdExistentialTyp::new(
+      0,
+      LazyTyp::eager(string_typ.clone()),
+      Variance::Covariant,
+    );
+    let existential_bound_typ: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_string], vec![]),
-      Some(LazyTyp::eager(variable_string_typ)),
+      TypParams::new(&db, vec![bound_variable_0_string], vec![]),
+      Some(LazyTyp::eager(bound_variable_0_string.into())),
     )
     .into();
 
-    // T1 delegates to upper bound string
-    // exists T1 <: string. T1 <= string
-    assert!(is_subtyp_of(&db, &existential_variable_typ, &string_typ));
+    // T0 delegates to upper bound string
+    // exists T0 <: string. T0 <= string
+    assert!(is_subtyp_of(&db, &existential_bound_typ, &string_typ));
 
-    let typ_variable_obj = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable_obj_typ: TdTypEnum = TdVariableTyp::new(
+    // exists T0 <: Object. List[T0]
+    let bound_variable_0_obj = TdBoundVariableTyp::new(
       &db,
-      typ_variable_obj,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
-    let list_variable_typ: TdTypEnum = get_list_typ(&db)
-      .instantiate(&db, vec![LazyTyp::eager(variable_obj_typ)])
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let list_bound_typ: TdTypEnum = get_list_typ(&db)
+      .instantiate(&db, vec![LazyTyp::eager(bound_variable_0_obj.into())])
       .typ(&db);
     let existential_list_typ: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_obj], vec![]),
-      Some(LazyTyp::eager(list_variable_typ)),
+      TypParams::new(&db, vec![bound_variable_0_obj], vec![]),
+      Some(LazyTyp::eager(list_bound_typ)),
     )
     .into();
     let list_obj: TdTypEnum = get_list_typ(&db)
@@ -1582,11 +1585,11 @@ mod tests {
       .typ(&db);
 
     // Object <= Object holds
-    // exists T1 <: Object. List[T1] <= List[Object]
+    // exists T0 <: Object. List[T0] <= List[Object]
     assert!(is_subtyp_of(&db, &existential_list_typ, &list_obj));
 
     // upper bound Object <= string fails
-    // exists T1 <: Object. List[T1] <= List[string]
+    // exists T0 <: Object. List[T0] <= List[string]
     assert!(!is_subtyp_of(&db, &existential_list_typ, &list_string));
   }
 
@@ -1597,13 +1600,13 @@ mod tests {
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
-    let typ_variable = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_obj = TdBoundVariableTyp::new(
       &db,
-      typ_variable,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable: TdTypEnum = bound_variable_0_obj.into();
 
     let list_string: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(string_typ.clone())])
@@ -1613,7 +1616,7 @@ mod tests {
       .typ(&db);
     let existential_list_typ: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_obj], vec![]),
       Some(LazyTyp::eager(list_variable)),
     )
     .into();
@@ -1622,19 +1625,19 @@ mod tests {
     // List[string] <= exists T2 <: Object. List[T2]
     assert!(is_subtyp_of(&db, &list_string, &existential_list_typ));
 
-    let typ_variable_number_bound = TypVariable::get(&db, Some(LazyTyp::eager(number_typ.clone())));
-    let variable_number_bound: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_num = TdBoundVariableTyp::new(
       &db,
-      typ_variable_number_bound,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(number_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable_number_bound: TdTypEnum = bound_variable_0_num.into();
     let list_variable_number: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_number_bound)])
       .typ(&db);
     let existential_list_number_bound: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_number_bound], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_num], vec![]),
       Some(LazyTyp::eager(list_variable_number)),
     )
     .into();
@@ -1649,11 +1652,18 @@ mod tests {
 
     let func_string_string: TdTypEnum =
       TdFuncTyp::get(&db, vec![string_typ.clone()], string_typ.clone()).into();
+    let bound_variable_0_obj2 = TdBoundVariableTyp::new(
+      &db,
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable2: TdTypEnum = bound_variable_0_obj2.into();
     let func_variable_variable: TdTypEnum =
-      TdFuncTyp::get(&db, vec![variable.clone()], variable.clone()).into();
+      TdFuncTyp::get(&db, vec![variable2.clone()], variable2.clone()).into();
     let existential_func: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_obj2], vec![]),
       Some(LazyTyp::eager(func_variable_variable)),
     )
     .into();
@@ -1676,20 +1686,20 @@ mod tests {
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
-    let typ_variable1 = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let typ_variable2 = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable1: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_obj = TdBoundVariableTyp::new(
       &db,
-      typ_variable1,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
-    let variable2: TdTypEnum = TdVariableTyp::new(
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let bound_variable_1_obj = TdBoundVariableTyp::new(
       &db,
-      typ_variable2,
-      create_test_symbol(&db, BuiltinSchemaKind::Number),
-    )
-    .into();
+      1,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable1: TdTypEnum = bound_variable_0_obj.into();
+    let variable2: TdTypEnum = bound_variable_1_obj.into();
 
     let dict_variable: TdTypEnum = get_dict_typ(&db)
       .instantiate(
@@ -1700,7 +1710,11 @@ mod tests {
 
     let existential_dict_typ: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable1, typ_variable2], vec![]),
+      TypParams::new(
+        &db,
+        vec![bound_variable_0_obj, bound_variable_1_obj],
+        vec![],
+      ),
       Some(LazyTyp::eager(dict_variable)),
     )
     .into();
@@ -1723,22 +1737,33 @@ mod tests {
       &existential_dict_typ
     ));
 
-    let typ_variable2_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable2_string: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_obj2 = TdBoundVariableTyp::new(
       &db,
-      typ_variable2_string,
-      create_test_symbol(&db, BuiltinSchemaKind::Number),
-    )
-    .into();
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let bound_variable_1_str = TdBoundVariableTyp::new(
+      &db,
+      1,
+      LazyTyp::eager(string_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable1b: TdTypEnum = bound_variable_0_obj2.into();
+    let variable2_string: TdTypEnum = bound_variable_1_str.into();
     let dict_variable_string_bound: TdTypEnum = get_dict_typ(&db)
       .instantiate(
         &db,
-        vec![LazyTyp::eager(variable1), LazyTyp::eager(variable2_string)],
+        vec![LazyTyp::eager(variable1b), LazyTyp::eager(variable2_string)],
       )
       .typ(&db);
     let existential_dict_string_bound: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable1, typ_variable2_string], vec![]),
+      TypParams::new(
+        &db,
+        vec![bound_variable_0_obj2, bound_variable_1_str],
+        vec![],
+      ),
       Some(LazyTyp::eager(dict_variable_string_bound)),
     )
     .into();
@@ -1758,37 +1783,37 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
-    let typ_variable_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_string: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_str = TdBoundVariableTyp::new(
       &db,
-      typ_variable_string,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(string_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable_string: TdTypEnum = bound_variable_0_str.into();
     let list_variable_string: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_string)])
       .typ(&db);
 
     let existential_string: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_string], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_str], vec![]),
       Some(LazyTyp::eager(list_variable_string)),
     )
     .into();
 
-    let typ_variable_obj = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable_obj: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_obj = TdBoundVariableTyp::new(
       &db,
-      typ_variable_obj,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable_obj: TdTypEnum = bound_variable_0_obj.into();
     let list_variable_obj: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_obj)])
       .typ(&db);
     let existential_obj: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_obj], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_obj], vec![]),
       Some(LazyTyp::eager(list_variable_obj)),
     )
     .into();
@@ -1808,19 +1833,19 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let object_typ: TdTypEnum = get_obj_typ(&db).into();
 
-    let typ_variable_obj = TypVariable::get(&db, Some(LazyTyp::eager(object_typ.clone())));
-    let variable_obj: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_obj = TdBoundVariableTyp::new(
       &db,
-      typ_variable_obj,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(object_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable_obj: TdTypEnum = bound_variable_0_obj.into();
     let list_variable_obj: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_obj)])
       .typ(&db);
     let existential_obj: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_obj], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_obj], vec![]),
       Some(LazyTyp::eager(list_variable_obj)),
     )
     .into();
@@ -1833,19 +1858,19 @@ mod tests {
     // List[string] <= exists T <: Object. List[T]
     assert!(is_subtyp_of(&db, &list_string, &existential_obj));
 
-    let typ_variable_string = TypVariable::get(&db, Some(LazyTyp::eager(string_typ.clone())));
-    let variable_string: TdTypEnum = TdVariableTyp::new(
+    let bound_variable_0_str = TdBoundVariableTyp::new(
       &db,
-      typ_variable_string,
-      create_test_symbol(&db, BuiltinSchemaKind::String),
-    )
-    .into();
+      0,
+      LazyTyp::eager(string_typ.clone()),
+      Variance::Covariant,
+    );
+    let variable_string: TdTypEnum = bound_variable_0_str.into();
     let list_variable_string: TdTypEnum = get_list_typ(&db)
       .instantiate(&db, vec![LazyTyp::eager(variable_string)])
       .typ(&db);
     let existential_string: TdTypEnum = TdExistentialTyp::new(
       &db,
-      TypParams::new(&db, vec![typ_variable_string], vec![]),
+      TypParams::new(&db, vec![bound_variable_0_str], vec![]),
       Some(LazyTyp::eager(list_variable_string)),
     )
     .into();
@@ -1977,20 +2002,20 @@ mod tests {
     let person_file = *project
       .files(&db)
       .iter()
-      .find(|(p, _)| p.ends_with("_types/Person.td"))
+      .find(|(path, _)| path.ends_with("_types/Person.td"))
       .unwrap()
       .1;
     let student_file = *project
       .files(&db)
       .iter()
-      .find(|(p, _)| p.ends_with("_types/Student.td"))
+      .find(|(path, _)| path.ends_with("_types/Student.td"))
       .unwrap()
       .1;
 
-    let person_sym = file_symbol(&db, project, person_file).value(&db).unwrap();
-    let student_sym = file_symbol(&db, project, student_file).value(&db).unwrap();
-    let person_typ = evaluate_typ(&db, person_sym).typ(&db).unwrap();
-    let student_typ = evaluate_typ(&db, student_sym).typ(&db).unwrap();
+    let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
+    let student_symbol = file_symbol(&db, project, student_file).value(&db).unwrap();
+    let person_typ = evaluate_typ(&db, person_symbol).typ(&db).unwrap();
+    let student_typ = evaluate_typ(&db, student_symbol).typ(&db).unwrap();
 
     let lit_person = create_lit_typ(&db, person_typ);
     let lit_student = create_lit_typ(&db, student_typ);
