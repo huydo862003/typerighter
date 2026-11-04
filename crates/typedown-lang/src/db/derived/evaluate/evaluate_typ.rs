@@ -624,7 +624,9 @@ fn resolve_typ_lazy<'db>(
 mod tests {
   use super::*;
   use crate::db::types::typecheck::{is_subtyp_of, validate_typ_params};
-  use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, TypVariable};
+  use crate::db::types::{
+    TdBoundVariableTyp, TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, Variance,
+  };
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::evaluate::evaluate_resource::evaluate_resource,
@@ -1150,7 +1152,12 @@ mod tests {
 
     let params = TypParams::new(
       &db,
-      vec![TypVariable::get(&db, Some(LazyTyp::eager(number_typ)))],
+      vec![TdBoundVariableTyp::new(
+        &db,
+        0,
+        LazyTyp::eager(number_typ),
+        Variance::Covariant,
+      )],
       vec![],
     );
     let diagnostics = validate_typ_params(&db, Some(&params), &[LazyTyp::eager(string_typ)]);

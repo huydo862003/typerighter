@@ -1,7 +1,7 @@
 mod instance;
-mod instantiate;
 mod subtyp;
+mod typ_inference;
 
 pub use instance::*;
-pub use instantiate::*;
 pub use subtyp::*;
+pub(crate) use typ_inference::*;

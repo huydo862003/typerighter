@@ -6,7 +6,9 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
-use crate::db::derived::get_builtin_typs::{get_lit_typ, get_schema_meta_typ, get_typ_typ};
+use crate::db::derived::get_builtin_typs::{
+  get_lit_typ, get_obj_typ, get_schema_meta_typ, get_typ_typ,
+};
 use crate::db::derived::icon::get_icon_module_typ;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
@@ -14,8 +16,8 @@ use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::derived::typechecker::expected_node_typ::expected_node_typ;
 use crate::db::derived::vault::get_vault_typ;
 use crate::db::types::{
-  BuiltinGlobalKind, File, LitValue, Project, ProjectRedNode, Symbol, SymbolKind, TdBlobTyp,
-  TdTypEnum, TdVariableTyp, TypResult, TypVariable,
+  BuiltinGlobalKind, File, LazyTyp, LitValue, Project, ProjectRedNode, Symbol, SymbolKind,
+  TdBlobTyp, TdFreeVariableTyp, TdTypEnum, TypResult,
 };
 use crate::syntax::ast::{AstNode, ClosureExpr, IdentLit};
 use crate::syntax::red::RedNode;
@@ -91,8 +93,16 @@ fn get_func_param_typ<'db>(
   let Some(body) = closure.body() else {
     return TypResult::new(db, None, vec![]);
   };
-  let typ = infer_param_typ_from_body(db, project, file, body.syntax(), symbol)
-    .unwrap_or_else(|| TdVariableTyp::new(db, TypVariable::get(db, None), symbol).into());
+  let typ =
+    infer_param_typ_from_body(db, project, file, body.syntax(), symbol).unwrap_or_else(|| {
+      TdFreeVariableTyp::new(
+        db,
+        closure_node.clone(),
+        0,
+        LazyTyp::eager(get_obj_typ(db).into()),
+      )
+      .into()
+    });
   TypResult::new(db, Some(typ), vec![])
 }
 

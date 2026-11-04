@@ -91,17 +91,19 @@ pub fn is_instance_of<'db>(
       // metatype_instance<instance<T>>: recurse into inner
       TdTypEnum::TdMetatypeInstanceTyp(_) => is_instance_of(db, obj, &instance_typ.inner(db)),
       // Cannot resolve variables statically
-      TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => {
-        is_subtyp_of(db, &obj.get_typ(db), typ)
-      }
+      TdTypEnum::TdFreeVariableTyp(_)
+      | TdTypEnum::TdBoundVariableTyp(_)
+      | TdTypEnum::TdExistentialTyp(_)
+      | TdTypEnum::TdExistentialVariableTyp(_) => is_subtyp_of(db, &obj.get_typ(db), typ),
       // metatype_instance of non-metatype is never, nothing is an instance
       _ => false,
     },
 
     // Delegate to subtyping for type variables
-    TdTypEnum::TdVariableTyp(_) | TdTypEnum::TdExistentialTyp(_) => {
-      is_subtyp_of(db, &obj.get_typ(db), typ)
-    }
+    TdTypEnum::TdFreeVariableTyp(_)
+    | TdTypEnum::TdBoundVariableTyp(_)
+    | TdTypEnum::TdExistentialTyp(_)
+    | TdTypEnum::TdExistentialVariableTyp(_) => is_subtyp_of(db, &obj.get_typ(db), typ),
   }
 }
 
