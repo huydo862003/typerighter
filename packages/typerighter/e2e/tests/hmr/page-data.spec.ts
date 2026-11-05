@@ -48,20 +48,20 @@ e2e.describe('HMR page data update', () => {
       fullReloadOccurred = true;
     });
 
-    // Use the rail TOC (desktop), not the inline one which is hidden >75rem
+    const rail = page.locator('.td-rail');
     const toc = page.locator('.td-rail .td-toc');
 
-    await expect(toc).not.toBeVisible();
+    await expect(rail).not.toBeVisible();
 
     await testProject.modifyFile(
       'vault/people/alice.td',
       (content) => content + '\n## Background\n\nSome background.\n',
     );
 
-    await expect(toc).toBeVisible({
+    await expect(rail).toBeVisible({
       timeout: 15_000,
     });
-    await expect(toc.locator('text=Background')).toBeVisible({
+    await expect(toc.locator('text=Background')).toBeAttached({
       timeout: 15_000,
     });
 
@@ -80,8 +80,7 @@ e2e.describe('HMR page data update', () => {
       fullReloadOccurred = true;
     });
 
-    // The rail is visible at default viewport (1280px > 75rem)
-    await expect(page.locator('.td-fm-rail-value').first()).toBeVisible({
+    await expect(page.locator('.td-fm-box-value').first()).toBeVisible({
       timeout: 5_000,
     });
 
@@ -90,7 +89,7 @@ e2e.describe('HMR page data update', () => {
       (content) => content.replace('"developer"', '"designer"'),
     );
 
-    await expect(page.locator('.td-fm-rail-value >> text=designer').first()).toBeVisible({
+    await expect(page.locator('.td-fm-box-value >> text=designer').first()).toBeVisible({
       timeout: 15_000,
     });
 

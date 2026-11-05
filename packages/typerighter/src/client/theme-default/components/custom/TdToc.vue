@@ -101,6 +101,7 @@ watch(activeTocId, () => {
   <div
     v-else-if="headings.length"
     class="td-toc"
+    data-testid="toc"
   >
     <div
       ref="list"

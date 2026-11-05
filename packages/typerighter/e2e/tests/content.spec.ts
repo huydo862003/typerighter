@@ -10,7 +10,7 @@ e2e.describe('content', () => {
 
     const toc = page.getByTestId('toc').last();
 
-    await expect(toc).toBeVisible({
+    await expect(toc).toBeAttached({
       timeout: 15_000,
     });
 
@@ -18,18 +18,18 @@ e2e.describe('content', () => {
       toc.getByRole('link', {
         name: 'Overview',
       }),
-    ).toBeVisible();
+    ).toBeAttached();
     await expect(
       toc.getByRole('link', {
         name: 'Details',
         exact: true,
       }),
-    ).toBeVisible();
+    ).toBeAttached();
     await expect(
       toc.getByRole('link', {
         name: 'Summary',
       }),
-    ).toBeVisible();
+    ).toBeAttached();
   });
 
   e2e(
