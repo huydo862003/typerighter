@@ -596,6 +596,10 @@ fn collect_enum_items(
       }
       LitValue::Number(number) => (number.clone(), number.clone(), "number".to_string()),
       LitValue::Bool(bool) => (bool.to_string(), bool.to_string(), "boolean".to_string()),
+      LitValue::Typ(typ) => {
+        let name = typ.display_name(db);
+        (name.clone(), name, "type".to_string())
+      }
     };
     items.push(CompletionItem {
       label,

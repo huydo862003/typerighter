@@ -1,20 +1,19 @@
+use hashbrown::HashMap;
 use typedown_macros::query_derived;
 
-use hashbrown::HashMap;
-
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
+use super::bound_variable::TdBoundVariableTyp;
 use super::native_func::FuncKind;
-use super::typecheck::{infer_bindings, is_subtyp_of, substitute_variables};
+use super::typecheck::{infer_bindings, is_subtyp_of, substitute_bound_variables};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::get_func_typ;
-use crate::db::types::CallTypResult;
-use crate::db::types::TdVariableTyp;
-use crate::db::types::{FuncSignature, LazyTyp, Project, ProjectRedNode, RuntimeScope};
+use crate::db::types::{
+  CallTypResult, FuncSignature, LazyTyp, Project, ProjectRedNode, RuntimeScope,
+};
 use crate::syntax::ast::{AstNode, ClosureExpr, IdentLit};
-use crate::syntax::diagnostic::TdDiagnostic;
-use crate::syntax::diagnostic::TdDiagnosticKind;
+use crate::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
 use typedown_types::either::Either;
 
 #[query_derived]
@@ -78,24 +77,27 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
     };
 
     let params = signature.params(db);
-    let num_variables = typ_params.params(db).len();
+    let bound_vars = typ_params.params(db);
+    let target_binder = TdBoundVariableTyp::binder(bound_vars[0], db);
 
-    // Iterative inference: infer, substitute known bindings, re-infer to propagate.
+    // Iterative inference: infer, substitute known bindings, re-infer to propagate
     let mut bindings = infer_bindings(db, &params, &arg_typs);
-    for _ in 0..num_variables {
-      let partial: HashMap<_, _> = bindings
+    for _ in 0..bound_vars.len() {
+      // Extract only bindings matching the target binder for substitution
+      let partial: HashMap<usize, LazyTyp<'db>> = bindings
         .iter()
-        .map(|(variable, typ)| (*variable, LazyTyp::eager(typ.clone())))
+        .filter(|((binder, _), _)| binder == &target_binder)
+        .map(|((_, offset), typ)| (*offset, LazyTyp::eager(typ.clone())))
         .collect();
       let substituted_params: Vec<TdTypEnum<'db>> = params
         .iter()
-        .map(|param| substitute_variables(db, param, &partial))
+        .map(|param| substitute_bound_variables(db, param, &target_binder, &partial))
         .collect();
       let new_bindings = infer_bindings(db, &substituted_params, &arg_typs);
       let mut changed = false;
-      for (variable, typ) in &new_bindings {
-        if !bindings.contains_key(variable) {
-          bindings.insert(*variable, typ.clone());
+      for (key, typ) in &new_bindings {
+        if !bindings.contains_key(key) {
+          bindings.insert(key.clone(), typ.clone());
           changed = true;
         }
       }
@@ -104,33 +106,35 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
       }
     }
 
-    // Check bound violations and build final substitution map.
-    // Variables not in `bindings` fall back to their upper bound inside `substitute_variables`.
+    // Check bound violations (only for variables from the target binder)
     let mut diagnostics = vec![];
-    let resolved: HashMap<_, _> = bindings
+    let resolved: HashMap<usize, LazyTyp<'db>> = bindings
       .iter()
-      .map(|(variable, inferred)| {
-        let upper_bound = variable.variable(db).upper_bound(db);
-        if let Some(bound) = upper_bound.resolve(db)
-          && !is_subtyp_of(db, inferred, &bound)
-        {
-          diagnostics.push(TdDiagnosticKind::TypArgBoundViolation {
-            name: TdVariableTyp::symbol(*variable, db).name(db),
-            expected_bound: bound.display_name(db),
-            got: inferred.display_name(db),
-          });
-          (*variable, upper_bound)
-        } else {
-          (*variable, LazyTyp::eager(inferred.clone()))
+      .filter(|((binder, _), _)| binder == &target_binder)
+      .map(|((_, offset), inferred)| {
+        if let Some(bound_variable) = bound_vars.get(*offset) {
+          let upper_bound = TdBoundVariableTyp::upper_bound(*bound_variable, db);
+          if let Some(bound) = upper_bound.resolve(db)
+            && !is_subtyp_of(db, inferred, &bound)
+          {
+            diagnostics.push(TdDiagnosticKind::TypArgBoundViolation {
+              name: format!("T{}", offset),
+              expected_bound: bound.display_name(db),
+              got: inferred.display_name(db),
+            });
+            return (*offset, upper_bound);
+          }
         }
+        (*offset, LazyTyp::eager(inferred.clone()))
       })
       .collect();
 
+    // Substitute in params and return type
     let new_params: Vec<TdTypEnum<'db>> = params
       .iter()
-      .map(|param| substitute_variables(db, param, &resolved))
+      .map(|param| substitute_bound_variables(db, param, &target_binder, &resolved))
       .collect();
-    let new_ret = substitute_variables(db, &signature.ret(db), &resolved);
+    let new_ret = substitute_bound_variables(db, &signature.ret(db), &target_binder, &resolved);
 
     CallTypResult {
       signature: Some(FuncSignature::new(db, None, new_params, new_ret)),

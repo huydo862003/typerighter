@@ -1,7 +1,7 @@
-//! Typecheck utilities and subtyping engine
+mod instance;
+mod subtyp;
+mod typ_inference;
 
-mod instantiate;
-mod utils;
-
-pub use instantiate::*;
-pub use utils::*;
+pub use instance::*;
+pub use subtyp::*;
+pub(crate) use typ_inference::*;

@@ -1,11 +1,15 @@
 mod base;
 mod blob;
 mod bool;
+mod bound_variable;
+mod builtin_schemas;
+mod computed_typ;
 mod datetime;
 mod dict;
 mod existential;
 mod func;
 mod icon;
+mod instance;
 mod list;
 mod literal;
 mod math;
@@ -20,7 +24,6 @@ mod string;
 mod sum;
 pub mod typecheck;
 mod variable;
-mod vault;
 
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
@@ -32,11 +35,16 @@ use typedown_incremental::{Decodable, Decoder, Encodable, Encoder};
 pub use base::*;
 pub use blob::*;
 pub use bool::*;
+pub use bound_variable::*;
+pub use builtin_schemas::node_set::*;
+pub use builtin_schemas::vault::*;
+pub use computed_typ::*;
 pub use datetime::*;
 pub use dict::*;
 pub use existential::*;
 pub use func::*;
 pub use icon::*;
+pub use instance::*;
 pub use list::*;
 pub use literal::*;
 pub use math::*;
@@ -50,7 +58,6 @@ pub use schema::*;
 pub use string::*;
 pub use sum::*;
 pub use variable::*;
-pub use vault::*;
 
 use ambassador::Delegate;
 use derive_more::From;
@@ -62,12 +69,15 @@ use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams};
 use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_incremental::{DepId, Id};
 
-// Use this instead of dyn
-// The primitive types are fixed anyways
+/* All type variants in the system
+ * Split into two categories:
+ * 1. Runtime types: can be returned by TdRuntimeObj::get_typ(), the actual type of a value at runtime.
+ * 2. Static-only types: exist only in type signatures and typechecking, never the type of a runtime value. */
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
 #[delegate(TdRuntimeObj<'x>, generics = "'x")]
 #[delegate(TdStaticTyp<'x>, generics = "'x")]
 pub enum TdTypEnum<'db> {
+  /* Runtime types */
   TdTypTyp(TdTypTyp<'db>),
   TdBoolTyp(TdBoolTyp<'db>),
   TdStringTyp(TdStringTyp<'db>),
@@ -84,13 +94,18 @@ pub enum TdTypEnum<'db> {
   TdSchemaTyp(TdSchemaTyp<'db>),
   TdBlobTyp(TdBlobTyp<'db>),
   TdNullTyp(TdNullTyp<'db>),
+  TdObjTyp(TdObjTyp<'db>),
+  TdIconTyp(TdIconTyp<'db>),
+  /* Static-only types: exist as objects in the database for meta inspection, but get_typ() can only return runtime types */
   TdNeverTyp(TdNeverTyp<'db>),
   TdLitTyp(TdLitTyp<'db>),
   TdSumTyp(TdSumTyp<'db>),
-  TdVariableTyp(TdVariableTyp<'db>),
+  TdFreeVariableTyp(TdFreeVariableTyp<'db>),
   TdExistentialTyp(TdExistentialTyp<'db>),
-  TdObjTyp(TdObjTyp<'db>),
-  TdIconTyp(TdIconTyp<'db>),
+  TdExistentialVariableTyp(TdExistentialVariableTyp<'db>),
+  TdMetatypeInstanceTyp(TdMetatypeInstanceTyp<'db>),
+  TdBoundVariableTyp(TdBoundVariableTyp<'db>),
+  TdComputedTyp(TdComputedTyp<'db>),
 }
 
 // Use this instead of dyn
@@ -117,6 +132,7 @@ pub enum TdObjEnum<'db> {
   TdNullObj(TdNullObj<'db>),
   TdVaultObj(TdVaultObj<'db>),
   TdIconObj(TdIconObj<'db>),
+  TdNodeSetObj(TdNodeSetObj<'db>),
 }
 
 // Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
@@ -152,10 +168,14 @@ impl_from_typ_for_obj_enum!(
   TdNeverTyp,
   TdLitTyp,
   TdSumTyp,
-  TdVariableTyp,
+  TdFreeVariableTyp,
   TdExistentialTyp,
+  TdExistentialVariableTyp,
   TdObjTyp,
   TdIconTyp,
+  TdMetatypeInstanceTyp,
+  TdBoundVariableTyp,
+  TdComputedTyp,
 );
 
 impl Id for TdTypEnum<'_> {
@@ -180,10 +200,14 @@ impl Id for TdTypEnum<'_> {
       TdTypEnum::TdNeverTyp(value) => value.as_id(),
       TdTypEnum::TdLitTyp(value) => value.as_id(),
       TdTypEnum::TdSumTyp(value) => value.as_id(),
-      TdTypEnum::TdVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdFreeVariableTyp(value) => value.as_id(),
       TdTypEnum::TdExistentialTyp(value) => value.as_id(),
+      TdTypEnum::TdExistentialVariableTyp(value) => value.as_id(),
       TdTypEnum::TdObjTyp(value) => value.as_id(),
       TdTypEnum::TdIconTyp(value) => value.as_id(),
+      TdTypEnum::TdMetatypeInstanceTyp(value) => value.as_id(),
+      TdTypEnum::TdBoundVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdComputedTyp(value) => value.as_id(),
     }
   }
 }
@@ -208,6 +232,7 @@ impl Id for TdObjEnum<'_> {
       TdObjEnum::TdNullObj(value) => value.as_id(),
       TdObjEnum::TdVaultObj(value) => value.as_id(),
       TdObjEnum::TdIconObj(value) => value.as_id(),
+      TdObjEnum::TdNodeSetObj(value) => value.as_id(),
     }
   }
 }
@@ -265,10 +290,14 @@ impl typedown_incremental::StableHash for TdTypEnum<'_> {
       TdTypEnum::TdNeverTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdLitTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdSumTyp(value) => value.stable_hash(db, hasher),
-      TdTypEnum::TdVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdFreeVariableTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdExistentialTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdExistentialVariableTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdObjTyp(value) => value.stable_hash(db, hasher),
       TdTypEnum::TdIconTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdMetatypeInstanceTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdBoundVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdComputedTyp(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -298,6 +327,7 @@ impl typedown_incremental::StableHash for TdObjEnum<'_> {
       TdObjEnum::TdNullObj(value) => value.stable_hash(db, hasher),
       TdObjEnum::TdVaultObj(value) => value.stable_hash(db, hasher),
       TdObjEnum::TdIconObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdNodeSetObj(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -328,6 +358,10 @@ pub enum TdTypeKind {
   Existential = 20,
   Variable = 21,
   Icon = 22,
+  MetatypeInstance = 23,
+  BoundVariable = 24,
+  ExistentialVariable = 25,
+  Computed = 26,
 }
 
 #[derive(FromRepr)]
@@ -352,6 +386,7 @@ pub enum TdObjectKind {
   NullObj = 141,
   SchemaObj = 142,
   IconObj = 143,
+  NodeSetObj = 144,
 }
 
 // TdTypeEnum
@@ -434,7 +469,7 @@ impl Encodable for TdTypEnum<'_> {
         encoder.emit_u8(buffer, TdTypeKind::Sum as u8);
         value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdVariableTyp(value) => {
+      TdTypEnum::TdFreeVariableTyp(value) => {
         encoder.emit_u8(buffer, TdTypeKind::Variable as u8);
         value.field_encode(buffer, encoder);
       }
@@ -448,6 +483,22 @@ impl Encodable for TdTypEnum<'_> {
       }
       TdTypEnum::TdIconTyp(value) => {
         encoder.emit_u8(buffer, TdTypeKind::Icon as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdMetatypeInstanceTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::MetatypeInstance as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdBoundVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::BoundVariable as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdExistentialVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::ExistentialVariable as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdComputedTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Computed as u8);
         value.field_encode(buffer, encoder);
       }
     }
@@ -478,9 +529,15 @@ impl Decodable for TdTypEnum<'_> {
       TdTypeKind::Lit => TdLitTyp::field_decode(data, decoder).into(),
       TdTypeKind::Sum => TdSumTyp::field_decode(data, decoder).into(),
       TdTypeKind::Existential => TdExistentialTyp::field_decode(data, decoder).into(),
-      TdTypeKind::Variable => TdVariableTyp::field_decode(data, decoder).into(),
+      TdTypeKind::Variable => TdFreeVariableTyp::field_decode(data, decoder).into(),
       TdTypeKind::Obj => TdObjTyp::field_decode(data, decoder).into(),
       TdTypeKind::Icon => TdIconTyp::field_decode(data, decoder).into(),
+      TdTypeKind::MetatypeInstance => TdMetatypeInstanceTyp::field_decode(data, decoder).into(),
+      TdTypeKind::BoundVariable => TdBoundVariableTyp::field_decode(data, decoder).into(),
+      TdTypeKind::ExistentialVariable => {
+        TdExistentialVariableTyp::field_decode(data, decoder).into()
+      }
+      TdTypeKind::Computed => TdComputedTyp::field_decode(data, decoder).into(),
     }
   }
 }
@@ -558,6 +615,10 @@ impl Encodable for TdObjEnum<'_> {
         encoder.emit_u8(buffer, TdObjectKind::IconObj as u8);
         value.field_encode(buffer, encoder);
       }
+      TdObjEnum::TdNodeSetObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::NodeSetObj as u8);
+        value.field_encode(buffer, encoder);
+      }
     }
   }
 }
@@ -583,6 +644,7 @@ impl Decodable for TdObjEnum<'_> {
       Some(TdObjectKind::NullObj) => TdNullObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::VaultObj) => TdVaultObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::IconObj) => TdIconObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::NodeSetObj) => TdNodeSetObj::field_decode(data, decoder).into(),
       None => panic!("unknown TdObjectKind tag: {}", tag),
     }
   }

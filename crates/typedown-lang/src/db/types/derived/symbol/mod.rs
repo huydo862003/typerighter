@@ -336,6 +336,7 @@ pub enum BuiltinSchemaKind {
   Math = 10,
   SchemaProp = 11,
   Obj = 12,
+  NodeSet = 13,
 }
 
 impl BuiltinSchemaKind {
@@ -354,6 +355,7 @@ impl BuiltinSchemaKind {
       BuiltinSchemaKind::Math => "math",
       BuiltinSchemaKind::SchemaProp => "schema_prop",
       BuiltinSchemaKind::Obj => "obj",
+      BuiltinSchemaKind::NodeSet => "node_set",
     }
   }
 }

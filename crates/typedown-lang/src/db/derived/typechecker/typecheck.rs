@@ -1875,8 +1875,8 @@ mod tests {
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
     assert!(
-      result.diagnostics(&db).iter().any(|d| matches!(
-        d,
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
         TdDiagnostic {
           kind: TdDiagnosticKind::WrongArgCount { .. },
           ..

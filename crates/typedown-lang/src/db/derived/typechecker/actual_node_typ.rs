@@ -2,12 +2,14 @@
 // This is the idea of bidirectional typechecking
 
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_builtin_typs::{
   get_bool_typ, get_date_typ, get_datetime_typ, get_func_typ, get_list_typ, get_lit_typ,
-  get_math_typ, get_null_typ, get_number_typ, get_string_typ, get_sum_typ, get_time_typ,
+  get_math_typ, get_null_typ, get_number_typ, get_obj_typ, get_string_typ, get_sum_typ,
+  get_time_typ,
 };
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
@@ -18,8 +20,9 @@ use crate::db::types::derived::obj_system::{
   TdProductTyp, TdStaticTyp, is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time,
 };
 use crate::db::types::{
-  BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, Symbol, SymbolKind,
-  TdTypEnum, TdVariableTyp, TypParams, TypResult, TypVariable,
+  Binder, BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, Symbol, SymbolKind,
+  TdBoundVariableTyp, TdDictTyp, TdFreeVariableTyp, TdListTyp, TdMetatypeInstanceTyp, TdTypEnum,
+  TypParams, TypResult, Variance,
 };
 use crate::db::types::{File, Project};
 use crate::db::utils::resolve_fref_path;
@@ -437,7 +440,7 @@ fn get_call_typ<'db>(
   }
 
   let callee_result = actual_node_typ(db, callee_node);
-  let diagnostics = callee_result.diagnostics(db).clone();
+  let mut diagnostics = callee_result.diagnostics(db).clone();
   let callee_typ = match callee_result.typ(db) {
     Some(typ) => typ,
     None => return TypResult::new(db, None, diagnostics),
@@ -452,7 +455,12 @@ fn get_call_typ<'db>(
     })
     .collect();
 
-  if let Some(signature) = callee_typ.call_typ(db, arg_typs).signature {
+  let call_result = callee_typ.call_typ(db, arg_typs);
+  let (call_offset, call_len) = call.syntax().trimmed_range();
+  for kind in call_result.diagnostics {
+    diagnostics.push(kind.into_error(call_offset, call_len));
+  }
+  if let Some(signature) = call_result.signature {
     return TypResult::new(db, Some(signature.ret(db)), diagnostics);
   }
 
@@ -621,8 +629,103 @@ fn get_index_typ<'db>(
   TypResult::new(db, None, diagnostics)
 }
 
+// Generalize free variables back to bound variables (free -> bound)
+fn generalize_free_variables<'db>(
+  db: &'db TypedownDatabase,
+  typ: &TdTypEnum<'db>,
+  mapping: &HashMap<TdFreeVariableTyp<'db>, TdBoundVariableTyp<'db>>,
+) -> TdTypEnum<'db> {
+  match typ {
+    TdTypEnum::TdFreeVariableTyp(free_variable) => {
+      if let Some(bound) = mapping.get(free_variable) {
+        (*bound).into()
+      } else {
+        typ.clone()
+      }
+    }
+    TdTypEnum::TdFuncTyp(func) => {
+      let signature = func.signature(db);
+      let new_params: Vec<TdTypEnum<'db>> = signature
+        .params(db)
+        .iter()
+        .map(|param| generalize_free_variables(db, param, mapping))
+        .collect();
+      let new_ret = generalize_free_variables(db, &signature.ret(db), mapping);
+      get_func_typ(
+        db,
+        FuncSignature::new(db, signature.typ_params(db), new_params, new_ret),
+      )
+      .into()
+    }
+    TdTypEnum::TdListTyp(list) => {
+      if let Some(element) = list.element(db).and_then(|element| element.resolve(db)) {
+        let substituted = generalize_free_variables(db, &element, mapping);
+        return TdListTyp::new(db, Some(LazyTyp::eager(substituted))).into();
+      }
+      typ.clone()
+    }
+    TdTypEnum::TdDictTyp(dict) => {
+      let new_key = dict
+        .key(db)
+        .and_then(|key| key.resolve(db))
+        .map(|key| LazyTyp::eager(generalize_free_variables(db, &key, mapping)));
+      let new_value = dict
+        .value(db)
+        .and_then(|value| value.resolve(db))
+        .map(|value| LazyTyp::eager(generalize_free_variables(db, &value, mapping)));
+      if new_key.is_some() || new_value.is_some() {
+        return TdDictTyp::new(db, new_key, new_value).into();
+      }
+      typ.clone()
+    }
+    TdTypEnum::TdProductTyp(product) => {
+      let new_fields: BTreeMap<String, LazyTyp<'db>> = product
+        .fields(db)
+        .into_iter()
+        .map(|(name, lazy)| {
+          let substituted = lazy
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(generalize_free_variables(db, &resolved, mapping)))
+            .unwrap_or(lazy);
+          (name, substituted)
+        })
+        .collect();
+      TdProductTyp::new(db, None, new_fields).into()
+    }
+    TdTypEnum::TdSumTyp(sum) => {
+      let new_members: Vec<LazyTyp<'db>> = sum
+        .members(db)
+        .iter()
+        .map(|member| {
+          member
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(generalize_free_variables(db, &resolved, mapping)))
+            .unwrap_or_else(|| member.clone())
+        })
+        .collect();
+      get_sum_typ(db, new_members).into()
+    }
+    // Existential variables should not appear in closure return types
+    TdTypEnum::TdExistentialVariableTyp(_) => typ.clone(),
+    // Self-contained, no free variables inside
+    TdTypEnum::TdExistentialTyp(_) => typ.clone(),
+    TdTypEnum::TdMetatypeInstanceTyp(instance) => {
+      let inner = instance.inner(db);
+      let substituted = generalize_free_variables(db, &inner, mapping);
+      if substituted == inner {
+        typ.clone()
+      } else {
+        TdMetatypeInstanceTyp::new(db, substituted).into()
+      }
+    }
+    // Primitives
+    _ => typ.clone(),
+  }
+}
+
 // actual(closure) = fn(params, return from actual(body))
 // When expected type provides param types, use those, otherwise infer from body usage
+
 fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode) -> TypResult<'db> {
   let closure = match ClosureExpr::cast(project_node.node.clone()) {
     Some(closure) => closure,
@@ -671,15 +774,39 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
       // Params with no inferred type become generic type variables
       params
         .iter()
-        .map(|param_name| {
+        .enumerate()
+        .map(|(index, param_name)| {
           let param_symbol = Symbol::new(
             db,
             SymbolKind::FuncParam(project, file, project_node.clone(), param_name.clone()),
           );
-          infer_param_typ_from_body(db, project, file, body_expr.syntax(), param_symbol)
-            .unwrap_or_else(|| {
-              TdVariableTyp::new(db, TypVariable::get(db, None), param_symbol).into()
-            })
+          match infer_param_typ_from_body(db, project, file, body_expr.syntax(), param_symbol) {
+            Some(typ) => {
+              // Instantiate callee's bound variable to free variable with its upper bound
+              if let TdTypEnum::TdBoundVariableTyp(bound) = &typ {
+                let new_bound = TdBoundVariableTyp::new(
+                  db,
+                  Binder::Closure(project_node.clone()),
+                  index,
+                  TdBoundVariableTyp::upper_bound(*bound, db),
+                  Variance::Covariant,
+                );
+                TdFreeVariableTyp::new(db, new_bound, project_node.clone()).into()
+              } else {
+                typ
+              }
+            }
+            None => {
+              let new_bound = TdBoundVariableTyp::new(
+                db,
+                Binder::Closure(project_node.clone()),
+                index,
+                LazyTyp::eager(get_obj_typ(db).into()),
+                Variance::Covariant,
+              );
+              TdFreeVariableTyp::new(db, new_bound, project_node.clone()).into()
+            }
+          }
         })
         .collect()
     }
@@ -692,21 +819,35 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     None => return TypResult::new(db, None, body_result.diagnostics(db).clone()),
   };
 
-  // Collect generic variables from unconstrained params to build TypParams
-  let generic_variables: Vec<TypVariable> = param_typs
-    .iter()
-    .filter_map(|typ| {
-      if let TdTypEnum::TdVariableTyp(var_typ) = typ {
-        Some(TdVariableTyp::variable(*var_typ, db))
+  let mut bound_variables: Vec<TdBoundVariableTyp> = vec![];
+  let mut free_to_bound: HashMap<TdFreeVariableTyp, TdBoundVariableTyp> = HashMap::new();
+  let param_typs: Vec<TdTypEnum> = param_typs
+    .into_iter()
+    .enumerate()
+    .map(|(index, typ)| {
+      if let TdTypEnum::TdFreeVariableTyp(free_variable) = &typ {
+        let upper_bound =
+          TdBoundVariableTyp::upper_bound(TdFreeVariableTyp::bound_origin(*free_variable, db), db);
+        let bound_variable = TdBoundVariableTyp::new(
+          db,
+          Binder::Closure(project_node.clone()),
+          index,
+          upper_bound,
+          Variance::Covariant,
+        );
+        bound_variables.push(bound_variable);
+        free_to_bound.insert(*free_variable, bound_variable);
+        bound_variable.into()
       } else {
-        None
+        typ
       }
     })
     .collect();
-  let typ_params = if generic_variables.is_empty() {
+  let ret = generalize_free_variables(db, &ret, &free_to_bound);
+  let typ_params = if bound_variables.is_empty() {
     None
   } else {
-    Some(TypParams::new(db, generic_variables, vec![]))
+    Some(TypParams::new(db, bound_variables, vec![]))
   };
 
   let signature = FuncSignature::new(db, typ_params, param_typs, ret);
@@ -720,17 +861,21 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
 
 #[cfg(test)]
 mod tests {
-  use super::actual_node_typ;
+  use super::{actual_node_typ, generalize_free_variables};
   use crate::db::derived::get_builtin_typs::{
-    get_func_typ, get_lit_typ, get_number_typ, get_schema_meta_typ, get_string_typ,
+    get_func_typ, get_lit_typ, get_number_typ, get_obj_typ, get_schema_meta_typ, get_string_typ,
   };
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::derived::obj_system::TdStaticTyp;
-  use crate::db::types::{File, FileHandle, FileMetadata, LitValue, Project};
+  use crate::db::types::{
+    Binder, File, FileHandle, FileMetadata, LazyTyp, LitValue, Project, ProjectRedNode,
+    TdBoundVariableTyp, TdFreeVariableTyp, TdFuncTyp, TdListTyp, TdProductTyp, Variance,
+  };
   use crate::db::types::{FuncSignature, TdTypEnum};
   use crate::db::{QueryStorage, TypedownDatabase};
   use crate::syntax::diagnostic::*;
+  use std::collections::BTreeMap;
   use std::{collections::HashMap, path::PathBuf};
 
   fn is_lit_string(db: &TypedownDatabase, typ: &TdTypEnum, expected: &str) -> bool {
@@ -1080,5 +1225,716 @@ mod tests {
       "should have no diagnostics: {:?}",
       result.diagnostics(&db)
     );
+  }
+
+  // generalize_free_variables tests
+
+  fn create_test_mapping<'db>(
+    db: &'db TypedownDatabase,
+    site: ProjectRedNode,
+    count: usize,
+  ) -> (
+    Vec<TdFreeVariableTyp<'db>>,
+    Vec<TdBoundVariableTyp<'db>>,
+    HashMap<TdFreeVariableTyp<'db>, TdBoundVariableTyp<'db>>,
+  ) {
+    let mut free_variables = vec![];
+    let mut bound_variables = vec![];
+    let mut mapping = HashMap::new();
+    for index in 0..count {
+      let bound = TdBoundVariableTyp::new(
+        db,
+        Binder::Closure(site.clone()),
+        index,
+        LazyTyp::eager(get_obj_typ(db).into()),
+        Variance::Covariant,
+      );
+      let free = TdFreeVariableTyp::new(db, bound, site.clone());
+      mapping.insert(free, bound);
+      free_variables.push(free);
+      bound_variables.push(bound);
+    }
+    (free_variables, bound_variables, mapping)
+  }
+
+  #[test]
+  fn check_generalize_product_with_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+
+    // { name: FreeVariable(0) } -> { name: BoundVariable(0) }
+    let product: TdTypEnum = TdProductTyp::new(
+      &db,
+      None,
+      BTreeMap::from([("name".to_string(), LazyTyp::eager(free_variables[0].into()))]),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &product, &mapping);
+    if let TdTypEnum::TdProductTyp(result_product) = result {
+      let name_typ = result_product
+        .fields(&db)
+        .get("name")
+        .unwrap()
+        .resolve(&db)
+        .unwrap();
+      assert_eq!(name_typ, bound_variables[0].into());
+    } else {
+      panic!("expected product type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_list_with_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+
+    // list[FreeVariable(0)] -> list[BoundVariable(0)]
+    let list: TdTypEnum =
+      TdListTyp::new(&db, Some(LazyTyp::eager(free_variables[0].into()))).into();
+
+    let result = generalize_free_variables(&db, &list, &mapping);
+    if let TdTypEnum::TdListTyp(result_list) = result {
+      let element = result_list.get_typ_args(&db);
+      assert_eq!(element[0], bound_variables[0].into());
+    } else {
+      panic!("expected list type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_function_with_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+
+    // (FreeVariable(0)) -> FreeVariable(0) should become (BoundVariable(0)) -> BoundVariable(0)
+    let func: TdTypEnum = TdFuncTyp::get(
+      &db,
+      vec![free_variables[0].into()],
+      free_variables[0].into(),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &func, &mapping);
+    if let TdTypEnum::TdFuncTyp(result_func) = result {
+      let signature = result_func.signature(&db);
+      assert_eq!(signature.params(&db)[0], bound_variables[0].into());
+      assert_eq!(signature.ret(&db), bound_variables[0].into());
+    } else {
+      panic!("expected function type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_skips_unmapped_free_variable() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site.clone(), 1);
+
+    // A free variable from a different site, not in the mapping
+    let other_site = {
+      let files: Vec<_> = project.files(&db).values().copied().collect();
+      parse_file(&db, project, files[1]).ast(&db)
+    };
+    let other_bound = TdBoundVariableTyp::new(
+      &db,
+      Binder::Closure(other_site.clone()),
+      0,
+      LazyTyp::eager(get_obj_typ(&db).into()),
+      Variance::Covariant,
+    );
+    let other_free = TdFreeVariableTyp::new(&db, other_bound, other_site);
+
+    // { mapped: FreeVariable(0), unmapped: other_free }
+    let product: TdTypEnum = TdProductTyp::new(
+      &db,
+      None,
+      BTreeMap::from([
+        (
+          "mapped".to_string(),
+          LazyTyp::eager(free_variables[0].into()),
+        ),
+        ("unmapped".to_string(), LazyTyp::eager(other_free.into())),
+      ]),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &product, &mapping);
+    if let TdTypEnum::TdProductTyp(result_product) = result {
+      let fields = result_product.fields(&db);
+      let mapped = fields.get("mapped").unwrap().resolve(&db).unwrap();
+      let unmapped = fields.get("unmapped").unwrap().resolve(&db).unwrap();
+      assert_eq!(mapped, bound_variables[0].into());
+      // Unmapped free variable passes through unchanged
+      assert_eq!(unmapped, other_free.into());
+    } else {
+      panic!("expected product type");
+    }
+  }
+
+  #[test]
+  fn check_generalize_mixed_concrete_and_free() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let site = parse_file(&db, project, file).ast(&db);
+    let (free_variables, bound_variables, mapping) = create_test_mapping(&db, site, 1);
+    let number_typ: TdTypEnum = get_number_typ(&db).into();
+
+    // { name: FreeVariable(0), age: number } -> { name: BoundVariable(0), age: number }
+    let product: TdTypEnum = TdProductTyp::new(
+      &db,
+      None,
+      BTreeMap::from([
+        ("name".to_string(), LazyTyp::eager(free_variables[0].into())),
+        ("age".to_string(), LazyTyp::eager(number_typ.clone())),
+      ]),
+    )
+    .into();
+
+    let result = generalize_free_variables(&db, &product, &mapping);
+    if let TdTypEnum::TdProductTyp(result_product) = result {
+      let fields = result_product.fields(&db);
+      let name = fields.get("name").unwrap().resolve(&db).unwrap();
+      let age = fields.get("age").unwrap().resolve(&db).unwrap();
+      assert_eq!(name, bound_variables[0].into());
+      assert_eq!(age, number_typ);
+    } else {
+      panic!("expected product type");
+    }
+  }
+
+  /* vault.from_nodes type inference */
+
+  fn get_result_typ<'a>(
+    db: &'a TypedownDatabase,
+    project: crate::db::types::Project,
+    file: File,
+  ) -> crate::db::types::TypResult<'a> {
+    let root_node = parse_file(db, project, file).ast(db);
+    let entries = root_node.mapping_entries().expect("should have entries");
+    let result_node = entries
+      .into_iter()
+      .find(|(key, _)| key == "result")
+      .map(|(_, value)| value)
+      .expect("should have result field");
+    actual_node_typ(db, result_node)
+  }
+
+  #[test]
+  fn vault_from_nodes_valid_schema_returns_node_set() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_from_nodes_valid.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result
+      .typ(&db)
+      .expect("from_nodes(Person) should have a return type");
+    assert!(
+      typ
+        .as_td_schema_typ()
+        .is_some_and(|schema| schema.name(&db).starts_with("node_set")),
+      "from_nodes(Person) should return node_set, got {}",
+      typ.display_name(&db)
+    );
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "from_nodes(Person) should have no diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_wrong_type_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_wrong_type.td");
+    let result = get_result_typ(&db, project, file);
+    assert!(
+      !result.diagnostics(&db).is_empty(),
+      "vault.from_nodes(\"hello\") should have diagnostics"
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_to_list_returns_parameterized_list() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_to_list.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    let list = typ.as_td_list_typ().unwrap_or_else(|| {
+      panic!(
+        "to_list() should return list, got {}",
+        typ.display_name(&db)
+      )
+    });
+    let element = list
+      .element(&db)
+      .expect("to_list() should return parameterized list")
+      .resolve(&db)
+      .expect("element type should resolve");
+    // Element type should be metatype_instance<lit<Person>> which is equivalent to Person
+    // Not obj (which would mean unparameterized)
+    assert!(
+      !element.as_td_obj_typ().is_some(),
+      "to_list() element should not be obj (should be parameterized), got {}",
+      element.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_count_returns_number() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_from_nodes_count.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    assert!(
+      typ.as_td_number_typ().is_some(),
+      "vault.from_nodes(Person).count() should return number, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_first_returns_person_or_null() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_from_nodes_first.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    let sum = typ.as_td_sum_typ().unwrap_or_else(|| {
+      panic!(
+        "first() should return nullable, got {}",
+        typ.display_name(&db)
+      )
+    });
+    // Sum should contain a non-obj type (Person via metatype_instance) and null
+    let members: Vec<_> = sum
+      .members(&db)
+      .iter()
+      .filter_map(|member| member.resolve(&db))
+      .collect();
+    assert!(
+      members
+        .iter()
+        .any(|member| member.as_td_null_typ().is_some()),
+      "first() should include null, got {}",
+      typ.display_name(&db)
+    );
+    assert!(
+      members
+        .iter()
+        .any(|member| !member.as_td_null_typ().is_some() && !member.as_td_obj_typ().is_some()),
+      "first() should include a parameterized element (not obj), got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_filter_returns_node_set() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_filter.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    assert!(
+      typ
+        .as_td_schema_typ()
+        .is_some_and(|s| s.name(&db).starts_with("node_set")),
+      "vault.from_nodes(Person).filter(...) should return node_set, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_chain_filter_count_returns_number() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_from_nodes_chain.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    assert!(
+      typ.as_td_number_typ().is_some(),
+      "vault.from_nodes(Person).filter(...).count() should return number, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_follow_returns_node_set() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_follow.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    assert!(
+      typ
+        .as_td_schema_typ()
+        .is_some_and(|s| s.name(&db).starts_with("node_set")),
+      "follow() should return node_set, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_filter_first_preserves_parameterization() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_filter_first.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    let sum = typ.as_td_sum_typ().unwrap_or_else(|| {
+      panic!(
+        "filter(...).first() should return nullable, got {}",
+        typ.display_name(&db)
+      )
+    });
+    let members: Vec<_> = sum
+      .members(&db)
+      .iter()
+      .filter_map(|member| member.resolve(&db))
+      .collect();
+    assert!(
+      members
+        .iter()
+        .any(|member| member.as_td_null_typ().is_some()),
+      "filter(...).first() should include null, got {}",
+      typ.display_name(&db)
+    );
+    assert!(
+      members
+        .iter()
+        .any(|member| !member.as_td_null_typ().is_some() && !member.as_td_obj_typ().is_some()),
+      "filter(...).first() should include parameterized element (not obj), got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_filter_to_list_preserves_parameterization() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_filter_to_list.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    let list = typ.as_td_list_typ().unwrap_or_else(|| {
+      panic!(
+        "filter(...).to_list() should return list, got {}",
+        typ.display_name(&db)
+      )
+    });
+    assert!(
+      list.element(&db).is_some(),
+      "filter(...).to_list() should return parameterized list, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_first_field_access_on_nullable_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_first_field.td");
+    let result = get_result_typ(&db, project, file);
+    // first() returns Person | null, accessing .name on nullable produces UnknownField
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::UnknownField { field, on_typ }
+          if field == "name" && on_typ.contains("Person") && on_typ.contains("null")
+      )),
+      "first().name on nullable should produce UnknownField with Person | null, got {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_to_list_index_field_access() {
+    let (db, project, file) = load_vault_fixture(
+      "typecheck/my_vault",
+      "vault_from_nodes_to_list_index_field.td",
+    );
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).unwrap_or_else(|| {
+      panic!(
+        "to_list()[0].name should resolve. diagnostics: {:?}",
+        result.diagnostics(&db)
+      )
+    });
+    // to_list()[0].name should be string
+    assert!(
+      typ.as_td_string_typ().is_some(),
+      "to_list()[0].name should be string, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_nodes_builtin_type_has_diagnostic() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_from_nodes_number.td");
+    let result = get_result_typ(&db, project, file);
+    assert!(
+      !result.diagnostics(&db).is_empty(),
+      "vault.from_nodes(number) should have diagnostics"
+    );
+  }
+
+  /* vault.from_node type inference */
+
+  #[test]
+  fn vault_from_node_returns_parameterized_node_set() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_from_node_valid.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result
+      .typ(&db)
+      .expect("from_node(self) should have a return type");
+    assert!(
+      typ
+        .as_td_schema_typ()
+        .is_some_and(|schema| schema.name(&db).starts_with("node_set")),
+      "from_node(self) should return node_set, got {}",
+      typ.display_name(&db)
+    );
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "from_node(self) should have no diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_node_first_returns_person_or_null() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_from_node_first.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).expect("should have a type");
+    let sum = typ.as_td_sum_typ().unwrap_or_else(|| {
+      panic!(
+        "from_node(self).first() should return nullable, got {}",
+        typ.display_name(&db)
+      )
+    });
+    let members: Vec<_> = sum
+      .members(&db)
+      .iter()
+      .filter_map(|member| member.resolve(&db))
+      .collect();
+    assert!(
+      members
+        .iter()
+        .any(|member| member.as_td_null_typ().is_some()),
+      "from_node(self).first() should include null, got {}",
+      typ.display_name(&db)
+    );
+    assert!(
+      members
+        .iter()
+        .any(|member| !member.as_td_null_typ().is_some() && !member.as_td_obj_typ().is_some()),
+      "from_node(self).first() should include Person (not obj), got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_from_node_to_list_index_field_access() {
+    let (db, project, file) = load_vault_fixture(
+      "typecheck/my_vault",
+      "vault_from_node_to_list_index_field.td",
+    );
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).unwrap_or_else(|| {
+      panic!(
+        "from_node(self).to_list()[0].name should resolve. diagnostics: {:?}",
+        result.diagnostics(&db)
+      )
+    });
+    assert!(
+      typ.as_td_string_typ().is_some(),
+      "from_node(self).to_list()[0].name should be string, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  // Closure inference with vault queries
+
+  #[test]
+  fn check_closure_from_node_infers_field_type() {
+    // ((x) -> vault.from_node(x))(self).first().name
+    // x inferred as metatype_instance<schema_meta> from from_node's param bound
+    // first() returns Person | null, .name on nullable produces UnknownField
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_closure_from_node.td");
+    let result = get_result_typ(&db, project, file);
+    let diagnostics = result.diagnostics(&db);
+    // No bound violation (free variable inherits callee's bound)
+    assert!(
+      !diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::TypArgBoundViolation { .. }
+      )),
+      "should not have bound violation, got {:?}",
+      diagnostics
+    );
+    // .name on nullable Person | null produces UnknownField mentioning both Person and null
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::UnknownField { field, on_typ }
+          if field == "name" && on_typ.contains("null")
+      )),
+      "first().name on nullable should warn about null, got {:?}",
+      diagnostics
+    );
+    // .name on nullable returns None (can't resolve field on union with null)
+    assert!(
+      result.typ(&db).is_none(),
+      "field access on nullable should not resolve"
+    );
+  }
+
+  #[test]
+  fn check_closure_from_nodes_has_unresolved_field() {
+    // ((x) -> vault.from_nodes(x).first())(Person).name
+    // Type doesn't fully resolve through closure, metatype_instance stays unresolved
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_closure_from_nodes.td");
+    let result = get_result_typ(&db, project, file);
+    let diagnostics = result.diagnostics(&db);
+    // No bound violation
+    assert!(
+      !diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::TypArgBoundViolation { .. }
+      )),
+      "should not have bound violation, got {:?}",
+      diagnostics
+    );
+    // .name on unresolved metatype_instance produces UnknownField
+    assert!(
+      diagnostics
+        .iter()
+        .any(|diagnostic| matches!(&diagnostic.kind, TdDiagnosticKind::UnknownField { .. })),
+      "expected unresolved field from closure inference, got {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  /* follow type inference */
+
+  #[test]
+  fn vault_follow_owner_first_returns_person_or_null() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "vault_follow_owner.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).unwrap_or_else(|| {
+      panic!(
+        "follow(\"owner\").first() should typecheck. diagnostics: {:?}",
+        result.diagnostics(&db)
+      )
+    });
+    let sum = typ.as_td_sum_typ().unwrap_or_else(|| {
+      panic!(
+        "follow(\"owner\").first() should return nullable, got {}",
+        typ.display_name(&db)
+      )
+    });
+    let members: Vec<_> = sum
+      .members(&db)
+      .iter()
+      .filter_map(|member| member.resolve(&db))
+      .collect();
+    assert!(
+      members
+        .iter()
+        .any(|member| member.as_td_null_typ().is_some()),
+      "should include null, got {}",
+      typ.display_name(&db)
+    );
+    // Blocked: BoundVariable(0) scope collision causes Unwrap<Projection<...>> to not resolve
+    // When fixed, follow("owner") on WithBareRef should return Person via Unwrap<Person | null>
+    assert!(
+      members.iter().any(|member| member
+        .as_td_schema_typ()
+        .is_some_and(|schema| schema.name(&db) == "Person")),
+      "should include Person, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  /* follow_back type inference */
+
+  #[test]
+  fn vault_follow_back_first_returns_with_bare_ref_or_null() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_follow_back_owner.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result.typ(&db).unwrap_or_else(|| {
+      panic!(
+        "follow_back().first() should typecheck. diagnostics: {:?}",
+        result.diagnostics(&db)
+      )
+    });
+    let sum = typ.as_td_sum_typ().unwrap_or_else(|| {
+      panic!(
+        "follow_back().first() should return nullable, got {}",
+        typ.display_name(&db)
+      )
+    });
+    let members: Vec<_> = sum
+      .members(&db)
+      .iter()
+      .filter_map(|member| member.resolve(&db))
+      .collect();
+    assert!(
+      members
+        .iter()
+        .any(|member| member.as_td_null_typ().is_some()),
+      "should include null, got {}",
+      typ.display_name(&db)
+    );
+    // Blocked: metatype_instance<schema> doesn't resolve to WithBareRef
+    // When fixed, follow_back(WithBareRef, "owner") should return WithBareRef
+    assert!(
+      members.iter().any(|member| member
+        .as_td_schema_typ()
+        .is_some_and(|schema| schema.name(&db) == "WithBareRef")),
+      "should include WithBareRef, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  /* Bound variable scope collision bugs */
+
+  #[test]
+  fn vault_follow_owner_field_access_resolves() {
+    // follow("owner") on WithBareRef gives node_set<Person>
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_follow_owner_field.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result
+      .typ(&db)
+      .unwrap_or_else(|| panic!("should resolve. diagnostics: {:?}", result.diagnostics(&db)));
+    assert!(
+      typ.as_td_string_typ().is_some(),
+      "should be string, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn vault_follow_back_owner_field_access_resolves() {
+    // follow_back(WithBareRef, "owner") gives node_set<WithBareRef>
+    // to_list()[0].name resolves to string
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "vault_follow_back_owner_field.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result
+      .typ(&db)
+      .unwrap_or_else(|| panic!("should resolve. diagnostics: {:?}", result.diagnostics(&db)));
+    assert!(
+      typ.as_td_string_typ().is_some(),
+      "should be string, got {}",
+      typ.display_name(&db)
+    );
+  }
+
+  #[test]
+  fn nested_closure_bound_variable_scope_collision() {
+    // ((x) -> (y) -> x)(42)("hello") should return number
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "nested_closure_identity.td");
+    let result = get_result_typ(&db, project, file);
+    let typ = result
+      .typ(&db)
+      .unwrap_or_else(|| panic!("should resolve. diagnostics: {:?}", result.diagnostics(&db)));
+    // the outer closure captures x, so calling with 42 produces literal type 42
+    assert_eq!(typ.display_name(&db), "42");
   }
 }

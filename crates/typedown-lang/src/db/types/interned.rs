@@ -7,13 +7,11 @@ use typedown_incremental::{
   Decodable, Decoder, Encodable, Encoder, QueryDatabase, StableHash, StableHasher,
 };
 
-use typedown_types::either::Either;
-
-use super::TdTypEnum;
+use super::{TdBoundVariableTyp, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
-use crate::db::derived::get_builtin_typs::get_obj_typ;
 use crate::db::types::Symbol;
+use crate::db::types::typecheck::substitute_variables;
 
 #[query_interned]
 pub struct FuncSignature<'db> {
@@ -53,30 +51,8 @@ impl Decodable for Variance {
 }
 
 #[query_interned]
-pub struct TypVariable<'db> {
-  pub upper_bound: LazyTyp<'db>,
-  pub variance: Variance, // Existential type variables always have INVARIANCE because variance is irrelevant
-}
-
-impl<'db> TypVariable<'db> {
-  pub fn get(db: &'db TypedownDatabase, upper_bound: Option<LazyTyp<'db>>) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyTyp::eager(get_obj_typ(db).into()));
-    TypVariable::new(db, upper_bound, Variance::Covariant)
-  }
-
-  pub fn get_with_variance(
-    db: &'db TypedownDatabase,
-    upper_bound: Option<LazyTyp<'db>>,
-    variance: Variance,
-  ) -> Self {
-    let upper_bound = upper_bound.unwrap_or_else(|| LazyTyp::eager(get_obj_typ(db).into()));
-    TypVariable::new(db, upper_bound, variance)
-  }
-}
-
-#[query_interned]
 pub struct TypParams<'db> {
-  pub params: Vec<TypVariable<'db>>,
+  pub params: Vec<TdBoundVariableTyp<'db>>,
   pub bindings: Vec<LazyTyp<'db>>,
 }
 
@@ -111,7 +87,7 @@ impl<'db> TypParams<'db> {
     Some(TypParams::new(db, params, bindings))
   }
 
-  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TypVariable<'_>> {
+  pub fn get_param(&self, db: &TypedownDatabase, index: usize) -> Option<TdBoundVariableTyp<'_>> {
     self.params(db).get(index).copied()
   }
 
@@ -119,7 +95,11 @@ impl<'db> TypParams<'db> {
     self.bindings(db).get(index).cloned()
   }
 
-  pub fn get_by_index(&self, db: &TypedownDatabase, index: usize) -> Option<TypVariable<'_>> {
+  pub fn get_by_index(
+    &self,
+    db: &TypedownDatabase,
+    index: usize,
+  ) -> Option<TdBoundVariableTyp<'_>> {
     self.params(db).get(index).copied()
   }
 
@@ -144,59 +124,95 @@ impl<'db> TypParams<'db> {
   }
 }
 
-// A type reference that may be eagerly resolved or lazily deferred to a symbol
+// A type reference that may be eagerly resolved or lazily deferred to a symbol with optional pending substitution bindings
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub struct LazyTyp<'db>(Either<TdTypEnum<'db>, Symbol>);
+pub enum LazyTyp<'db> {
+  Eager(TdTypEnum<'db>),
+  Lazy(Symbol, Vec<(TdBoundVariableTyp<'db>, LazyTyp<'db>)>),
+}
 
 impl<'db> LazyTyp<'db> {
   pub fn eager(typ: TdTypEnum<'db>) -> Self {
-    LazyTyp(Either::Left(typ))
+    LazyTyp::Eager(typ)
   }
 
   pub fn lazy(symbol: Symbol) -> Self {
-    LazyTyp(Either::Right(symbol))
+    LazyTyp::Lazy(symbol, vec![])
   }
 
   pub fn resolve(&self, db: &'db TypedownDatabase) -> Option<TdTypEnum<'db>> {
-    match &self.0 {
-      Either::Left(typ) => Some(typ.clone()),
-      Either::Right(symbol) => evaluate_typ(db, *symbol).typ(db),
+    match self {
+      LazyTyp::Eager(typ) => Some(typ.clone()),
+      LazyTyp::Lazy(symbol, bindings) => {
+        let base = evaluate_typ(db, *symbol).typ(db)?;
+        if bindings.is_empty() {
+          return Some(base);
+        }
+        let binding_map: hashbrown::HashMap<TdBoundVariableTyp<'db>, LazyTyp<'db>> =
+          bindings.iter().cloned().collect();
+        Some(substitute_variables(db, &base, &binding_map))
+      }
     }
   }
 
   pub fn as_eager(&self) -> Option<TdTypEnum<'db>> {
-    match &self.0 {
-      Either::Left(typ) => Some(typ.clone()),
-      Either::Right(_) => None,
+    match self {
+      LazyTyp::Eager(typ) => Some(typ.clone()),
+      _ => None,
     }
   }
 }
 
 impl<'db> Encodable for LazyTyp<'db> {
   fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.0.encode(buffer, encoder);
+    match self {
+      LazyTyp::Eager(typ) => {
+        encoder.emit_u8(buffer, 0);
+        typ.encode(buffer, encoder);
+      }
+      LazyTyp::Lazy(symbol, bindings) => {
+        encoder.emit_u8(buffer, 1);
+        symbol.encode(buffer, encoder);
+        bindings.encode(buffer, encoder);
+      }
+    }
   }
 }
 
 impl<'db> Decodable for LazyTyp<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
-    LazyTyp(Either::<TdTypEnum, Symbol>::decode(data, decoder))
+    match decoder.read_u8(data) {
+      0 => LazyTyp::Eager(TdTypEnum::decode(data, decoder)),
+      1 => LazyTyp::Lazy(Symbol::decode(data, decoder), Vec::decode(data, decoder)),
+      _ => panic!("unknown LazyTyp tag"),
+    }
   }
 }
 
 impl<'db> StableHash for LazyTyp<'db> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
-    self.0.stable_hash(db, hasher);
+    match self {
+      LazyTyp::Eager(typ) => {
+        0u8.stable_hash(db, hasher);
+        typ.stable_hash(db, hasher);
+      }
+      LazyTyp::Lazy(symbol, bindings) => {
+        1u8.stable_hash(db, hasher);
+        symbol.stable_hash(db, hasher);
+        bindings.stable_hash(db, hasher);
+      }
+    }
   }
 }
 
 /// A concrete literal value used in literal constraints
 #[derive(Debug, Clone, PartialEq, Eq, Hash, StableCompare)]
-pub enum LitValue {
+pub enum LitValue<'db> {
   String(String),
   Bool(bool),
   // f64 cannot be hashed so we store in string
   Number(String),
+  Typ(TdTypEnum<'db>),
 }
 
 #[derive(FromRepr)]
@@ -205,9 +221,10 @@ enum LitValueTag {
   String = 0,
   Bool = 1,
   Number = 2,
+  Typ = 3,
 }
 
-impl Encodable for LitValue {
+impl Encodable for LitValue<'_> {
   fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
       LitValue::String(value) => {
@@ -222,28 +239,34 @@ impl Encodable for LitValue {
         encoder.emit_u8(buffer, LitValueTag::Number as u8);
         value.encode(buffer, encoder);
       }
+      LitValue::Typ(value) => {
+        encoder.emit_u8(buffer, LitValueTag::Typ as u8);
+        value.encode(buffer, encoder);
+      }
     }
   }
 }
 
-impl Decodable for LitValue {
+impl Decodable for LitValue<'_> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let tag = decoder.read_u8(data);
     match LitValueTag::from_repr(tag).expect("unknown LiteralValue tag") {
       LitValueTag::String => LitValue::String(String::decode(data, decoder)),
       LitValueTag::Bool => LitValue::Bool(bool::decode(data, decoder)),
       LitValueTag::Number => LitValue::Number(String::decode(data, decoder)),
+      LitValueTag::Typ => LitValue::Typ(TdTypEnum::decode(data, decoder)),
     }
   }
 }
 
-impl StableHash for LitValue {
+impl StableHash for LitValue<'_> {
   fn stable_hash<DB: QueryDatabase + ?Sized>(&self, db: &DB, hasher: &mut StableHasher) {
     std::mem::discriminant(self).stable_hash(db, hasher);
     match self {
       LitValue::String(value) => value.stable_hash(db, hasher),
       LitValue::Bool(value) => value.stable_hash(db, hasher),
       LitValue::Number(value) => value.stable_hash(db, hasher),
+      LitValue::Typ(value) => value.stable_hash(db, hasher),
     }
   }
 }

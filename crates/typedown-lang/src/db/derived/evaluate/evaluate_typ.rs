@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::db::derived::builtin_schemas::node_set::get_node_set_typ;
 use crate::syntax::diagnostic::*;
 use typedown_macros::query_derived;
 
@@ -48,6 +49,7 @@ pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult
         BuiltinSchemaKind::TypTyp => get_typ_typ(db).into(),
         BuiltinSchemaKind::SchemaProp => get_schema_prop_typ(db).into(),
         BuiltinSchemaKind::Obj => get_obj_typ(db).into(),
+        BuiltinSchemaKind::NodeSet => get_node_set_typ(db).into(),
       };
       TypResult::new(db, Some(typ), vec![])
     }
@@ -116,6 +118,7 @@ fn evaluate_user_defined_schema<'db>(
             inherited_fields,
             BTreeMap::new(),
             parent_typ,
+            None,
           )
           .into(),
         ),
@@ -180,6 +183,7 @@ fn evaluate_user_defined_schema<'db>(
         child_fields,
         BTreeMap::new(),
         parent_typ,
+        None,
       )
       .into(),
     ),
@@ -228,12 +232,14 @@ fn resolve_parent_schema<'db>(
 
   // Pre-walk the _extends chain to detect cycles before calling evaluate_typ
   if let Some(cycle) = detect_extends_cycle(db, child_name, parent_symbol) {
+    let red_node = &extends_node.node;
+    let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
     diagnostics.push(
       TdDiagnosticKind::CircularExtension {
         name: child_name.to_string(),
         cycle,
       }
-      .into_error(0, 0),
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
     );
     return (BTreeMap::new(), None);
   }
@@ -624,7 +630,9 @@ fn resolve_typ_lazy<'db>(
 mod tests {
   use super::*;
   use crate::db::types::typecheck::{is_subtyp_of, validate_typ_params};
-  use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, TypVariable};
+  use crate::db::types::{
+    Binder, TdBoundVariableTyp, TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, Variance,
+  };
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::evaluate::evaluate_resource::evaluate_resource,
@@ -1150,7 +1158,13 @@ mod tests {
 
     let params = TypParams::new(
       &db,
-      vec![TypVariable::get(&db, Some(LazyTyp::eager(number_typ)))],
+      vec![TdBoundVariableTyp::new(
+        &db,
+        Binder::BuiltinSchema(BuiltinSchemaKind::String),
+        0,
+        LazyTyp::eager(number_typ),
+        Variance::Covariant,
+      )],
       vec![],
     );
     let diagnostics = validate_typ_params(&db, Some(&params), &[LazyTyp::eager(string_typ)]);
@@ -1791,15 +1805,23 @@ properties:
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
-    assert_eq!(
-      diagnostics,
-      vec![
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "computed".to_string(),
-          expected: "function expecting 1 parameter".to_string(),
-        }
-        .into_error(72, 88)
-      ]
+    // (a, b) -> a + b has wrong param count AND operand type errors from untyped params
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::FieldTypMismatch { field, expected }
+          if field == "computed" && expected == "function expecting 1 parameter"
+      )),
+      "should have FieldTypMismatch for computed, got {:?}",
+      diagnostics
+    );
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::OperandTypMismatch { op, .. } if op == "+"
+      )),
+      "should have OperandTypMismatch for +, got {:?}",
+      diagnostics
     );
   }
 
