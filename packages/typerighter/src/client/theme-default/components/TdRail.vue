@@ -120,7 +120,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
   top: 50%;
   transform: translateX(6px) translateY(-50%);
   width: 216px;
-  min-height: 200px;
+  min-height: 320px;
   max-height: calc(100vh - var(--td-header-height) - 80px);
   overflow-y: auto;
   overscroll-behavior: contain;

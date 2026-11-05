@@ -538,6 +538,12 @@ function shrinkSidebar () {
   min-width: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .td-main {
+    padding-left: 48px;
+  }
+}
+
 /* Main content */
 
 .td-main {
@@ -548,9 +554,10 @@ function shrinkSidebar () {
 }
 
 .td-content {
-  padding: 44px 56px 48px;
-  max-width: 720px;
+  padding: 44px 32px 48px;
+  max-width: 860px;
   margin: 0 auto;
+  overflow-x: hidden;
 }
 
 .td-page-eyebrow {
@@ -720,11 +727,15 @@ function shrinkSidebar () {
   .td-main-and-rail {
     grid-template-columns: 1fr;
   }
+
+  .td-main {
+    padding-left: 0;
+  }
 }
 
 /* Below 900px: hide sidebar, show menu overlay */
 
-@media (width < 56.25rem) {
+@media (width < 64rem) {
   .td-header {
     padding: 0 16px;
   }

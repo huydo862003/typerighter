@@ -32,7 +32,7 @@
 
 .td-content figure.td-code-block {
   position: relative;
-  margin: 16px -24px;
+  margin: 16px -16px;
   border: 1px solid var(--color-td-line);
   background-color: var(--color-td-code-bg);
   overflow: hidden;
@@ -330,7 +330,7 @@
 
 .td-content div[class*="language-"] {
   position: relative;
-  margin: 16px -24px;
+  margin: 16px -16px;
   overflow-x: auto;
   background-color: var(--color-td-code-bg);
 }
