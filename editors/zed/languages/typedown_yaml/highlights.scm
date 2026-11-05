@@ -78,6 +78,10 @@
 (interpolation "{" @punctuation.bracket)
 (interpolation "}" @punctuation.bracket)
 
+; Inline math
+(inline_math "$" @punctuation.special)
+(inline_math_content) @markup
+
 ; Comments
 (comment) @comment
 

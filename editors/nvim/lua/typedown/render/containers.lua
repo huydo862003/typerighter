@@ -27,6 +27,7 @@ local function get_query()
 			"typedown_md",
 			[[
       (container_block) @container
+      (container_slot_separator) @slot
     ]]
 		)
 	end
@@ -38,8 +39,13 @@ function M.render(buf, md_tree)
 	state.clear(buf, M.name)
 
 	local q = get_query()
-	for _, node in q:iter_captures(md_tree:root(), buf) do
-		M.render_container(buf, ns, node)
+	for id, node in q:iter_captures(md_tree:root(), buf) do
+		local capture = q.captures[id]
+		if capture == "container" then
+			M.render_container(buf, ns, node)
+		elseif capture == "slot" then
+			M.render_slot(buf, ns, node)
+		end
 	end
 end
 
@@ -93,6 +99,36 @@ function M.render_container(buf, ns, node)
 			end
 		end
 	end
+end
+
+function M.render_slot(buf, ns, node)
+	local delim_node
+	for child in node:iter_children() do
+		if child:type() == "container_slot_delimiter" then
+			delim_node = child
+			break
+		end
+	end
+
+	if not delim_node then
+		return
+	end
+
+	local row, col, _, end_col = delim_node:range()
+	if state.is_hidden(buf, row) then
+		return
+	end
+
+	local delim_text = vim.treesitter.get_node_text(delim_node, buf)
+	local width = vim.fn.strdisplaywidth(delim_text)
+	local icon = "┄"
+	local text = icon .. string.rep(" ", math.max(0, width - vim.fn.strdisplaywidth(icon)))
+	vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+		end_col = end_col,
+		virt_text = { { text, "TypedownRenderContainerDefault" } },
+		virt_text_pos = "overlay",
+		priority = 110,
+	})
 end
 
 return M
