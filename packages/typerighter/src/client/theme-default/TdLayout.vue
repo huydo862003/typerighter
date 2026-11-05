@@ -286,14 +286,7 @@ function shrinkSidebar () {
       :class="{
         'is-open': isOpen,
       }"
-      :style="{
-        width: `${sidebarWidth}px`,
-      }"
     >
-      <div
-        class="td-resize-handle"
-        @pointerdown.prevent="onResizeStart"
-      />
       <header class="td-drawer-header">
         <a
           :href="withBase(getIndexUrl('/'))"
@@ -660,11 +653,11 @@ function shrinkSidebar () {
 
 .td-drawer {
   position: fixed;
+  width: min(350px, 100vw);
   top: 0;
   left: 0;
   bottom: 0;
   z-index: 50;
-  width: 300px;
   max-width: min(85vw, 500px);
   background: var(--color-td-pg);
   border-right: 1px solid var(--color-td-line);
