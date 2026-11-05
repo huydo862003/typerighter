@@ -1,6 +1,25 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.55.0] - 2026-11-06
+
+### Added
+
+- packages/typerighter
+  - Diagram viewer redesign: inline block with hover toolbar (language label, Preview/Code toggle, copy, expand), floating zoom control, pan/zoom hint
+  - Fullscreen diagram preview: modal with header (title, language chip, code toggle, zoom controls, copy, SVG download, close), dotted grid canvas, keyboard shortcuts (Esc, +/-, 0)
+  - Pan/zoom on diagram surfaces: click-to-expand, drag-to-pan, ctrl/cmd+wheel zoom, double-click zoom (modal), pointer capture with 4px click threshold
+  - Code view for diagrams: monospace source with line numbers, toggled via segmented control in toolbar
+  - SVG download: serializes rendered SVG with xmlns for standalone rendering
+
+### Changed
+
+- packages/typerighter
+  - Diagram rendering rewritten from imperative DOM manipulation (diagram.ts) to Vue component (TdDiagram.vue) with reactive state, scoped styles, Lucide icons, and proper lifecycle cleanup
+  - Lazy-embed bridge (mountDiagram.ts) uses `h()` + `render()` to mount TdDiagram from the IntersectionObserver pipeline
+  - SVG dimensions parsed from markup string (viewBox preferred) instead of DOM queries
+  - Placeholder styles (spinner, error border) moved to content.css; diagram styles are scoped in the component
+
 ## [0.54.0] - 2026-11-05
 
 ### Added
