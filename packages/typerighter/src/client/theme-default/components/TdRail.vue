@@ -32,7 +32,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 
 <template>
   <aside
-    v-if="page.headings.length"
+    v-if="page.headings.length > 1"
     class="td-rail"
   >
     <div class="td-rail-inner">

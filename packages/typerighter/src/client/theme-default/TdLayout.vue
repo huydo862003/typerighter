@@ -402,7 +402,7 @@ function shrinkSidebar () {
               :frontmatter="page.frontmatter"
             />
             <TdToc
-              v-if="page.headings.length > 0"
+              v-if="page.headings.length > 1"
               class="td-toc-inline"
               :headings="page.headings"
               inline
