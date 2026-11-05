@@ -405,7 +405,7 @@ function shrinkSidebar () {
               v-if="page.headings.length > 0"
               class="td-toc-inline"
               :headings="page.headings"
-              static
+              inline
             />
             <slot name="doc-content-before" />
             <div class="td-content-body">
@@ -533,7 +533,7 @@ function shrinkSidebar () {
 
 .td-main-and-rail {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--td-toc-width);
+  grid-template-columns: minmax(0, 1fr) 48px;
   flex: 1;
   min-width: 0;
 }
@@ -542,10 +542,15 @@ function shrinkSidebar () {
 
 .td-main {
   min-width: 0;
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
 }
 
 .td-content {
   padding: 44px 56px 48px;
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .td-page-eyebrow {
@@ -693,25 +698,27 @@ function shrinkSidebar () {
   margin-bottom: 16px;
 }
 
-/* TOC hidden at desktop */
+/* Inline TOC: only on touch/non-mouse devices */
 .td-toc-inline {
   display: none;
   margin: 16px 0 0;
 }
 
-/* Below 1200px: hide rail, show inline frontmatter */
+@media not ((hover: hover) and (pointer: fine)) {
+  .td-toc-inline {
+    display: block;
+  }
+}
 
-@media (width < 75rem) {
+/* Non-mouse devices: hide rail entirely */
+
+@media not ((hover: hover) and (pointer: fine)) {
   .td-rail {
     display: none;
   }
 
   .td-main-and-rail {
     grid-template-columns: 1fr;
-  }
-
-  .td-toc-inline {
-    display: block;
   }
 }
 
