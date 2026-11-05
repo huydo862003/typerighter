@@ -6,6 +6,7 @@ use std::path::Path;
 use lsp_server::Notification;
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 use ropey::Rope;
+use typedown_lang::syntax::diagnostic::Severity;
 use typedown_lang::syntax::diagnostic::TdDiagnostic;
 
 use crate::core::analysis::Analysis;
@@ -33,9 +34,14 @@ pub(super) fn to_lsp_diagnostic(diagnostic: &TdDiagnostic, rope: &Rope) -> Optio
     end: text_offset_to_lsp_position(rope, end_offset),
   };
 
+  let severity = match diagnostic.severity {
+    Severity::Error => DiagnosticSeverity::ERROR,
+    Severity::Warning => DiagnosticSeverity::WARNING,
+  };
+
   Some(Diagnostic {
     range,
-    severity: Some(DiagnosticSeverity::ERROR),
+    severity: Some(severity),
     code: Some(NumberOrString::String(diagnostic.code_str().into())),
     source: Some("typedown".into()),
     message: diagnostic.message(),
