@@ -67,7 +67,7 @@ const {
 }
 
 .td-glossary-row:hover {
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
 }
 
 .td-glossary-row:hover .td-glossary-row-title {
@@ -109,7 +109,7 @@ const {
 
 .td-glossary-row-tag {
   border: 1px solid var(--color-td-line-soft);
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   padding: 1px 8px;
   border-radius: 999px;
   font-size: var(--font-size-td-2xs);

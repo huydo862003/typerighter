@@ -209,7 +209,7 @@
   position: relative;
   margin: 1rem 0;
   min-height: 120px;
-  background: var(--color-td-surf);
+  background: var(--color-td-surface);
   border: 1px solid var(--color-td-line);
   border-radius: var(--radius-td-md);
 }
@@ -240,7 +240,7 @@
   position: relative;
   margin: 1rem 0;
   min-height: 120px;
-  background: var(--color-td-surf);
+  background: var(--color-td-surface);
   border: 1px solid var(--color-td-line);
   border-radius: var(--radius-td-md);
 }
@@ -285,7 +285,7 @@
   border: 1px solid var(--color-td-line);
   border-radius: var(--radius-td-lg);
   overflow: hidden;
-  background: var(--color-td-surf);
+  background: var(--color-td-surface);
 }
 
 /* Loading spinner shown until iframe loads */

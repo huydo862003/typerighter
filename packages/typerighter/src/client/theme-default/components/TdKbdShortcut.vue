@@ -34,6 +34,7 @@ const ICON_KEYS: Partial<Record<TdKeyName, Component>> = {
   [TdKeyName.ArrowUp]: ArrowUp,
   [TdKeyName.ArrowLeft]: ArrowLeft,
   [TdKeyName.ArrowRight]: ArrowRight,
+  [TdKeyName.Control]: Command,
   [TdKeyName.Meta]: Command,
   [TdKeyName.Alt]: Option,
   [TdKeyName.Enter]: CornerDownLeft,
@@ -42,7 +43,6 @@ const ICON_KEYS: Partial<Record<TdKeyName, Component>> = {
 };
 
 const LABEL_KEYS: Partial<Record<TdKeyName, string>> = {
-  [TdKeyName.Control]: '⌃',
   [TdKeyName.Shift]: '⇧',
   [TdKeyName.Escape]: 'Esc',
   [TdKeyName.Tab]: 'Tab',
@@ -103,7 +103,7 @@ const keyMetas = computed((): KeyMeta[] =>
   padding: 0 4px;
   border: 1px solid var(--color-td-line);
   border-radius: 4px;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   font-family: var(--font-sans);
   font-size: var(--font-size-td-2xs);
   font-weight: 500;

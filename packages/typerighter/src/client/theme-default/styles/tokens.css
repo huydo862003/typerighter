@@ -5,10 +5,10 @@
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
 
   /* Warm neutral palette */
-  --color-td-pg: #FBF9F7;
-  --color-td-surf: #F5F2EE;
-  --color-td-hov: #F1EDE6;
-  --color-td-sel: rgba(181, 71, 31, 0.10);
+  --color-td-bg: #FBF9F7;
+  --color-td-surface: #F5F2EE;
+  --color-td-hover: #F1EDE6;
+  --color-td-accent-bg: rgba(181, 71, 31, 0.10);
   --color-td-ink: #1F1C19;
   --color-td-ink-2: #48423B;
   --color-td-ink-3: #6B635B;
@@ -38,6 +38,9 @@
   --color-td-diff-add-bg: rgba(16, 185, 129, 0.14);
   --color-td-diff-remove: #f43f5e;
   --color-td-diff-remove-bg: rgba(244, 63, 94, 0.14);
+
+  /* Scrim */
+  --color-td-scrim: rgba(0, 0, 0, 0.4);
 
   /* Tooltip */
   --color-td-tooltip-bg: #000;
@@ -89,6 +92,12 @@
   --td-content-max: 704px;
   --td-header-height: 56px;
 
+  /* Z-index layers, relative to root stacking context */
+  --layer-td-base: 1;       /* sidebar, toc, header, drawer */
+  --layer-td-dropdown: 5;   /* dropdowns */
+  --layer-td-modal: 10;     /* modal scrim + dialog, teleported to body */
+  --layer-td-tooltip: 15;   /* tooltips, teleported to body */
+
   /* Motion durations */
   --duration-td-fast: 150ms;
   --duration-td-move: 200ms;
@@ -97,10 +106,10 @@
 }
 
 .dark {
-  --color-td-pg: #1A1816;
-  --color-td-surf: #231F1C;
-  --color-td-hov: #2E2A26;
-  --color-td-sel: rgba(197, 120, 80, 0.12);
+  --color-td-bg: #1A1816;
+  --color-td-surface: #231F1C;
+  --color-td-hover: #2E2A26;
+  --color-td-accent-bg: rgba(197, 120, 80, 0.12);
   --color-td-ink: #D4D0CE;
   --color-td-ink-2: #BAB6B4;
   --color-td-ink-3: #9B9797;
@@ -133,7 +142,7 @@ body {
   line-height: var(--leading-td-relaxed);
   font-weight: 400;
   color: var(--color-td-ink-2);
-  background-color: var(--color-td-pg);
+  background-color: var(--color-td-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
@@ -156,7 +165,7 @@ body {
 }
 
 ::selection {
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
 }
 
 :focus-visible {

@@ -299,7 +299,7 @@ function toggleRail () {
   margin: 14px 0 0;
   border: 1px solid var(--color-td-line-soft);
   border-radius: 6px;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   overflow: hidden;
 }
 

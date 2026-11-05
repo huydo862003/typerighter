@@ -8,10 +8,10 @@ import {
   watchEffect,
 } from 'vue';
 import {
-  X,
+  ChevronsLeft, ChevronsRight, Terminal, X,
 } from '@lucide/vue';
 import {
-  useTdContent, useSiteConfig, useSiteData, useRoute,
+  useTdContent, useSiteConfig, useSiteData, useRoute, useRouter,
 } from '../app';
 import {
   Content,
@@ -32,7 +32,12 @@ import TdPreviousNext from './components/TdPreviousNext.vue';
 import TdRail from './components/TdRail.vue';
 import TdToc from './components/custom/TdToc.vue';
 import TdSidebarNav from './components/TdSidebarNav.vue';
+import TdSidebarIcons from './components/TdSidebarIcons.vue';
 import TdSkeleton from './components/TdSkeleton.vue';
+import TdCommandPalette from './components/TdCommandPalette.vue';
+import TdKbdShortcut from './components/TdKbdShortcut.vue';
+import TdTooltip from './components/TdTooltip.vue';
+import TdShortcutsDialog from './components/TdShortcutsDialog.vue';
 import TdSiteSearch from './components/TdSiteSearch/TdSiteSearch.vue';
 import TdThemeToggle from './components/TdThemeToggle.vue';
 import {
@@ -45,6 +50,9 @@ import {
   useGlobalHotkey,
 } from './composables/useHotkey';
 import {
+  usePreviousNext,
+} from './composables/usePreviousNext';
+import {
   TdKeyName,
 } from './utils/keys';
 import {
@@ -53,6 +61,9 @@ import {
 import {
   useLazyEmbeds,
 } from './composables/lazy-embed';
+import {
+  useLocalStorage,
+} from './composables/useLocalStorage';
 import {
   useMenu,
 } from './composables/useMenu';
@@ -79,6 +90,7 @@ const siteConfig = useSiteConfig();
 const {
   withBase,
 } = siteConfig;
+const router = useRouter();
 const siteData = useSiteData();
 const siteDataReady = computed(() => siteData.value.ready);
 const {
@@ -89,6 +101,7 @@ const searchQuery = ref('');
 const sidebarSearchActive = ref(false);
 const menuSearchActive = ref(false);
 const route = useRoute();
+const shortcutsOpen = ref(false);
 
 watch(
   () => route.path,
@@ -103,8 +116,17 @@ const sidebarSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('sidebarSearch');
 const menuSearch =
   useTemplateRef<InstanceType<typeof TdSiteSearch>>('menuSearch');
+const palette =
+  useTemplateRef<InstanceType<typeof TdCommandPalette>>('palette');
 
-// Build the GitHub edit URL from repo config, rootDir, and the page filepath
+const {
+  previous, next,
+} = usePreviousNext();
+
+function closeShortcuts () {
+  shortcutsOpen.value = false;
+}
+
 function editPageUrl (filepath: string): string {
   const repo = siteConfig.repo!;
   const base = stripTrailingSlash(repo.url);
@@ -117,25 +139,29 @@ function editPageUrl (filepath: string): string {
   return `${base}/edit/main/${segments.join('/')}`;
 }
 
+function expandAndFocusSearch () {
+  sidebarCollapsed.value = false;
+  nextTick(() => sidebarSearch.value?.focus());
+}
+
 function focusSearch () {
-  if (menuSearch.value?.isFocused || sidebarSearch.value?.isFocused) {
-    menuSearch.value?.blur();
-    sidebarSearch.value?.blur();
-    if (isOpen.value) closeMenu();
-
-    return;
-  }
-
-  if (isOpen.value) {
-    menuSearch.value?.focus();
-  } else if (sidebarSearch.value?.isVisible) {
+  if (sidebarSearch.value?.isVisible) {
     sidebarSearch.value.focus();
   } else {
     openMenu();
-    nextTick(() => menuSearch.value?.focus());
+    menuSearch.value?.focus();
   }
 }
 
+function openPalette () {
+  palette.value?.open();
+}
+
+function openShortcuts () {
+  shortcutsOpen.value = true;
+}
+
+// ⌘K / Ctrl+K - focus site search
 useGlobalHotkey([
   TdKeyName.Control,
   TdKeyName.k,
@@ -145,7 +171,34 @@ useGlobalHotkey([
   TdKeyName.k,
 ], focusSearch);
 
-// Update document title and meta description per page
+// Ctrl+/ / ⌘/ - open command palette
+useGlobalHotkey([
+  TdKeyName.Control,
+  TdKeyName.FSlash,
+], openPalette);
+useGlobalHotkey([
+  TdKeyName.Meta,
+  TdKeyName.FSlash,
+], openPalette);
+
+// Ctrl+Left / Ctrl+Right - previous / next page (ignored when typing)
+useGlobalHotkey([
+  TdKeyName.Control,
+  TdKeyName.ArrowLeft,
+], () => {
+  if (previous.value) router.go(previous.value.url);
+}, {
+  ignoreWhenTyping: true,
+});
+useGlobalHotkey([
+  TdKeyName.Control,
+  TdKeyName.ArrowRight,
+], () => {
+  if (next.value) router.go(next.value.url);
+}, {
+  ignoreWhenTyping: true,
+});
+
 watchEffect(() => {
   if (typeof document === 'undefined') return;
   const pageTitle = title.value;
@@ -171,13 +224,31 @@ useResizableTable();
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 500;
 const SIDEBAR_DEFAULT = 300;
-const SIDEBAR_STORAGE_KEY = 'td-sidebar-width';
 
-const sidebarWidth = ref(
-  typeof localStorage !== 'undefined'
-    ? Number(localStorage.getItem(SIDEBAR_STORAGE_KEY)) || SIDEBAR_DEFAULT
-    : SIDEBAR_DEFAULT,
-);
+const sidebarWidth = useLocalStorage('td-sidebar-width', SIDEBAR_DEFAULT);
+const sidebarCollapsed = useLocalStorage('td-sidebar-collapsed', false);
+const SIDEBAR_COLLAPSED_WIDTH = 48;
+const effectiveSidebarWidth = computed(() =>
+  sidebarCollapsed.value ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth.value);
+const isSidebarResizing = ref(false);
+
+function toggleSidebar () {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
+// ⌘\ / Ctrl+\ - toggle sidebar
+useGlobalHotkey([
+  TdKeyName.Control,
+  TdKeyName.Backslash,
+], toggleSidebar, {
+  capture: true,
+});
+useGlobalHotkey([
+  TdKeyName.Meta,
+  TdKeyName.Backslash,
+], toggleSidebar, {
+  capture: true,
+});
 
 function growSidebar () {
   sidebarWidth.value = Math.min(SIDEBAR_MAX, sidebarWidth.value + 20);
@@ -188,6 +259,7 @@ function onResizeStart (event: PointerEvent) {
   const startWidth = sidebarWidth.value;
   const target = event.currentTarget as HTMLElement;
 
+  isSidebarResizing.value = true;
   target.setPointerCapture(event.pointerId);
 
   function onMove (event: PointerEvent) {
@@ -201,10 +273,10 @@ function onResizeStart (event: PointerEvent) {
   }
 
   function onUp () {
+    isSidebarResizing.value = false;
     document.body.style.cursor = '';
     target.removeEventListener('pointermove', onMove);
     target.removeEventListener('pointerup', onUp);
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth.value));
   }
 
   document.body.style.cursor = 'col-resize';
@@ -226,7 +298,7 @@ function shrinkSidebar () {
     >Skip to content</a>
     <header class="td-header">
       <div class="td-header-left">
-        <TdMenuButton @click="focusSearch" />
+        <TdMenuButton @click="openMenu" />
         <a
           :href="withBase(getIndexUrl('/'))"
           class="td-brand"
@@ -241,6 +313,24 @@ function shrinkSidebar () {
       <TdHeaderNavBar />
       <slot name="nav-bar-after" />
       <div class="td-header-right">
+        <TdTooltip
+          text="Commands"
+          placement="bottom"
+          :shortcut="[
+            TdKeyName.Meta,
+            TdKeyName.FSlash,
+          ]"
+          always
+        >
+          <button
+            class="td-header-commands-btn"
+            type="button"
+            aria-label="Open command palette"
+            @click="openPalette"
+          >
+            <Terminal :size="15" />
+          </button>
+        </TdTooltip>
         <TdThemeToggle />
         <a
           v-if="siteConfig.repo"
@@ -327,26 +417,64 @@ function shrinkSidebar () {
     <div class="td-page">
       <nav
         class="td-sidebar-left"
+        :class="{
+          'is-resizing': isSidebarResizing,
+          'is-collapsed': sidebarCollapsed,
+        }"
         data-testid="sidebar"
         aria-label="Site navigation"
         :style="{
-          width: `${sidebarWidth}px`,
+          width: `${effectiveSidebarWidth}px`,
         }"
       >
-        <slot name="sidebar-top" />
-        <TdSiteSearch
-          ref="sidebarSearch"
-          v-model:query="searchQuery"
-          v-model:active="sidebarSearchActive"
-          class="td-sidebar-search"
-        />
-        <TdSidebarNav
+        <template v-if="!sidebarCollapsed">
+          <slot name="sidebar-top" />
+          <TdSiteSearch
+            ref="sidebarSearch"
+            v-model:query="searchQuery"
+            v-model:active="sidebarSearchActive"
+            class="td-sidebar-search"
+          />
+          <TdSidebarNav
+            :tree="siteData.contentTree"
+            :search-active="sidebarSearchActive"
+            :ready="siteDataReady"
+          />
+          <slot name="sidebar-bottom" />
+        </template>
+        <TdSidebarIcons
+          v-else
           :tree="siteData.contentTree"
-          :search-active="sidebarSearchActive"
-          :ready="siteDataReady"
+          @search="expandAndFocusSearch"
         />
-        <slot name="sidebar-bottom" />
+        <button
+          class="td-sidebar-collapse-btn"
+          type="button"
+          :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          @click="toggleSidebar"
+        >
+          <ChevronsLeft
+            v-if="!sidebarCollapsed"
+            :size="14"
+          />
+          <ChevronsRight
+            v-else
+            :size="14"
+          />
+          <span
+            v-if="!sidebarCollapsed"
+            class="td-sidebar-collapse-label"
+          >Collapse sidebar</span>
+          <TdKbdShortcut
+            v-if="!sidebarCollapsed"
+            :keys="[
+              TdKeyName.Meta,
+              TdKeyName.Backslash,
+            ]"
+          />
+        </button>
         <div
+          v-if="!sidebarCollapsed"
           class="td-resize-handle"
           role="separator"
           aria-orientation="vertical"
@@ -430,6 +558,16 @@ function shrinkSidebar () {
 
     <TdFooter />
     <slot name="layout-bottom" />
+
+    <TdCommandPalette
+      ref="palette"
+      @toggle-sidebar="toggleSidebar"
+      @show-shortcuts="openShortcuts"
+    />
+    <TdShortcutsDialog
+      :open="shortcutsOpen"
+      @close="closeShortcuts"
+    />
   </div>
 </template>
 
@@ -440,7 +578,7 @@ function shrinkSidebar () {
   position: absolute;
   top: -100%;
   left: 16px;
-  z-index: 50;
+  z-index: var(--layer-td-base);
   padding: 8px 16px;
   background: var(--color-td-accent);
   color: white;
@@ -462,10 +600,10 @@ function shrinkSidebar () {
   justify-content: space-between;
   padding: 0 24px;
   border-bottom: 1px solid var(--color-td-line);
-  background: var(--color-td-surf);
+  background: var(--color-td-bg);
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: var(--layer-td-base);
 }
 
 .td-header-left {
@@ -478,6 +616,24 @@ function shrinkSidebar () {
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.td-header-commands-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--color-td-ink-4);
+  transition: color var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
+.td-header-commands-btn:hover {
+  color: var(--color-td-accent);
 }
 
 .td-header-icon-link {
@@ -598,7 +754,7 @@ function shrinkSidebar () {
   display: inline-block;
   margin-top: 16px;
   font-size: var(--font-size-td-xs);
-  color: var(--color-td-ink-4);
+  color: var(--color-td-ink-3);
   text-decoration: none;
   transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
@@ -623,11 +779,57 @@ function shrinkSidebar () {
   overflow: clip;
   display: flex;
   flex-direction: column;
+  background: var(--color-td-surface);
+  border-right: 1px solid var(--color-td-line);
+  transition: width var(--duration-td-drawer) var(--ease-td-out-quart);
+}
+
+.td-sidebar-left.is-resizing {
+  transition: none;
+}
+
+/* Collapsed icon-only strip: button is centered */
+.td-sidebar-left.is-collapsed .td-sidebar-collapse-btn {
+  justify-content: center;
+  padding: 8px 0;
+  margin: 8px auto;
+  width: 36px;
 }
 
 .td-sidebar-search {
   flex-shrink: 0;
   padding: 12px 10px;
+}
+
+.td-sidebar-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 4px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--color-td-ink-4);
+  font-size: var(--font-size-td-xs);
+  font-family: inherit;
+  flex-shrink: 0;
+  transition:
+    color var(--duration-td-fast) var(--ease-td-out-quart),
+    background var(--duration-td-fast) var(--ease-td-out-quart);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.td-sidebar-collapse-btn:hover {
+  color: var(--color-td-accent);
+  background: var(--color-td-hover);
+}
+
+.td-sidebar-collapse-label {
+  flex: 1;
+  text-align: left;
 }
 
 .td-resize-handle {
@@ -637,7 +839,7 @@ function shrinkSidebar () {
   width: 5px;
   height: 100%;
   cursor: col-resize;
-  z-index: 10;
+  z-index: 2;
 }
 
 .td-resize-handle:hover,
@@ -651,8 +853,8 @@ function shrinkSidebar () {
 .td-drawer-scrim {
   position: fixed;
   inset: 0;
-  z-index: 49;
-  background: rgba(0, 0, 0, 0.4);
+  z-index: var(--layer-td-base);
+  background: var(--color-td-scrim);
   opacity: 0;
   pointer-events: none;
   transition: opacity 220ms var(--ease-td-out-quart);
@@ -669,9 +871,9 @@ function shrinkSidebar () {
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: 50;
+  z-index: var(--layer-td-base);
   max-width: min(85vw, 500px);
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   border-right: 1px solid var(--color-td-line);
   display: flex;
   flex-direction: column;
@@ -693,7 +895,7 @@ function shrinkSidebar () {
   height: var(--td-header-height);
   padding: 0 16px;
   border-bottom: 1px solid var(--color-td-line);
-  background: var(--color-td-surf);
+  background: var(--color-td-surface);
   flex-shrink: 0;
   position: sticky;
   top: 0;

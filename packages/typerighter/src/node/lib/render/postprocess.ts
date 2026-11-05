@@ -86,46 +86,57 @@ async function highlightCodeBlocks (html: string): Promise<string> {
 }
 
 // Short display labels for common languages
-const LANG_ABBREV: Record<string, string> = {
-  typescript: 'TS',
-  javascript: 'JS',
+const LANG_LABEL: Record<string, string> = {
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
   tsx: 'TSX',
   jsx: 'JSX',
-  python: 'PY',
-  rust: 'RS',
-  go: 'GO',
-  java: 'JAVA',
-  kotlin: 'KT',
-  swift: 'SWIFT',
-  ruby: 'RB',
+  python: 'Python',
+  rust: 'Rust',
+  rs: 'Rust',
+  go: 'Go',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+  ruby: 'Ruby',
   php: 'PHP',
   csharp: 'C#',
   cpp: 'C++',
   c: 'C',
-  bash: 'SH',
-  sh: 'SH',
-  shell: 'SH',
-  zsh: 'SH',
+  bash: 'Bash',
+  sh: 'Bash',
+  shell: 'Shell',
+  zsh: 'Zsh',
   html: 'HTML',
   css: 'CSS',
   scss: 'SCSS',
-  sass: 'SASS',
+  sass: 'Sass',
   json: 'JSON',
-  yaml: 'YML',
-  yml: 'YML',
+  yaml: 'YAML',
+  yml: 'YAML',
   toml: 'TOML',
   xml: 'XML',
   sql: 'SQL',
-  markdown: 'MD',
-  vue: 'VUE',
-  svelte: 'SV',
-  txt: 'TXT',
+  markdown: 'Markdown',
+  vue: 'Vue',
+  svelte: 'Svelte',
+  racket: 'Racket',
+  haskell: 'Haskell',
+  elixir: 'Elixir',
+  clojure: 'Clojure',
+  lua: 'Lua',
+  r: 'R',
+  dart: 'Dart',
+  zig: 'Zig',
+  nim: 'Nim',
+  ocaml: 'OCaml',
+  erlang: 'Erlang',
+  scala: 'Scala',
+  txt: 'Text',
 };
 
-function languageAbbrev (language: string): string {
-  return (
-    LANG_ABBREV[language.toLowerCase()] ?? language.slice(0, 4).toUpperCase()
-  );
+function formatLanguageLabel (language: string): string {
+  return LANG_LABEL[language.toLowerCase()] ?? language;
 }
 
 function wrapCodeBlock (
@@ -134,7 +145,7 @@ function wrapCodeBlock (
   options: CodeBlockOptions,
 ): string {
   language ||= 'txt';
-  const badge = languageAbbrev(language);
+  const badge = formatLanguageLabel(language);
 
   const classes = [
     'td-code-block',

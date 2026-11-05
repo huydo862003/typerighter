@@ -140,7 +140,7 @@ watch(activeTocId, () => {
 .td-toc-inline-wrap {
   padding: 8px 12px;
   border-radius: 6px;
-  background: var(--color-td-surf);
+  background: var(--color-td-surface);
   border: 1px solid var(--color-td-line-soft);
   display: flex;
   flex-direction: column;

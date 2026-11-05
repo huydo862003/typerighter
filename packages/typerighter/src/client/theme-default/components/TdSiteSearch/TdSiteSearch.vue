@@ -274,13 +274,13 @@ defineExpose({
   padding: 6px 10px;
   border: 1px solid var(--color-td-line);
   border-radius: 6px;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   transition: border-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-search-input-wrap:hover {
   border-color: var(--color-td-ink-4);
-  background: var(--color-td-hov);
+  background: var(--color-td-hover);
 }
 
 .td-search-input-wrap:focus-within {
@@ -367,7 +367,7 @@ defineExpose({
 
 .td-search-result:hover,
 .td-search-result.is-selected {
-  background: var(--color-td-hov);
+  background: var(--color-td-hover);
 }
 
 .td-search-result.is-current {

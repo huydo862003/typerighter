@@ -81,7 +81,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 .td-rail-indicators {
   position: absolute;
   right: 12px;
-  top: 50%;
+  top: 20%;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
@@ -109,24 +109,24 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 }
 
 .td-rail-indicator.is-active {
-  background: var(--color-td-ink-3);
+  background: var(--color-td-accent);
 }
 
-/* Floating TOC panel - vertically centered, borders on top/bottom/left only */
+/* Floating TOC panel - top-anchored, borders on top/bottom/left only */
 
 .td-rail-panel {
   position: absolute;
   right: 0;
-  top: 50%;
-  transform: translateX(6px) translateY(-50%);
+  top: calc(20% - 48px);
+  transform: translateX(6px);
   width: 216px;
-  min-height: 320px;
-  max-height: calc(100vh - var(--td-header-height) - 80px);
+  min-height: unset;
+  max-height: calc(100vh - var(--td-header-height) - 56px);
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   border-top: 1px solid var(--color-td-line-soft);
   border-bottom: 1px solid var(--color-td-line-soft);
   border-left: 1px solid var(--color-td-line-soft);
@@ -144,7 +144,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
   .td-rail:hover .td-rail-panel {
     opacity: 1;
     pointer-events: auto;
-    transform: translateX(0) translateY(-50%);
+    transform: translateX(0);
   }
 }
 </style>

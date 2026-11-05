@@ -86,7 +86,7 @@ const parentUrl = computed(() => withBase(getIndexUrl(getParentUrl(listing.value
 }
 
 .td-dir-row:hover {
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
 }
 
 .td-dir-icon {

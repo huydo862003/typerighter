@@ -162,7 +162,7 @@ watch(() => route.path, () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  max-width: 10ch;
+  max-width: 20ch;
 }
 
 .td-breadcrumb-link {
@@ -199,7 +199,7 @@ watch(() => route.path, () => {
 
 .td-breadcrumb-ellipsis:hover {
   color: var(--color-td-ink);
-  background: var(--color-td-hov);
+  background: var(--color-td-hover);
 }
 
 .td-breadcrumb-dropdown-item {
@@ -213,7 +213,7 @@ watch(() => route.path, () => {
 }
 
 .td-breadcrumb-dropdown-item:hover {
-  background: var(--color-td-hov);
+  background: var(--color-td-hover);
   color: var(--color-td-accent);
 }
 </style>

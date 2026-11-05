@@ -246,7 +246,7 @@ function groupAlphabetically (items: DirectoryEntry[]): AlphaGroup[] {
   gap: 8px;
   border: 1px solid var(--color-td-line-soft);
   border-radius: 7px;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   padding: 8px 12px;
   margin-bottom: 20px;
 }

@@ -5,18 +5,26 @@ import {
 import {
   useFloating, offset, flip, shift, arrow,
 } from '@floating-ui/vue';
+import {
+  type TdKeyName,
+} from '../utils/keys';
+import TdKbdShortcut from './TdKbdShortcut.vue';
 
 defineOptions({
   inheritAttrs: false,
 });
 
 const {
-  text, always = false,
+  text, always = false, placement: placementProperty = 'right', shortcut = undefined,
 } = defineProps<{
   /** Tooltip text */
   text: string;
   /** Show even when content is not truncated */
   always?: boolean;
+  /** Floating-ui placement */
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+  /** Keyboard shortcut keys to display alongside text */
+  shortcut?: TdKeyName[];
 }>();
 
 const trigger = useTemplateRef<HTMLElement>('trigger');
@@ -29,7 +37,7 @@ let hideTimeout: ReturnType<typeof setTimeout> | undefined;
 const {
   floatingStyles, middlewareData, placement,
 } = useFloating(trigger, tooltip, {
-  placement: 'right',
+  placement: placementProperty,
   middleware: [
     offset(8),
     flip(),
@@ -96,6 +104,11 @@ function hide () {
       @mouseleave="hide"
     >
       {{ text }}
+      <TdKbdShortcut
+        v-if="shortcut"
+        :keys="shortcut"
+        class="td-tooltip-shortcut"
+      />
       <div
         ref="arrowEl"
         class="td-tooltip-arrow"
@@ -141,7 +154,7 @@ function hide () {
 <style>
 .td-tooltip {
   position: absolute;
-  z-index: 1000;
+  z-index: var(--layer-td-tooltip);
   max-width: 300px;
   padding: 7px 12px 6px;
   font-size: var(--font-size-td-xs);
@@ -154,6 +167,19 @@ function hide () {
   word-break: break-word;
   white-space: normal;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.td-tooltip-shortcut {
+  flex-shrink: 0;
+}
+
+.td-tooltip-shortcut :deep(kbd) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .td-tooltip-arrow {

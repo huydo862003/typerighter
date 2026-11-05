@@ -126,13 +126,13 @@ function isCurrent (href: string): boolean {
 }
 
 .td-root-link:hover {
-  background-color: var(--color-td-hov);
+  background-color: var(--color-td-hover);
   color: var(--color-td-ink);
   padding-left: 13px;
 }
 
 .td-root-link.is-active {
-  background-color: var(--color-td-sel);
+  background-color: var(--color-td-accent-bg);
   border-left-color: var(--color-td-accent);
   color: var(--color-td-accent);
   font-weight: 600;

@@ -81,11 +81,11 @@ function isActive (link: string): boolean {
 }
 
 .td-menu-nav-item:hover {
-  background-color: var(--color-td-hov);
+  background-color: var(--color-td-hover);
 }
 
 .td-menu-nav-item.is-active {
-  background-color: var(--color-td-sel);
+  background-color: var(--color-td-accent-bg);
   border-left-color: var(--color-td-accent);
   color: var(--color-td-accent);
   font-weight: 600;

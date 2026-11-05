@@ -3,6 +3,9 @@ import {
   ArrowUpRight,
 } from '@lucide/vue';
 import {
+  getPageIcon,
+} from '../../utils/pageIcon';
+import {
   isUrlExternal,
 } from '@/shared';
 import {
@@ -37,10 +40,19 @@ function isActive (link: string): boolean {
       :class="{
         'is-active': isActive(item.link),
       }"
-    >{{ item.title }}<ArrowUpRight
-      v-if="isUrlExternal(item.link)"
-      :size="14"
-    /></a>
+    >
+      <component
+        :is="getPageIcon(item.icon)"
+        v-if="item.icon && getPageIcon(item.icon)"
+        :size="14"
+        class="td-header-nav-icon"
+      />
+      {{ item.title }}
+      <ArrowUpRight
+        v-if="isUrlExternal(item.link)"
+        :size="14"
+      />
+    </a>
   </nav>
 </template>
 
@@ -61,10 +73,14 @@ function isActive (link: string): boolean {
   }
 }
 
+.td-header-nav-icon {
+  flex-shrink: 0;
+}
+
 .td-header-nav-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.125rem;
+  gap: 5px;
   padding: 4px 10px;
   border-radius: var(--radius-td-sm);
   font-size: var(--font-size-td-sm);
@@ -77,11 +93,11 @@ function isActive (link: string): boolean {
 
 .td-header-nav-link:hover {
   color: var(--color-td-accent);
-  background-color: var(--color-td-hov);
+  background-color: var(--color-td-hover);
 }
 
 .td-header-nav-link.is-active {
   color: var(--color-td-accent);
-  background-color: var(--color-td-sel);
+  background-color: var(--color-td-accent-bg);
 }
 </style>
