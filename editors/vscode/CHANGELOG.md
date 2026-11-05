@@ -1,6 +1,20 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.54.0] - 2026-11-05
+
+### Added
+
+- crates/typedown-lang
+  - Support graph query via `vault.from_node()` and `vault.from_nodes()` API
+
+### Internal
+
+- crates/typedown-lang
+  - IMPORTANT: Variable types are now given proper identity so variable substitution can work unambiguously
+  - Enhanced type inference pipeline for function and closure
+  - Better infrastructure to support generic functions and types
+
 ## [0.53.2] - 2026-11-03
 
 ### Fixed
