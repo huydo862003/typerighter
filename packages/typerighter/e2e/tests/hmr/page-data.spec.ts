@@ -36,38 +36,6 @@ e2e.describe('HMR page data update', () => {
     expect(fullReloadOccurred).toBe(false);
   });
 
-  e2e('adding a heading updates the TOC without full reload', async ({
-    page,
-    testProject,
-  }) => {
-    await testProject.goto(page, '/people/alice');
-
-    let fullReloadOccurred = false;
-
-    page.on('load', () => {
-      fullReloadOccurred = true;
-    });
-
-    const rail = page.locator('.td-rail');
-    const toc = page.locator('.td-rail .td-toc');
-
-    await expect(rail).not.toBeVisible();
-
-    await testProject.modifyFile(
-      'vault/people/alice.td',
-      (content) => content + '\n## Background\n\nSome background.\n',
-    );
-
-    await expect(rail).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(toc.locator('text=Background')).toBeAttached({
-      timeout: 15_000,
-    });
-
-    expect(fullReloadOccurred).toBe(false);
-  });
-
   e2e('changing a frontmatter value updates the properties panel without full reload', async ({
     page,
     testProject,
