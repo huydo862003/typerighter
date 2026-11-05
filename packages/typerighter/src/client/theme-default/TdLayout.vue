@@ -688,13 +688,14 @@ function shrinkSidebar () {
   z-index: 1;
 }
 
-/* Inline frontmatter and TOC hidden at desktop */
-.td-frontmatter-inline,
-.td-toc-inline {
-  display: none;
+.td-frontmatter-inline {
+  display: block;
+  margin-bottom: 16px;
 }
 
+/* TOC hidden at desktop */
 .td-toc-inline {
+  display: none;
   margin: 16px 0 0;
 }
 
@@ -707,11 +708,6 @@ function shrinkSidebar () {
 
   .td-main-and-rail {
     grid-template-columns: 1fr;
-  }
-
-  .td-frontmatter-inline {
-    display: block;
-    margin-bottom: 16px;
   }
 
   .td-toc-inline {

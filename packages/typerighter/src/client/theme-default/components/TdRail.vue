@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import {
-  TdFrontmatter,
-} from './TdFrontmatter';
 import TdToc from './custom/TdToc.vue';
 import {
   useTdContent,
@@ -14,11 +11,6 @@ const {
 
 <template>
   <aside class="td-rail">
-    <TdFrontmatter
-      mode="rail"
-      :schema="page.schema"
-      :frontmatter="page.frontmatter"
-    />
     <TdToc :headings="page.headings" />
   </aside>
 </template>
