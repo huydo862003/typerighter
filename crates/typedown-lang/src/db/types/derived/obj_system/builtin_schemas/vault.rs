@@ -1,10 +1,9 @@
 use typedown_macros::query_derived;
 
-use super::base::TdRuntimeObj;
-use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::vault::get_vault_typ;
+use crate::db::derived::builtin_schemas::vault::get_vault_typ;
 use crate::db::types::Project;
+use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum};
 
 #[query_derived]
 pub struct TdVaultObj<'db> {

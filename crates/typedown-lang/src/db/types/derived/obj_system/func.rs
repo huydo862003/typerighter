@@ -78,23 +78,26 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
 
     let params = signature.params(db);
     let bound_vars = typ_params.params(db);
+    let target_binder = TdBoundVariableTyp::binder(bound_vars[0], db);
 
     // Iterative inference: infer, substitute known bindings, re-infer to propagate
     let mut bindings = infer_bindings(db, &params, &arg_typs);
     for _ in 0..bound_vars.len() {
-      let partial: HashMap<_, _> = bindings
+      // Extract only bindings matching the target binder for substitution
+      let partial: HashMap<usize, LazyTyp<'db>> = bindings
         .iter()
-        .map(|(index, typ)| (*index, LazyTyp::eager(typ.clone())))
+        .filter(|((binder, _), _)| binder == &target_binder)
+        .map(|((_, offset), typ)| (*offset, LazyTyp::eager(typ.clone())))
         .collect();
       let substituted_params: Vec<TdTypEnum<'db>> = params
         .iter()
-        .map(|param| substitute_bound_variables(db, param, &partial))
+        .map(|param| substitute_bound_variables(db, param, &target_binder, &partial))
         .collect();
       let new_bindings = infer_bindings(db, &substituted_params, &arg_typs);
       let mut changed = false;
-      for (index, typ) in &new_bindings {
-        if !bindings.contains_key(index) {
-          bindings.insert(*index, typ.clone());
+      for (key, typ) in &new_bindings {
+        if !bindings.contains_key(key) {
+          bindings.insert(key.clone(), typ.clone());
           changed = true;
         }
       }
@@ -103,34 +106,35 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
       }
     }
 
-    // Check bound violations
+    // Check bound violations (only for variables from the target binder)
     let mut diagnostics = vec![];
     let resolved: HashMap<usize, LazyTyp<'db>> = bindings
       .iter()
-      .map(|(index, inferred)| {
-        if let Some(bound_variable) = bound_vars.get(*index) {
+      .filter(|((binder, _), _)| binder == &target_binder)
+      .map(|((_, offset), inferred)| {
+        if let Some(bound_variable) = bound_vars.get(*offset) {
           let upper_bound = TdBoundVariableTyp::upper_bound(*bound_variable, db);
           if let Some(bound) = upper_bound.resolve(db)
             && !is_subtyp_of(db, inferred, &bound)
           {
             diagnostics.push(TdDiagnosticKind::TypArgBoundViolation {
-              name: format!("T{}", index),
+              name: format!("T{}", offset),
               expected_bound: bound.display_name(db),
               got: inferred.display_name(db),
             });
-            return (*index, upper_bound);
+            return (*offset, upper_bound);
           }
         }
-        (*index, LazyTyp::eager(inferred.clone()))
+        (*offset, LazyTyp::eager(inferred.clone()))
       })
       .collect();
 
     // Substitute in params and return type
     let new_params: Vec<TdTypEnum<'db>> = params
       .iter()
-      .map(|param| substitute_bound_variables(db, param, &resolved))
+      .map(|param| substitute_bound_variables(db, param, &target_binder, &resolved))
       .collect();
-    let new_ret = substitute_bound_variables(db, &signature.ret(db), &resolved);
+    let new_ret = substitute_bound_variables(db, &signature.ret(db), &target_binder, &resolved);
 
     CallTypResult {
       signature: Some(FuncSignature::new(db, None, new_params, new_ret)),

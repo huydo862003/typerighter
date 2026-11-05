@@ -17,7 +17,6 @@ use crate::db::utils::{is_typ_file, prepend_base_path, strip_content_extension};
 use crate::integrations::json_schema::parse_json_schema;
 
 /// Deserialize a JSON value into a Typedown object
-/// Resolves `$kind: "ref"` links to their evaluated objects via project file lookup
 pub fn deserialize_value<'db>(
   db: &'db TypedownDatabase,
   project: Project,
@@ -76,7 +75,7 @@ pub fn deserialize_value<'db>(
   }
 }
 
-/// Resolve a URL back to a project file by matching against each file's computed URL.
+/// Resolve a URL back to a project file by matching against each file's computed URL
 fn file_from_url(db: &TypedownDatabase, project: Project, url: &str) -> Option<File> {
   let config = get_vault_config(db, project);
   let base_path = config.base_path(db);
@@ -108,14 +107,13 @@ fn deserialize_typ<'db>(
   project: Project,
   map: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<TdTypEnum<'db>> {
-  let typ_str = map.get("type").and_then(|v| v.as_str());
+  let typ_string = map.get("type").and_then(|value| value.as_str());
 
-  if let Some("schema") = typ_str {
-    let name = map.get("name").and_then(|v| v.as_str())?;
+  if let Some("schema") = typ_string {
+    let name = map.get("name").and_then(|value| value.as_str())?;
     return schema_typ_by_name(db, project, name);
   }
 
-  // Delegate to parse_json_schema which now handles math/date/datetime/time/object/array/etc
   parse_json_schema(db, &serde_json::Value::Object(map.clone()))
 }
 
@@ -132,7 +130,10 @@ fn schema_typ_by_name<'db>(
     if !path.starts_with(&root_dir) || !is_typ_file(path) {
       continue;
     }
-    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let stem = path
+      .file_stem()
+      .and_then(|stem| stem.to_str())
+      .unwrap_or("");
     if stem != name {
       continue;
     }
@@ -209,7 +210,7 @@ fn deserialize_tagged<'db>(
   }
 }
 
-/// Deserialize a JSON string value that carries math notation.
+/// Deserialize a JSON string value that carries math notation
 pub fn deserialize_math<'db>(db: &'db TypedownDatabase, latex: String) -> TdObjEnum<'db> {
   TdMathObj::new(db, latex).into()
 }

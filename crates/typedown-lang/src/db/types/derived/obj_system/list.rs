@@ -12,7 +12,8 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{get_list_typ, get_number_typ, get_obj_typ};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::{
-  FuncSignature, InstantiateResult, LazyTyp, TdBoundVariableTyp, TypParams, Variance,
+  Binder, BuiltinSchemaKind, FuncSignature, InstantiateResult, LazyTyp, TdBoundVariableTyp,
+  TypParams, Variance,
 };
 use crate::db::types::{Project, ProjectRedNode};
 use crate::syntax::diagnostic::*;
@@ -122,6 +123,7 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   fn typ_params(&self, db: &'db TypedownDatabase) -> Option<TypParams<'db>> {
     let param = TdBoundVariableTyp::new(
       db,
+      Binder::BuiltinSchema(BuiltinSchemaKind::List),
       0,
       LazyTyp::eager(get_obj_typ(db).into()),
       Variance::Covariant,

@@ -964,6 +964,7 @@ fn evaluate_mapping<'db>(
         fields,
         BTreeMap::new(),
         None,
+        None,
       )
       .into(),
     );
@@ -1185,6 +1186,7 @@ mod tests {
       BTreeMap::new(),
       BTreeMap::new(),
       vtable,
+      None,
       None,
     );
     let schema_enum: TdTypEnum = schema_typ.into();

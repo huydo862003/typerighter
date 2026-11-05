@@ -53,7 +53,7 @@ pub fn check_schemas<'db>(db: &'db TypedownDatabase, project: Project) -> Schema
           path: normalized_path,
           duplicate_of: normalize_path(existing_relative),
         }
-        .into_error(0, 0),
+        .into_error(0, 0), // no syntax node available, diagnostic is project-level
       );
     } else {
       seen_schemas.insert(name, path.clone());

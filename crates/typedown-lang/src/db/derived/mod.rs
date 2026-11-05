@@ -1,3 +1,4 @@
+pub mod builtin_schemas;
 pub mod check_custom_components;
 pub mod check_schemas;
 pub mod evaluate;
@@ -10,4 +11,3 @@ pub mod parse_file;
 pub mod parse_schemas;
 pub mod schema_prop;
 pub mod typechecker;
-pub mod vault;

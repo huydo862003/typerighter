@@ -361,7 +361,9 @@ mod tests {
   use crate::db::types::derived::obj_system::TdStaticTyp;
   use crate::db::types::typecheck::is_nullable;
   use crate::db::types::typecheck::validate_typ_params;
-  use crate::db::types::{LazyTyp, TdBoundVariableTyp, TdTypEnum, TypParams, Variance};
+  use crate::db::types::{
+    Binder, BuiltinSchemaKind, LazyTyp, TdBoundVariableTyp, TdTypEnum, TypParams, Variance,
+  };
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::get_builtin_typs::{
@@ -522,6 +524,7 @@ mod tests {
       &db,
       vec![TdBoundVariableTyp::new(
         &db,
+        Binder::BuiltinSchema(BuiltinSchemaKind::String),
         0,
         LazyTyp::eager(number_typ),
         Variance::Covariant,

@@ -33,7 +33,7 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
         TdDiagnosticKind::MissingVaultConfig {
           root_dir: root_dir.display().to_string(),
         }
-        .into_error(0, 0),
+        .into_error(0, 0), // no syntax node, config file does not exist
       ],
     );
   };
@@ -55,7 +55,7 @@ pub fn evaluate_config<'db>(db: &'db TypedownDatabase, project: Project) -> Reso
             path,
             message: error.to_string(),
           }
-          .into_error(0, 0),
+          .into_error(0, 0), // no syntax node, file could not be opened
         ],
       );
     }

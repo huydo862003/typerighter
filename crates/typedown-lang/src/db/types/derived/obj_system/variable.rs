@@ -2,27 +2,29 @@ use std::collections::BTreeMap;
 use typedown_macros::query_interned;
 
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
+use super::bound_variable::TdBoundVariableTyp;
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::types::{CallTypResult, FuncSignature, LazyTyp, ProjectRedNode};
 
-// Instantiation site distinguishes free variables from different closures
+// Free variable instantiated from a bound variable at a specific site
 #[query_interned]
 pub struct TdFreeVariableTyp<'db> {
+  pub bound_origin: TdBoundVariableTyp<'db>,
   pub instantiation_site: ProjectRedNode,
-  pub index: usize,
-  pub upper_bound: LazyTyp<'db>,
 }
 
 impl<'db> TdFreeVariableTyp<'db> {
   fn resolve_bound(&self, db: &'db TypedownDatabase) -> Option<TdTypEnum<'db>> {
-    Self::upper_bound(*self, db).resolve(db)
+    let bound = Self::bound_origin(*self, db);
+    TdBoundVariableTyp::upper_bound(bound, db).resolve(db)
   }
 }
 
 impl<'db> TdStaticTyp<'db> for TdFreeVariableTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
-    let name = format!("T{}", Self::index(*self, db));
+    let bound = Self::bound_origin(*self, db);
+    let name = format!("T{}", TdBoundVariableTyp::offset(bound, db));
     match self.resolve_bound(db) {
       Some(bound) if bound.as_td_obj_typ().is_none() => {
         format!("{} <: {}", name, bound.display_name(db))
@@ -94,6 +96,7 @@ mod tests {
   use crate::db::derived::parse_file::parse_file;
   use crate::db::fixtures::load_vault_fixture;
   use crate::db::types::derived::obj_system::TdProductTyp;
+  use crate::db::types::{Binder, BuiltinSchemaKind, TdBoundVariableTyp, Variance};
 
   #[test]
   fn check_free_variable_delegates_to_upper_bound() {
@@ -105,7 +108,14 @@ mod tests {
     fields.insert("name".to_string(), LazyTyp::eager(string_typ.clone()));
     let struct_typ: TdTypEnum = TdProductTyp::new(&db, None, fields).into();
 
-    let free_variable = TdFreeVariableTyp::new(&db, site, 0, LazyTyp::eager(struct_typ));
+    let bound = TdBoundVariableTyp::new(
+      &db,
+      Binder::BuiltinSchema(BuiltinSchemaKind::Obj),
+      0,
+      LazyTyp::eager(struct_typ),
+      Variance::Covariant,
+    );
+    let free_variable = TdFreeVariableTyp::new(&db, bound, site);
 
     assert_eq!(
       free_variable.lookup_field_typ(&db, "name"),
@@ -123,8 +133,22 @@ mod tests {
     let site_a = parse_file(&db, project, files[0]).ast(&db);
     let site_b = parse_file(&db, project, files[1]).ast(&db);
 
-    let variable_a = TdFreeVariableTyp::new(&db, site_a, 0, upper_bound.clone());
-    let variable_b = TdFreeVariableTyp::new(&db, site_b, 0, upper_bound);
+    let bound_a = TdBoundVariableTyp::new(
+      &db,
+      Binder::BuiltinSchema(BuiltinSchemaKind::Obj),
+      0,
+      upper_bound.clone(),
+      Variance::Covariant,
+    );
+    let variable_a = TdFreeVariableTyp::new(&db, bound_a, site_a);
+    let bound_b = TdBoundVariableTyp::new(
+      &db,
+      Binder::BuiltinSchema(BuiltinSchemaKind::Obj),
+      0,
+      upper_bound,
+      Variance::Covariant,
+    );
+    let variable_b = TdFreeVariableTyp::new(&db, bound_b, site_b);
 
     // Same index and upper bound, different sites - must be distinct
     let typ_a: TdTypEnum = variable_a.into();
