@@ -162,6 +162,7 @@ watch(() => route.path, () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  max-width: 10ch;
 }
 
 .td-breadcrumb-link {
