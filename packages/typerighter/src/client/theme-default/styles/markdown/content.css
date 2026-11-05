@@ -181,37 +181,16 @@
   padding-left: 1.5rem;
 }
 
-/* Mermaid diagrams */
-
-/* Mermaid and D2 diagrams (shared styles) */
-
-.td-mermaid,
-.td-d2 {
-  margin: 1rem 0;
-  text-align: center;
-}
-
-.td-mermaid svg,
-.td-d2 svg {
-  max-width: 100%;
-  height: auto;
-}
-
-.td-mermaid figcaption,
-.td-d2 figcaption {
-  margin-top: 8px;
-  font-size: var(--font-size-td-sm);
-  color: var(--color-td-ink-3);
-}
+/* Diagram placeholders */
 
 .td-mermaid-placeholder,
 .td-d2-placeholder {
   position: relative;
-  margin: 1rem 0;
+  margin: 16px 0;
   min-height: 120px;
   background: var(--color-td-surface);
   border: 1px solid var(--color-td-line);
-  border-radius: var(--radius-td-md);
+  border-radius: 10px;
 }
 
 .td-mermaid-placeholder::before,
@@ -231,7 +210,7 @@
 
 .td-mermaid-error,
 .td-d2-error {
-  border: 1px solid var(--color-td-danger);
+  border-color: var(--color-td-danger);
 }
 
 /* GitHub embed (rendered by emgithub) */

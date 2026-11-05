@@ -4,6 +4,9 @@ import {
 import type {
   LazyEmbedContext,
 } from './types';
+import {
+  mountDiagram,
+} from './mountDiagram';
 
 const CDN_URL =
   'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
@@ -54,6 +57,7 @@ async function renderPlaceholder (element: Element) {
 
   if (!code) return;
 
+  const source = code.textContent ?? '';
   const module_ = await loadMermaid();
 
   if (module_ === undefined) return;
@@ -64,25 +68,15 @@ async function renderPlaceholder (element: Element) {
   try {
     const {
       svg,
-    } = await module_.default.render(id, code.textContent ?? '');
+    } = await module_.default.render(id, source);
 
-    const figure = document.createElement('figure');
-
-    figure.className = 'td-mermaid';
-
-    const svgWrapper = document.createElement('div');
-
-    svgWrapper.innerHTML = svg;
-    figure.appendChild(svgWrapper);
-
-    if (title) {
-      const caption = document.createElement('figcaption');
-
-      caption.textContent = title;
-      figure.appendChild(caption);
-    }
-
-    placeholder.replaceWith(figure);
+    mountDiagram(placeholder, {
+      svg,
+      source,
+      title: title ?? undefined,
+      label: 'Mermaid',
+      diagramId: id,
+    });
   } catch {
     placeholder.classList.add('td-mermaid-error');
   }

@@ -18,6 +18,9 @@ site:
     - title: "Tasks"
       link: "/tasks/index"
       icon: icon.check
+    - title: "Navigation"
+      link: "/navigation"
+      icon: icon.keyboard
     - title: "GitHub"
       link: "https://github.com/huydo862003/typerighter"
 theme:

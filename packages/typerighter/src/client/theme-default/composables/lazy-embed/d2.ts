@@ -4,6 +4,9 @@ import {
 import type {
   LazyEmbedContext,
 } from './types';
+import {
+  mountDiagram,
+} from './mountDiagram';
 
 const CDN_URL = 'https://esm.sh/@terrastruct/d2@0.1.32';
 
@@ -48,6 +51,7 @@ async function renderPlaceholder (element: Element) {
 
   if (!code) return;
 
+  const source = code.textContent ?? '';
   const d2 = await loadD2();
 
   if (!d2) return;
@@ -56,7 +60,7 @@ async function renderPlaceholder (element: Element) {
   const title = placeholder.getAttribute('data-title');
 
   try {
-    const compiled = await d2.compile(code.textContent ?? '', {
+    const compiled = await d2.compile(source, {
       layout: 'dagre',
     });
     const svg = await d2.render(compiled.diagram, {
@@ -64,24 +68,13 @@ async function renderPlaceholder (element: Element) {
       themeID: document.documentElement.classList.contains('dark') ? 200 : 0,
     });
 
-    const figure = document.createElement('figure');
-
-    figure.className = 'td-d2';
-    figure.id = id;
-
-    const svgWrapper = document.createElement('div');
-
-    svgWrapper.innerHTML = svg;
-    figure.appendChild(svgWrapper);
-
-    if (title) {
-      const caption = document.createElement('figcaption');
-
-      caption.textContent = title;
-      figure.appendChild(caption);
-    }
-
-    placeholder.replaceWith(figure);
+    mountDiagram(placeholder, {
+      svg,
+      source,
+      title: title ?? undefined,
+      label: 'D2',
+      diagramId: id,
+    });
   } catch {
     placeholder.classList.add('td-d2-error');
   }
