@@ -53,7 +53,7 @@ const listRef = useTemplateRef<HTMLElement>('list');
 watch(activeTocId, () => {
   nextTick(() => {
     listRef.value?.querySelector('a.is-active')?.scrollIntoView({
-      block: 'nearest',
+      block: 'center',
       behavior: 'instant',
     });
   });
