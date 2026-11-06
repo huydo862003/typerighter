@@ -77,7 +77,7 @@ pub fn run_lsp_queries(db: &TypedownDatabase) {
 }
 
 // Collect all type errors across all files
-pub fn collect_type_errors(db: &TypedownDatabase) -> Vec<String> {
+pub fn collect_typ_errors(db: &TypedownDatabase) -> Vec<String> {
   let project = Project::iter(db)
     .into_iter()
     .next()
@@ -91,8 +91,8 @@ pub fn collect_type_errors(db: &TypedownDatabase) -> Vec<String> {
     let parse_result = parse_file(db, project, *file);
     let root = parse_result.ast(db).node.clone();
     let typecheck_result = typecheck(db, ProjectRedNode::new(project, *file, root));
-    for diag in typecheck_result.diagnostics(db).iter() {
-      errors.push(format!("{}: {}", path.display(), diag.message()));
+    for diagnostic in typecheck_result.diagnostics(db).iter() {
+      errors.push(format!("{}: {}", path.display(), diagnostic.message()));
     }
   }
   errors
@@ -110,7 +110,7 @@ pub fn cached_session_assert_no_errors(project_dir: &Path, queries: fn(&Typedown
   let cache_dir = get_cache_dir(project_dir);
   let db = setup_db_cached(&cache_dir, project_dir);
   queries(&db);
-  let errors = collect_type_errors(&db);
+  let errors = collect_typ_errors(&db);
   assert!(
     errors.is_empty(),
     "intermediate session should produce zero type errors, got:\n{}",

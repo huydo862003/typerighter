@@ -112,7 +112,7 @@ impl<S: Utf8Stream> LexCtx<S> {
     matches!(self.stream.peek_nth(0), Utf8Result::Char('-'))
       && matches!(self.stream.peek_nth(1), Utf8Result::Char('-'))
       && matches!(self.stream.peek_nth(2), Utf8Result::Char('-'))
-      && !matches!(self.stream.peek_nth(3), Utf8Result::Char(c) if is_op_char(c))
+      && !matches!(self.stream.peek_nth(3), Utf8Result::Char(char) if is_op_char(char))
   }
 
   /// Current byte offset in the source stream
@@ -182,7 +182,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       self.text_buffer.is_empty(),
       "Do not call advance()/consume() before try_consume_invalid_utf8()"
     );
-    if let Utf8Result::Invalid { len, bytes } = self.peek() {
+    if let Utf8Result::Invalid { length: len, bytes } = self.peek() {
       Some(LexResult {
         token: self
           .cache

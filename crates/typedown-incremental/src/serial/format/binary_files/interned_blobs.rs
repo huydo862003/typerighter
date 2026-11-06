@@ -129,46 +129,46 @@ impl NodeRecord {
 
   pub fn from_bytes(bytes: &[u8]) -> (Self, usize) {
     let tag = bytes[0];
-    let mut pos = TAG_SIZE;
+    let mut position = TAG_SIZE;
     match tag {
       // Token node record
       TAG_TOKEN => {
         // The token kind
-        let kind = u16::from_le_bytes(bytes[pos..pos + KIND_SIZE].try_into().unwrap());
-        pos += KIND_SIZE;
+        let kind = u16::from_le_bytes(bytes[position..position + KIND_SIZE].try_into().unwrap());
+        position += KIND_SIZE;
 
         // The token text length
-        let text_len =
-          u32::from_le_bytes(bytes[pos..pos + LENGTH_SIZE].try_into().unwrap()) as usize;
-        pos += LENGTH_SIZE;
+        let text_length =
+          u32::from_le_bytes(bytes[position..position + LENGTH_SIZE].try_into().unwrap()) as usize;
+        position += LENGTH_SIZE;
 
         // The token text
-        let text = bytes[pos..pos + text_len].to_vec();
-        pos += text_len;
+        let text = bytes[position..position + text_length].to_vec();
+        position += text_length;
 
-        (NodeRecord::Token { kind, text }, pos)
+        (NodeRecord::Token { kind, text }, position)
       }
       // Node node record
       TAG_NODE => {
         // The node kind
-        let kind = u16::from_le_bytes(bytes[pos..pos + KIND_SIZE].try_into().unwrap());
-        pos += KIND_SIZE;
+        let kind = u16::from_le_bytes(bytes[position..position + KIND_SIZE].try_into().unwrap());
+        position += KIND_SIZE;
 
         // The node child count
         let child_count =
-          u32::from_le_bytes(bytes[pos..pos + LENGTH_SIZE].try_into().unwrap()) as usize;
-        pos += LENGTH_SIZE;
+          u32::from_le_bytes(bytes[position..position + LENGTH_SIZE].try_into().unwrap()) as usize;
+        position += LENGTH_SIZE;
 
         // The node children list
         let mut children = Vec::with_capacity(child_count);
         for _ in 0..child_count {
           children.push(u32::from_le_bytes(
-            bytes[pos..pos + INDEX_SIZE].try_into().unwrap(),
+            bytes[position..position + INDEX_SIZE].try_into().unwrap(),
           ));
-          pos += INDEX_SIZE;
+          position += INDEX_SIZE;
         }
 
-        (NodeRecord::Node { kind, children }, pos)
+        (NodeRecord::Node { kind, children }, position)
       }
       _ => panic!("unknown NodeRecord tag {tag}"),
     }

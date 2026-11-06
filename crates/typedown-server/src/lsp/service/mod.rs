@@ -70,8 +70,8 @@ fn try_handle<P: DeserializeOwned, R: Serialize>(
 ) -> Response {
   match serde_json::from_value::<P>(req.params.clone()) {
     Ok(params) => Response::new_ok(req.id.clone(), handler(params)),
-    Err(err) => {
-      log::warn!("Failed to deserialize {} params: {err}", req.method);
+    Err(error) => {
+      log::warn!("Failed to deserialize {} params: {error}", req.method);
       Response::new_ok(req.id.clone(), Value::Null)
     }
   }

@@ -27,6 +27,7 @@ use crate::core::utils::ast::{
 };
 use crate::core::utils::position::{lsp_position_to_text_offset, text_offset_to_lsp_position};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
+use typedown_lang::db::utils::resolve_md_link_path;
 
 pub fn resolve_definition(
   analysis: &Analysis,
@@ -91,8 +92,8 @@ pub fn resolve_definition(
     FileHandle::Content(_, _, _) => project
       .files(db)
       .iter()
-      .find(|(_, f)| **f == target_file)
-      .map(|(p, _)| p.clone())?,
+      .find(|(_, file)| **file == target_file)
+      .map(|(project, _)| project.clone())?,
   };
 
   let scheme = analysis
@@ -289,16 +290,10 @@ fn resolve_markdown_link_definition(
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
+  let base_path = config.base_path(db);
+  let file_dir = file.handle(db).path()?.parent()?.to_path_buf();
 
-  // Resolve the path: absolute from vault root, relative from current file's directory
-  let target_path = if url.starts_with('/') {
-    root_dir.join(url.trim_start_matches('/'))
-  } else {
-    let handle = file.handle(db);
-    let file_path = handle.path()?;
-    let file_dir = file_path.parent()?;
-    file_dir.join(&url)
-  };
+  let target_path = resolve_md_link_path(&url, &file_dir, &root_dir, &base_path);
 
   // Only resolve if the target is a known project file
   if !project.files(db).contains_key(&target_path) {
@@ -399,7 +394,7 @@ age: 30
   // Accept a `content` as the current editing content
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -419,7 +414,7 @@ age: 30
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -461,7 +456,7 @@ age: 30
   }
 
   #[test]
-  fn definition_on_type_value_jumps_to_schema_file() {
+  fn definition_on_typ_value_jumps_to_schema_file() {
     let (content, offset) = cursor(
       r#"---
 _type: Per|son
@@ -516,7 +511,7 @@ name: fref("ali|ce.td")
       "/project"
     });
     let vault_root = project_root.join("vault");
-    let type_root = vault_root.join("_types");
+    let typ_root = vault_root.join("_types");
 
     let (content, offset) = cursor(
       r#"---
@@ -551,11 +546,11 @@ vault:
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
@@ -639,7 +634,7 @@ na|me: "Alice"
   #[test]
   fn definition_on_inherited_field_jumps_to_parent_schema() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let contractor_schema = r#"---
 _type: schema
@@ -679,22 +674,22 @@ agency: "Acme"
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        type_root.join("Contractor.td"),
+        typ_root.join("Contractor.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Contractor.td"),
+            typ_root.join("Contractor.td"),
             contractor_schema.to_string(),
             FileMetadata::default(),
           ),
@@ -842,9 +837,85 @@ name: "Test"
   }
 
   #[test]
+  fn definition_on_markdown_image_resolves_path() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+![photo](ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for markdown image");
+    };
+    assert!(
+      location.uri.as_str().contains("alice.td"),
+      "should resolve image to alice.td, got: {:?}",
+      location.uri
+    );
+  }
+
+  #[test]
+  fn definition_on_markdown_link_absolute_path() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see alice](/ali|ce.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for absolute markdown link");
+    };
+    assert!(
+      location.uri.as_str().contains("alice.td"),
+      "should resolve /alice.td from vault root, got: {:?}",
+      location.uri
+    );
+  }
+
+  // Cursor on link text still resolves to the target file (clicking anywhere on a link follows it)
+  #[test]
+  fn definition_on_link_text_also_resolves() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "Test"
+---
+
+[see al|ice](alice.td)
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected definition even from link text position");
+    };
+    assert!(
+      location.uri.as_str().contains("alice.td"),
+      "should resolve to alice.td, got: {:?}",
+      location.uri
+    );
+  }
+
+  #[test]
   fn definition_on_extends_jumps_to_parent_schema() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let _child_schema = r#"---
 _type: schema
@@ -866,7 +937,7 @@ properties:
 "#,
     );
 
-    let test_path = type_root.join("Contractor.td");
+    let test_path = typ_root.join("Contractor.td");
     let uri = path_to_uri(&test_path, "file");
 
     let db = TypedownDatabase {
@@ -886,11 +957,11 @@ properties:
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),

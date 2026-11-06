@@ -70,3 +70,34 @@ before ~~deleted~~ after
 
 (inline
   (strikethrough))
+
+================
+Escaped star is not emphasis
+================
+\*not italic\*
+---
+
+(inline
+  (backslash_escape)
+  (backslash_escape))
+
+================
+Escaped underscore is not emphasis
+================
+\_not italic\_
+---
+
+(inline
+  (backslash_escape)
+  (backslash_escape))
+
+================
+Escaped star before real emphasis
+================
+\*literal\* and *italic*
+---
+
+(inline
+  (backslash_escape)
+  (backslash_escape)
+  (emphasis))

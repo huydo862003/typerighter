@@ -251,12 +251,11 @@ fn parse_all_project_tracker_files() {
   let project = Project::new(&db, project_dir, file_map.clone(), None);
 
   let mut sorted_files: Vec<_> = file_map.iter().collect();
-  sorted_files.sort_by_key(|(p, _)| *p);
+  sorted_files.sort_by_key(|(path, _)| *path);
   for (path, file) in sorted_files {
     if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
       continue;
     }
-    eprintln!("parsing: {}", path.display());
     let result = parse_file(&db, project, *file);
     let _ = result.diagnostics(&db);
   }
@@ -782,11 +781,11 @@ fn parse_backslash_brace() {
 // Container block nested inside a bullet list item
 #[test]
 fn parse_container_nested_in_bullet_list() {
-  let input = r#"- item
+  let input = "- item
   ::: info
   content here
   :::
-"#;
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -806,24 +805,27 @@ fn parse_container_nested_in_bullet_list() {
           (MdText
             "item"))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdContainerBlock
           ":::"
           " "
           "info"
           "\n"
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "content"
                 " "
                 "here")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           ":::")))
     "\n"))"#
   );
@@ -833,11 +835,11 @@ fn parse_container_nested_in_bullet_list() {
 // 2-space indent: 1 for list prefix, 1 consumed by consume_md_indent
 #[test]
 fn parse_container_nested_in_ordered_list() {
-  let input = r#"1. item
-  ::: info
-  content here
-  :::
-"#;
+  let input = "1. item
+   ::: info
+   content here
+   :::
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -858,26 +860,402 @@ fn parse_container_nested_in_ordered_list() {
           (MdText
             "item"))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " "
+          " ")
         (MdContainerBlock
           ":::"
           " "
           "info"
           "\n"
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "content"
                 " "
                 "here")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " "
+            " ")
           ":::")))
     "\n"))"#
+  );
+}
+
+// Container closing fence at wrong indentation should not hang the parser
+#[test]
+fn parse_container_misindented_closing_fence() {
+  let input = "- Item one.
+  ::: details Title
+  Content.
+:::
+- Item two.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "one"
+            "."))
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdContainerBlock
+          ":::"
+          " "
+          "details"
+          " "
+          "Title"
+          "\n"
+          (MdContainerSlot
+            (MdPrefix
+              " "
+              " ")
+            (MdParagraph
+              (MdText
+                "Content"
+                ".")))
+          "\n"
+          ":::"))
+      "\n"
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Item"
+            " "
+            "two"
+            "."))))
+    "\n"))"#
+  );
+  assert_eq!(
+    diagnostics.len(),
+    1,
+    "should produce one diagnostic for misindented prefix"
+  );
+  assert!(
+    format!("{:?}", diagnostics[0].kind).contains("MissingExpectedMdPrefix"),
+    "diagnostic should be MissingExpectedMdPrefix: {:?}",
+    diagnostics[0].kind,
+  );
+}
+
+// Nested bullet list with blank line separator and 2-space indent (loose list item)
+#[test]
+fn parse_nested_bullet_list_with_blank_line() {
+  let input = "- Parent item.
+
+  - Child one.
+  - Child two.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics: {diagnostics:?}",
+  );
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBulletList
+      (MdBulletListItem
+        "-"
+        " "
+        (MdParagraph
+          (MdText
+            "Parent"
+            " "
+            "item"
+            "."))
+        "\n"
+        "\n"
+        (MdPrefix
+          " "
+          " ")
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "Child"
+                " "
+                "one"
+                ".")))
+          "\n"
+          (MdPrefix
+            " "
+            " ")
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "Child"
+                " "
+                "two"
+                "."))))))
+    "\n"))"#
+  );
+}
+
+// Loose bullet list: blank line + indented bullet nests inside parent in blockquote
+#[test]
+fn parse_loose_bullet_list_nested_in_blockquote() {
+  let input = "> - Parent.
+>
+>   - Child one.
+>   - Child two.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdBulletList
+        (MdBulletListItem
+          "-"
+          " "
+          (MdParagraph
+            (MdText
+              "Parent"
+              "."))
+          "\n"
+          (MdPrefix
+            ">")
+          "\n"
+          (MdPrefix
+            ">"
+            " "
+            " "
+            " ")
+          (MdBulletList
+            (MdBulletListItem
+              "-"
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  " "
+                  "one"
+                  ".")))
+            "\n"
+            (MdPrefix
+              ">"
+              " "
+              " "
+              " ")
+            (MdBulletListItem
+              "-"
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  " "
+                  "two"
+                  ".")))))))
+    "\n"))"#,
+    "blank line in blockquote should nest child list inside parent item",
+  );
+}
+
+// Loose ordered list: blank line + indented ordered item nests inside parent in blockquote
+#[test]
+fn parse_loose_ordered_list_nested_in_blockquote() {
+  let input = "> 1. Parent.
+>
+>    1. Child.
+>    2. Child.
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdBlockquote
+      ">"
+      " "
+      (MdOrderedList
+        (MdOrderedListItem
+          "1"
+          "."
+          " "
+          (MdParagraph
+            (MdText
+              "Parent"
+              "."))
+          "\n"
+          (MdPrefix
+            ">")
+          "\n"
+          (MdPrefix
+            ">"
+            " "
+            " "
+            " "
+            " ")
+          (MdOrderedList
+            (MdOrderedListItem
+              "1"
+              "."
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  ".")))
+            "\n"
+            (MdPrefix
+              ">"
+              " "
+              " "
+              " "
+              " ")
+            (MdOrderedListItem
+              "2"
+              "."
+              " "
+              (MdParagraph
+                (MdText
+                  "Child"
+                  ".")))))))
+    "\n"))"#,
+    "blank line in blockquote should nest child ordered list inside parent item",
+  );
+}
+
+// Loose bullet list nested inside a container
+#[test]
+fn parse_loose_bullet_list_nested_in_container() {
+  let input = "::: note
+- Parent.
+
+  - Child.
+:::
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdBulletList
+          (MdBulletListItem
+            "-"
+            " "
+            (MdParagraph
+              (MdText
+                "Parent"
+                "."))
+            "\n"
+            "\n"
+            (MdPrefix
+              " "
+              " ")
+            (MdBulletList
+              (MdBulletListItem
+                "-"
+                " "
+                (MdParagraph
+                  (MdText
+                    "Child"
+                    ".")))))))
+      "\n"
+      ":::")
+    "\n"))"#,
+    "blank line in container should nest child list inside parent item",
+  );
+}
+
+// Loose ordered list nested inside a container
+#[test]
+fn parse_loose_ordered_list_nested_in_container() {
+  let input = "::: note
+1. Parent.
+
+   1. Child.
+:::
+";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(diagnostics.is_empty(), "no diagnostics: {diagnostics:?}");
+  assert_eq!(
+    tree,
+    r#"(SourceFile
+  (YamlFrontmatter)
+  (MdBody
+    (MdContainerBlock
+      ":::"
+      " "
+      "note"
+      "\n"
+      (MdContainerSlot
+        (MdOrderedList
+          (MdOrderedListItem
+            "1"
+            "."
+            " "
+            (MdParagraph
+              (MdText
+                "Parent"
+                "."))
+            "\n"
+            "\n"
+            (MdPrefix
+              " "
+              " "
+              " ")
+            (MdOrderedList
+              (MdOrderedListItem
+                "1"
+                "."
+                " "
+                (MdParagraph
+                  (MdText
+                    "Child"
+                    ".")))))))
+      "\n"
+      ":::")
+    "\n"))"#,
+    "blank line in container should nest child ordered list inside parent item",
   );
 }
 
@@ -908,8 +1286,9 @@ fn parse_container_nested_in_blockquote() {
         "info"
         "\n"
         (MdContainerSlot
-          ">"
-          " "
+          (MdPrefix
+            ">"
+            " ")
           (MdParagraph
             (MdText
               " "
@@ -917,8 +1296,9 @@ fn parse_container_nested_in_blockquote() {
               " "
               "here")))
         "\n"
-        ">"
-        " "
+        (MdPrefix
+          ">"
+          " ")
         ":::"))
     "\n"))"#
   );
@@ -927,13 +1307,13 @@ fn parse_container_nested_in_blockquote() {
 // Container with slots nested inside a bullet list item
 #[test]
 fn parse_container_with_slots_nested_in_bullet_list() {
-  let input = r#"- item
+  let input = "- item
   ::: card
   front content
   === back
   back content
   :::
-"#;
+";
   let (ast, diagnostics) = parse(input);
   assert!(
     diagnostics.is_empty(),
@@ -953,40 +1333,45 @@ fn parse_container_with_slots_nested_in_bullet_list() {
           (MdText
             "item"))
         "\n"
-        " "
-        " "
+        (MdPrefix
+          " "
+          " ")
         (MdContainerBlock
           ":::"
           " "
           "card"
           "\n"
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "front"
                 " "
                 "content")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           (MdContainerSlotSeparator
             "==="
             " "
             "back"
             "\n")
           (MdContainerSlot
-            " "
-            " "
+            (MdPrefix
+              " "
+              " ")
             (MdParagraph
               (MdText
                 "back"
                 " "
                 "content")))
           "\n"
-          " "
-          " "
+          (MdPrefix
+            " "
+            " ")
           ":::")))
     "\n"))"#
   );

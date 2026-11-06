@@ -10,16 +10,18 @@ use typedown_incremental::{
 use typedown_macros::{StableCompare, query_derived};
 
 use crate::db::TypedownDatabase;
+use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{File, Project, ProjectRedNode, Symbol, SymbolKind};
-use crate::db::utils::is_content_file;
+use crate::db::utils::{is_content_file, is_external_url, resolve_md_link_path};
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, IdentLit, IndexExpr, MdBlockElement, MdBody,
-  MdInlineElement, MdNode, PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter,
-  YamlMapping,
+  MdInlineElement, MdLink, MdMedia, MdNode, PostfixExpr, PrefixExpr, SourceFile, StrLit,
+  YamlFrontmatter, YamlMapping,
 };
+use crate::syntax::red::RedNode;
 use typedown_types::either::Either;
 
 /// How a symbol is referenced at a particular site
@@ -30,11 +32,13 @@ pub enum ReferenceKind {
   Ident = 0,
   /// A fref call whose path resolves to the symbol (e.g. `fref("summary.td")`)
   Fref = 1,
+  /// A markdown link/media URL that resolves to the symbol (e.g. `[text](path.td)`)
+  MdLink = 2,
 }
 
 impl Encodable for ReferenceKind {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (*self as u8).encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    (*self as u8).encode(buffer, encoder);
   }
 }
 
@@ -59,9 +63,9 @@ pub struct Reference {
 }
 
 impl Encodable for Reference {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    self.node.encode(buf, encoder);
-    self.kind.encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    self.node.encode(buffer, encoder);
+    self.kind.encode(buffer, encoder);
   }
 }
 
@@ -98,7 +102,7 @@ impl<'db> ResolutionIndex<'db> {
   }
 
   /// Get all def_ids referenced in this file
-  pub fn def_ids(&self, db: &'db TypedownDatabase) -> Vec<String> {
+  pub fn definition_ids(&self, db: &'db TypedownDatabase) -> Vec<String> {
     self.references(db).keys().cloned().collect()
   }
 }
@@ -184,18 +188,18 @@ fn collect_references_in_md_block(
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
   match block {
-    MdBlockElement::MdParagraph(p) => {
-      for inline in p.inline_elements() {
+    MdBlockElement::MdParagraph(paragraph) => {
+      for inline in paragraph.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdBlockElement::MdHeading(h) => {
-      for inline in h.inline_elements() {
+    MdBlockElement::MdHeading(heading) => {
+      for inline in heading.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdBlockElement::MdBlockquote(bq) => {
-      for inner_block in bq.block_elements() {
+    MdBlockElement::MdBlockquote(block_quote) => {
+      for inner_block in block_quote.block_elements() {
         collect_references_in_md_block(db, inner_block, project, file, map);
       }
     }
@@ -227,8 +231,10 @@ fn collect_references_in_md_block(
         collect_references_in_md_node(db, node, project, file, map);
       }
     }
+    MdBlockElement::MdMedia(media) => {
+      collect_references_in_md_link_url(db, project, file, media.syntax(), map);
+    }
     MdBlockElement::MdContainerShorthand(_)
-    | MdBlockElement::MdMedia(_)
     | MdBlockElement::MathBlock(_)
     | MdBlockElement::CodeBlock(_)
     | MdBlockElement::MdHorizontalRule(_) => {}
@@ -243,18 +249,18 @@ fn collect_references_in_md_node(
   map: &mut BTreeMap<String, Vec<Reference>>,
 ) {
   match node {
-    MdNode::MdHeading(h) => {
-      for inline in h.inline_elements() {
+    MdNode::MdHeading(heading) => {
+      for inline in heading.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdNode::MdParagraph(p) => {
-      for inline in p.inline_elements() {
+    MdNode::MdParagraph(paragraph) => {
+      for inline in paragraph.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdNode::MdBlockquote(bq) => {
-      for block in bq.block_elements() {
+    MdNode::MdBlockquote(block_quote) => {
+      for block in block_quote.block_elements() {
         collect_references_in_md_block(db, block, project, file, map);
       }
     }
@@ -263,32 +269,36 @@ fn collect_references_in_md_node(
         collect_references_in_md_node(db, inner, project, file, map);
       }
     }
-    MdNode::MdBold(b) => {
-      for inline in b.inline_elements() {
+    MdNode::MdBold(bold) => {
+      for inline in bold.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdNode::MdItalic(i) => {
-      for inline in i.inline_elements() {
+    MdNode::MdItalic(italic) => {
+      for inline in italic.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdNode::MdBoldItalic(bi) => {
-      for inline in bi.inline_elements() {
+    MdNode::MdBoldItalic(bold_italic) => {
+      for inline in bold_italic.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
     }
-    MdNode::MdStrikethrough(s) => {
-      for inline in s.inline_elements() {
+    MdNode::MdStrikethrough(strikethrough) => {
+      for inline in strikethrough.inline_elements() {
         collect_references_in_md_inline(db, inline, project, file, map);
       }
+    }
+    MdNode::MdLink(link) => {
+      collect_references_in_md_link_url(db, project, file, link.syntax(), map);
+    }
+    MdNode::MdMedia(media) => {
+      collect_references_in_md_link_url(db, project, file, media.syntax(), map);
     }
     MdNode::MdBulletList(_)
     | MdNode::MdOrderedList(_)
     | MdNode::MdTable(_)
     | MdNode::MdContainerShorthand(_)
-    | MdNode::MdLink(_)
-    | MdNode::MdMedia(_)
     | MdNode::MdText(_)
     | MdNode::MdHtmlEntity(_) => {}
   }
@@ -308,35 +318,95 @@ fn collect_references_in_md_inline(
         collect_references_in_expr(db, child, map);
       }
     }
-    MdInlineElement::MdBold(b) => {
-      for inner in b.inline_elements() {
+    MdInlineElement::MdBold(bold) => {
+      for inner in bold.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdItalic(i) => {
-      for inner in i.inline_elements() {
+    MdInlineElement::MdItalic(italic) => {
+      for inner in italic.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdBoldItalic(bi) => {
-      for inner in bi.inline_elements() {
+    MdInlineElement::MdBoldItalic(bold_italic) => {
+      for inner in bold_italic.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdStrikethrough(s) => {
-      for inner in s.inline_elements() {
+    MdInlineElement::MdStrikethrough(strikethrough) => {
+      for inner in strikethrough.inline_elements() {
         collect_references_in_md_inline(db, inner, project, file, map);
       }
     }
-    MdInlineElement::MdLink(_)
-    | MdInlineElement::MdMedia(_)
-    | MdInlineElement::MdText(_)
+    MdInlineElement::MdLink(link) => {
+      collect_references_in_md_link_url(db, project, file, link.syntax(), map);
+    }
+    MdInlineElement::MdMedia(media) => {
+      collect_references_in_md_link_url(db, project, file, media.syntax(), map);
+    }
+    MdInlineElement::MdText(_)
     | MdInlineElement::MdHtmlEntity(_)
     | MdInlineElement::InlineCode(_)
     | MdInlineElement::InlineMath(_)
     | MdInlineElement::CodeLit(_)
     | MdInlineElement::MathLit(_) => {}
   }
+}
+
+/// Collect MdLink reference for a markdown link or media URL that points to a vault file
+fn collect_references_in_md_link_url(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+  map: &mut BTreeMap<String, Vec<Reference>>,
+) {
+  let url_text = if let Some(link) = MdLink::cast(node.clone()) {
+    link.url().map(|text| text.value())
+  } else if let Some(media) = MdMedia::cast(node.clone()) {
+    media.url().map(|text| text.value())
+  } else {
+    None
+  };
+  let url_text = match url_text {
+    Some(text) => text,
+    None => return,
+  };
+
+  // Skip external URLs and anchors
+  if is_external_url(&url_text) || url_text.starts_with('#') {
+    return;
+  }
+
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  let base_path = config.base_path(db);
+
+  let handle = file.handle(db);
+  let file_dir = match handle.path().and_then(|path| path.parent()) {
+    Some(dir) => dir.to_path_buf(),
+    None => return,
+  };
+  let target_path = resolve_md_link_path(&url_text, &file_dir, &root_dir, &base_path);
+
+  let target_file = match project.files(db).get(&target_path) {
+    Some(file) => *file,
+    None => return,
+  };
+
+  let target_symbol = match file_symbol(db, project, target_file).value(db) {
+    Some(symbol) => symbol,
+    None => return,
+  };
+
+  let project_node = ProjectRedNode::new(project, file, node.clone());
+  map
+    .entry(target_symbol.definition_id(db).to_string())
+    .or_default()
+    .push(Reference {
+      node: project_node,
+      kind: ReferenceKind::MdLink,
+    });
 }
 
 fn collect_references_in_expr(
@@ -459,7 +529,7 @@ fn collect_references_in_call(
   let file = call_project_node.file;
 
   let callee_expr = match call.callee() {
-    Some(c) => c,
+    Some(callee) => callee,
     None => return,
   };
   let callee_project_node = ProjectRedNode::new(project, file, callee_expr.syntax().clone());
@@ -540,8 +610,8 @@ fn collect_references_in_index(
     let child = ProjectRedNode::new(project, file, expr.syntax().clone());
     collect_references_in_expr(db, child, map);
   }
-  for idx in index.indices() {
-    let child = ProjectRedNode::new(project, file, idx.syntax().clone());
+  for index in index.indices() {
+    let child = ProjectRedNode::new(project, file, index.syntax().clone());
     collect_references_in_expr(db, child, map);
   }
 }
@@ -616,11 +686,11 @@ mod tests {
 
   // resolution_index finds schema references in a typed content file
   #[test]
-  fn resolution_index_finds_type_reference() {
+  fn resolution_index_finds_typ_reference() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "valid_person.td");
     let index = resolution_index(&db, project, file);
     // valid_person.td has _type: Person, so "Person" should be in the index
-    let definition_ids = index.def_ids(&db);
+    let definition_ids = index.definition_ids(&db);
     assert!(!definition_ids.is_empty(), "should have symbols");
     // Look up the first symbol by def_id
     let references: Vec<_> = index
@@ -639,7 +709,7 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "literal_value.td");
     let index = resolution_index(&db, project, file);
     assert!(
-      index.def_ids(&db).is_empty(),
+      index.definition_ids(&db).is_empty(),
       "untyped file with no identifiers should have no symbols"
     );
   }

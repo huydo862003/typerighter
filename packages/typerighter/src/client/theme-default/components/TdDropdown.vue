@@ -65,11 +65,11 @@ onUnmounted(() => {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 50;
+  z-index: var(--layer-td-dropdown);
   min-width: 160px;
   margin-top: 4px;
   padding: 4px;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   border: 1px solid var(--color-td-line-soft);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);

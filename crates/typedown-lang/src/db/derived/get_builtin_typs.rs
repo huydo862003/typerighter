@@ -86,111 +86,47 @@ pub fn get_schema_meta_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaMetaTyp<'d
 }
 
 pub fn get_typ_typ_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypTyp),
-    "type".to_string(),
-    "@builtin::type".to_string(),
-  )
-}
-
-pub fn get_obj_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypTyp),
-    "Object".to_string(),
-    "@builtin::Object".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::TypTyp))
 }
 
 pub fn get_schema_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
-    "schema".to_string(),
-    "@builtin::schema".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema))
 }
 
 pub fn get_string_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::String),
-    "string".to_string(),
-    "@builtin::string".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::String))
 }
 
 pub fn get_number_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Number),
-    "number".to_string(),
-    "@builtin::number".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Number))
 }
 
 pub fn get_bool_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Bool),
-    "boolean".to_string(),
-    "@builtin::boolean".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Bool))
 }
 
 pub fn get_date_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Date),
-    "date".to_string(),
-    "@builtin::date".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Date))
 }
 
 pub fn get_datetime_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::DateTime),
-    "datetime".to_string(),
-    "@builtin::datetime".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::DateTime))
 }
 
 pub fn get_time_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Time),
-    "time".to_string(),
-    "@builtin::time".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Time))
 }
 
 pub fn get_math_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Math),
-    "math".to_string(),
-    "@builtin::math".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Math))
 }
 
 pub fn get_list_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::List),
-    "list".to_string(),
-    "@builtin::list".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::List))
 }
 
 pub fn get_dict_symbol(db: &TypedownDatabase) -> Symbol {
-  Symbol::new(
-    db,
-    SymbolKind::BuiltinSchema(BuiltinSchemaKind::Dict),
-    "dict".to_string(),
-    "@builtin::dict".to_string(),
-  )
+  Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Dict))
 }
 
 #[query_derived]
@@ -214,7 +150,7 @@ pub fn get_never_typ<'db>(db: &'db TypedownDatabase) -> TdNeverTyp<'db> {
 }
 
 #[query_derived]
-pub fn get_lit_typ<'db>(db: &'db TypedownDatabase, value: LitValue) -> TdLitTyp<'db> {
+pub fn get_lit_typ<'db>(db: &'db TypedownDatabase, value: LitValue<'db>) -> TdLitTyp<'db> {
   TdLitTyp::new(db, value)
 }
 
@@ -263,7 +199,7 @@ pub fn get_sum_typ<'db>(db: &'db TypedownDatabase, members: Vec<LazyTyp<'db>>) -
 
   let flat_members = {
     let mut members = flatten_sum_members(db, &members);
-    members.sort_by(|a, b| a.stable_cmp(db, b));
+    members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
     members.dedup();
     members
   };
@@ -425,7 +361,9 @@ mod tests {
   use crate::db::types::derived::obj_system::TdStaticTyp;
   use crate::db::types::typecheck::is_nullable;
   use crate::db::types::typecheck::validate_typ_params;
-  use crate::db::types::{LazyTyp, TdTypEnum, TypParams, TypVariable};
+  use crate::db::types::{
+    Binder, BuiltinSchemaKind, LazyTyp, TdBoundVariableTyp, TdTypEnum, TypParams, Variance,
+  };
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::get_builtin_typs::{
@@ -577,14 +515,20 @@ mod tests {
   }
 
   #[test]
-  fn instantiate_bounded_type_violating_bound_produces_diagnostic() {
+  fn instantiate_bounded_typ_violating_bound_produces_diagnostic() {
     let db = make_db();
     let number_typ = TdTypEnum::from(get_number_typ(&db));
     let string_typ = TdTypEnum::from(get_string_typ(&db));
 
     let params = TypParams::new(
       &db,
-      vec![TypVariable::get(&db, Some(LazyTyp::eager(number_typ)))],
+      vec![TdBoundVariableTyp::new(
+        &db,
+        Binder::BuiltinSchema(BuiltinSchemaKind::String),
+        0,
+        LazyTyp::eager(number_typ),
+        Variance::Covariant,
+      )],
       vec![],
     );
     let diagnostics = validate_typ_params(&db, Some(&params), &[LazyTyp::eager(string_typ)]);
@@ -593,7 +537,7 @@ mod tests {
       matches!(
         diagnostics[0],
         TdDiagnostic {
-          kind: TdDiagnosticKind::TypArgBoundViolation { index: 0, .. },
+          kind: TdDiagnosticKind::TypArgBoundViolation { .. },
           ..
         }
       ),

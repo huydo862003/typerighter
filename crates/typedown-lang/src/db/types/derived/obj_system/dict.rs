@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::hash::Hasher;
 use typedown_incremental::{QueryDatabase, StableHash, StableHasher};
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
@@ -10,7 +11,10 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{get_dict_typ, get_obj_typ, get_string_typ};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams, TypVariable};
+use crate::db::types::{
+  Binder, BuiltinSchemaKind, FuncSignature, InstantiateResult, LazyTyp, TdBoundVariableTyp,
+  TypParams, Variance,
+};
 use crate::db::types::{Project, ProjectRedNode};
 use crate::syntax::diagnostic::*;
 
@@ -147,19 +151,31 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
   }
 
   fn typ_params(&self, db: &'db TypedownDatabase) -> Option<TypParams<'db>> {
-    let obj_type = LazyTyp::eager(get_obj_typ(db).into());
+    let obj_typ = LazyTyp::eager(get_obj_typ(db).into());
     let mut bindings = Vec::new();
-    if let Some(k) = self.key(db) {
-      bindings.push(k);
+    if let Some(key) = self.key(db) {
+      bindings.push(key);
     }
-    if let Some(v) = self.value(db) {
-      bindings.push(v);
+    if let Some(value) = self.value(db) {
+      bindings.push(value);
     }
     Some(TypParams::new(
       db,
       vec![
-        TypVariable::get(db, Some(obj_type.clone())),
-        TypVariable::get(db, Some(obj_type)),
+        TdBoundVariableTyp::new(
+          db,
+          Binder::BuiltinSchema(BuiltinSchemaKind::Dict),
+          0,
+          obj_typ.clone(),
+          Variance::Covariant,
+        ),
+        TdBoundVariableTyp::new(
+          db,
+          Binder::BuiltinSchema(BuiltinSchemaKind::Dict),
+          1,
+          obj_typ,
+          Variance::Covariant,
+        ),
       ],
       bindings,
     ))
@@ -175,7 +191,7 @@ impl<'db> TdStaticTyp<'db> for TdDictTyp<'db> {
       .key(db)
       .and_then(|key| key.resolve(db))
       .unwrap_or_else(|| get_string_typ(db).into());
-    Some(FuncSignature::new(db, vec![key], value))
+    Some(FuncSignature::new(db, None, vec![key], value))
   }
 }
 
@@ -196,7 +212,7 @@ impl<'db> StableHash for TdDictObj<'db> {
     let storage = unsafe { db.storage() };
     let cache_key = (Self::ingredient_start_index(), self.0);
     if let Some(cached) = storage.derived_fingerprints.get(&cache_key) {
-      ::std::hash::Hasher::write(hasher, &cached.0);
+      Hasher::write(hasher, &cached.0);
       return;
     }
     let mut inner_hasher = StableHasher::new();
@@ -208,7 +224,7 @@ impl<'db> StableHash for TdDictObj<'db> {
     }
     let fingerprint = typedown_incremental::Fingerprint::from_hasher(inner_hasher);
     storage.derived_fingerprints.insert(cache_key, fingerprint);
-    ::std::hash::Hasher::write(hasher, &fingerprint.0);
+    Hasher::write(hasher, &fingerprint.0);
   }
 }
 

@@ -1,14 +1,19 @@
+use hashbrown::HashMap;
 use typedown_macros::query_derived;
 
 use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
+use super::bound_variable::TdBoundVariableTyp;
 use super::native_func::FuncKind;
+use super::typecheck::{infer_bindings, is_subtyp_of, substitute_bound_variables};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::get_func_typ;
-use crate::db::types::{FuncSignature, Project, ProjectRedNode, RuntimeScope};
+use crate::db::types::{
+  CallTypResult, FuncSignature, LazyTyp, Project, ProjectRedNode, RuntimeScope,
+};
 use crate::syntax::ast::{AstNode, ClosureExpr, IdentLit};
-use crate::syntax::diagnostic::TdDiagnostic;
+use crate::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
 use typedown_types::either::Either;
 
 #[query_derived]
@@ -21,12 +26,15 @@ impl<'db> TdRuntimeObj<'db> for TdFuncTyp<'db> {
   fn get_typ(&self, db: &'db TypedownDatabase) -> TdTypEnum<'db> {
     TdTypTyp::get(db).into()
   }
+
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjEnum<'db>> {
     None
   }
+
   fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjEnum<'db>> {
     None
   }
+
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     let signature = self.signature(db);
     let params: Vec<String> = signature
@@ -54,12 +62,84 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
   fn runtime_typ(&self, _db: &'db TypedownDatabase) -> Option<TdTypEnum<'db>> {
     Some((*self).into())
   }
+
   fn call_typ(
     &self,
     db: &'db TypedownDatabase,
-    _arg_types: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    Some(self.signature(db))
+    arg_typs: Vec<TdTypEnum<'db>>,
+  ) -> CallTypResult<'db> {
+    let signature = self.signature(db);
+    let Some(typ_params) = signature.typ_params(db) else {
+      return CallTypResult {
+        signature: Some(signature),
+        diagnostics: vec![],
+      };
+    };
+
+    let params = signature.params(db);
+    let bound_vars = typ_params.params(db);
+    let target_binder = TdBoundVariableTyp::binder(bound_vars[0], db);
+
+    // Iterative inference: infer, substitute known bindings, re-infer to propagate
+    let mut bindings = infer_bindings(db, &params, &arg_typs);
+    for _ in 0..bound_vars.len() {
+      // Extract only bindings matching the target binder for substitution
+      let partial: HashMap<usize, LazyTyp<'db>> = bindings
+        .iter()
+        .filter(|((binder, _), _)| binder == &target_binder)
+        .map(|((_, offset), typ)| (*offset, LazyTyp::eager(typ.clone())))
+        .collect();
+      let substituted_params: Vec<TdTypEnum<'db>> = params
+        .iter()
+        .map(|param| substitute_bound_variables(db, param, &target_binder, &partial))
+        .collect();
+      let new_bindings = infer_bindings(db, &substituted_params, &arg_typs);
+      let mut changed = false;
+      for (key, typ) in &new_bindings {
+        if !bindings.contains_key(key) {
+          bindings.insert(key.clone(), typ.clone());
+          changed = true;
+        }
+      }
+      if !changed {
+        break;
+      }
+    }
+
+    // Check bound violations (only for variables from the target binder)
+    let mut diagnostics = vec![];
+    let resolved: HashMap<usize, LazyTyp<'db>> = bindings
+      .iter()
+      .filter(|((binder, _), _)| binder == &target_binder)
+      .map(|((_, offset), inferred)| {
+        if let Some(bound_variable) = bound_vars.get(*offset) {
+          let upper_bound = TdBoundVariableTyp::upper_bound(*bound_variable, db);
+          if let Some(bound) = upper_bound.resolve(db)
+            && !is_subtyp_of(db, inferred, &bound)
+          {
+            diagnostics.push(TdDiagnosticKind::TypArgBoundViolation {
+              name: format!("T{}", offset),
+              expected_bound: bound.display_name(db),
+              got: inferred.display_name(db),
+            });
+            return (*offset, upper_bound);
+          }
+        }
+        (*offset, LazyTyp::eager(inferred.clone()))
+      })
+      .collect();
+
+    // Substitute in params and return type
+    let new_params: Vec<TdTypEnum<'db>> = params
+      .iter()
+      .map(|param| substitute_bound_variables(db, param, &target_binder, &resolved))
+      .collect();
+    let new_ret = substitute_bound_variables(db, &signature.ret(db), &target_binder, &resolved);
+
+    CallTypResult {
+      signature: Some(FuncSignature::new(db, None, new_params, new_ret)),
+      diagnostics,
+    }
   }
 }
 
@@ -69,7 +149,7 @@ impl<'db> TdFuncTyp<'db> {
     params: Vec<TdTypEnum<'db>>,
     ret: TdTypEnum<'db>,
   ) -> TdFuncTyp<'db> {
-    get_func_typ(db, FuncSignature::new(db, params, ret))
+    get_func_typ(db, FuncSignature::new(db, None, params, ret))
   }
 }
 
@@ -86,18 +166,23 @@ impl<'db> TdRuntimeObj<'db> for TdFuncObj<'db> {
   fn get_typ(&self, db: &'db TypedownDatabase) -> TdTypEnum<'db> {
     get_func_typ(db, self.signature(db)).into()
   }
+
   fn get_owned_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjEnum<'db>> {
     None
   }
+
   fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjEnum<'db>> {
     None
   }
+
   fn source_path(&self, db: &'db TypedownDatabase) -> String {
     self.get_typ(db).source_path(db)
   }
+
   fn to_display_string(&self, db: &'db TypedownDatabase) -> String {
     self.name(db)
   }
+
   fn call(
     &self,
     db: &'db TypedownDatabase,

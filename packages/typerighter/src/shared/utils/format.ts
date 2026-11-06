@@ -36,6 +36,13 @@ export function snakeToKebab (string_: string): string {
   return string_.replace(/_/g, '-');
 }
 
+// Truncate text to a maximum length, appending an ellipsis if cut
+export function truncate (text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+
+  return text.slice(0, maxLength - 1).trimEnd() + '\u2026';
+}
+
 // Replace dashes and underscores with spaces, capitalize the first word
 // Strips leading numeric prefixes (e.g. "01-design-mockups" -> "Design mockups")
 export function unslugify (slug: string): string {

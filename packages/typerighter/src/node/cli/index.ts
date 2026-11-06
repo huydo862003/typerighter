@@ -164,11 +164,11 @@ export function cli () {
         const tdContext = await context.getTdContext();
         const report = await tdContext.checkVault();
 
-        for (const diag of report.diagnostics) {
-          if (diag.severity === 'error') {
-            logger.error(`${diag.filepath}:${diag.line}:${diag.column} ${diag.message} (${diag.code})`);
+        for (const diagnostic of report.diagnostics) {
+          if (diagnostic.severity === 'error') {
+            logger.error(`${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} ${diagnostic.message} (${diagnostic.code})`);
           } else {
-            logger.warn(`${diag.filepath}:${diag.line}:${diag.column} ${diag.message} (${diag.code})`);
+            logger.warn(`${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} ${diagnostic.message} (${diagnostic.code})`);
           }
         }
 

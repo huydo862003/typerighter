@@ -115,8 +115,8 @@ fn get_expected_expr_typ<'db>(
       .iter()
       .skip(1)
       .position(|child| *child.syntax() == node);
-    if let Some(idx) = arg_index {
-      return get_expected_call_arg_typ(db, project, file, &call, idx);
+    if let Some(index) = arg_index {
+      return get_expected_call_arg_typ(db, project, file, &call, index);
     }
   }
 
@@ -199,7 +199,7 @@ fn get_expected_call_callee_typ<'db>(
     }
   }
 
-  let signature = FuncSignature::new(db, param_typs, ret);
+  let signature = FuncSignature::new(db, None, param_typs, ret);
   let func_typ = get_func_typ(db, signature);
   TypResult::new(db, Some(func_typ.into()), vec![])
 }
@@ -638,9 +638,9 @@ mod tests {
   #[test]
   fn expected_node_typ_nested_schema_property_field() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "_types/WithUnion.td");
-    let type_node = get_nested_field_node(&db, project, file, &["properties", "status", "type"]);
-    let type_node = type_node.expect("should find nested type field");
-    let result = expected_node_typ(&db, type_node);
+    let typ_node = get_nested_field_node(&db, project, file, &["properties", "status", "type"]);
+    let typ_node = typ_node.expect("should find nested type field");
+    let result = expected_node_typ(&db, typ_node);
 
     assert!(
       result.typ(&db).is_some(),

@@ -1,12 +1,12 @@
 use std::{
   fmt::Debug,
   path::{Path, PathBuf},
-  sync::{Arc, RwLock},
+  sync::{Arc, RwLock, atomic::Ordering},
 };
 
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
-use typedown_incremental::{CacheSession, QueryStorage};
+use typedown_incremental::{CacheSession, QueryStorage, SerializableQueryDatabase};
 use typedown_lang::db::TypedownDatabase;
 
 use crate::core::{analysis_host::AnalysisHost, utils};
@@ -18,8 +18,8 @@ pub struct ProjectEntry {
 }
 
 impl Debug for ProjectEntry {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_str(self.root_dir.to_str().unwrap_or("<unknown path>"))?;
+  fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    formatter.write_str(self.root_dir.to_str().unwrap_or("<unknown path>"))?;
     Ok(())
   }
 }
@@ -95,16 +95,14 @@ impl Multiproject {
         .expect("RwLock should not be poisoned at shutdown")
         .into_db();
 
-      // TODO: Cache dump temporarily disabled while investigating cache corruption bug
-      // let revision = db.storage.revision.load(Ordering::Acquire) as u64;
-      // let serialized = db.dump();
-      // if let Err(err) = session.finalize(&serialized, revision) {
-      //   log::error!(
-      //     "Failed to save incremental cache for {}: {err}",
-      //     root_dir.display()
-      //   );
-      // }
-      let _ = (db, session);
+      let revision = db.storage.revision.load(Ordering::Acquire) as u64;
+      let serialized = db.dump();
+      if let Err(error) = session.finalize(&serialized, revision) {
+        log::error!(
+          "Failed to save incremental cache for {}: {error}",
+          root_dir.display()
+        );
+      }
     }
   }
 }

@@ -22,7 +22,7 @@
 (fenced_code_block_delimiter) @punctuation.special
 (language) @label
 (line_range_indicator) @comment
-(code_fence_content) @text.literal
+(code_fence_content_line) @text.literal
 
 ; Math blocks
 (math_block_delimiter) @punctuation.special

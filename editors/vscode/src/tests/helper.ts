@@ -133,12 +133,12 @@ export async function waitForDiagnostics (
 
     const listener = vscode.languages.onDidChangeDiagnostics((event) => {
       if (event.uris.some((eventUri) => eventUri.toString() === uri.toString())) {
-        const diags = vscode.languages.getDiagnostics(uri);
+        const diagnostics = vscode.languages.getDiagnostics(uri);
 
-        if (0 < diags.length) {
+        if (0 < diagnostics.length) {
           clearTimeout(timer);
           listener.dispose();
-          resolve(diags);
+          resolve(diagnostics);
         }
       }
     });
@@ -164,12 +164,12 @@ export async function waitForNoDiagnostics (
 
     const listener = vscode.languages.onDidChangeDiagnostics((event) => {
       if (event.uris.some((eventUri) => eventUri.toString() === uri.toString())) {
-        const diags = vscode.languages.getDiagnostics(uri);
+        const diagnostics = vscode.languages.getDiagnostics(uri);
 
-        if (diags.length === 0) {
+        if (diagnostics.length === 0) {
           clearTimeout(timer);
           listener.dispose();
-          resolve(diags);
+          resolve(diagnostics);
         }
       }
     });

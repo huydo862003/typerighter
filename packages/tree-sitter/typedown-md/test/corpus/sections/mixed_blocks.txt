@@ -24,7 +24,8 @@ code
     (fenced_code_block
       (fenced_code_block_delimiter)
       language: (language)
-      (code_fence_content)
+      (code_fence_content_line)
+      (code_fence_content_line)
       (fenced_code_block_delimiter))
     (bullet_list
       (list_item

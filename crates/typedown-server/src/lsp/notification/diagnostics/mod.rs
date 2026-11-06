@@ -6,6 +6,7 @@ use std::path::Path;
 use lsp_server::Notification;
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 use ropey::Rope;
+use typedown_lang::syntax::diagnostic::Severity;
 use typedown_lang::syntax::diagnostic::TdDiagnostic;
 
 use crate::core::analysis::Analysis;
@@ -22,8 +23,8 @@ pub fn publish_diagnostics_for_file(analysis: &Analysis, path: &Path) -> Vec<Not
 }
 
 // Convert our diagnostics to lsp diagnostics
-pub(super) fn to_lsp_diagnostic(diag: &TdDiagnostic, rope: &Rope) -> Option<Diagnostic> {
-  let (start_offset, end_offset) = diag.offsets();
+pub(super) fn to_lsp_diagnostic(diagnostic: &TdDiagnostic, rope: &Rope) -> Option<Diagnostic> {
+  let (start_offset, end_offset) = diagnostic.offsets();
 
   let start_offset = start_offset.min(rope.len_chars());
   let end_offset = end_offset.min(rope.len_chars());
@@ -33,12 +34,17 @@ pub(super) fn to_lsp_diagnostic(diag: &TdDiagnostic, rope: &Rope) -> Option<Diag
     end: text_offset_to_lsp_position(rope, end_offset),
   };
 
+  let severity = match diagnostic.severity {
+    Severity::Error => DiagnosticSeverity::ERROR,
+    Severity::Warning => DiagnosticSeverity::WARNING,
+  };
+
   Some(Diagnostic {
     range,
-    severity: Some(DiagnosticSeverity::ERROR),
-    code: Some(NumberOrString::String(diag.code_str().into())),
+    severity: Some(severity),
+    code: Some(NumberOrString::String(diagnostic.code_str().into())),
     source: Some("typedown".into()),
-    message: diag.message(),
+    message: diagnostic.message(),
     ..Default::default()
   })
 }

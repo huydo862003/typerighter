@@ -179,8 +179,8 @@ fn concurrent_deserialize_of_shared_derived_identity_does_not_panic() {
   let count = 50usize;
   let config = RangeConfig::new(&db1, count);
   identity::make_range(&db1, config);
-  for i in 0..=count {
-    let input = IdInput::new(&db1, i);
+  for index in 0..=count {
+    let input = IdInput::new(&db1, index);
     identity::identity(&db1, input);
   }
 

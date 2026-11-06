@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::{
+  cmp::Ordering,
+  collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+};
 
 use typedown_types::either::Either::{self};
 
@@ -55,113 +58,121 @@ impl<T: StableOrd> StableOrd for &T {}
 /// '''
 /// So StableCompare is weaker
 pub trait StableCompare {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering;
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering;
 }
 
 impl<T: StableCompare> StableCompare for Box<T> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     (**self).stable_cmp(db, other)
   }
 }
 
 impl<T: StableCompare> StableCompare for Option<T> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     match (self, other) {
-      (None, None) => std::cmp::Ordering::Equal,
-      (None, Some(_)) => std::cmp::Ordering::Less,
-      (Some(_), None) => std::cmp::Ordering::Greater,
-      (Some(l), Some(r)) => l.stable_cmp(db, r),
+      (None, None) => Ordering::Equal,
+      (None, Some(_)) => Ordering::Less,
+      (Some(_), None) => Ordering::Greater,
+      (Some(left), Some(right)) => left.stable_cmp(db, right),
     }
   }
 }
 
 impl<L: StableCompare, R: StableCompare> StableCompare for Either<L, R> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     match (self, other) {
-      (Either::Left(_), Either::Right(_)) => std::cmp::Ordering::Less,
-      (Either::Right(_), Either::Left(_)) => std::cmp::Ordering::Greater,
-      (Either::Left(s), Either::Left(o)) => s.stable_cmp(db, o),
-      (Either::Right(s), Either::Right(o)) => s.stable_cmp(db, o),
+      (Either::Left(_), Either::Right(_)) => Ordering::Less,
+      (Either::Right(_), Either::Left(_)) => Ordering::Greater,
+      (Either::Left(self_), Either::Left(other)) => self_.stable_cmp(db, other),
+      (Either::Right(self_), Either::Right(other)) => self_.stable_cmp(db, other),
     }
   }
 }
 
 impl<K: StableCompare + Ord, V: StableCompare> StableCompare for BTreeMap<K, V> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self.len().cmp(&other.len()).then_with(|| {
       self
         .iter()
         .zip(other.iter())
-        .map(|((k1, v1), (k2, v2))| k1.stable_cmp(db, k2).then_with(|| v1.stable_cmp(db, v2)))
-        .find(|o| o.is_ne())
-        .unwrap_or(std::cmp::Ordering::Equal)
+        .map(|((left_key, left_value), (right_key, right_value))| {
+          left_key
+            .stable_cmp(db, right_key)
+            .then_with(|| left_value.stable_cmp(db, right_value))
+        })
+        .find(|obj| obj.is_ne())
+        .unwrap_or(Ordering::Equal)
     })
   }
 }
 
 impl<V: StableCompare + Ord> StableCompare for BTreeSet<V> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self.len().cmp(&other.len()).then_with(|| {
       self
         .iter()
         .zip(other.iter())
-        .map(|(a, b)| a.stable_cmp(db, b))
-        .find(|o| o.is_ne())
-        .unwrap_or(std::cmp::Ordering::Equal)
+        .map(|(left, right)| left.stable_cmp(db, right))
+        .find(|obj| obj.is_ne())
+        .unwrap_or(Ordering::Equal)
     })
   }
 }
 
 impl<K: StableCompare, V: StableCompare> StableCompare for HashMap<K, V> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self.len().cmp(&other.len()).then_with(|| {
       let mut self_entries: Vec<_> = self.iter().collect();
       let mut other_entries: Vec<_> = other.iter().collect();
-      self_entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(db, k2));
-      other_entries.sort_by(|(k1, _), (k2, _)| k1.stable_cmp(db, k2));
+      self_entries.sort_by(|(left_key, _), (right_key, _)| left_key.stable_cmp(db, right_key));
+      other_entries.sort_by(|(left_key, _), (right_key, _)| left_key.stable_cmp(db, right_key));
       self_entries
         .iter()
         .zip(other_entries.iter())
-        .map(|((k1, v1), (k2, v2))| k1.stable_cmp(db, k2).then_with(|| v1.stable_cmp(db, v2)))
-        .find(|o| o.is_ne())
-        .unwrap_or(std::cmp::Ordering::Equal)
+        .map(|((left_key, left_value), (right_key, right_value))| {
+          left_key
+            .stable_cmp(db, right_key)
+            .then_with(|| left_value.stable_cmp(db, right_value))
+        })
+        .find(|obj| obj.is_ne())
+        .unwrap_or(Ordering::Equal)
     })
   }
 }
 
 impl<V: StableCompare> StableCompare for HashSet<V> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self.len().cmp(&other.len()).then_with(|| {
       let mut self_entries: Vec<_> = self.iter().collect();
       let mut other_entries: Vec<_> = other.iter().collect();
-      self_entries.sort_by(|a, b| a.stable_cmp(db, b));
-      other_entries.sort_by(|a, b| a.stable_cmp(db, b));
+      self_entries.sort_by(|left_entry, right_entry| left_entry.stable_cmp(db, right_entry));
+      other_entries.sort_by(|left_entry, right_entry| left_entry.stable_cmp(db, right_entry));
       self_entries
         .iter()
         .zip(other_entries.iter())
-        .map(|(a, b)| a.stable_cmp(db, b))
-        .find(|o| o.is_ne())
-        .unwrap_or(std::cmp::Ordering::Equal)
+        .map(|(left_entry, right_entry)| left_entry.stable_cmp(db, right_entry))
+        .find(|obj| obj.is_ne())
+        .unwrap_or(Ordering::Equal)
     })
   }
 }
 
 impl<T: StableCompare> StableCompare for [T] {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
-    let l1 = self.len();
-    let l2 = other.len();
-    for i in 0..l1.min(l2) {
-      let ord = self[i].stable_cmp(db, &other[i]);
-      if ord.is_ne() {
-        return ord;
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
+    let left_length = self.len();
+    let right_length = other.len();
+    for index in 0..left_length.min(right_length) {
+      let order = self[index].stable_cmp(db, &other[index]);
+      if order.is_ne() {
+        return order;
       }
     }
-    l1.cmp(&l2)
+    left_length.cmp(&right_length)
   }
 }
 
 impl<T: StableCompare> StableCompare for Vec<T> {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self.as_slice().stable_cmp(db, other.as_slice())
   }
 }
@@ -170,7 +181,7 @@ macro_rules! impl_stable_compare_via_ord {
   ($($ty:ty),*) => {
     $(
       impl StableCompare for $ty {
-        fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+        fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> Ordering {
           self.cmp(other)
         }
       }
@@ -199,7 +210,7 @@ impl_stable_compare_via_ord!(
 );
 
 impl StableCompare for &str {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> Ordering {
     self.cmp(other)
   }
 }
@@ -223,13 +234,13 @@ impl StableOrd for () {}
 impl StableOrd for bool {}
 
 impl<T: StableCompare> StableCompare for (T,) {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self.0.stable_cmp(db, &other.0)
   }
 }
 
 impl<T1: StableCompare, T2: StableCompare> StableCompare for (T1, T2) {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self
       .0
       .stable_cmp(db, &other.0)
@@ -238,7 +249,7 @@ impl<T1: StableCompare, T2: StableCompare> StableCompare for (T1, T2) {
 }
 
 impl<T1: StableCompare, T2: StableCompare, T3: StableCompare> StableCompare for (T1, T2, T3) {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self
       .0
       .stable_cmp(db, &other.0)
@@ -250,7 +261,7 @@ impl<T1: StableCompare, T2: StableCompare, T3: StableCompare> StableCompare for 
 impl<T1: StableCompare, T2: StableCompare, T3: StableCompare, T4: StableCompare> StableCompare
   for (T1, T2, T3, T4)
 {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, db: &DB, other: &Self) -> Ordering {
     self
       .0
       .stable_cmp(db, &other.0)
@@ -261,13 +272,13 @@ impl<T1: StableCompare, T2: StableCompare, T3: StableCompare, T4: StableCompare>
 }
 
 impl StableCompare for f32 {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> Ordering {
     self.total_cmp(other)
   }
 }
 
 impl StableCompare for f64 {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> Ordering {
     self.total_cmp(other)
   }
 }
@@ -284,7 +295,7 @@ impl StableOrd for std::path::PathBuf {}
 
 // Compare paths by raw bytes instead of component-by-component
 impl StableCompare for std::path::PathBuf {
-  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> std::cmp::Ordering {
+  fn stable_cmp<DB: QueryDatabase + ?Sized>(&self, _db: &DB, other: &Self) -> Ordering {
     self
       .as_os_str()
       .as_encoded_bytes()

@@ -3,7 +3,14 @@ import {
   computed, ref,
 } from 'vue';
 import {
-  ArrowUpRight, ChevronDown, ChevronRight, CircleDot, List, Tag, Tags, Type,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
+  CircleDot,
+  List,
+  Tag,
+  Tags,
+  Type,
 } from '@lucide/vue';
 import type {
   Component,
@@ -13,8 +20,10 @@ import {
   useSiteData,
 } from '@/client/app';
 import {
-  isBuiltinField, unslugify,
-  type PropertyDescriptor, type SchemaDefinition,
+  isBuiltinField,
+  unslugify,
+  type PropertyDescriptor,
+  type SchemaDefinition,
 } from '@/shared';
 
 const {
@@ -38,8 +47,25 @@ const schemaDefinition = computed((): SchemaDefinition | undefined => {
   return siteData.value.schemas[schema];
 });
 
+// When the frontmatter has a `fields` sub-object (schema-typed pages), use its contents as the properties source
+const fields = computed((): Record<string, unknown> => {
+  const _frontmatter = frontmatter as Record<string, unknown>;
+
+  if (
+    _frontmatter._type
+    && _frontmatter.fields
+    && typeof _frontmatter.fields === 'object'
+    && !Array.isArray(_frontmatter.fields)
+  ) {
+    return _frontmatter.fields as Record<string, unknown>;
+  }
+
+  return _frontmatter;
+});
+
 const entries = computed(() => {
   const schemaDef = schemaDefinition.value;
+  const source = fields.value;
   const result: Array<[string, PropertyDescriptor]> = [];
 
   const keys = new Set<string>();
@@ -47,12 +73,12 @@ const entries = computed(() => {
   if (schemaDef) {
     Object.keys(schemaDef).forEach((keyName) => keys.add(keyName));
   }
-  Object.keys(frontmatter).forEach((keyName) => keys.add(keyName));
+  Object.keys(source).forEach((keyName) => keys.add(keyName));
 
   for (const key of keys) {
     if (isBuiltinField(key)) continue;
 
-    const value = frontmatter[key];
+    const value = source[key];
 
     if (value === undefined || value === null) continue;
     if (Array.isArray(value) && value.length === 0) continue;
@@ -141,7 +167,7 @@ function toggleRail () {
           <span class="td-fm-rail-value">
             <TdFrontmatterValue
               :definition="definition"
-              :value="frontmatter[key]"
+              :value="fields[key]"
             />
           </span>
         </div>
@@ -159,9 +185,10 @@ function toggleRail () {
       class="td-fm-box-header"
       @click="toggleInline"
     >
-      <span class="td-fm-box-label">Properties <span class="td-fm-box-count">{{ entries.length }}</span></span>
+      <span class="td-fm-box-label">Properties
+        <span class="td-fm-box-count">{{ entries.length }}</span></span>
       <span class="td-fm-box-toggle">
-        {{ collapsed ? 'Show' : 'Hide' }}
+        {{ collapsed ? "Show" : "Hide" }}
         <ChevronDown
           v-if="!collapsed"
           :size="14"
@@ -197,7 +224,7 @@ function toggleRail () {
           <span class="td-fm-box-value">
             <TdFrontmatterValue
               :definition="definition"
-              :value="frontmatter[key]"
+              :value="fields[key]"
             />
           </span>
         </template>
@@ -227,7 +254,6 @@ function toggleRail () {
 }
 
 .td-fm-rail-label {
-
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);
@@ -273,7 +299,7 @@ function toggleRail () {
   margin: 14px 0 0;
   border: 1px solid var(--color-td-line-soft);
   border-radius: 6px;
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   overflow: hidden;
 }
 
@@ -289,7 +315,6 @@ function toggleRail () {
 }
 
 .td-fm-box-label {
-
   font-size: var(--font-size-td-2xs);
   font-weight: 500;
   letter-spacing: var(--tracking-td-wide);

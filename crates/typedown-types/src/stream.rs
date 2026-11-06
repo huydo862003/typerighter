@@ -5,7 +5,7 @@ pub enum Utf8Result {
   Char(char),
   /// Some invalid bytes were skipped while recovering
   /// The recovery scheme is up to the implementor
-  Invalid { len: usize, bytes: [u8; 4] },
+  Invalid { length: usize, bytes: [u8; 4] },
   /// The end of the stream has been reached
   Eof,
 }
@@ -27,7 +27,7 @@ pub trait Utf8Stream {
 
   /// Peek at the nth character ahead (0-indexed) without consuming
   /// Advances n chars internally, peeks, then restores the stream
-  fn peek_nth(&mut self, n: usize) -> Utf8Result;
+  fn peek_nth(&mut self, nth: usize) -> Utf8Result;
 }
 
 impl Utf8Stream for Box<dyn Utf8Stream> {
@@ -47,7 +47,7 @@ impl Utf8Stream for Box<dyn Utf8Stream> {
     (**self).exhausted()
   }
 
-  fn peek_nth(&mut self, n: usize) -> Utf8Result {
-    (**self).peek_nth(n)
+  fn peek_nth(&mut self, nth: usize) -> Utf8Result {
+    (**self).peek_nth(nth)
   }
 }

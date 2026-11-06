@@ -10,7 +10,7 @@ use typedown_macros::query_derived;
 use crate::db::TypedownDatabase;
 use crate::db::derived::check_custom_components::check_custom_components;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
-use crate::db::derived::get_builtin_typs::{get_bool_typ, get_number_typ};
+use crate::db::derived::get_builtin_typs::{get_bool_typ, get_null_typ, get_number_typ};
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 
@@ -32,7 +32,7 @@ pub fn typecheck<'db>(
   // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping for type resolution
   let node = project_node.node.clone();
   if let Some(source_file) = SourceFile::cast(node.clone()) {
-    let mut diags = check_custom_components(db, project_node.project, project_node.file)
+    let mut diagnostics = check_custom_components(db, project_node.project, project_node.file)
       .diagnostics(db)
       .clone();
     if let Some(frontmatter) = source_file.frontmatter()
@@ -43,7 +43,7 @@ pub fn typecheck<'db>(
         project_node.file,
         mapping.syntax().clone(),
       );
-      diags.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
+      diagnostics.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
     }
     if let Some(body) = source_file.body() {
       typecheck_md_body(
@@ -51,10 +51,10 @@ pub fn typecheck<'db>(
         project_node.project,
         project_node.file,
         body.syntax().clone(),
-        &mut diags,
+        &mut diagnostics,
       );
     }
-    return TypecheckResult::new(db, diags);
+    return TypecheckResult::new(db, diagnostics);
   }
   if let Some(frontmatter) = YamlFrontmatter::cast(node.clone()) {
     if let Some(mapping) = frontmatter.mapping() {
@@ -182,7 +182,7 @@ fn typecheck_body<'db>(
         let index_nodes: Vec<_> = index
           .indices()
           .into_iter()
-          .map(|idx| ProjectRedNode::new(project, file, idx.syntax().clone()))
+          .map(|index| ProjectRedNode::new(project, file, index.syntax().clone()))
           .collect();
         diagnostics.extend(check_index(db, expr_node, index_nodes));
       }
@@ -353,9 +353,6 @@ fn check_mapping_fields<'db>(
   }
 
   // For schema metatype, validate that each property descriptor mapping has a required `type` field
-  // Full subtype checking against SchemaProperty is skipped because descriptor values use
-  // type-expression syntax (e.g. `string | null`, `list[string]?`) that actual_node_typ
-  // cannot evaluate as plain values
   if expected_typ.as_td_schema_meta_typ().is_some() {
     for (key, value_node) in entries {
       if key == "properties"
@@ -363,8 +360,8 @@ fn check_mapping_fields<'db>(
       {
         for (_, descriptor_node) in &descriptors {
           if let Some(descriptor_entries) = descriptor_node.mapping_entries() {
-            let has_type_field = descriptor_entries.iter().any(|(k, _)| k == "type");
-            if !has_type_field {
+            let has_typ_field = descriptor_entries.iter().any(|(key, _)| key == "type");
+            if !has_typ_field {
               let (offset, len) = descriptor_node.node.trimmed_range();
               diagnostics.push(
                 TdDiagnosticKind::MissingRequiredField {
@@ -459,17 +456,19 @@ fn check_call(
     .filter_map(|arg| actual_node_typ(db, arg.clone()).typ(db))
     .collect();
 
-  let Some(signature) = callee_typ.call_typ(db, arg_typs) else {
-    let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
+  let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
+  let call_result = callee_typ.call_typ(db, arg_typs);
+  for kind in call_result.diagnostics {
+    diagnostics.push(kind.into_error(trimmed_offset, trimmed_offset + trimmed_len));
+  }
+  let Some(signature) = call_result.signature else {
     diagnostics
       .push(TdDiagnosticKind::NotCallable.into_error(trimmed_offset, trimmed_offset + trimmed_len));
     return diagnostics;
   };
-
   let params = signature.params(db);
 
-  if params.len() != args.len() {
-    let (trimmed_offset, trimmed_len) = callee.node.trimmed_range();
+  if args.len() > params.len() {
     diagnostics.push(
       TdDiagnosticKind::WrongArgCount {
         expected: params.len(),
@@ -480,6 +479,7 @@ fn check_call(
     return diagnostics;
   }
 
+  // Typecheck provided args
   for (param, arg_node) in params.iter().zip(args.iter()) {
     let arg_result = actual_node_typ(db, arg_node.clone());
     diagnostics.extend(arg_result.diagnostics(db).iter().cloned());
@@ -494,6 +494,23 @@ fn check_call(
         .into_error(trimmed_offset, trimmed_offset + trimmed_len),
       );
     }
+  }
+
+  // Omitted trailing params are treated as null - check they all accept null
+  let null_typ: TdTypEnum = get_null_typ(db).into();
+  let has_non_nullable_omitted = params
+    .iter()
+    .skip(args.len())
+    .any(|param| !is_subtyp_of(db, &null_typ, param));
+  if has_non_nullable_omitted {
+    diagnostics.push(
+      TdDiagnosticKind::WrongArgCount {
+        expected: params.len(),
+        got: args.len(),
+      }
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+    );
+    return diagnostics;
   }
 
   diagnostics
@@ -520,8 +537,7 @@ fn check_index(
     _ => expr_typ,
   };
 
-  // If the base expr resolves to a type constructor (e.g. `list` in `list[string]`),
-  // use the generic type's arity instead of the metatype (TdTypTyp has arity 0)
+  // If the base expr resolves to a type constructor (e.g. `list` in `list[string]`), use the generic type's arity instead of the metatype (TdTypTyp has arity 0)
   let expr_typ = if expr_type.arity(db) == 0
     && IdentLit::cast(expr.node.clone()).is_some()
     && let Some(symbol) = referee(db, expr.clone()).value(db)
@@ -906,13 +922,13 @@ mod tests {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "nested_wrong_type.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
-    let diags = result.diagnostics(&db);
+    let diagnostics = result.diagnostics(&db);
     assert!(
-      diags
+      diagnostics
         .iter()
         .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, ..}, .. } if field == "address")),
       "expected FieldTypeMismatch for 'address', got: {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -1848,6 +1864,25 @@ mod tests {
         }
       )),
       "prefix minus on string in markdown body should emit OperandTypMismatch: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  // Providing more args than params is still an error
+  #[test]
+  fn typecheck_call_too_many_args_has_wrong_arg_count() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "call_too_many_args.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::WrongArgCount { .. },
+          ..
+        }
+      )),
+      "providing more args than params should emit WrongArgCount: {:?}",
       result.diagnostics(&db)
     );
   }

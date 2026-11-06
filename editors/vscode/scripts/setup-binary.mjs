@@ -1,7 +1,7 @@
 // Sets up the typedown-lsp binary in bin/ based on TYPEDOWN_BINARY_SOURCE:
 //   local   - copies from local build
 //   staging - downloads the prerelease binary of the current version
-import { copyFileSync, createWriteStream, mkdirSync, chmodSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync, createWriteStream, mkdirSync, chmodSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -15,13 +15,40 @@ const binDest = join(binDir, binName);
 
 const mode = env.TYPEDOWN_BINARY_SOURCE;
 
-if (mode === 'local') {
-  // local copy here
+// Pick the newer binary between target/debug and target/release
+function getNewerLocalBinary (root, name) {
+  const debugPath = join(root, 'target', 'debug', name);
+  const releasePath = join(root, 'target', 'release', name);
 
+  let debugStat;
+  let releaseStat;
+
+  try {
+    debugStat = statSync(debugPath);
+  } catch {}
+
+  try {
+    releaseStat = statSync(releasePath);
+  } catch {}
+
+  if (debugStat && releaseStat) {
+    return debugStat.mtimeMs >= releaseStat.mtimeMs ? debugPath : releasePath;
+  }
+  if (debugStat) return debugPath;
+  if (releaseStat) return releasePath;
+
+  return null;
+}
+
+if (mode === 'local') {
+  const source = getNewerLocalBinary(repoRoot, binName);
+  if (!source) {
+    console.error('No binary found in target/debug or target/release. Run cargo build first.');
+    process.exit(1);
+  }
   mkdirSync(binDir, { recursive: true });
-  const debugBinary = join(repoRoot, 'target', 'debug', binName);
-  copyFileSync(debugBinary, binDest);
-  console.log(`Copied ${debugBinary} -> ${binDest}`);
+  copyFileSync(source, binDest);
+  console.log(`Copied ${source} -> ${binDest}`);
 } else if (mode === 'staging') {
   // download binaries
 
@@ -42,18 +69,18 @@ if (mode === 'local') {
     console.error(`Unsupported platform: ${platformKey}`);
     process.exit(1);
   }
-  const ext = platform === 'win32' ? '.exe' : '';
-  const releaseArtifact = `typedown-lsp-${version}-${osArch}${ext}`;
+  const extension = platform === 'win32' ? '.exe' : '';
+  const releaseArtifact = `typedown-lsp-${version}-${osArch}${extension}`;
 
   const downloadUrl = `https://github.com/huydo862003/typedown/releases/download/${encodeURIComponent(releaseTag)}/${releaseArtifact}`;
   console.log(`Downloading ${downloadUrl} -> ${binDest}`);
 
-  const res = await fetch(downloadUrl);
-  if (!res.ok) {
-    console.error(`HTTP ${res.status}`);
+  const result = await fetch(downloadUrl);
+  if (!result.ok) {
+    console.error(`HTTP ${result.status}`);
     process.exit(1);
   }
-  if (!res.body) {
+  if (!result.body) {
     console.error('Response body is empty');
     process.exit(1);
   }
@@ -63,7 +90,7 @@ if (mode === 'local') {
 
   try {
     await pipeline(
-      Readable.fromWeb(res.body),
+      Readable.fromWeb(result.body),
       createWriteStream(binTmp)
     );
 

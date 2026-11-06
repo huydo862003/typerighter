@@ -27,20 +27,19 @@ local function try_follow_link()
 		search_start = m_end + 1
 	end
 
-	-- Check if cursor is on a markdown link [text](url)
+	-- Check if cursor is on a markdown link [text](url) or media ![alt](url)
 	search_start = 1
 	while true do
-		local m_start, m_end, url = line:find("%[.-%]%((.-)%)", search_start)
+		local m_start, m_end, url = line:find("!?%[.-%]%((.-)%)", search_start)
 		if not m_start then
 			break
 		end
 		if col >= m_start and col <= m_end then
 			if url:match("^https?://") then
-				-- External URL - open in browser
 				vim.ui.open(url)
 			else
-				-- Internal link - open as file
-				vim.cmd("edit " .. vim.fn.fnameescape(url))
+				-- Internal link - use LSP for proper file resolution
+				vim.lsp.buf.definition()
 			end
 			return true
 		end

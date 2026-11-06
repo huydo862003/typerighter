@@ -126,7 +126,7 @@ name: "Alice"
   #[test]
   fn fref_in_frontmatter_shows_label_hint() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let content = r#"---
 _type: Person
@@ -155,11 +155,11 @@ friend: fref("alice.td")
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),

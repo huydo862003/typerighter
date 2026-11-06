@@ -187,6 +187,9 @@ pub struct TdBuiltResource {
   /// Page title extracted from the first h1
   #[serde(skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
+  /// Plain-text excerpt from the first body paragraph
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub excerpt: Option<String>,
   /// File metadata
   pub file_metadata: TdFileMetadata,
   /// SEO metadata from _meta builtin
@@ -228,9 +231,9 @@ pub struct TdIcon {
 #[serde(rename_all = "camelCase")]
 pub struct TdFileMetadata {
   /// Last modification time as seconds since UNIX epoch
-  pub mtime: u64,
+  pub mtime_secs: u64,
   /// Creation time as seconds since UNIX epoch
-  pub ctime: u64,
+  pub ctime_secs: u64,
 }
 
 /// Schema metadata

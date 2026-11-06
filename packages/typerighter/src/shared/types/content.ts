@@ -51,7 +51,7 @@ export interface DirectoryEntry {
   /** Tags from frontmatter */
   tags?: string[];
   /** Last modification time as seconds since UNIX epoch */
-  mtime?: number;
+  mtimeSecs?: number;
   /** Schema type name */
   schema?: string;
 }
@@ -75,9 +75,9 @@ export type DirectoryListingEntry =
 
 export interface FileMetadata {
   /** Last modification time as seconds since UNIX epoch */
-  mtime: number;
+  mtimeSecs: number;
   /** Creation time as seconds since UNIX epoch */
-  ctime: number;
+  ctimeSecs: number;
 }
 
 export interface PropertyDescriptor {

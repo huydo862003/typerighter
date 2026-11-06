@@ -45,6 +45,8 @@ export function extractRef (value: unknown): ResolvedRef | undefined {
   if (typeof value !== 'object') return undefined;
 
   const targetObject = value as Record<string, unknown>;
+
+  if (targetObject.$kind !== undefined && targetObject.$kind !== 'ref') return undefined;
   const rawRef = (targetObject.$ref ?? targetObject) as Record<string, unknown>;
 
   if (typeof rawRef.url !== 'string') return undefined;

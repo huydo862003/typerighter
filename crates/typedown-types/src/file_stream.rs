@@ -50,13 +50,19 @@ impl<T: Read> FileStream<T> {
         Ok(0) => break Utf8Result::Eof,
         Ok(_) => {
           filled += 1;
-          if let Ok(s) = std::str::from_utf8(&bytes[..filled]) {
-            let ch = s.chars().next().expect("valid UTF-8 must yield a char");
-            break Utf8Result::Char(ch);
+          if let Ok(string) = std::str::from_utf8(&bytes[..filled]) {
+            let char = string
+              .chars()
+              .next()
+              .expect("valid UTF-8 must yield a char");
+            break Utf8Result::Char(char);
           }
           if filled >= 4 {
             self.skip.set(filled);
-            break Utf8Result::Invalid { len: filled, bytes };
+            break Utf8Result::Invalid {
+              length: filled,
+              bytes,
+            };
           }
         }
         Err(_) => break Utf8Result::Eof,

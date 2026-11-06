@@ -1,21 +1,23 @@
 //! Shared utilities for HTML and markdown export
 
-use crate::db::utils::{is_external_url, normalize_joined_path};
+use std::path::Path;
+
+use crate::db::utils::{is_external_url, normalize_joined_path, prepend_base_path};
 use crate::syntax::red::RedNode;
 
 pub use crate::db::utils::is_callout;
 
 pub fn slugify(text: &str) -> String {
   let mut slug = String::new();
-  let mut prev_hyphen = false;
+  let mut previous_hyphen = false;
 
   for char in text.chars() {
     if char.is_alphanumeric() {
       slug.push(char.to_ascii_lowercase());
-      prev_hyphen = false;
-    } else if !slug.is_empty() && !prev_hyphen {
+      previous_hyphen = false;
+    } else if !slug.is_empty() && !previous_hyphen {
       slug.push('-');
-      prev_hyphen = true;
+      previous_hyphen = true;
     }
   }
 
@@ -42,20 +44,13 @@ pub fn html_escape(text: &str) -> String {
   out
 }
 
-pub fn strip_quotes(s: &str) -> &str {
-  if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-    &s[1..s.len() - 1]
+pub fn strip_quotes(string: &str) -> &str {
+  if (string.starts_with('"') && string.ends_with('"'))
+    || (string.starts_with('\'') && string.ends_with('\''))
+  {
+    &string[1..string.len() - 1]
   } else {
-    s
-  }
-}
-
-// Prepend base_path to a vault-relative path
-pub fn prepend_base_path(base_path: &str, vault_path: &str) -> String {
-  if base_path == "/" {
-    format!("/{vault_path}")
-  } else {
-    format!("{base_path}/{vault_path}")
+    string
   }
 }
 
@@ -63,7 +58,7 @@ pub fn prepend_base_path(base_path: &str, vault_path: &str) -> String {
 // - External URLs and anchors pass through unchanged
 // - Absolute paths get base_path prepended
 // - Relative paths resolve from file_dir (with .. collapsing) then get base_path prepended
-pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &std::path::Path) -> String {
+pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &Path) -> String {
   if is_external_url(url) || url.starts_with('#') {
     return url.to_string();
   }

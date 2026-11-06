@@ -74,8 +74,8 @@ impl Clone for SyntaxToken {
 impl Drop for SyntaxToken {
   fn drop(&mut self) {
     // Currently use AcqRel for extra safety
-    let prev = unsafe { (*self.0).ref_count.fetch_sub(1, Ordering::AcqRel) };
-    if prev != 1 {
+    let previous = unsafe { (*self.0).ref_count.fetch_sub(1, Ordering::AcqRel) };
+    if previous != 1 {
       return;
     }
     unsafe { drop(Box::from_raw(self.0 as *mut TokenBody)) };
@@ -97,9 +97,9 @@ impl PartialEq for SyntaxToken {
 impl Eq for SyntaxToken {}
 
 impl std::fmt::Debug for SyntaxToken {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let text: String = self.chars().collect();
-    write!(f, "{:?}({:?})", self.kind(), text)
+    write!(formatter, "{:?}({:?})", self.kind(), text)
   }
 }
 

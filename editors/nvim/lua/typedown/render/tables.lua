@@ -48,25 +48,25 @@ function M.render_table(buf, ns, node)
 			local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
 			local is_delimiter = line:match("^%s*[|%-%s:]+$") ~= nil
 
-			for col_idx = 1, #line do
-				local char = line:sub(col_idx, col_idx)
+			for col_index = 1, #line do
+				local char = line:sub(col_index, col_index)
 				if char == "|" then
 					-- Conceal | and insert │
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_idx - 1, {
-						end_col = col_idx,
+					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
+						end_col = col_index,
 						conceal = "",
 					})
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_idx - 1, {
+					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
 						virt_text = { { BORDER.vertical, "TypedownRenderTableBorder" } },
 						virt_text_pos = "inline",
 						priority = 110,
 					})
 				elseif is_delimiter and (char == "-" or char == ":") then
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_idx - 1, {
-						end_col = col_idx,
+					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
+						end_col = col_index,
 						conceal = "",
 					})
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_idx - 1, {
+					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
 						virt_text = { { BORDER.horizontal, "TypedownRenderTableBorder" } },
 						virt_text_pos = "inline",
 						priority = 110,

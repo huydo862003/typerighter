@@ -30,7 +30,7 @@ use typedown_lang::integrations::export::{
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
-use typedown_lang::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
+use typedown_lang::syntax::diagnostic::{Severity, TdDiagnostic, TdDiagnosticKind};
 
 use typedown_types::path::normalize_path;
 
@@ -223,8 +223,8 @@ impl RpcServer {
 
         match rx.recv_timeout(dump_timeout) {
           Ok(Ok(serialized)) => {
-            if let Err(err) = self.cache_session.finalize(&serialized, revision) {
-              log::error!("Failed to save incremental cache: {err}");
+            if let Err(error) = self.cache_session.finalize(&serialized, revision) {
+              log::error!("Failed to save incremental cache: {error}");
             }
           }
           Ok(Err(_)) => {
@@ -241,13 +241,13 @@ impl RpcServer {
   }
 
   pub fn run(&self) -> anyhow::Result<()> {
-    for msg in &self.connection.receiver {
-      match msg {
-        Message::Request(req) => {
-          if self.connection.handle_shutdown(&req)? {
+    for message in &self.connection.receiver {
+      match message {
+        Message::Request(request) => {
+          if self.connection.handle_shutdown(&request)? {
             return Ok(());
           }
-          self.handle_request(req);
+          self.handle_request(request);
         }
         Message::Notification(_) | Message::Response(_) => {}
       }
@@ -269,7 +269,7 @@ impl RpcServer {
 
       let response = match result {
         Ok(Ok(value)) => Response::new_ok(request_id, value),
-        Ok(Err(err)) => Response::new_err(request_id, err.code, err.message),
+        Ok(Err(error)) => Response::new_err(request_id, error.code, error.message),
         Err(payload) => {
           if payload.downcast_ref::<Cancelled>().is_some() {
             Response::new_err(
@@ -515,12 +515,12 @@ impl RpcServer {
 }
 
 fn send_notification<T: serde::Serialize>(sender: &Sender<Message>, method: &str, params: &T) {
-  let notif = Notification::new(method.to_string(), serde_json::to_value(params).unwrap());
-  let _ = sender.send(Message::Notification(notif));
+  let notififcation = Notification::new(method.to_string(), serde_json::to_value(params).unwrap());
+  let _ = sender.send(Message::Notification(notififcation));
 }
 
 fn parse_params<T: serde::de::DeserializeOwned>(params: serde_json::Value) -> RpcResult<T> {
-  serde_json::from_value(params).map_err(|err| RpcError::invalid_params(err.to_string()))
+  serde_json::from_value(params).map_err(|error| RpcError::invalid_params(error.to_string()))
 }
 
 fn dispatch_request(
@@ -650,9 +650,10 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         })
         .collect(),
       title: exported.title,
+      excerpt: exported.excerpt,
       file_metadata: TdFileMetadata {
-        mtime: exported.metadata.mtime,
-        ctime: exported.metadata.ctime,
+        mtime_secs: exported.metadata.mtime_secs,
+        ctime_secs: exported.metadata.ctime_secs,
       },
       seo_metadata: exported.seo_metadata.map(|metadata| TdSeoMeta {
         title: metadata.title,
@@ -719,8 +720,8 @@ fn list_files_grouped_by_schema(
         header: summary.header,
         excerpt: summary.excerpt,
         file_metadata: TdFileMetadata {
-          mtime: summary.metadata.mtime,
-          ctime: summary.metadata.ctime,
+          mtime_secs: summary.metadata.mtime_secs,
+          ctime_secs: summary.metadata.ctime_secs,
         },
       });
     }
@@ -753,8 +754,8 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
         icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
         excerpt: nav.excerpt,
         file_metadata: TdFileMetadata {
-          mtime: nav.metadata.mtime,
-          ctime: nav.metadata.ctime,
+          mtime_secs: nav.metadata.mtime_secs,
+          ctime_secs: nav.metadata.ctime_secs,
         },
       });
     }
@@ -848,11 +849,11 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
 
   // Check for duplicate schema files
   let schema_check = check_schemas(db, project);
-  for diag in schema_check.diagnostics(db) {
+  for diagnostic in schema_check.diagnostics(db) {
     let filepath = if let TdDiagnostic {
       kind: TdDiagnosticKind::DuplicateSchemaName { ref path, .. },
       ..
-    } = diag
+    } = diagnostic
     {
       path.clone()
     } else {
@@ -863,8 +864,8 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
       line: 0,
       column: 0,
       severity: "error".to_string(),
-      code: diag.code_str().to_string(),
-      message: diag.message(),
+      code: diagnostic.code_str().to_string(),
+      message: diagnostic.message(),
     });
   }
 
@@ -973,11 +974,15 @@ fn collect_file_diagnostics(
       continue;
     }
 
+    let severity = match diagnostic.severity {
+      Severity::Error => "error",
+      Severity::Warning => "warning",
+    };
     items.push(TdDiagnosticItem {
       filepath: filepath.to_string(),
       line,
       column,
-      severity: "error".to_string(),
+      severity: severity.to_string(),
       code,
       message: diagnostic.message(),
     });
@@ -985,9 +990,9 @@ fn collect_file_diagnostics(
 
   // Lint warnings
   let root = parse_result.ast(db).node.clone();
-  if let Some(body) = SourceFile::cast(root.clone()).and_then(|sf| sf.body()) {
-    for diag in lint_markdown(&body) {
-      items.push(lint_diag_to_item(&diag, filepath, rope));
+  if let Some(body) = SourceFile::cast(root.clone()).and_then(|source_file| source_file.body()) {
+    for diagnostic in lint_markdown(&body) {
+      items.push(lint_diag_to_item(&diagnostic, filepath, rope));
     }
   }
 

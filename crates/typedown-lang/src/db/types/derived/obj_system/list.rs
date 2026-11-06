@@ -11,7 +11,10 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{get_list_typ, get_number_typ, get_obj_typ};
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams, TypVariable};
+use crate::db::types::{
+  Binder, BuiltinSchemaKind, FuncSignature, InstantiateResult, LazyTyp, TdBoundVariableTyp,
+  TypParams, Variance,
+};
 use crate::db::types::{Project, ProjectRedNode};
 use crate::syntax::diagnostic::*;
 
@@ -118,7 +121,13 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   }
 
   fn typ_params(&self, db: &'db TypedownDatabase) -> Option<TypParams<'db>> {
-    let param = TypVariable::get(db, Some(LazyTyp::eager(get_obj_typ(db).into())));
+    let param = TdBoundVariableTyp::new(
+      db,
+      Binder::BuiltinSchema(BuiltinSchemaKind::List),
+      0,
+      LazyTyp::eager(get_obj_typ(db).into()),
+      Variance::Covariant,
+    );
     let bindings = self.element(db).into_iter().collect();
     Some(TypParams::new(db, vec![param], bindings))
   }
@@ -130,7 +139,7 @@ impl<'db> TdStaticTyp<'db> for TdListTyp<'db> {
   ) -> Option<FuncSignature<'db>> {
     let element = self.element(db).and_then(|element| element.resolve(db))?;
     let key_typ: TdTypEnum = get_number_typ(db).into();
-    Some(FuncSignature::new(db, vec![key_typ], element))
+    Some(FuncSignature::new(db, None, vec![key_typ], element))
   }
 }
 
@@ -169,8 +178,8 @@ impl<'db> TdRuntimeObj<'db> for TdListObj<'db> {
     TdListTyp::get(db).into()
   }
   fn get_owned_field(&self, db: &'db TypedownDatabase, key: &str) -> Option<TdObjEnum<'db>> {
-    let idx: usize = key.parse().ok()?;
-    self.get(db, idx)
+    let index: usize = key.parse().ok()?;
+    self.get(db, index)
   }
   fn get_builtin_field(&self, _db: &'db TypedownDatabase, _key: &str) -> Option<TdObjEnum<'db>> {
     None
@@ -193,8 +202,8 @@ impl<'db> TdListObj<'db> {
     self.items(db).len()
   }
 
-  pub fn get(self, db: &'db TypedownDatabase, idx: usize) -> Option<TdObjEnum<'db>> {
-    match self.items(db).into_iter().nth(idx)? {
+  pub fn get(self, db: &'db TypedownDatabase, index: usize) -> Option<TdObjEnum<'db>> {
+    match self.items(db).into_iter().nth(index)? {
       Either::Left(project_node) => {
         let file_scope = get_file_runtime_scope(db, project_node.project, project_node.file);
         evaluate_node(db, project_node, file_scope).value(db)

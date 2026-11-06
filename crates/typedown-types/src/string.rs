@@ -2,11 +2,11 @@
 /// e.g. "PltConcept" -> "Plt Concept"
 pub fn split_pascal_case(name: &str) -> String {
   let mut result = String::with_capacity(name.len() + 4);
-  for (i, ch) in name.chars().enumerate() {
-    if i > 0 && ch.is_uppercase() {
+  for (index, char) in name.chars().enumerate() {
+    if index > 0 && char.is_uppercase() {
       result.push(' ');
     }
-    result.push(ch);
+    result.push(char);
   }
   result
 }

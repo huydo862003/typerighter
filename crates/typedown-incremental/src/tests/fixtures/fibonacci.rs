@@ -9,8 +9,8 @@ thread_local! {
   static FIB_LOG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
-pub fn log(msg: String) {
-  FIB_LOG.with(|log| log.borrow_mut().push(msg));
+pub fn log(message: String) {
+  FIB_LOG.with(|log| log.borrow_mut().push(message));
 }
 
 pub fn take_log() -> Vec<String> {
@@ -45,8 +45,8 @@ pub fn fibonacci<'db>(db: &'db Database, input: FibInput) -> FibResult<'db> {
   let input_a = FibInput::new(db, n - 1);
   let input_b = FibInput::new(db, n - 2);
 
-  let a = fibonacci(db, input_a);
-  let b = fibonacci(db, input_b);
+  let left_fibonacci = fibonacci(db, input_a);
+  let right_fibonacci = fibonacci(db, input_b);
 
-  FibResult::new(db, n, a.value(db) + b.value(db))
+  FibResult::new(db, n, left_fibonacci.value(db) + right_fibonacci.value(db))
 }

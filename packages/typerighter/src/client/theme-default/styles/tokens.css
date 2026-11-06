@@ -5,10 +5,10 @@
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
 
   /* Warm neutral palette */
-  --color-td-pg: #FBF9F7;
-  --color-td-surf: #F5F2EE;
-  --color-td-hov: #F1EDE6;
-  --color-td-sel: rgba(181, 71, 31, 0.10);
+  --color-td-bg: #FBF9F7;
+  --color-td-surface: #F5F2EE;
+  --color-td-hover: #F1EDE6;
+  --color-td-accent-bg: rgba(181, 71, 31, 0.10);
   --color-td-ink: #1F1C19;
   --color-td-ink-2: #48423B;
   --color-td-ink-3: #6B635B;
@@ -21,8 +21,8 @@
   --color-td-accent-hi: #93381A;
 
   /* Links (blue) */
-  --color-td-link: #1B7CE4;
-  --color-td-link-hover: #1663B6;
+  --color-td-link: #3D6B99;
+  --color-td-link-hover: #2E5278;
 
   /* Status colors */
   --color-td-tip: #10b981;
@@ -39,13 +39,20 @@
   --color-td-diff-remove: #f43f5e;
   --color-td-diff-remove-bg: rgba(244, 63, 94, 0.14);
 
+  /* Scrim */
+  --color-td-scrim: rgba(0, 0, 0, 0.4);
+
   /* Tooltip */
   --color-td-tooltip-bg: #000;
   --color-td-tooltip-fg: #fff;
 
-  /* Code block chrome (dark) */
-  --color-td-code-bg: #0A1F3A;
-  --color-td-code-fg: #DCE7F2;
+  /* Code block chrome */
+  --color-td-code-bg: #F3F0EA;
+  --color-td-code-header-bg: #EDE9E1;
+  --color-td-code-num-bg: #E8E3DB;
+  --color-td-code-hl-bg: #E8E2D5;
+  --color-td-code-num-hl-bg: #E0D9CC;
+  --color-td-code-fg: #3A362F;
 
   /* Type scale */
   --font-size-td-2xs: 11px;
@@ -85,6 +92,12 @@
   --td-content-max: 704px;
   --td-header-height: 56px;
 
+  /* Z-index layers, relative to root stacking context */
+  --layer-td-base: 1;       /* sidebar, toc, header, drawer */
+  --layer-td-dropdown: 5;   /* dropdowns */
+  --layer-td-modal: 10;     /* modal scrim + dialog, teleported to body */
+  --layer-td-tooltip: 15;   /* tooltips, teleported to body */
+
   /* Motion durations */
   --duration-td-fast: 150ms;
   --duration-td-move: 200ms;
@@ -93,10 +106,10 @@
 }
 
 .dark {
-  --color-td-pg: #1A1816;
-  --color-td-surf: #231F1C;
-  --color-td-hov: #2E2A26;
-  --color-td-sel: rgba(197, 120, 80, 0.12);
+  --color-td-bg: #1A1816;
+  --color-td-surface: #231F1C;
+  --color-td-hover: #2E2A26;
+  --color-td-accent-bg: rgba(197, 120, 80, 0.12);
   --color-td-ink: #D4D0CE;
   --color-td-ink-2: #BAB6B4;
   --color-td-ink-3: #9B9797;
@@ -115,8 +128,12 @@
   --color-td-warning-bg: rgba(234, 179, 8, 0.12);
   --color-td-danger-bg: rgba(239, 68, 68, 0.12);
 
-  --color-td-code-bg: #0D1B2A;
-  --color-td-code-fg: #DCE7F2;
+  --color-td-code-bg: #201D1A;
+  --color-td-code-header-bg: #282421;
+  --color-td-code-num-bg: #282421;
+  --color-td-code-hl-bg: rgba(255, 255, 255, 0.06);
+  --color-td-code-num-hl-bg: rgba(255, 255, 255, 0.09);
+  --color-td-code-fg: #D4D0CE;
 }
 
 body {
@@ -125,7 +142,7 @@ body {
   line-height: var(--leading-td-relaxed);
   font-weight: 400;
   color: var(--color-td-ink-2);
-  background-color: var(--color-td-pg);
+  background-color: var(--color-td-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
@@ -148,7 +165,7 @@ body {
 }
 
 ::selection {
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
 }
 
 :focus-visible {

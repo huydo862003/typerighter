@@ -1,6 +1,8 @@
 
 A sample vault that tracks **people**, **projects**, and **tasks** across a development team.
 
+See the [Navigation Guide](navigation) for keyboard shortcuts and tips.
+
 [[directory-index]]
 
 ## People

@@ -1,3 +1,9 @@
+---
+_meta:
+  title: "Typedown: Typed Knowledge Graph for Markdown Vaults"
+  description: "Build a typed knowledge graph from plain .td files. Schema validation, file references, computed fields, LSP support, and a built-in static site generator."
+---
+
 Your documents are a typed graph. Typedown is the language for it.
 
 A vault is a collection of `.td` files. Each file is a node. Schemas define node types. File references (`fref`) are edges. The result is a knowledge graph with type safety, autocompletion, and a static site generator built in.
@@ -151,9 +157,11 @@ See the [changelog](https://github.com/huydo862003/typerighter/blob/main/CHANGEL
 
 ## Learn more
 
-- [Getting started](01-getting-started): install Typedown, create a project, set up your editor, and write your first file
-- [Guide](02-guide/index): understand vaults, documents, schemas, expressions, and references
-- [Reference](03-references/index): look up exact syntax for frontmatter, markdown, types, icons, and the CLI
+- [Getting started](01-getting-started/index): install Typedown, create a project, set up your editor, and write your first file
+- [Typedown Syntax](02-typedown-syntax/index): understand vaults, documents, schemas, expressions, and references
+- [Default theme](03-custom-theming/index): navigation, search, shortcuts, and appearance
+- [Custom Theming](03-custom-theming/01-custom-theming): custom components, layout slots, and full layout replacement
+- [Typedown Syntax](02-typedown-syntax/index): look up exact syntax for frontmatter, markdown, types, icons, and the CLI
 
 ## Contact
 

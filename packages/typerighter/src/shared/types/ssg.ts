@@ -19,6 +19,8 @@ export interface MarkdownHeading {
   children: MarkdownHeading[];
 }
 
+export type OgType = 'article' | 'website';
+
 export interface PageData {
   schema?: string;
   schemaLabel?: string;
@@ -33,6 +35,8 @@ export interface PageData {
   filepath: string;
   fileMetadata?: FileMetadata;
   seoMetadata?: SeoMeta;
+  /** Plain-text excerpt from the page body, used as description fallback */
+  excerpt?: string;
 }
 
 export interface PageModule {

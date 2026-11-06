@@ -1,3 +1,262 @@
+## [0.55.2] - 2026-11-06
+
+### Fixed
+
+- packages/typerighter
+  - Duplicate origin in canonical url
+
+## [0.55.1] - 2026-11-06
+
+### Fixed
+
+- crates/typedown-lang
+  - **Strip leading H1 from rendered HTML** - The HTML exporter now strips the first H1 heading from the document body. The page layout already renders the title from `_label` or the filename, so an H1 in the source would appear duplicated. The plain text of the stripped heading is captured as page title metadata and exposed via `exported.title`. The H1 is not included in the headings list (it is the page title, not a TOC entry).
+  - **Quoted string props in `[[]]` container shorthands** - The `[[label {key="value"}]]` shorthand now accepts quoted string values, matching the behaviour of full `:::label{...}` container blocks. Both forms call the same prop block parser; the fix removes the whitespace-handling mismatch in the shorthand path.
+  - **Whitespace tolerance in `[[]]` shorthands** - `[[ label ]]` and `[[ label {props} ]]` with spaces inside the brackets now parse correctly. Previously the parser used `SKIP_NONE` after `[[`, causing a spurious "expected an identifier" diagnostic whenever the label was preceded by whitespace.
+
+- packages/typerighter
+  - **Fix horizontal overflow on small viewports** - Pages could overflow horizontally on narrow screens.
+  - **Fix SEO naming consistency** - `generateSitemap`/`generateRobotsTxt`/`generateRssFeed` renamed to `buildSitemap`/`buildRobotsTxt`/`buildRssFeed` to match the `build*` convention used throughout. `canonicalUrl` now always includes the origin prefix. `isDirectoryIndex` removed from public-facing SEO APIs (computed internally).
+
+## [0.55.0] - 2026-11-06
+
+### Added
+
+- packages/typerighter
+  - Diagram viewer redesign: inline block with hover toolbar (language label, Preview/Code toggle, copy, expand), floating zoom control, pan/zoom hint
+  - Fullscreen diagram preview: modal with header (title, language chip, code toggle, zoom controls, copy, SVG download, close), dotted grid canvas, keyboard shortcuts (Esc, +/-, 0)
+  - Pan/zoom on diagram surfaces: click-to-expand, drag-to-pan, ctrl/cmd+wheel zoom, double-click zoom (modal), pointer capture with 4px click threshold
+  - Code view for diagrams: monospace source with line numbers, toggled via segmented control in toolbar
+  - SVG download: serializes rendered SVG with xmlns for standalone rendering
+
+### Changed
+
+- packages/typerighter
+  - Diagram rendering rewritten from imperative DOM manipulation (diagram.ts) to Vue component (TdDiagram.vue) with reactive state, scoped styles, Lucide icons, and proper lifecycle cleanup
+  - Lazy-embed bridge (mountDiagram.ts) uses `h()` + `render()` to mount TdDiagram from the IntersectionObserver pipeline
+  - SVG dimensions parsed from markup string (viewBox preferred) instead of DOM queries
+  - Placeholder styles (spinner, error border) moved to content.css; diagram styles are scoped in the component
+
+## [0.54.0] - 2026-11-05
+
+### Added
+
+- crates/typedown-lang
+  - Support graph query via `vault.from_node()` and `vault.from_nodes()` API
+
+### Internal
+
+- crates/typedown-lang
+  - IMPORTANT: Variable types are now given proper identity so variable substitution can work unambiguously
+  - Enhanced type inference pipeline for function and closure
+  - Better infrastructure to support generic functions and types
+
+## [0.53.2] - 2026-11-03
+
+### Fixed
+
+- crates/typedown-lang, packages/typerighter
+  - Frontmatter properties panel not showing on pages with `_type: schema/product` structure
+  - Date, datetime, and time fields rendered as `[object Object]` in properties panel
+  - File reference fields in lists rendered as empty instead of links
+  - `serialize_value` now requires project; nested frefs emit `{"$kind": "ref", "$ref": {"url": "...", "name": "..."}}` instead of inline objects
+  - `$kind` reserved for infrastructure markers (`ref`, `type`); `_type` for semantic data types
+  - `serialize_typ` emits `{"$kind": "type", "type": "..."}` with JSON Schema-compatible fields
+  - `deserialize_value` accepts project and resolves `$kind: "ref"` URLs back to evaluated objects
+
+## [0.53.1] - 2026-11-02 (retracted)
+
+- packages/typerighter
+  - Broken RPC contract on the client side
+
+## [0.53.0] - 2026-11-02 (retracted)
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - Support grid component
+
+## [0.52.2] - 2026-11-01
+
+### Added
+
+- crates/typedown-server
+  - Integration tests for concurrent multiproject loading and querying
+
+### Fixed
+
+- crates/typedown-lang (parser)
+  - Tight nested lists (e.g. `- Parent\n    - Child`) now correctly nest as children instead of being treated as siblings. Sibling detection moved from item parser to list parser where indent level is correct.
+  - 3+ level deep nesting preserved through formatting round-trips
+
+- crates/typedown-lang (formatter)
+  - Child blocks in list items always get a blank line separator (consistent across bullet, ordered, and task lists)
+
+- crates/typedown-server
+  - LSP no longer crashes when opening files from multiple projects. Transport layer gracefully handles connection resets instead of panicking.
+
+- packages/typerighter
+  - Navbar active item shows background highlight with smooth transition
+  - Sidebar fref list icons align to first baseline instead of center
+
+## [0.52.1] - 2026-11-01
+
+### Fixed
+
+- crates/typedown-lang
+  - `fref()` with absolute paths (e.g. `fref("/design/concepts/affordance.td")`) resolved to null in frontmatter. `Path::join` with a leading `/` replaces the base path entirely, bypassing the vault root. Now uses `resolve_fref_path` consistently.
+
+## [0.52.0] - 2026-11-01
+
+### Added
+
+- crates/typedown-lang
+  - Centralized media embed system: `![](url)` detects URL type and renders as image, service embed, GitHub code snippet, or generic iframe
+  - Supported services: YouTube, Spotify, Apple Music, Vimeo, CodePen, CodeSandbox, Figma, Excalidraw
+  - Generic iframe fallback with sandbox for unknown external URLs
+  - Loading spinner for embed placeholders (Mermaid, D2, GitHub, iframes)
+
+- crates/typedown-lang
+  - Loose list items: blank line + indented content nests inside parent item instead of breaking as sibling
+
+### Fixed
+
+- crates/typedown-lang
+  - Parser infinite loop when container closing `:::` is at wrong indentation
+  - Block-level `![](url)` not exported (missing `MdMedia` in `emit_block`)
+
+- packages/typerighter
+  - Lazy embed composables: replace provide/inject with direct parameter passing (inject can't see provide in same component)
+  - Link color changed to warmer muted blue (#3D6B99)
+  - Embed wrapper reserves space to prevent layout shift
+
+## [0.51.1] - 2026-10-31
+
+### Fixed
+
+- crates/typwdown-lang
+  - Infinite loop when parsing indentation-mismatched closing ::: of container blocks
+
+## [0.51.0] - 2026-10-31
+
+### Added
+
+- crates/typedown-lang
+  - `MdPrefix` CST node wrapping prefix tokens (blockquote `>`, list indent) for content filtering
+  - `MdBlankLine` CST node for blank line separators between block elements
+
+### Fixed
+
+- crates/typedown-lang
+  - Blockquote prefix now includes optional trailing space per CommonMark, fixing blockquote continuation in nested contexts
+  - List item prefix width matches CommonMark marker width (`- ` = 2, `1. ` = 3, `10. ` = 4), fixing container/blockquote nesting inside lists
+  - Container blocks track extra indentation, allowing `:::` indented beyond the parent prefix
+  - Container slot properly consumes newline + prefix before next block element (was panicking)
+  - LAX prefix matching no longer falsely continues blockquotes past blank lines
+  - Formatter uses actual marker width for nested content indentation instead of fixed 2-space depth
+
+## [0.50.0] - 2026-10-30
+
+### Added
+
+- packages/tree-sitter
+  - Per-line code fence content tokens (`code_fence_content_line`) replacing monolithic `code_fence_content`, enabling syntax highlighting inside blockquotes and list items via `injection.combined`
+- editors/nvim
+  - Blockquote renderer: grey left gutter bar on every line, conceals `>` markers
+  - Code block line range highlighting: `{2,5}` or `{1,3,5-8}` highlights specified content lines
+  - Math block rendering: background and left gutter bar matching code blocks
+  - Code fence delimiter concealment: `` ``` ``, `~~~`, `$$`, language text, and range indicators are concealed (anti-conceal on cursor line)
+  - Language badge: right-aligned icon + name on code block opening line
+  - Link rendering: underline-only for `fref()`, `[text](url)`, `![alt](url)` (replaced overlay text)
+- editors/nvim, editors/vscode
+  - Dev binary resolution picks the newer of `target/debug` and `target/release` by mtime
+
+### Fixed
+
+- packages/tree-sitter
+  - Code fence blocks inside blockquotes, list items, and nested containers now parse and highlight correctly
+  - Closing fence delimiter (`> ``` `) inside blockquotes was not detected by the monolithic content scanner
+- editors/nvim
+  - Closing code fence delimiter line was missing gutter and background highlight
+  - Opening `$$` math delimiter was not concealed (node range spans to next line)
+  - Smart action `<CR>` on markdown links now uses LSP definition instead of raw file open
+
+## [0.49.0] - 2026-10-30
+
+### Added
+
+- packages/typerighter
+  - GitHub embed: `![](https://github.com/owner/repo/blob/ref/path#L1-L10)` and gist URLs in media blocks render as embedded code snippets via emgithub
+  - Code block line numbers: row-based layout via Shiki transformer with sticky number column
+  - Lazy loading for D2, Mermaid, and GitHub embeds via `IntersectionObserver` (only loads when scrolled into view)
+  - CDN module preloading (`<link rel="modulepreload">`) for D2 and Mermaid when placeholders exist on the page
+
+### Fixed
+
+- crates/typedown-lang
+  - Block-level images (`![alt](url "title")` on its own line) were not exported - added `MdMedia` to `emit_block`
+- packages/typerighter
+  - D2 CDN version pinned to 0.1.32 to avoid breaking API change in 0.1.33
+  - Dark mode code blocks now use warm neutral background instead of cold blue
+  - Code block header styling updated to match design reference (language badge, compact header, border)
+
+## [0.48.2] - 2026-10-29
+
+### Fixed
+
+- crates/typedown-lang
+  - Bugs in parsing codeblock props with quotes
+
+## [0.48.1] - 2026-10-29
+
+### Fixed
+
+- packages/typerighter
+  - Codeblock light mode color
+
+## [0.48.0] - 2026-10-28
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - Image captions: `![alt](url "caption")` renders as `<figure>` with `<figcaption>`
+  - Link titles: `[text](url "title")` adds a `title` attribute to the `<a>` tag
+  - Diagram captions: `{title="..."}` on mermaid/d2 blocks renders a `<figcaption>` below the diagram
+  - Code block props validation: `{title="..." line-numbers}` validated in the lexer, unknown props diagnosed
+  - Code block `title()` and `has_line_numbers()` AST convenience methods
+  - LSP autocompletion for code block props (`title`, `line-numbers`) inside `{...}`
+  - LSP go-to-definition, references, and rename for markdown link/image URLs (`[text](path)`, `![alt](path)`)
+  - `ReferenceKind::MdLink` in the resolution index for consistent tracking of markdown link references
+  - `resolve_md_link_path` centralized URL-to-vault-path resolution with `base_path` stripping
+
+- editors/nvim
+  - Code block language badges with 100+ Nerd Font devicons
+  - Frontmatter rendering: `---` delimiters replaced with thin horizontal rules, content dimmed
+  - Bullet overlay strips leading whitespace from marker node to preserve indentation
+
+- packages/typerighter
+  - Code blocks revamped: `<figure>` + `<figcaption>` HTML with header bar, language label, and copy button with icon
+  - Image `<figure>` + `<figcaption>` CSS styling
+
+### Changed
+
+- crates/typedown-lang
+  - Code block `{...}` lexer accepts named props (`title`, `line-numbers`) alongside line ranges
+  - Image/link title parsed as separate `MdText` node in the AST (not inline in URL text)
+
+- editors/nvim
+  - Code block language badge uses `right_align` position
+
+- packages/typerighter
+  - Frontmatter "more" button: hover shows accent color instead of background highlight
+
+### Fixed
+
+- crates/typedown-lang
+  - `{title="..."}` on code blocks no longer produces `invalid-code-range-indicator` diagnostic
+  - Tree-sitter scanner returns false on `\` so `\*` is not treated as emphasis
+  - TextMate grammar: `md-escape` pattern moved before emphasis to prevent `\*` from italicizing
+
 ## [0.47.0] - 2026-10-28
 
 ### Added

@@ -32,7 +32,11 @@ function M.setup()
 	-- Code
 	set_hl(0, "TypedownRenderCodeBlock", { bg = "#1e1e2e", default = true })
 	set_hl(0, "TypedownRenderCodeLanguage", { fg = "#89b4fa", italic = true, default = true })
-	set_hl(0, "TypedownRenderCodeBorder", { fg = "#585b70", default = true })
+	set_hl(0, "TypedownRenderCodeBorder", { fg = "#45475a", default = true })
+	set_hl(0, "TypedownRenderCodeHighlight", { bg = "#2a2b3d", default = true })
+
+	-- Block quotes
+	set_hl(0, "TypedownRenderBlockQuoteBorder", { fg = "#585b70", default = true })
 
 	-- Tables
 	set_hl(0, "TypedownRenderTableBorder", { fg = "#585b70", default = true })
@@ -45,9 +49,8 @@ function M.setup()
 	set_hl(0, "TypedownRenderCheckboxForwarded", { fg = "#fab387", default = true })
 	set_hl(0, "TypedownRenderCheckboxImportant", { fg = "#f38ba8", bold = true, default = true })
 
-	-- Links
-	set_hl(0, "TypedownRenderFrefIcon", { fg = "#89b4fa", default = true })
-	set_hl(0, "TypedownRenderFrefText", { fg = "#cba6f7", underline = true, default = true })
+	-- Links (fref, markdown links, media embeds)
+	set_hl(0, "TypedownRenderLink", { fg = "#89b4fa", underline = true, default = true })
 
 	-- Bullets
 	set_hl(0, "TypedownRenderBullet", { fg = "#89b4fa", default = true })

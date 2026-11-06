@@ -434,3 +434,35 @@ type: string?
           (expression
             (identifier)))))))
 
+================
+Inline math in double-quoted string
+================
+_label: "What is $\alpha$?"
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (reserved_key))
+    (value
+      (expression
+        (string
+          (inline_math
+            (inline_math_content)))))))
+
+================
+Inline math in single-quoted string
+================
+_label: 'Rules $\mathcal{r}$ define?'
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (reserved_key))
+    (value
+      (expression
+        (string
+          (inline_math
+            (inline_math_content)))))))
+

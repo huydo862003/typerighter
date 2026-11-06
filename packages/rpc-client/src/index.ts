@@ -32,8 +32,8 @@ export interface TdContentNotification {
 }
 
 export interface TdFileMetadata {
-  mtime: number;
-  ctime: number;
+  mtimeSecs: number;
+  ctimeSecs: number;
 }
 
 export interface TdHeading {
@@ -144,6 +144,7 @@ export interface TdBuiltResource {
   content: string;
   headings: TdHeading[];
   title?: string;
+  excerpt?: string;
   fileMetadata: TdFileMetadata;
   seoMetadata?: TdSeoMeta;
 }

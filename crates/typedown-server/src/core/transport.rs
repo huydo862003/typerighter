@@ -17,11 +17,11 @@ impl IoHandle {
   pub fn join(self) {
     match self {
       Self::Stdio(io) => {
-        io.join().unwrap();
+        let _ = io.join();
       }
       Self::Tcp { reader, writer } => {
-        reader.join().unwrap();
-        writer.join().unwrap();
+        let _ = reader.join();
+        let _ = writer.join();
       }
     }
   }
@@ -55,10 +55,11 @@ pub fn connect_tcp(
   let (reader_sender, reader_receiver) = bounded::<Message>(16);
 
   let reader = std::thread::spawn(move || {
-    let mut buf_read = BufReader::new(reader_stream);
-    while let Some(msg) = Message::read(&mut buf_read).unwrap() {
-      let is_exit = matches!(&msg, Message::Notification(n) if n.method == "exit");
-      reader_sender.send(msg).unwrap();
+    let mut buffer_read = BufReader::new(reader_stream);
+    while let Ok(Some(message)) = Message::read(&mut buffer_read) {
+      let is_exit =
+        matches!(&message, Message::Notification(notification) if notification.method == "exit");
+      reader_sender.send(message).unwrap();
       if is_exit {
         break;
       }
@@ -66,8 +67,8 @@ pub fn connect_tcp(
   });
 
   let writer = std::thread::spawn(move || {
-    for msg in writer_receiver {
-      if msg.write(&mut writer_stream).is_err() {
+    for message in writer_receiver {
+      if message.write(&mut writer_stream).is_err() {
         break;
       }
     }

@@ -8,7 +8,9 @@ import {
   escapeHtml, unescapeHtml,
 } from '@/shared';
 
-let highlighterPromise: Promise<(code: string, language: string, attrs: string) => Promise<string>> | undefined;
+let highlighterPromise:
+  | Promise<(code: string, language: string, attrs: string, lineNumberStart?: number) => Promise<string>>
+  | undefined;
 
 // Replace all placeholder elements with rendered output
 export async function postprocessHtml (html: string): Promise<string> {
@@ -29,7 +31,8 @@ function getHighlighter () {
 // Code block placeholder format from Rust:
 // <pre class="td-code-placeholder" data-lang="js" data-meta="js{1,3}" data-title="foo.ts" data-line-numbers="5"><code>escaped code</code></pre>
 // Safe: Rust HTML-escapes the code content, so </code> cannot appear inside the placeholder
-const CODE_PLACEHOLDER_RE = /<pre class="td-code-placeholder"([^>]*)><code>([\s\S]*?)<\/code><\/pre>/g;
+const CODE_PLACEHOLDER_RE =
+  /<pre class="td-code-placeholder"([^>]*)><code>([\s\S]*?)<\/code><\/pre>/g;
 
 interface CodeBlockOptions {
   title?: string;
@@ -58,7 +61,8 @@ async function highlightCodeBlocks (html: string): Promise<string> {
       const lineNumbers = getAttribute(attrs, 'data-line-numbers');
       const code = unescapeHtml(match[2]);
 
-      const highlighted = await highlight(code, language, meta);
+      const lineNumberStart = lineNumbers !== undefined ? (parseInt(lineNumbers) || 1) : undefined;
+      const highlighted = await highlight(code, language, meta, lineNumberStart);
 
       return wrapCodeBlock(highlighted, language, {
         title,
@@ -72,40 +76,110 @@ async function highlightCodeBlocks (html: string): Promise<string> {
   for (let index = matches.length - 1; 0 <= index; index--) {
     const match = matches[index];
 
-    result = result.slice(0, match.index) + replacements[index] + result.slice(match.index + match[0].length);
+    result =
+      result.slice(0, match.index)
+      + replacements[index]
+      + result.slice(match.index + match[0].length);
   }
 
   return result;
 }
 
-function wrapCodeBlock (highlighted: string, language: string, options: CodeBlockOptions): string {
-  language ||= 'txt';
-  const label = options.title ?? language.replace(/_/g, ' ');
+// Short display labels for common languages
+const LANG_LABEL: Record<string, string> = {
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
+  tsx: 'TSX',
+  jsx: 'JSX',
+  python: 'Python',
+  rust: 'Rust',
+  rs: 'Rust',
+  go: 'Go',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+  ruby: 'Ruby',
+  php: 'PHP',
+  csharp: 'C#',
+  cpp: 'C++',
+  c: 'C',
+  bash: 'Bash',
+  sh: 'Bash',
+  shell: 'Shell',
+  zsh: 'Zsh',
+  html: 'HTML',
+  css: 'CSS',
+  scss: 'SCSS',
+  sass: 'Sass',
+  json: 'JSON',
+  yaml: 'YAML',
+  yml: 'YAML',
+  toml: 'TOML',
+  xml: 'XML',
+  sql: 'SQL',
+  markdown: 'Markdown',
+  vue: 'Vue',
+  svelte: 'Svelte',
+  racket: 'Racket',
+  haskell: 'Haskell',
+  elixir: 'Elixir',
+  clojure: 'Clojure',
+  lua: 'Lua',
+  r: 'R',
+  dart: 'Dart',
+  zig: 'Zig',
+  nim: 'Nim',
+  ocaml: 'OCaml',
+  erlang: 'Erlang',
+  scala: 'Scala',
+  txt: 'Text',
+};
 
-  const classes = ['language-' + language];
+function formatLanguageLabel (language: string): string {
+  return LANG_LABEL[language.toLowerCase()] ?? language;
+}
+
+function wrapCodeBlock (
+  highlighted: string,
+  language: string,
+  options: CodeBlockOptions,
+): string {
+  language ||= 'txt';
+  const badge = formatLanguageLabel(language);
+
+  const classes = [
+    'td-code-block',
+    'language-' + language,
+  ];
 
   if (options.title) classes.push('has-title');
   if (options.lineNumbers !== undefined) classes.push('line-numbers-mode');
 
-  let result =
-    `<div class="${classes.join(' ')}">`
-    + '<button title="Copy code" data-copied="Copied" class="copy"></button>'
-    + `<span class="lang">${escapeHtml(label)}</span>`
-    + highlighted;
+  // <figure> wrapper with <figcaption> header
+  let result = `<figure class="${classes.join(' ')}">`;
 
-  if (options.lineNumbers !== undefined) {
-    const startLineNumber = parseInt(options.lineNumbers) || 1;
-    const codeSection = result.slice(result.indexOf('<code>'), result.indexOf('</code>'));
-    const lineCount = codeSection.split('\n').length;
-
-    const lineNumbersHtml = [...Array(lineCount)]
-      .map((_, index) => `<span class="line-number">${index + startLineNumber}</span><br>`)
-      .join('');
-
-    result += `<div class="line-numbers-wrapper" aria-hidden="true">${lineNumbersHtml}</div>`;
+  // Header bar: [badge + label] left, [copy button] right
+  result += '<figcaption class="td-code-header">';
+  result += '<span class="td-code-left">';
+  result += `<span class="td-code-lang">${escapeHtml(badge)}</span>`;
+  if (options.title) {
+    result += `<span class="td-code-label">${escapeHtml(options.title)}</span>`;
   }
+  result += '</span>';
+  result += '<span class="td-code-actions">';
+  result +=
+    '<button type="button" aria-label="Copy code" data-copied="Copied" class="td-code-copy">';
+  result +=
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  result += '<span class="td-code-copy-text">Copy</span>';
+  result += '</button>';
+  result += '</span>';
+  result += '</figcaption>';
 
-  result += '</div>';
+  // Code body - line number rows are already embedded by the Shiki transformer
+  result += highlighted;
+
+  result += '</figure>';
 
   return result;
 }

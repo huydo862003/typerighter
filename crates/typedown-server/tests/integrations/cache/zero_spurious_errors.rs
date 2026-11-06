@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::session1_dump;
-use crate::server_simulation::collect_type_errors;
+use crate::server_simulation::collect_typ_errors;
 use crate::utils::{run_child_test, setup_db_cached};
 
 #[test]
@@ -11,7 +11,7 @@ fn zero_spurious_errors() {
     let cache_dir = PathBuf::from(std::env::var("CACHE").unwrap());
 
     let db = setup_db_cached(&cache_dir, &project_dir);
-    let errors = collect_type_errors(&db);
+    let errors = collect_typ_errors(&db);
     assert!(
       errors.is_empty(),
       "cache roundtrip should produce zero type errors, got:\n{}",

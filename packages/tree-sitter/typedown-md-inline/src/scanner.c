@@ -216,6 +216,7 @@ static bool scan_emphasis(Scanner *scanner, TSLexer *lexer,
   if (delim_char != '*' && delim_char != '_')
     return false;
 
+
   int single_open, single_close, double_open, double_close;
   if (delim_char == '*') {
     single_open = EMPHASIS_OPEN_STAR;
@@ -416,6 +417,11 @@ bool tree_sitter_typedown_md_inline_external_scanner_scan(
                             MATH_SPAN_DELIMITER)) {
       return true;
     }
+  }
+
+  // Backslash escape: let the grammar handle \* \_ \~ etc.
+  if (lexer->lookahead == '\\') {
+    return false;
   }
 
   // ~~

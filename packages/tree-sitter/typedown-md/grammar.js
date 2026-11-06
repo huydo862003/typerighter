@@ -30,7 +30,7 @@ export default grammar({
     $.atx_h6_marker,
 
     $.fenced_code_block_delimiter,
-    $.code_fence_content,
+    $.code_fence_content_line,
     $.language,
     $.line_range_indicator,
 
@@ -196,7 +196,7 @@ export default grammar({
         $.fenced_code_block_delimiter,
         optional(field('language', $.language)),
         optional(field('line_ranges', $.line_range_indicator)),
-        optional($.code_fence_content),
+        repeat(choice($.code_fence_content_line, $._blank_line, $._block_continuation)),
         $.fenced_code_block_delimiter,
       ),
 
@@ -362,7 +362,7 @@ export default grammar({
       ),
 
     container_prop_key: () =>
-      /[a-zA-Z_]\w*/,
+      /[a-zA-Z_][\w-]*/,
 
     container_prop_value: ($) =>
       choice($.container_prop_number, $.container_prop_string),

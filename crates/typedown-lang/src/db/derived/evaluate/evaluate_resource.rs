@@ -111,6 +111,7 @@ mod tests {
   use crate::integrations::export::export_resource_markdown;
   use crate::syntax::diagnostic::*;
   use std::path::PathBuf;
+  use typedown_types::either::Either;
 
   // A valid resource with _type produces an object with the declared fields
   #[test]
@@ -134,7 +135,7 @@ mod tests {
 
   // A field value that doesn't match the declared schema type produces diagnostics
   #[test]
-  fn evaluate_resource_wrong_type_has_diagnostics() {
+  fn evaluate_resource_wrong_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "wrong_field_type.td");
     let symbol = file_symbol(&db, project, file)
       .value(&db)
@@ -349,8 +350,8 @@ mod tests {
 
   fn get_bool_field(db: &TypedownDatabase, obj: &TdObjEnum, field: &str) -> bool {
     let field_obj = obj.get_owned_field(db, field).expect("should have field");
-    let b = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
-    b.value(db)
+    let bool = field_obj.as_td_bool_obj().expect("should be TdBoolObj");
+    bool.value(db)
   }
 
   // 1 + 2 evaluates to 3
@@ -598,12 +599,7 @@ mod tests {
       [(path, file)].into_iter().collect(),
       None,
     );
-    let symbol = Symbol::new(
-      &db,
-      SymbolKind::Asset(AssetKind::Png, project, file),
-      "photo".to_string(),
-      "@vault::_assets/photo.png".to_string(),
-    );
+    let symbol = Symbol::new(&db, SymbolKind::Asset(AssetKind::Png, project, file));
 
     let result = evaluate_resource(&db, symbol);
     assert!(
@@ -739,7 +735,7 @@ mod tests {
 
   // string? field with wrong type produces typecheck error
   #[test]
-  fn optional_field_wrong_type_has_diagnostics() {
+  fn optional_field_wrong_typ_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "wrong_type.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
@@ -751,7 +747,7 @@ mod tests {
 
   // _type: Schema? should produce a diagnostic
   #[test]
-  fn nullable_type_ref_has_diagnostics() {
+  fn nullable_typ_ref_has_diagnostics() {
     let (db, project, file) = load_vault_fixture("evaluate/null_type", "nullable_type_ref.td");
     let root_node = parse_file(&db, project, file).ast(&db);
     let result = typecheck(&db, root_node);
@@ -879,18 +875,124 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
     let result = export_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
-    let header = exported
-      .header
-      .as_object()
-      .expect("header should be object");
+    let header = exported.header;
+    // Header uses bindings _type format: fields are nested under "fields"
+    let fields = header
+      .get("fields")
+      .and_then(|val| val.as_object())
+      .expect("header should have fields object");
     assert!(
-      !header.contains_key("_imports"),
+      !fields.contains_key("_imports"),
       "_imports should be stripped from export"
     );
     assert_eq!(
-      header.get("brand").and_then(|value| value.as_str()),
+      fields.get("brand").and_then(|value| value.as_str()),
       Some("#4F6BCA"),
       "brand should resolve to imported color value"
+    );
+  }
+
+  // vault.from_nodes(Person).to_list() produces a list of Person objects
+  #[test]
+  fn vault_query_to_list_produces_person_list() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/graph_query_vault", "vault_query_to_list.td");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("file_symbol should return a symbol");
+    let obj = evaluate_resource(&db, symbol)
+      .value(&db)
+      .expect("should produce an object");
+    let result = obj
+      .get_owned_field(&db, "result")
+      .expect("should have result field");
+    let list = result.as_td_list_obj().expect("result should be a list");
+    let items = list.items(&db);
+    // 3 Person files: alice, bob, carol
+    assert_eq!(
+      items.len(),
+      3,
+      "to_list should return exactly 3 Person objects, got {}",
+      items.len()
+    );
+    // Collect names from all items
+    let names: Vec<String> = items
+      .iter()
+      .filter_map(|item| match item {
+        Either::Right(obj) => obj
+          .get_owned_field(&db, "name")
+          .and_then(|name| name.as_td_string_obj().map(|s| s.value(&db))),
+        Either::Left(_) => None,
+      })
+      .collect();
+    assert!(
+      names.contains(&"Alice".to_string()),
+      "should contain Alice, got {:?}",
+      names
+    );
+    assert!(
+      names.contains(&"Bob".to_string()),
+      "should contain Bob, got {:?}",
+      names
+    );
+    assert!(
+      names.contains(&"Carol".to_string()),
+      "should contain Carol, got {:?}",
+      names
+    );
+  }
+
+  // vault.from_nodes(Person).first() produces a Person (not null)
+  #[test]
+  fn vault_query_first_produces_person() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/graph_query_vault", "vault_query_first.td");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("file_symbol should return a symbol");
+    let obj = evaluate_resource(&db, symbol)
+      .value(&db)
+      .expect("should produce an object");
+    let result = obj
+      .get_owned_field(&db, "result")
+      .expect("should have result field");
+    assert!(
+      !result.is_td_null_obj(),
+      "first() on non-empty set should not be null"
+    );
+    // Should have name and age fields (Person schema)
+    let name = result
+      .get_owned_field(&db, "name")
+      .expect("first() should return a Person with a name field");
+    assert!(name.as_td_string_obj().is_some(), "name should be a string");
+    let age = result
+      .get_owned_field(&db, "age")
+      .expect("first() should return a Person with an age field");
+    assert!(age.as_td_number_obj().is_some(), "age should be a number");
+  }
+
+  // vault.from_nodes(Person).count() produces a number
+  #[test]
+  fn vault_query_count_produces_number() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/graph_query_vault", "vault_query_count.td");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("file_symbol should return a symbol");
+    let obj = evaluate_resource(&db, symbol)
+      .value(&db)
+      .expect("should produce an object");
+    let result = obj
+      .get_owned_field(&db, "result")
+      .expect("should have result field");
+    let number = result
+      .as_td_number_obj()
+      .expect("count() should produce a number");
+    assert_eq!(
+      number.value(&db) as u64,
+      3,
+      "count() should be exactly 3 (alice, bob, carol), got {}",
+      number.value(&db)
     );
   }
 }

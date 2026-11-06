@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::server_simulation::{
-  cached_session_db, collect_type_errors, fresh_session, run_lsp_queries, run_rpc_queries,
+  cached_session_db, collect_typ_errors, fresh_session, run_lsp_queries, run_rpc_queries,
 };
 use crate::utils::{copy_dir_recursive, example_vault, run_child_test};
 
@@ -11,7 +11,7 @@ fn lsp_then_rpc_zero_errors() {
     let project_dir = PathBuf::from(std::env::var("PROJECT").unwrap());
     let db = cached_session_db(&project_dir);
     run_rpc_queries(&db);
-    let errors = collect_type_errors(&db);
+    let errors = collect_typ_errors(&db);
     assert!(
       errors.is_empty(),
       "LSP then RPC should produce zero type errors, got:\n{}",

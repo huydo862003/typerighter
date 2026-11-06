@@ -2,6 +2,7 @@
 
 pub mod static_type;
 
+use std::fmt::Write;
 use std::path::{Component, Path, PathBuf};
 
 use crate::db::TypedownDatabase;
@@ -37,10 +38,44 @@ pub fn kebab_to_pascal(name: &str) -> String {
     .collect()
 }
 
+/// Convert kebab-case to camelCase: `col-span` -> `colSpan`
+pub fn kebab_to_camel(name: &str) -> String {
+  let mut parts = name.split('-');
+  let first = parts.next().unwrap_or("");
+  let rest: String = parts
+    .map(|segment| {
+      let mut chars = segment.chars();
+      match chars.next() {
+        Some(first) => {
+          let upper: String = first.to_uppercase().collect();
+          upper + chars.as_str()
+        }
+        None => String::new(),
+      }
+    })
+    .collect();
+  format!("{first}{rest}")
+}
+
 // Convert a snake_case string to kebab-case
 // e.g. "layout_top" -> "layout-top"
 pub fn snake_to_kebab(name: &str) -> String {
   name.replace('_', "-")
+}
+
+pub fn percent_encode(input: &str) -> String {
+  let mut out = String::with_capacity(input.len() * 3);
+  for byte in input.bytes() {
+    match byte {
+      b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+        out.push(byte as char);
+      }
+      _ => {
+        let _ = write!(out, "%{byte:02X}");
+      }
+    }
+  }
+  out
 }
 
 pub fn is_external_url(url: &str) -> bool {
@@ -81,10 +116,11 @@ pub fn is_typ_file(path: &Path) -> bool {
 }
 
 /// Strip a content file extension (.td or .md) from a string
-pub fn strip_content_extension(s: &str) -> &str {
-  s.strip_suffix(".td")
-    .or_else(|| s.strip_suffix(".md"))
-    .unwrap_or(s)
+pub fn strip_content_extension(string: &str) -> &str {
+  string
+    .strip_suffix(".td")
+    .or_else(|| string.strip_suffix(".md"))
+    .unwrap_or(string)
 }
 
 /// Check if a file has no frontmatter (schemaless)
@@ -150,6 +186,39 @@ pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) 
   } else {
     // Handles absolute paths starting with `/` (strip leading slash before joining)
     vault_root.join(path.trim_start_matches('/'))
+  }
+}
+
+/// Resolve a markdown link/media URL to a vault file path
+/// Handles relative paths, absolute paths from vault root, and base_path stripping
+pub fn resolve_md_link_path(
+  url: &str,
+  source_file_dir: &Path,
+  vault_root: &Path,
+  base_path: &str,
+) -> PathBuf {
+  if url.starts_with("./") || url.starts_with("../") {
+    normalize_joined_path(source_file_dir, url)
+  } else if url.starts_with('/') {
+    let stripped = url.trim_start_matches('/');
+    let normalized_base = base_path.trim_start_matches('/').trim_end_matches('/');
+    let vault_relative = if !normalized_base.is_empty() && stripped.starts_with(normalized_base) {
+      stripped[normalized_base.len()..].trim_start_matches('/')
+    } else {
+      stripped
+    };
+    vault_root.join(vault_relative)
+  } else {
+    source_file_dir.join(url)
+  }
+}
+
+/// Prepend a base path to a vault-relative path to produce a URL.
+pub fn prepend_base_path(base_path: &str, vault_path: &str) -> String {
+  if base_path == "/" {
+    format!("/{vault_path}")
+  } else {
+    format!("{base_path}/{vault_path}")
   }
 }
 
@@ -252,5 +321,88 @@ mod tests {
     let source_file_dir = Path::new("/project/vault/articles/webrtc");
     let result = resolve_fref_path("../intro.td", source_file_dir, vault_root);
     assert_eq!(result, PathBuf::from("/project/vault/articles/intro.td"));
+  }
+
+  // resolve_md_link_path tests
+
+  #[test]
+  fn md_link_absolute_path_no_base() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    assert_eq!(
+      resolve_md_link_path("/alice.td", dir, root, "/"),
+      PathBuf::from("/vault/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_absolute_path_with_base_path() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    assert_eq!(
+      resolve_md_link_path("/docs/alice.td", dir, root, "/docs"),
+      PathBuf::from("/vault/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_absolute_path_base_path_no_leading_slash() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    assert_eq!(
+      resolve_md_link_path("/docs/alice.td", dir, root, "docs"),
+      PathBuf::from("/vault/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_absolute_path_base_path_trailing_slash() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    assert_eq!(
+      resolve_md_link_path("/docs/alice.td", dir, root, "/docs/"),
+      PathBuf::from("/vault/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_absolute_path_no_matching_base_path() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    // base_path is /blog but URL starts with /articles - no stripping
+    assert_eq!(
+      resolve_md_link_path("/articles/alice.td", dir, root, "/blog"),
+      PathBuf::from("/vault/articles/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_relative_path() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    assert_eq!(
+      resolve_md_link_path("alice.td", dir, root, "/"),
+      PathBuf::from("/vault/sub/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_dotslash_relative() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub");
+    assert_eq!(
+      resolve_md_link_path("./alice.td", dir, root, "/"),
+      PathBuf::from("/vault/sub/alice.td")
+    );
+  }
+
+  #[test]
+  fn md_link_parent_relative() {
+    let root = Path::new("/vault");
+    let dir = Path::new("/vault/sub/deep");
+    assert_eq!(
+      resolve_md_link_path("../alice.td", dir, root, "/"),
+      PathBuf::from("/vault/sub/alice.td")
+    );
   }
 }

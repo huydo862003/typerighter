@@ -44,7 +44,13 @@ impl Arbitrary for RedNode {
 }
 
 fn arb_offsets() -> impl Strategy<Value = (usize, usize)> {
-  (0..10000usize, 0..10000usize).prop_map(|(a, b)| if a <= b { (a, b) } else { (b, a) })
+  (0..10000usize, 0..10000usize).prop_map(|(left_offset, right_offset)| {
+    if left_offset <= right_offset {
+      (left_offset, right_offset)
+    } else {
+      (right_offset, left_offset)
+    }
+  })
 }
 
 impl Arbitrary for TdDiagnostic {
@@ -65,20 +71,20 @@ impl Arbitrary for TdDiagnostic {
           .into_error(start_offset, end_offset)
         }
       ),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnterminatedString {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnterminatedString {}.into_error(start, end)),
       arb_offsets()
-        .prop_map(|(s, e)| TdDiagnosticKind::UnterminatedInterpolation {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnterminatedCodeBlock {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnterminatedInlineCode {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnterminatedMathBlock {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnterminatedInlineMath {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MissingCodeBlockNewline {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MissingMathBlockNewline {}.into_error(s, e)),
+        .prop_map(|(start, end)| TdDiagnosticKind::UnterminatedInterpolation {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnterminatedCodeBlock {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnterminatedInlineCode {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnterminatedMathBlock {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnterminatedInlineMath {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::MissingCodeBlockNewline {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::MissingMathBlockNewline {}.into_error(start, end)),
       (any::<char>(), arb_offsets()).prop_map(|(encountered, (start_offset, end_offset))| {
         TdDiagnosticKind::InvalidChar { encountered }.into_error(start_offset, end_offset)
       }),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::InvalidUtf8 {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MixedIndentation {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::InvalidUtf8 {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::MixedIndentation {}.into_error(start, end)),
       (any::<char>(), any::<char>(), arb_offsets()).prop_map(
         |(expected, encountered, (start_offset, end_offset))| {
           TdDiagnosticKind::InconsistentIndentation {
@@ -91,30 +97,30 @@ impl Arbitrary for TdDiagnostic {
       (any::<usize>(), arb_offsets()).prop_map(|(indent, (start_offset, end_offset))| {
         TdDiagnosticKind::UnmatchedDedent { indent }.into_error(start_offset, end_offset)
       }),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MissingExponentDigits {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| {
-        TdDiagnosticKind::UnexpectedTokensOnFrontmatterMarkerLine {}.into_error(s, e)
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::MissingExponentDigits {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| {
+        TdDiagnosticKind::UnexpectedTokensOnFrontmatterMarkerLine {}.into_error(start, end)
       }),
       any::<usize>()
         .prop_map(|offset| TdDiagnosticKind::MissingFrontmatterMarker {}.into_error(offset, offset)),
       arb_offsets()
-        .prop_map(|(s, e)| TdDiagnosticKind::MissingMarkdownHeadingHash {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| { TdDiagnosticKind::MissingRequiredSpace {}.into_error(s, e) }),
+        .prop_map(|(start, end)| TdDiagnosticKind::MissingMarkdownHeadingHash {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| { TdDiagnosticKind::MissingRequiredSpace {}.into_error(start, end) }),
       (any::<SyntaxKind>(), arb_offsets()).prop_map(|(expected, (start_offset, end_offset))| {
         TdDiagnosticKind::MissingSyntaxNode { expected }.into_error(start_offset, end_offset)
       }),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnclosedLink {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnclosedBold {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnclosedItalic {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnclosedStrikethrough {}.into_error(s, e)),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::UnclosedBoldItalic {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnclosedLink {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnclosedBold {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnclosedItalic {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnclosedStrikethrough {}.into_error(start, end)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::UnclosedBoldItalic {}.into_error(start, end)),
       arb_offsets()
-        .prop_map(|(s, e)| TdDiagnosticKind::MismatchedItalicDelimiter {}.into_error(s, e)),
+        .prop_map(|(start, end)| TdDiagnosticKind::MismatchedItalicDelimiter {}.into_error(start, end)),
       (".*", arb_offsets()).prop_map(|(expected_prefix, (start_offset, end_offset))| {
-        TdDiagnosticKind::MissingExpectMdPrefix { expected_prefix }
+        TdDiagnosticKind::MissingExpectedMdPrefix { expected_prefix }
           .into_error(start_offset, end_offset)
       }),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MissingTableSeparatorRow {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::MissingTableSeparatorRow {}.into_error(start, end)),
       (any::<usize>(), any::<usize>(), arb_offsets()).prop_map(
         |(expected, found, (start_offset, end_offset))| {
           TdDiagnosticKind::TableColumnCountMismatch { expected, found }
@@ -146,7 +152,7 @@ impl Arbitrary for TdDiagnostic {
       (".*", ".*", arb_offsets()).prop_map(|(path, field, (start_offset, end_offset))| {
         TdDiagnosticKind::VaultConfigUnknownField { path, field }.into_error(start_offset, end_offset)
       }),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::MissingSchemaField {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::MissingSchemaField {}.into_error(start, end)),
       (".*", arb_offsets()).prop_map(|(name, (start_offset, end_offset))| {
         TdDiagnosticKind::UnresolvedSchema { name }.into_error(start_offset, end_offset)
       }),
@@ -155,7 +161,7 @@ impl Arbitrary for TdDiagnostic {
           TdDiagnosticKind::WrongTypArgCount { expected, got }.into_error(start_offset, end_offset)
         }
       ),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::NotCallable {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::NotCallable {}.into_error(start, end)),
       (any::<usize>(), any::<usize>(), arb_offsets()).prop_map(
         |(expected, got, (start_offset, end_offset))| {
           TdDiagnosticKind::WrongArgCount { expected, got }.into_error(start_offset, end_offset)
@@ -167,7 +173,7 @@ impl Arbitrary for TdDiagnostic {
       (".*", ".*", arb_offsets()).prop_map(|(field, expected, (start_offset, end_offset))| {
         TdDiagnosticKind::FieldTypMismatch { field, expected }.into_error(start_offset, end_offset)
       }),
-      arb_offsets().prop_map(|(s, e)| TdDiagnosticKind::NotIndexable {}.into_error(s, e)),
+      arb_offsets().prop_map(|(start, end)| TdDiagnosticKind::NotIndexable {}.into_error(start, end)),
       (".*", arb_offsets()).prop_map(|(expected, (start_offset, end_offset))| {
         TdDiagnosticKind::IndexTypMismatch { expected }.into_error(start_offset, end_offset)
       }),

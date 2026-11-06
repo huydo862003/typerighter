@@ -53,6 +53,18 @@ const isFileDownload = computed(() => {
 
 function format (value_: unknown): string {
   if (value_ === undefined || value_ === null) return '';
+
+  if (typeof value_ === 'object' && !Array.isArray(value_)) {
+    const object = value_ as Record<string, unknown>;
+
+    switch (object['_type']) {
+    case 'date':
+    case 'datetime':
+    case 'time':
+      return typeof object['value'] === 'string' ? formatDateString(object['value']) : '';
+    }
+  }
+
   if (definition.widget === 'date') return formatDateString(String(value_));
 
   return String(value_);
@@ -106,7 +118,7 @@ function format (value_: unknown): string {
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-td-ink) 8%, transparent);
   transition: transform var(--duration-td-fast) var(--ease-td-out-quart), box-shadow var(--duration-td-fast) var(--ease-td-out-quart);
   vertical-align: middle;
-  background-color: var(--color-td-surf);
+  background-color: var(--color-td-surface);
 }
 
 .td-widget-image-preview:hover {
@@ -131,13 +143,13 @@ function format (value_: unknown): string {
   line-height: 1.4;
   padding: 4px 8px;
   border-radius: 4px;
-  background-color: var(--color-td-surf);
+  background-color: var(--color-td-surface);
   border: 1px solid var(--color-td-line-soft);
   transition: background-color var(--duration-td-fast) var(--ease-td-out-quart), border-color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-widget-file-link:hover {
-  background-color: var(--color-td-hov);
+  background-color: var(--color-td-hover);
   text-decoration: none;
 }
 

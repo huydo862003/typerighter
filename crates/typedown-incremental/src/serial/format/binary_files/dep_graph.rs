@@ -301,60 +301,98 @@ impl DepNode {
   /// Deserialize
   pub fn from_bytes(bytes: &[u8]) -> (Self, usize) {
     let tag = bytes[0]; // the variant of the dep node
-    let mut pos = TAG_SIZE; // current decoded offset
+    let mut position = TAG_SIZE; // current decoded offset
     match tag {
       // Derived query node
       TAG_DERIVED_QUERY => {
         // fingerprint of the derived query's name
-        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let name = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
         // fingerprint of the derived query's args
-        let key = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let key = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
         // fingerprint of the derived query's value
-        let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let value = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
-        let value_entry_id =
-          u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
-        pos += ENTRY_ID_SIZE;
+        let value_entry_id = u32::from_le_bytes(
+          bytes[position..position + ENTRY_ID_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += ENTRY_ID_SIZE;
 
         // the revision when the value last changed
-        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
+        let changed_at = u32::from_le_bytes(
+          bytes[position..position + REVISION_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += REVISION_SIZE;
 
         // derived identities
-        let id_count =
-          u32::from_le_bytes(bytes[pos..pos + IDENTITY_COUNT_SIZE].try_into().unwrap()) as usize;
-        pos += IDENTITY_COUNT_SIZE;
+        let id_count = u32::from_le_bytes(
+          bytes[position..position + IDENTITY_COUNT_SIZE]
+            .try_into()
+            .unwrap(),
+        ) as usize;
+        position += IDENTITY_COUNT_SIZE;
         let mut derived_identities = Vec::with_capacity(id_count);
         for _ in 0..id_count {
-          let name_fingerprint =
-            Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-          pos += FINGERPRINT_SIZE;
-          let identity_hash =
-            u64::from_le_bytes(bytes[pos..pos + IDENTITY_HASH_SIZE].try_into().unwrap());
-          pos += IDENTITY_HASH_SIZE;
-          let disambiguator =
-            u32::from_le_bytes(bytes[pos..pos + DISAMBIGUATOR_SIZE].try_into().unwrap());
-          pos += DISAMBIGUATOR_SIZE;
-          let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
-          pos += ENTRY_ID_SIZE;
+          let name_fingerprint = Fingerprint(
+            bytes[position..position + FINGERPRINT_SIZE]
+              .try_into()
+              .unwrap(),
+          );
+          position += FINGERPRINT_SIZE;
+          let identity_hash = u64::from_le_bytes(
+            bytes[position..position + IDENTITY_HASH_SIZE]
+              .try_into()
+              .unwrap(),
+          );
+          position += IDENTITY_HASH_SIZE;
+          let disambiguator = u32::from_le_bytes(
+            bytes[position..position + DISAMBIGUATOR_SIZE]
+              .try_into()
+              .unwrap(),
+          );
+          position += DISAMBIGUATOR_SIZE;
+          let entry_id = u32::from_le_bytes(
+            bytes[position..position + ENTRY_ID_SIZE]
+              .try_into()
+              .unwrap(),
+          );
+          position += ENTRY_ID_SIZE;
           derived_identities.push((name_fingerprint, identity_hash, disambiguator, entry_id));
         }
 
         // edges at the end
-        let edge_count =
-          u32::from_le_bytes(bytes[pos..pos + EDGE_COUNT_SIZE].try_into().unwrap()) as usize;
-        pos += EDGE_COUNT_SIZE;
+        let edge_count = u32::from_le_bytes(
+          bytes[position..position + EDGE_COUNT_SIZE]
+            .try_into()
+            .unwrap(),
+        ) as usize;
+        position += EDGE_COUNT_SIZE;
         let mut edges = Vec::with_capacity(edge_count);
         for _ in 0..edge_count {
           edges.push(u32::from_le_bytes(
-            bytes[pos..pos + EDGE_SIZE].try_into().unwrap(),
+            bytes[position..position + EDGE_SIZE].try_into().unwrap(),
           ));
-          pos += EDGE_SIZE;
+          position += EDGE_SIZE;
         }
 
         (
@@ -367,25 +405,41 @@ impl DepNode {
             edges,
             derived_identities,
           },
-          pos,
+          position,
         )
       }
       // Derived query field
       TAG_DERIVED_FIELD => {
-        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let name = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
-        let field_index = bytes[pos];
-        pos += FIELD_INDEX_SIZE;
+        let field_index = bytes[position];
+        position += FIELD_INDEX_SIZE;
 
-        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
-        pos += ENTRY_ID_SIZE;
+        let entry_id = u32::from_le_bytes(
+          bytes[position..position + ENTRY_ID_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += ENTRY_ID_SIZE;
 
-        let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let value = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
-        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
+        let changed_at = u32::from_le_bytes(
+          bytes[position..position + REVISION_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += REVISION_SIZE;
 
         (
           DepNode::DerivedField {
@@ -395,25 +449,41 @@ impl DepNode {
             value,
             changed_at,
           },
-          pos,
+          position,
         )
       }
       // Input field
       TAG_INPUT_FIELD => {
-        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let name = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
-        let field_index = bytes[pos];
-        pos += FIELD_INDEX_SIZE;
+        let field_index = bytes[position];
+        position += FIELD_INDEX_SIZE;
 
-        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
-        pos += ENTRY_ID_SIZE;
+        let entry_id = u32::from_le_bytes(
+          bytes[position..position + ENTRY_ID_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += ENTRY_ID_SIZE;
 
-        let value = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let value = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
-        let changed_at = u32::from_le_bytes(bytes[pos..pos + REVISION_SIZE].try_into().unwrap());
-        pos += REVISION_SIZE;
+        let changed_at = u32::from_le_bytes(
+          bytes[position..position + REVISION_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += REVISION_SIZE;
 
         (
           DepNode::InputField {
@@ -423,18 +493,30 @@ impl DepNode {
             value,
             changed_at,
           },
-          pos,
+          position,
         )
       }
       TAG_INTERNED => {
-        let name = Fingerprint(bytes[pos..pos + FINGERPRINT_SIZE].try_into().unwrap());
-        pos += FINGERPRINT_SIZE;
+        let name = Fingerprint(
+          bytes[position..position + FINGERPRINT_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += FINGERPRINT_SIZE;
 
-        let entry_id = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
-        pos += ENTRY_ID_SIZE;
+        let entry_id = u32::from_le_bytes(
+          bytes[position..position + ENTRY_ID_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += ENTRY_ID_SIZE;
 
-        let blob_index = u32::from_le_bytes(bytes[pos..pos + ENTRY_ID_SIZE].try_into().unwrap());
-        pos += ENTRY_ID_SIZE;
+        let blob_index = u32::from_le_bytes(
+          bytes[position..position + ENTRY_ID_SIZE]
+            .try_into()
+            .unwrap(),
+        );
+        position += ENTRY_ID_SIZE;
 
         (
           DepNode::Interned {
@@ -442,10 +524,10 @@ impl DepNode {
             entry_id,
             blob_index,
           },
-          pos,
+          position,
         )
       }
-      TAG_EVICTED => (DepNode::Evicted, pos),
+      TAG_EVICTED => (DepNode::Evicted, position),
       _ => panic!("unknown DepNode tag {tag}"),
     }
   }

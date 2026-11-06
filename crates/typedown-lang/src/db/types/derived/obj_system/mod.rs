@@ -1,11 +1,15 @@
 mod base;
 mod blob;
 mod bool;
+mod bound_variable;
+mod builtin_schemas;
+mod computed_typ;
 mod datetime;
 mod dict;
 mod existential;
 mod func;
 mod icon;
+mod instance;
 mod list;
 mod literal;
 mod math;
@@ -20,7 +24,6 @@ mod string;
 mod sum;
 pub mod typecheck;
 mod variable;
-mod vault;
 
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
@@ -32,11 +35,16 @@ use typedown_incremental::{Decodable, Decoder, Encodable, Encoder};
 pub use base::*;
 pub use blob::*;
 pub use bool::*;
+pub use bound_variable::*;
+pub use builtin_schemas::node_set::*;
+pub use builtin_schemas::vault::*;
+pub use computed_typ::*;
 pub use datetime::*;
 pub use dict::*;
 pub use existential::*;
 pub use func::*;
 pub use icon::*;
+pub use instance::*;
 pub use list::*;
 pub use literal::*;
 pub use math::*;
@@ -50,7 +58,6 @@ pub use schema::*;
 pub use string::*;
 pub use sum::*;
 pub use variable::*;
-pub use vault::*;
 
 use ambassador::Delegate;
 use derive_more::From;
@@ -62,12 +69,15 @@ use crate::db::types::{FuncSignature, InstantiateResult, LazyTyp, TypParams};
 use crate::syntax::diagnostic::TdDiagnostic;
 use typedown_incremental::{DepId, Id};
 
-// Use this instead of dyn
-// The primitive types are fixed anyways
+/* All type variants in the system
+ * Split into two categories:
+ * 1. Runtime types: can be returned by TdRuntimeObj::get_typ(), the actual type of a value at runtime.
+ * 2. Static-only types: exist only in type signatures and typechecking, never the type of a runtime value. */
 #[derive(Debug, Clone, From, Delegate, EnumAsInner, StableCompare)]
 #[delegate(TdRuntimeObj<'x>, generics = "'x")]
 #[delegate(TdStaticTyp<'x>, generics = "'x")]
 pub enum TdTypEnum<'db> {
+  /* Runtime types */
   TdTypTyp(TdTypTyp<'db>),
   TdBoolTyp(TdBoolTyp<'db>),
   TdStringTyp(TdStringTyp<'db>),
@@ -84,13 +94,18 @@ pub enum TdTypEnum<'db> {
   TdSchemaTyp(TdSchemaTyp<'db>),
   TdBlobTyp(TdBlobTyp<'db>),
   TdNullTyp(TdNullTyp<'db>),
+  TdObjTyp(TdObjTyp<'db>),
+  TdIconTyp(TdIconTyp<'db>),
+  /* Static-only types: exist as objects in the database for meta inspection, but get_typ() can only return runtime types */
   TdNeverTyp(TdNeverTyp<'db>),
   TdLitTyp(TdLitTyp<'db>),
   TdSumTyp(TdSumTyp<'db>),
-  TdVariableTyp(TdVariableTyp<'db>),
+  TdFreeVariableTyp(TdFreeVariableTyp<'db>),
   TdExistentialTyp(TdExistentialTyp<'db>),
-  TdObjTyp(TdObjTyp<'db>),
-  TdIconTyp(TdIconTyp<'db>),
+  TdExistentialVariableTyp(TdExistentialVariableTyp<'db>),
+  TdMetatypeInstanceTyp(TdMetatypeInstanceTyp<'db>),
+  TdBoundVariableTyp(TdBoundVariableTyp<'db>),
+  TdComputedTyp(TdComputedTyp<'db>),
 }
 
 // Use this instead of dyn
@@ -117,6 +132,7 @@ pub enum TdObjEnum<'db> {
   TdNullObj(TdNullObj<'db>),
   TdVaultObj(TdVaultObj<'db>),
   TdIconObj(TdIconObj<'db>),
+  TdNodeSetObj(TdNodeSetObj<'db>),
 }
 
 // Allow converting concrete type structs directly to TdObjectEnum via TdTypeEnum
@@ -124,8 +140,8 @@ macro_rules! impl_from_typ_for_obj_enum {
   ($($ty:ident),+ $(,)?) => {
     $(
       impl<'db> From<$ty<'db>> for TdObjEnum<'db> {
-        fn from(v: $ty<'db>) -> Self {
-          TdObjEnum::TdTypObj(TdTypEnum::from(v))
+        fn from(value: $ty<'db>) -> Self {
+          TdObjEnum::TdTypObj(TdTypEnum::from(value))
         }
       }
     )+
@@ -152,38 +168,46 @@ impl_from_typ_for_obj_enum!(
   TdNeverTyp,
   TdLitTyp,
   TdSumTyp,
-  TdVariableTyp,
+  TdFreeVariableTyp,
   TdExistentialTyp,
+  TdExistentialVariableTyp,
   TdObjTyp,
   TdIconTyp,
+  TdMetatypeInstanceTyp,
+  TdBoundVariableTyp,
+  TdComputedTyp,
 );
 
 impl Id for TdTypEnum<'_> {
   fn as_id(&self) -> DepId {
     match self {
-      TdTypEnum::TdTypTyp(v) => v.as_id(),
-      TdTypEnum::TdBoolTyp(v) => v.as_id(),
-      TdTypEnum::TdStringTyp(v) => v.as_id(),
-      TdTypEnum::TdNumberTyp(v) => v.as_id(),
-      TdTypEnum::TdMathTyp(v) => v.as_id(),
-      TdTypEnum::TdFuncTyp(v) => v.as_id(),
-      TdTypEnum::TdListTyp(v) => v.as_id(),
-      TdTypEnum::TdDictTyp(v) => v.as_id(),
-      TdTypEnum::TdDateTimeTyp(v) => v.as_id(),
-      TdTypEnum::TdDateTyp(v) => v.as_id(),
-      TdTypEnum::TdTimeTyp(v) => v.as_id(),
-      TdTypEnum::TdProductTyp(v) => v.as_id(),
-      TdTypEnum::TdSchemaMetaTyp(v) => v.as_id(),
-      TdTypEnum::TdSchemaTyp(v) => v.as_id(),
-      TdTypEnum::TdBlobTyp(v) => v.as_id(),
-      TdTypEnum::TdNullTyp(v) => v.as_id(),
-      TdTypEnum::TdNeverTyp(v) => v.as_id(),
-      TdTypEnum::TdLitTyp(v) => v.as_id(),
-      TdTypEnum::TdSumTyp(v) => v.as_id(),
-      TdTypEnum::TdVariableTyp(v) => v.as_id(),
-      TdTypEnum::TdExistentialTyp(v) => v.as_id(),
-      TdTypEnum::TdObjTyp(v) => v.as_id(),
-      TdTypEnum::TdIconTyp(v) => v.as_id(),
+      TdTypEnum::TdTypTyp(value) => value.as_id(),
+      TdTypEnum::TdBoolTyp(value) => value.as_id(),
+      TdTypEnum::TdStringTyp(value) => value.as_id(),
+      TdTypEnum::TdNumberTyp(value) => value.as_id(),
+      TdTypEnum::TdMathTyp(value) => value.as_id(),
+      TdTypEnum::TdFuncTyp(value) => value.as_id(),
+      TdTypEnum::TdListTyp(value) => value.as_id(),
+      TdTypEnum::TdDictTyp(value) => value.as_id(),
+      TdTypEnum::TdDateTimeTyp(value) => value.as_id(),
+      TdTypEnum::TdDateTyp(value) => value.as_id(),
+      TdTypEnum::TdTimeTyp(value) => value.as_id(),
+      TdTypEnum::TdProductTyp(value) => value.as_id(),
+      TdTypEnum::TdSchemaMetaTyp(value) => value.as_id(),
+      TdTypEnum::TdSchemaTyp(value) => value.as_id(),
+      TdTypEnum::TdBlobTyp(value) => value.as_id(),
+      TdTypEnum::TdNullTyp(value) => value.as_id(),
+      TdTypEnum::TdNeverTyp(value) => value.as_id(),
+      TdTypEnum::TdLitTyp(value) => value.as_id(),
+      TdTypEnum::TdSumTyp(value) => value.as_id(),
+      TdTypEnum::TdFreeVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdExistentialTyp(value) => value.as_id(),
+      TdTypEnum::TdExistentialVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdObjTyp(value) => value.as_id(),
+      TdTypEnum::TdIconTyp(value) => value.as_id(),
+      TdTypEnum::TdMetatypeInstanceTyp(value) => value.as_id(),
+      TdTypEnum::TdBoundVariableTyp(value) => value.as_id(),
+      TdTypEnum::TdComputedTyp(value) => value.as_id(),
     }
   }
 }
@@ -191,23 +215,24 @@ impl Id for TdTypEnum<'_> {
 impl Id for TdObjEnum<'_> {
   fn as_id(&self) -> DepId {
     match self {
-      TdObjEnum::TdTypObj(v) => v.as_id(),
-      TdObjEnum::TdBoolObj(v) => v.as_id(),
-      TdObjEnum::TdStringObj(v) => v.as_id(),
-      TdObjEnum::TdNumberObj(v) => v.as_id(),
-      TdObjEnum::TdMathObj(v) => v.as_id(),
-      TdObjEnum::TdFuncObj(v) => v.as_id(),
-      TdObjEnum::TdListObj(v) => v.as_id(),
-      TdObjEnum::TdDictObj(v) => v.as_id(),
-      TdObjEnum::TdDateTimeObj(v) => v.as_id(),
-      TdObjEnum::TdDateObj(v) => v.as_id(),
-      TdObjEnum::TdTimeObj(v) => v.as_id(),
-      TdObjEnum::TdProductObj(v) => v.as_id(),
-      TdObjEnum::TdSchemaObj(v) => v.as_id(),
-      TdObjEnum::TdBlobObj(v) => v.as_id(),
-      TdObjEnum::TdNullObj(v) => v.as_id(),
-      TdObjEnum::TdVaultObj(v) => v.as_id(),
-      TdObjEnum::TdIconObj(v) => v.as_id(),
+      TdObjEnum::TdTypObj(value) => value.as_id(),
+      TdObjEnum::TdBoolObj(value) => value.as_id(),
+      TdObjEnum::TdStringObj(value) => value.as_id(),
+      TdObjEnum::TdNumberObj(value) => value.as_id(),
+      TdObjEnum::TdMathObj(value) => value.as_id(),
+      TdObjEnum::TdFuncObj(value) => value.as_id(),
+      TdObjEnum::TdListObj(value) => value.as_id(),
+      TdObjEnum::TdDictObj(value) => value.as_id(),
+      TdObjEnum::TdDateTimeObj(value) => value.as_id(),
+      TdObjEnum::TdDateObj(value) => value.as_id(),
+      TdObjEnum::TdTimeObj(value) => value.as_id(),
+      TdObjEnum::TdProductObj(value) => value.as_id(),
+      TdObjEnum::TdSchemaObj(value) => value.as_id(),
+      TdObjEnum::TdBlobObj(value) => value.as_id(),
+      TdObjEnum::TdNullObj(value) => value.as_id(),
+      TdObjEnum::TdVaultObj(value) => value.as_id(),
+      TdObjEnum::TdIconObj(value) => value.as_id(),
+      TdObjEnum::TdNodeSetObj(value) => value.as_id(),
     }
   }
 }
@@ -246,29 +271,33 @@ impl typedown_incremental::StableHash for TdTypEnum<'_> {
   ) {
     std::mem::discriminant(self).hash(hasher);
     match self {
-      TdTypEnum::TdTypTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdBoolTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdStringTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdNumberTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdMathTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdFuncTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdListTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdDictTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdDateTimeTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdDateTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdTimeTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdProductTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdSchemaMetaTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdSchemaTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdBlobTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdNullTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdNeverTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdLitTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdSumTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdVariableTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdExistentialTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdObjTyp(v) => v.stable_hash(db, hasher),
-      TdTypEnum::TdIconTyp(v) => v.stable_hash(db, hasher),
+      TdTypEnum::TdTypTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdBoolTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdStringTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdNumberTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdMathTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdFuncTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdListTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdDictTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdDateTimeTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdDateTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdTimeTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdProductTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdSchemaMetaTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdSchemaTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdBlobTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdNullTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdNeverTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdLitTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdSumTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdFreeVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdExistentialTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdExistentialVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdObjTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdIconTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdMetatypeInstanceTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdBoundVariableTyp(value) => value.stable_hash(db, hasher),
+      TdTypEnum::TdComputedTyp(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -281,23 +310,24 @@ impl typedown_incremental::StableHash for TdObjEnum<'_> {
   ) {
     std::mem::discriminant(self).hash(hasher);
     match self {
-      TdObjEnum::TdTypObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdBoolObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdStringObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdNumberObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdMathObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdFuncObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdListObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdDictObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdDateTimeObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdDateObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdTimeObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdProductObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdSchemaObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdBlobObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdNullObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdVaultObj(v) => v.stable_hash(db, hasher),
-      TdObjEnum::TdIconObj(v) => v.stable_hash(db, hasher),
+      TdObjEnum::TdTypObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdBoolObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdStringObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdNumberObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdMathObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdFuncObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdListObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdDictObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdDateTimeObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdDateObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdTimeObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdProductObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdSchemaObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdBlobObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdNullObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdVaultObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdIconObj(value) => value.stable_hash(db, hasher),
+      TdObjEnum::TdNodeSetObj(value) => value.stable_hash(db, hasher),
     }
   }
 }
@@ -328,6 +358,10 @@ pub enum TdTypeKind {
   Existential = 20,
   Variable = 21,
   Icon = 22,
+  MetatypeInstance = 23,
+  BoundVariable = 24,
+  ExistentialVariable = 25,
+  Computed = 26,
 }
 
 #[derive(FromRepr)]
@@ -352,103 +386,120 @@ pub enum TdObjectKind {
   NullObj = 141,
   SchemaObj = 142,
   IconObj = 143,
+  NodeSetObj = 144,
 }
 
 // TdTypeEnum
 impl Encodable for TdTypEnum<'_> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      TdTypEnum::TdTypTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Typ as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdTypTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Typ as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdStringTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::String as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdStringTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::String as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdBoolTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Bool as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdBoolTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Bool as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdNumberTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Number as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdNumberTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Number as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdMathTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Math as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdMathTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Math as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdListTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::List as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdListTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::List as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdDictTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Dict as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdDictTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Dict as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdFuncTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Func as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdFuncTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Func as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdProductTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Product as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdProductTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Product as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdSchemaMetaTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::SchemaMetaTyp as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdSchemaMetaTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::SchemaMetaTyp as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdSchemaTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Schema as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdSchemaTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Schema as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdDateTimeTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::DateTime as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdDateTimeTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::DateTime as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdDateTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Date as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdDateTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Date as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdTimeTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Time as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdTimeTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Time as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdBlobTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Blob as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdBlobTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Blob as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdNullTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Null as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdNullTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Null as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdNeverTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Never as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdNeverTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Never as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdLitTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Lit as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdLitTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Lit as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdSumTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Sum as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdSumTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Sum as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdVariableTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Variable as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdFreeVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Variable as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdExistentialTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Existential as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdExistentialTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Existential as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdObjTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Obj as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdObjTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Obj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdTypEnum::TdIconTyp(v) => {
-        encoder.emit_u8(buf, TdTypeKind::Icon as u8);
-        v.field_encode(buf, encoder);
+      TdTypEnum::TdIconTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Icon as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdMetatypeInstanceTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::MetatypeInstance as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdBoundVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::BoundVariable as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdExistentialVariableTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::ExistentialVariable as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdTypEnum::TdComputedTyp(value) => {
+        encoder.emit_u8(buffer, TdTypeKind::Computed as u8);
+        value.field_encode(buffer, encoder);
       }
     }
   }
@@ -478,85 +529,95 @@ impl Decodable for TdTypEnum<'_> {
       TdTypeKind::Lit => TdLitTyp::field_decode(data, decoder).into(),
       TdTypeKind::Sum => TdSumTyp::field_decode(data, decoder).into(),
       TdTypeKind::Existential => TdExistentialTyp::field_decode(data, decoder).into(),
-      TdTypeKind::Variable => TdVariableTyp::field_decode(data, decoder).into(),
+      TdTypeKind::Variable => TdFreeVariableTyp::field_decode(data, decoder).into(),
       TdTypeKind::Obj => TdObjTyp::field_decode(data, decoder).into(),
       TdTypeKind::Icon => TdIconTyp::field_decode(data, decoder).into(),
+      TdTypeKind::MetatypeInstance => TdMetatypeInstanceTyp::field_decode(data, decoder).into(),
+      TdTypeKind::BoundVariable => TdBoundVariableTyp::field_decode(data, decoder).into(),
+      TdTypeKind::ExistentialVariable => {
+        TdExistentialVariableTyp::field_decode(data, decoder).into()
+      }
+      TdTypeKind::Computed => TdComputedTyp::field_decode(data, decoder).into(),
     }
   }
 }
 
 // TdObjectEnum
 impl Encodable for TdObjEnum<'_> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
     match self {
-      TdObjEnum::TdTypObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::Typ as u8);
-        v.encode(buf, encoder);
+      TdObjEnum::TdTypObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::Typ as u8);
+        value.encode(buffer, encoder);
       }
       // Objects
-      TdObjEnum::TdStringObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::StringObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdStringObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::StringObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdBoolObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::BoolObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdBoolObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::BoolObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdNumberObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::NumObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdNumberObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::NumObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdMathObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::MathObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdMathObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::MathObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdListObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::ListObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdListObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::ListObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdDictObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::DictObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdDictObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::DictObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdFuncObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::FuncObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdFuncObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::FuncObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdProductObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::ProductObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdProductObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::ProductObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdSchemaObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::SchemaObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdSchemaObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::SchemaObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdDateTimeObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::DateTimeObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdDateTimeObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::DateTimeObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdDateObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::DateObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdDateObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::DateObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdTimeObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::TimeObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdTimeObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::TimeObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdBlobObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::BlobObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdBlobObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::BlobObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdNullObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::NullObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdNullObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::NullObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdVaultObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::VaultObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdVaultObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::VaultObj as u8);
+        value.field_encode(buffer, encoder);
       }
-      TdObjEnum::TdIconObj(v) => {
-        encoder.emit_u8(buf, TdObjectKind::IconObj as u8);
-        v.field_encode(buf, encoder);
+      TdObjEnum::TdIconObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::IconObj as u8);
+        value.field_encode(buffer, encoder);
+      }
+      TdObjEnum::TdNodeSetObj(value) => {
+        encoder.emit_u8(buffer, TdObjectKind::NodeSetObj as u8);
+        value.field_encode(buffer, encoder);
       }
     }
   }
@@ -583,6 +644,7 @@ impl Decodable for TdObjEnum<'_> {
       Some(TdObjectKind::NullObj) => TdNullObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::VaultObj) => TdVaultObj::field_decode(data, decoder).into(),
       Some(TdObjectKind::IconObj) => TdIconObj::field_decode(data, decoder).into(),
+      Some(TdObjectKind::NodeSetObj) => TdNodeSetObj::field_decode(data, decoder).into(),
       None => panic!("unknown TdObjectKind tag: {}", tag),
     }
   }

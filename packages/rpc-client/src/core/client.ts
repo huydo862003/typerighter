@@ -128,8 +128,8 @@ export class JsonRpcClient implements MessageConnection {
       dispose: () => {
         const list = this.notificationHandlers.get(method);
         if (list) {
-          const idx = list.indexOf(handler);
-          if (idx !== -1) list.splice(idx, 1);
+          const index = list.indexOf(handler);
+          if (index !== -1) list.splice(index, 1);
         }
       },
     };

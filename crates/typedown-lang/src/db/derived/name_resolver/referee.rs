@@ -73,7 +73,7 @@ fn resolve_call(db: &TypedownDatabase, project_node: ProjectRedNode) -> MaybeSym
   let path: String = string_lit
     .fragments()
     .filter_map(|fragment| match fragment {
-      Either::Left(s) => Some(s),
+      Either::Left(string) => Some(string),
       _ => None,
     })
     .collect();

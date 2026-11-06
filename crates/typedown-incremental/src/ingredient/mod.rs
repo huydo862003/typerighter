@@ -25,8 +25,8 @@ impl Hasher for IdHasher {
   fn write(&mut self, _: &[u8]) {
     unreachable!()
   }
-  fn write_u32(&mut self, i: u32) {
-    self.0 = i as u64;
+  fn write_u32(&mut self, id: u32) {
+    self.0 = id as u64;
   }
   fn finish(&self) -> u64 {
     self.0
@@ -100,12 +100,12 @@ impl<V, T: StableCompare> StableCompare for MappedRef<'_, V, T> {
 }
 
 impl<V, T: Encodable> Encodable for MappedRef<'_, V, T> {
-  fn encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (**self).encode(buf, encoder);
+  fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).encode(buffer, encoder);
   }
 
-  fn field_encode(&self, buf: &mut Vec<u8>, encoder: &mut Encoder) {
-    (**self).field_encode(buf, encoder);
+  fn field_encode(&self, buffer: &mut Vec<u8>, encoder: &mut Encoder) {
+    (**self).field_encode(buffer, encoder);
   }
 }
 

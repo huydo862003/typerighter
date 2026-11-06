@@ -273,7 +273,7 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
   };
   match typ {
     TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
-      LitValue::String(s) => format!(r#""{s}""#),
+      LitValue::String(string) => format!(r#""{string}""#),
       _ => r#""""#.to_string(),
     },
     TdTypEnum::TdStringTyp(_) => r#""""#.to_string(),
@@ -289,7 +289,7 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
 
     TdTypEnum::TdSumTyp(sum) => {
       let mut members: Vec<_> = sum.members(db).into_iter().collect();
-      members.sort_by(|a, b| a.stable_cmp(db, b));
+      members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
       // Optional type: use non-null member's default
       let non_null: Vec<_> = members
         .iter()
@@ -307,9 +307,9 @@ fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
         .iter()
         .find_map(|member| {
           if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
-            && let LitValue::String(s) = lit.value(db)
+            && let LitValue::String(string) = lit.value(db)
           {
-            return Some(format!("\"{s}\""));
+            return Some(format!("\"{string}\""));
           }
           None
         })
@@ -361,7 +361,7 @@ properties:
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
@@ -382,22 +382,22 @@ properties:
         ),
       ),
       (
-        type_root.join("Task.td"),
+        typ_root.join("Task.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Task.td"),
+            typ_root.join("Task.td"),
             SCHEMA_TASK.to_string(),
             FileMetadata::default(),
           ),
         ),
       ),
       (
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         File::new(
           &db,
           FileHandle::Content(
-            type_root.join("Person.td"),
+            typ_root.join("Person.td"),
             SCHEMA_PERSON.to_string(),
             FileMetadata::default(),
           ),

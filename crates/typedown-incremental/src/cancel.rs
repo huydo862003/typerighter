@@ -7,8 +7,8 @@ pub struct Cancelled;
 
 impl Cancelled {
   /// Run `f`, returning `Err(Cancelled)` if it was cancelled, `Ok(T)` otherwise
-  pub fn catch<T>(f: impl FnOnce() -> T) -> Result<T, Cancelled> {
-    match catch_unwind(AssertUnwindSafe(f)) {
+  pub fn catch<T>(func: impl FnOnce() -> T) -> Result<T, Cancelled> {
+    match catch_unwind(AssertUnwindSafe(func)) {
       Ok(value) => Ok(value),
       Err(payload) => {
         if payload.downcast_ref::<Cancelled>().is_some() {

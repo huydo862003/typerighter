@@ -6,7 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{CustomComponentCheckResult, CustomComponentTyp, File, Project};
-use crate::db::utils::{is_callout, kebab_to_pascal};
+use crate::db::utils::{is_callout, kebab_to_camel, kebab_to_pascal};
 use crate::syntax::ast::{AstNode, MdContainerBlock, MdContainerShorthand};
 use crate::syntax::diagnostic::*;
 use crate::syntax::red::RedNode;
@@ -103,7 +103,11 @@ fn validate(
   }
 
   for prop_name in &provided_props {
-    if !props.iter().any(|prop| &prop.name == prop_name) {
+    // Match both exact name and kebab-to-camel conversion (col-span -> colSpan)
+    if !props
+      .iter()
+      .any(|prop| prop.name == *prop_name || prop.name == kebab_to_camel(prop_name))
+    {
       diagnostics.push(
         TdDiagnosticKind::UnknownProp {
           prop: prop_name.clone(),
@@ -370,9 +374,12 @@ mod tests {
       slots: vec![],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
-    assert!(diags.is_empty(), "expected no diagnostics, got: {diags:?}");
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
+    assert!(
+      diagnostics.is_empty(),
+      "expected no diagnostics, got: {diagnostics:?}"
+    );
   }
 
   #[test]
@@ -446,9 +453,12 @@ content
     let block = find_block(&root);
     let name = block.label().unwrap();
     let contract: Vec<CustomComponentTyp> = vec![];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
-    assert!(diags.is_empty(), "callouts should produce no diagnostics");
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
+    assert!(
+      diagnostics.is_empty(),
+      "callouts should produce no diagnostics"
+    );
   }
 
   #[test]
@@ -562,11 +572,11 @@ the answer
       slots: vec!["key".to_string()],
       deprecated: None,
     }];
-    let mut diags = Vec::new();
-    validate(block.syntax(), &name, &contract, &mut diags);
+    let mut diagnostics = Vec::new();
+    validate(block.syntax(), &name, &contract, &mut diagnostics);
     assert!(
-      diags.is_empty(),
-      "valid slot should produce no diagnostics, got: {diags:?}"
+      diagnostics.is_empty(),
+      "valid slot should produce no diagnostics, got: {diagnostics:?}"
     );
   }
 }

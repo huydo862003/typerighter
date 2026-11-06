@@ -17,6 +17,7 @@ use crate::db::types::{
   TdIconObj, TdListObj, TdMathObj, TdNullObj, TdNumberObj, TdObjEnum, TdProductObj, TdProductTyp,
   TdRuntimeObj, TdSchemaObj, TdSchemaTyp, TdStaticTyp, TdStringObj, TdTypEnum, TdVaultObj,
 };
+use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, DictLit, Expr, IdentLit, IndexExpr,
   InlineCode, InlineMath, InterpFragment, ListLit, MathBlock, MathLit, MdBody, NumberLit,
@@ -273,7 +274,7 @@ fn construct_from_call<'db>(
     let left_result = evaluate_node(db, left_node, runtime_scope);
     let this = left_result.value(db)?;
     let func_obj = this.lookup_method(db, &method_name)?;
-    let arg_objs: Vec<_> = call
+    let mut arg_objs: Vec<_> = call
       .args()
       .into_iter()
       .filter_map(|arg| {
@@ -281,6 +282,13 @@ fn construct_from_call<'db>(
         evaluate_node(db, arg_node, runtime_scope).value(db)
       })
       .collect();
+    let func_typ = func_obj.get_typ(db);
+    if let TdTypEnum::TdFuncTyp(func_typ) = func_typ {
+      let param_count = func_typ.signature(db).params(db).len();
+      while arg_objs.len() < param_count {
+        arg_objs.push(TdNullObj::get(db).into());
+      }
+    }
     let scope = runtime_scope.scope(db);
     let call_project = scope.project(db);
     return func_obj.call(db, call_project, Some(this), arg_objs).ok();
@@ -302,7 +310,7 @@ fn construct_from_call<'db>(
 
   // Plain function call: evaluate callee, call via protocol
   let callee_obj = evaluate_node(db, callee_node, runtime_scope).value(db)?;
-  let arg_objs: Vec<_> = call
+  let mut arg_objs: Vec<_> = call
     .args()
     .into_iter()
     .filter_map(|arg| {
@@ -310,6 +318,13 @@ fn construct_from_call<'db>(
       evaluate_node(db, arg_node, runtime_scope).value(db)
     })
     .collect();
+  let callee_typ = callee_obj.get_typ(db);
+  if let TdTypEnum::TdFuncTyp(func_typ) = callee_typ {
+    let param_count = func_typ.signature(db).params(db).len();
+    while arg_objs.len() < param_count {
+      arg_objs.push(TdNullObj::get(db).into());
+    }
+  }
   let scope = runtime_scope.scope(db);
   let call_project = scope.project(db);
   callee_obj.call(db, call_project, None, arg_objs).ok()
@@ -374,7 +389,7 @@ fn construct_from_mapping_expr<'db>(
       let (start, len) = mapping_project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -432,7 +447,7 @@ fn construct_sequence_items<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -467,7 +482,7 @@ fn construct_from_string_lit<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -520,7 +535,7 @@ fn construct_from_number<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -549,7 +564,7 @@ fn construct_from_math<'db>(
       let (start, len) = project_node.node.trimmed_range();
       diagnostics.push(
         TdDiagnosticKind::NotConstructible {
-          type_name: raw_typ.display_name(db),
+          typ_name: raw_typ.display_name(db),
         }
         .into_error(start, start + len),
       );
@@ -743,14 +758,14 @@ fn evaluate_index<'db>(
   let index_obj = evaluate_node(db, index_node.clone(), runtime_scope).value(db)?;
 
   if let Some(number) = index_obj.as_td_number_obj()
-    && let Some(len) = container.len(db)
+    && let Some(length) = container.len(db)
   {
     let index = number.value(db) as usize;
-    if index >= len {
-      let (trimmed_offset, trimmed_len) = index_node.node.trimmed_range();
+    if index >= length {
+      let (trimmed_offset, trimmed_length) = index_node.node.trimmed_range();
       diagnostics.push(
-        TdDiagnosticKind::IndexOutOfBounds { index, length: len }
-          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+        TdDiagnosticKind::IndexOutOfBounds { index, length }
+          .into_error(trimmed_offset, trimmed_offset + trimmed_length),
       );
       return None;
     }
@@ -872,7 +887,12 @@ fn mapping_entries_from_yaml_mapping(
 ) -> Vec<(String, ProjectRedNode)> {
   mapping
     .entries()
-    .map(|(k, v)| (k, ProjectRedNode::new(project, file, v.syntax().clone())))
+    .map(|(key, value)| {
+      (
+        key,
+        ProjectRedNode::new(project, file, value.syntax().clone()),
+      )
+    })
     .collect()
 }
 
@@ -944,6 +964,7 @@ fn evaluate_mapping<'db>(
         fields,
         BTreeMap::new(),
         None,
+        None,
       )
       .into(),
     );
@@ -997,7 +1018,13 @@ fn construct_fref<'db>(
   let project = arg.project;
   let files = project.files(db);
   let root_dir = get_vault_config(db, project).root_dir(db);
-  let target_path = root_dir.join(&path_string);
+  let file_dir = arg
+    .file
+    .handle(db)
+    .path()
+    .and_then(|path| path.parent().map(|path| path.to_path_buf()))
+    .unwrap_or_else(|| root_dir.clone());
+  let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 
   let target_file = *files.get(&target_path)?;
   let target_symbol = file_symbol(db, project, target_file).value(db)?;
@@ -1135,7 +1162,7 @@ mod tests {
   fn test_dunder_methods_call_and_index() {
     let db = make_db();
     let string_typ: TdTypEnum<'_> = get_string_typ(&db).into();
-    let signature = FuncSignature::new(&db, vec![string_typ.clone()], string_typ.clone());
+    let signature = FuncSignature::new(&db, None, vec![string_typ.clone()], string_typ.clone());
     let index_func = TdFuncObj::new(
       &db,
       PROTOCOL_INDEX.to_string(),
@@ -1160,6 +1187,7 @@ mod tests {
       BTreeMap::new(),
       vtable,
       None,
+      None,
     );
     let schema_enum: TdTypEnum = schema_typ.into();
 
@@ -1168,7 +1196,9 @@ mod tests {
       Some(signature)
     );
     assert_eq!(
-      schema_enum.call_typ(&db, vec![get_string_typ(&db).into()]),
+      schema_enum
+        .call_typ(&db, vec![get_string_typ(&db).into()])
+        .signature,
       Some(signature)
     );
   }

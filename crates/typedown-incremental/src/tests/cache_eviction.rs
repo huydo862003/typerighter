@@ -12,10 +12,10 @@ fn evicted_memo_recomputes_after_revision_bump() {
     storage: QueryStorage::default(),
   };
 
-  for i in 0..=LRU_CAPACITY {
-    let input = IdInput::new(&db, i);
+  for index in 0..=LRU_CAPACITY {
+    let input = IdInput::new(&db, index);
     let result = identity(&db, input);
-    assert_eq!(result.value(&db), i);
+    assert_eq!(result.value(&db), index);
   }
   take_log();
 
@@ -34,8 +34,8 @@ fn serialize_after_lru_eviction() {
     storage: QueryStorage::default(),
   };
 
-  for i in 0..=LRU_CAPACITY {
-    let input = IdInput::new(&db, i);
+  for index in 0..=LRU_CAPACITY {
+    let input = IdInput::new(&db, index);
     identity(&db, input);
   }
   db.storage.reset_for_new_revision();
@@ -58,8 +58,8 @@ fn evicted_entry_recomputes_after_roundtrip() {
     storage: QueryStorage::default(),
   };
 
-  for i in 0..=LRU_CAPACITY {
-    let input = IdInput::new(&db, i);
+  for index in 0..=LRU_CAPACITY {
+    let input = IdInput::new(&db, index);
     identity(&db, input);
   }
   db.storage.reset_for_new_revision();
@@ -111,8 +111,8 @@ fn lru_evicts_oldest_verified_entries_first() {
   };
 
   // Revision 1: compute 50 entries (verified_at = 1)
-  for i in 0..50usize {
-    identity(&db, IdInput::new(&db, i));
+  for index in 0..50usize {
+    identity(&db, IdInput::new(&db, index));
   }
 
   // Advance to revision 2
@@ -121,8 +121,8 @@ fn lru_evicts_oldest_verified_entries_first() {
 
   // Revision 2: compute LRU_CAPACITY more entries (verified_at = 2)
   // Total in memory = LRU_CAPACITY + 50, exceeds cap
-  for i in 50..50 + LRU_CAPACITY {
-    identity(&db, IdInput::new(&db, i));
+  for index in 50..50 + LRU_CAPACITY {
+    identity(&db, IdInput::new(&db, index));
   }
 
   // Reset evicts the 50 oldest (verified_at = 1, entries 0..49)
@@ -184,8 +184,8 @@ fn evicted_dep_causes_parent_to_recompute() {
   // Revision 2: fill root_query_versioned_result with LRU_CAPACITY entries (version = 1..=LRU_CAPACITY)
   // So that version = 0 (verified_at = 1) becomes the oldest entry
   db.storage.reset_for_new_revision();
-  for i in 1..=LRU_CAPACITY {
-    let config = VersionConfig::new(&db, i);
+  for index in 1..=LRU_CAPACITY {
+    let config = VersionConfig::new(&db, index);
     root_query_versioned_result(&db, config);
   }
 
@@ -221,7 +221,7 @@ fn evicted_dep_causes_parent_to_recompute() {
     "root_query must recompute because its dep was evicted: log={log:?}"
   );
   assert!(
-    log.iter().any(|&v| v >= 1000),
+    log.iter().any(|&value| value >= 1000),
     "downstream_query must recompute because its dep (root) was evicted: log={log:?}"
   );
 }

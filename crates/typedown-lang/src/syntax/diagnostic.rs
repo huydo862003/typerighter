@@ -57,7 +57,7 @@ pub enum TdDiagnosticKind {
   MissingMarkdownHeadingHash,
   #[message("missing required space after block marker")]
   MissingRequiredSpace,
-  #[message("expected {}", syntax_kind_label(*expected))]
+  #[message("expected {}", get_syntax_kind_label(*expected))]
   MissingSyntaxNode { expected: SyntaxKind },
   #[message("unclosed link '[', expected '](url)'")]
   UnclosedLink,
@@ -72,7 +72,7 @@ pub enum TdDiagnosticKind {
   #[message("italic closing delimiter does not match opening delimiter")]
   MismatchedItalicDelimiter,
   #[message("expected '{expected_prefix}' at start of line")]
-  MissingExpectMdPrefix { expected_prefix: String },
+  MissingExpectedMdPrefix { expected_prefix: String },
   #[message("missing separator row after table header")]
   MissingTableSeparatorRow,
   #[message("table row has {found} columns, expected {expected}")]
@@ -104,12 +104,16 @@ pub enum TdDiagnosticKind {
   UnresolvedSchema { name: String },
   #[message("wrong number of type arguments: expected {expected}, got {got}")]
   WrongTypArgCount { expected: usize, got: usize },
-  #[message("type argument at index {index} violates bound '{expected_bound}': got '{got}'")]
+  #[message("type argument '{name}' violates bound '{expected_bound}': got '{got}'")]
   TypArgBoundViolation {
-    index: usize,
+    name: String,
     expected_bound: String,
     got: String,
   },
+  #[message("could not infer type argument at position {index}")]
+  TypArgNotInferred { index: usize },
+  #[message("return type '{ret}' is still generic after instantiation")]
+  UnresolvedGenericReturnTyp { ret: String },
   #[message("cannot resolve extended schema '{name}'")]
   UnresolvedExtends { name: String },
   #[message("circular extension chain involving '{}': {}", name, cycle.join(" -> "))]
@@ -191,8 +195,8 @@ pub enum TdDiagnosticKind {
   UnknownSlot { slot: String, component: String },
   #[message("component \"{component}\" is deprecated: {message}")]
   DeprecatedComponent { component: String, message: String },
-  #[message("type '{type_name}' is not constructible at runtime")]
-  NotConstructible { type_name: String },
+  #[message("type '{typ_name}' is not constructible at runtime")]
+  NotConstructible { typ_name: String },
 
   /* Lint */
   #[message("image is missing alt text")]
@@ -245,7 +249,7 @@ impl TdDiagnostic {
   }
 }
 
-fn syntax_kind_label(kind: SyntaxKind) -> &'static str {
+fn get_syntax_kind_label(kind: SyntaxKind) -> &'static str {
   match kind {
     SyntaxKind::PrimaryExpr => "an expression",
     SyntaxKind::Ident => "an identifier",
@@ -269,6 +273,8 @@ fn syntax_kind_label(kind: SyntaxKind) -> &'static str {
     SyntaxKind::MdTableCell => "a table cell",
     SyntaxKind::MdParagraph => "text content",
     SyntaxKind::MdText => "text",
+    SyntaxKind::MdBlankLine => "a blank line",
+    SyntaxKind::MdPrefix => "a line prefix",
     SyntaxKind::MdLink => "a link",
     SyntaxKind::MdMedia => "an image or media",
     SyntaxKind::MdContainerBlock => "a block",

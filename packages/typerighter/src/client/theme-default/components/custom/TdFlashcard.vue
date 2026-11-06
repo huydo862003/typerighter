@@ -131,10 +131,10 @@ defineExpose({
   /* `neutral-border-strong` rather than `-subtle`: the subtle token measures
      1.3:1 against the page and fails the 3:1 floor for a component boundary */
   border: 1px solid var(--color-td-ink-4);
-  background: var(--color-td-surf);
+  background: var(--color-td-surface);
   color: var(--color-td-ink);
   font-size: var(--font-size-td-base);
-  line-height: var(--leading-td-relaxed);
+  line-height: var(--leading-td-normal);
   transition-property: transform;
   transition-duration: var(--duration-slow, 300ms);
   transition-timing-function: var(--ease-default, ease);
@@ -142,7 +142,7 @@ defineExpose({
 
 /* Tint the revealed side so a flipped card reads as flipped at a glance */
 .td-flashcard-face-key {
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
   border-color: var(--color-td-accent);
   transform: rotateY(180deg);
 }
@@ -197,6 +197,10 @@ defineExpose({
 
 .td-flashcard-body :slotted(:last-child) {
   margin-bottom: 0;
+}
+
+.td-flashcard-body :slotted(p) {
+  margin: 0.4em 0;
 }
 
 .td-flashcard:focus-visible {

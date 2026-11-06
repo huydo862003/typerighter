@@ -54,10 +54,15 @@ pub fn resolve_completion(
   let lookup = offset.saturating_sub(1);
   let node = node_at_offset(root, lookup)?;
 
-  // No completions inside code/math tokens (each is a single self-contained token)
+  // Code block: offer prop completions if cursor is inside the {...} on the opening fence line
+  if node.kind() == SyntaxKind::CodeBlock {
+    return collect_code_block_prop_completions(&node, offset);
+  }
+
+  // No completions inside other code/math tokens
   if matches!(
     node.kind(),
-    SyntaxKind::CodeBlock | SyntaxKind::InlineCode | SyntaxKind::InlineMath | SyntaxKind::MathBlock
+    SyntaxKind::InlineCode | SyntaxKind::InlineMath | SyntaxKind::MathBlock
   ) {
     return None;
   }
@@ -591,6 +596,10 @@ fn collect_enum_items(
       }
       LitValue::Number(number) => (number.clone(), number.clone(), "number".to_string()),
       LitValue::Bool(bool) => (bool.to_string(), bool.to_string(), "boolean".to_string()),
+      LitValue::Typ(typ) => {
+        let name = typ.display_name(db);
+        (name.clone(), name, "type".to_string())
+      }
     };
     items.push(CompletionItem {
       label,
@@ -709,7 +718,7 @@ fn make_snippet_placeholder(db: &TypedownDatabase, lazy: &LazyTyp, indent: usize
   match typ {
     TdTypEnum::TdSumTyp(sum) => {
       let mut members: Vec<_> = sum.members(db).into_iter().collect();
-      members.sort_by(|a, b| a.stable_cmp(db, b));
+      members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
       // Optional type: use non-null member's placeholder
       let non_null: Vec<_> = members
         .iter()
@@ -829,6 +838,60 @@ fn collect_field_completions_from_typ(
   }
 
   items
+}
+
+/// Suggest prop names when the cursor is inside the {...} on a code block's opening fence
+fn collect_code_block_prop_completions(
+  node: &typedown_lang::syntax::red::RedNode,
+  offset: usize,
+) -> Option<CompletionResponse> {
+  let text = node.text();
+  let (node_offset, _) = node.trimmed_range();
+
+  // Find the opening fence line (first line of the code block)
+  let relative_offset = offset.saturating_sub(node_offset);
+  let first_line = text.lines().next().unwrap_or("");
+
+  // Check if cursor is inside {...} on the first line
+  let brace_open = first_line.find('{')?;
+  let brace_close = first_line.find('}').unwrap_or(first_line.len());
+
+  if relative_offset <= brace_open || relative_offset > brace_close {
+    return None;
+  }
+
+  // Parse existing props to exclude already-used ones
+  let inner = &first_line[brace_open + 1..brace_close];
+  let has_title = inner.contains("title");
+  let has_line_numbers = inner.contains("line-numbers");
+
+  let mut items = Vec::new();
+
+  if !has_title {
+    items.push(CompletionItem {
+      label: "title".to_string(),
+      kind: Some(CompletionItemKind::PROPERTY),
+      insert_text: Some("title=\"$1\"".to_string()),
+      insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+      detail: Some("Code block title/filename".to_string()),
+      ..Default::default()
+    });
+  }
+
+  if !has_line_numbers {
+    items.push(CompletionItem {
+      label: "line-numbers".to_string(),
+      kind: Some(CompletionItemKind::PROPERTY),
+      detail: Some("Show line numbers".to_string()),
+      ..Default::default()
+    });
+  }
+
+  if items.is_empty() {
+    return None;
+  }
+
+  Some(CompletionResponse::Array(items))
 }
 
 // Suggest prop names when the cursor is inside a container's prop block ({...})
@@ -1042,7 +1105,7 @@ properties:
   fn setup(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -1062,7 +1125,7 @@ properties:
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -1070,7 +1133,7 @@ properties:
     let event_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Event.td"),
+        typ_root.join("Event.td"),
         SCHEMA_EVENT.to_string(),
         FileMetadata::default(),
       ),
@@ -1078,7 +1141,7 @@ properties:
     let task_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Task.td"),
+        typ_root.join("Task.td"),
         SCHEMA_TASK.to_string(),
         FileMetadata::default(),
       ),
@@ -1086,7 +1149,7 @@ properties:
     let person_with_address_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("PersonWithAddress.td"),
+        typ_root.join("PersonWithAddress.td"),
         SCHEMA_PERSON_WITH_ADDRESS.to_string(),
         FileMetadata::default(),
       ),
@@ -1657,7 +1720,7 @@ date: 2024-01-01
   fn setup_with_content(content: &str) -> (Analysis, Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
 
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
 
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
@@ -1677,7 +1740,7 @@ date: 2024-01-01
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),
@@ -1685,7 +1748,7 @@ date: 2024-01-01
     let event_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Event.td"),
+        typ_root.join("Event.td"),
         SCHEMA_EVENT.to_string(),
         FileMetadata::default(),
       ),
@@ -1693,7 +1756,7 @@ date: 2024-01-01
     let directory_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Directory.td"),
+        typ_root.join("Directory.td"),
         SCHEMA_DIRECTORY.to_string(),
         FileMetadata::default(),
       ),
@@ -1701,7 +1764,7 @@ date: 2024-01-01
     let task_reference_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("TaskRef.td"),
+        typ_root.join("TaskRef.td"),
         SCHEMA_TASK_REF.to_string(),
         FileMetadata::default(),
       ),
@@ -1709,7 +1772,7 @@ date: 2024-01-01
     let collection_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Collection.td"),
+        typ_root.join("Collection.td"),
         SCHEMA_COLLECTION.to_string(),
         FileMetadata::default(),
       ),
@@ -2218,7 +2281,7 @@ age: |
   }
 
   #[test]
-  fn resource_files_not_suggested_in_object_type_field() {
+  fn resource_files_not_suggested_in_object_typ_field() {
     let (content, offset) = cursor(
       r#"---
 _type: PersonWithAddress
@@ -3227,7 +3290,7 @@ $$
       .as_ref()
       .expect("'kind' should have documentation");
     let doc_text = match doc {
-      lsp_types::Documentation::MarkupContent(m) => m.value.as_str(),
+      lsp_types::Documentation::MarkupContent(markup) => markup.value.as_str(),
       _ => panic!("expected markup content"),
     };
     assert!(

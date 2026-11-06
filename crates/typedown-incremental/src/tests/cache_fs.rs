@@ -4,6 +4,7 @@
 #![cfg(feature = "session")]
 
 use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::serial::format::fs::CacheSession;
@@ -212,11 +213,11 @@ fn old_finalized_sessions_are_removed() {
 
   // Run three sessions so three finalized dirs accumulate (open adds a tiny sleep to ensure unique millisecond timestamps)
   // We just finalize without sleeping and check the count instead
-  let mut last_finalized_dir: Option<std::path::PathBuf> = None;
-  for i in 0u8..3 {
+  let mut last_finalized_dir: Option<PathBuf> = None;
+  for index in 0u8..3 {
     let (session, _) = open_session(dir.path());
     let db = make_db();
-    identity::identity(&db, identity::IdInput::new(&db, i as usize));
+    identity::identity(&db, identity::IdInput::new(&db, index as usize));
     finalize(session, &db);
 
     // Record the name of the just-finalized directory

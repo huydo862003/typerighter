@@ -10,7 +10,7 @@ project: fref("/projects/website-redesign.td")
 
 The following D2 diagram shows the high-level architecture:
 
-```d2
+```d2{title="System Architecture"}
 Web Client -> API Gateway: HTTPS
 API Gateway -> Auth Service: validate token
 API Gateway -> App Server: forward request
@@ -24,10 +24,85 @@ API Gateway -> Web Client: JSON
 
 ## Deployment Flow
 
-```mermaid
+```mermaid{title="CI/CD Pipeline"}
 graph LR
     A[Developer] -->|push| B[GitHub]
     B -->|trigger| C[CI/CD]
     C -->|build| D[Docker Image]
     D -->|deploy| E[Production]
 ```
+
+## Token Payload
+
+```json{title="token-payload.json"}
+{
+  "sub": "user-id",
+  "exp": 1720000000,
+  "iat": 1719996400,
+  "scope": "read write"
+}
+```
+
+## Session Storage
+
+```bash{title="Redis session setup"}
+redis-cli SET "session:abc123" '{"userId":"u1","refresh":"tok"}' EX 2592000
+```
+
+## Auth Middleware
+
+```typescript{title="auth.ts" line-numbers}
+import { NextFunction, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+
+export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET!);
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+```
+
+## Error Codes
+
+```typescript{line-numbers=10}
+export const ERROR_CODES = {
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  INTERNAL: 500,
+};
+```
+
+## Reference Implementation
+
+![server bootstrap](https://github.com/vuejs/vite/blob/main/packages/vite/src/node/server/index.ts#L150-L165)
+
+## Embeds
+
+### YouTube
+
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+
+### Spotify
+
+![](https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT)
+
+### Vimeo
+
+![](https://vimeo.com/76979871)
+
+### dbdiagram (generic iframe)
+
+![Database schema](https://dbdiagram.io/embed#c=ClRhYmxlIHVzZXJzIHsKICBpZCBpbnQgW3BrXQogIG5hbWUgdmFyY2hhcgogIGVtYWlsIHZhcmNoYXIKfQoKVGFibGUgcG9zdHMgewogIGlkIGludCBbcGtdCiAgdXNlcl9pZCBpbnQgW3JlZjogPiB1c2Vycy5pZF0KICB0aXRsZSB2YXJjaGFyCiAgY29udGVudCB0ZXh0Cn0KClRhYmxlIGNvbW1lbnRzIHsKICBpZCBpbnQgW3BrXQogIHBvc3RfaWQgaW50IFtyZWY6ID4gcG9zdHMuaWRdCiAgdXNlcl9pZCBpbnQgW3JlZjogPiB1c2Vycy5pZF0KICBib2R5IHRleHQKfQo%3D "Project ERD")
+
+## Logo
+
+![Typedown logo](/typedown.svg "The Typedown project logo")

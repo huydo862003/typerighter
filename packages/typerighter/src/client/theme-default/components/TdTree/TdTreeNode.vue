@@ -60,10 +60,10 @@ const hasContent = computed(() => 0 < node.entries.length);
 
 const totalCount = computed(() => countItems(node));
 
-function countItems (n: ContentTreeNode): number {
+function countItems (node: ContentTreeNode): number {
   let count = 0;
 
-  for (const entry of n.entries) {
+  for (const entry of node.entries) {
     if (entry.kind === 'file') {
       count++;
     } else {
@@ -241,7 +241,7 @@ function toggle () {
               v-if="entry.item.fileMetadata"
               class="td-tree-time"
             >{{
-              formatRelativeTime(entry.item.fileMetadata.mtime)
+              formatRelativeTime(entry.item.fileMetadata.mtimeSecs)
             }}</span>
           </a>
         </template>
@@ -345,7 +345,7 @@ function toggle () {
 }
 
 .td-tree-link:hover {
-  background-color: var(--color-td-hov);
+  background-color: var(--color-td-hover);
   color: var(--color-td-ink);
   padding-left: 13px;
 }
@@ -363,7 +363,7 @@ function toggle () {
 }
 
 .td-tree-link.is-active {
-  background-color: var(--color-td-sel);
+  background-color: var(--color-td-accent-bg);
   border-left-color: var(--color-td-accent);
   color: var(--color-td-accent);
   font-weight: 600;

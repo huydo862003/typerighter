@@ -21,11 +21,11 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
             Fields::Named(fields) => {
               let field_names: Vec<_> = fields.named.iter().map(|field| &field.ident).collect();
               let encodes = field_names.iter().map(|field| {
-                quote! { #field.encode(buf, encoder); }
+                quote! { #field.encode(buffer, encoder); }
               });
               quote! {
                 #name::#vname { #(#field_names),* } => {
-                  encoder.emit_u8(buf, #tag);
+                  encoder.emit_u8(buffer, #tag);
                   #(#encodes)*
                 }
               }
@@ -37,11 +37,11 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
                 })
                 .collect();
               let encodes = variables.iter().map(|variable| {
-                quote! { #variable.encode(buf, encoder); }
+                quote! { #variable.encode(buffer, encoder); }
               });
               quote! {
                 #name::#vname(#(#variables),*) => {
-                  encoder.emit_u8(buf, #tag);
+                  encoder.emit_u8(buffer, #tag);
                   #(#encodes)*
                 }
               }
@@ -49,7 +49,7 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
             Fields::Unit => {
               quote! {
                 #name::#vname => {
-                  encoder.emit_u8(buf, #tag);
+                  encoder.emit_u8(buffer, #tag);
                 }
               }
             }
@@ -72,7 +72,7 @@ pub fn encodable_derive_impl(item: TokenStream) -> TokenStream {
 
   quote! {
     impl #impl_generics ::typedown_incremental::Encodable for #name #ty_generics #where_clause {
-      fn encode(&self, buf: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
+      fn encode(&self, buffer: &mut Vec<u8>, encoder: &mut ::typedown_incremental::Encoder) {
         #body
       }
     }
@@ -85,14 +85,14 @@ fn encode_fields_body(fields: &Fields) -> proc_macro2::TokenStream {
     Fields::Named(fields) => {
       let encodes = fields.named.iter().map(|field| {
         let name = &field.ident;
-        quote! { self.#name.encode(buf, encoder); }
+        quote! { self.#name.encode(buffer, encoder); }
       });
       quote! { #(#encodes)* }
     }
     Fields::Unnamed(fields) => {
       let encodes = (0..fields.unnamed.len()).map(|index| {
         let index = syn::Index::from(index);
-        quote! { self.#index.encode(buf, encoder); }
+        quote! { self.#index.encode(buffer, encoder); }
       });
       quote! { #(#encodes)* }
     }

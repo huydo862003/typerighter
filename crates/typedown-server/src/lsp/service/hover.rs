@@ -78,7 +78,7 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
     let actual = actual_node_typ(db, project_node).typ(db)?;
 
     match expected {
-      Some(expected_typ) => format_type_label(db, &expected_typ),
+      Some(expected_typ) => format_typ_label(db, &expected_typ),
       None => actual.display_name(db),
     }
   } else if find_ancestor(&hovered_node, SyntaxKind::YamlMappingEntryKey).is_some() {
@@ -93,7 +93,7 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
     let typ = expected_node_typ(db, project_node).typ(db)?;
     let key_text = entry_key.text().trim().to_string();
 
-    format!("{key_text}: {}", format_type_label(db, &typ))
+    format!("{key_text}: {}", format_typ_label(db, &typ))
   } else {
     return None;
   };
@@ -144,7 +144,7 @@ fn format_resource_hover(db: &TypedownDatabase, symbol: Symbol, path: &str) -> S
   parts.join("\n\n")
 }
 
-fn format_type_label(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
+fn format_typ_label(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
   if let Some(sum) = typ.as_td_sum_typ() {
     let members = sum.members(db);
     let has_null = members.iter().any(|member| {
@@ -221,7 +221,7 @@ fn build_schema_hover_text(db: &TypedownDatabase, typ: &TdTypEnum) -> String {
     .map(|(field_name, lazy)| {
       let typ_name = lazy
         .resolve(db)
-        .map(|typ| format_type_label(db, &typ))
+        .map(|typ| format_typ_label(db, &typ))
         .unwrap_or_else(|| "unknown".to_string());
       format!("  {field_name}: {typ_name}")
     })
@@ -300,8 +300,8 @@ fn build_component_hover(
 
   let mut lines = vec![format!("**{}**", component_name)];
 
-  if let Some(msg) = &entry.deprecated {
-    lines.push(format!("\n**Deprecated:** {}", msg));
+  if let Some(message) = &entry.deprecated {
+    lines.push(format!("\n**Deprecated:** {}", message));
   }
 
   lines.push(format!("\nSource: `{}`", entry.source));
@@ -716,7 +716,7 @@ name: "Test"
   }
 
   #[test]
-  fn hover_on_type_value_shows_schema_fields() {
+  fn hover_on_typ_value_shows_schema_fields() {
     let text = hover_text_from_setup(
       r#"---
 _type: Per|son
@@ -841,7 +841,7 @@ Some plain te|xt.
     let params = make_params(uri, &content, offset);
     let result = hover(&analysis, params).expect("expected hover on component name");
     let text = match result.contents {
-      HoverContents::Markup(m) => m.value,
+      HoverContents::Markup(markup) => markup.value,
       _ => panic!("expected markup"),
     };
     assert!(text.contains("kind"), "should show prop name: {text}");
@@ -874,7 +874,7 @@ Some plain te|xt.
     let params = make_params(uri, &content, offset);
     let result = hover(&analysis, params).expect("expected hover on component name");
     let text = match result.contents {
-      HoverContents::Markup(m) => m.value,
+      HoverContents::Markup(markup) => markup.value,
       _ => panic!("expected markup"),
     };
     assert!(text.contains("kind"), "should still show prop name: {text}");

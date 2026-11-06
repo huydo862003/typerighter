@@ -1,6 +1,6 @@
 //! Public types for resource export results
 
-use super::html::ExportedHeading;
+use super::content::html::ExportedHeading;
 
 /// Structured export result for markdown output
 #[derive(serde::Serialize)]
@@ -30,9 +30,9 @@ pub struct ExportedIcon {
 #[derive(serde::Serialize, Clone)]
 pub struct ExportedFileMetadata {
   /// Last modification time as seconds since UNIX epoch
-  pub mtime: u64,
+  pub mtime_secs: u64,
   /// Creation time as seconds since UNIX epoch
-  pub ctime: u64,
+  pub ctime_secs: u64,
 }
 
 /// SEO fields from the _meta builtin field
@@ -67,6 +67,9 @@ pub struct ExportedResourceHtml {
   /// SEO fields from the _meta builtin field
   #[serde(skip_serializing_if = "Option::is_none")]
   pub seo_metadata: Option<ExportedSeoMeta>,
+  /// Plain-text excerpt from the first paragraph, used as description fallback
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub excerpt: Option<String>,
 }
 
 /// Content listing entry: includes header for filtering, no body

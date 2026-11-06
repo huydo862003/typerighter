@@ -110,15 +110,15 @@ function M.toggle()
 	end
 
 	-- Find current position in cycle and advance
-	local current_idx = 1
+	local current_index = 1
 	for i, c in ipairs(M.cycle) do
 		if c == char or (char == "X" and c == "x") then
-			current_idx = i
+			current_index = i
 			break
 		end
 	end
-	local next_idx = (current_idx % #M.cycle) + 1
-	local next_char = M.cycle[next_idx]
+	local next_index = (current_index % #M.cycle) + 1
+	local next_char = M.cycle[next_index]
 
 	local new_line = prefix .. next_char .. suffix
 	vim.api.nvim_buf_set_lines(0, line_nr - 1, line_nr, false, { new_line })

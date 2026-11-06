@@ -63,12 +63,12 @@ impl<
     identities: &[DerivedIdentity],
   ) {
     for &(name_fp, identity_hash, disambiguator, struct_entry_id) in identities {
-      let Some(&field_idx) = ctx.fields_by_name(&name_fp).first() else {
+      let Some(&field_index) = ctx.fields_by_name(&name_fp).first() else {
         continue;
       };
       let map = self
         .identity_maps
-        .entry((entry_id, field_idx as u32))
+        .entry((entry_id, field_index as u32))
         .or_insert_with(|| Arc::new(DashMap::new()))
         .clone();
       map.insert((identity_hash, disambiguator), struct_entry_id);
@@ -176,8 +176,8 @@ impl<
     let decoder = &ctx.decoder;
     let mut all_deps_green = true;
 
-    for &edge_idx in edges {
-      let edge_node = &ctx.serialized.dep_graph.nodes[edge_idx as usize];
+    for &edge_index in edges {
+      let edge_node = &ctx.serialized.dep_graph.nodes[edge_index as usize];
       // A dep can be missing (Evicted) for two reasons:
       //   - it was LRU-evicted from self.data at dump time so its serialize() returned early
       //   - it was never accessed this session and got no dep node slot
@@ -187,7 +187,7 @@ impl<
         break;
       }
       // Deserialize the dep lazily: registers it into the current session and returns its DepId
-      let Some(dep_id) = decoder.get_or_deserialize_dep_node_id(edge_idx) else {
+      let Some(dep_id) = decoder.get_or_deserialize_dep_node_id(edge_index) else {
         all_deps_green = false;
         break;
       };

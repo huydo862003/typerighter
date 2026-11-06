@@ -271,6 +271,7 @@ export const expr_rules = {
           choice(
             $.escape_sequence,
             $.interpolation,
+            $.inline_math,
             /[^"\\$]+/,
           ),
         ),
@@ -281,6 +282,7 @@ export const expr_rules = {
         repeat(
           choice(
             $.escape_sequence,
+            $.inline_math,
             /[^'\\$]+/,
           ),
         ),
@@ -295,6 +297,17 @@ export const expr_rules = {
       $.expression,
       '}',
     ),
+
+  // Inline math: $...$ within strings, content node injected as LaTeX
+  inline_math: ($) =>
+    seq(
+      '$',
+      $.inline_math_content,
+      '$',
+    ),
+
+  // first char cannot be { (would conflict with ${} interpolation) or $ (empty math)
+  inline_math_content: () => token.immediate(/[^{$][^$]*/),
 
   escape_sequence: () =>
     token(

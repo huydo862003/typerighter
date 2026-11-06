@@ -6,11 +6,11 @@ use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{get_bool_typ, get_number_typ, get_string_typ};
-use crate::db::types::{FuncSignature, LazyTyp, LitValue};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp, LitValue};
 
 #[query_derived]
 pub struct TdLitTyp<'db> {
-  pub value: LitValue,
+  pub value: LitValue<'db>,
 }
 
 impl<'db> TdRuntimeObj<'db> for TdLitTyp<'db> {
@@ -31,9 +31,10 @@ impl<'db> TdRuntimeObj<'db> for TdLitTyp<'db> {
 impl<'db> TdStaticTyp<'db> for TdLitTyp<'db> {
   fn display_name(&self, db: &'db TypedownDatabase) -> String {
     match self.value(db) {
-      LitValue::String(s) => format!("\"{}\"", s),
-      LitValue::Number(n) => n,
-      LitValue::Bool(b) => b.to_string(),
+      LitValue::String(string) => format!("\"{}\"", string),
+      LitValue::Number(number) => number,
+      LitValue::Bool(bool) => bool.to_string(),
+      LitValue::Typ(typ) => format!("literal<{}>", typ.display_name(db)),
     }
   }
 
@@ -64,9 +65,9 @@ impl<'db> TdStaticTyp<'db> for TdLitTyp<'db> {
   fn call_typ(
     &self,
     db: &'db TypedownDatabase,
-    arg_types: Vec<TdTypEnum<'db>>,
-  ) -> Option<FuncSignature<'db>> {
-    self.underlying_typ(db).call_typ(db, arg_types)
+    arg_typs: Vec<TdTypEnum<'db>>,
+  ) -> CallTypResult<'db> {
+    self.underlying_typ(db).call_typ(db, arg_typs)
   }
 }
 
@@ -76,6 +77,7 @@ impl<'db> TdLitTyp<'db> {
       LitValue::String(_) => get_string_typ(db).into(),
       LitValue::Number(_) => get_number_typ(db).into(),
       LitValue::Bool(_) => get_bool_typ(db).into(),
+      LitValue::Typ(typ) => typ.get_typ(db),
     }
   }
 }

@@ -212,7 +212,7 @@ impl QueryCacheBuilder {
 
   /// Write the footer and convert the backing tempfile into a read-only mmap
   pub fn finalize(mut self) -> (memmap2::Mmap, NamedTempFile) {
-    let footer_pos = self.offset;
+    let footer_position = self.offset;
 
     // Write entry count
     self
@@ -231,7 +231,7 @@ impl QueryCacheBuilder {
     // Write footer position as the last 8 bytes
     self
       .writer
-      .write_all(&footer_pos.to_le_bytes())
+      .write_all(&footer_position.to_le_bytes())
       .expect("Failed to write footer position");
 
     // Flush buffered data before mmapping the file

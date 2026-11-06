@@ -106,9 +106,7 @@ pub fn members<'db>(db: &'db TypedownDatabase, scope: Scope) -> MembersResult<'d
           {
             let symbol = Symbol::new(
               db,
-              SymbolKind::FuncParam(project, file, value.clone()),
-              name.clone(),
-              format!("@param::{}", name),
+              SymbolKind::FuncParam(project, file, value.clone(), name.clone()),
             );
             members.insert(name, symbol);
           }

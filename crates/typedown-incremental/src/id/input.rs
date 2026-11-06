@@ -37,7 +37,7 @@ mod tests {
       storage: QueryStorage::default(),
     };
 
-    let rev_before = db.storage.revision.load(Ordering::Acquire);
+    let revision_before = db.storage.revision.load(Ordering::Acquire);
 
     let path = PathBuf::from("/home/huydna/");
     let source = String::from("Hello, testing from input_holds_correct_value_after_init");
@@ -48,8 +48,8 @@ mod tests {
     assert_eq!(program_input.source(&db), source);
 
     // Creating an input should not bump the revision
-    let rev_after = db.storage.revision.load(Ordering::Acquire);
-    assert_eq!(rev_before, rev_after);
+    let revision_after = db.storage.revision.load(Ordering::Acquire);
+    assert_eq!(revision_before, revision_after);
   }
 
   #[test]
@@ -63,7 +63,7 @@ mod tests {
 
     let program_input = { ProgramFile::new(&db, path.clone(), source.clone()) };
 
-    let rev_before = db.storage.revision.load(Ordering::Acquire);
+    let revision_before = db.storage.revision.load(Ordering::Acquire);
 
     let new_path = PathBuf::from("/home/corgi/");
     let new_source = String::from("Hello, testing from input_holds_correct_value_after_reassign");
@@ -75,9 +75,9 @@ mod tests {
     assert_eq!(program_input.source(&db), new_source);
 
     // Setting to different values should bump the revision
-    let rev_after = db.storage.revision.load(Ordering::Acquire);
+    let revision_after = db.storage.revision.load(Ordering::Acquire);
     assert!(
-      rev_after > rev_before,
+      revision_after > revision_before,
       "revision should bump after setting new values"
     );
   }
@@ -93,16 +93,16 @@ mod tests {
 
     let program_input = ProgramFile::new(&db, path.clone(), source.clone());
 
-    let rev_before = db.storage.revision.load(Ordering::Acquire);
+    let revision_before = db.storage.revision.load(Ordering::Acquire);
 
     // Set to the same values
     program_input.set_path(&mut db, path.clone());
     program_input.set_source(&mut db, source.clone());
 
     // Revision should not change since values are the same
-    let rev_after = db.storage.revision.load(Ordering::Acquire);
+    let revision_after = db.storage.revision.load(Ordering::Acquire);
     assert_eq!(
-      rev_before, rev_after,
+      revision_before, revision_after,
       "revision should not bump when setting same values"
     );
   }

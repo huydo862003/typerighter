@@ -42,8 +42,11 @@ export {
   TdKeyName,
 } from './utils/keys';
 export {
-  useGlobalHotkey, useLocalHotkeys,
+  useGlobalHotkey, useLocalHotkeys, isTypingTarget,
 } from './composables/useHotkey';
+export {
+  useLocalStorage,
+} from './composables/useLocalStorage';
 export {
   default as TdKbdShortcut,
 } from './components/TdKbdShortcut.vue';

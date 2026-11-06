@@ -13,7 +13,7 @@ use crate::syntax::syntax_kind::SyntaxKind;
 pub(super) struct NodeHeader {
   pub(super) ref_count: AtomicUsize,
   pub(super) kind: SyntaxKind,
-  pub(super) text_len: usize,
+  pub(super) text_length: usize,
   pub(super) n_children: u32,
 }
 
@@ -39,14 +39,14 @@ impl SyntaxNode {
       (base as *mut NodeHeader).write(NodeHeader {
         ref_count: AtomicUsize::new(1),
         kind,
-        text_len: text_length,
+        text_length,
         n_children: lenth as u32,
       });
 
       // Clone each child (bumps ref-count) and write into the allocation
       let children_ptr = base.add(children_offset) as *mut GreenNode;
-      for (i, child) in children.iter().enumerate() {
-        children_ptr.add(i).write(child.clone());
+      for (index, child) in children.iter().enumerate() {
+        children_ptr.add(index).write(child.clone());
       }
 
       Self(base as *const NodeHeader)
@@ -58,7 +58,7 @@ impl SyntaxNode {
   }
 
   pub fn text_len(&self) -> usize {
-    unsafe { (*self.0).text_len }
+    unsafe { (*self.0).text_length }
   }
 
   pub fn chars(&self) -> impl Iterator<Item = char> {
@@ -91,16 +91,16 @@ impl Clone for SyntaxNode {
 
 impl Drop for SyntaxNode {
   fn drop(&mut self) {
-    let prev = unsafe { (*self.0).ref_count.fetch_sub(1, Ordering::AcqRel) };
-    if prev != 1 {
+    let previous = unsafe { (*self.0).ref_count.fetch_sub(1, Ordering::AcqRel) };
+    if previous != 1 {
       return;
     }
     unsafe {
       let n = (*self.0).n_children as usize;
       let (layout, offset) = Self::layout(n);
       let children_ptr = (self.0 as *mut u8).add(offset) as *mut GreenNode;
-      for i in 0..n {
-        std::ptr::drop_in_place(children_ptr.add(i));
+      for index in 0..n {
+        std::ptr::drop_in_place(children_ptr.add(index));
       }
       dealloc(self.0 as *mut u8, layout);
     }
@@ -128,12 +128,13 @@ impl Debug for SyntaxNode {
 impl Hash for SyntaxNode {
   fn hash<H: Hasher>(&self, state: &mut H) {
     let children = self.children();
-    let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(1 + children.len());
-    buf.push(((self.kind() as u64) << 32) | self.text_len() as u64);
+    let mut buffer: SmallVec<[u64; 64]> = SmallVec::with_capacity(1 + children.len());
+    buffer.push(((self.kind() as u64) << 32) | self.text_len() as u64);
     for child in children {
-      buf.push(((child.kind() as u64) << 32) | child.text_len() as u64);
+      buffer.push(((child.kind() as u64) << 32) | child.text_len() as u64);
     }
-    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
+    state
+      .write(unsafe { std::slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), buffer.len() * 8) });
   }
 
   fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
@@ -141,15 +142,16 @@ impl Hash for SyntaxNode {
     Self: Sized,
   {
     let total = data.iter().map(|node| 1 + node.n_children() as usize).sum();
-    let mut buf: SmallVec<[u64; 64]> = SmallVec::with_capacity(total);
+    let mut buffer: SmallVec<[u64; 64]> = SmallVec::with_capacity(total);
     for node in data {
-      buf.push(((node.kind() as u64) << 32) | node.text_len() as u64);
+      buffer.push(((node.kind() as u64) << 32) | node.text_len() as u64);
       for child in node.children() {
-        buf.push(((child.kind() as u64) << 32) | child.text_len() as u64);
+        buffer.push(((child.kind() as u64) << 32) | child.text_len() as u64);
       }
     }
     state.write_usize(data.len());
-    state.write(unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len() * 8) });
+    state
+      .write(unsafe { std::slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), buffer.len() * 8) });
   }
 }
 

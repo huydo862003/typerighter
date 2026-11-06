@@ -32,13 +32,13 @@ pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> T
       .iter()
       .find(|attr| attr.path().is_ident("message"));
 
-    let Some(attr) = message_attribute else {
+    let Some(attribute) = message_attribute else {
       return syn::Error::new_spanned(variant_name, "missing #[message(\"...\")] attribute")
         .to_compile_error()
         .into();
     };
 
-    let message_body = parse_message_attr(attr, &variant.fields);
+    let message_body = parse_message_attr(attribute, &variant.fields);
 
     // code_str() arm
     match &variant.fields {
@@ -69,7 +69,7 @@ pub fn typedown_diagnostic_kind_impl(_attr: TokenStream, item: TokenStream) -> T
     for variant in &mut data.variants {
       variant
         .attrs
-        .retain(|attr| !attr.path().is_ident("message"));
+        .retain(|attribute| !attribute.path().is_ident("message"));
     }
   }
 
@@ -132,7 +132,7 @@ fn parse_message_attr(attr: &syn::Attribute, fields: &Fields) -> TokenStream2 {
 
   let args: Punctuated<Expr, Token![,]> = match list.parse_args_with(Punctuated::parse_terminated) {
     Ok(args) => args,
-    Err(e) => return e.to_compile_error(),
+    Err(error) => return error.to_compile_error(),
   };
 
   let mut iter = args.iter();
@@ -143,10 +143,10 @@ fn parse_message_attr(attr: &syn::Attribute, fields: &Fields) -> TokenStream2 {
   let Expr::Lit(lit) = first else {
     return quote! { format!("") };
   };
-  let Lit::Str(s) = &lit.lit else {
+  let Lit::Str(string) = &lit.lit else {
     return quote! { format!("") };
   };
-  let template = s.value();
+  let template = string.value();
 
   let extra_args: Vec<_> = iter.collect();
 
@@ -185,9 +185,9 @@ fn pascal_to_kebab(name: &str) -> String {
     if char.is_uppercase() {
       if !result.is_empty() {
         let next_is_lower = chars.peek().is_some_and(|name| name.is_lowercase());
-        let prev_is_lower_or_digit =
-          result.ends_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit());
-        if prev_is_lower_or_digit || next_is_lower {
+        let previous_is_lower_or_digit =
+          result.ends_with(|char: char| char.is_ascii_lowercase() || char.is_ascii_digit());
+        if previous_is_lower_or_digit || next_is_lower {
           result.push('-');
         }
       }

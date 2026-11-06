@@ -9,7 +9,8 @@ pub use symbol::*;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::syntax::diagnostic::TdDiagnostic;
+use crate::db::types::FuncSignature;
+use crate::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
 use typedown_macros::{Decodable, Encodable, StableCompare, StableHash, query_derived};
 
 use crate::syntax::ast::{
@@ -299,6 +300,11 @@ pub struct TypResult<'db> {
 pub struct InstantiateResult<'db> {
   pub typ: TdTypEnum<'db>,
   pub diagnostics: Vec<TdDiagnostic>,
+}
+
+pub struct CallTypResult<'db> {
+  pub signature: Option<FuncSignature<'db>>,
+  pub diagnostics: Vec<TdDiagnosticKind>,
 }
 
 #[query_derived]

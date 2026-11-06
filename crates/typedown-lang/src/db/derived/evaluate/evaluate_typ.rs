@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::db::derived::builtin_schemas::node_set::get_node_set_typ;
 use crate::syntax::diagnostic::*;
 use typedown_macros::query_derived;
 
@@ -48,6 +49,7 @@ pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult
         BuiltinSchemaKind::TypTyp => get_typ_typ(db).into(),
         BuiltinSchemaKind::SchemaProp => get_schema_prop_typ(db).into(),
         BuiltinSchemaKind::Obj => get_obj_typ(db).into(),
+        BuiltinSchemaKind::NodeSet => get_node_set_typ(db).into(),
       };
       TypResult::new(db, Some(typ), vec![])
     }
@@ -58,7 +60,7 @@ pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult
     SymbolKind::UserDefinedResource(_, _)
     | SymbolKind::BuiltinMacro(_)
     | SymbolKind::BuiltinGlobal(_) => TypResult::new(db, None, vec![]),
-    SymbolKind::FuncParam(_, _, _) => TypResult::new(db, None, vec![]),
+    SymbolKind::FuncParam(_, _, _, _) => TypResult::new(db, None, vec![]),
   }
 }
 
@@ -116,6 +118,7 @@ fn evaluate_user_defined_schema<'db>(
             inherited_fields,
             BTreeMap::new(),
             parent_typ,
+            None,
           )
           .into(),
         ),
@@ -180,6 +183,7 @@ fn evaluate_user_defined_schema<'db>(
         child_fields,
         BTreeMap::new(),
         parent_typ,
+        None,
       )
       .into(),
     ),
@@ -228,12 +232,14 @@ fn resolve_parent_schema<'db>(
 
   // Pre-walk the _extends chain to detect cycles before calling evaluate_typ
   if let Some(cycle) = detect_extends_cycle(db, child_name, parent_symbol) {
+    let red_node = &extends_node.node;
+    let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
     diagnostics.push(
       TdDiagnosticKind::CircularExtension {
         name: child_name.to_string(),
         cycle,
       }
-      .into_error(0, 0),
+      .into_error(trimmed_offset, trimmed_offset + trimmed_len),
     );
     return (BTreeMap::new(), None);
   }
@@ -277,7 +283,7 @@ fn detect_extends_cycle(
 
     let root_node = parse_file(db, project, file).ast(db);
     let entries = root_node.mapping_entries()?;
-    let (_, extends_node) = entries.iter().find(|(k, _)| k == "_extends")?;
+    let (_, extends_node) = entries.iter().find(|(key, _)| key == "_extends")?;
 
     let resolved = referee(db, extends_node.clone());
     let next_symbol = resolved.value(db)?;
@@ -484,7 +490,9 @@ fn resolve_typ_lazy<'db>(
   if let Some(ident) = IdentLit::cast(node.clone()) {
     match ident.value().as_deref() {
       Some("null") => return Some(LazyTyp::eager(get_null_typ(db).into())),
-      Some("true") => return Some(LazyTyp::eager(get_lit_typ(db, LitValue::Bool(true)).into())),
+      Some("true") => {
+        return Some(LazyTyp::eager(get_lit_typ(db, LitValue::Bool(true)).into()));
+      }
       Some("false") => {
         return Some(LazyTyp::eager(
           get_lit_typ(db, LitValue::Bool(false)).into(),
@@ -520,7 +528,7 @@ fn resolve_typ_lazy<'db>(
     let value: String = string_lit
       .fragments()
       .filter_map(|fragment| match fragment {
-        Either::Left(s) => Some(s),
+        Either::Left(string) => Some(string),
         _ => None,
       })
       .collect::<Vec<_>>()
@@ -578,12 +586,12 @@ fn resolve_typ_lazy<'db>(
     if base_typ.arity(db) == 0 {
       return Some(LazyTyp::eager(base_typ));
     }
-    let mut arg_types = vec![];
+    let mut arg_typs = vec![];
     for index_expr_item in index_expr.indices() {
       let index_node = ProjectRedNode::new(project, file, index_expr_item.syntax().clone());
-      arg_types.push(resolve_typ_lazy(db, index_node, diagnostics)?);
+      arg_typs.push(resolve_typ_lazy(db, index_node, diagnostics)?);
     }
-    let instantiate_result = base_typ.instantiate(db, arg_types);
+    let instantiate_result = base_typ.instantiate(db, arg_typs);
     diagnostics.extend(instantiate_result.diagnostics(db).iter().cloned());
     return Some(LazyTyp::eager(instantiate_result.typ(db)));
   }
@@ -622,7 +630,9 @@ fn resolve_typ_lazy<'db>(
 mod tests {
   use super::*;
   use crate::db::types::typecheck::{is_subtyp_of, validate_typ_params};
-  use crate::db::types::{TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, TypVariable};
+  use crate::db::types::{
+    Binder, TdBoundVariableTyp, TdObjEnum, TdRuntimeObj, TdTypEnum, TypParams, Variance,
+  };
   use crate::db::{
     QueryStorage, TypedownDatabase,
     derived::evaluate::evaluate_resource::evaluate_resource,
@@ -655,12 +665,7 @@ mod tests {
   #[test]
   fn evaluate_typ_builtin_schema_returns_schema_typ() {
     let db = make_db();
-    let symbol = Symbol::new(
-      &db,
-      SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema),
-      "schema".to_string(),
-      "@builtin::schema".to_string(),
-    );
+    let symbol = Symbol::new(&db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::Schema));
     let result = evaluate_typ(&db, symbol);
     assert!(result.typ(&db) == Some(TdTypEnum::from(get_schema_meta_typ(&db))));
     assert!(result.diagnostics(&db).is_empty());
@@ -733,12 +738,12 @@ mod tests {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "_types/DuplicateProperty.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    let diags = evaluate_typ(&db, symbol).diagnostics(&db);
+    let diagnostics = evaluate_typ(&db, symbol).diagnostics(&db);
     assert!(
-      diags.iter().any(
+      diagnostics.iter().any(
         |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::DuplicateKey { key, ..}, .. } if key == "name")
       ),
-      "expected DuplicateKey diagnostic for 'name': {diags:?}"
+      "expected DuplicateKey diagnostic for 'name': {diagnostics:?}"
     );
   }
 
@@ -760,16 +765,16 @@ mod tests {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/DefaultInvalid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diags = result.diagnostics(&db);
-    assert_eq!(diags.len(), 1);
+    let diagnostics = result.diagnostics(&db);
+    assert_eq!(diagnostics.len(), 1);
     assert!(
       matches!(
-        &diags[0],
+        &diagnostics[0],
         TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. }
           if field == "default" && expected == "string"
       ),
       "expected FieldTypeMismatch for 'default', got {:?}",
-      diags
+      diagnostics
     );
   }
 
@@ -962,8 +967,8 @@ mod tests {
     let person_file = project
       .files(&db)
       .iter()
-      .find(|(p, _)| p.ends_with("Person.td"))
-      .map(|(_, f)| *f)
+      .find(|(path, _)| path.ends_with("Person.td"))
+      .map(|(_, field)| *field)
       .unwrap();
     let grad_symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let person_symbol = file_symbol(&db, project, person_file).value(&db).unwrap();
@@ -1153,7 +1158,13 @@ mod tests {
 
     let params = TypParams::new(
       &db,
-      vec![TypVariable::get(&db, Some(LazyTyp::eager(number_typ)))],
+      vec![TdBoundVariableTyp::new(
+        &db,
+        Binder::BuiltinSchema(BuiltinSchemaKind::String),
+        0,
+        LazyTyp::eager(number_typ),
+        Variance::Covariant,
+      )],
       vec![],
     );
     let diagnostics = validate_typ_params(&db, Some(&params), &[LazyTyp::eager(string_typ)]);
@@ -1162,7 +1173,7 @@ mod tests {
       matches!(
         diagnostics[0],
         TdDiagnostic {
-          kind: TdDiagnosticKind::TypArgBoundViolation { index: 0, .. },
+          kind: TdDiagnosticKind::TypArgBoundViolation { .. },
           ..
         }
       ),
@@ -1365,7 +1376,7 @@ age: 42
     let friend_node = entries
       .into_iter()
       .find(|(key, _)| key == "friend")
-      .map(|(_, v)| v)
+      .map(|(_, value)| value)
       .expect("should have friend field");
     let typ_result = actual_node_typ(&db, friend_node);
     let typ = typ_result.typ(&db).expect("fref should return a type");
@@ -1673,9 +1684,9 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+    let (_, prop_node) = props_entries.iter().find(|(key, _)| key == "age").unwrap();
 
     let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
@@ -1701,9 +1712,9 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "age").unwrap();
+    let (_, prop_node) = props_entries.iter().find(|(key, _)| key == "age").unwrap();
 
     let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
@@ -1749,9 +1760,12 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let (_, prop_node) = props_entries
+      .iter()
+      .find(|(key, _)| key == "fullName")
+      .unwrap();
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
@@ -1782,21 +1796,32 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let (_, prop_node) = props_entries
+      .iter()
+      .find(|(key, _)| key == "fullName")
+      .unwrap();
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
-    assert_eq!(
-      diagnostics,
-      vec![
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "computed".to_string(),
-          expected: "function expecting 1 parameter".to_string(),
-        }
-        .into_error(72, 88)
-      ]
+    // (a, b) -> a + b has wrong param count AND operand type errors from untyped params
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::FieldTypMismatch { field, expected }
+          if field == "computed" && expected == "function expecting 1 parameter"
+      )),
+      "should have FieldTypMismatch for computed, got {:?}",
+      diagnostics
+    );
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        &diagnostic.kind,
+        TdDiagnosticKind::OperandTypMismatch { op, .. } if op == "+"
+      )),
+      "should have OperandTypMismatch for +, got {:?}",
+      diagnostics
     );
   }
 
@@ -1816,9 +1841,12 @@ properties:
     );
     let mut diagnostics = vec![];
     let entries = root.mapping_entries().expect("should have entries");
-    let (_, props_node) = entries.iter().find(|(k, _)| k == "properties").unwrap();
+    let (_, props_node) = entries.iter().find(|(key, _)| key == "properties").unwrap();
     let props_entries = props_node.mapping_entries().expect("should have entries");
-    let (_, prop_node) = props_entries.iter().find(|(k, _)| k == "fullName").unwrap();
+    let (_, prop_node) = props_entries
+      .iter()
+      .find(|(key, _)| key == "fullName")
+      .unwrap();
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_none());

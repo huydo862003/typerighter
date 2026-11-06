@@ -16,8 +16,8 @@ pub fn prepare_rename(
   let rope = analysis.file_rope(&path)?;
 
   // Locate the offset of the rename request
-  let editor_pos = params.position;
-  let offset = lsp_position_to_text_offset(&rope, editor_pos)?;
+  let editor_position = params.position;
+  let offset = lsp_position_to_text_offset(&rope, editor_position)?;
 
   // Find the symbol that is requested a rename + qualifying information
   let rename_symbol = find_symbol_at_cursor(&analysis.db, project, file, offset)?;
@@ -84,7 +84,7 @@ name: Alice
 
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
     let root = test_vault_root();
-    let type_root = root.join("_types");
+    let typ_root = root.join("_types");
     let test_path = root.join("file.td");
     let uri = path_to_uri(&test_path, "file");
 
@@ -103,7 +103,7 @@ name: Alice
     let person_file = File::new(
       &db,
       FileHandle::Content(
-        type_root.join("Person.td"),
+        typ_root.join("Person.td"),
         SCHEMA_PERSON.to_string(),
         FileMetadata::default(),
       ),

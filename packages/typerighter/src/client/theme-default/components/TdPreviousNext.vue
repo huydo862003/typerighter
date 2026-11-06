@@ -5,9 +5,13 @@ import {
 import {
   usePreviousNext,
 } from '../composables/usePreviousNext';
+import {
+  TdKeyName,
+} from '../utils/keys';
+import TdKbdShortcut from './TdKbdShortcut.vue';
 
 const {
-  previous, next, groupName,
+  previous, next,
 } = usePreviousNext();
 </script>
 
@@ -27,7 +31,13 @@ const {
           :size="14"
           class="td-prevnext-chevron"
         />
-        {{ groupName ? `Previous in ${groupName}` : 'Previous' }}
+        Previous
+        <TdKbdShortcut
+          :keys="[
+            TdKeyName.Control,
+            TdKeyName.ArrowLeft,
+          ]"
+        />
       </span>
       <span class="td-prevnext-title">{{ previous.title }}</span>
     </a>
@@ -41,7 +51,13 @@ const {
       class="td-prevnext-link is-next"
     >
       <span class="td-prevnext-label">
-        {{ groupName ? `Next in ${groupName}` : 'Next' }}
+        <TdKbdShortcut
+          :keys="[
+            TdKeyName.Control,
+            TdKeyName.ArrowRight,
+          ]"
+        />
+        Next
         <ChevronRight
           :size="14"
           class="td-prevnext-chevron"
@@ -84,7 +100,7 @@ const {
 
 .td-prevnext-link:hover {
   border-color: var(--color-td-accent);
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
   transform: translateY(-1px);
 }
 
@@ -99,7 +115,7 @@ const {
 .td-prevnext-label {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: var(--tracking-td-wide);

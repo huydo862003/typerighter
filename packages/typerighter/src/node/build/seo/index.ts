@@ -1,4 +1,4 @@
-export { resolvePageTitle, resolvePageDescription, extractDateModified, extractOgImagePath } from './page';
-export { buildArticleLd, buildBreadcrumbLd } from './jsonld';
-export { generateSitemap, generateRobotsTxt } from './sitemap';
-export { generateRssFeed } from './feed';
+export { buildPageSeo } from './page';
+export type { PageSeo, PageSeoConfig } from './page';
+export { buildSitemap, buildRobotsTxt } from './sitemap';
+export { buildRssFeed } from './feed';

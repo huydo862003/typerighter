@@ -25,9 +25,9 @@ const {
   >
     <span class="td-glossary-row-title">{{ item.name }}</span>
     <span
-      v-if="item.mtime"
+      v-if="item.mtimeSecs"
       class="td-glossary-row-time"
-    >{{ formatRelativeTime(item.mtime) }}</span>
+    >{{ formatRelativeTime(item.mtimeSecs) }}</span>
     <span
       v-if="item.description"
       class="td-glossary-row-desc"
@@ -67,7 +67,7 @@ const {
 }
 
 .td-glossary-row:hover {
-  background: var(--color-td-sel);
+  background: var(--color-td-accent-bg);
 }
 
 .td-glossary-row:hover .td-glossary-row-title {
@@ -109,7 +109,7 @@ const {
 
 .td-glossary-row-tag {
   border: 1px solid var(--color-td-line-soft);
-  background: var(--color-td-pg);
+  background: var(--color-td-bg);
   padding: 1px 8px;
   border-radius: 999px;
   font-size: var(--font-size-td-2xs);

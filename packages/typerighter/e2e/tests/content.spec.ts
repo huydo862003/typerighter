@@ -3,33 +3,61 @@ import {
 } from '../fixtures';
 
 e2e.describe('content', () => {
-  e2e('TOC shows h2 and h3 headings', async ({
+  e2e('rail TOC is visible on mouse devices', async ({
     page, testProject,
   }) => {
     await testProject.goto(page, '/notes/index');
 
-    const toc = page.getByTestId('toc').last();
+    // default chromium context is a mouse device (hover: hover, pointer: fine)
+    // rail TOC is the last [data-testid="toc"] in the DOM
+    const railToc = page.getByTestId('toc').last();
 
-    await expect(toc).toBeVisible({
+    await expect(railToc).toBeVisible({
       timeout: 15_000,
     });
 
+    await expect(railToc.getByRole('link', {
+      name: 'Overview',
+    })).toBeVisible();
     await expect(
-      toc.getByRole('link', {
-        name: 'Overview',
-      }),
-    ).toBeVisible();
-    await expect(
-      toc.getByRole('link', {
+      railToc.getByRole('link', {
         name: 'Details',
         exact: true,
       }),
     ).toBeVisible();
+    await expect(railToc.getByRole('link', {
+      name: 'Summary',
+    })).toBeVisible();
+  });
+
+  e2e('inline TOC is present in the DOM', async ({
+    page, testProject,
+  }) => {
+    await testProject.goto(page, '/notes/index');
+
+    // inline TOC is always rendered in the DOM; CSS media queries control visibility but those cannot be reliably overridden in Playwright/Chromium
+    const inlineToc = page.getByTestId('toc').first();
+
+    await expect(inlineToc).toBeAttached({
+      timeout: 15_000,
+    });
+
     await expect(
-      toc.getByRole('link', {
+      inlineToc.getByRole('link', {
+        name: 'Overview',
+      }),
+    ).toBeAttached();
+    await expect(
+      inlineToc.getByRole('link', {
+        name: 'Details',
+        exact: true,
+      }),
+    ).toBeAttached();
+    await expect(
+      inlineToc.getByRole('link', {
         name: 'Summary',
       }),
-    ).toBeVisible();
+    ).toBeAttached();
   });
 
   e2e(

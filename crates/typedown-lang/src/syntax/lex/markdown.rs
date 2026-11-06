@@ -125,7 +125,7 @@ impl<S: Utf8Stream> LexCtx<S> {
       '\\' => {
         self.advance_avoid_invalid_utf8();
         match self.peek() {
-          Utf8Result::Char(c) if is_md_escapable_char(c) => {
+          Utf8Result::Char(char) if is_md_escapable_char(char) => {
             self.advance_avoid_invalid_utf8();
             self.emit(SyntaxKind::MdText)
           }
@@ -252,8 +252,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           Utf8Result::Char('x') | Utf8Result::Char('X') => {
             self.advance_avoid_invalid_utf8();
             let mut count = 0;
-            while let Utf8Result::Char(ch) = self.peek() {
-              if ch.is_ascii_hexdigit() {
+            while let Utf8Result::Char(char) = self.peek() {
+              if char.is_ascii_hexdigit() {
                 self.advance_avoid_invalid_utf8();
                 count += 1;
               } else {
@@ -269,8 +269,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           }
           _ => {
             let mut count = 0;
-            while let Utf8Result::Char(ch) = self.peek() {
-              if ch.is_ascii_digit() {
+            while let Utf8Result::Char(char) = self.peek() {
+              if char.is_ascii_digit() {
                 self.advance_avoid_invalid_utf8();
                 count += 1;
               } else {
@@ -289,13 +289,13 @@ impl<S: Utf8Stream> LexCtx<S> {
       // Named entity: &name;
       // Advance name chars into a local buffer (not text_buffer) so that on failure we can emit just `&` as MdSymbol
       // The name chars get queued as a separate Ident
-      Utf8Result::Char(ch) if ch.is_ascii_alphabetic() => {
+      Utf8Result::Char(char) if char.is_ascii_alphabetic() => {
         let mut name = String::new();
         loop {
           match self.peek() {
-            Utf8Result::Char(ch) if ch.is_ascii_alphanumeric() => {
+            Utf8Result::Char(char) if char.is_ascii_alphanumeric() => {
               self.stream.advance();
-              name.push(ch);
+              name.push(char);
             }
             _ => break,
           }
@@ -337,7 +337,7 @@ impl<S: Utf8Stream> LexCtx<S> {
         // Intraword underscore: a_b stays as one text token
         Utf8Result::Char('_') if last.is_alphanumeric() => {
           // Only absorb if followed by a word char (peek past the _)
-          if matches!(self.stream.peek_nth(1), Utf8Result::Char(c) if c.is_alphanumeric()) {
+          if matches!(self.stream.peek_nth(1), Utf8Result::Char(char) if char.is_alphanumeric()) {
             self.advance_avoid_invalid_utf8();
             last = '_';
           } else {
@@ -399,18 +399,21 @@ impl<S: Utf8Stream> LexCtx<S> {
     }
 
     // Consume language tag (alphanumeric chars, underscore, hyphen)
-    while let Utf8Result::Char(c) = self.peek()
-      && (c.is_alphanumeric() || c == '_' || c == '-')
+    while let Utf8Result::Char(char) = self.peek()
+      && (char.is_alphanumeric() || char == '_' || char == '-')
     {
       self.advance_avoid_invalid_utf8();
     }
 
-    // Consume optional line range indicator like {1,3,5-8}
+    // Consume optional code block props: {1,3 title="foo.ts" line-numbers}
+    // Supports: line ranges (digits, commas, dashes), named props (key=value),
+    // flag props (bare identifiers), and quoted string values
     let mut range_diagnostic: Option<TdDiagnostic> = None;
     if let Utf8Result::Char('{') = self.peek() {
       let range_start = self.stream.offset();
       self.advance_avoid_invalid_utf8();
       let mut closed = false;
+      let mut content = String::new();
 
       loop {
         match self.peek() {
@@ -419,17 +422,14 @@ impl<S: Utf8Stream> LexCtx<S> {
             closed = true;
             break;
           }
-          Utf8Result::Char(c) if c.is_ascii_digit() || c == ',' || c == '-' || c == ' ' => {
-            self.advance_avoid_invalid_utf8();
-          }
           Utf8Result::Char('\n') | Utf8Result::Char('\r') | Utf8Result::Eof => {
             break;
           }
-          _ => {
-            // Invalid character in range indicator
-            let offset = self.stream.offset();
-            range_diagnostic =
-              Some(TdDiagnosticKind::InvalidCodeRangeIndicator {}.into_error(range_start, offset));
+          Utf8Result::Char(char) => {
+            content.push(char);
+            self.advance_avoid_invalid_utf8();
+          }
+          Utf8Result::Invalid { .. } => {
             self.advance_avoid_invalid_utf8();
           }
         }
@@ -440,14 +440,16 @@ impl<S: Utf8Stream> LexCtx<S> {
           TdDiagnosticKind::InvalidCodeRangeIndicator {}
             .into_error(range_start, self.stream.offset()),
         );
+      } else if let Some(diagnostic) = validate_code_block_props(&content, range_start + 1) {
+        range_diagnostic = Some(diagnostic);
       }
     }
 
     // Consume trailing whitespace before newline
-    while let Utf8Result::Char(c) = self.peek()
-      && c.is_whitespace()
-      && c != '\n'
-      && c != '\r'
+    while let Utf8Result::Char(char) = self.peek()
+      && char.is_whitespace()
+      && char != '\n'
+      && char != '\r'
     {
       self.advance_avoid_invalid_utf8();
     }
@@ -475,7 +477,7 @@ impl<S: Utf8Stream> LexCtx<S> {
             };
             // Range diagnostics only apply to code blocks, not inline code
             return match range_diagnostic {
-              Some(diag) if is_block => self.emit_with(kind, diag),
+              Some(diagnostic) if is_block => self.emit_with(kind, diagnostic),
               _ => self.emit(kind),
             };
           }
@@ -663,8 +665,8 @@ impl<S: Utf8Stream> LexCtx<S> {
           match self.peek() {
             Utf8Result::Char('{') => {
               self.advance_avoid_invalid_utf8();
-              let buf_len = self.text_buffer.len();
-              let string_text: String = self.text_buffer.drain(..buf_len - 2).collect();
+              let buffer_length = self.text_buffer.len();
+              let string_text: String = self.text_buffer.drain(..buffer_length - 2).collect();
               self.text_buffer.clear();
 
               self
@@ -696,8 +698,8 @@ impl<S: Utf8Stream> LexCtx<S> {
             }
             _ => {
               // Single $ inside string: inline math
-              let buf_len = self.text_buffer.len();
-              let string_text: String = self.text_buffer.drain(..buf_len - 1).collect();
+              let buffer_length = self.text_buffer.len();
+              let string_text: String = self.text_buffer.drain(..buffer_length - 1).collect();
               self.text_buffer.clear();
 
               let math_token = self.lex_inline_math_content();
@@ -802,4 +804,100 @@ fn is_md_escapable_char(char: char) -> bool {
       | ':'
       | '$'
   )
+}
+
+/// Known code block prop names
+const KNOWN_CODE_PROPS: &[&str] = &["title", "line-numbers"];
+
+/// Validate code block props content (the text between { and })
+/// Returns a diagnostic if the content has invalid syntax or unknown prop names
+fn validate_code_block_props(content: &str, offset: usize) -> Option<TdDiagnostic> {
+  let trimmed = content.trim();
+  if trimmed.is_empty() {
+    return None;
+  }
+
+  let mut position = 0;
+  let chars: Vec<char> = trimmed.chars().collect();
+
+  while position < chars.len() {
+    // Skip whitespace
+    while position < chars.len() && chars[position] == ' ' {
+      position += 1;
+    }
+    if position >= chars.len() {
+      break;
+    }
+
+    // Line range: digit or digit-range or comma-separated
+    if chars[position].is_ascii_digit() {
+      while position < chars.len()
+        && (chars[position].is_ascii_digit() || chars[position] == '-' || chars[position] == ',')
+      {
+        position += 1;
+      }
+      // Skip trailing space after range
+      while position < chars.len() && chars[position] == ' ' {
+        position += 1;
+      }
+      continue;
+    }
+
+    // Named prop or flag: identifier (letters, digits, hyphens, underscores)
+    if chars[position].is_ascii_alphabetic() || chars[position] == '_' {
+      let name_start = position;
+      while position < chars.len()
+        && (chars[position].is_ascii_alphanumeric()
+          || chars[position] == '-'
+          || chars[position] == '_')
+      {
+        position += 1;
+      }
+      let name: String = chars[name_start..position].iter().collect();
+
+      // Check if it's a known prop
+      if !KNOWN_CODE_PROPS.contains(&name.as_str()) {
+        return Some(
+          TdDiagnosticKind::InvalidCodeRangeIndicator {}
+            .into_error(offset + name_start, offset + position),
+        );
+      }
+
+      // Check for = (named prop with value)
+      if position < chars.len() && chars[position] == '=' {
+        position += 1; // skip =
+        if position >= chars.len() {
+          return Some(
+            TdDiagnosticKind::InvalidCodeRangeIndicator {}
+              .into_error(offset + position - 1, offset + position),
+          );
+        }
+        // Quoted value
+        if chars[position] == '"' || chars[position] == '\'' {
+          let quote = chars[position];
+          position += 1;
+          while position < chars.len() && chars[position] != quote {
+            position += 1;
+          }
+          if position < chars.len() {
+            position += 1; // closing quote
+          }
+        } else {
+          // Unquoted value: consume until space or end
+          while position < chars.len() && chars[position] != ' ' && chars[position] != '}' {
+            position += 1;
+          }
+        }
+      }
+      continue;
+    }
+
+    // Unknown character
+    return Some(
+      TdDiagnosticKind::InvalidCodeRangeIndicator {}
+        .into_error(offset + position, offset + position + 1),
+    );
+  }
+
+  None
 }

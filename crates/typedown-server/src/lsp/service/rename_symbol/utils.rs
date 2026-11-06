@@ -6,7 +6,7 @@ use lsp_types::{
   ResourceOp, TextDocumentEdit, TextEdit, WorkspaceEdit,
 };
 use typedown_lang::db::derived::name_resolver::resolution_index::{Reference, ReferenceKind};
-use typedown_lang::syntax::ast::{AstNode, CallExpr};
+use typedown_lang::syntax::ast::{AstNode, CallExpr, MdLink, MdMedia};
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 use typedown_types::path::normalize_path;
 
@@ -64,6 +64,26 @@ pub fn collect_reference_edits(
         };
         TextEdit {
           range: node_trimmed_range(&ref_rope, &content),
+          new_text: normalize_path(new_relative).to_string(),
+        }
+      }
+      // Markdown link/media URL references get the URL text replaced
+      ReferenceKind::MdLink => {
+        let url_node = if let Some(link) = MdLink::cast(reference.node.node.clone()) {
+          link.url().map(|text| text.syntax().clone())
+        } else if let Some(media) = MdMedia::cast(reference.node.node.clone()) {
+          media.url().map(|text| text.syntax().clone())
+        } else {
+          None
+        };
+        let Some(url_node) = url_node else {
+          continue;
+        };
+        let Some(new_relative) = new_absolute.strip_prefix(root_dir).ok() else {
+          continue;
+        };
+        TextEdit {
+          range: node_trimmed_range(&ref_rope, &url_node),
           new_text: normalize_path(new_relative).to_string(),
         }
       }

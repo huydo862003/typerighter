@@ -11,6 +11,11 @@ export interface ArraySchema {
   items: JsonSchema;
 }
 
+// { const: "auto" }
+export interface ConstSchema {
+  const: string | number | boolean | null;
+}
+
 // { type: "object", additionalProperties: <schema> }
 export interface DictSchema {
   type: 'object';
@@ -26,6 +31,7 @@ export type JsonSchema =
   | PrimitiveSchema
   | MultiTypeSchema
   | EnumSchema
+  | ConstSchema
   | ArraySchema
   | ProductSchema
   | DictSchema
@@ -58,6 +64,8 @@ export interface ProductSchema {
 export function isOptional (schema: JsonSchema): boolean {
   if ('enum' in schema) return schema.enum.includes(null);
   if ('type' in schema && Array.isArray(schema.type)) return schema.type.includes('null');
+  if ('oneOf' in schema) return schema.oneOf.some((member) => 'const' in member && member.const === null);
+  if ('anyOf' in schema) return schema.anyOf.some((member) => 'const' in member && member.const === null);
 
   return false;
 }
@@ -94,6 +102,36 @@ export function makeOptional (schema: JsonSchema): JsonSchema {
         ],
       };
     }
+  }
+
+  if ('oneOf' in schema) {
+    const hasNull = schema.oneOf.some((member) => 'const' in member && member.const === null);
+
+    if (hasNull) return schema;
+
+    return {
+      oneOf: [
+        ...schema.oneOf,
+        {
+          const: null,
+        } satisfies ConstSchema,
+      ],
+    };
+  }
+
+  if ('anyOf' in schema) {
+    const hasNull = schema.anyOf.some((member) => 'const' in member && member.const === null);
+
+    if (hasNull) return schema;
+
+    return {
+      anyOf: [
+        ...schema.anyOf,
+        {
+          const: null,
+        } satisfies ConstSchema,
+      ],
+    };
   }
 
   return schema;

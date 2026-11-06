@@ -23,7 +23,7 @@
 (fenced_code_block_delimiter) @punctuation.delimiter
 (language) @label
 (line_range_indicator) @comment
-(code_fence_content) @markup.raw
+(code_fence_content_line) @markup.raw
 
 ; Math blocks
 (math_block) @markup.math
@@ -67,7 +67,7 @@
 
 ; Spell checking
 (inline) @spell
-(code_fence_content) @nospell
+(code_fence_content_line) @nospell
 (math_block_content) @nospell
 (language) @nospell
 (line_range_indicator) @nospell
