@@ -21,7 +21,7 @@ defineProps<{
   align-items: center;
   gap: 16px;
   padding: 5px 0;
-  border-bottom: 1px solid var(--td-c-border, #e5e7eb);
+  border-bottom: 1px solid var(--color-td-line);
   font-size: 0.875em;
 }
 
@@ -31,7 +31,7 @@ defineProps<{
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--td-c-text-1, #1a1a1a);
+  color: var(--color-td-ink);
 }
 
 .icon-td {
@@ -39,7 +39,7 @@ defineProps<{
 }
 
 .icon-lucide {
-  color: var(--td-c-text-2, #6b7280);
+  color: var(--color-td-ink-4);
   min-width: 140px;
 }
 </style>
