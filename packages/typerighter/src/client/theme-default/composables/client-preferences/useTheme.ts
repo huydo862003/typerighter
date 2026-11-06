@@ -49,7 +49,11 @@ export function useTheme () {
   }
 
   function toggle (): void {
-    setTheme(effectiveTheme.value === 'light' ? 'dark' : 'light');
+    if (theme.value === 'system') {
+      setTheme(systemTheme.value === 'light' ? 'dark' : 'light');
+    } else {
+      setTheme('system');
+    }
   }
 
   return {

@@ -74,6 +74,9 @@ import {
   useMenu,
 } from './composables/useMenu';
 import {
+  useMediaQuery,
+} from './composables/useMediaQuery';
+import {
   getPageIcon,
 } from './utils/pageIcon';
 import {
@@ -102,6 +105,7 @@ const siteDataReady = computed(() => siteData.value.ready);
 const {
   isOpen, open: openMenu, close: closeMenu,
 } = useMenu();
+const isLargeScreen = useMediaQuery('(width >= 64rem)');
 
 const searchQuery = ref('');
 const sidebarSearchActive = ref(false);
@@ -373,6 +377,7 @@ function shrinkSidebar () {
     </header>
 
     <div
+      v-if="!isLargeScreen"
       class="td-drawer-scrim"
       :class="{
         'is-open': isOpen,
@@ -380,6 +385,7 @@ function shrinkSidebar () {
       @click="closeMenu"
     />
     <aside
+      v-if="!isLargeScreen"
       class="td-drawer"
       :class="{
         'is-open': isOpen,
