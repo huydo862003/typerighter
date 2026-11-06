@@ -4,9 +4,6 @@ import {
 import {
   wrapHeadScript, readLocalStorage, addDocumentClass,
 } from './utils/buildHeadScript';
-import {
-  registerHeadScript,
-} from './utils/registry';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -91,8 +88,8 @@ export function useTheme () {
   };
 }
 
-// Head script
-function buildHeadScript (): string {
+// Head script - inlined into the HTML <head> to prevent flash of wrong theme
+export function buildThemeHeadScript (): string {
   return wrapHeadScript(
     `var t=${readLocalStorage(STORAGE_KEY)};`
     + addDocumentClass(
@@ -101,8 +98,6 @@ function buildHeadScript (): string {
     ),
   );
 }
-
-registerHeadScript(buildHeadScript);
 
 function initialize (): void {
   if (initialized) return;

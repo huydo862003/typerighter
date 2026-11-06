@@ -1,15 +1,16 @@
 // Centralized localStorage-backed preferences
 
-import './useTheme';
-import './useSidebarConfig';
 import {
-  collectHeadScripts,
-} from './utils/registry';
+  buildThemeHeadScript,
+} from './useTheme';
+import {
+  buildSidebarHeadScript,
+} from './useSidebarConfig';
 
 export {
   useClientPreferences,
 } from './utils/useClientPreferences';
 
 export function provideHeadScript (): string {
-  return collectHeadScripts();
+  return buildThemeHeadScript() + buildSidebarHeadScript();
 }

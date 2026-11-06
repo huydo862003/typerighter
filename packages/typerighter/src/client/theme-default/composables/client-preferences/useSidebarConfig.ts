@@ -7,9 +7,6 @@ import {
 import {
   wrapHeadScript, readLocalStorage, setDocumentCssVariable,
 } from './utils/buildHeadScript';
-import {
-  registerHeadScript,
-} from './utils/registry';
 
 const WIDTH_KEY = 'td-sidebar-width';
 const COLLAPSED_KEY = 'td-sidebar-collapsed';
@@ -48,8 +45,8 @@ export function useSidebarConfig () {
   };
 }
 
-// Head script
-function buildHeadScript (): string {
+// Head script - inlined into the HTML <head> to prevent flash of wrong sidebar width
+export function buildSidebarHeadScript (): string {
   const collapsedExpr = `${readLocalStorage(COLLAPSED_KEY)}==='true'`;
   const widthExpr = `collapsed?${SIDEBAR_COLLAPSED_WIDTH}:(Number(${readLocalStorage(WIDTH_KEY)})||${SIDEBAR_DEFAULT_WIDTH})`;
 
@@ -59,5 +56,3 @@ function buildHeadScript (): string {
     + setDocumentCssVariable(CSS_VAR, '`${width}px`'),
   );
 }
-
-registerHeadScript(buildHeadScript);
