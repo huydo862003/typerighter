@@ -7,7 +7,7 @@ repo:
 site:
   origin: "https://huydo862003.github.io"
   title: "Typedown"
-  description: "A typed markdown language for structured content"
+  description: "Build a typed knowledge graph from plain files. Schema validation, file references, computed fields, LSP support, and a built-in static site generator."
   base_path: "/typerighter"
   nav:
     - title: "Getting Started"

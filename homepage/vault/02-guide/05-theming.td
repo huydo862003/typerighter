@@ -1,6 +1,7 @@
 ---
 _label: "Theming"
 _icon: icon.brush
+description: "Customize Typedown's default theme with custom Vue components, layout slots, and full layout replacement."
 ---
 
 Typerighter's default theme works out of the box. This guide walks through the three levels of customization: custom components, layout slots, and full layout replacement.

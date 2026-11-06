@@ -1,6 +1,7 @@
 ---
 _label: "FAQ"
 _icon: icon.help
+description: "Answers to common questions about Typedown: schemas, file formats, deployment, editor support, and customization."
 ---
 
 Answers to common questions that don't fit neatly into the guide or reference.

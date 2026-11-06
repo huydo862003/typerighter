@@ -1,6 +1,7 @@
 ---
 _label: "Research"
 _icon: icon.document
+description: "Research notes on the foundational technologies behind Typedown: semantic web, graph databases, compiler architecture, and incremental compilation."
 ---
 
 Research notes for Typedown. Covering the technologies and concepts that inform the design.

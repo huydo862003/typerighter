@@ -1,3 +1,9 @@
+---
+_meta:
+  title: "Typedown: Typed Knowledge Graph for Markdown Vaults"
+  description: "Build a typed knowledge graph from plain .td files. Schema validation, file references, computed fields, LSP support, and a built-in static site generator."
+---
+
 Your documents are a typed graph. Typedown is the language for it.
 
 A vault is a collection of `.td` files. Each file is a node. Schemas define node types. File references (`fref`) are edges. The result is a knowledge graph with type safety, autocompletion, and a static site generator built in.

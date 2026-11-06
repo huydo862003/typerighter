@@ -1,6 +1,7 @@
 ---
 _label: "CLI"
 _icon: icon.terminal
+description: "Reference for the typerighter CLI: init, dev, build, preview, and check commands with all options."
 ---
 
 Command-line interface for the `typerighter` package.

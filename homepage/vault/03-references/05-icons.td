@@ -1,4 +1,6 @@
 ---
+_label: "Icons"
+description: "Reference for Typedown's built-in icon module. Use Lucide icons with the _icon field to add page icons in your vault."
 _icon: icon.image
 ---
 
