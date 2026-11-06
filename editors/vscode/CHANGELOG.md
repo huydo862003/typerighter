@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.55.2] - 2026-11-06
+
+### Fixed
+
+- packages/typerighter
+  - Duplicate origin in canonical url
+
 ## [0.55.1] - 2026-11-06
 
 ### Fixed
