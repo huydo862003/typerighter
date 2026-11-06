@@ -118,7 +118,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 .td-rail-panel {
   position: absolute;
   right: 0;
-  top: 8px;
+  top: 32px;
   transform: translateX(6px);
   width: 216px;
   min-height: unset;
