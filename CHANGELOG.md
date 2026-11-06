@@ -9,7 +9,7 @@
 - editors/nvim
   - **Lazy.nvim submodule sync error** - Added `submodules = false` to the lazy.nvim plugin spec to skip the benchmark submodule on clone
 
-## [0.56.1] - 2026-11-07
+## [0.56.1] - 2026-11-07 (retracted)
 
 ### Fixed
 
