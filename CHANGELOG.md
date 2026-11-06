@@ -1,3 +1,10 @@
+## [0.56.1] - 2026-11-07
+
+### Fixed
+
+- packages/typerighter
+  - **No more flash of unstyled state on first load** - The inline head script that reads dark mode and sidebar width from localStorage was silently empty due to tree-shaking. Replaced the side-effect registry with explicit exports so the script is always emitted
+
 ## [0.56.0] - 2026-11-07
 
 ### Added
