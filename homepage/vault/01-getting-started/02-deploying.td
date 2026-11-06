@@ -4,7 +4,7 @@ _icon: icon.upload
 description: "Build a static site and deploy it to GitHub Pages, Netlify, Vercel, or any static host."
 ---
 
-Typedown generates a fully static site with no server-side runtime. This page covers the build process and deployment to common hosting platforms.
+Typedown generates a fully static site with no server-side runtime. Run `typerighter build`, then upload the output to any static host.
 
 ## Build
 

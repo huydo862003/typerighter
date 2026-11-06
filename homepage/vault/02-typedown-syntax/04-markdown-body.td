@@ -4,7 +4,15 @@ _icon: icon.edit
 description: "Headings, text formatting, code blocks, math, callouts, tables, and custom components."
 ---
 
-The markdown body is everything after the closing `---`. It supports standard markdown with Typedown extensions. This page covers every supported syntax element.
+Everything after the closing `---` is the markdown body. It supports standard markdown plus Typedown extensions:
+
+- Fenced code blocks with line highlighting, titles, and line numbers
+- Mermaid and D2 diagrams rendered inline
+- LaTeX math with `$` and `$$`
+- Callout blocks (`note`, `tip`, `warning`, `danger`, `details`)
+- Embeds for YouTube, Spotify, Figma, GitHub, and more
+- String interpolation with `${self.field}` to render frontmatter values
+- Custom Vue components via `:::` containers and `[[shorthand]]` syntax
 
 ## Headings
 
@@ -38,6 +46,13 @@ def greet(name):
 ```
 ````
 
+Renders as:
+
+```python
+def greet(name):
+    return f"Hello, {name}!"
+```
+
 The opening and closing fence must have the same number of backticks.
 
 ### Line highlighting
@@ -52,6 +67,14 @@ const c = 3;
 ```
 ````
 
+Renders as:
+
+```js{1,3}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+
 Supports single lines (`1,3`), ranges (`5-8`), and combinations (`1,3,5-8`).
 
 ### Title
@@ -65,14 +88,19 @@ export default defineConfig({})
 ```
 ````
 
-Can be combined with line highlighting:
+Renders as:
 
-````markdown
-```ts{1,3 title=vite.config.ts}
+```ts{title=vite.config.ts}
 import { defineConfig } from 'vite'
 export default defineConfig({})
 ```
-````
+
+Can be combined with line highlighting:
+
+```ts{1 title=vite.config.ts}
+import { defineConfig } from 'vite'
+export default defineConfig({})
+```
 
 ### Line numbers
 
@@ -86,15 +114,21 @@ const c = 3;
 ```
 ````
 
+Renders as:
+
+```js{line-numbers}
+const a = 1;
+const b = 2;
+const c = 3;
+```
+
 Start from a specific number with `line-numbers=N`:
 
-````markdown
 ```js{1,3 line-numbers=5}
 const a = 1;
 const b = 2;
 const c = 3;
 ```
-````
 
 
 ## Diagrams
@@ -114,6 +148,15 @@ graph LR
 ```
 ````
 
+Renders as:
+
+```mermaid
+graph LR
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action]
+    B -->|No| D[End]
+```
+
 See [Mermaid documentation](https://mermaid.js.org/) for the full syntax reference.
 
 ### D2
@@ -129,6 +172,16 @@ API Gateway -> App Server: request
 App Server -> Database: query
 ```
 ````
+
+Renders as:
+
+```d2
+Web Client -> API Gateway: HTTPS
+API Gateway -> Auth Service: validate
+Auth Service -> API Gateway: token
+API Gateway -> App Server: request
+App Server -> Database: query
+```
 
 D2 supports shapes, connections, containers, and more. See [D2 documentation](https://d2lang.com/) for the full syntax reference.
 
@@ -203,6 +256,12 @@ Bullet lists:
   - nested item
 ```
 
+Renders as:
+
+- item one
+- item two
+  - nested item
+
 Ordered lists:
 
 ```markdown
@@ -211,12 +270,23 @@ Ordered lists:
    1. nested
 ```
 
+Renders as:
+
+1. first
+2. second
+   1. nested
+
 Task lists:
 
 ```markdown
 - [x] done
 - [ ] todo
 ```
+
+Renders as:
+
+- [x] done
+- [ ] todo
 
 ## Links and images
 
@@ -250,7 +320,7 @@ The image is wrapped in a `<figure>` element with the title rendered as a `<figc
 
 Use image syntax with a URL to embed external content. Typerighter detects the URL and renders the appropriate embed.
 
-**Supported services** with custom embed rendering:
+Supported services with custom embed rendering:
 
 | Service | Example URL |
 |---------|------------|
@@ -270,6 +340,10 @@ Use image syntax with a URL to embed external content. Typerighter detects the U
 
 ![server.ts](https://github.com/user/repo/blob/main/src/server.ts#L10-L20)
 ```
+
+Here is a YouTube embed:
+
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 Any other `https://` URL without an image extension is rendered as a generic `<iframe>`. If the iframe fails to load (e.g. the site blocks framing), a fallback link is shown instead.
 
@@ -318,7 +392,7 @@ Hidden content.
 
 Custom components can be used with two syntaxes.
 
-**Container syntax** wraps content in a named block:
+Container syntax wraps content in a named block:
 
 ```markdown
 ::: component-name {prop="value"}
@@ -326,7 +400,7 @@ Content goes here.
 :::
 ```
 
-**Shorthand syntax** for self-closing components:
+Shorthand syntax for self-closing components:
 
 ```markdown
 [[component-name]]
@@ -379,7 +453,7 @@ Third column
 :::
 :::
 
-**Props:**
+Props:
 
 | Prop | Type | Description |
 | ---- | ---- | ----------- |
@@ -465,7 +539,7 @@ The `type` field in the contract uses Typedown type names:
 | `date` | `"type": "date"` |
 | list | `"type": "list[string]"` |
 | dict | `"type": "dict[string, number]"` |
-| union | `"type": "string \| number"` |
+| union | `"type": "string | number"` |
 | unknown | `"type": "any"` |
 
 Required props are enforced: the LSP warns when a required prop is absent at a usage site.

@@ -4,7 +4,15 @@ _icon: icon.code
 description: "Type expressions, primitives, unions, nullable types, lists, and schema references."
 ---
 
-Type expressions appear in schema property definitions under the `type` key. Types are inferred for resource files, so explicit type annotations are only needed in schemas. This page covers every type constructor and how they compose.
+Type expressions appear in schema property definitions under the `type` key. They control what values the editor accepts and how fields are validated.
+
+- `string`, `number`, `boolean`, `date` for primitives
+- `string?` to make a field optional
+- `list[string]` for lists, `dict[string, number]` for mappings
+- `'todo' | 'in_progress' | 'done'` for enums
+- `Person` to declare a link to another schema
+
+Types are inferred for resource files, so explicit type annotations are only needed in schemas.
 
 ## Primitive types
 

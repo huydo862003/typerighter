@@ -3,7 +3,7 @@ _icon: icon.scroll
 description: "The Typedown language: vaults, documents, schemas, type system, expressions, and file references."
 ---
 
-This section covers the Typedown language itself, independent of any theme or tooling. Each page builds on the previous one.
+The Typedown language is independent of any theme or tooling. Each page below builds on the previous one.
 
 - [Vault and documents](01-vault-and-documents): project structure, file anatomy, and how content forms a graph
 - [Schemas and types](02-schemas-and-types): defining node types, the type system, expressions, and file references

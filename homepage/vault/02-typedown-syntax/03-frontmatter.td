@@ -4,7 +4,19 @@ _icon: icon.document
 description: "YAML frontmatter syntax, reserved keys, type declarations, and built-in fields."
 ---
 
-The frontmatter is the YAML block between `---` markers at the top of a `.td` file. It holds the structured data for the resource. This page covers every key and directive you can use.
+Every `.td` file starts with a frontmatter block between `---` markers. This is where you declare the document's type, set field values, and write computed expressions.
+
+```yaml
+---
+_type: Person
+_label: "${self.first_name} ${self.last_name}"
+_icon: icon.user
+first_name: "Alice"
+last_name: "Chen"
+---
+```
+
+The frontmatter is the structured half of the document. The markdown body below it is the prose half.
 
 ## Structure
 
@@ -119,3 +131,63 @@ birth_date: !date "1990-07-04"
 ```
 
 Available tags: `!string`, `!number`, `!boolean`, `!date`, `!time`, `!datetime`, `!type`.
+
+## Reference
+
+This section provides a quick lookup for every frontmatter key, value form, and type tag.
+
+### Reserved keys
+
+Keys starting with `_` are reserved for built-in directives:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `_type` | yes | Schema name this resource conforms to |
+| `_label` | no | Display label (expression, supports interpolation) |
+| `_icon` | no | Page icon from the `icon` module |
+| `_extends` | no | Parent schema name (schema files only) |
+| `_imports` | no | Map of alias to vault-relative file path |
+| `_content` | implicit | The markdown body, available as `self._content` |
+
+### Value syntax
+
+Every frontmatter value is an expression. These are the supported forms:
+
+| Form | Description | Example |
+| --- | --- | --- |
+| `"text"` | String literal | `"Alice"` |
+| `42` | Number literal | `42`, `3.14` |
+| `true` / `false` | Boolean literal | `true` |
+| `null` | Null value | `null` |
+| `fref("path")` | File reference | `fref("people/alice.td")` |
+| `self.field` | Self-reference | `self.name` |
+| `expr + expr` | Binary expression | `self.x + 1` |
+| `"${expr}"` | String interpolation | `"Hello, ${self.name}"` |
+| `(p) -> body` | Closure | `(x) -> x * 2` |
+
+### Type tags
+
+Type tags override inference when the schema cannot determine the type automatically:
+
+| Tag | Description |
+| --- | --- |
+| `!string` | Force string type |
+| `!number` | Force number type |
+| `!boolean` | Force boolean type |
+| `!date` | Force date type |
+| `!time` | Force time type |
+| `!datetime` | Force datetime type |
+| `!type` | Force type expression |
+
+### List and mapping syntax
+
+```yaml
+# list
+tags:
+  - "frontend"
+  - "design"
+
+# imports mapping
+_imports:
+  colors: "_partials/colors.td"
+```

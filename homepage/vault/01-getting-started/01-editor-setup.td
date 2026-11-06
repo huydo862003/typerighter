@@ -4,7 +4,12 @@ _icon: icon.code
 description: "Set up Neovim, VS Code, or Zed for autocompletion, type checking, and diagnostics."
 ---
 
-All editors use the same LSP server, so features are consistent across editors: autocompletion, type checking, go-to-definition, find references, semantic rename, hover info, diagnostics, formatting, and code actions.
+Pick your editor below and follow the setup instructions. All editors use the same LSP server, so you get the same features everywhere:
+
+- Autocompletion for field names, schema types, and file references
+- Type checking and inline diagnostics
+- Go-to-definition, find references, and semantic rename
+- Hover info, formatting, and code actions
 
 ## Neovim
 

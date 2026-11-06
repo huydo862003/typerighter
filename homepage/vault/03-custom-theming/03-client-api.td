@@ -4,7 +4,7 @@ _icon: icon.code
 description: "Composables and components exported from typerighter/client for use in custom layouts."
 ---
 
-Everything needed to build a custom layout is exported from `typerighter/client`.
+When building a custom layout, you need access to page data, routing, and site configuration. The `typerighter/client` module exports composables and components for this:
 
 ```ts
 import {
@@ -212,7 +212,7 @@ const siblings = computed(() => {
 
 ## useTdContent
 
-Sets up the provide/inject context required by `<Content />` and returns reactive page bindings. **Must be called once in your layout's `setup` function.**
+Sets up the provide/inject context required by `<Content />` and returns reactive page bindings. Must be called once in your layout's `setup` function.
 
 ```ts
 const { page, title, frontmatter, isDark } = useTdContent()

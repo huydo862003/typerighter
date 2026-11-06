@@ -4,7 +4,7 @@ _icon: icon.rocket
 description: "Install Typedown, scaffold a project, write your first document, and deploy to the web."
 ---
 
-This page walks through every step from zero to a live site: install, scaffold, write, edit, and deploy.
+Go from zero to a live site in five steps: install the CLI, scaffold a project, write your first document, set up your editor, and deploy.
 
 ## Install
 

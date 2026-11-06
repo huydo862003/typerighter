@@ -4,11 +4,11 @@ _icon: icon.settings
 description: "All typedown.yaml fields and their defaults."
 ---
 
-All site configuration lives in a single `typedown.yaml` file at the root of your project.
+All site configuration lives in a single `typedown.yaml` file at the root of your project. It controls the vault location, site metadata, navigation, theming, and custom component registration.
 
 ## version
 
-**Required.** Schema version of the config file. Currently the only valid value is `"1.0.0"`.
+Required. Schema version of the config file. Currently the only valid value is `"1.0.0"`.
 
 ```yaml
 version: "1.0.0"

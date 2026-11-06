@@ -1,143 +1,183 @@
 ---
-_label: "Vault query API"
+_label: "Vault query"
 _icon: icon.database
-description: "Query the full vault graph at runtime: pages, schemas, and directory listings."
+description: "Query documents across the vault with vault.from_nodes and vault.from_node for computed relations, back-references, and collection views."
 ---
 
-The vault graph is available at runtime through the `useSiteData` composable exported from `typerighter/client`. It gives components and custom layouts access to the full set of published pages, their frontmatter, schema definitions, and directory contents.
+Forward references come naturally in Typedown. A Task document can link to a Person with `assignee: fref("people/alice.td")`, and any field can traverse that link with `self.assignee.name`. But what about the reverse direction? If Alice wants to see every task assigned to her, she would have to manually list each one, duplicating information that already exists as forward references elsewhere. The vault query API solves this by computing relationships from the graph at build time.
 
-This is useful for building custom index pages, related-content widgets, schema browsers, or any component that needs to aggregate across multiple documents.
+## The problem: manual back-references are fragile
 
-```ts
-import { useSiteData } from 'typerighter/client'
+Consider a vault with Person and Task schemas. Each task points at its assignee:
 
-const siteData = useSiteData()
-
-// wait for initial data before accessing content
-watchEffect(() => {
-  if (!siteData.value.ready) return
-  // safe to query here
-})
+```yaml
+# _types/Task.td
+---
+_type: schema
+properties:
+  title:
+    type: string
+  assignee:
+    type: Person
+  status:
+    type: 'open' | 'done'
+---
 ```
 
-## ContentTree
-
-The full set of published pages, keyed by route path.
-
-```ts
-type ContentTree = Record<string, ContentNode>
-
-interface ContentNode {
-  route: string                        // e.g. "/people/alice"
-  filepath: string                     // path relative to vault root
-  title: string
-  label?: string                       // _label override
-  icon?: string                        // _icon value
-  schema?: string                      // schema type name, if set
-  frontmatter: Record<string, unknown>
-  children: string[]                   // child routes for directory nodes
-}
+```yaml
+# tasks/auth.td
+---
+_type: Task
+title: "Implement auth"
+assignee: fref("people/alice.td")
+status: "open"
+---
 ```
 
-Example - list all pages that use a given schema:
+Alice could list her tasks by hand, but every time a task is added or reassigned, someone must remember to update her file. Vault query eliminates this maintenance by computing the list from existing forward references.
 
-```ts
-const nodes = Object.values(siteData.value.contentTree)
-const people = nodes.filter(node => node.schema === 'Person')
+## Querying all documents of a type
+
+`vault.from_nodes` takes a schema name and returns a `node_set`, a lazy query builder that represents all documents conforming to that schema. The `node_set` does not materialize any results until you call a terminal method.
+
+```yaml
+# count all tasks in the vault
+task_count: vault.from_nodes(Task).count()
 ```
 
-Example - find all pages tagged with a keyword (assumes `tags: list[string]` in the schema):
+The three terminal methods control how results are materialized:
 
-```ts
-const tagged = nodes.filter(node =>
-  Array.isArray(node.frontmatter.tags) &&
-  node.frontmatter.tags.includes('backend')
-)
+```yaml
+# all people as a list
+everyone: vault.from_nodes(Person).to_list()
+
+# the first person, or null if the vault has none
+someone: vault.from_nodes(Person).first()
+
+# total number of people
+headcount: vault.from_nodes(Person).count()
 ```
 
-## SchemaInfo
+You can embed a query result in the markdown body with string interpolation:
 
-Metadata about a schema defined in `_types/`, keyed by schema name.
-
-```ts
-type Schemas = Record<string, SchemaInfo>
-
-interface SchemaInfo {
-  name: string
-  label?: string
-  fields: SchemaField[]
-}
-
-interface SchemaField {
-  name: string
-  type: string        // "string", "number", "boolean", "fref", or a schema name
-  required: boolean
-  description?: string
-}
+```markdown
+There are ${vault.from_nodes(Person).count()} people in this vault.
 ```
 
-Example - render all fields for the current page's schema:
+## Filtering with predicates
 
-```ts
-const { page } = useTdContent()
-const schema = computed(() =>
-  page.value.schema
-    ? siteData.value.schemas[page.value.schema]
-    : undefined
-)
+The `.filter` method takes a closure and keeps only the documents where the predicate returns true. The closure receives each document as its parameter, and the `node_set` stays lazy through the filter step.
+
+```yaml
+# all open tasks
+open_tasks: vault.from_nodes(Task).filter((task) -> task.status == "open").to_list()
 ```
 
-## DirectoryListings
+Filter and terminal methods chain freely:
 
-The ordered list of child pages for each directory, keyed by directory route. The order reflects the numeric prefix ordering used in the vault (e.g. `01-`, `02-`).
+```yaml
+# count of open tasks
+open_count: vault.from_nodes(Task).filter((task) -> task.status == "open").count()
 
-```ts
-type DirectoryListings = Record<string, DirectoryEntry[]>
-
-interface DirectoryEntry {
-  route: string
-  title: string
-  label?: string
-  icon?: string
-  description?: string    // frontmatter.description if present
-  schema?: string
-}
+# first open task, or null
+next_task: vault.from_nodes(Task).filter((task) -> task.status == "open").first()
 ```
 
-Example - render a card grid of sibling pages:
+## Computing back-references with follow_back
 
-```ts
-const { page } = useTdContent()
+This is the payoff. The `.follow_back` method reverses a forward reference. Given a `node_set` of Person documents, `.follow_back(Task, "assignee")` finds every Task whose `assignee` field points at one of those people.
 
-const siblings = computed(() => {
-  const dirRoute = '/' + page.value.filepath.split('/').slice(0, -1).join('/')
-  return siteData.value.directoryListings[dirRoute] ?? []
-})
+```yaml
+# people/alice.td
+---
+_type: Person
+name: "Alice"
+age: 30
+my_tasks: vault.from_node(self).follow_back(Task, "assignee").to_list()
+---
 ```
 
-Example - build a custom index for a directory:
+Alice's `my_tasks` field is computed from the graph. When a new task sets `assignee: fref("people/alice.td")`, it appears in Alice's list automatically without anyone editing her file.
 
-```vue
-<script setup lang="ts">
-import { useSiteData, useTdContent } from 'typerighter/client'
+You can combine `follow_back` with `filter` to narrow the results:
 
-const siteData = useSiteData()
-const { page } = useTdContent()
-
-const entries = computed(() =>
-  siteData.value.directoryListings['/' + page.value.filepath.replace(/\/index\.td$/, '')] ?? []
-)
-</script>
-
-<template>
-  <div class="card-grid">
-    <a v-for="entry in entries" :key="entry.route" :href="entry.route" class="card">
-      <span v-if="entry.icon" class="card-icon">
-        <LucideIcon :name="entry.icon.replace('icon.', '')" />
-      </span>
-      <strong>{{ entry.label ?? entry.title }}</strong>
-      <p v-if="entry.description">{{ entry.description }}</p>
-    </a>
-  </div>
-</template>
+```yaml
+open_tasks: vault.from_node(self).follow_back(Task, "assignee").filter((task) -> task.status == "open").to_list()
 ```
+
+## Following forward references across sets
+
+The `.follow` method traverses a `fref` field from every document in the `node_set` to its target. If a schema has an `owner` field pointing at Person documents, `.follow("owner")` collects all the referenced owners.
+
+```yaml
+# all owners referenced by any item
+owners: vault.from_nodes(WithBareRef).follow("owner").to_list()
+```
+
+You can read fields from the followed documents by chaining further:
+
+```yaml
+first_owner_name: vault.from_nodes(WithBareRef).follow("owner").first().name
+```
+
+## Querying from the current document
+
+`vault.from_node` wraps a single document in a `node_set`. Pass `self` to start a traversal from the current file.
+
+```yaml
+_type: Person
+name: "Alice"
+age: 30
+result: vault.from_node(self).first()
+```
+
+This method is most useful as the starting point for `follow_back`, as shown in the back-reference example above.
+
+## Chaining traversals
+
+Builder methods compose into multi-step traversals. Each step narrows or traverses the `node_set`, and only the terminal call at the end triggers evaluation.
+
+```yaml
+# from all adults, find tasks assigned to them, count those tasks
+senior_task_count: vault.from_nodes(Person).filter((person) -> person.age > 18).follow_back(Task, "assignee").count()
+```
+
+## API reference
+
+Each section below describes one entry point or method on the `node_set` type.
+
+### vault.from_nodes(Schema)
+
+`vault.from_nodes` takes a schema name and returns a `node_set` containing every document in the vault that conforms to that schema. The returned `node_set` is lazy and performs no work until a terminal method is called.
+
+```
+vault.from_nodes(Person) -> node_set<Person>
+```
+
+### vault.from_node(document)
+
+`vault.from_node` wraps a single document in a `node_set`. Pass `self` to query from the current file, or pass any document obtained from another query.
+
+```
+vault.from_node(self) -> node_set<T>
+```
+
+### Builder methods
+
+Builder methods return a new `node_set` without materializing results. They can be chained in any order before a terminal call.
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `.filter` | `(closure) -> node_set<T>` | Keeps documents where the closure returns true |
+| `.follow` | `("field") -> node_set<U>` | Traverses a `fref` field to its target documents |
+| `.follow_back` | `(Schema, "field") -> node_set<U>` | Finds all documents of `Schema` whose `field` points at the current set |
+
+### Terminal methods
+
+Terminal methods trigger evaluation and return a concrete value.
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `.to_list()` | `-> list[T]` | Returns all matching documents as a list |
+| `.first()` | `-> T or null` | Returns the first matching document, or null if none exist |
+| `.count()` | `-> number` | Returns the number of matching documents |

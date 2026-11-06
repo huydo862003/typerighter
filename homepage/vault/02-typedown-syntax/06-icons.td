@@ -4,7 +4,11 @@ description: "Reference for Typedown's built-in icon module. Use Lucide icons wi
 _icon: icon.image
 ---
 
-The `icon` module provides a curated set of page icons based on [Lucide](https://lucide.dev). Use them with the `_icon` built-in field.
+Every page in the sidebar can show an icon next to its title. Set `_icon` in the frontmatter to any value from the built-in `icon` module, which wraps a curated set of [Lucide](https://lucide.dev) icons.
+
+```yaml
+_icon: icon.rocket
+```
 
 ## Usage
 

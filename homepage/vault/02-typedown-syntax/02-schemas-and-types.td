@@ -4,7 +4,13 @@ _icon: icon.database
 description: "Define node types with schemas, use the type system, write expressions, and link files with references."
 ---
 
-Schemas give structure to your documents. This page covers schema definitions, the type system, computed expressions, and file references that link documents into a graph. These are the features that set Typedown apart from plain markdown.
+Without a schema, a `.td` file is just markdown with metadata. With one, every field gets autocompletion, type checking, and inline diagnostics.
+
+- Define a `Person` schema once, and every person document in the vault is validated against it
+- Add an `assignee: Person` field to a `Task` schema, and the editor verifies that every task links to an actual person
+- Write computed fields like `full_name: self.first_name + " " + self.last_name` that update automatically
+
+Schemas are what turn a folder of files into a typed content graph.
 
 ## Defining a schema
 
@@ -111,17 +117,65 @@ Resources conforming to the child must provide fields from both parent and child
 
 ## Default values
 
-Fields can declare defaults. If a resource omits the field, the default is used.
+Fields can declare a `default` value. If a resource omits the field, the default is used instead of producing a type error.
 
 ```yaml
+# _types/Task.td
+---
+_type: schema
 properties:
+  title:
+    type: string
   status:
     type: 'todo' | 'in_progress' | 'done'
     default: "todo"
-  count:
+  priority:
     type: number
     default: 0
+---
 ```
+
+A task file can now omit `status` and `priority`:
+
+```yaml
+---
+_type: Task
+title: "Fix login bug"
+---
+```
+
+The evaluator fills in `status: "todo"` and `priority: 0`. The default value must match the field's declared type.
+
+## Computed fields
+
+Fields can declare a `computed` expression that derives the value from other fields. The closure receives the current resource as its parameter.
+
+```yaml
+# _types/Person.td
+---
+_type: schema
+properties:
+  first_name:
+    type: string
+  last_name:
+    type: string
+  full_name:
+    type: string
+    computed: (person) -> person.first_name + " " + person.last_name
+---
+```
+
+A person file only needs to provide `first_name` and `last_name`:
+
+```yaml
+---
+_type: Person
+first_name: "Alice"
+last_name: "Chen"
+---
+```
+
+The `full_name` field is computed automatically as `"Alice Chen"`. Computed fields cannot be overridden in resource files.
 
 ## Expressions
 
@@ -147,7 +201,7 @@ greeting: "Hello, ${self.name}!"
 | `-`, `*`, `/` | Arithmetic |
 | `==`, `!=` | Equality |
 | `<`, `>`, `<=`, `>=` | Comparison |
-| `&&`, `\|\|` | Logical AND, OR |
+| `&&`, `||` | Logical AND, OR |
 | `.` | Property access |
 | `[n]` | List/string indexing |
 
@@ -290,4 +344,67 @@ Rebuild the public site with a consistent design system.
 
 Every field here is type-checked against the schema. The editor autocompletes field names, validates values, and resolves `fref` links.
 
-For the full syntax of every feature covered here, see the [Typedown Syntax](../02-typedown-syntax/index) section.
+## Reference
+
+This section provides a quick lookup for every schema and expression construct covered above.
+
+### Schema file structure
+
+Every schema file lives in `_types/` and uses these top-level keys:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `_type` | yes | Must be `schema` |
+| `_extends` | no | Parent schema name for inheritance |
+| `_label` | no | Display label expression |
+| `_icon` | no | Icon from the `icon` module |
+| `properties` | yes | Mapping of field name to field definition |
+
+### Field definition keys
+
+Each property in the `properties` mapping accepts these keys:
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `type` | type expression | The field's type (see type expressions below) |
+| `default` | value | Default value when the field is omitted |
+| `computed` | closure | Derived value computed from other fields |
+| `description` | string | Documentation shown in hover info |
+
+### Type expressions
+
+Type expressions appear in the `type` field of property definitions. They compose freely:
+
+| Expression | Description | Example |
+| --- | --- | --- |
+| `string` | Unicode text | `"hello"` |
+| `number` | Floating-point | `42`, `3.14` |
+| `boolean` | True or false | `true`, `false` |
+| `date` | ISO 8601 date | `"2024-01-15"` |
+| `time` | ISO 8601 time | `"14:30:00"` |
+| `datetime` | ISO 8601 datetime | `"2024-01-15T14:30"` |
+| `T?` | Nullable | `string?`, `date?` |
+| `list[T]` | Homogeneous list | `list[string]` |
+| `dict[K, V]` | Key-value mapping | `dict[string, number]` |
+| `A | B` | Union type | `string | number` |
+| `'a' | 'b'` | Enum (literal union) | `'todo' | 'done'` |
+| `SchemaName` | Link to another schema | `Person`, `Task` |
+| inline mapping | Nested object type | `{ street: { type: string } }` |
+
+### Expression operators
+
+Expressions support these operators, listed from lowest to highest precedence:
+
+| Operator | Description |
+| --- | --- |
+| `+` | Add or concatenate |
+| `-`, `*`, `/`, `%` | Arithmetic |
+| `**` | Exponentiation |
+| `==`, `!=` | Equality |
+| `<`, `>`, `<=`, `>=` | Comparison |
+| `&&`, `||` | Logical AND, OR |
+| `.` | Property access |
+| `[n]` | Index access |
+| `(params) -> body` | Closure |
+| `fref("path")` | File reference |
+| `${expr}` | String interpolation |

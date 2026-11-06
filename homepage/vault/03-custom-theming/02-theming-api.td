@@ -4,7 +4,7 @@ _icon: icon.brush
 description: "Custom layouts, layout slots, dark mode, and custom components."
 ---
 
-Typerighter ships a default theme optimized for documentation. You can customize it incrementally with layout slots, or replace it entirely with your own layout component.
+The default layout has extension points for common customizations: adding a banner above the header, replacing the footer, or injecting analytics. You can fill these with layout slots in `typedown.yaml`, or replace the entire layout with your own Vue component.
 
 ## Layout slots
 

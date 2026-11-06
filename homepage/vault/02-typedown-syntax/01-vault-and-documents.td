@@ -4,7 +4,13 @@ _icon: icon.folder
 description: "The project structure, configuration, file anatomy, and how content forms a graph."
 ---
 
-A vault is the top-level container for all your content. This page covers how a project is organized, what goes in the config file, and how individual documents are structured.
+A Typedown project starts with a vault - a directory of `.td` files. Each file is a typed document with structured frontmatter and a markdown body.
+
+- Define schemas in `_types/` to declare what fields each document type has
+- Write content files that conform to those schemas
+- Link documents together with file references
+
+The result is a typed content graph that powers autocompletion, validation, cross-file queries, and a static site.
 
 ## Project structure
 

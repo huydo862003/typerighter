@@ -4,7 +4,13 @@ _icon: icon.terminal
 description: "Reference for the typerighter CLI: init, dev, build, preview, and check commands with all options."
 ---
 
-Command-line interface for the `typerighter` package.
+The `typerighter` CLI handles project scaffolding, development, and production builds:
+
+- `typerighter init` - scaffold a new project
+- `typerighter dev` - start the dev server with hot reload
+- `typerighter build` - generate the static site
+- `typerighter preview` - preview the built site locally
+- `typerighter check` - run type checking and linting without building
 
 ## `typerighter init`
 
