@@ -20,20 +20,21 @@ e2e.describe('content', () => {
   });
 
   e2e('inline TOC is visible on touch devices, rail is hidden', async ({
-    page, testProject,
+    browser, testProject,
   }) => {
-    // override hover/pointer media features via CDP so CSS sees touch device
-    const session = await page.context().newCDPSession(page);
-    await session.send('Emulation.setEmulatedMedia', {
-      features: [
-        { name: 'hover', value: 'none' },
-        { name: 'pointer', value: 'none' },
-      ],
-    });
-    await testProject.goto(page, '/notes/index');
+    // isMobile sets hover:none and pointer:coarse at the browser level so CSS
+    // media queries see a touch device (CDP setEmulatedMedia is unreliable here)
+    const touchContext = await browser.newContext({ isMobile: true });
+    const touchPage = await touchContext.newPage();
 
-    const inlineToc = page.getByTestId('toc').first();
-    const railToc = page.getByTestId('toc').last();
+    await touchPage.goto(testProject.url('/notes/index'));
+    await touchPage.waitForFunction(
+      () => 0 < (document.querySelector('#app')?.children.length ?? 0),
+      { timeout: 30_000 },
+    );
+
+    const inlineToc = touchPage.getByTestId('toc').first();
+    const railToc = touchPage.getByTestId('toc').last();
 
     await expect(inlineToc).toBeVisible({ timeout: 15_000 });
     await expect(railToc).toBeHidden();
@@ -41,6 +42,8 @@ e2e.describe('content', () => {
     await expect(inlineToc.getByRole('link', { name: 'Overview' })).toBeVisible();
     await expect(inlineToc.getByRole('link', { name: 'Details', exact: true })).toBeVisible();
     await expect(inlineToc.getByRole('link', { name: 'Summary' })).toBeVisible();
+
+    await touchContext.close();
   });
 
   e2e(
