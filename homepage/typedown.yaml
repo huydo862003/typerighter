@@ -22,5 +22,3 @@ site:
     - title: "Research"
       link: "/05-research/index"
       icon: icon.library
-    - title: "GitHub"
-      link: "https://github.com/huydo862003/typerighter"
