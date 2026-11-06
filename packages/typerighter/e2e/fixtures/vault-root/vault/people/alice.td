@@ -7,3 +7,7 @@ email: "alice@test.com"
 ---
 
 Alice writes code.
+
+## About
+
+Alice is a software developer.

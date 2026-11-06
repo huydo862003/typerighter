@@ -19,6 +19,8 @@ export interface MarkdownHeading {
   children: MarkdownHeading[];
 }
 
+export type OgType = 'article' | 'website';
+
 export interface PageData {
   schema?: string;
   schemaLabel?: string;

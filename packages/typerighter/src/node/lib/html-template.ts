@@ -3,6 +3,9 @@
 import {
   escapeHtml,
 } from '@/shared';
+import type {
+  OgType,
+} from '@/shared/types/ssg';
 
 export interface HtmlTemplateOptions {
   /** Page title */
@@ -34,8 +37,6 @@ export interface HtmlTemplateOptions {
   /** SSR-rendered content inside div#app */
   appContent?: string;
 }
-
-export type OgType = 'article' | 'website';
 
 // Render a complete HTML document from the given options
 export function renderHtmlDocument (options: HtmlTemplateOptions): string {

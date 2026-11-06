@@ -1,12 +1,9 @@
 import type {
-  PageData,
+  OgType, PageData,
 } from '@/shared/types/ssg';
 import {
   formatIsoDate, stripLeadingSlash, truncate,
 } from '@/shared';
-import type {
-  OgType,
-} from '../lib/html-template';
 import {
   buildArticleLd, buildBreadcrumbLd, buildWebSiteLd,
 } from './jsonld';
