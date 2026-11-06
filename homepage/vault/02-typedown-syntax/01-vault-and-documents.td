@@ -55,7 +55,7 @@ site:
 | `repo` | Optional repository URL shown in the site header. |
 | `site.title` | Site title for HTML and the sidebar. |
 | `site.description` | Site description for HTML meta tags. |
-| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](../03-references/03-markdown-body#user-defined-components). |
+| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](04-markdown-body#user-defined-components). |
 
 ## Internal directories
 
@@ -138,6 +138,10 @@ Keys starting with `_` are reserved for built-in directives that control how Typ
 
 The body supports standard markdown plus Typedown extensions. Here is a quick tour of what is available.
 
+::: note
+If the first heading in the body is an `# H1`, it is stripped automatically. The layout renders the page title from `_label` or the filename above the content.
+:::
+
 **Text formatting**: `**bold**`, `_italic_`, `~~strikethrough~~`, `` `inline code` ``
 
 **Math**: inline $E = mc^2$ with `$E = mc^2$`, and block math with `$$..$$`.
@@ -156,7 +160,7 @@ The expression is evaluated at build time and replaced with the result.
 
 **Container shorthands** like `[[toc]]` and `[[directory-index]]` insert built-in components.
 
-See the [Markdown reference](../03-references/03-markdown-body) for the full syntax.
+See the [Markdown reference](04-markdown-body) for the full syntax.
 
 ## Next steps
 

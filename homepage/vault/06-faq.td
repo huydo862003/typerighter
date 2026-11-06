@@ -55,7 +55,7 @@ def greet(name):
 
 ## Can I nest schemas?
 
-Yes, in two ways. Inline a mapping in the `type` field to define a nested object without a separate schema file. Or create a separate schema and reference it by name for reuse across multiple schemas. See [Schemas and types](02-guide/02-schemas-and-types#nested-objects) in the guide.
+Yes, in two ways. Inline a mapping in the `type` field to define a nested object without a separate schema file. Or create a separate schema and reference it by name for reuse across multiple schemas. See [Schemas and types](02-typedown-syntax/02-schemas-and-types#nested-objects) in the language guide.
 
 ## How do I deploy the generated site?
 

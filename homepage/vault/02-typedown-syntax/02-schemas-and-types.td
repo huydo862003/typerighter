@@ -290,4 +290,4 @@ Rebuild the public site with a consistent design system.
 
 Every field here is type-checked against the schema. The editor autocompletes field names, validates values, and resolves `fref` links.
 
-For the full syntax of every feature covered here, see the [Reference](../03-references/index) section.
+For the full syntax of every feature covered here, see the [Typedown Syntax](../02-typedown-syntax/index) section.

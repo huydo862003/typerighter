@@ -1,7 +1,7 @@
 ---
 _label: "Theming"
 _icon: icon.brush
-description: "Customize Typedown's default theme with custom Vue components, layout slots, and full layout replacement."
+description: "Extend or replace the Typedown default theme: custom Vue components, layout slots, and full layout replacement."
 ---
 
 Typerighter's default theme works out of the box. This guide walks through the three levels of customization: custom components, layout slots, and full layout replacement.
@@ -44,7 +44,7 @@ theme:
       doc_after: "FeedbackWidget"
 ```
 
-Each slot name maps to a position in the default theme (see the [slot reference](../03-references/07-theming)). The value is the name of a registered component.
+Each slot name maps to a position in the default theme (see the [slot reference](02-theming-api)). The value is the name of a registered component.
 
 ## Custom layout
 
@@ -88,7 +88,7 @@ Key points:
 - `useTheme()` controls dark mode with `toggle()` and `setTheme()`
 - No default CSS is loaded; you style everything yourself
 
-See the [Client API reference](../03-references/07-client-api) for all composables and their return types.
+See the [Client API reference](04-client-api) for all composables and their return types.
 
 ## Dark mode
 

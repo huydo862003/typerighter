@@ -108,15 +108,13 @@ withBase('/guide/index')  // returns "/docs/guide/index" if basePath is "/docs"
 
 ## useSiteData
 
-Returns a reactive `Ref` containing the full site data. Updates via HMR when content changes.
+Returns a reactive `Ref` containing the full vault graph. Updates via HMR when content changes. Use this to query pages, schemas, and directory contents from a custom layout or component.
 
 ```ts
 const siteData = useSiteData()
 
-siteData.value.ready           // false until initial data loads
-siteData.value.contentTree     // full content tree
-siteData.value.schemas         // schema info by name
-siteData.value.directoryListings
+// wait for initial load before accessing content
+if (!siteData.value.ready) return
 ```
 
 ```ts
@@ -126,6 +124,89 @@ interface TypedownSiteData {
   schemas: Record<string, SchemaInfo>
   directoryListings: Record<string, DirectoryListing>
 }
+```
+
+### ContentTree
+
+The full set of published pages, keyed by route path.
+
+```ts
+type ContentTree = Record<string, ContentNode>
+
+interface ContentNode {
+  route: string                        // e.g. "/people/alice"
+  filepath: string                     // path relative to vault root
+  title: string
+  label?: string                       // _label override
+  icon?: string                        // _icon value
+  schema?: string                      // schema type name
+  frontmatter: Record<string, unknown>
+  children: string[]                   // child routes for directory nodes
+}
+```
+
+Example - list all pages that use a given schema:
+
+```ts
+const nodes = Object.values(siteData.value.contentTree)
+const articles = nodes.filter(node => node.schema === 'Article')
+```
+
+### SchemaInfo
+
+Metadata about a schema defined in `_types/`.
+
+```ts
+interface SchemaInfo {
+  name: string
+  label?: string
+  fields: SchemaField[]
+}
+
+interface SchemaField {
+  name: string
+  type: string        // e.g. "string", "number", "boolean", "fref", schema name
+  required: boolean
+  description?: string
+}
+```
+
+Example - render a table of all fields for the current page's schema:
+
+```ts
+const { page } = useTdContent()
+const schema = computed(() =>
+  page.value.schema
+    ? siteData.value.schemas[page.value.schema]
+    : undefined
+)
+```
+
+### DirectoryListing
+
+The ordered list of child pages for a directory node. Keyed by directory route.
+
+```ts
+type DirectoryListing = Record<string, DirectoryEntry[]>
+
+interface DirectoryEntry {
+  route: string
+  title: string
+  label?: string
+  icon?: string
+  description?: string    // frontmatter.description
+  schema?: string
+}
+```
+
+Example - render a card grid of sibling pages in a custom layout:
+
+```ts
+const { page } = useTdContent()
+const siblings = computed(() => {
+  const dir = page.value.filepath.split('/').slice(0, -1).join('/')
+  return siteData.value.directoryListings[`/${dir}`] ?? []
+})
 ```
 
 

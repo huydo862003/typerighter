@@ -8,10 +8,10 @@ All site configuration lives in a single `typedown.yaml` file at the root of you
 
 ## version
 
-**Required.** Schema version of the config file. Currently the only valid value is `"1"`.
+**Required.** Schema version of the config file. Currently the only valid value is `"1.0.0"`.
 
 ```yaml
-version: "1"
+version: "1.0.0"
 ```
 
 ## vault
@@ -133,12 +133,12 @@ theme:
       doc_after: "FeedbackWidget"
 ```
 
-See [Theming](07-theming) for available slot names.
+See [Theming API](../03-custom-theming/02-theming-api) for available slot names.
 
 ## Full example
 
 ```yaml
-version: "1"
+version: "1.0.0"
 
 vault:
   root_dir: "vault"
