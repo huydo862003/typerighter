@@ -73,6 +73,8 @@ pnpm -r --filter typerighter... run build 2>/dev/null
 benchmark_vault="examples/huydo862003.github.io"
 cd "$benchmark_vault"
 pnpm install --frozen-lockfile 2>/dev/null || pnpm install 2>/dev/null
+# Link the locally-built typerighter instead of the published version
+pnpm link ../../packages/typerighter 2>/dev/null || true
 
 times=()
 for iteration in 1 2 3; do

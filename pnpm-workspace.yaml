@@ -4,6 +4,7 @@ packages:
   - "editors/vscode"
   - "editors/zed"
   - "examples/*"
+  - "!examples/huydo862003.github.io"
   - "packages/typerighter/e2e/fixtures/*"
   - "homepage"
 allowBuilds:
