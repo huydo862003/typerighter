@@ -1,3 +1,3 @@
 ---
-result: vault.from_nodes(Person).filter(|p| p.age > 18).to_list()
+result: vault.from_nodes(Person).filter((p) -> p.age > 18).to_list()
 ---
