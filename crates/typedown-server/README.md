@@ -1,6 +1,6 @@
 # typedown-server
 
-![Binary Size](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/main/.github/badges/binary-size.json)
+![Binary Size](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/badges/binary-size.json)
 
 LSP server and JSON-RPC backend for Typedown. Communicates over TCP with editor extensions and the Vite plugin.
 

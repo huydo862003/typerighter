@@ -160,10 +160,13 @@ jobs:
           make_badge "build" "$(echo "$DATA" | jq -r '.ssg_build_s')s" "green" \
             > .github/badges/build-time.json
 
-      - name: Commit badge files
+      - name: Push badge files to badges branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .github/badges/
-          git diff --cached --quiet || git commit -m "chore: update benchmark badges [skip ci]"
-          git push
+          git checkout --orphan badges-tmp
+          git rm -rf . > /dev/null 2>&1 || true
+          cp -r .github/badges/* .
+          git add *.json
+          git commit -m "chore: update benchmark badges"
+          git push origin badges-tmp:badges --force
