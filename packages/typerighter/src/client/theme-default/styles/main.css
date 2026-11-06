@@ -1,6 +1,10 @@
 @import "./tokens.css";
 @import "./print.css";
 
+html {
+  overflow-x: hidden;
+}
+
 .td-navigating, .td-navigating * {
   cursor: wait !important;
 }
