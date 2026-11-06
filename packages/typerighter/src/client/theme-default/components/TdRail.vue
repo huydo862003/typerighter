@@ -81,7 +81,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 .td-rail-indicators {
   position: absolute;
   right: 12px;
-  top: 48px;
+  top: 80px;
   bottom: 0;
   display: flex;
   flex-direction: column;
