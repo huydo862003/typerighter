@@ -4,6 +4,12 @@ import {
 import {
   useMediaQuery,
 } from './useMediaQuery';
+import {
+  useGlobalHotkey,
+} from './useHotkey';
+import {
+  TdKeyName,
+} from '../utils/keys';
 
 const isOpen = ref(false);
 
@@ -28,6 +34,10 @@ export function useMenu () {
   // close drawer when viewport expands to sidebar-visible breakpoint
   watch(isLargeScreen, (large) => {
     if (large) close();
+  });
+
+  useGlobalHotkey([TdKeyName.Escape], () => {
+    if (isOpen.value) close();
   });
 
   return {

@@ -1,6 +1,11 @@
 @import "./tokens.css";
 @import "./print.css";
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-td-line) transparent;
+}
+
 html {
   overflow-x: hidden;
 }

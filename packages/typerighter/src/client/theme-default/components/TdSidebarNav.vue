@@ -60,7 +60,7 @@ watch(
   overflow-y: auto;
   overflow-x: clip;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 8px 0 0;
-  scrollbar-color: var(--color-td-line) transparent;
 }
 </style>

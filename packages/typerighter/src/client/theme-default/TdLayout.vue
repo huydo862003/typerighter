@@ -900,6 +900,7 @@ function shrinkSidebar () {
   overflow-y: auto;
   overflow-x: clip;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   transform: translateX(-100%);
   transition: transform var(--duration-td-drawer) var(--ease-td-out-quart);
 }
