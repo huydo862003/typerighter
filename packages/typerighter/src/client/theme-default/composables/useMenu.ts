@@ -1,10 +1,18 @@
 import {
-  ref, readonly,
+  ref, readonly, computed, watch,
 } from 'vue';
+import {
+  useMediaQuery,
+} from './useMediaQuery';
 
 const isOpen = ref(false);
 
 export function useMenu () {
+  const isLargeScreen = useMediaQuery('(width >= 64rem)');
+
+  // drawer is not mounted on large screens where the sidebar is always visible
+  const isDrawerMounted = computed(() => !isLargeScreen.value);
+
   function toggle (): void {
     isOpen.value = !isOpen.value;
   }
@@ -17,8 +25,14 @@ export function useMenu () {
     isOpen.value = false;
   }
 
+  // close drawer when viewport expands to sidebar-visible breakpoint
+  watch(isLargeScreen, (large) => {
+    if (large) close();
+  });
+
   return {
     isOpen: readonly(isOpen),
+    isDrawerMounted,
     toggle,
     open,
     close,

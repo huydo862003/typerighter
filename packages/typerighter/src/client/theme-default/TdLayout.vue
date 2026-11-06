@@ -74,9 +74,6 @@ import {
   useMenu,
 } from './composables/useMenu';
 import {
-  useMediaQuery,
-} from './composables/useMediaQuery';
-import {
   getPageIcon,
 } from './utils/pageIcon';
 import {
@@ -103,9 +100,8 @@ const router = useRouter();
 const siteData = useSiteData();
 const siteDataReady = computed(() => siteData.value.ready);
 const {
-  isOpen, open: openMenu, close: closeMenu,
+  isOpen, isDrawerMounted, open: openMenu, close: closeMenu,
 } = useMenu();
-const isLargeScreen = useMediaQuery('(width >= 64rem)');
 
 const searchQuery = ref('');
 const sidebarSearchActive = ref(false);
@@ -376,57 +372,61 @@ function shrinkSidebar () {
       </div>
     </header>
 
-    <div
-      v-if="!isLargeScreen"
-      class="td-drawer-scrim"
-      :class="{
-        'is-open': isOpen,
-      }"
-      @click="closeMenu"
-    />
-    <aside
-      v-if="!isLargeScreen"
-      class="td-drawer"
-      :class="{
-        'is-open': isOpen,
-      }"
-    >
-      <header class="td-drawer-header">
-        <a
-          :href="withBase(getIndexUrl('/'))"
-          class="td-brand"
-        >
-          <TdBrandIcon />
-          <span class="td-brand-name">{{
-            siteConfig.title || "Typedown"
-          }}</span>
-        </a>
-        <TdButton
-          label="Close menu"
-          @click="closeMenu"
-        >
-          <X :size="20" />
-        </TdButton>
-      </header>
-      <TdHeaderNavMenu />
-      <TdSiteSearch
-        ref="menuSearch"
-        v-model:query="searchQuery"
-        v-model:active="menuSearchActive"
-        @select="closeMenu"
+    <Transition name="td-drawer-scrim">
+      <div
+        v-if="isDrawerMounted"
+        class="td-drawer-scrim"
+        :class="{
+          'is-open': isOpen,
+        }"
+        @click="closeMenu"
       />
-      <nav
-        v-if="!menuSearchActive"
-        class="pt-4"
-        aria-label="Site navigation"
+    </Transition>
+    <Transition name="td-drawer-panel">
+      <aside
+        v-if="isDrawerMounted"
+        class="td-drawer"
+        :class="{
+          'is-open': isOpen,
+        }"
       >
-        <TdSkeleton v-if="!siteDataReady" />
-        <TdContentNav
-          v-else
-          :tree="siteData.contentTree"
+        <header class="td-drawer-header">
+          <a
+            :href="withBase(getIndexUrl('/'))"
+            class="td-brand"
+          >
+            <TdBrandIcon />
+            <span class="td-brand-name">{{
+              siteConfig.title || "Typedown"
+            }}</span>
+          </a>
+          <TdButton
+            label="Close menu"
+            @click="closeMenu"
+          >
+            <X :size="20" />
+          </TdButton>
+        </header>
+        <TdHeaderNavMenu />
+        <TdSiteSearch
+          ref="menuSearch"
+          v-model:query="searchQuery"
+          v-model:active="menuSearchActive"
+          @select="closeMenu"
         />
-      </nav>
-    </aside>
+        <nav
+          v-if="!menuSearchActive"
+          class="pt-4"
+          aria-label="Site navigation"
+        >
+          <TdSkeleton v-if="!siteDataReady" />
+          <TdContentNav
+            v-else
+            :tree="siteData.contentTree"
+          />
+        </nav>
+      </aside>
+    </Transition>
 
     <div class="td-page">
       <nav
@@ -906,6 +906,23 @@ function shrinkSidebar () {
 
 .td-drawer.is-open {
   transform: translateX(0);
+}
+
+/* leave-to overrides is-open so an open drawer slides out when transitioning to desktop */
+.td-drawer-scrim-leave-active {
+  transition: opacity 220ms var(--ease-td-out-quart);
+}
+
+.td-drawer-scrim-leave-to {
+  opacity: 0 !important;
+}
+
+.td-drawer-panel-leave-active {
+  transition: transform var(--duration-td-drawer) var(--ease-td-out-quart);
+}
+
+.td-drawer-panel-leave-to {
+  transform: translateX(-100%) !important;
 }
 
 .td-drawer-header {
