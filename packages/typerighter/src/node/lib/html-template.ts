@@ -48,9 +48,8 @@ export function renderHtmlDocument (options: HtmlTemplateOptions): string {
     : title;
 
   const origin = options.origin ?? '';
-  const absoluteCanonical = options.canonicalUrl !== undefined
-    ? origin + options.canonicalUrl
-    : undefined;
+  // canonicalUrl already includes origin when present
+  const absoluteCanonical = options.canonicalUrl;
 
   const canonical = absoluteCanonical !== undefined
     ? `\n    <link rel="canonical" href="${escapeHtml(absoluteCanonical)}">`
