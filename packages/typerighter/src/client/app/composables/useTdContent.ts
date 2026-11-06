@@ -9,7 +9,7 @@ import type {
 } from '../router';
 import {
   useTheme,
-} from './useTheme';
+} from '../../theme-default/composables/client-preferences/useTheme';
 import type {
   TypedownData,
 } from '@/shared';

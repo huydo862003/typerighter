@@ -4,7 +4,7 @@ import {
 } from '@lucide/vue';
 import {
   useTheme,
-} from '../../app/composables/useTheme';
+} from '../composables/client-preferences/useTheme';
 import TdButton from './TdButton.vue';
 
 const {

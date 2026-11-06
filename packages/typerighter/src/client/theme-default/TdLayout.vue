@@ -11,7 +11,11 @@ import {
   ChevronsLeft, ChevronsRight, Terminal, X,
 } from '@lucide/vue';
 import {
-  useTdContent, useSiteConfig, useSiteData, useRoute, useRouter,
+  useTdContent,
+  useSiteConfig,
+  useSiteData,
+  useRoute,
+  useRouter,
 } from '../app';
 import {
   Content,
@@ -62,8 +66,10 @@ import {
   useLazyEmbeds,
 } from './composables/lazy-embed';
 import {
-  useLocalStorage,
-} from './composables/useLocalStorage';
+  useSidebarConfig,
+  SIDEBAR_MIN_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+} from './composables/client-preferences/useSidebarConfig';
 import {
   useMenu,
 } from './composables/useMenu';
@@ -182,22 +188,30 @@ useGlobalHotkey([
 ], openPalette);
 
 // Ctrl+Left / Ctrl+Right - previous / next page (ignored when typing)
-useGlobalHotkey([
-  TdKeyName.Control,
-  TdKeyName.ArrowLeft,
-], () => {
-  if (previous.value) router.go(previous.value.url);
-}, {
-  ignoreWhenTyping: true,
-});
-useGlobalHotkey([
-  TdKeyName.Control,
-  TdKeyName.ArrowRight,
-], () => {
-  if (next.value) router.go(next.value.url);
-}, {
-  ignoreWhenTyping: true,
-});
+useGlobalHotkey(
+  [
+    TdKeyName.Control,
+    TdKeyName.ArrowLeft,
+  ],
+  () => {
+    if (previous.value) router.go(previous.value.url);
+  },
+  {
+    ignoreWhenTyping: true,
+  },
+);
+useGlobalHotkey(
+  [
+    TdKeyName.Control,
+    TdKeyName.ArrowRight,
+  ],
+  () => {
+    if (next.value) router.go(next.value.url);
+  },
+  {
+    ignoreWhenTyping: true,
+  },
+);
 
 watchEffect(() => {
   if (typeof document === 'undefined') return;
@@ -221,15 +235,9 @@ watchEffect(() => {
 });
 useResizableTable();
 
-const SIDEBAR_MIN = 200;
-const SIDEBAR_MAX = 500;
-const SIDEBAR_DEFAULT = 300;
-
-const sidebarWidth = useLocalStorage('td-sidebar-width', SIDEBAR_DEFAULT);
-const sidebarCollapsed = useLocalStorage('td-sidebar-collapsed', false);
-const SIDEBAR_COLLAPSED_WIDTH = 48;
-const effectiveSidebarWidth = computed(() =>
-  sidebarCollapsed.value ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth.value);
+const {
+  sidebarWidth, sidebarCollapsed, sidebarStyle,
+} = useSidebarConfig();
 const isSidebarResizing = ref(false);
 
 function toggleSidebar () {
@@ -251,7 +259,7 @@ useGlobalHotkey([
 });
 
 function growSidebar () {
-  sidebarWidth.value = Math.min(SIDEBAR_MAX, sidebarWidth.value + 20);
+  sidebarWidth.value = Math.min(SIDEBAR_MAX_WIDTH, sidebarWidth.value + 20);
 }
 
 function onResizeStart (event: PointerEvent) {
@@ -263,10 +271,10 @@ function onResizeStart (event: PointerEvent) {
   target.setPointerCapture(event.pointerId);
 
   function onMove (event: PointerEvent) {
-    const maxWidth = Math.min(SIDEBAR_MAX, window.innerWidth * 0.85);
+    const maxWidth = Math.min(SIDEBAR_MAX_WIDTH, window.innerWidth * 0.85);
     const width = Math.min(
       maxWidth,
-      Math.max(SIDEBAR_MIN, startWidth + event.clientX - startX),
+      Math.max(SIDEBAR_MIN_WIDTH, startWidth + event.clientX - startX),
     );
 
     sidebarWidth.value = width;
@@ -285,7 +293,7 @@ function onResizeStart (event: PointerEvent) {
 }
 
 function shrinkSidebar () {
-  sidebarWidth.value = Math.max(SIDEBAR_MIN, sidebarWidth.value - 20);
+  sidebarWidth.value = Math.max(SIDEBAR_MIN_WIDTH, sidebarWidth.value - 20);
 }
 </script>
 
@@ -423,9 +431,7 @@ function shrinkSidebar () {
         }"
         data-testid="sidebar"
         aria-label="Site navigation"
-        :style="{
-          width: `${effectiveSidebarWidth}px`,
-        }"
+        :style="sidebarStyle"
       >
         <template v-if="!sidebarCollapsed">
           <slot name="sidebar-top" />
@@ -521,8 +527,15 @@ function shrinkSidebar () {
               <span>{{
                 formatEditTime(page.fileMetadata.mtimeSecs, "Modified")
               }}</span>
-              <span v-if="page.fileMetadata.ctimeSecs !== page.fileMetadata.mtimeSecs">
-                · {{ formatEditTime(page.fileMetadata.ctimeSecs, "Created") }}</span>
+              <span
+                v-if="
+                  page.fileMetadata.ctimeSecs !== page.fileMetadata.mtimeSecs
+                "
+              >
+                ·
+                {{
+                  formatEditTime(page.fileMetadata.ctimeSecs, "Created")
+                }}</span>
             </div>
             <TdFrontmatter
               class="td-frontmatter-inline"
@@ -775,6 +788,7 @@ function shrinkSidebar () {
   position: sticky;
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
+  width: var(--td-sidebar-width);
   flex-shrink: 0;
   overflow: clip;
   display: flex;

@@ -44,8 +44,8 @@ export {
   Content,
 } from './components/Content';
 export {
-  useTheme,
-} from './composables/useTheme';
+  useTheme, type Theme,
+} from '../theme-default/composables/client-preferences/useTheme';
 
 export interface TypedownSiteConfig {
   /** Site title */

@@ -3,6 +3,9 @@
 import {
   escapeHtml,
 } from '@/shared';
+import {
+  provideHeadScript,
+} from '@/client/theme-default/composables/client-preferences';
 import type {
   OgType,
 } from '@/shared/types/ssg';
@@ -104,9 +107,7 @@ export function renderHtmlDocument (options: HtmlTemplateOptions): string {
     <meta name="twitter:image" content="${escapeHtml(ogImageSrc)}">${jsonLdTags}
     <script>
       (function () {
-        var theme = localStorage.getItem('td-theme');
-        var isDark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-        if (isDark) document.documentElement.classList.add('dark');
+        ${provideHeadScript()}
       })()
     </script>
 ${headExtra}  </head>

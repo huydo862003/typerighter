@@ -87,7 +87,7 @@
 }
 
 :root {
-  --td-sidebar-width: 260px;
+  --td-sidebar-width: 300px; /* must match SIDEBAR_DEFAULT_WIDTH in useSidebarConfig.ts */
   --td-toc-width: 216px;
   --td-content-max: 704px;
   --td-header-height: 56px;

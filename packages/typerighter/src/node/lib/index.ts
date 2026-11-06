@@ -1,2 +1,9 @@
-export * from './typedown-context';
-export * from './render';
+export {
+  TypedownContext, isRpcCancelled,
+} from './typedown-context';
+export type {
+  VueRenderResult,
+} from './render';
+export {
+  buildPageData, renderToVueSfc,
+} from './render';

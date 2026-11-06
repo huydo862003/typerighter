@@ -1,3 +1,5 @@
+// Public API for theme-default and the package as a whole
+// All exports must be listed explicitly - never use export * in public endpoints
 import type {
   TypedownTheme,
 } from '../app';
@@ -45,8 +47,15 @@ export {
   useGlobalHotkey, useLocalHotkeys, isTypingTarget,
 } from './composables/useHotkey';
 export {
-  useLocalStorage,
-} from './composables/useLocalStorage';
+  useClientPreferences,
+} from './composables/client-preferences';
+export {
+  useTheme, type Theme,
+} from './composables/client-preferences/useTheme';
+export {
+  useSidebarConfig,
+  SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_COLLAPSED_WIDTH,
+} from './composables/client-preferences/useSidebarConfig';
 export {
   default as TdKbdShortcut,
 } from './components/TdKbdShortcut.vue';

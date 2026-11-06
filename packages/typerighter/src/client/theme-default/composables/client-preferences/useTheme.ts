@@ -1,12 +1,18 @@
 import {
   ref, computed, readonly,
 } from 'vue';
+import {
+  wrapHeadScript, readLocalStorage, addDocumentClass,
+} from './utils/buildHeadScript';
+import {
+  registerHeadScript,
+} from './utils/registry';
 
 export type Theme = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'td-theme';
+const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
 
-// Apply the dark class to the document root
 function applyTheme (theme: Theme): void {
   if (typeof document === 'undefined') return;
 
@@ -15,19 +21,16 @@ function applyTheme (theme: Theme): void {
   document.documentElement.classList.toggle('dark', effective === 'dark');
 }
 
-// Resolve the system preference
 function getSystemTheme (): 'light' | 'dark' {
   if (typeof window === 'undefined') return 'light';
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return window.matchMedia(DARK_MEDIA_QUERY).matches ? 'dark' : 'light';
 }
 
-// Shared reactive state so all consumers see the same value
 const theme = ref<Theme>('system');
 const systemTheme = ref<'light' | 'dark'>(getSystemTheme());
 let initialized = false;
 
-// Shared theme composable with localStorage persistence
 export function useTheme () {
   initialize();
 
@@ -58,7 +61,19 @@ export function useTheme () {
   };
 }
 
-// One-time setup for localStorage and system preference listener
+// Head script
+function buildHeadScript (): string {
+  return wrapHeadScript(
+    `var t=${readLocalStorage(STORAGE_KEY)};`
+    + addDocumentClass(
+      `t==='dark'||(t!=='light'&&matchMedia(${JSON.stringify(DARK_MEDIA_QUERY)}).matches)`,
+      'dark',
+    ),
+  );
+}
+
+registerHeadScript(buildHeadScript);
+
 function initialize (): void {
   if (initialized) return;
   initialized = true;
@@ -74,7 +89,7 @@ function initialize (): void {
   applyTheme(theme.value);
 
   if (typeof window !== 'undefined') {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const mediaQuery = window.matchMedia(DARK_MEDIA_QUERY);
 
     mediaQuery.addEventListener('change', () => {
       systemTheme.value = getSystemTheme();
