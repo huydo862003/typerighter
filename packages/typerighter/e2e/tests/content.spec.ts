@@ -22,23 +22,13 @@ e2e.describe('content', () => {
   e2e('inline TOC is visible on touch devices, rail is hidden', async ({
     page, testProject,
   }) => {
-    // emulate a touch-only device (no fine pointer, no hover)
-    await page.emulateMedia({ media: 'screen' });
-    const context = page.context();
-    await context.addInitScript(() => {
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        value: (query: string) => ({
-          matches: query.includes('not') ? true : false,
-          media: query,
-          onchange: null,
-          addListener: () => {},
-          removeListener: () => {},
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          dispatchEvent: () => false,
-        }),
-      });
+    // override hover/pointer media features via CDP so CSS sees touch device
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setEmulatedMedia', {
+      features: [
+        { name: 'hover', value: 'none' },
+        { name: 'pointer', value: 'none' },
+      ],
     });
     await testProject.goto(page, '/notes/index');
 
