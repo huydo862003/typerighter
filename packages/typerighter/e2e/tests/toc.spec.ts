@@ -135,7 +135,7 @@ e2e.describe('table of contents', () => {
       const containerRect = container.getBoundingClientRect();
       const linkRect = element.getBoundingClientRect();
 
-      return linkRect.top >= containerRect.top && linkRect.bottom <= containerRect.bottom;
+      return containerRect.top <= linkRect.top && linkRect.bottom <= containerRect.bottom;
     });
 
     expect(isInView).toBe(true);

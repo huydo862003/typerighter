@@ -81,12 +81,14 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 .td-rail-indicators {
   position: absolute;
   right: 12px;
-  top: 20%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 7px;
   opacity: 1;
+  overflow: hidden;
   transition: opacity var(--duration-td-fast) var(--ease-td-out-quart);
   pointer-events: none;
 }
