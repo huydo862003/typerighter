@@ -143,6 +143,11 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 16px;
+  scroll-behavior: auto;
+}
+
+.td-rail:hover .td-rail-panel :deep(.td-toc) {
+  scroll-behavior: smooth;
 }
 
 @media (hover: hover) and (pointer: fine) {
