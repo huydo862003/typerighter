@@ -21,7 +21,7 @@ import {
 } from '../lib/progress';
 import {
   buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
-  getIndexUrl, getNodeIndexItem, path as tdpath,
+  ensureTrailingSlash, getIndexUrl, getNodeIndexItem, path as tdpath,
 } from '@/shared';
 import type {
   AppContext,
@@ -70,7 +70,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   const repo = config.repo ?? undefined;
 
   const rawBase = options.base ?? config.basePath ?? '/';
-  const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
+  const base = ensureTrailingSlash(rawBase);
 
   const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
     ...item,
@@ -174,7 +174,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     phase2.done('SSR bundle');
 
     // 5. Pre-render each page to a static HTML file
-    const pagePaths = files.map((file) => {
+    const pageRoutes = files.map((file) => {
       const withoutExtension = tdpath.stripExtension(file);
 
       return withoutExtension === 'index'
@@ -183,8 +183,8 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     });
 
     // Add directory index pages (root + all subdirectories)
-    pagePaths.push('/');
-    collectDirectoryPaths(contentTree.entries, '', pagePaths);
+    pageRoutes.push('/');
+    collectDirectoryPaths(contentTree.entries, '', pageRoutes);
 
     const phase3 = new ProgressLogger(logger, 'Pre-rendering pages...');
 
@@ -195,25 +195,25 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       base,
       origin,
       lang: config.lang,
-      pagePaths,
+      pageRoutes,
       siteTitle: config.siteTitle,
       author,
       progress: phase3,
     });
 
-    phase3.done(`Pre-rendered ${pagePaths.length} pages`);
+    phase3.done(`Pre-rendered ${pageRoutes.length} pages`);
 
     // 6. Generate sitemap.xml and robots.txt
     const mtimeMap = new Map<string, number>();
 
     for (const item of sidebarItems) {
       const withoutExtension = tdpath.stripExtension(item.filepath);
-      const pagePath = withoutExtension === 'index' ? '/' : `/${withoutExtension}`;
+      const pageRoute = withoutExtension === 'index' ? '/' : `/${withoutExtension}`;
 
-      mtimeMap.set(pagePath, item.fileMetadata.mtime);
+      mtimeMap.set(pageRoute, item.fileMetadata.mtimeSecs);
     }
 
-    const sitemap = generateSitemap(pagePaths, base, origin, mtimeMap);
+    const sitemap = generateSitemap(pageRoutes, base, origin, mtimeMap);
     const writes: Promise<void>[] = [
       fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
     ];

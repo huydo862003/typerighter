@@ -64,7 +64,7 @@ function isCurrent (href: string): boolean {
         <span
           v-if="indexItem"
           class="td-root-link-time"
-        >{{ indexItem.fileMetadata ? formatRelativeTime(indexItem.fileMetadata.mtime) : '' }}</span>
+        >{{ indexItem.fileMetadata ? formatRelativeTime(indexItem.fileMetadata.mtimeSecs) : '' }}</span>
       </a>
       <template
         v-for="entry in regularEntries"
@@ -98,7 +98,7 @@ function isCurrent (href: string): boolean {
           <span
             v-if="entry.item.fileMetadata"
             class="td-root-link-time"
-          >{{ formatRelativeTime(entry.item.fileMetadata.mtime) }}</span>
+          >{{ formatRelativeTime(entry.item.fileMetadata.mtimeSecs) }}</span>
         </a>
       </template>
     </div>

@@ -18,6 +18,10 @@ const DOWNLOADABLE_FILE_EXTENSIONS = new Set(
   ).split(','),
 );
 
+export function ensureTrailingSlash (url: string): string {
+  return url.endsWith('/') ? url : url + '/';
+}
+
 // Get the anchor fragment from a URL, or empty string if none
 export function getAnchor (url: string): string {
   const hashIndex = url.indexOf('#');

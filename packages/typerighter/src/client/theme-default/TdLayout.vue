@@ -519,10 +519,10 @@ function shrinkSidebar () {
               class="td-page-meta"
             >
               <span>{{
-                formatEditTime(page.fileMetadata.mtime, "Modified")
+                formatEditTime(page.fileMetadata.mtimeSecs, "Modified")
               }}</span>
-              <span v-if="page.fileMetadata.ctime !== page.fileMetadata.mtime">
-                · {{ formatEditTime(page.fileMetadata.ctime, "Created") }}</span>
+              <span v-if="page.fileMetadata.ctimeSecs !== page.fileMetadata.mtimeSecs">
+                · {{ formatEditTime(page.fileMetadata.ctimeSecs, "Created") }}</span>
             </div>
             <TdFrontmatter
               class="td-frontmatter-inline"

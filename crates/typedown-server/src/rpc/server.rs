@@ -650,9 +650,10 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         })
         .collect(),
       title: exported.title,
+      excerpt: exported.excerpt,
       file_metadata: TdFileMetadata {
-        mtime: exported.metadata.mtime,
-        ctime: exported.metadata.ctime,
+        mtime_secs: exported.metadata.mtime_secs,
+        ctime_secs: exported.metadata.ctime_secs,
       },
       seo_metadata: exported.seo_metadata.map(|metadata| TdSeoMeta {
         title: metadata.title,
@@ -719,8 +720,8 @@ fn list_files_grouped_by_schema(
         header: summary.header,
         excerpt: summary.excerpt,
         file_metadata: TdFileMetadata {
-          mtime: summary.metadata.mtime,
-          ctime: summary.metadata.ctime,
+          mtime_secs: summary.metadata.mtime_secs,
+          ctime_secs: summary.metadata.ctime_secs,
         },
       });
     }
@@ -753,8 +754,8 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
         icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
         excerpt: nav.excerpt,
         file_metadata: TdFileMetadata {
-          mtime: nav.metadata.mtime,
-          ctime: nav.metadata.ctime,
+          mtime_secs: nav.metadata.mtime_secs,
+          ctime_secs: nav.metadata.ctime_secs,
         },
       });
     }

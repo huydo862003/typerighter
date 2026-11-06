@@ -74,7 +74,7 @@ const searchIndex = computed(() => {
       'url',
       'description',
       'tags',
-      'mtime',
+      'mtimeSecs',
       'schema',
     ],
     searchOptions: {

@@ -56,6 +56,7 @@ pub fn export_resource_html(
       title: None,
       metadata: blob.metadata,
       seo_metadata: None,
+      excerpt: None,
     }),
     ResourceKind::Content(fields) => {
       let content = html::export_html_body(db, project, file, &fields.body);
@@ -69,6 +70,7 @@ pub fn export_resource_html(
         title: content.title,
         metadata: fields.metadata,
         seo_metadata: fields.seo_metadata,
+        excerpt: fields.excerpt,
       })
     }
   }

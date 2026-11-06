@@ -76,6 +76,7 @@ function getDevHtml (
     title: config.siteTitle,
     description: config.siteDescription,
     base: '/',
+    ogType: 'website',
     entryScript: VIRTUAL_APP_ID,
   });
 

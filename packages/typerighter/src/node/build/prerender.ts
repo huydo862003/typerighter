@@ -18,8 +18,7 @@ import {
   stripLeadingSlash,
 } from '@/shared';
 import {
-  resolvePageTitle, resolvePageDescription, extractDateModified, extractOgImagePath,
-  buildArticleLd, buildBreadcrumbLd,
+  buildPageSeo,
 } from './seo';
 import {
   isCriticalFontFile,
@@ -39,7 +38,7 @@ export interface PrerenderContext {
   /** HTML lang attribute */
   lang?: string;
   /** List of page paths to render (e.g. ["/", "/posts/hello"]) */
-  pagePaths: string[];
+  pageRoutes: string[];
   /** Site title for SEO title suffix */
   siteTitle: string;
   /** Site author for meta tag */
@@ -60,7 +59,7 @@ export interface PrerenderWorkerConfig {
 }
 
 export interface PrerenderWorkerResult {
-  pagePath: string;
+  pageRoute: string;
   fileName: string;
   html: string;
 }
@@ -82,7 +81,7 @@ export async function prerenderHtmlPages (context: PrerenderContext): Promise<vo
 
   const headExtra = [cssLinks, fontPreloads].filter(Boolean).join('\n') || undefined;
 
-  if (context.pagePaths.length >= WORKER_THRESHOLD) {
+  if (context.pageRoutes.length >= WORKER_THRESHOLD) {
     await prerenderWithWorkers(context, clientEntry, headExtra);
   } else {
     await prerenderSingleThread(context, clientEntry, headExtra);
@@ -110,11 +109,11 @@ async function prerenderWithWorkers (
   });
 
   let rendered = 0;
-  const totalPages = context.pagePaths.length;
+  const totalPages = context.pageRoutes.length;
 
   try {
-    await Promise.all(context.pagePaths.map(async (pagePath) => {
-      const result = await pool.run(pagePath);
+    await Promise.all(context.pageRoutes.map(async (pageRoute) => {
+      const result = await pool.run(pageRoute);
       const filepath = path.join(context.outDir, result.fileName);
 
       await fs.mkdir(path.dirname(filepath), { recursive: true });
@@ -136,41 +135,37 @@ async function prerenderSingleThread (
 ): Promise<void> {
   const ssrModule = await import(context.ssrEntryPath);
   const render = await ssrModule.createRenderer();
-  const totalPages = context.pagePaths.length;
+  const totalPages = context.pageRoutes.length;
   let rendered = 0;
 
-  for (const pagePath of context.pagePaths) {
-    const result = await render(pagePath);
-
-    const title = resolvePageTitle(result.pageData);
-    const description = resolvePageDescription(result.pageData);
-    const dateModified = extractDateModified(result.pageData);
-    const canonicalUrl = context.base + stripLeadingSlash(pagePath);
-
-    const jsonLdBlocks = [
-      buildArticleLd({ title, description, canonicalUrl, author: context.author, dateModified }),
-      buildBreadcrumbLd(pagePath, title),
-    ].filter((block): block is string => block !== undefined);
+  for (const pageRoute of context.pageRoutes) {
+    const result = await render(pageRoute);
+    const seo = buildPageSeo(result.pageData, pageRoute, {
+      base: context.base,
+      origin: context.origin,
+      author: context.author,
+    });
 
     const html = renderHtmlDocument({
-      title,
-      description,
+      title: seo.title,
+      description: seo.description,
       siteTitle: context.siteTitle,
       author: context.author,
       base: context.base,
       origin: context.origin,
       lang: context.lang,
       entryScript: clientEntry,
-      canonicalUrl,
-      ogImagePath: extractOgImagePath(result.pageData),
-      jsonLdBlocks,
+      canonicalUrl: seo.canonicalUrl,
+      ogType: seo.ogType,
+      ogImagePath: seo.ogImagePath,
+      jsonLdBlocks: seo.jsonLdBlocks,
       headExtra,
       appContent: result.html,
     });
 
-    const fileName = pagePath === '/'
+    const fileName = seo.isHomepage
       ? 'index.html'
-      : `${stripLeadingSlash(pagePath)}.html`;
+      : `${stripLeadingSlash(pageRoute)}.html`;
     const filepath = path.join(context.outDir, fileName);
 
     await fs.mkdir(path.dirname(filepath), { recursive: true });

@@ -241,7 +241,7 @@ function toggle () {
               v-if="entry.item.fileMetadata"
               class="td-tree-time"
             >{{
-              formatRelativeTime(entry.item.fileMetadata.mtime)
+              formatRelativeTime(entry.item.fileMetadata.mtimeSecs)
             }}</span>
           </a>
         </template>

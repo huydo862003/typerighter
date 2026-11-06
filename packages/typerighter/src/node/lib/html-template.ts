@@ -25,6 +25,8 @@ export interface HtmlTemplateOptions {
   canonicalUrl?: string;
   /** Per-page OG image path, falls back to global og-image.png */
   ogImagePath?: string;
+  /** OG type, "website" for the homepage, defaults to "article" */
+  ogType?: OgType;
   /** Pre-built JSON-LD blocks to inject into head */
   jsonLdBlocks?: string[];
   /** Extra tags injected into head (CSS links, module preloads) */
@@ -32,6 +34,8 @@ export interface HtmlTemplateOptions {
   /** SSR-rendered content inside div#app */
   appContent?: string;
 }
+
+export type OgType = 'article' | 'website';
 
 // Render a complete HTML document from the given options
 export function renderHtmlDocument (options: HtmlTemplateOptions): string {
@@ -88,8 +92,9 @@ export function renderHtmlDocument (options: HtmlTemplateOptions): string {
     <meta name="robots" content="index, follow">
     <title>${pageTitle}</title>
     <meta name="description" content="${description}">${authorMeta}${canonical}
-    <link rel="icon" href="${options.base}favicon.svg" type="image/svg+xml">${rssFeed}
-    <meta property="og:type" content="article">${ogSiteName}${ogUrl}
+    <link rel="icon" href="${options.base}favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="${options.base}apple-touch-icon.png">${rssFeed}
+    <meta property="og:type" content="${options.ogType ?? 'article'}">${ogSiteName}${ogUrl}
     <meta property="og:title" content="${title}">
     <meta property="og:description" content="${description}">
     <meta property="og:image" content="${escapeHtml(ogImageSrc)}">

@@ -25,9 +25,9 @@ const {
   >
     <span class="td-glossary-row-title">{{ item.name }}</span>
     <span
-      v-if="item.mtime"
+      v-if="item.mtimeSecs"
       class="td-glossary-row-time"
-    >{{ formatRelativeTime(item.mtime) }}</span>
+    >{{ formatRelativeTime(item.mtimeSecs) }}</span>
     <span
       v-if="item.description"
       class="td-glossary-row-desc"

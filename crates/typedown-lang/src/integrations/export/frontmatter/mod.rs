@@ -177,8 +177,8 @@ pub(crate) fn extract_resource(
 pub(crate) fn export_file_metadata(handle: &FileHandle) -> ExportedFileMetadata {
   let meta = handle.metadata();
   ExportedFileMetadata {
-    mtime: meta.mtime_epoch_secs(),
-    ctime: meta.ctime_epoch_secs(),
+    mtime_secs: meta.mtime_epoch_secs(),
+    ctime_secs: meta.ctime_epoch_secs(),
   }
 }
 

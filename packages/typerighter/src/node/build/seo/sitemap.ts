@@ -7,18 +7,18 @@ import {
 // Generate a sitemap.xml string from the list of page paths
 // Uses absolute URLs when origin is configured
 export function generateSitemap (
-  pagePaths: string[],
+  pageRoutes: string[],
   base: string,
   origin?: string,
   mtimeMap?: Map<string, number>,
 ): string {
   const prefix = origin ?? '';
-  const urls = pagePaths
+  const urls = pageRoutes
     .map((p) => {
       const loc = escapeHtml(prefix + base + stripLeadingSlash(p));
       const mtime = mtimeMap?.get(p);
       const lastmod = mtime !== undefined
-        ? `<lastmod>${formatIsoDate(mtime)}</lastmod>`
+        ? `<lastmod>${formatIsoDate(mtime * 1000)}</lastmod>`
         : '';
 
       return `  <url><loc>${loc}</loc>${lastmod}</url>`;

@@ -227,7 +227,7 @@ function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
     url: getTdContentUrl(item.filepath),
     description: getFirstString(item.header, 'description', 'summary') ?? item.excerpt,
     tags: 0 < tags.length ? tags : undefined,
-    mtime: item.fileMetadata?.mtime,
+    mtimeSecs: item.fileMetadata?.mtimeSecs,
     schema: item.schema,
   };
 }

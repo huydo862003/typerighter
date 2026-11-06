@@ -44,6 +44,7 @@ export async function buildPageData (
     filepath,
     fileMetadata: resource.fileMetadata,
     seoMetadata: resource.seoMetadata,
+    excerpt: resource.excerpt,
   };
 }
 
