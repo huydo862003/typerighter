@@ -1,6 +1,17 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.56.2] - 2026-11-07
+
+### Fixed
+
+- packages/typerighter
+  - **TOC heading highlight off-by-one** - Clicking a TOC link now highlights the correct heading. Replaced `offsetParent` chain walk with `getBoundingClientRect` which handles sticky headers correctly
+  - **Page scroll fighting with TOC** - Scrolling to the bottom of a page no longer bounces back. The TOC scroll uses manual `scrollTop` instead of `scrollIntoView` to avoid bubbling scroll events to the page
+
+- editors/nvim
+  - **Lazy.nvim submodule sync error** - Added `submodules = false` to the lazy.nvim plugin spec to skip the benchmark submodule on clone
+
 ## [0.56.1] - 2026-11-07
 
 ### Fixed
