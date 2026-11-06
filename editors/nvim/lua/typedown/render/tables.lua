@@ -9,31 +9,47 @@ local BORDER = {
 	vertical = "│",
 }
 
-local query
+local table_query
+local pipe_query
 
-local function get_query()
-	if not query then
-		query = vim.treesitter.query.parse(
+local function get_table_query()
+	if not table_query then
+		table_query = vim.treesitter.query.parse(
 			"typedown_md",
 			[[
       (pipe_table) @table
     ]]
 		)
 	end
-	return query
+	return table_query
+end
+
+-- Query for pipe separator tokens that are direct children of table rows
+local function get_pipe_query()
+	if not pipe_query then
+		pipe_query = vim.treesitter.query.parse(
+			"typedown_md",
+			[[
+      (pipe_table_row "|" @pipe)
+      (pipe_table_header "|" @pipe)
+      (pipe_table_delimiter_row "|" @pipe)
+    ]]
+		)
+	end
+	return pipe_query
 end
 
 function M.render(buf, md_tree)
 	local ns = state.get_namespace(M.name)
 	state.clear(buf, M.name)
 
-	local q = get_query()
-	for _, node in q:iter_captures(md_tree:root(), buf) do
-		M.render_table(buf, ns, node)
+	local tq = get_table_query()
+	for _, node in tq:iter_captures(md_tree:root(), buf) do
+		M.render_table(buf, ns, node, md_tree)
 	end
 end
 
-function M.render_table(buf, ns, node)
+function M.render_table(buf, ns, node, md_tree)
 	local start_row, _, end_row = node:range()
 
 	-- Ensure conceallevel is set so conceal extmarks work
@@ -43,34 +59,43 @@ function M.render_table(buf, ns, node)
 		end
 	end
 
+	-- Use tree-sitter to find actual pipe separators, skipping | inside cell content
+	local pq = get_pipe_query()
+	for _, pipe_node in pq:iter_captures(md_tree:root(), buf, start_row, end_row) do
+		local row, col = pipe_node:range()
+		if not state.is_hidden(buf, row) then
+			vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+				end_col = col + 1,
+				conceal = "",
+			})
+			vim.api.nvim_buf_set_extmark(buf, ns, row, col, {
+				virt_text = { { BORDER.vertical, "TypedownRenderTableBorder" } },
+				virt_text_pos = "inline",
+				priority = 110,
+			})
+		end
+	end
+
+	-- Replace delimiter row - and : with horizontal borders
 	for row = start_row, end_row - 1 do
 		if not state.is_hidden(buf, row) then
 			local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
 			local is_delimiter = line:match("^%s*[|%-%s:]+$") ~= nil
 
-			for col_index = 1, #line do
-				local char = line:sub(col_index, col_index)
-				if char == "|" then
-					-- Conceal | and insert │
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
-						end_col = col_index,
-						conceal = "",
-					})
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
-						virt_text = { { BORDER.vertical, "TypedownRenderTableBorder" } },
-						virt_text_pos = "inline",
-						priority = 110,
-					})
-				elseif is_delimiter and (char == "-" or char == ":") then
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
-						end_col = col_index,
-						conceal = "",
-					})
-					vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
-						virt_text = { { BORDER.horizontal, "TypedownRenderTableBorder" } },
-						virt_text_pos = "inline",
-						priority = 110,
-					})
+			if is_delimiter then
+				for col_index = 1, #line do
+					local char = line:sub(col_index, col_index)
+					if char == "-" or char == ":" then
+						vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
+							end_col = col_index,
+							conceal = "",
+						})
+						vim.api.nvim_buf_set_extmark(buf, ns, row, col_index - 1, {
+							virt_text = { { BORDER.horizontal, "TypedownRenderTableBorder" } },
+							virt_text_pos = "inline",
+							priority = 110,
+						})
+					end
 				end
 			end
 
