@@ -77,21 +77,82 @@ function countItems (node: ContentTreeNode): number {
 // eslint-disable-next-line vue/no-ref-object-reactivity-loss
 const collapsed = ref(!isUrlAncestorOf(directoryUrl.value, route.path));
 const showAll = ref(false);
-const MAX_VISIBLE_FILES = 5;
-const fileCount = computed(
-  () => regularEntries.value.filter((entry) => entry.kind === 'file').length,
+const WINDOW_SIZE = 10;
+const BIAS_AFTER = 6; // show more entries after current than before
+
+const fileEntries = computed(
+  () => regularEntries.value.filter((entry) => entry.kind === 'file'),
 );
-const hiddenCount = computed(() =>
-  showAll.value ? 0 : Math.max(0, fileCount.value - MAX_VISIBLE_FILES));
+const fileCount = computed(() => fileEntries.value.length);
+
+// Index of the active file within this directory's file list
+const activeFileIndex = computed(() => {
+  let index = 0;
+
+  for (const entry of regularEntries.value) {
+    if (entry.kind !== 'file') continue;
+
+    if (getTdContentUrl(entry.item.filepath) === route.path) return index;
+
+    index++;
+  }
+
+  return -1;
+});
+
+// Window range centered on active file, biased forward
+const windowRange = computed(() => {
+  if (fileCount.value <= WINDOW_SIZE) return {
+    start: 0,
+    end: fileCount.value,
+  };
+
+  const active = activeFileIndex.value;
+
+  // No active file in this directory - show first WINDOW_SIZE
+  if (active < 0) return {
+    start: 0,
+    end: WINDOW_SIZE,
+  };
+
+  const before = WINDOW_SIZE - BIAS_AFTER;
+  let start = Math.max(0, active - before);
+  let end = start + WINDOW_SIZE;
+
+  // Clamp to end of list
+  if (fileCount.value < end) {
+    end = fileCount.value;
+    start = Math.max(0, end - WINDOW_SIZE);
+  }
+
+  return {
+    start,
+    end,
+  };
+});
+
+const hiddenAbove = computed(() =>
+  showAll.value ? 0 : windowRange.value.start);
+const hiddenBelow = computed(() =>
+  showAll.value ? 0 : Math.max(0, fileCount.value - windowRange.value.end));
+
 const visibleEntries = computed(() => {
   if (showAll.value) return regularEntries.value;
 
-  let filesShown = 0;
+  const {
+    start, end,
+  } = windowRange.value;
+  let fileIndex = 0;
 
   return regularEntries.value.filter((entry) => {
+    // Always show directories
     if (entry.kind === 'dir') return true;
 
-    return ++filesShown <= MAX_VISIBLE_FILES;
+    const visible = start <= fileIndex && fileIndex < end;
+
+    fileIndex++;
+
+    return visible;
   });
 });
 
@@ -200,6 +261,14 @@ function toggle () {
           />
           <span class="td-tree-link-text">Overview</span>
         </a>
+        <button
+          v-if="hiddenAbove > 0"
+          class="td-tree-more"
+          type="button"
+          @click="expandAll"
+        >
+          {{ hiddenAbove }} more...
+        </button>
         <template
           v-for="entry in visibleEntries"
           :key="entry.kind === 'dir' ? entry.node.name : entry.item.filepath"
@@ -246,12 +315,12 @@ function toggle () {
           </a>
         </template>
         <button
-          v-if="hiddenCount > 0 && !showAll"
+          v-if="hiddenBelow > 0"
           class="td-tree-more"
           type="button"
           @click="expandAll"
         >
-          {{ hiddenCount }} more...
+          {{ hiddenBelow }} more...
         </button>
       </div>
     </div>
