@@ -139,26 +139,32 @@ jobs:
         run: |
           mkdir -p .github/badges
           DATA=$(cat results/benchmark-current.json)
-          COMMIT=$(echo "$DATA" | jq -r '.commit[:7]')
 
-          # shields.io endpoint badge format: { schemaVersion, label, message, color }
           make_badge() {
             local label="$1" value="$2" color="${3:-blue}"
-            jq -n --arg l "$label" --arg m "$value @ $COMMIT" --arg c "$color" \
+            jq -n --arg l "$label" --arg m "$value" --arg c "$color" \
               '{schemaVersion: 1, label: $l, message: $m, color: $c}'
           }
 
-          make_badge "binary size" "$(echo "$DATA" | jq -r '.binary_stripped_kb') KB" "blue" \
+          # Total size = stripped binary + JS gzip
+          BINARY_KB=$(echo "$DATA" | jq -r '.binary_stripped_kb')
+          JS_GZ_KB=$(echo "$DATA" | jq -r '.js_gz_kb')
+          TOTAL_KB=$(echo "$BINARY_KB + $JS_GZ_KB" | bc)
+          make_badge "size" "${TOTAL_KB} KB (binary + JS gzip)" "blue" \
+            > .github/badges/total-size.json
+
+          make_badge "build" "$(echo "$DATA" | jq -r '.ssg_ms_per_page') ms/page" "green" \
+            > .github/badges/build-speed.json
+
+          # Detailed badges for package READMEs
+          make_badge "binary size" "${BINARY_KB} KB" "blue" \
             > .github/badges/binary-size.json
 
           make_badge "install size" "$(echo "$DATA" | jq -r '.install_kb') KB" "blue" \
             > .github/badges/install-size.json
 
-          make_badge "JS gzip" "$(echo "$DATA" | jq -r '.js_gz_kb') KB" "blue" \
+          make_badge "JS gzip" "${JS_GZ_KB} KB" "blue" \
             > .github/badges/js-gzip.json
-
-          make_badge "build" "$(echo "$DATA" | jq -r '.ssg_build_s')s" "green" \
-            > .github/badges/build-time.json
 
       - name: Push badge files to badges branch
         run: |

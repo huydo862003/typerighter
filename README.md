@@ -3,9 +3,8 @@
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 [![npm](https://img.shields.io/npm/v/typerighter)](https://www.npmjs.com/package/typerighter)
 ![License](https://img.shields.io/badge/license-GPL-green)
-![Binary Size](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/badges/binary-size.json)
-![JS gzip](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/badges/js-gzip.json)
-![Build](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/badges/build-time.json)
+![Size](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/badges/total-size.json)
+![Build](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/badges/build-speed.json)
 <a href="https://github.com/huydo862003/Fck-AI-Slop#plan"><img src="https://img.shields.io/badge/Human%20slop-90EE90"></a>
 
 Your documents are a typed graph. Typedown is the language for it.
