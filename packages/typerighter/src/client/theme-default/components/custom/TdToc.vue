@@ -48,11 +48,13 @@ const activeTocId = (isStatic || inline)
 
 const listRef = useTemplateRef<HTMLElement>('list');
 
+// Scroll the TOC list so the active heading is visible
+// Uses instant behavior so the position is correct before the panel fades in on hover
 watch(activeTocId, () => {
   nextTick(() => {
     listRef.value?.querySelector('a.is-active')?.scrollIntoView({
       block: 'nearest',
-      behavior: 'smooth',
+      behavior: 'instant',
     });
   });
 });
