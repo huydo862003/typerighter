@@ -1,6 +1,19 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.55.1] - 2026-11-06
+
+### Fixed
+
+- crates/typedown-lang
+  - **Strip leading H1 from rendered HTML** - The HTML exporter now strips the first H1 heading from the document body. The page layout already renders the title from `_label` or the filename, so an H1 in the source would appear duplicated. The plain text of the stripped heading is captured as page title metadata and exposed via `exported.title`. The H1 is not included in the headings list (it is the page title, not a TOC entry).
+  - **Quoted string props in `[[]]` container shorthands** - The `[[label {key="value"}]]` shorthand now accepts quoted string values, matching the behaviour of full `:::label{...}` container blocks. Both forms call the same prop block parser; the fix removes the whitespace-handling mismatch in the shorthand path.
+  - **Whitespace tolerance in `[[]]` shorthands** - `[[ label ]]` and `[[ label {props} ]]` with spaces inside the brackets now parse correctly. Previously the parser used `SKIP_NONE` after `[[`, causing a spurious "expected an identifier" diagnostic whenever the label was preceded by whitespace.
+
+- packages/typerighter
+  - **Fix horizontal overflow on small viewports** - Pages could overflow horizontally on narrow screens.
+  - **Fix SEO naming consistency** - `generateSitemap`/`generateRobotsTxt`/`generateRssFeed` renamed to `buildSitemap`/`buildRobotsTxt`/`buildRssFeed` to match the `build*` convention used throughout. `canonicalUrl` now always includes the origin prefix. `isDirectoryIndex` removed from public-facing SEO APIs (computed internally).
+
 ## [0.55.0] - 2026-11-06
 
 ### Added
