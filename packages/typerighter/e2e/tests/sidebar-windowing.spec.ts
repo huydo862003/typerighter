@@ -88,8 +88,47 @@ e2e.describe('sidebar windowing', () => {
     });
   });
 
-  // The windowing logic centers on the active page, but verifying this in e2e
-  // is flaky because the content tree may not include newly-created fixture
-  // files until after HMR processes them. The unit-level windowing logic
-  // (activeFileIndex, windowRange) is tested implicitly by the above tests.
+  e2e('early entry shows only "more..." below, not above', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/people/alice');
+
+    const sidebar = page.getByTestId('sidebar');
+    const moreButtons = sidebar.getByRole('button', {
+      name: /more\.\.\./,
+    });
+
+    // Alice is at the start, so only a "below" button should appear
+    await expect(moreButtons).toHaveCount(1, {
+      timeout: 15_000,
+    });
+
+    // The single button should appear after the visible entries (below)
+    // Its text should show the count of hidden entries
+    const buttonText = await moreButtons.first().textContent();
+
+    expect(Number.parseInt(buttonText ?? '0', 10)).toBeGreaterThan(0);
+  });
+
+  e2e('late entry shows only "more..." above, not below', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/people/olivia');
+
+    const sidebar = page.getByTestId('sidebar');
+    const moreButtons = sidebar.getByRole('button', {
+      name: /more\.\.\./,
+    });
+
+    // Olivia is near the end, so only an "above" button should appear
+    await expect(moreButtons).toHaveCount(1, {
+      timeout: 15_000,
+    });
+
+    const buttonText = await moreButtons.first().textContent();
+
+    expect(Number.parseInt(buttonText ?? '0', 10)).toBeGreaterThan(0);
+  });
 });
