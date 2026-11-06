@@ -1189,6 +1189,11 @@ impl<S: Utf8Stream> ParseCtx<S> {
     self.advance_md(&mut children, SKIP_NONE);
     self.advance_md(&mut children, SKIP_NONE);
 
+    // Drain whitespace between [[ and the label (e.g. [[ toc ]])
+    while self.lex_ctx.peek_md(SKIP_NONE).token.kind() == SyntaxKind::Whitespace {
+      self.advance_md(&mut children, SKIP_NONE);
+    }
+
     // Require a label identifier (supports kebab-case like directory-index)
     if self.lex_ctx.peek_md(SKIP_NONE).token.kind() != SyntaxKind::Ident {
       self.emit_diagnostic(
@@ -1201,16 +1206,16 @@ impl<S: Utf8Stream> ParseCtx<S> {
       self.consume_kebab_ident(&mut children);
     }
 
-    // Optional props block {key=value}
+    // Optional props block {key=value key="quoted string value"}
     if self.lex_ctx.peek_md(SKIP_WS).token.kind() == SyntaxKind::LBrace {
       let (props, _) = self.parse_container_prop_block();
       children.push(props);
     }
 
-    // Consume ]]
+    // Consume ]] - skip whitespace before first ] to allow [[ label ]] spacing
     self.consume_md(
       &mut children,
-      SKIP_NONE,
+      SKIP_WS,
       SyntaxKind::RBracket,
       TdDiagnosticKind::MissingSyntaxNode {
         expected: SyntaxKind::RBracket,

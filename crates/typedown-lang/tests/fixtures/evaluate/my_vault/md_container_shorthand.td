@@ -10,3 +10,7 @@ age: 25
 [[grid {cols=2}]]
 
 [[directory-index]]
+
+[[ toc ]]
+
+[[ icon-row {td="document" lucide="file-text"} ]]

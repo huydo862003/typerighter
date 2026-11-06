@@ -1650,7 +1650,148 @@ fn parse_container_shorthand_kebab_case() {
   );
 }
 
-// Parses a fenced code block
+// Quoted string prop values in [[]] shorthand
+#[test]
+fn parse_container_shorthand_quoted_string_props() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"[[icon-row {td="document" lucide="file-text"}]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      "icon"
+      "-"
+      "row"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "td"
+          "="
+          (StrLit
+            "\""
+            "document"
+            "\""))
+        " "
+        (MdContainerPropItem
+          "lucide"
+          "="
+          (StrLit
+            "\""
+            "file-text"
+            "\""))
+        "}")
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+}
+
+// Spaced form [[ label ]] with whitespace inside brackets
+#[test]
+fn parse_container_shorthand_with_spaces() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"[[ toc ]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      " "
+      "toc"
+      " "
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+}
+
+// Spaced form with quoted string props: [[ label {key="value"} ]]
+#[test]
+fn parse_container_shorthand_with_spaced_props() {
+  let (tree, diagnostics) = parse_body_with_diagnostics(
+    r#"[[ icon-row {td="document" lucide="file-text"} ]]
+"#,
+  );
+  assert_eq!(
+    tree,
+    r####"(SourceFile
+  (YamlFrontmatter
+    ""
+    "---"
+    "\n"
+    ""
+    "---"
+    "\n")
+  (MdBody
+    (MdContainerShorthand
+      "["
+      "["
+      " "
+      "icon"
+      "-"
+      "row"
+      (MdContainerPropBlock
+        " "
+        "{"
+        (MdContainerPropItem
+          "td"
+          "="
+          (StrLit
+            "\""
+            "document"
+            "\""))
+        " "
+        (MdContainerPropItem
+          "lucide"
+          "="
+          (StrLit
+            "\""
+            "file-text"
+            "\""))
+        "}")
+      " "
+      "]"
+      "]")
+    "\n"))"####
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "should produce no diagnostics, got: {diagnostics:?}"
+  );
+}
+
 #[test]
 fn parse_code_block_simple() {
   let tree = parse_body(
