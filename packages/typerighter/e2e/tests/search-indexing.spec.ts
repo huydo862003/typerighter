@@ -119,4 +119,30 @@ e2e.describe('search indexing', () => {
       timeout: 15_000,
     });
   });
+
+  e2e('indexes content inside flashcard containers', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page);
+    const sidebar = page.getByTestId('sidebar');
+    const results = await searchFor(page, sidebar, 'Quintessential');
+
+    await expect(results.first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  e2e('indexes content inside grid containers', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page);
+    const sidebar = page.getByTestId('sidebar');
+    const results = await searchFor(page, sidebar, 'Serendipitous');
+
+    await expect(results.first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
 });

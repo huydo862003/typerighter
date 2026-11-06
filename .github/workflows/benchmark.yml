@@ -38,7 +38,7 @@ jobs:
             --arg binary_kb "${{ steps.bench.outputs.binary_kb }}" \
             --arg binary_stripped_kb "${{ steps.bench.outputs.binary_stripped_kb }}" \
             --arg install_kb "${{ steps.bench.outputs.install_kb }}" \
-            --arg ssg_build_s "${{ steps.bench.outputs.ssg_build_s }}"
+            --arg ssg_build_s "${{ steps.bench.outputs.ssg_build_s }}" \
             --arg ssg_ms_per_page "${{ steps.bench.outputs.ssg_ms_per_page }}" \
             --arg total_size_kb "${{ steps.bench.outputs.total_size_kb }}" \
             --arg js_kb "${{ steps.bench.outputs.js_kb }}" \

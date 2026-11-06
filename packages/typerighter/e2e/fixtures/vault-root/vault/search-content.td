@@ -26,3 +26,18 @@ This note contains the word Bioluminescence inside a container.
 ::: details Expandable section
 Hidden content with Phantasmagoria inside a details block.
 :::
+
+:::flashcard
+Ephemeral question text for search.
+:::key
+Ephemeral answer with Quintessential content.
+:::
+
+:::grid{columns=2}
+:::grid-cell
+Grid cell with Serendipitous content.
+:::
+:::grid-cell
+Another cell.
+:::
+:::

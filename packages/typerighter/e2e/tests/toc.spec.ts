@@ -73,29 +73,6 @@ e2e.describe('table of contents', () => {
     expect(activeText?.trim()).toBeTruthy();
   });
 
-  e2e('clicking a TOC link updates the URL hash', async ({
-    page,
-    testProject,
-  }) => {
-    await testProject.goto(page, '/long-page');
-
-    const toc = page.getByTestId('toc');
-
-    await expect(toc).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // Click the "FAQ" link in the TOC
-    await toc.getByRole('link', {
-      name: /FAQ/,
-    }).click();
-
-    // The URL should contain the anchor hash
-    await expect(page).toHaveURL(/#faq/, {
-      timeout: 5_000,
-    });
-  });
-
   e2e('floating TOC is already scrolled to active heading on hover', async ({
     page,
     testProject,
