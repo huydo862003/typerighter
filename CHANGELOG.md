@@ -1,3 +1,38 @@
+## [0.56.0] - 2026-11-07
+
+### Added
+
+- packages/typerighter
+  - **Smooth theme toggle transition** - Switching between light and dark mode now animates background, text, and border colors over 240ms. Respects `prefers-reduced-motion`
+  - **Context-aware sidebar windowing** - Directories with many pages show a 10-entry window centered on the current page, with "N more..." buttons above and below
+  - **Benchmark badges** - Root README, npm README, and crate READMEs now show live binary size, JS gzip, and build speed badges from CI
+
+- editors/nvim
+  - **Pipe-safe table rendering** - The table renderer now uses tree-sitter queries to find pipe separators, so `|` inside code spans in table cells is no longer treated as a column boundary
+
+- homepage
+  - **Vault query documentation** - New page covering `vault.from_nodes`, `vault.from_node`, `filter`, `follow`, `follow_back` with a narrative showing how computed back-references replace manual maintenance
+  - **Rendered demos** - Markdown body page now shows live output for code blocks, line highlighting, titles, line numbers, mermaid diagrams, D2 diagrams, lists, and a YouTube embed
+  - **Use-case openings** - All pages in Getting Started, Typedown Syntax, and Custom Theming now open with what you can do, not what something is
+  - **Reference sections** - Schemas and Frontmatter pages end with comprehensive quick-lookup tables
+  - **Default and computed field docs** - Schemas page now covers `default` and `computed` field definitions with full examples
+
+### Fixed
+
+- packages/typerighter
+  - **TOC rail indicators no longer overlay the header** - Rail z-index lowered below the header, indicators clipped within sticky bounds
+  - **Floating TOC pre-scrolled to active heading** - TOC scroll uses `behavior: 'instant'` so the active heading is already in view when the panel fades in on hover
+  - **IconRow dark mode** - Replaced non-existent CSS variables with actual theme tokens (`--color-td-ink`, `--color-td-line`)
+  - **Theme toggle race condition** - Rapid toggles no longer accumulate stale timers; previous transition cleanup is cancelled on re-entry
+
+- crates/typedown-lang
+  - **Closure syntax in vault query fixtures** - Changed `|p| p.age > 18` to `(p) -> p.age > 18` in all filter test fixtures
+
+### Changed
+
+- .github
+  - **Benchmark uses real-world vault** - CI now benchmarks against a 1.3k page vault submodule instead of the homepage, with per-page build speed (ms/page) and DX/UX split in PR comments
+
 ## [0.55.2] - 2026-11-06
 
 ### Fixed
