@@ -123,8 +123,6 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
   width: 216px;
   min-height: unset;
   max-height: min(480px, calc(100vh - var(--td-header-height) - 160px));
-  overflow-y: auto;
-  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   background: var(--color-td-bg);
@@ -133,12 +131,18 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
   border-left: 1px solid var(--color-td-line-soft);
   border-radius: 8px 0 0 8px;
   box-shadow: -4px 4px 20px rgba(0, 0, 0, 0.07);
-  padding: 16px 16px 16px 16px;
+  padding: 12px 0;
   opacity: 0;
   pointer-events: none;
   transition:
     opacity var(--duration-td-fast) var(--ease-td-out-quart),
     transform var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
+.td-rail-panel :deep(.td-toc) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px;
 }
 
 @media (hover: hover) and (pointer: fine) {
