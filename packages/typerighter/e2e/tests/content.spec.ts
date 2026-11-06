@@ -3,33 +3,54 @@ import {
 } from '../fixtures';
 
 e2e.describe('content', () => {
-  e2e('TOC shows h2 and h3 headings', async ({
+  e2e('rail TOC is visible on mouse devices', async ({
     page, testProject,
   }) => {
     await testProject.goto(page, '/notes/index');
 
-    const toc = page.getByTestId('toc').last();
+    // default chromium context is a mouse device (hover: hover, pointer: fine)
+    // rail TOC is the last [data-testid="toc"] in the DOM
+    const railToc = page.getByTestId('toc').last();
 
-    await expect(toc).toBeAttached({
-      timeout: 15_000,
+    await expect(railToc).toBeVisible({ timeout: 15_000 });
+
+    await expect(railToc.getByRole('link', { name: 'Overview' })).toBeVisible();
+    await expect(railToc.getByRole('link', { name: 'Details', exact: true })).toBeVisible();
+    await expect(railToc.getByRole('link', { name: 'Summary' })).toBeVisible();
+  });
+
+  e2e('inline TOC is visible on touch devices, rail is hidden', async ({
+    page, testProject,
+  }) => {
+    // emulate a touch-only device (no fine pointer, no hover)
+    await page.emulateMedia({ media: 'screen' });
+    const context = page.context();
+    await context.addInitScript(() => {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: (query: string) => ({
+          matches: query.includes('not') ? true : false,
+          media: query,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        }),
+      });
     });
+    await testProject.goto(page, '/notes/index');
 
-    await expect(
-      toc.getByRole('link', {
-        name: 'Overview',
-      }),
-    ).toBeAttached();
-    await expect(
-      toc.getByRole('link', {
-        name: 'Details',
-        exact: true,
-      }),
-    ).toBeAttached();
-    await expect(
-      toc.getByRole('link', {
-        name: 'Summary',
-      }),
-    ).toBeAttached();
+    const inlineToc = page.getByTestId('toc').first();
+    const railToc = page.getByTestId('toc').last();
+
+    await expect(inlineToc).toBeVisible({ timeout: 15_000 });
+    await expect(railToc).toBeHidden();
+
+    await expect(inlineToc.getByRole('link', { name: 'Overview' })).toBeVisible();
+    await expect(inlineToc.getByRole('link', { name: 'Details', exact: true })).toBeVisible();
+    await expect(inlineToc.getByRole('link', { name: 'Summary' })).toBeVisible();
   });
 
   e2e(
