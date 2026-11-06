@@ -873,7 +873,7 @@ function shrinkSidebar () {
 .td-drawer-scrim {
   position: fixed;
   inset: 0;
-  z-index: var(--layer-td-base);
+  z-index: var(--layer-td-drawer);
   background: var(--color-td-scrim);
   opacity: 0;
   pointer-events: none;
@@ -891,7 +891,7 @@ function shrinkSidebar () {
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: var(--layer-td-base);
+  z-index: var(--layer-td-drawer);
   max-width: min(85vw, 500px);
   background: var(--color-td-bg);
   border-right: 1px solid var(--color-td-line);

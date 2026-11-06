@@ -12,7 +12,7 @@ export function useMediaQuery (query: string) {
   }
 
   onMounted(() => {
-    mediaQuery = window.matchMedia(query) ?? undefined;
+    mediaQuery = window.matchMedia(query);
     matches.value = mediaQuery.matches;
     mediaQuery?.addEventListener('change', handleChange);
   });

@@ -93,7 +93,8 @@
   --td-header-height: 56px;
 
   /* Z-index layers, relative to root stacking context */
-  --layer-td-base: 1;       /* sidebar, toc, header, drawer */
+  --layer-td-base: 1;       /* sidebar, toc, header */
+  --layer-td-drawer: 2;     /* mobile drawer + scrim, above sticky content */
   --layer-td-dropdown: 5;   /* dropdowns */
   --layer-td-modal: 10;     /* modal scrim + dialog, teleported to body */
   --layer-td-tooltip: 15;   /* tooltips, teleported to body */
