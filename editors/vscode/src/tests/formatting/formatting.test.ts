@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Formatting', () => {
@@ -19,7 +19,7 @@ suite('Formatting', () => {
   test('format provider responds for a typedown document', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
       'vscode.executeFormatDocumentProvider',

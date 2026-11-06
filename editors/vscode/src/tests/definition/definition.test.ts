@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Go to Definition', () => {
@@ -19,7 +19,7 @@ suite('Go to Definition', () => {
   test('_type: Person resolves to _types/Person.td', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeDefinitionProvider',
@@ -35,10 +35,11 @@ suite('Go to Definition', () => {
     );
   });
 
+  // fref path resolution
   test('fref("alice.td") resolves to alice.td', async () => {
     const document = await openDocument('with-fref.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeDefinitionProvider',
@@ -54,10 +55,11 @@ suite('Go to Definition', () => {
     );
   });
 
+  // plain values should not resolve
   test('no definition on plain string value', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeDefinitionProvider',

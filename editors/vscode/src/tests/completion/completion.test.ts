@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 function getLabels (completions: vscode.CompletionList): string[] {
@@ -24,10 +24,11 @@ suite('Completion', () => {
   test('suggests remaining schema fields (excludes already-declared ones)', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
-    // alice.td has _type, name, age declared. Person schema has name, age, friend
-    // Completions at line 4 (after age:30, before ---) should suggest "friend" but NOT "name" or "age"
+    // alice.td has _type, name, age declared
+    // Person schema has name, age, friend
+    // completions at line 4 (after age:30, before the closing delimiter) should suggest "friend" but NOT "name" or "age"
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',
       document.uri,
@@ -45,7 +46,7 @@ suite('Completion', () => {
   test('fref completion suggests vault-relative paths', async () => {
     const document = await openDocument('with-fref.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     // Position inside fref("alice.td") - character 14 is inside the string
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
@@ -69,9 +70,9 @@ suite('Completion', () => {
     // (we test this implicitly: completions at line 0 of alice.td before _type)
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
-    // Line 0 is "---" - no field completions expected here
+    // line 0 is the frontmatter delimiter - no field completions expected here
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',
       document.uri,

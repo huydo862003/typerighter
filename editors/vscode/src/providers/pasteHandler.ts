@@ -60,7 +60,8 @@ export class PasteEditProvider implements DocumentPasteEditProvider {
       return undefined;
     }
 
-    const extension = MIME_TO_EXTENSION.get(match.mimeType)!;
+    // findSupportedMime only returns mimeTypes present in MIME_TO_EXTENSION
+    const extension = MIME_TO_EXTENSION.get(match.mimeType) ?? '';
 
     const binaryData = await match.item.asFile()?.data();
 
@@ -68,6 +69,7 @@ export class PasteEditProvider implements DocumentPasteEditProvider {
       return undefined;
     }
 
+    // Write the binary to _assets/ next to the document
     const documentDirectory = dirname(document.uri.fsPath);
     const assetsDirectory = join(documentDirectory, '_assets');
 

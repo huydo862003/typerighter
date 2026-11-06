@@ -5,7 +5,7 @@ import {
   DiagnosticSeverity,
 } from 'vscode';
 import {
-  activate, openDocument, waitForDiagnostics, waitForNoDiagnostics, closeAllEditors, getFileUri,
+  activate, openDocument, pollForDiagnostics, pollForNoDiagnostics, closeAllEditors, getFileUri,
 } from '../helper';
 
 suite('Diagnostics', () => {
@@ -19,14 +19,14 @@ suite('Diagnostics', () => {
 
   test('valid file produces zero diagnostics', async () => {
     await openDocument('valid.td');
-    const diagnostics = await waitForNoDiagnostics(getFileUri('valid.td'));
+    const diagnostics = await pollForNoDiagnostics(getFileUri('valid.td'));
 
     deepStrictEqual(diagnostics, [], 'valid file should have exactly zero diagnostics');
   });
 
   test('unknown type produces error on the type name with correct code', async () => {
     await openDocument('unknown-type.td');
-    const diagnostics = await waitForDiagnostics(getFileUri('unknown-type.td'));
+    const diagnostics = await pollForDiagnostics(getFileUri('unknown-type.td'));
 
     // Should have at least one diagnostic: unresolved schema for "NonExistent"
     ok(1 <= diagnostics.length, `expected at least 1 diagnostic, got ${diagnostics.length}: ${diagnostics.map((diagnostic) => diagnostic.message).join('; ')}`);
@@ -39,7 +39,7 @@ suite('Diagnostics', () => {
 
   test('unknown field produces diagnostic on the field name', async () => {
     await openDocument('unknown-field.td');
-    const diagnostics = await waitForDiagnostics(getFileUri('unknown-field.td'));
+    const diagnostics = await pollForDiagnostics(getFileUri('unknown-field.td'));
 
     // Should flag "nonexistent_field" as unknown
     ok(0 < diagnostics.length, 'expected at least one diagnostic for unknown field');
@@ -53,7 +53,7 @@ suite('Diagnostics', () => {
   test('valid file does not produce false positives for known fields', async () => {
     // Ensure "name" and "age" (valid Person fields) do NOT trigger diagnostics
     await openDocument('valid.td');
-    const diagnostics = await waitForNoDiagnostics(getFileUri('valid.td'));
+    const diagnostics = await pollForNoDiagnostics(getFileUri('valid.td'));
 
     const falsePositives = diagnostics.filter((diagnostic) =>
       diagnostic.message.includes('name') || diagnostic.message.includes('age'));

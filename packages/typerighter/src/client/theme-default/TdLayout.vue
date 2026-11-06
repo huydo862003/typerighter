@@ -240,21 +240,33 @@ const {
 } = useSidebarConfig();
 const isSidebarResizing = ref(false);
 
+// ⌘\ / Ctrl+\ - toggle drawer on small screen, sidebar on large screen
+function toggleNavPanel (): void {
+  if (isDrawerMounted.value) {
+    if (isOpen.value) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  } else {
+    toggleSidebar();
+  }
+}
+
 function toggleSidebar () {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 }
 
-// ⌘\ / Ctrl+\ - toggle sidebar
 useGlobalHotkey([
   TdKeyName.Control,
   TdKeyName.Backslash,
-], toggleSidebar, {
+], toggleNavPanel, {
   capture: true,
 });
 useGlobalHotkey([
   TdKeyName.Meta,
   TdKeyName.Backslash,
-], toggleSidebar, {
+], toggleNavPanel, {
   capture: true,
 });
 

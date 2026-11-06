@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Inlay Hints', () => {
@@ -19,7 +19,7 @@ suite('Inlay Hints', () => {
   test('inlay hint provider responds for a document range', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const hints = await vscode.commands.executeCommand<vscode.InlayHint[]>(
       'vscode.executeInlayHintProvider',

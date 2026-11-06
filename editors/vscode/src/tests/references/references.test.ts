@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Find References', () => {
@@ -20,7 +20,7 @@ suite('Find References', () => {
     // Query from alice.td at the "Person" identifier position (line 1, char 7)
     const document = await openDocument('alice.td');
 
-    await sleep(3000);
+    await pauseMs(3000);
 
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider',
@@ -41,7 +41,7 @@ suite('Find References', () => {
     // Query from with-fref.td at the fref("alice.td") argument position (line 4, char 14)
     const document = await openDocument('with-fref.td');
 
-    await sleep(3000);
+    await pauseMs(3000);
 
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider',

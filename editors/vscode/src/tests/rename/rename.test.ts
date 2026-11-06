@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Rename', () => {
@@ -19,7 +19,7 @@ suite('Rename', () => {
   test('prepare rename on _type value returns the type name range', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(3000);
+    await pauseMs(3000);
 
     try {
       const result = await vscode.commands.executeCommand<{
@@ -45,10 +45,11 @@ suite('Rename', () => {
     }
   });
 
+  // rename should produce cross-file edits
   test('rename "Person" to "Human" produces edits with correct new text', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(3000);
+    await pauseMs(3000);
 
     try {
       const edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
@@ -88,10 +89,11 @@ suite('Rename', () => {
     }
   });
 
+  // non-renameable tokens should return null
   test('prepare rename on plain string value returns null', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(3000);
+    await pauseMs(3000);
 
     // "Alice" at line 2, char 7 - plain string, not renameable
     try {
@@ -110,7 +112,7 @@ suite('Rename', () => {
   test('prepare rename on number value returns null', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(3000);
+    await pauseMs(3000);
 
     // 30 at line 3, char 5 - number, not renameable
     try {

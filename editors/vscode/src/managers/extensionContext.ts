@@ -20,7 +20,8 @@ export class ExtensionContextManager {
     }
   }
 
-  /** Returns the stored ExtensionContext. Throws if initialize() was not called */
+  // Returns the stored ExtensionContext
+  // throws if initialize() was not called
   static get context (): ExtensionContext {
     if (!ExtensionContextManager.instance) {
       throw new Error('ExtensionContextManager not initialized. Call initialize() first.');

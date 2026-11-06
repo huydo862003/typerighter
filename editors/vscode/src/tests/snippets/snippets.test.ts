@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Snippets', () => {
@@ -19,9 +19,9 @@ suite('Snippets', () => {
   test('code block snippet with ``` prefix is available in markdown body', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
-    // Line 5 is after the closing "---" - markdown body area
+    // line 5 is after the closing frontmatter delimiter, in the markdown body area
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',
       document.uri,
@@ -54,7 +54,7 @@ suite('Snippets', () => {
   test('math block snippet with $$ prefix is available', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',

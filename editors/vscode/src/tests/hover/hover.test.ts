@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Hover', () => {
@@ -19,7 +19,7 @@ suite('Hover', () => {
   test('hover on _type value shows schema type information', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
       'vscode.executeHoverProvider',
@@ -36,10 +36,11 @@ suite('Hover', () => {
     ok(content.includes('Person'), `hover should mention "Person", got: ${content}`);
   });
 
+  // delimiter should not trigger hover
   test('no hover on frontmatter delimiter', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
       'vscode.executeHoverProvider',

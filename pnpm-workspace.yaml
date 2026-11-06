@@ -26,4 +26,4 @@ minimumReleaseAgeExclude:
   - typerighter@0.32.6
   - '@lucide/vue@1.39.0'
   - '@types/node@26.4.1'
-  - '@hdnax/nuclint@0.17.5'
+  - "@hdnax/nuclint@0.17.5 || 0.18.1"

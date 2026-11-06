@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Syntax Highlighting', () => {
@@ -19,7 +19,7 @@ suite('Syntax Highlighting', () => {
   test('semantic tokens include type reference on _type line', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const tokens = await vscode.commands.executeCommand<vscode.SemanticTokens>(
       'vscode.provideDocumentSemanticTokens',

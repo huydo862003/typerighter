@@ -16,7 +16,6 @@ import {
 } from 'vscode';
 import type {
   LanguageClientOptions,
-  ServerOptions,
   StreamInfo,
 } from 'vscode-languageclient/node';
 import {
@@ -58,8 +57,7 @@ export class LspManager implements Disposable {
     // Extension was deactivated while downloading
     if (this.disposed) return;
 
-    const serverOptions: ServerOptions = () => spawnAndConnect(binaryPath);
-
+    // Configure the LSP client with document selectors and middleware
     const clientOptions: LanguageClientOptions = {
       documentSelector: [
         {
@@ -73,7 +71,9 @@ export class LspManager implements Disposable {
       middleware: {
         executeCommand: async (command, args, next) => {
           if (command.startsWith('_typerighter.')) {
-            await resolvePromptsAndExecute(this.client!, command, args);
+            if (this.client) {
+              await resolvePromptsAndExecute(this.client, command, args);
+            }
 
             return;
           }
@@ -86,7 +86,7 @@ export class LspManager implements Disposable {
     this.client = new LanguageClient(
       'typedown-lsp',
       'Typedown LSP',
-      serverOptions,
+      (): Promise<StreamInfo> => startLspServer(binaryPath),
       clientOptions,
     );
 
@@ -109,7 +109,7 @@ export class LspManager implements Disposable {
 }
 
 // Spawn the LSP binary and read the TCP port it prints to stdout
-function spawnAndConnect (binaryPath: string): Promise<StreamInfo> {
+function startLspServer (binaryPath: string): Promise<StreamInfo> {
   return new Promise((resolve, reject) => {
     const process = spawn(binaryPath, [], {
       stdio: [
@@ -126,12 +126,20 @@ function spawnAndConnect (binaryPath: string): Promise<StreamInfo> {
       reject(error);
     });
 
+    if (!process.stdout) {
+      reject(new Error('LSP process stdout is not available'));
+
+      return;
+    }
+
+    // Read one line from stdout - the binary prints its TCP address on startup
     const reader = createInterface({
-      input: process.stdout!,
+      input: process.stdout,
     });
 
     reader.once('line', (line) => {
       reader.close();
+      // Parse "host:port" printed by the binary
       const address = line.trim();
       const colonIndex = address.lastIndexOf(':');
       const host = address.slice(0, colonIndex);

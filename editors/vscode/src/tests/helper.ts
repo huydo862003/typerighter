@@ -10,10 +10,8 @@ import * as vscode from 'vscode';
 
 const EXTENSION_ID = 'huydo862003.typedown-vscode';
 
-/**
- * Activate the extension and wait for the LSP client to be ready.
- * Call once in suiteSetup
- */
+// Activate the extension and wait for the LSP client to be ready
+// call once in suiteSetup
 export async function activate (): Promise<void> {
   const extension = vscode.extensions.getExtension(EXTENSION_ID);
 
@@ -24,7 +22,7 @@ export async function activate (): Promise<void> {
     await extension.activate();
   }
   // Give the LSP client time to start (binary spawn + TCP connect + initialize handshake)
-  await sleep(3000);
+  await pauseMs(3000);
 }
 
 /**
@@ -41,10 +39,8 @@ export async function closeAllEditors (): Promise<void> {
   await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
-/**
- * Copy a fixture vault to a temp directory for mutation tests.
- * Returns the temp dir path and a cleanup function
- */
+// Copy a fixture vault to a temp directory for mutation tests
+// returns the temp dir path and a cleanup function
 export function copyFixture (vault: string): {
   dir: string;
   cleanup: () => void;
@@ -102,22 +98,13 @@ export async function openDocument (relativePath: string): Promise<vscode.TextDo
   return document;
 }
 
-/**
- * Read a file from a copied vault
- */
-export function readCopiedFile (directory: string, relativePath: string): string {
-  return readFileSync(path.join(directory, relativePath), 'utf-8');
-}
-
-export function sleep (ms: number): Promise<void> {
+export function pauseMs (ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Wait until diagnostics are published for a URI, or timeout.
- * Returns the diagnostics array
- */
-export async function waitForDiagnostics (
+// Wait until diagnostics are published for a URI, or timeout
+// returns the diagnostics array
+export async function pollForDiagnostics (
   uri: vscode.Uri,
   timeout = 10000,
 ): Promise<vscode.Diagnostic[]> {
@@ -148,7 +135,7 @@ export async function waitForDiagnostics (
 /**
  * Wait until diagnostics for a URI become empty (no errors), or timeout
  */
-export async function waitForNoDiagnostics (
+export async function pollForNoDiagnostics (
   uri: vscode.Uri,
   timeout = 10000,
 ): Promise<vscode.Diagnostic[]> {
@@ -174,4 +161,11 @@ export async function waitForNoDiagnostics (
       }
     });
   });
+}
+
+/**
+ * Read a file from a copied vault
+ */
+export function readCopiedFile (directory: string, relativePath: string): string {
+  return readFileSync(path.join(directory, relativePath), 'utf-8');
 }

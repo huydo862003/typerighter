@@ -58,6 +58,7 @@ export async function ensureBinary (): Promise<string> {
     throw new Error('Extension version is missing from package.json');
   }
 
+  // Check if the versioned binary already exists in global storage
   const storageDirectory = context.globalStorageUri.fsPath;
   const versionDirectory = join(storageDirectory, version);
   const binPath = join(versionDirectory, binName);
@@ -87,6 +88,7 @@ export async function ensureBinary (): Promise<string> {
         recursive: true,
       });
 
+      // Abort the fetch if it exceeds the timeout
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
 

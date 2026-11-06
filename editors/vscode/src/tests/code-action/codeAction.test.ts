@@ -4,7 +4,7 @@ import {
 // eslint-disable-next-line import/no-namespace
 import * as vscode from 'vscode';
 import {
-  activate, openDocument, closeAllEditors, sleep,
+  activate, openDocument, closeAllEditors, pauseMs,
 } from '../helper';
 
 suite('Code Actions', () => {
@@ -20,7 +20,7 @@ suite('Code Actions', () => {
     // empty-friend.td has `friend:` (empty Person? field)
     const document = await openDocument('empty-friend.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     // Position on the empty 'friend:' field (line 4)
     const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
@@ -52,7 +52,7 @@ suite('Code Actions', () => {
   test('non-empty file does not offer initialization actions', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
       'vscode.executeCodeActionProvider',
@@ -68,7 +68,7 @@ suite('Code Actions', () => {
   test('no create-linked action on string field', async () => {
     const document = await openDocument('alice.td');
 
-    await sleep(1000);
+    await pauseMs(1000);
 
     // Position on 'name: "Alice"' line (line 2) - string field, not schema-typed
     const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(

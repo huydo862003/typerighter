@@ -2,14 +2,14 @@ import {
   ref, readonly, computed, watch,
 } from 'vue';
 import {
+  TdKeyName,
+} from '../utils/keys';
+import {
   useMediaQuery,
 } from './useMediaQuery';
 import {
   useGlobalHotkey,
 } from './useHotkey';
-import {
-  TdKeyName,
-} from '../utils/keys';
 
 const isOpen = ref(false);
 
