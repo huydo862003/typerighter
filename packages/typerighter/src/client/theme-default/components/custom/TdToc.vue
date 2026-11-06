@@ -49,12 +49,25 @@ const activeTocId = (isStatic || inline)
 const listRef = useTemplateRef<HTMLElement>('list');
 
 // Scroll the TOC list so the active heading is centered
-// scroll-behavior is controlled by CSS: instant when hidden, smooth when hovered
+// Uses manual scrollTop to avoid scrollIntoView affecting the page scroll
 watch(activeTocId, () => {
   nextTick(() => {
-    listRef.value?.querySelector('a.is-active')?.scrollIntoView({
-      block: 'center',
-    });
+    const list = listRef.value;
+    const active = list?.querySelector<HTMLElement>('a.is-active');
+
+    if (!list || !active) return;
+
+    // Find the scrollable ancestor (the .td-toc element or the list itself)
+    const scroller = list.closest('.td-toc') as HTMLElement | null ?? list;
+
+    if (scroller.scrollHeight <= scroller.clientHeight) return;
+
+    // Center the active link in the scroll container
+    const scrollerRect = scroller.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const offset = activeRect.top - scrollerRect.top - (scroller.clientHeight / 2) + (active.clientHeight / 2);
+
+    scroller.scrollTop += offset;
   });
 });
 </script>

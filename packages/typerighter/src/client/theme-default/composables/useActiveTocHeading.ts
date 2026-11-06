@@ -18,8 +18,7 @@ export function useActiveTocHeading (headings: WatchSource<MarkdownHeading[]>) {
   function setActiveLink () {
     if (elements.length === 0) return;
 
-    const scrollY = window.scrollY;
-    const isBottom = document.body.offsetHeight <= scrollY + window.innerHeight;
+    const isBottom = document.body.offsetHeight <= window.scrollY + window.innerHeight;
 
     // At page bottom, highlight the last heading
     if (isBottom) {
@@ -28,11 +27,11 @@ export function useActiveTocHeading (headings: WatchSource<MarkdownHeading[]>) {
       return;
     }
 
-    // Find the last heading scrolled to or past the activation threshold
+    // Find the last heading whose top edge has crossed the activation line
     let found: string | undefined;
 
     for (const element of elements) {
-      if (getAbsoluteTop(element) <= scrollY + ACTIVATION_OFFSET) {
+      if (element.getBoundingClientRect().top <= ACTIVATION_OFFSET) {
         found = element.id;
       } else {
         break;
@@ -84,17 +83,4 @@ export function useActiveTocHeading (headings: WatchSource<MarkdownHeading[]>) {
   );
 
   return activeId;
-}
-
-// Walk the offsetParent chain to get an element's absolute top position in the document
-function getAbsoluteTop (element: HTMLElement): number {
-  let top = 0;
-  let current: HTMLElement | undefined = element;
-
-  while (current) {
-    top += current.offsetTop;
-    current = current.offsetParent as HTMLElement | undefined;
-  }
-
-  return top;
 }
