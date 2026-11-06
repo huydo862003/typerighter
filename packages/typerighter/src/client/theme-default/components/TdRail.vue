@@ -68,7 +68,7 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   overflow: visible;
-  z-index: 1;
+  z-index: 0;
 }
 
 .td-rail-inner {
@@ -81,11 +81,10 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 .td-rail-indicators {
   position: absolute;
   right: 12px;
-  top: 0;
+  top: 24px;
   bottom: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 7px;
   opacity: 1;
   overflow: hidden;
@@ -119,11 +118,11 @@ const activeTocId = useActiveTocHeading(() => flatHeadings.value);
 .td-rail-panel {
   position: absolute;
   right: 0;
-  top: calc(20% - 48px);
+  top: 8px;
   transform: translateX(6px);
   width: 216px;
   min-height: unset;
-  max-height: calc(100vh - var(--td-header-height) - 56px);
+  max-height: calc(100vh - var(--td-header-height) - 120px);
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
