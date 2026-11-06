@@ -5,6 +5,9 @@
 [![npm](https://img.shields.io/npm/v/typerighter)](https://www.npmjs.com/package/typerighter)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green)
+![Install Size](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/main/.github/badges/install-size.json)
+![JS gzip](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/main/.github/badges/js-gzip.json)
+![Build](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/huydo862003/typerighter/main/.github/badges/build-time.json)
 
 **[Homepage](https://huydo862003.github.io/typerighter/) · [Getting Started](https://huydo862003.github.io/typerighter/) · [GitHub](https://github.com/huydo862003/typerighter) · [Issues](https://github.com/huydo862003/typerighter/issues)**
 

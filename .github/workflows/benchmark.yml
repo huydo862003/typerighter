@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '0 6 */3 * *'
 
 permissions:
   contents: read
@@ -20,6 +22,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
 
       - uses: ./.github/actions/setup
 
@@ -29,19 +33,22 @@ jobs:
 
       - name: Save results
         run: |
-          cat <<EOF > /tmp/benchmark-current.json
-          {
-            "lib_build_s": "${{ steps.bench.outputs.lib_build_s }}",
-            "binary_kb": "${{ steps.bench.outputs.binary_kb }}",
-            "ssg_build_s": "${{ steps.bench.outputs.ssg_build_s }}",
-            "total_size_kb": "${{ steps.bench.outputs.total_size_kb }}",
-            "js_kb": "${{ steps.bench.outputs.js_kb }}",
-            "js_gz_kb": "${{ steps.bench.outputs.js_gz_kb }}",
-            "css_kb": "${{ steps.bench.outputs.css_kb }}",
-            "html_kb": "${{ steps.bench.outputs.html_kb }}",
-            "pages": "${{ steps.bench.outputs.pages }}"
-          }
-          EOF
+          jq -n \
+            --arg lib_build_s "${{ steps.bench.outputs.lib_build_s }}" \
+            --arg binary_kb "${{ steps.bench.outputs.binary_kb }}" \
+            --arg binary_stripped_kb "${{ steps.bench.outputs.binary_stripped_kb }}" \
+            --arg install_kb "${{ steps.bench.outputs.install_kb }}" \
+            --arg ssg_build_s "${{ steps.bench.outputs.ssg_build_s }}"
+            --arg ssg_ms_per_page "${{ steps.bench.outputs.ssg_ms_per_page }}" \
+            --arg total_size_kb "${{ steps.bench.outputs.total_size_kb }}" \
+            --arg js_kb "${{ steps.bench.outputs.js_kb }}" \
+            --arg js_gz_kb "${{ steps.bench.outputs.js_gz_kb }}" \
+            --arg css_kb "${{ steps.bench.outputs.css_kb }}" \
+            --arg css_gz_kb "${{ steps.bench.outputs.css_gz_kb }}" \
+            --arg html_kb "${{ steps.bench.outputs.html_kb }}" \
+            --arg pages "${{ steps.bench.outputs.pages }}" \
+            --arg commit "${{ github.sha }}" \
+            '$ARGS.named' > /tmp/benchmark-current.json
 
       - name: Upload results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -58,6 +65,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.pull_request.base.sha }}
+          submodules: true
 
       - uses: ./.github/actions/setup
 
@@ -67,19 +75,22 @@ jobs:
 
       - name: Save results
         run: |
-          cat <<EOF > /tmp/benchmark-main.json
-          {
-            "lib_build_s": "${{ steps.bench.outputs.lib_build_s }}",
-            "binary_kb": "${{ steps.bench.outputs.binary_kb }}",
-            "ssg_build_s": "${{ steps.bench.outputs.ssg_build_s }}",
-            "total_size_kb": "${{ steps.bench.outputs.total_size_kb }}",
-            "js_kb": "${{ steps.bench.outputs.js_kb }}",
-            "js_gz_kb": "${{ steps.bench.outputs.js_gz_kb }}",
-            "css_kb": "${{ steps.bench.outputs.css_kb }}",
-            "html_kb": "${{ steps.bench.outputs.html_kb }}",
-            "pages": "${{ steps.bench.outputs.pages }}"
-          }
-          EOF
+          jq -n \
+            --arg lib_build_s "${{ steps.bench.outputs.lib_build_s }}" \
+            --arg binary_kb "${{ steps.bench.outputs.binary_kb }}" \
+            --arg binary_stripped_kb "${{ steps.bench.outputs.binary_stripped_kb }}" \
+            --arg install_kb "${{ steps.bench.outputs.install_kb }}" \
+            --arg ssg_build_s "${{ steps.bench.outputs.ssg_build_s }}" \
+            --arg ssg_ms_per_page "${{ steps.bench.outputs.ssg_ms_per_page }}" \
+            --arg total_size_kb "${{ steps.bench.outputs.total_size_kb }}" \
+            --arg js_kb "${{ steps.bench.outputs.js_kb }}" \
+            --arg js_gz_kb "${{ steps.bench.outputs.js_gz_kb }}" \
+            --arg css_kb "${{ steps.bench.outputs.css_kb }}" \
+            --arg css_gz_kb "${{ steps.bench.outputs.css_gz_kb }}" \
+            --arg html_kb "${{ steps.bench.outputs.html_kb }}" \
+            --arg pages "${{ steps.bench.outputs.pages }}" \
+            --arg commit "${{ github.event.pull_request.base.sha }}" \
+            '$ARGS.named' > /tmp/benchmark-main.json
 
       - name: Upload results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -94,6 +105,8 @@ jobs:
     needs: [benchmark-current, benchmark-main]
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Download results
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
@@ -103,66 +116,54 @@ jobs:
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
-            const fs = require('fs');
-            const c = JSON.parse(fs.readFileSync('results/benchmark-current/benchmark-current.json', 'utf8'));
-            const m = JSON.parse(fs.readFileSync('results/benchmark-main/benchmark-main.json', 'utf8'));
+            const run = require('./.github/scripts/benchmark-comment.js');
+            await run({ github, context, core });
 
-            function delta(cur, base) {
-              const diff = parseFloat(cur) - parseFloat(base);
-              if (Math.abs(diff) < 0.1) return '';
-              const sign = diff > 0 ? '+' : '';
-              return ` (${sign}${diff.toFixed(1)})`;
-            }
+  badges:
+    name: Update Badges
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    needs: [benchmark-current]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-            const marker = '<!-- benchmark-comment -->';
-            const body = [
-              marker,
-              '## Build Benchmark',
-              '',
-              '**DX - Lib Build**',
-              '',
-              '| Metric | main | this PR |',
-              '|--------|------|---------|',
-              `| Lib build time | ${m.lib_build_s}s | ${c.lib_build_s}s${delta(c.lib_build_s, m.lib_build_s)} |`,
-              `| LSP binary size | ${m.binary_kb} KB | ${c.binary_kb} KB${delta(c.binary_kb, m.binary_kb)} |`,
-              '',
-              '**Performance - Homepage Build**',
-              '',
-              '| Metric | main | this PR |',
-              '|--------|------|---------|',
-              `| SSG build time (median of 3) | ${m.ssg_build_s}s | ${c.ssg_build_s}s${delta(c.ssg_build_s, m.ssg_build_s)} |`,
-              `| Pages | ${m.pages} | ${c.pages} |`,
-              '',
-              '**Output - Homepage Size**',
-              '',
-              '| Metric | main | this PR |',
-              '|--------|------|---------|',
-              `| Total output | ${m.total_size_kb} KB | ${c.total_size_kb} KB${delta(c.total_size_kb, m.total_size_kb)} |`,
-              `| JS bundle | ${m.js_kb} KB (${m.js_gz_kb} gz) | ${c.js_kb} KB (${c.js_gz_kb} gz)${delta(c.js_kb, m.js_kb)} |`,
-              `| CSS | ${m.css_kb} KB | ${c.css_kb} KB${delta(c.css_kb, m.css_kb)} |`,
-              `| HTML | ${m.html_kb} KB | ${c.html_kb} KB${delta(c.html_kb, m.html_kb)} |`,
-            ].join('\n');
+      - name: Download results
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: benchmark-current
+          path: results
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
+      - name: Generate badge JSON files
+        run: |
+          mkdir -p .github/badges
+          DATA=$(cat results/benchmark-current.json)
+          COMMIT=$(echo "$DATA" | jq -r '.commit[:7]')
 
-            const existing = comments.find(c => c.body.includes(marker));
+          # shields.io endpoint badge format: { schemaVersion, label, message, color }
+          make_badge() {
+            local label="$1" value="$2" color="${3:-blue}"
+            jq -n --arg l "$label" --arg m "$value @ $COMMIT" --arg c "$color" \
+              '{schemaVersion: 1, label: $l, message: $m, color: $c}'
+          }
 
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
+          make_badge "binary size" "$(echo "$DATA" | jq -r '.binary_stripped_kb') KB" "blue" \
+            > .github/badges/binary-size.json
+
+          make_badge "install size" "$(echo "$DATA" | jq -r '.install_kb') KB" "blue" \
+            > .github/badges/install-size.json
+
+          make_badge "JS gzip" "$(echo "$DATA" | jq -r '.js_gz_kb') KB" "blue" \
+            > .github/badges/js-gzip.json
+
+          make_badge "build" "$(echo "$DATA" | jq -r '.ssg_build_s')s" "green" \
+            > .github/badges/build-time.json
+
+      - name: Commit badge files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/badges/
+          git diff --cached --quiet || git commit -m "chore: update benchmark badges [skip ci]"
+          git push

@@ -1,77 +1,134 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Lib build
+#
+# Helpers
+#
 
-# Clean and measure release build time
+# Portable file size in bytes (Linux stat vs macOS stat)
+file_bytes() {
+  stat --printf="%s" "$1" 2>/dev/null || stat -f "%z" "$1"
+}
+
+# Bytes -> KB with one decimal place
+to_kb() {
+  echo "scale=1; $1 / 1024" | bc
+}
+
+# Milliseconds -> seconds with two decimal places
+to_seconds() {
+  echo "scale=2; $1 / 1000" | bc
+}
+
+# Elapsed time in milliseconds between two nanosecond timestamps
+elapsed_ms() {
+  echo $(( ($2 - $1) / 1000000 ))
+}
+
+# Total byte count of all files matching a glob under a directory
+glob_size() {
+  local dir="$1" pattern="$2"
+  find "$dir" -name "$pattern" -exec cat {} + 2>/dev/null | wc -c
+}
+
+# Gzipped byte count of all files matching a glob under a directory
+glob_gzip_size() {
+  local dir="$1" pattern="$2"
+  find "$dir" -name "$pattern" -exec cat {} + 2>/dev/null | gzip -c | wc -c
+}
+
+# Emit a key=value pair to $GITHUB_OUTPUT
+output() {
+  echo "$1=$2" >> "$GITHUB_OUTPUT"
+}
+
+#
+# 1. LSP binary build
+#
+
 cargo clean -p typedown-server 2>/dev/null || true
+
 start=$(date +%s%N)
 cargo build --locked --release -p typedown-server
 end=$(date +%s%N)
-lib_build_ms=$(( (end - start) / 1000000 ))
-lib_build_s=$(echo "scale=2; $lib_build_ms / 1000" | bc)
 
-# Binary size
+lib_build_ms=$(elapsed_ms "$start" "$end")
 binary=$(find target/release -maxdepth 1 -name 'typedown-lsp' -type f | head -1)
-binary_size=$(stat --printf="%s" "$binary" 2>/dev/null || stat -f "%z" "$binary")
-binary_kb=$(echo "scale=1; $binary_size / 1024" | bc)
 
-# Typerighter package build
+# Stripped copy reflects what ships to users
+stripped="/tmp/typedown-lsp-stripped"
+cp "$binary" "$stripped"
+strip "$stripped" 2>/dev/null || true
+
+#
+# 2. Typerighter npm package build
+#
 
 pnpm -r --filter typerighter... run build 2>/dev/null
 
-# Homepage SSG build (median of 3)
+#
+# 3. SSG build (real-world vault, median of 3 runs)
+#
 
-cd homepage
+benchmark_vault="examples/huydo862003.github.io"
+cd "$benchmark_vault"
+pnpm install --frozen-lockfile 2>/dev/null || pnpm install 2>/dev/null
+
 times=()
-for i in 1 2 3; do
+for iteration in 1 2 3; do
   rm -rf dist
   start=$(date +%s%N)
   pnpm build 2>/dev/null
   end=$(date +%s%N)
-  elapsed=$(( (end - start) / 1000000 ))
-  times+=($elapsed)
+  times+=( "$(elapsed_ms "$start" "$end")" )
 done
 
 IFS=$'\n' sorted=($(sort -n <<< "${times[*]}")); unset IFS
-ssg_build_ms=${sorted[1]}
-ssg_build_s=$(echo "scale=2; $ssg_build_ms / 1000" | bc)
+ssg_build_ms="${sorted[1]}"
 
-# Ensure final build exists
-if [ ! -d dist ]; then
-  pnpm build 2>/dev/null
-fi
+# Ensure the final dist/ exists for size measurement
+[ -d dist ] || pnpm build 2>/dev/null
 
-# Output sizes
+#
+# 4. Output sizes
+#
 
-total_size=$(du -sb dist | cut -f1)
-total_size_kb=$(echo "scale=1; $total_size / 1024" | bc)
+js_bytes=$(glob_size dist '*.js')
+css_bytes=$(glob_size dist '*.css')
+html_bytes=$(glob_size dist '*.html')
+total_bytes=$(du -sb dist | cut -f1)
 
-js_size=$(find dist -name '*.js' -exec cat {} + 2>/dev/null | wc -c)
-css_size=$(find dist -name '*.css' -exec cat {} + 2>/dev/null | wc -c)
-html_size=$(find dist -name '*.html' -exec cat {} + 2>/dev/null | wc -c)
+js_gz_bytes=$(glob_gzip_size dist '*.js')
+css_gz_bytes=$(glob_gzip_size dist '*.css')
 
-js_kb=$(echo "scale=1; $js_size / 1024" | bc)
-css_kb=$(echo "scale=1; $css_size / 1024" | bc)
-html_kb=$(echo "scale=1; $html_size / 1024" | bc)
+page_count=$(find dist -name '*.html' | wc -l)
 
-js_gz_size=$(find dist -name '*.js' -exec cat {} + 2>/dev/null | gzip -c | wc -c)
-js_gz_kb=$(echo "scale=1; $js_gz_size / 1024" | bc)
+cd ../..
 
-pages=$(find dist -name '*.html' | wc -l)
+# npm install size = typerighter dist + rpc-client dist + rpc-server JS + LSP binary
+# This reflects what users download when they run `npm install typerighter`
+stripped_bytes=$(file_bytes "$stripped")
+typerighter_dist=$(du -sb packages/typerighter/dist 2>/dev/null | cut -f1) || typerighter_dist=0
+rpc_client_dist=$(du -sb packages/rpc-client/dist 2>/dev/null | cut -f1) || rpc_client_dist=0
+rpc_server_js=$(file_bytes packages/rpc-server/install.js 2>/dev/null) || rpc_server_js=0
+install_bytes=$(( stripped_bytes + typerighter_dist + rpc_client_dist + rpc_server_js ))
 
-cd ..
+#
+# 5. Write GITHUB_OUTPUT
+#
 
-# Write outputs
+output lib_build_s        "$(to_seconds "$lib_build_ms")"
+output binary_kb          "$(to_kb "$(file_bytes "$binary")")"
+output binary_stripped_kb  "$(to_kb "$(file_bytes "$stripped")")"
+output ssg_build_s        "$(to_seconds "$ssg_build_ms")"
+output ssg_ms_per_page    "$(echo "scale=1; $ssg_build_ms / $page_count" | bc)"
+output total_size_kb      "$(to_kb "$total_bytes")"
+output js_kb              "$(to_kb "$js_bytes")"
+output js_gz_kb           "$(to_kb "$js_gz_bytes")"
+output css_kb             "$(to_kb "$css_bytes")"
+output css_gz_kb          "$(to_kb "$css_gz_bytes")"
+output html_kb            "$(to_kb "$html_bytes")"
+output install_kb         "$(to_kb "$install_bytes")"
+output pages              "$page_count"
 
-{
-  echo "lib_build_s=$lib_build_s"
-  echo "binary_kb=$binary_kb"
-  echo "ssg_build_s=$ssg_build_s"
-  echo "total_size_kb=$total_size_kb"
-  echo "js_kb=$js_kb"
-  echo "js_gz_kb=$js_gz_kb"
-  echo "css_kb=$css_kb"
-  echo "html_kb=$html_kb"
-  echo "pages=$pages"
-} >> "$GITHUB_OUTPUT"
+rm -f "$stripped"
