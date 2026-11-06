@@ -12,13 +12,39 @@ export type Theme = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'td-theme';
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
+let transitionTimer: ReturnType<typeof setTimeout> | undefined;
 
 function applyTheme (theme: Theme): void {
   if (typeof document === 'undefined') return;
 
   const effective = theme === 'system' ? getSystemTheme() : theme;
+  const root = document.documentElement;
 
-  document.documentElement.classList.toggle('dark', effective === 'dark');
+  // Cancel any in-flight transition cleanup from a previous toggle
+  if (transitionTimer !== undefined) {
+    clearTimeout(transitionTimer);
+    transitionTimer = undefined;
+    root.classList.remove('td-theme-transition');
+  }
+
+  // Enable transition only during user-initiated toggles (not on page load)
+  if (initialized) {
+    root.classList.add('td-theme-transition');
+  }
+
+  root.classList.toggle('dark', effective === 'dark');
+
+  if (initialized) {
+    const onEnd = (): void => {
+      clearTimeout(transitionTimer);
+      transitionTimer = undefined;
+      root.classList.remove('td-theme-transition');
+      root.removeEventListener('transitionend', onEnd);
+    };
+
+    root.addEventListener('transitionend', onEnd);
+    transitionTimer = setTimeout(onEnd, 500);
+  }
 }
 
 function getSystemTheme (): 'light' | 'dark' {
