@@ -22,6 +22,7 @@ The Neovim plugin registers the LSP, tree-sitter grammars, and file type detecti
   "huydo862003/typerighter",
   tag = "v0.15.1",
   lazy = false,
+  submodules = false,
   init = function()
     local base = vim.fn.stdpath("data") .. "/lazy/typerighter/editors/nvim"
     vim.opt.runtimepath:prepend(base)

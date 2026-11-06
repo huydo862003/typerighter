@@ -18,6 +18,7 @@ Since the plugin lives in `editors/nvim/` inside the monorepo, you need to add t
   "huydo862003/typerighter",
   tag = "v0.1.0",
   lazy = false,
+  submodules = false,
   init = function()
     local base = vim.fn.stdpath("data") .. "/lazy/typerighter/editors/nvim"
     vim.opt.runtimepath:prepend(base)
