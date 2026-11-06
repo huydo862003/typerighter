@@ -27,7 +27,7 @@ import type {
   AppContext,
 } from '../context';
 import {
-  generateSitemap, generateRobotsTxt, generateRssFeed,
+  buildSitemap, buildRobotsTxt, buildRssFeed,
 } from './seo';
 
 
@@ -213,14 +213,14 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       mtimeMap.set(pageRoute, item.fileMetadata.mtimeSecs);
     }
 
-    const sitemap = generateSitemap(pageRoutes, base, origin, mtimeMap);
+    const sitemap = buildSitemap(pageRoutes, base, origin, mtimeMap);
     const writes: Promise<void>[] = [
       fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
     ];
 
     if (origin !== undefined) {
-      writes.push(fs.writeFile(path.join(outDir, 'robots.txt'), generateRobotsTxt(origin, base)));
-      writes.push(fs.writeFile(path.join(outDir, 'feed.xml'), generateRssFeed(
+      writes.push(fs.writeFile(path.join(outDir, 'robots.txt'), buildRobotsTxt(origin, base)));
+      writes.push(fs.writeFile(path.join(outDir, 'feed.xml'), buildRssFeed(
         sidebarItems, base, origin, config.siteTitle, config.siteDescription, config.lang,
       )));
     }

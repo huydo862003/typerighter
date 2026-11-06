@@ -1,10 +1,8 @@
-// Resolve per-page SEO fields from PageData
-
 import type {
   PageData,
 } from '@/shared/types/ssg';
 import {
-  formatIsoDate, isIndexUrl, stripLeadingSlash, truncate,
+  formatIsoDate, stripLeadingSlash, truncate,
 } from '@/shared';
 import type {
   OgType,
@@ -34,9 +32,9 @@ export interface PageSeo {
 // Build the complete SEO payload for a page
 export function buildPageSeo (pageData: PageData, pageRoute: string, config: PageSeoConfig): PageSeo {
   const title = pageData.seoMetadata?.title ?? pageData.title;
-  const description = resolvePageDescription(pageData);
+  const description = buildPageDescription(pageData);
   const isHomepage = pageRoute === '/';
-  const canonicalUrl = config.base + stripLeadingSlash(pageRoute);
+  const canonicalUrl = (config.origin ?? '') + config.base + stripLeadingSlash(pageRoute);
   const dateModified = pageData.fileMetadata?.mtimeSecs !== undefined
     ? formatIsoDate(pageData.fileMetadata.mtimeSecs * 1000)
     : undefined;
@@ -50,7 +48,6 @@ export function buildPageSeo (pageData: PageData, pageRoute: string, config: Pag
       title,
       origin: config.origin,
       base: config.base,
-      isDirectoryIndex: isIndexUrl(pageRoute),
     }),
   ].filter((block): block is string => block !== undefined);
 
@@ -65,9 +62,8 @@ export function buildPageSeo (pageData: PageData, pageRoute: string, config: Pag
   };
 }
 
-// Resolve the effective page description, preferring _meta override
-// Priority: seoMetadata > frontmatter.description > body excerpt > heading-based fallback
-function resolvePageDescription (pageData: PageData): string {
+// Priority: seoMetadata > frontmatter.description > excerpt > heading fallback
+function buildPageDescription (pageData: PageData): string {
   if (pageData.seoMetadata?.description !== undefined) return pageData.seoMetadata.description;
 
   if (pageData.frontmatter.description !== undefined) return String(pageData.frontmatter.description);
@@ -77,7 +73,7 @@ function resolvePageDescription (pageData: PageData): string {
   return buildDescriptionFromHeadings(pageData);
 }
 
-// Last-resort: build a description from the page title and h2 section headings
+// fallback: title + h2 headings joined as a summary
 function buildDescriptionFromHeadings (pageData: PageData): string {
   const titles = pageData.headings
     .filter((heading) => heading.level === 2)

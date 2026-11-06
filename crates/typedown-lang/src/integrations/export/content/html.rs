@@ -109,12 +109,36 @@ impl<'a> HtmlEmitter<'a> {
   // Block emission
 
   fn emit_body(&mut self, body: &MdBody) {
-    for child in body.syntax().children() {
-      if child.kind() == SyntaxKind::Whitespace || child.kind() == SyntaxKind::Newline {
-        continue;
-      }
+    let mut children = body.syntax().children().filter(|child| {
+      child.kind() != SyntaxKind::Whitespace && child.kind() != SyntaxKind::Newline
+    });
+
+    // strip first significant block if it is an H1 - the layout renders the title/label
+    if let Some(first) = children.next()
+      && !self.try_strip_leading_h1(&first)
+    {
+      self.emit_block(&first);
+    }
+
+    for child in children {
       self.emit_block(&child);
     }
+  }
+
+  // returns true if the node was a level-1 heading and was stripped
+  fn try_strip_leading_h1(&mut self, node: &RedNode) -> bool {
+    let Some(heading) = MdHeading::cast(node.clone()) else {
+      return false;
+    };
+    if heading.level() != 1 {
+      return false;
+    }
+    let plain_text: String = heading
+      .inline_elements()
+      .map(|element| extract_plain_text(element.syntax()))
+      .collect();
+    self.title = Some(plain_text.trim().to_string());
+    true
   }
 
   fn emit_block(&mut self, node: &RedNode) {

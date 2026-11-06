@@ -1,20 +1,18 @@
-// JSON-LD structured data builders
-
 import {
-  ensureTrailingSlash, unslugify,
+  ensureTrailingSlash, isIndexUrl, unslugify,
 } from '@/shared';
 
 export interface ArticleLdOptions {
   title: string;
   description: string;
-  canonicalUrl?: string;
+  canonicalUrl: string;
   author?: string;
   dateModified?: string;
 }
 
 export interface WebSiteLdOptions {
   title: string;
-  canonicalUrl?: string;
+  canonicalUrl: string;
 }
 
 export interface BreadcrumbLdOptions {
@@ -23,9 +21,7 @@ export interface BreadcrumbLdOptions {
   /** Absolute site origin (e.g. "https://example.com") for item URLs */
   origin?: string;
   /** Base path (e.g. "/docs/") prepended to all item URLs */
-  base?: string;
-  /** True for synthesized directory listing pages whose path ends with /index */
-  isDirectoryIndex?: boolean;
+  base: string;
 }
 
 // Build an Article JSON-LD block
@@ -35,7 +31,7 @@ export function buildArticleLd (options: ArticleLdOptions): string {
     '@type': 'Article',
     headline: options.title,
     description: options.description,
-    ...(options.canonicalUrl !== undefined ? { url: options.canonicalUrl } : {}),
+    url: options.canonicalUrl,
     ...(options.author !== undefined ? { author: { '@type': 'Person', name: options.author } } : {}),
     ...(options.dateModified !== undefined ? { dateModified: options.dateModified } : {}),
   });
@@ -47,14 +43,15 @@ export function buildWebSiteLd (options: WebSiteLdOptions): string {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: options.title,
-    ...(options.canonicalUrl !== undefined ? { url: options.canonicalUrl } : {}),
+    url: options.canonicalUrl,
   });
 }
 
 // Build a BreadcrumbList JSON-LD block from a page path
 export function buildBreadcrumbLd (options: BreadcrumbLdOptions): string | undefined {
-  const { pageRoute, title, origin = '', isDirectoryIndex = false } = options;
-  const base = ensureTrailingSlash(options.base ?? '/');
+  const { pageRoute, title, origin = '' } = options;
+  const isDirectoryIndex = isIndexUrl(pageRoute);
+  const base = ensureTrailingSlash(options.base);
 
   if (pageRoute === '/') return undefined;
 

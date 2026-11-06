@@ -1,12 +1,10 @@
-// Sitemap and robots.txt generation
 
 import {
   escapeHtml, formatIsoDate, stripLeadingSlash,
 } from '@/shared';
 
-// Generate a sitemap.xml string from the list of page paths
-// Uses absolute URLs when origin is configured
-export function generateSitemap (
+// sitemap entries use absolute URLs when origin is set
+export function buildSitemap (
   pageRoutes: string[],
   base: string,
   origin?: string,
@@ -32,8 +30,7 @@ ${urls}
 `;
 }
 
-// Generate robots.txt with a reference to the sitemap
-export function generateRobotsTxt (origin: string, base: string): string {
+export function buildRobotsTxt (origin: string, base: string): string {
   return `User-agent: *
 Allow: /
 

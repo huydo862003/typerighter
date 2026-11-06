@@ -1,4 +1,3 @@
-// RSS feed generation
 
 import type {
   TdSidebarItem,
@@ -7,8 +6,8 @@ import {
   escapeHtml, path as tdpath,
 } from '@/shared';
 
-// Generate an RSS 2.0 feed from sidebar items
-export function generateRssFeed (
+// RSS 2.0 feed from sidebar items sorted by mtime
+export function buildRssFeed (
   items: TdSidebarItem[],
   base: string,
   origin: string,
