@@ -304,22 +304,21 @@ full content:
   fn html_export_headings() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
+    // leading H1 is stripped from content - layout renders the title
     assert!(
-      exported.content.contains(
-        r##"<h1 id="heading-1">Heading 1 <a class="td-header-anchor" href="#heading-1""##
-      )
+      !exported.content.contains("<h1"),
+      "h1 should be stripped from content: {}",
+      exported.content
     );
     assert!(
       exported.content.contains(
         r##"<h2 id="heading-2">Heading 2 <a class="td-header-anchor" href="#heading-2""##
       )
     );
-    assert_eq!(exported.headings.len(), 2);
-    assert_eq!(exported.headings[0].level, 1);
-    assert_eq!(exported.headings[0].title, "Heading 1");
-    assert_eq!(exported.headings[0].slug, "heading-1");
-    assert_eq!(exported.headings[1].level, 2);
-    assert_eq!(exported.headings[1].slug, "heading-2");
+    // H1 is not a TOC entry; only H2+ headings appear in headings
+    assert_eq!(exported.headings.len(), 1);
+    assert_eq!(exported.headings[0].level, 2);
+    assert_eq!(exported.headings[0].slug, "heading-2");
     assert_eq!(exported.title.as_deref(), Some("Heading 1"));
   }
 
