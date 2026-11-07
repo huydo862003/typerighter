@@ -32,7 +32,6 @@ local function get_pipe_query()
 			[[
       (pipe_table_row "|" @pipe)
       (pipe_table_header "|" @pipe)
-      (pipe_table_delimiter_row "|" @pipe)
     ]]
 		)
 	end
