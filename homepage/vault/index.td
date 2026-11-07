@@ -25,10 +25,10 @@ Typerighter provides tools to achieve these easier, **without locking you into a
 - Authoring knowledge base:
 
   - Typerighter provides Typedown, a markdown-variant plain text format that allows defining note metadata and cross-refs.
-  - Typedown language services & editor plugins (${fref("01-getting-started/01-editor-setup.td")}) to gain quality of life features like auto-completion, navigating the knowledge base via links, etc.
+  - Typedown language services & editor plugins (${fref("/01-getting-started/01-editor-setup.td")}) to gain quality of life features like auto-completion, navigating the knowledge base via links, etc.
   - Typedown allows defining note schemas, so it can detect notes that violate the consistency of the knowledge base.
 - Publishing knowledge base: Typerighter provides a CLI that can output a website based on your notes which can be published.
-- Querying knowledge base: Typedown has a feature called vault query (${fref("02-typedown-syntax/07-vault-query.td")}), which allows you to traverse the knowledge graph and extract meaningful information.
+- Querying knowledge base: Typedown has a feature called vault query (${fref("/02-typedown-syntax/07-vault-query.td")}), which allows you to traverse the knowledge graph and extract meaningful information.
 
 ## Backstory on the Web Revolution
 
@@ -64,7 +64,7 @@ A vault is a collection of `.td` files. Each file is a node. Schemas define node
 
      Nodes  = .td files
      Types  = schemas in _types/
-     Edges  = fref("path/to/file.td")
+     Edges  = fref("/path/to/file.td")
 ```
 
 Typedown draws from Notion's relational databases, Obsidian's linked vault model, and TypeScript's structural type system. If you have used any of these, the mental model will feel familiar.
