@@ -21,7 +21,7 @@ site:
       icon: icon.palette
     - title: "FAQ"
       link: "/06-faq"
-      icon: icon.circle-help
+      icon: icon.help
 theme:
   components:
     - "./components"

@@ -1,5 +1,5 @@
 ---
-_label: "Theming"
+_label: "Custom Theming"
 _icon: icon.brush
 description: "Extend or replace the Typedown default theme: custom Vue components, layout slots, and full layout replacement."
 ---

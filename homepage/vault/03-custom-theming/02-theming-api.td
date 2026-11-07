@@ -1,5 +1,5 @@
 ---
-_label: "Theming"
+_label: "Theming API"
 _icon: icon.brush
 description: "Custom layouts, layout slots, dark mode, and custom components."
 ---
