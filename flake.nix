@@ -63,7 +63,7 @@
         };
         typedown-server = rustPlatform.buildRustPackage {
           pname = "typedown-server";
-          version = "0.56.4";
+          version = "0.56.3";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
           cargoBuildFlags = [

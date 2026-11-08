@@ -1,19 +1,21 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
-## [0.56.4] - 2026-11-08
-
-### Fixed
-
-- packages/typerighter
-  - Simplify rendering of Modified of in pages
-  - Expanded directory entry in left sidebar causes the collapse button to be pushed outside the sidebar
-
 ## [0.56.3] - 2026-11-08
 
 ### Fixed
 
 - packages/typerighter
+  - Contain the overscroll behavior of command pallete
+  - Fix all flash of uninited state causing layout shifts
+  - Simplify rendering of Modified of in pages
+  - Expanded directory entry in left sidebar causes the collapse button to be pushed outside the sidebar
+
+## [0.56.3] - 2026-11-08
+
+- packages/typerighter
+  - Simplify rendering of Modified of in pages
+  - Expanded directory entry in left sidebar causes the collapse button to be pushed outside the sidebar
   - Contain the overscroll behavior of command pallete
   - Fix all flash of uninited state causing layout shifts
 
