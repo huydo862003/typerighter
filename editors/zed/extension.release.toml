@@ -9,7 +9,7 @@ languages = ["languages/typedown", "languages/typedown_yaml", "languages/typedow
 
 [language_servers.typedown-lsp]
 name = "Typedown LSP"
-languages = ["Typedown"]
+languages = ["Typedown", "typedown-yaml"]
 
 [grammars.typedown]
 repository = "${REPO_URL}"

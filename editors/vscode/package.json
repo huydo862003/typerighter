@@ -38,7 +38,8 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:typedown"
+    "onLanguage:typedown",
+    "onLanguage:typedown-yaml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -57,6 +58,21 @@
           "dark": "./icons/typedown.svg"
         },
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "typedown-yaml",
+        "aliases": [
+          "Typedown Config",
+          "typedown-yaml"
+        ],
+        "filenames": [
+          "typedown.yaml",
+          "typedown.yml"
+        ],
+        "icon": {
+          "light": "./icons/typedown-yaml.svg",
+          "dark": "./icons/typedown-yaml.svg"
+        }
       }
     ],
     "snippets": [

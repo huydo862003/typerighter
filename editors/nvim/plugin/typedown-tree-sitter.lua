@@ -71,4 +71,5 @@ if binaries then
   end
 
   pcall(vim.treesitter.language.register, 'typedown', 'typedown')
+  pcall(vim.treesitter.language.register, 'typedown_yaml', 'typedown_yaml')
 end

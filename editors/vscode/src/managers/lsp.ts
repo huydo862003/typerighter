@@ -64,6 +64,10 @@ export class LspManager implements Disposable {
           scheme: 'file',
           language: 'typedown',
         },
+        {
+          scheme: 'file',
+          language: 'typedown-yaml',
+        },
       ],
       workspaceFolder: workspace.workspaceFolders?.[0],
       outputChannel: LogManager.getInstance().mainChannel,

@@ -114,6 +114,16 @@ local server_port = nil
 
 local function start_lsp()
   if not binary then return end
+
+  -- Reuse an existing client if one is already running.
+  -- The server handles multiproject via file URIs; root_dir is not used for routing.
+  for _, client in ipairs(vim.lsp.get_clients({ name = "typedown-lsp" })) do
+    if not client:is_stopped() then
+      vim.lsp.buf_attach_client(0, client.id)
+      return
+    end
+  end
+
   local root = vim.fs.root(0, { "typedown.yaml", "typedown.yml" })
       or vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":h")
 

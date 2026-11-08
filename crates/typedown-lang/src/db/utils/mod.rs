@@ -294,7 +294,10 @@ mod tests {
     let vault_root = Path::new("/project/vault");
     let source_file_dir = Path::new("/project/vault/articles/webrtc");
     let result = resolve_fref_path("/articles/intro.td", source_file_dir, vault_root);
-    assert_eq!(result, Some(PathBuf::from("/project/vault/articles/intro.td")));
+    assert_eq!(
+      result,
+      Some(PathBuf::from("/project/vault/articles/intro.td"))
+    );
   }
 
   #[test]
@@ -322,7 +325,10 @@ mod tests {
     let vault_root = Path::new("/project/vault");
     let source_file_dir = Path::new("/project/vault/articles/webrtc");
     let result = resolve_fref_path("../intro.td", source_file_dir, vault_root);
-    assert_eq!(result, Some(PathBuf::from("/project/vault/articles/intro.td")));
+    assert_eq!(
+      result,
+      Some(PathBuf::from("/project/vault/articles/intro.td"))
+    );
   }
 
   // resolve_md_link_path tests

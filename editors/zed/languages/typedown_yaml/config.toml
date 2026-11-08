@@ -1,5 +1,6 @@
 name = "typedown-yaml"
 grammar = "typedown_yaml"
+path_suffixes = ["typedown.yaml", "typedown.yml"]
 tab_size = 2
 line_comments = ["# "]
 
