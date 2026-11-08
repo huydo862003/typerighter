@@ -13,7 +13,9 @@ import {
 const WIDTH_KEY = 'td-sidebar-width';
 const COLLAPSED_KEY = 'td-sidebar-collapsed';
 
-const SIDEBAR_WIDTH_CSS_VAR = '--td-sidebar-width';
+const INITIAL_SIDEBAR_WIDTH_CSS_VAR = '--td-sidebar-width';
+const INITIAL_EXPANDED_SIDEBAR_CSS_VAR = '--td-expanded-sidebar-display';
+const INITIAL_COLLAPSED_SIDEBAR_CSS_VAR = '--td-collapsed-sidebar-display';
 
 export const SIDEBAR_DEFAULT_WIDTH = 300;
 export const SIDEBAR_COLLAPSED_WIDTH = 48;
@@ -28,7 +30,27 @@ export function buildSidebarHeadScript (): string {
   return wrapHeadScript(
     `var collapsed=${collapsedExpr};`
     + `var width=${widthExpr};`
-    + setDocumentCssVariable(SIDEBAR_WIDTH_CSS_VAR, '`${width}px`'),
+    + setDocumentCssVariable(INITIAL_SIDEBAR_WIDTH_CSS_VAR, '`${width}px`')
+    + setDocumentCssVariable(
+      INITIAL_EXPANDED_SIDEBAR_CSS_VAR,
+      '"none"',
+      'collapsed',
+    )
+    + setDocumentCssVariable(
+      INITIAL_EXPANDED_SIDEBAR_CSS_VAR,
+      '""', // intentionally invalid css
+      '!collapsed',
+    )
+    + setDocumentCssVariable(
+      INITIAL_COLLAPSED_SIDEBAR_CSS_VAR,
+      '""', // intentionally invalid css
+      'collapsed',
+    )
+    + setDocumentCssVariable(
+      INITIAL_COLLAPSED_SIDEBAR_CSS_VAR,
+      '"none"',
+      '!collapsed',
+    ),
   );
 }
 
@@ -52,12 +74,32 @@ export function useSidebarConfig () {
         width: `${effectiveWidth.value}px`,
       }
       : {
-        width: `var(${SIDEBAR_WIDTH_CSS_VAR})`,
+        width: `var(${INITIAL_SIDEBAR_WIDTH_CSS_VAR})`,
+      });
+
+  const expandedSidebarVisibilityStyle = computed(() =>
+    isMounted.value
+      ? {
+        display: isSidebarCollapsed.value ? 'none' : '',
+      }
+      : {
+        display: `var(${INITIAL_EXPANDED_SIDEBAR_CSS_VAR})`,
+      });
+
+  const collapsedSidebarVisibilityStyle = computed(() =>
+    isMounted.value
+      ? {
+        display: !isSidebarCollapsed.value ? 'none' : '',
+      }
+      : {
+        display: `var(${INITIAL_COLLAPSED_SIDEBAR_CSS_VAR})`,
       });
 
   return {
     sidebarWidth,
     isSidebarCollapsed,
     sidebarStyle,
+    collapsedSidebarVisibilityStyle,
+    expandedSidebarVisibilityStyle,
   };
 }

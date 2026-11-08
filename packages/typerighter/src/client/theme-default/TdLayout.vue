@@ -236,7 +236,11 @@ watchEffect(() => {
 useResizableTable();
 
 const {
-  sidebarWidth, isSidebarCollapsed, sidebarStyle,
+  sidebarWidth,
+  isSidebarCollapsed,
+  sidebarStyle,
+  expandedSidebarVisibilityStyle,
+  collapsedSidebarVisibilityStyle,
 } = useSidebarConfig();
 const isSidebarResizing = ref(false);
 
@@ -454,7 +458,11 @@ function shrinkSidebar () {
         aria-label="Site navigation"
         :style="sidebarStyle"
       >
-        <template v-if="!isSidebarCollapsed">
+        <!-- Do not use v-if-else to avoid flashes on first render -->
+        <div
+          class="contents"
+          :style="expandedSidebarVisibilityStyle"
+        >
           <slot name="sidebar-top" />
           <TdSiteSearch
             ref="sidebarSearch"
@@ -468,32 +476,35 @@ function shrinkSidebar () {
             :ready="siteDataReady"
           />
           <slot name="sidebar-bottom" />
-        </template>
+        </div>
+        <!-- Do not use v-if-else to avoid flashes on first render -->
         <TdSidebarIcons
-          v-else
+          :style="collapsedSidebarVisibilityStyle"
           :tree="siteData.contentTree"
           @search="expandAndFocusSearch"
         />
         <button
           class="td-sidebar-collapse-btn"
           type="button"
-          :aria-label="isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          :aria-label="
+            isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+          "
           @click="toggleSidebar"
         >
           <ChevronsLeft
-            v-if="!isSidebarCollapsed"
+            :style="expandedSidebarVisibilityStyle"
             :size="14"
           />
           <ChevronsRight
-            v-else
+            :style="collapsedSidebarVisibilityStyle"
             :size="14"
           />
           <span
-            v-if="!isSidebarCollapsed"
+            :style="expandedSidebarVisibilityStyle"
             class="td-sidebar-collapse-label"
           >Collapse sidebar</span>
           <TdKbdShortcut
-            v-if="!isSidebarCollapsed"
+            :style="expandedSidebarVisibilityStyle"
             :keys="[
               TdKeyName.Meta,
               TdKeyName.Backslash,
@@ -501,7 +512,7 @@ function shrinkSidebar () {
           />
         </button>
         <div
-          v-if="!isSidebarCollapsed"
+          :style="expandedSidebarVisibilityStyle"
           class="td-resize-handle"
           role="separator"
           aria-orientation="vertical"
