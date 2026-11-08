@@ -410,6 +410,10 @@ pub static ICON_ENTRIES: &[IconEntry] = &[
     lucide_name: "key",
   },
   IconEntry {
+    name: "keyboard",
+    lucide_name: "keyboard",
+  },
+  IconEntry {
     name: "lock",
     lucide_name: "lock",
   },
