@@ -123,7 +123,7 @@ pub(crate) fn construct_from_node<'db>(
       diagnostics,
     ),
     // String / interpolated
-    Expr::StrLit(string_lit) => construct_from_string_lit(
+    Expr::StringLit(string_lit) => construct_from_string_lit(
       db,
       string_lit,
       project,

@@ -203,7 +203,7 @@ fn typecheck_body<'db>(
       }
     }
     // Typecheck each embedded expression in an interpolated string
-    Expr::StrLit(string_lit) => {
+    Expr::StringLit(string_lit) => {
       for fragment in string_lit.fragments() {
         if let Either::Right(interp) = fragment
           && let Some(expr) = interp.expr()

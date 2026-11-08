@@ -426,7 +426,7 @@ fn collect_references_in_expr(
     Expr::IdentLit(ident) => {
       collect_references_in_ident(db, ident, project_node, map);
     }
-    Expr::StrLit(string_lit) => {
+    Expr::StringLit(string_lit) => {
       collect_references_in_string_lit(db, string_lit, project, file, map);
     }
     Expr::CallExpr(call) => {

@@ -212,7 +212,7 @@ pub fn actual_node_typ<'db>(
         actual_node_typ(db, inner_node)
       }
       // Literals that were matched above but Expr covers them too
-      Expr::NumberLit(_) | Expr::StrLit(_) | Expr::MathLit(_) | Expr::IdentLit(_) => {
+      Expr::NumberLit(_) | Expr::StringLit(_) | Expr::MathLit(_) | Expr::IdentLit(_) => {
         unreachable!("handled above before Expr::cast")
       }
     };

@@ -699,7 +699,7 @@ impl Lit {
   pub fn value(&self) -> Option<LitValue> {
     match self {
       Lit::NumberLit(number) => Some(LitValue::Number(number.value()?)),
-      Lit::StrLit(string) => Some(LitValue::Str(string.fragments().collect())),
+      Lit::StringLit(string) => Some(LitValue::Str(string.fragments().collect())),
       Lit::CodeLit(code) => Some(LitValue::Code(code.value()?)),
       Lit::MathLit(math) => Some(LitValue::Math(math.value()?)),
       Lit::IdentLit(ident) => Some(LitValue::Ident(ident.value()?)),
