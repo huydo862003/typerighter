@@ -70,7 +70,7 @@ pub enum SyntaxKind {
   DictEntryValue,         // value in a dict entry
   YamlLiteralBlockStrLit, // | block scalar (preserves newlines)
   YamlFoldedBlockStrLit,  // > block scalar (folds newlines to spaces)
-  StringLit,                 // String literal + interpolation + math
+  StringLit,              // String literal + interpolation + math
   InterpFragment,         // Interpolation fragment: ${...}
   MathLit,                // Inline + block math expression
   CodeLit,                // Inline + block code expression

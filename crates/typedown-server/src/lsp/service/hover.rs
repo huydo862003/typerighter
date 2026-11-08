@@ -110,11 +110,9 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
 // Resolve hover text for a fref() argument: show target label and schema
 fn build_fref_hover(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<String> {
   let call = containing_fref_expr(node)?;
-  let path_string = call
-    .args()
-    .into_iter()
-    .next()
-    .and_then(|arg| StringLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
+  let path_string = call.args().into_iter().next().and_then(|arg| {
+    StringLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value())
+  })?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);

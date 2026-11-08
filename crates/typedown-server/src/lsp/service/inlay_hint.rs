@@ -61,11 +61,9 @@ fn build_fref_hint(
   }
 
   let call = CallExpr::cast(call_node.clone())?;
-  let path_string = call
-    .args()
-    .into_iter()
-    .next()
-    .and_then(|arg| StringLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
+  let path_string = call.args().into_iter().next().and_then(|arg| {
+    StringLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value())
+  })?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);

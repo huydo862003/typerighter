@@ -161,7 +161,8 @@ fn resolve_import_members(
   let root_dir = config.root_dir(db);
 
   for (alias, path_node) in import_entries {
-    let Some(path) = StringLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
+    let Some(path) =
+      StringLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
     else {
       continue;
     };

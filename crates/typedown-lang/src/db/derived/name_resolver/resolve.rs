@@ -6,7 +6,9 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{File, Project, ProjectRedNode, ResolveResult};
-use crate::syntax::ast::{AstNode, Expr, IdentLit, InterpFragment, SourceFile, StringLit, YamlOpKind};
+use crate::syntax::ast::{
+  AstNode, Expr, IdentLit, InterpFragment, SourceFile, StringLit, YamlOpKind,
+};
 use crate::syntax::red::RedNode;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
@@ -269,7 +271,8 @@ fn check_imports(
   let root_dir = get_vault_config(db, project).root_dir(db);
 
   for (_, path_node) in entries {
-    let Some(path) = StringLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
+    let Some(path) =
+      StringLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
     else {
       continue;
     };
