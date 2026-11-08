@@ -809,7 +809,6 @@ function shrinkSidebar () {
   position: sticky;
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
-  width: var(--td-sidebar-width);
   flex-shrink: 0;
   overflow: clip;
   display: flex;

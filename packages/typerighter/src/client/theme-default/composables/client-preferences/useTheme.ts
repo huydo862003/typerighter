@@ -1,10 +1,11 @@
 import {
-  ref, computed, readonly,
+  ref, computed, readonly, onMounted,
 } from 'vue';
 import {
   wrapHeadScript,
   readLocalStorage,
   addDocumentClass,
+  setDocumentCssVariable,
 } from './utils/buildHeadScript';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -12,16 +13,37 @@ export type Theme = 'light' | 'dark' | 'system';
 const STORAGE_KEY = 'td-theme';
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
 
+const INITIAL_DARK_THEME_TOGGLE_CSS_VAR = '--td-dark-theme-toggle';
+const INITIAL_LIGHT_THEME_TOGGLE_CSS_VAR = '--td-light-theme-toggle';
+
 const theme = ref<Theme>(getStoredTheme());
 const systemTheme = ref<'light' | 'dark'>(getSystemTheme());
 
 // Head script - inlined into the HTML <head> to prevent flash of wrong theme
 export function buildThemeHeadScript (): string {
   return wrapHeadScript(
-    `var t=${readLocalStorage(STORAGE_KEY)};`
-    + addDocumentClass(
-      `t==='dark'||(t!=='light'&&matchMedia(${JSON.stringify(DARK_MEDIA_QUERY)}).matches)`,
-      'dark',
+    `var theme=${readLocalStorage(STORAGE_KEY)};`
+    + `var isDarkTheme=theme==='dark'||(theme!=='light'&&matchMedia(${JSON.stringify(DARK_MEDIA_QUERY)}).matches);`
+    + addDocumentClass('dark', 'isDarkTheme')
+    + setDocumentCssVariable(
+      INITIAL_DARK_THEME_TOGGLE_CSS_VAR,
+      '"none"',
+      '!isDarkTheme',
+    )
+    + setDocumentCssVariable(
+      INITIAL_DARK_THEME_TOGGLE_CSS_VAR,
+      '"block"',
+      'isDarkTheme',
+    )
+    + setDocumentCssVariable(
+      INITIAL_LIGHT_THEME_TOGGLE_CSS_VAR,
+      '"none"',
+      'isDarkTheme',
+    )
+    + setDocumentCssVariable(
+      INITIAL_LIGHT_THEME_TOGGLE_CSS_VAR,
+      '"block"',
+      '!isDarkTheme',
     ),
   );
 }
@@ -43,11 +65,36 @@ export function useTheme () {
     });
   }
 
+  // empty until mounted so the pre-rendered toggle theme is not overwritten before hydration
+  const isMounted = ref(false);
+
+  onMounted(() => {
+    isMounted.value = true;
+  });
+
   /* Expose themes */
   const effectiveTheme = computed<'light' | 'dark'>(() =>
     theme.value === 'system' ? systemTheme.value : theme.value);
 
   const isDark = computed(() => effectiveTheme.value === 'dark');
+
+  const darkToggleStyle = computed(() =>
+    isMounted.value
+      ? {
+        display: isDark.value ? 'block' : 'none',
+      }
+      : {
+        display: `var(${INITIAL_DARK_THEME_TOGGLE_CSS_VAR})`,
+      });
+
+  const lightToggleStyle = computed(() =>
+    isMounted.value
+      ? {
+        display: isDark.value ? 'none' : 'block',
+      }
+      : {
+        display: `var(${INITIAL_LIGHT_THEME_TOGGLE_CSS_VAR})`,
+      });
 
   function setTheme (newTheme: Theme): void {
     theme.value = newTheme;
@@ -72,6 +119,8 @@ export function useTheme () {
     isDark,
     setTheme,
     toggle,
+    darkToggleStyle,
+    lightToggleStyle,
   };
 }
 

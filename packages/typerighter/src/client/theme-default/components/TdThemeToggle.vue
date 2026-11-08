@@ -1,45 +1,29 @@
 <script setup lang="ts">
 import {
-  Sun, Moon, Loader,
+  Sun, Moon,
 } from '@lucide/vue';
 import {
   useTheme,
 } from '../composables/client-preferences/useTheme';
 import TdButton from './TdButton.vue';
-import ClientOnly from './utils/ClientOnly.vue';
 
 const {
-  isDark, toggle,
+  isDark, toggle, lightToggleStyle, darkToggleStyle,
 } = useTheme();
 </script>
 
 <template>
-  <ClientOnly>
-    <TdButton
-      :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-      @click="toggle"
-    >
-      <Sun
-        v-if="isDark"
-        :size="18"
-      />
-      <Moon
-        v-else
-        :size="18"
-      />
-    </TdButton>
-
-    <template #fallback>
-      <!-- A hidden icon to avoid layout shift -->
-      <TdButton
-        label=""
-        aria-hidden="true"
-      >
-        <Loader
-          class="animate-spin"
-          :size="18"
-        />
-      </TdButton>
-    </template>
-  </ClientOnly>
+  <TdButton
+    :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+    @click="toggle"
+  >
+    <Sun
+      :style="darkToggleStyle"
+      :size="18"
+    />
+    <Moon
+      :style="lightToggleStyle"
+      :size="18"
+    />
+  </TdButton>
 </template>
