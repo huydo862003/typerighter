@@ -1,6 +1,6 @@
 {
   "name": "project_tracker",
-  "version": "0.56.3",
+  "version": "0.57.0",
   "private": true,
   "type": "module",
   "scripts": {

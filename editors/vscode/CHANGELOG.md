@@ -1,6 +1,36 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.57.0] - 2026-11-08
+
+### Added
+
+- packages/typerighter
+  - **`keyboard` icon** - Added `keyboard` to the built-in icon set (TypeScript theme and Rust icon registry)
+  - **Scaffolded vault with examples** - `typerighter init` now generates a richer starter vault: `index.td` (quick-start guide with commands table and file structure), `notes/` section with `getting-started.td` (schema usage, body interpolation, fref) and `core-concepts.td` (schema syntax, fref, vault query reference), `_types/Note.td` schema alongside `Article.td`
+
+- editors/vscode
+  - **`typedown.yaml` language support** - `typedown.yaml` and `typedown.yml` are now recognized as a distinct language (`typedown-yaml`) with their own file icon (gear motif), activating the LSP and tree-sitter highlighting for the config file
+  - **`typedown-yaml` icon** - New SVG icon for config files: same border and T-letter as the `.td` icon, gear on the right to signal configuration
+
+- editors/nvim
+  - **`typedown.yaml` filetype detection** - `typedown.yaml` and `typedown.yml` are detected as `typedown_yaml` filetype via `vim.filetype.add`
+  - **`typedown_yaml` tree-sitter registration** - Parser registered via `vim.treesitter.language.register` for syntax highlighting in config files
+
+- editors/zed
+  - **`typedown.yaml` language** - `typedown_yaml` language activated for `typedown.yaml` and `typedown.yml` via `path_suffixes` in `config.toml`; LSP extended to cover config files
+
+### Fixed
+
+- crates/typedown-server
+  - **LSP reconnection after vault switch** - `typedown-lsp` now loops over TCP connections: after a client disconnects, the server calls `accept_tcp` on the existing listener and serves the next client, carrying `Multiproject` state across reconnects. Fixes crash when switching vaults in the same editor instance
+  - **`typedown-rpc` tuple destructure** - Updated `connect_tcp` call to unpack the new 4-element return tuple (`Connection`, `IoHandle`, `TcpListener`, `ShutdownSocket`)
+
+- packages/typerighter
+  - **`/index` returning not found** - `loadPageModule` referenced `siteData` before it was assigned (temporal dead zone). Fixed by introducing a `getSiteData` indirection that starts from `initialSiteData` and switches to `siteData.value` after `createTypedownApp` resolves
+  - **`TdNotFound` component not rendered** - `createRouter` was never given a `fallbackComponent`, so the not-found page rendered raw data instead of the themed component. Passed `theme.NotFound` as `fallbackComponent`
+  - **Duplicate not-found heading** - `notFoundPageData` had `title: 'Not Found'` which the layout rendered as `<h1>` while `TdNotFound` also rendered its own heading. Cleared `title` and `titleHtml` to empty strings
+
 ## [0.56.3] - 2026-11-08
 
 ### Fixed
