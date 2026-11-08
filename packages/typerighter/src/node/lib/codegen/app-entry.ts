@@ -117,7 +117,7 @@ async function loadPageModule(pagePath) {
   return undefined;
 }
 
-const { app, router, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, theme, ${siteConfig}, initialSiteData);
+const { app, router, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, { ...${siteConfig}, theme }, initialSiteData);
 ${componentRegistrations}
 app.mount('#app');
 

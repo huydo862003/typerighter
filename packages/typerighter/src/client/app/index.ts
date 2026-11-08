@@ -11,6 +11,7 @@ import {
   type Ref,
   type ShallowRef,
 } from 'vue';
+import defaultTheme from '../theme-default';
 import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
 import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
 import TdGrid from '../theme-default/components/custom/TdGrid.vue';
@@ -44,7 +45,8 @@ export {
   Content,
 } from './components/Content';
 export {
-  useTheme, type Theme,
+  useTheme,
+  type Theme,
 } from '../theme-default/composables/client-preferences/useTheme';
 
 export interface TypedownSiteConfig {
@@ -75,6 +77,8 @@ export interface TypedownSiteConfig {
     link: string;
     icon?: string;
   }[];
+  /** Active theme */
+  theme: TypedownTheme;
 }
 
 export interface TypedownSiteData {
@@ -106,15 +110,21 @@ export interface TypedownTheme {
 
 type PageLoader = (path: string) => Promise<PageModule | undefined>;
 
-const siteConfigSymbol: InjectionKey<TypedownSiteConfig> = Symbol('typedown-site-config');
-const siteDataSymbol: InjectionKey<Ref<TypedownSiteData>> = Symbol('typedown-site-data');
-const pageLoaderSymbol: InjectionKey<PageLoader> = Symbol('typedown-page-loader');
-const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol('typedown-search-index');
+const siteConfigSymbol: InjectionKey<TypedownSiteConfig> = Symbol(
+  'typedown-site-config',
+);
+const siteDataSymbol: InjectionKey<Ref<TypedownSiteData>> =
+  Symbol('typedown-site-data');
+const pageLoaderSymbol: InjectionKey<PageLoader> = Symbol(
+  'typedown-page-loader',
+);
+const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol(
+  'typedown-search-index',
+);
 
 export async function createTypedownApp (
   loadPageModule: (path: string) => Promise<PageModule | undefined>,
-  theme: TypedownTheme,
-  config: Partial<TypedownSiteConfig> = {},
+  siteConfig: TypedownSiteConfig,
   data: Partial<TypedownSiteData> = {},
 ): Promise<{
   app: App;
@@ -122,18 +132,9 @@ export async function createTypedownApp (
   searchIndex: ShallowRef<string | undefined>;
   siteData: Ref<TypedownSiteData>;
 }> {
-  const siteConfig: TypedownSiteConfig = {
-    title: config.title ?? '',
-    description: config.description ?? '',
-    basePath: config.basePath ?? '/',
-    origin: config.origin,
-    lang: config.lang,
-    repo: config.repo,
-    author: config.author,
-    license: config.license,
-    rootDir: config.rootDir,
-    nav: config.nav,
-  };
+  const {
+    theme,
+  } = siteConfig;
 
   if (typeof document !== 'undefined' && siteConfig.lang) {
     document.documentElement.lang = siteConfig.lang;
@@ -221,6 +222,7 @@ export function useSiteConfig () {
     title: '',
     description: '',
     basePath: '/',
+    theme: defaultTheme,
   });
   const base = stripTrailingSlash(config.basePath);
 

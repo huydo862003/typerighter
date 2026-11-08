@@ -326,7 +326,7 @@ function loadPageModule(pagePath) {
 }
 
 export async function createRenderer() {
-  const { app, router } = await createTypedownApp(loadPageModule, theme, ${options.siteConfig}, siteData);
+  const { app, router } = await createTypedownApp(loadPageModule, { ...${options.siteConfig}, theme }, siteData);
   ${componentRegistrations}
   return async function render(url) {
     await router.go(url, { replace: true });
