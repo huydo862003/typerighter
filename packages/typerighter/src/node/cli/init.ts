@@ -154,6 +154,20 @@ function detectPackageManager (root: string): string {
   return 'npm';
 }
 
+function generateArticleSchema (): string {
+  return `---
+_type: schema
+properties:
+  title:
+    type: string
+  description:
+    type: string?
+  tags:
+    type: list[string]?
+---
+`;
+}
+
 function generateComponentsDocs (): string {
   return `---
 _type: Article
@@ -187,21 +201,69 @@ The card starts face-down. Pass \`revealed\` to start with the answer visible, o
 
 ## Glossary index
 
-\`TdGlossaryIndex\` renders all sibling pages in the current directory as a searchable, alphabetical index. Place it on a folder's \`index.td\` page.
+\`glossary-index\` renders all sibling pages in the current directory as a searchable, alphabetical index. Place it on a folder's \`index.td\` page.
 
 Informative mode (default) shows the \`description\` and \`tags\` from each page's frontmatter:
 
-\`\`\`html
-<TdGlossaryIndex />
+\`\`\`md
+[[glossary-index]]
 \`\`\`
 
 Dense mode renders a compact three-column link list suited for large directories:
 
 \`\`\`html
-<TdGlossaryIndex mode="dense" />
+[[glossary-index {mode="dense"}]]
 \`\`\`
 
 For each entry the component reads the \`description\` and \`tags\` fields from the page's schema, so make sure your schema exposes them.
+`;
+}
+
+function generateCoreConceptsTd (): string {
+  return `---
+_type: Note
+title: "Core concepts"
+description: "Schemas, frefs, and vault queries explained"
+tags:
+  - "reference"
+author: "You"
+---
+
+## Defining a schema
+
+A schema is a \`.td\` file with \`_type: schema\` in the frontmatter.
+
+\`\`\`yaml
+---
+_type: schema
+properties:
+  title:
+    type: string
+  published:
+    type: date?
+  tags:
+    type: list[string]?
+---
+\`\`\`
+
+Place it in \`_types/\` and reference it from any file with \`_type: SchemaName\`.
+
+## fref
+
+\`fref("./path/to/file.td")\` creates a typed link to another node.
+Access its fields directly: \`fref("./other.td").title\`.
+
+frefs are rename-safe - the LSP tracks all references and updates them when a file moves.
+
+## Vault queries
+
+Query all nodes of a given schema:
+
+\`\`\`
+vault.from_nodes(Note).filter((n) -> n.tags).to_list()
+\`\`\`
+
+Use \`.first()\` to get a single result, \`.to_list()\` for an array.
 `;
 }
 
@@ -211,6 +273,104 @@ function generateFaviconSvg (): string {
   <path d="${BRAND_LETTER}" fill="${BRAND_COLOR}"/>
   <path d="${BRAND_ARROW}" fill="${BRAND_COLOR}"/>
 </svg>
+`;
+}
+
+function generateGettingStartedTd (): string {
+  return `---
+_type: Note
+title: "Getting started"
+description: "A quick tour of typedown basics"
+tags:
+  - "intro"
+author: "You"
+---
+
+## Schemas
+
+This file uses \`_type: Note\`, defined in \`_types/Note.td\`.
+The \`title\`, \`description\`, \`tags\`, and \`author\` fields above are all type-checked.
+Try changing \`author\` to a number - the LSP will flag it.
+
+## Body interpolation
+
+Frontmatter values are available in the body as expressions.
+This note was written by **\${self.author}** and is titled "\${self.title}".
+
+## fref
+
+A \`fref\` is a typed link to another file.
+The companion note is titled "\${fref("./core-concepts.td").title}".
+
+Rename \`core-concepts.td\` and the LSP will update this fref automatically.
+
+## Directory index
+
+The [notes index](/notes) uses \`glossary-index\` to list this page and its siblings.
+Add more \`.td\` files to this folder and they appear there without any config.
+`;
+}
+
+function generateIndexTd (): string {
+  return `---
+_type: Article
+title: "Quick start"
+description: "Your new typedown vault"
+---
+
+This is your vault\'s home page. Each \`.td\` file is a page - frontmatter at the top, Markdown body below.
+
+## File structure
+
+\`\`\`
+vault/
+  _types/       schema definitions
+  notes/        a section with its own directory index
+  index.td      this page
+  components.td theme component demos
+\`\`\`
+
+## Commands
+
+| Command | Action |
+| --- | --- |
+| \`dev\` | Start the dev server with hot reload |
+| \`build\` | Build the static site |
+| \`preview\` | Preview the built site locally |
+| \`check\` | Type-check the whole vault |
+
+## Next steps
+
+- Open [notes/getting-started](/notes/getting-started) to see schemas and frefs in action
+- Open [components](/components) to explore the built-in theme components
+- Edit \`_types/Article.td\` to add fields to this page\'s schema
+`;
+}
+
+function generateNoteSchema (): string {
+  return `---
+_type: schema
+properties:
+  title:
+    type: string
+  description:
+    type: string?
+  tags:
+    type: list[string]?
+  author:
+    type: string?
+---
+`;
+}
+
+function generateNotesIndexTd (): string {
+  return `---
+_type: Article
+title: "Notes"
+description: "All notes in this vault"
+---
+
+[[glossary-index]]
 `;
 }
 
@@ -245,33 +405,6 @@ function generateRobotsText (): string {
 Allow: /
 
 Sitemap: /sitemap.xml
-`;
-}
-
-function generateSampleTdContent (): string {
-  return `---
-_type: Article
-title: "Hello, world"
-description: "The starting point of your vault"
----
-
-Welcome to your new typedown site.
-
-Read \`components.td\` to learn about the built-in components.
-`;
-}
-
-function generateSampleTdSchema (): string {
-  return `---
-_type: schema
-properties:
-  title:
-    type: string
-  description:
-    type: string?
-  tags:
-    type: list[string]?
----
 `;
 }
 
@@ -336,6 +469,7 @@ async function scaffold (
 ): Promise<void> {
   const vaultDirectory = path.join(root, 'vault');
   const typeDirectory = path.join(root, 'vault', '_types');
+  const notesDirectory = path.join(root, 'vault', 'notes');
   const publicDirectory = path.join(root, 'public');
   const localDirectory = path.join(root, '.typedown', '.local');
 
@@ -344,6 +478,9 @@ async function scaffold (
       recursive: true,
     }),
     fs.mkdir(typeDirectory, {
+      recursive: true,
+    }),
+    fs.mkdir(notesDirectory, {
       recursive: true,
     }),
     fs.mkdir(publicDirectory, {
@@ -373,13 +510,28 @@ async function scaffold (
   ]);
 
   const samples = await Promise.all([
-    writeIfMissing(typeDirectory, 'Article.td', generateSampleTdSchema(), {
+    // Schemas
+    writeIfMissing(typeDirectory, 'Article.td', generateArticleSchema(), {
       silent: true,
     }),
-    writeIfMissing(vaultDirectory, 'hello.td', generateSampleTdContent(), {
+    writeIfMissing(typeDirectory, 'Note.td', generateNoteSchema(), {
+      silent: true,
+    }),
+    // Vault root
+    writeIfMissing(vaultDirectory, 'index.td', generateIndexTd(), {
       silent: true,
     }),
     writeIfMissing(vaultDirectory, 'components.td', generateComponentsDocs(), {
+      silent: true,
+    }),
+    // Notes section
+    writeIfMissing(notesDirectory, 'index.td', generateNotesIndexTd(), {
+      silent: true,
+    }),
+    writeIfMissing(notesDirectory, 'getting-started.td', generateGettingStartedTd(), {
+      silent: true,
+    }),
+    writeIfMissing(notesDirectory, 'core-concepts.td', generateCoreConceptsTd(), {
       silent: true,
     }),
   ]);
@@ -388,7 +540,7 @@ async function scaffold (
   const skipped = samples.filter((sample) => !Boolean(sample));
 
   if (0 < created.length) {
-    log.success(`created sample schema and content (${created.length} files)`);
+    log.success(`created sample vault (${created.length} files)`);
   }
 
   if (0 < skipped.length) {
