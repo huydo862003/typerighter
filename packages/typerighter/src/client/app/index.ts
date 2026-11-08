@@ -5,6 +5,7 @@ import {
   inject,
   ref,
   shallowRef,
+  watch,
   type App,
   type Component,
   type InjectionKey,
@@ -28,6 +29,11 @@ import {
   createRouter, routerSymbol, type Router,
 } from './router';
 import {
+  CONTENT_EXTENSIONS,
+  isIndexUrl,
+  getDirectoryFromPageUrl,
+  getParentUrl,
+  path,
   stripTrailingSlash,
   type PageModule,
   type ContentTree,
@@ -84,6 +90,8 @@ export interface TypedownSiteConfig {
 export interface TypedownSiteData {
   /** Whether the data has been fetched from the server */
   ready: boolean;
+  /** Page loaders keyed by vault-relative path (e.g. "/vault/notes/intro.td") */
+  pages: Record<string, () => Promise<PageModule>>;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
   /** Serialized MiniSearch index for full-text search */
@@ -123,35 +131,91 @@ const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol(
 );
 
 export async function createTypedownApp (
-  loadPageModule: (path: string) => Promise<PageModule | undefined>,
   siteConfig: TypedownSiteConfig,
-  data: Partial<TypedownSiteData> = {},
+  siteData: Ref<TypedownSiteData>,
 ): Promise<{
   app: App;
   router: Router;
   searchIndex: ShallowRef<string | undefined>;
-  siteData: Ref<TypedownSiteData>;
 }> {
   const {
     theme,
   } = siteConfig;
 
+  // Build the full root path prefix used to key pages (e.g. "/vault" or "/docs/vault")
+  const rootPrefix = path.join(
+    '/',
+    siteConfig.basePath !== '/' ? siteConfig.basePath : '',
+    siteConfig.rootDir ?? '',
+  );
+
+  function findPage (pagePath: string): (() => Promise<PageModule>) | undefined {
+    const base = path.join(rootPrefix, pagePath);
+
+    for (const extension of CONTENT_EXTENSIONS) {
+      const loader = siteData.value.pages[base + extension];
+
+      if (loader) return loader;
+    }
+  }
+
+  async function loadPageModule (
+    pagePath: string,
+  ): Promise<PageModule | undefined> {
+    const loader = findPage(pagePath);
+
+    if (loader) return loader();
+
+    if (isIndexUrl(pagePath)) {
+      const directoryPath = getDirectoryFromPageUrl(pagePath);
+      const directory = siteData.value.directoryListings[directoryPath];
+
+      if (directory)
+        return {
+          default: {
+            name: 'DirectoryIndex',
+            render () {
+              return h(TdDirectoryIndex);
+            },
+          },
+          pageData: {
+            frontmatter: {},
+            headings: [],
+            title: directory.title,
+            titleHtml: directory.title,
+            filepath: '',
+          },
+        };
+    }
+  }
+
   if (typeof document !== 'undefined' && siteConfig.lang) {
     document.documentElement.lang = siteConfig.lang;
   }
 
-  const siteData = shallowRef<TypedownSiteData>({
-    ready: data.ready ?? false,
-    contentTree: data.contentTree ?? {
-      entries: [],
-    },
-    schemas: data.schemas ?? {},
-    directoryListings: data.directoryListings ?? {},
-  });
-
   const router = createRouter(loadPageModule, {
     basePath: siteConfig.basePath,
     fallbackComponent: theme.NotFound,
+  });
+
+  // When pages change, navigate away from removed pages or into newly added ones
+  watch(siteData, (next, previous) => {
+    if (previous.pages === next.pages) return;
+
+    const routePath = router.route.path;
+    const base = path.join(rootPrefix, routePath);
+    const hadPage = CONTENT_EXTENSIONS.some((extension) => !!previous.pages[base + extension]);
+    const hasPage = !!findPage(routePath);
+
+    if (!hadPage && hasPage) {
+      router.go(routePath);
+
+      return;
+    }
+
+    if (hadPage && !hasPage) {
+      router.go(getParentUrl(routePath));
+    }
   });
 
   const TypedownApp = defineComponent({
@@ -169,7 +233,7 @@ export async function createTypedownApp (
   app.provide(siteConfigSymbol, siteConfig);
   app.provide(siteDataSymbol, siteData);
   app.provide(pageLoaderSymbol, loadPageModule);
-  const searchIndex = shallowRef(data.searchIndex);
+  const searchIndex = shallowRef(siteData.value.searchIndex);
 
   app.provide(searchIndexSymbol, searchIndex);
   app.component('TypedownContent', Content);
@@ -204,7 +268,6 @@ export async function createTypedownApp (
     app,
     router,
     searchIndex,
-    siteData,
   };
 }
 
@@ -240,6 +303,7 @@ export function useSiteConfig () {
 
 const defaultSiteData = ref<TypedownSiteData>({
   ready: false,
+  pages: {},
   contentTree: {
     entries: [],
   },

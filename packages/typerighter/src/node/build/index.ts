@@ -20,7 +20,7 @@ import {
   ProgressLogger,
 } from '../lib/progress';
 import {
-  buildContentTree, buildDirectoryListingMap, CONTENT_EXTENSIONS, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
+  buildContentTree, buildDirectoryListingMap, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
   ensureTrailingSlash, getIndexUrl, getNodeIndexItem, path as tdpath,
 } from '@/shared';
 import type {
@@ -291,42 +291,15 @@ function generateSsrEntry (options: SsrEntryOptions): string {
 
   return `
 ${ssrHeader}
-import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
-import { isIndexUrl, getDirectoryFromPageUrl } from 'typerighter/shared';
 import { renderToString } from 'vue/server-renderer';
-import { h } from 'vue';
+import { shallowRef } from 'vue';
 import theme from ${JSON.stringify(options.themeModulePath)};
 
 const pages = import.meta.glob('${glob}', { eager: true });
-const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
-const siteData = ${siteDataWithListings};
-
-function findPage(base) {
-  for (const ext of contentExts) {
-    const key = base + ext;
-    if (pages[key]) return pages[key];
-  }
-}
-
-function loadPageModule(pagePath) {
-  const base = ('/${options.rootDir}/' + pagePath).replace(/\\/+/g, '/').replace(/\\/$/, '');
-  const page = findPage(base);
-  if (page) return Promise.resolve(page);
-
-  if (isIndexUrl(pagePath)) {
-    const dirPath = getDirectoryFromPageUrl(pagePath);
-    const dir = siteData.directoryListings[dirPath];
-    if (dir) return Promise.resolve({
-      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-      pageData: { frontmatter: {}, headings: [], title: dir.title },
-    });
-  }
-
-  return Promise.resolve(undefined);
-}
+const siteData = shallowRef({ ...${siteDataWithListings}, pages });
 
 export async function createRenderer() {
-  const { app, router } = await createTypedownApp(loadPageModule, { ...${options.siteConfig}, theme }, siteData);
+  const { app, router } = await createTypedownApp({ ...${options.siteConfig}, theme }, siteData);
   ${componentRegistrations}
   return async function render(url) {
     await router.go(url, { replace: true });

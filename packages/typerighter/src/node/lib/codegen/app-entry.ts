@@ -1,9 +1,6 @@
 import type {
   UserComponent,
 } from '@/node/lib/components';
-import {
-  CONTENT_EXTENSIONS,
-} from '@/shared';
 
 export interface AppEntryOptions {
   rootDir?: string;
@@ -84,40 +81,14 @@ ${header}
 import 'typerighter/fonts.css';
 import('typerighter/math.css');
 import { createTypedownApp } from 'typerighter/client';
-import { TdDirectoryIndex, TdGlossaryIndex } from 'typerighter/client/theme-default';
-import { isIndexUrl, getDirectoryFromPageUrl, getParentUrl, path } from 'typerighter/shared';
-import { h } from 'vue';
+import { path } from 'typerighter/shared';
+import { shallowRef } from 'vue';
 import theme from '${ids.theme}';
 import { pages as initialPages } from '${ids.pages}';
 import initialSiteData from '${ids.siteData}';
-let pages = initialPages;
-let siteData = initialSiteData;
-const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
 
-function findPage(base) {
-  for (const ext of contentExts) {
-    const key = base + ext;
-    if (pages[key]) return pages[key];
-  }
-}
-
-async function loadPageModule(pagePath) {
-  const loader = findPage(path.join('/', '${fullRootDirectory}', pagePath));
-  if (loader) return loader();
-
-  if (isIndexUrl(pagePath)) {
-    const dirPath = getDirectoryFromPageUrl(pagePath);
-    const dir = siteData.directoryListings[dirPath];
-    if (dir) return {
-      default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
-      pageData: { frontmatter: {}, headings: [], title: dir.title },
-    };
-  }
-
-  return undefined;
-}
-
-const { app, router, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, { ...${siteConfig}, theme }, initialSiteData);
+const siteData = shallowRef({ ...initialSiteData, pages: initialPages });
+const { app, router, searchIndex: searchIndexRef } = await createTypedownApp({ ...${siteConfig}, theme }, siteData);
 ${componentRegistrations}
 app.mount('#app');
 
@@ -127,15 +98,7 @@ import('${ids.searchIndex}').then((m) => { searchIndexRef.value = m.default; });
 // Accept HMR so modules update without a full page reload
 if (import.meta.hot) {
   import.meta.hot.accept('${ids.pages}', (m) => {
-    if (!m) return;
-    const base = path.join('/', '${fullRootDirectory}', router.route.path);
-    const hadPage = !!findPage(base);
-    pages = m.pages;
-    const hasPage = !!findPage(base);
-    // Current page was removed (deleted or renamed away)
-    if (hadPage && !hasPage) router.go(getParentUrl(router.route.path));
-    // A real page appeared where a directory index was shown
-    if (!hadPage && hasPage) router.go(router.route.path);
+    if (m) siteData.value = { ...siteData.value, pages: m.pages };
   });
 
   import.meta.hot.accept('${ids.searchIndex}', (m) => {
@@ -143,7 +106,7 @@ if (import.meta.hot) {
   });
 
   import.meta.hot.accept('${ids.siteData}', (m) => {
-    if (m) siteData = m.default;
+    if (m) siteData.value = { ...m.default, pages: siteData.value.pages };
   });
 
   // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
