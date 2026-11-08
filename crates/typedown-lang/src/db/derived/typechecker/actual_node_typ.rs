@@ -28,7 +28,7 @@ use crate::db::types::{File, Project};
 use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, CallExpr, ClosureExpr, DictLit, Expr, IdentLit, IndexExpr, MathLit, NumberLit,
-  PostfixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping, YamlOpKind,
+  PostfixExpr, SourceFile, StringLit, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
 use crate::syntax::diagnostic::*;
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -89,7 +89,7 @@ pub fn actual_node_typ<'db>(
     };
   }
 
-  if let Some(string_lit) = StrLit::cast(node.clone()) {
+  if let Some(string_lit) = StringLit::cast(node.clone()) {
     return if string_lit.is_interpolated() {
       TypResult::new(db, Some(get_string_typ(db).into()), vec![])
     } else {
@@ -502,7 +502,7 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
   let (trimmed_offset, trimmed_len) = red_node.trimmed_range();
 
   // Argument must be a plain (non-interpolated) string literal
-  let path_string = match StrLit::cast(red_node.clone()) {
+  let path_string = match StringLit::cast(red_node.clone()) {
     Some(string_lit) if !string_lit.is_interpolated() => string_lit
       .fragments()
       .filter_map(|fragment| match fragment {

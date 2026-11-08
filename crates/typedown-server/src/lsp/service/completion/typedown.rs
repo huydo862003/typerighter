@@ -216,7 +216,7 @@ fn is_interp_position(node: &RedNode) -> bool {
 // Returns true if the cursor is inside the argument of a fref() call
 fn is_fref_arg_position(node: &RedNode) -> bool {
   // Walk up to find a CallExpr, checking for StrLit or direct position
-  let string_lit = find_ancestor(node, SyntaxKind::StrLit);
+  let string_lit = find_ancestor(node, SyntaxKind::StringLit);
   let call = match string_lit {
     Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),
     None => find_ancestor(node, SyntaxKind::CallExpr),
@@ -330,7 +330,7 @@ fn collect_fref_completions(
 ) -> Vec<CompletionItem> {
   let expected_typ = get_declared_field(db, project, file, node);
   let candidates = collect_fref_candidates(db, project, expected_typ.as_ref());
-  let inside_str = find_ancestor(node, SyntaxKind::StrLit).is_some();
+  let inside_str = find_ancestor(node, SyntaxKind::StringLit).is_some();
 
   if inside_str {
     candidates
@@ -523,7 +523,7 @@ fn collect_value_completions(
   }
 
   // When cursor is already inside a string literal, completions must not add surrounding quotes
-  let inside_str = find_ancestor(node, SyntaxKind::StrLit).is_some();
+  let inside_str = find_ancestor(node, SyntaxKind::StringLit).is_some();
 
   // Enum values from union of literals
   collect_enum_items(db, &typ, inside_str, &mut items);

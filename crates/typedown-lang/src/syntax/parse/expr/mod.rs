@@ -1352,7 +1352,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     let literal_block_string_lit = self.emit(SyntaxKind::YamlLiteralBlockStrLit, &children);
     (
-      self.emit(SyntaxKind::StrLit, &[literal_block_string_lit]),
+      self.emit(SyntaxKind::StringLit, &[literal_block_string_lit]),
       None,
     )
   }
@@ -1425,7 +1425,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
 
     let folded_block_string_lit = self.emit(SyntaxKind::YamlFoldedBlockStrLit, &children);
     (
-      self.emit(SyntaxKind::StrLit, &[folded_block_string_lit]),
+      self.emit(SyntaxKind::StringLit, &[folded_block_string_lit]),
       None,
     )
   }
@@ -1672,7 +1672,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           children.push(fragment);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::DqString) {
             self.expr_ctx_stack.exit(ExprCtx::DqString);
-            return (self.emit(SyntaxKind::StrLit, &children), early_exit);
+            return (self.emit(SyntaxKind::StringLit, &children), early_exit);
           }
         }
         SyntaxKind::InlineMath => {
@@ -1680,7 +1680,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           children.push(math);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::DqString) {
             self.expr_ctx_stack.exit(ExprCtx::DqString);
-            return (self.emit(SyntaxKind::StrLit, &children), early_exit);
+            return (self.emit(SyntaxKind::StringLit, &children), early_exit);
           }
         }
         SyntaxKind::Eof | SyntaxKind::Error => {
@@ -1694,7 +1694,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     self.expr_ctx_stack.exit(ExprCtx::DqString);
-    (self.emit(SyntaxKind::StrLit, &children), None)
+    (self.emit(SyntaxKind::StringLit, &children), None)
   }
 
   /// Parse a single-quoted string literal with interpolation: `'content ${expr} content'`
@@ -1730,7 +1730,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           children.push(fragment);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::SqString) {
             self.expr_ctx_stack.exit(ExprCtx::SqString);
-            return (self.emit(SyntaxKind::StrLit, &children), early_exit);
+            return (self.emit(SyntaxKind::StringLit, &children), early_exit);
           }
         }
         SyntaxKind::InlineMath => {
@@ -1738,7 +1738,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           children.push(math);
           if early_exit.is_some_and(|ctx| ctx != ExprCtx::SqString) {
             self.expr_ctx_stack.exit(ExprCtx::SqString);
-            return (self.emit(SyntaxKind::StrLit, &children), early_exit);
+            return (self.emit(SyntaxKind::StringLit, &children), early_exit);
           }
         }
         SyntaxKind::Eof | SyntaxKind::Error => {
@@ -1752,7 +1752,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
     }
 
     self.expr_ctx_stack.exit(ExprCtx::SqString);
-    (self.emit(SyntaxKind::StrLit, &children), None)
+    (self.emit(SyntaxKind::StringLit, &children), None)
   }
 
   /// Parse an interpolation fragment: `${...}` inside a string

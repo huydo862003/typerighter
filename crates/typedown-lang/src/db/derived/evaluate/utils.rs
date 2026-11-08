@@ -21,7 +21,7 @@ use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, CodeBlock, DictLit, Expr, IdentLit, IndexExpr,
   InlineCode, InlineMath, InterpFragment, ListLit, MathBlock, MathLit, MdBody, NumberLit,
-  PostfixExpr, PrefixExpr, SourceFile, StrLit, YamlFrontmatter, YamlMapping, YamlOpKind,
+  PostfixExpr, PrefixExpr, SourceFile, StringLit, YamlFrontmatter, YamlMapping, YamlOpKind,
   YamlSequence,
 };
 use crate::syntax::diagnostic::*;
@@ -467,7 +467,7 @@ fn construct_sequence_items<'db>(
 
 fn construct_from_string_lit<'db>(
   db: &'db TypedownDatabase,
-  string_lit: StrLit,
+  string_lit: StringLit,
   project: Project,
   file: File,
   project_node: ProjectRedNode,
@@ -786,7 +786,7 @@ fn construct_macro<'db>(
 fn evaluate_interpolated<'db>(
   db: &'db TypedownDatabase,
   runtime_scope: RuntimeScope<'db>,
-  string_lit: StrLit,
+  string_lit: StringLit,
   project: Project,
   file: File,
 ) -> Option<TdObjEnum<'db>> {
@@ -1013,7 +1013,7 @@ fn construct_fref<'db>(
   args: Vec<ProjectRedNode>,
 ) -> Option<TdObjEnum<'db>> {
   let arg = args.first()?;
-  let path_string = StrLit::cast(arg.node.clone()).and_then(|string| string.plain_value())?;
+  let path_string = StringLit::cast(arg.node.clone()).and_then(|string| string.plain_value())?;
 
   let project = arg.project;
   let files = project.files(db);

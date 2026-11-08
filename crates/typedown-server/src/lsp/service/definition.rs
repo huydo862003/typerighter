@@ -14,7 +14,7 @@ use typedown_lang::db::types::{
 };
 use typedown_lang::db::utils::kebab_to_pascal;
 use typedown_lang::db::utils::{get_mapping_schema_name, is_external_url};
-use typedown_lang::syntax::ast::StrLit;
+use typedown_lang::syntax::ast::StringLit;
 use typedown_lang::syntax::ast::{
   AstNode, MdContainerBlock, MdContainerShorthand, MdLink, MdMedia,
 };
@@ -318,7 +318,7 @@ fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> O
 
   if let Some(first_arg) = call_expr.args().into_iter().next()
     && let Some(path_string) =
-      StrLit::cast(first_arg.syntax().clone()).and_then(|string| string.plain_value())
+      StringLit::cast(first_arg.syntax().clone()).and_then(|string| string.plain_value())
   {
     let config = get_vault_config(db, project);
     let root_dir = config.root_dir(db);

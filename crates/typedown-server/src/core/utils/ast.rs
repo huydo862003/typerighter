@@ -140,7 +140,7 @@ pub fn get_nearest_expr_ancestor(node: &RedNode) -> Option<Expr> {
 /// fref("...")
 ///       ^^^
 pub fn containing_fref_expr(node: &RedNode) -> Option<CallExpr> {
-  let string_lit = find_ancestor(node, SyntaxKind::StrLit);
+  let string_lit = find_ancestor(node, SyntaxKind::StringLit);
 
   let call = match string_lit {
     Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),

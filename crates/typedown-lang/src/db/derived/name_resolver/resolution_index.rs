@@ -18,7 +18,7 @@ use crate::db::types::{File, Project, ProjectRedNode, Symbol, SymbolKind};
 use crate::db::utils::{is_content_file, is_external_url, resolve_md_link_path};
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, IdentLit, IndexExpr, MdBlockElement, MdBody,
-  MdInlineElement, MdLink, MdMedia, MdNode, PostfixExpr, PrefixExpr, SourceFile, StrLit,
+  MdInlineElement, MdLink, MdMedia, MdNode, PostfixExpr, PrefixExpr, SourceFile, StringLit,
   YamlFrontmatter, YamlMapping,
 };
 use crate::syntax::red::RedNode;
@@ -504,7 +504,7 @@ fn collect_references_in_ident(
 
 fn collect_references_in_string_lit(
   db: &TypedownDatabase,
-  string_lit: StrLit,
+  string_lit: StringLit,
   project: Project,
   file: File,
   map: &mut BTreeMap<String, Vec<Reference>>,

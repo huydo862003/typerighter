@@ -25,7 +25,7 @@ use crate::db::types::{
 };
 use crate::syntax::ast::{
   AstNode, BinaryExpr, ClosureExpr, IdentLit, IndexExpr, NumberLit, ParenExpr, PostfixExpr,
-  PrefixExpr, StrLit, YamlOpKind,
+  PrefixExpr, StringLit, YamlOpKind,
 };
 use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
@@ -522,7 +522,7 @@ fn resolve_typ_lazy<'db>(
   }
 
   // StrLit: lit type like `type: "draft"`
-  if let Some(string_lit) = StrLit::cast(node.clone())
+  if let Some(string_lit) = StringLit::cast(node.clone())
     && !string_lit.is_interpolated()
   {
     let value: String = string_lit

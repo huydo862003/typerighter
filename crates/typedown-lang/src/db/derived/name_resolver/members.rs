@@ -10,7 +10,7 @@ use crate::db::derived::name_resolver::scope::parent_scope;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::types::{File, MembersResult, Project, Scope, ScopeKind, Symbol, SymbolKind};
 use crate::db::utils::{is_content_file, is_typ_file};
-use crate::syntax::ast::{AstNode, ClosureExpr, StrLit};
+use crate::syntax::ast::{AstNode, ClosureExpr, StringLit};
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
@@ -161,7 +161,7 @@ fn resolve_import_members(
   let root_dir = config.root_dir(db);
 
   for (alias, path_node) in import_entries {
-    let Some(path) = StrLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
+    let Some(path) = StringLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
     else {
       continue;
     };

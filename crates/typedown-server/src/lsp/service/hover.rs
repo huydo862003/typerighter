@@ -15,7 +15,7 @@ use typedown_lang::db::types::{
   File, Project, ProjectRedNode, Scope, ScopeKind, Symbol, TdTypEnum,
 };
 use typedown_lang::db::utils::{is_external_url, kebab_to_pascal};
-use typedown_lang::syntax::ast::StrLit;
+use typedown_lang::syntax::ast::StringLit;
 use typedown_lang::syntax::ast::{
   AstNode, Expr, MdContainerBlock, MdContainerShorthand, MdLink, MdMedia,
 };
@@ -114,7 +114,7 @@ fn build_fref_hover(db: &TypedownDatabase, project: Project, node: &RedNode) -> 
     .args()
     .into_iter()
     .next()
-    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
+    .and_then(|arg| StringLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);

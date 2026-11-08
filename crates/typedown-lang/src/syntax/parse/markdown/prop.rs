@@ -41,7 +41,7 @@ impl<S: Utf8Stream> ParseCtx<S> {
           }
           self.advance(&mut children, SKIP_NONE, mode);
         }
-        self.emit(SyntaxKind::StrLit, &children)
+        self.emit(SyntaxKind::StringLit, &children)
       }
       SyntaxKind::Ident if Self::is_js_keyword_literal(&peek.token) => {
         let mut children = vec![];

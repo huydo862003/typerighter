@@ -6,7 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{File, Project, ProjectRedNode, ResolveResult};
-use crate::syntax::ast::{AstNode, Expr, IdentLit, InterpFragment, SourceFile, StrLit, YamlOpKind};
+use crate::syntax::ast::{AstNode, Expr, IdentLit, InterpFragment, SourceFile, StringLit, YamlOpKind};
 use crate::syntax::red::RedNode;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
@@ -83,7 +83,7 @@ fn collect_unresolved(
   }
 
   // Interpolated string: recurse into embedded expressions
-  if let Some(string_lit) = StrLit::cast(node.clone()) {
+  if let Some(string_lit) = StringLit::cast(node.clone()) {
     for fragment in string_lit.fragments() {
       if let Either::Right(interp) = fragment
         && let Some(expr) = interp.expr()
@@ -153,7 +153,7 @@ fn collect_unresolved(
       if is_fref {
         // Only emit when the path is a plain non-empty string (interpolated/missing args are already implicitly invalid and caught by other diagnostics)
         if let Some(first_arg) = call.args().first()
-          && let Some(string_lit) = StrLit::cast(first_arg.syntax().clone())
+          && let Some(string_lit) = StringLit::cast(first_arg.syntax().clone())
           && !string_lit.is_interpolated()
           && let Some(path) = string_lit.plain_value()
           && !path.is_empty()
@@ -269,7 +269,7 @@ fn check_imports(
   let root_dir = get_vault_config(db, project).root_dir(db);
 
   for (_, path_node) in entries {
-    let Some(path) = StrLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
+    let Some(path) = StringLit::cast(path_node.node.clone()).and_then(|string| string.plain_value())
     else {
       continue;
     };

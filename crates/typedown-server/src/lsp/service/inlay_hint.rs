@@ -6,7 +6,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::Project;
-use typedown_lang::syntax::ast::StrLit;
+use typedown_lang::syntax::ast::StringLit;
 use typedown_lang::syntax::ast::{AstNode, CallExpr};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -65,7 +65,7 @@ fn build_fref_hint(
     .args()
     .into_iter()
     .next()
-    .and_then(|arg| StrLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
+    .and_then(|arg| StringLit::cast(arg.syntax().clone()).and_then(|string| string.plain_value()))?;
 
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);

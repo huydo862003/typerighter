@@ -1,7 +1,7 @@
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
-use crate::syntax::ast::{AstNode, CallExpr, IdentLit, StrLit};
+use crate::syntax::ast::{AstNode, CallExpr, IdentLit, StringLit};
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
@@ -64,7 +64,7 @@ fn resolve_call(db: &TypedownDatabase, project_node: ProjectRedNode) -> MaybeSym
   let Some(first_arg) = args.first() else {
     return MaybeSymbol::new(db, None);
   };
-  let Some(string_lit) = StrLit::cast(first_arg.syntax().clone()) else {
+  let Some(string_lit) = StringLit::cast(first_arg.syntax().clone()) else {
     return MaybeSymbol::new(db, None);
   };
   if string_lit.is_interpolated() {

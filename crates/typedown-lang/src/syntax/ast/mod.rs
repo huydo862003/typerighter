@@ -671,7 +671,7 @@ impl MdHtmlEntity {
 
 // Expression nodes
 #[wrapper_ast_node(SyntaxKind = [
-  NumberLit, StrLit, CodeLit, MathLit, IdentLit,
+  NumberLit, StringLit, CodeLit, MathLit, IdentLit,
   ListLit, DictLit,
   ParenExpr, CallExpr, PrefixExpr, PostfixExpr, BinaryExpr, IndexExpr,
   ClosureExpr,
@@ -690,7 +690,7 @@ pub enum LitValue {
 }
 
 #[wrapper_ast_node(SyntaxKind = [
-  NumberLit, StrLit, CodeLit, MathLit, IdentLit,
+  NumberLit, StringLit, CodeLit, MathLit, IdentLit,
   ListLit, DictLit,
 ])]
 pub enum Lit {}
@@ -949,9 +949,9 @@ impl DictEntry {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, AstNode)]
-pub struct StrLit(RedNode);
+pub struct StringLit(RedNode);
 
-impl StrLit {
+impl StringLit {
   pub fn is_interpolated(&self) -> bool {
     self
       .0
