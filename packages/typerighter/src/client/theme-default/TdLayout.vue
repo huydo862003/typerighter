@@ -319,7 +319,7 @@ function shrinkSidebar () {
     <header class="td-header">
       <div class="td-header-left">
         <TdMenuButton
-          class="xl:hidden"
+          class="lg:hidden"
           @click="openMenu"
         />
         <a

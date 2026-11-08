@@ -14,7 +14,6 @@ const WIDTH_KEY = 'td-sidebar-width';
 const COLLAPSED_KEY = 'td-sidebar-collapsed';
 
 const SIDEBAR_WIDTH_CSS_VAR = '--td-sidebar-width';
-const SIDEBAR_MODE_CSS_VAR = '--td-sidebar-mode';
 
 export const SIDEBAR_DEFAULT_WIDTH = 300;
 export const SIDEBAR_COLLAPSED_WIDTH = 48;
