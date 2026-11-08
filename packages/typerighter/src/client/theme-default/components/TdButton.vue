@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TdTooltip from './TdTooltip.vue';
+
 const {
   label,
 } = defineProps<{
@@ -8,14 +10,19 @@ const {
 </script>
 
 <template>
-  <button
-    type="button"
-    class="td-icon-btn"
-    :title="label"
-    :aria-label="label"
+  <TdTooltip
+    :always="Boolean(label)"
+    :text="label"
+    placement="bottom"
   >
-    <slot />
-  </button>
+    <button
+      type="button"
+      class="td-icon-btn"
+      :aria-label="label"
+    >
+      <slot />
+    </button>
+  </TdTooltip>
 </template>
 
 <style scoped>
