@@ -72,7 +72,7 @@ pub fn main() -> anyhow::Result<()> {
     unsafe { std::env::set_var("TYPEDOWN_NO_CACHE", "1") };
   }
 
-  let (connection, io_handle, shutdown_socket) = transport::connect_tcp(&addr, port)?;
+  let (connection, io_handle, _listener, shutdown_socket) = transport::connect_tcp(&addr, port)?;
 
   // On SIGINT, shut down the TCP socket so the reader thread unblocks and the server exits cleanly
   let interrupted = Arc::new(AtomicBool::new(false));

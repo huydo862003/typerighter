@@ -64,6 +64,13 @@ impl Server {
     self.multiproject.save();
   }
 
+  /// Called when a client disconnects but the server should keep running for the next client
+  /// Waits for in-flight requests to finish and returns the Multiproject for reuse
+  pub fn disconnect(self) -> Multiproject {
+    self.thread_pool.join();
+    self.multiproject
+  }
+
   /// Run the server event loop until the client sends a shutdown request
   pub fn run(&self) -> anyhow::Result<()> {
     self.register_file_watcher()?;

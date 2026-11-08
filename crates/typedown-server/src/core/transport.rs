@@ -34,17 +34,25 @@ pub fn connect_stdio() -> (Connection, IoHandle) {
 
 pub type ShutdownSocket = Arc<Mutex<Option<std::net::TcpStream>>>;
 
-/// Bind a TCP listener & print addr:port to stdout
-/// Returns a shutdown socket handle that can be used to close the connection from a signal handler
+/// Bind a TCP listener, print addr:port to stdout, and accept the first connection
+/// The listener is returned so the caller can accept subsequent connections via `accept_tcp`
 pub fn connect_tcp(
   addr: &str,
   port: u16,
-) -> anyhow::Result<(Connection, IoHandle, ShutdownSocket)> {
+) -> anyhow::Result<(Connection, IoHandle, TcpListener, ShutdownSocket)> {
   let listener = TcpListener::bind(format!("{addr}:{port}"))?;
   let bound_addr = listener.local_addr()?;
   // Clients (editors, rpc-server package) parse this to know where to connect
   println!("{bound_addr}");
 
+  let (conn, io, shutdown) = accept_tcp(&listener)?;
+  Ok((conn, io, listener, shutdown))
+}
+
+/// Accept the next client connection on an existing listener
+pub fn accept_tcp(
+  listener: &TcpListener,
+) -> anyhow::Result<(Connection, IoHandle, ShutdownSocket)> {
   // Clone the stream so reader and writer threads each own a handle to the same socket
   let (stream, _) = listener.accept()?;
   let shutdown_socket: ShutdownSocket = Arc::new(Mutex::new(Some(stream.try_clone()?)));

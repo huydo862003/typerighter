@@ -8,7 +8,7 @@ use lsp_types::{
 };
 use typedown_server::core::logger;
 use typedown_server::core::multiproject::Multiproject;
-use typedown_server::core::transport;
+use typedown_server::core::transport::{self, accept_tcp};
 use typedown_server::lsp::server::Server;
 use typedown_server::lsp::service::{commands, semantic_tokens};
 
@@ -61,12 +61,6 @@ pub fn main() -> anyhow::Result<()> {
     // SAFETY: single-threaded at this point, before any server threads are spawned
     unsafe { std::env::set_var("TYPEDOWN_NO_CACHE", "1") };
   }
-
-  let (connection, io_handle) = if use_stdio {
-    Ok(transport::connect_stdio())
-  } else {
-    transport::connect_tcp(&addr, port).map(|(conn, io, _)| (conn, io))
-  }?;
 
   // File logger available immediately, before handshake
   logger::init_file();
@@ -137,12 +131,71 @@ pub fn main() -> anyhow::Result<()> {
     ..Default::default()
   };
 
-  let multiproject = Multiproject::default();
+  if use_stdio {
+    let (connection, io_handle) = transport::connect_stdio();
 
-  // connection.initialize wraps its arg in { "capabilities": ... }, so we use initialize_start/initialize_finish to also include serverInfo
-  let (init_id, init_params) = connection.initialize_start()?;
-  let init_data = serde_json::to_value(InitializeResult {
-    capabilities,
+    let (init_id, init_params) = connection.initialize_start()?;
+    let init_data = serde_json::to_value(make_init_result(&capabilities))?;
+    connection.initialize_finish(init_id, init_data)?;
+    let init_params: InitializeParams = serde_json::from_value(init_params)?;
+
+    logger::set_lsp_sender(connection.sender.clone());
+    log::info!("Typedown LSP server started");
+
+    let server = Server::new(
+      connection,
+      Multiproject::default(),
+      init_params.capabilities,
+    );
+    server.run()?;
+
+    log::info!("Shutting down, saving cache");
+    server.save();
+
+    io_handle.join();
+  } else {
+    let (mut connection, mut io_handle, listener, _) = transport::connect_tcp(&addr, port)?;
+    let mut multiproject = Multiproject::default();
+
+    loop {
+      let (init_id, init_params) = connection.initialize_start()?;
+      let init_data = serde_json::to_value(make_init_result(&capabilities))?;
+      connection.initialize_finish(init_id, init_data)?;
+      let init_params: InitializeParams = serde_json::from_value(init_params)?;
+
+      logger::set_lsp_sender(connection.sender.clone());
+      log::info!("Typedown LSP server started");
+
+      let server = Server::new(connection, multiproject, init_params.capabilities);
+      server.run()?;
+
+      log::info!("Client disconnected, waiting for next connection");
+      multiproject = server.disconnect();
+
+      io_handle.join();
+
+      match accept_tcp(&listener) {
+        Ok((conn, io, _)) => {
+          connection = conn;
+          io_handle = io;
+        }
+        Err(e) => {
+          log::info!("Listener closed, shutting down: {e}");
+          break;
+        }
+      }
+    }
+
+    log::info!("Saving cache");
+    multiproject.save();
+  }
+
+  Ok(())
+}
+
+fn make_init_result(capabilities: &ServerCapabilities) -> InitializeResult {
+  InitializeResult {
+    capabilities: capabilities.clone(),
     server_info: Some(ServerInfo {
       name: "typedown-lsp".to_string(),
       version: Some(format!(
@@ -151,23 +204,5 @@ pub fn main() -> anyhow::Result<()> {
         env!("BUILD_TIMESTAMP")
       )),
     }),
-  })?;
-  connection.initialize_finish(init_id, init_data)?;
-  let init_params: InitializeParams = serde_json::from_value(init_params)?;
-
-  // Upgrade logger to also send window/logMessage after handshake
-  logger::set_lsp_sender(connection.sender.clone());
-
-  // Projects are loaded lazily on first didOpen/request via load_nearest_project
-  log::info!("Typedown LSP server started");
-
-  let server = Server::new(connection, multiproject, init_params.capabilities);
-
-  server.run()?;
-
-  log::info!("Shutting down, saving cache");
-  server.save();
-
-  io_handle.join();
-  Ok(())
+  }
 }
