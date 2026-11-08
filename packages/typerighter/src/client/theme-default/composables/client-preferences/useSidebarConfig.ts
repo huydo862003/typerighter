@@ -30,7 +30,10 @@ export function buildSidebarHeadScript (): string {
   return wrapHeadScript(
     `var collapsed=${collapsedExpr};`
     + `var width=${widthExpr};`
-    + setDocumentCssVariable(INITIAL_SIDEBAR_WIDTH_CSS_VAR, '`${width}px`')
+    + setDocumentCssVariable(
+      INITIAL_SIDEBAR_WIDTH_CSS_VAR,
+      '`${width}px`',
+    )
     + setDocumentCssVariable(
       INITIAL_EXPANDED_SIDEBAR_CSS_VAR,
       '"none"',
@@ -38,12 +41,12 @@ export function buildSidebarHeadScript (): string {
     )
     + setDocumentCssVariable(
       INITIAL_EXPANDED_SIDEBAR_CSS_VAR,
-      '""', // intentionally invalid css
+      undefined, // intentionally invalid css
       '!collapsed',
     )
     + setDocumentCssVariable(
       INITIAL_COLLAPSED_SIDEBAR_CSS_VAR,
-      '""', // intentionally invalid css
+      undefined, // intentionally invalid css
       'collapsed',
     )
     + setDocumentCssVariable(
@@ -68,7 +71,7 @@ export function useSidebarConfig () {
   const effectiveWidth = computed(() =>
     isSidebarCollapsed.value ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth.value);
 
-  const sidebarStyle = computed(() =>
+  const sidebarWidthStyle = computed(() =>
     isMounted.value
       ? {
         width: `${effectiveWidth.value}px`,
@@ -80,7 +83,7 @@ export function useSidebarConfig () {
   const expandedSidebarVisibilityStyle = computed(() =>
     isMounted.value
       ? {
-        display: isSidebarCollapsed.value ? 'none' : '',
+        display: isSidebarCollapsed.value ? 'none' : undefined,
       }
       : {
         display: `var(${INITIAL_EXPANDED_SIDEBAR_CSS_VAR})`,
@@ -89,7 +92,7 @@ export function useSidebarConfig () {
   const collapsedSidebarVisibilityStyle = computed(() =>
     isMounted.value
       ? {
-        display: !isSidebarCollapsed.value ? 'none' : '',
+        display: !isSidebarCollapsed.value ? 'none' : undefined,
       }
       : {
         display: `var(${INITIAL_COLLAPSED_SIDEBAR_CSS_VAR})`,
@@ -98,7 +101,7 @@ export function useSidebarConfig () {
   return {
     sidebarWidth,
     isSidebarCollapsed,
-    sidebarStyle,
+    sidebarWidthStyle,
     collapsedSidebarVisibilityStyle,
     expandedSidebarVisibilityStyle,
   };

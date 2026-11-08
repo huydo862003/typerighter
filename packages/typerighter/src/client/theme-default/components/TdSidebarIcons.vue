@@ -164,7 +164,6 @@ function isActive (path: string): boolean {
   align-items: center;
   padding: 10px 0;
   gap: 2px;
-  flex: 1;
 }
 
 .td-sidebar-icon-btn {

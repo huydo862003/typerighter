@@ -6,7 +6,7 @@ export function readLocalStorage (key: string): string {
   return `localStorage.getItem(${JSON.stringify(key)})`;
 }
 
-export function setDocumentCssVariable (name: string, valueIfTrueExpr: string, condition: string = 'true'): string {
+export function setDocumentCssVariable (name: string, valueIfTrueExpr?: string, condition: string = 'true'): string {
   return `if(${condition})document.documentElement.style.setProperty(${JSON.stringify(name)},${valueIfTrueExpr});`;
 }
 

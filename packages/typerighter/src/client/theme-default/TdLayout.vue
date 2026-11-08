@@ -238,7 +238,7 @@ useResizableTable();
 const {
   sidebarWidth,
   isSidebarCollapsed,
-  sidebarStyle,
+  sidebarWidthStyle,
   expandedSidebarVisibilityStyle,
   collapsedSidebarVisibilityStyle,
 } = useSidebarConfig();
@@ -456,11 +456,11 @@ function shrinkSidebar () {
         }"
         data-testid="sidebar"
         aria-label="Site navigation"
-        :style="sidebarStyle"
+        :style="sidebarWidthStyle"
       >
         <!-- Do not use v-if-else to avoid flashes on first render -->
         <div
-          class="contents"
+          class="flex-col flex-1"
           :style="expandedSidebarVisibilityStyle"
         >
           <slot name="sidebar-top" />
@@ -478,11 +478,15 @@ function shrinkSidebar () {
           <slot name="sidebar-bottom" />
         </div>
         <!-- Do not use v-if-else to avoid flashes on first render -->
-        <TdSidebarIcons
+        <div
           :style="collapsedSidebarVisibilityStyle"
-          :tree="siteData.contentTree"
-          @search="expandAndFocusSearch"
-        />
+          class="flex-1"
+        >
+          <TdSidebarIcons
+            :tree="siteData.contentTree"
+            @search="expandAndFocusSearch"
+          />
+        </div>
         <button
           class="td-sidebar-collapse-btn"
           type="button"
@@ -503,13 +507,14 @@ function shrinkSidebar () {
             :style="expandedSidebarVisibilityStyle"
             class="td-sidebar-collapse-label"
           >Collapse sidebar</span>
-          <TdKbdShortcut
-            :style="expandedSidebarVisibilityStyle"
-            :keys="[
-              TdKeyName.Meta,
-              TdKeyName.Backslash,
-            ]"
-          />
+          <div :style="expandedSidebarVisibilityStyle">
+            <TdKbdShortcut
+              :keys="[
+                TdKeyName.Meta,
+                TdKeyName.Backslash,
+              ]"
+            />
+          </div>
         </button>
         <div
           :style="expandedSidebarVisibilityStyle"
