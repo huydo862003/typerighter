@@ -44,7 +44,9 @@ const {
   previous, next,
 } = usePreviousNext();
 const {
-  results: pageResults, search: searchPages, cancel: cancelSearch,
+  results: pageResults,
+  search: searchPages,
+  cancel: cancelSearch,
 } = useSiteSearch();
 
 const filterText = computed(() => query.value.trim());
@@ -89,10 +91,10 @@ const parentUrl = computed(() => {
 });
 
 const allCommands = computed((): Command[] => {
-  const cmds: Command[] = [];
+  const commands: Command[] = [];
 
   if (next.value) {
-    cmds.push({
+    commands.push({
       id: 'nav-next',
       group: 'Navigate',
       label: `Next page: ${next.value.title}`,
@@ -104,7 +106,7 @@ const allCommands = computed((): Command[] => {
     });
   }
   if (previous.value) {
-    cmds.push({
+    commands.push({
       id: 'nav-prev',
       group: 'Navigate',
       label: `Previous page: ${previous.value.title}`,
@@ -116,14 +118,14 @@ const allCommands = computed((): Command[] => {
     });
   }
   if (parentUrl.value) {
-    cmds.push({
+    commands.push({
       id: 'nav-up',
       group: 'Navigate',
       label: 'Up to section overview',
       href: withBase(parentUrl.value),
     });
   }
-  cmds.push({
+  commands.push({
     id: 'view-sidebar',
     group: 'View',
     label: 'Collapse sidebar',
@@ -134,32 +136,37 @@ const allCommands = computed((): Command[] => {
     keepsOpen: true,
     action: () => emit('toggle-sidebar'),
   });
-  cmds.push({
+  commands.push({
     id: 'view-shortcuts',
     group: 'View',
     label: 'Keyboard shortcuts',
     action: () => {
-      close(); emit('show-shortcuts');
+      close();
+      emit('show-shortcuts');
     },
   });
-  cmds.push({
+  commands.push({
     id: 'page-copy',
     group: 'This page',
     label: 'Copy link',
     action: () => {
-      navigator.clipboard.writeText(window.location.href).catch(() => {}); close();
+      navigator.clipboard.writeText(window.location.href).catch(() => {});
+      close();
     },
   });
 
-  return cmds;
+  return commands;
 });
 
 const visibleCommands = computed(() => {
   if (!filterText.value) return allCommands.value;
   const queryLower = filterText.value.toLowerCase();
 
-  return allCommands.value.filter((command) =>
-    command.label.toLowerCase().includes(queryLower) || command.group.toLowerCase().includes(queryLower));
+  return allCommands.value.filter(
+    (command) =>
+      command.label.toLowerCase().includes(queryLower)
+      || command.group.toLowerCase().includes(queryLower),
+  );
 });
 
 interface CommandGroup {
@@ -184,7 +191,9 @@ const groupedCommands = computed((): CommandGroup[] => {
   }));
 });
 
-const totalCount = computed(() => pageResults.value.length + visibleCommands.value.length);
+const totalCount = computed(
+  () => pageResults.value.length + visibleCommands.value.length,
+);
 
 function findCommandIndex (command: Command): number {
   return pageResults.value.length + visibleCommands.value.indexOf(command);
@@ -194,7 +203,8 @@ function onKeydown (event: KeyboardEvent) {
   const total = totalCount.value;
 
   if (event.key === 'Escape') {
-    event.preventDefault(); close();
+    event.preventDefault();
+    close();
 
     return;
   }
@@ -204,7 +214,8 @@ function onKeydown (event: KeyboardEvent) {
   }
   if (event.key === 'ArrowUp') {
     event.preventDefault();
-    selectedIndex.value = 0 < total ? (selectedIndex.value - 1 + total) % total : 0;
+    selectedIndex.value =
+      0 < total ? (selectedIndex.value - 1 + total) % total : 0;
   }
   if (event.key === 'Enter') {
     event.preventDefault();
@@ -248,9 +259,11 @@ watch(totalCount, () => {
 
 watch(selectedIndex, () => {
   requestAnimationFrame(() => {
-    resultsRef.value?.querySelector<HTMLElement>('.is-selected')?.scrollIntoView({
-      block: 'nearest',
-    });
+    resultsRef.value
+      ?.querySelector<HTMLElement>('.is-selected')
+      ?.scrollIntoView({
+        block: 'nearest',
+      });
   });
 });
 </script>
@@ -313,7 +326,7 @@ watch(selectedIndex, () => {
                 'is-selected': index === selectedIndex,
               }"
               @click.prevent="() => selectPage(index)"
-              @mouseenter="() => selectedIndex = index"
+              @mouseenter="() => (selectedIndex = index)"
             >
               <span
                 class="td-palette-item-label"
@@ -332,27 +345,29 @@ watch(selectedIndex, () => {
               {{ group.name }}
             </div>
             <component
-              :is="cmd.href ? 'a' : 'button'"
-              v-for="cmd in group.commands"
-              :key="cmd.id"
-              v-bind="cmd.href
-                ? {
-                  href: cmd.href,
-                }
-                : {
-                  type: 'button',
-                }"
+              :is="command.href ? 'a' : 'button'"
+              v-for="command in group.commands"
+              :key="command.id"
+              v-bind="
+                command.href
+                  ? {
+                    href: command.href,
+                  }
+                  : {
+                    type: 'button',
+                  }
+              "
               class="td-palette-item"
               :class="{
-                'is-selected': findCommandIndex(cmd) === selectedIndex,
+                'is-selected': findCommandIndex(command) === selectedIndex,
               }"
-              @click="() => runCommand(cmd)"
-              @mouseenter="() => selectedIndex = findCommandIndex(cmd)"
+              @click="() => runCommand(command)"
+              @mouseenter="() => (selectedIndex = findCommandIndex(command))"
             >
-              <span class="td-palette-item-label">{{ cmd.label }}</span>
+              <span class="td-palette-item-label">{{ command.label }}</span>
               <TdKbdShortcut
-                v-if="cmd.keys"
-                :keys="cmd.keys"
+                v-if="command.keys"
+                :keys="command.keys"
               />
             </component>
           </template>
@@ -367,9 +382,12 @@ watch(selectedIndex, () => {
 
         <!-- Footer -->
         <div class="td-palette-footer">
-          <span><TdKbdShortcut :keys="[TdKeyName.ArrowUp]" /> <TdKbdShortcut :keys="[TdKeyName.ArrowDown]" /> navigate</span>
-          <span><TdKbdShortcut :keys="[TdKeyName.Enter]" /> select</span>
-          <span><TdKbdShortcut :keys="[TdKeyName.Escape]" /> close</span>
+          <span>
+            <TdKbdShortcut :keys="[TdKeyName.ArrowUp]" />
+            <TdKbdShortcut :keys="[TdKeyName.ArrowDown]" /> navigate
+          </span>
+          <span> <TdKbdShortcut :keys="[TdKeyName.Enter]" /> select </span>
+          <span> <TdKbdShortcut :keys="[TdKeyName.Escape]" /> close </span>
         </div>
       </div>
     </template>
@@ -445,6 +463,7 @@ watch(selectedIndex, () => {
 
 .td-palette-results {
   overflow-y: auto;
+  overscroll-behavior: contain;
   max-height: calc(100vh - 24vh - 120px);
   padding: 6px 0;
 }
