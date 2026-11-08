@@ -146,7 +146,7 @@ function editPageUrl (filepath: string): string {
 }
 
 function expandAndFocusSearch () {
-  sidebarCollapsed.value = false;
+  isSidebarCollapsed.value = false;
   nextTick(() => sidebarSearch.value?.focus());
 }
 
@@ -236,7 +236,7 @@ watchEffect(() => {
 useResizableTable();
 
 const {
-  sidebarWidth, sidebarCollapsed, sidebarStyle,
+  sidebarWidth, isSidebarCollapsed, sidebarStyle,
 } = useSidebarConfig();
 const isSidebarResizing = ref(false);
 
@@ -254,7 +254,7 @@ function toggleNavPanel (): void {
 }
 
 function toggleSidebar () {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
 }
 
 useGlobalHotkey([
@@ -319,7 +319,7 @@ function shrinkSidebar () {
     <header class="td-header">
       <div class="td-header-left">
         <TdMenuButton
-          v-if="isDrawerMounted"
+          class="xl:hidden"
           @click="openMenu"
         />
         <a
@@ -448,13 +448,13 @@ function shrinkSidebar () {
         class="td-sidebar-left"
         :class="{
           'is-resizing': isSidebarResizing,
-          'is-collapsed': sidebarCollapsed,
+          'is-collapsed': isSidebarCollapsed,
         }"
         data-testid="sidebar"
         aria-label="Site navigation"
         :style="sidebarStyle"
       >
-        <template v-if="!sidebarCollapsed">
+        <template v-if="!isSidebarCollapsed">
           <slot name="sidebar-top" />
           <TdSiteSearch
             ref="sidebarSearch"
@@ -477,11 +477,11 @@ function shrinkSidebar () {
         <button
           class="td-sidebar-collapse-btn"
           type="button"
-          :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          :aria-label="isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click="toggleSidebar"
         >
           <ChevronsLeft
-            v-if="!sidebarCollapsed"
+            v-if="!isSidebarCollapsed"
             :size="14"
           />
           <ChevronsRight
@@ -489,11 +489,11 @@ function shrinkSidebar () {
             :size="14"
           />
           <span
-            v-if="!sidebarCollapsed"
+            v-if="!isSidebarCollapsed"
             class="td-sidebar-collapse-label"
           >Collapse sidebar</span>
           <TdKbdShortcut
-            v-if="!sidebarCollapsed"
+            v-if="!isSidebarCollapsed"
             :keys="[
               TdKeyName.Meta,
               TdKeyName.Backslash,
@@ -501,7 +501,7 @@ function shrinkSidebar () {
           />
         </button>
         <div
-          v-if="!sidebarCollapsed"
+          v-if="!isSidebarCollapsed"
           class="td-resize-handle"
           role="separator"
           aria-orientation="vertical"

@@ -12,7 +12,9 @@ import {
 
 const WIDTH_KEY = 'td-sidebar-width';
 const COLLAPSED_KEY = 'td-sidebar-collapsed';
-const CSS_VAR = '--td-sidebar-width';
+
+const SIDEBAR_WIDTH_CSS_VAR = '--td-sidebar-width';
+const SIDEBAR_MODE_CSS_VAR = '--td-sidebar-mode';
 
 export const SIDEBAR_DEFAULT_WIDTH = 300;
 export const SIDEBAR_COLLAPSED_WIDTH = 48;
@@ -27,13 +29,13 @@ export function buildSidebarHeadScript (): string {
   return wrapHeadScript(
     `var collapsed=${collapsedExpr};`
     + `var width=${widthExpr};`
-    + setDocumentCssVariable(CSS_VAR, '`${width}px`'),
+    + setDocumentCssVariable(SIDEBAR_WIDTH_CSS_VAR, '`${width}px`'),
   );
 }
 
 export function useSidebarConfig () {
   const sidebarWidth = useClientPreferences(WIDTH_KEY, SIDEBAR_DEFAULT_WIDTH);
-  const sidebarCollapsed = useClientPreferences(COLLAPSED_KEY, false);
+  const isSidebarCollapsed = useClientPreferences(COLLAPSED_KEY, false);
 
   // empty until mounted so the pre-rendered width is not overwritten before hydration
   const isMounted = ref(false);
@@ -43,7 +45,7 @@ export function useSidebarConfig () {
   });
 
   const effectiveWidth = computed(() =>
-    sidebarCollapsed.value ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth.value);
+    isSidebarCollapsed.value ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth.value);
 
   const sidebarStyle = computed(() =>
     isMounted.value
@@ -51,12 +53,12 @@ export function useSidebarConfig () {
         width: `${effectiveWidth.value}px`,
       }
       : {
-        width: `var(${CSS_VAR})`,
+        width: `var(${SIDEBAR_WIDTH_CSS_VAR})`,
       });
 
   return {
     sidebarWidth,
-    sidebarCollapsed,
+    isSidebarCollapsed,
     sidebarStyle,
   };
 }
