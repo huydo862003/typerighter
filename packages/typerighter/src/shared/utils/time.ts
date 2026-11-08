@@ -18,12 +18,6 @@ export function formatAbsoluteTime (epochSecs: number): string {
 }
 
 export function formatEditTime (epochSecs: number, prefix: string): string {
-  if (typeof window === 'undefined') return '';
-
-  const delta = Math.floor(Date.now() / 1000) - epochSecs;
-
-  if (delta < TWO_WEEKS) return `${prefix} ${formatRelativeTime(epochSecs)}`;
-
   return `${prefix} at ${formatAbsoluteTime(epochSecs)}`;
 }
 
