@@ -1,6 +1,14 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.56.3] - 2026-11-08
+
+### Fixed
+
+- packages/typerighter
+  - Contain the overscroll behavior of command pallete
+  - Fix all flash of uninited state causing layout shifts
+
 ## [0.56.2] - 2026-11-07
 
 ### Fixed
