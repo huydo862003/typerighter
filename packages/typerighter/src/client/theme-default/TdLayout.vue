@@ -318,7 +318,10 @@ function shrinkSidebar () {
     >Skip to content</a>
     <header class="td-header">
       <div class="td-header-left">
-        <TdMenuButton @click="openMenu" />
+        <TdMenuButton
+          v-if="isDrawerMounted"
+          @click="openMenu"
+        />
         <a
           :href="withBase(getIndexUrl('/'))"
           class="td-brand"
