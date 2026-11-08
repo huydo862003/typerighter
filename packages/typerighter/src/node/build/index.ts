@@ -184,7 +184,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     // Add directory index pages (root + all subdirectories)
     pageRoutes.push('/');
-    collectDirectoryPaths(contentTree.entries, '', pageRoutes);
+    collectDirectoryPaths(contentTree.entries, pageRoutes);
 
     const phase3 = new ProgressLogger(logger, 'Pre-rendering pages...');
 
@@ -361,7 +361,7 @@ async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> 
 
 // Collect directory index paths from the content tree for pre-rendering
 // Only adds dirs without an index.td (those are already covered by files.map)
-function collectDirectoryPaths (entries: ContentTreeEntry[], prefix: string, paths: string[]) {
+function collectDirectoryPaths (entries: ContentTreeEntry[], paths: string[], prefix: string = '') {
   for (const entry of entries) {
     if (entry.kind !== 'dir') continue;
 
@@ -371,6 +371,6 @@ function collectDirectoryPaths (entries: ContentTreeEntry[], prefix: string, pat
       paths.push(getIndexUrl(dirPath));
     }
 
-    collectDirectoryPaths(entry.node.entries, dirPath, paths);
+    collectDirectoryPaths(entry.node.entries, paths, dirPath);
   }
 }

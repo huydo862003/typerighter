@@ -55,9 +55,9 @@ parentPort!.on('message', async (pageRoute: string) => {
 
     const response: PrerenderWorkerResult = { pageRoute, fileName, html };
     parentPort!.postMessage({ result: response });
-  } catch (err) {
+  } catch (error) {
     parentPort!.postMessage({
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 });
