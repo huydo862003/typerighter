@@ -106,7 +106,7 @@ async function loadPageModule(pagePath) {
 
   if (isIndexUrl(pagePath)) {
     const dirPath = getDirectoryFromPageUrl(pagePath);
-    const dir = siteData.value.directoryListings[dirPath];
+    const dir = (siteData?.value ?? initialSiteData).directoryListings[dirPath];
     if (dir) return {
       default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
       pageData: { frontmatter: {}, headings: [], title: dir.title },
