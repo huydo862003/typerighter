@@ -110,7 +110,7 @@ fn parse_decimal_literal() {
 fn parse_double_quoted_string() {
   let tree = parse_expr(r#""hello""#);
   let expected = r#"(YamlMappingEntryValue
-  (StrLit
+  (StringLit
     " "
     "\""
     "hello"
@@ -122,7 +122,7 @@ fn parse_double_quoted_string() {
 fn parse_single_quoted_string() {
   let tree = parse_expr("'hello'");
   let expected = r#"(YamlMappingEntryValue
-  (StrLit
+  (StringLit
     " "
     "'"
     "hello"
@@ -1289,7 +1289,7 @@ fn error_unclosed_dict() {
 fn error_unclosed_string() {
   let (tree, diagnostics) = parse_expr_with_diagnostics(r#""hello"#);
   let expected = r#"(YamlMappingEntryValue
-  (StrLit
+  (StringLit
     " "
     "\""
     "hello"))"#;

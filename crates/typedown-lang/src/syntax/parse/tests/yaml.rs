@@ -157,7 +157,7 @@ fn string_value() {
         "title")
       ":"
       (YamlMappingEntryValue
-        (StrLit
+        (StringLit
           " "
           "\""
           "hello"

@@ -1007,7 +1007,7 @@ content
         (MdContainerPropItem
           "title"
           "="
-          (StrLit
+          (StringLit
             "\""
             "Hello"
             "\""))
@@ -1015,7 +1015,7 @@ content
         (MdContainerPropItem
           "variant"
           "="
-          (StrLit
+          (StringLit
             "\""
             "wide"
             "\""))
@@ -1300,7 +1300,7 @@ more
         (MdContainerPropItem
           "variant"
           "="
-          (StrLit
+          (StringLit
             "\""
             "pill"
             "\""))
@@ -1680,7 +1680,7 @@ fn parse_container_shorthand_quoted_string_props() {
         (MdContainerPropItem
           "td"
           "="
-          (StrLit
+          (StringLit
             "\""
             "document"
             "\""))
@@ -1688,7 +1688,7 @@ fn parse_container_shorthand_quoted_string_props() {
         (MdContainerPropItem
           "lucide"
           "="
-          (StrLit
+          (StringLit
             "\""
             "file-text"
             "\""))
@@ -1768,7 +1768,7 @@ fn parse_container_shorthand_with_spaced_props() {
         (MdContainerPropItem
           "td"
           "="
-          (StrLit
+          (StringLit
             "\""
             "document"
             "\""))
@@ -1776,7 +1776,7 @@ fn parse_container_shorthand_with_spaced_props() {
         (MdContainerPropItem
           "lucide"
           "="
-          (StrLit
+          (StringLit
             "\""
             "file-text"
             "\""))

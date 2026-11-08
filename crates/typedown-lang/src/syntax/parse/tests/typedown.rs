@@ -357,7 +357,7 @@ world
           "desc")
         ":"
         (YamlMappingEntryValue
-          (StrLit
+          (StringLit
             (YamlFoldedBlockStrLit
               " "
               ">"
