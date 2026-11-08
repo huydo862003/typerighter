@@ -460,7 +460,7 @@ function shrinkSidebar () {
       >
         <!-- Do not use v-if-else to avoid flashes on first render -->
         <div
-          class="flex-col flex-1"
+          class="flex-col flex-1 overflow-y-auto"
           :style="expandedSidebarVisibilityStyle"
         >
           <slot name="sidebar-top" />
@@ -844,6 +844,7 @@ function shrinkSidebar () {
   padding: 8px 0;
   margin: 8px auto;
   width: 36px;
+  flex-shrink: 0;
 }
 
 .td-sidebar-search {
