@@ -180,12 +180,14 @@ pub fn normalize_joined_path(base: &Path, relative: &str) -> PathBuf {
 /// Resolve a fref path string to an absolute file system path
 /// - Paths starting with `/` are resolved relative to `vault_root`
 /// - Paths starting with `./` or `../` are resolved relative to `source_file_dir`
-pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) -> PathBuf {
+pub fn resolve_fref_path(path: &str, source_file_dir: &Path, vault_root: &Path) -> Option<PathBuf> {
   if path.starts_with("./") || path.starts_with("../") {
-    normalize_joined_path(source_file_dir, path)
-  } else {
+    Some(normalize_joined_path(source_file_dir, path))
+  } else if path.starts_with("/") {
     // Handles absolute paths starting with `/` (strip leading slash before joining)
-    vault_root.join(path.trim_start_matches('/'))
+    Some(vault_root.join(path.trim_start_matches('/')))
+  } else {
+    None
   }
 }
 
@@ -292,7 +294,7 @@ mod tests {
     let vault_root = Path::new("/project/vault");
     let source_file_dir = Path::new("/project/vault/articles/webrtc");
     let result = resolve_fref_path("/articles/intro.td", source_file_dir, vault_root);
-    assert_eq!(result, PathBuf::from("/project/vault/articles/intro.td"));
+    assert_eq!(result, Some(PathBuf::from("/project/vault/articles/intro.td")));
   }
 
   #[test]
@@ -301,7 +303,7 @@ mod tests {
     let vault_root = Path::new("/project");
     let source_file_dir = Path::new("/project/articles");
     let result = resolve_fref_path("/articles/intro.td", source_file_dir, vault_root);
-    assert_eq!(result, PathBuf::from("/project/articles/intro.td"));
+    assert_eq!(result, Some(PathBuf::from("/project/articles/intro.td")));
   }
 
   #[test]
@@ -311,7 +313,7 @@ mod tests {
     let result = resolve_fref_path("./peer.td", source_file_dir, vault_root);
     assert_eq!(
       result,
-      PathBuf::from("/project/vault/articles/webrtc/peer.td")
+      Some(PathBuf::from("/project/vault/articles/webrtc/peer.td")),
     );
   }
 
@@ -320,7 +322,7 @@ mod tests {
     let vault_root = Path::new("/project/vault");
     let source_file_dir = Path::new("/project/vault/articles/webrtc");
     let result = resolve_fref_path("../intro.td", source_file_dir, vault_root);
-    assert_eq!(result, PathBuf::from("/project/vault/articles/intro.td"));
+    assert_eq!(result, Some(PathBuf::from("/project/vault/articles/intro.td")));
   }
 
   // resolve_md_link_path tests

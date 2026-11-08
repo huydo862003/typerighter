@@ -89,8 +89,8 @@ fn resolve_call(db: &TypedownDatabase, project_node: ProjectRedNode) -> MaybeSym
     .and_then(|path| path.parent().map(|diagnostic| diagnostic.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path, &file_dir, &root_dir);
-  match project.files(db).get(&target_path) {
-    Some(&target_file) => file_symbol(db, project, target_file),
+  match target_path.and_then(|path| project.files(db).get(&path).copied()) {
+    Some(target_file) => file_symbol(db, project, target_file),
     None => MaybeSymbol::new(db, None),
   }
 }

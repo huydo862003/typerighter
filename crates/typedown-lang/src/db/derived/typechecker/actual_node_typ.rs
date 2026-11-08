@@ -536,7 +536,7 @@ fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> Ty
     .unwrap_or_else(|| root_dir.clone());
   let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
 
-  let target_file = match files.get(&target_path) {
+  let target_file = match target_path.and_then(|path| files.get(&path)) {
     Some(file) => *file,
     None => {
       return TypResult::new(

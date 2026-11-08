@@ -1024,7 +1024,7 @@ fn construct_fref<'db>(
     .path()
     .and_then(|path| path.parent().map(|path| path.to_path_buf()))
     .unwrap_or_else(|| root_dir.clone());
-  let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir);
+  let target_path = resolve_fref_path(&path_string, &file_dir, &root_dir)?;
 
   let target_file = *files.get(&target_path)?;
   let target_symbol = file_symbol(db, project, target_file).value(db)?;
