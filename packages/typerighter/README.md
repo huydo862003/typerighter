@@ -20,6 +20,10 @@ These cause certain jitters and layout shifts that are annoying.
 
 So my approach is:
 - Generate blocking head script that reads from local storage and sets CSS variables.
-- In the component, I use the CSS variables.
+- In the component, I use the CSS variables so SSR won't inline it and on first render, the CSS takes effect immediately.
 
 -> This completely eliminates the problem, at the cost of some hoops.
+
+See: https://github.com/huydo862003/typerighter/commit/5139adc8cf2b87f6ef15eb11a9c1c3a7fc88e7e5
+
+Next step: Can we abstract this?
