@@ -1,3 +1,11 @@
+## [0.56.4] - 2026-11-08
+
+### Fixed
+
+- packages/typerighter
+  - Simplify rendering of Modified of in pages
+  - Expanded directory entry in left sidebar causes the collapse button to be pushed outside the sidebar
+
 ## [0.56.3] - 2026-11-08
 
 ### Fixed
