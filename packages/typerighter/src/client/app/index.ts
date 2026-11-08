@@ -150,6 +150,7 @@ export async function createTypedownApp (
 
   const router = createRouter(loadPageModule, {
     basePath: siteConfig.basePath,
+    fallbackComponent: theme.NotFound,
   });
 
   const TypedownApp = defineComponent({

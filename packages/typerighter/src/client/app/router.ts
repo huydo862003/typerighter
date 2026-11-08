@@ -41,8 +41,8 @@ export const routerSymbol: InjectionKey<Router> = Symbol('typedown-router');
 const notFoundPageData: PageData = {
   frontmatter: {},
   headings: [],
-  title: 'Not Found',
-  titleHtml: 'Not Found',
+  title: '',
+  titleHtml: '',
   filepath: '',
 };
 
