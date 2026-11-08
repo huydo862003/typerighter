@@ -33,7 +33,6 @@ import {
   isIndexUrl,
   getDirectoryFromPageUrl,
   getParentUrl,
-  path,
   stripTrailingSlash,
   type PageModule,
   type ContentTree,
@@ -75,7 +74,7 @@ export interface TypedownSiteConfig {
   author?: string;
   /** License name */
   license?: string;
-  /** Vault root directory relative to the project root (e.g. "vault") */
+  /** Vault root directory relative to the Vite project root (e.g. "vault" or "api-reference/vault") */
   rootDir?: string;
   /** Navigation links */
   nav?: {
@@ -142,20 +141,14 @@ export async function createTypedownApp (
     theme,
   } = siteConfig;
 
-  // Build the full root path prefix used to key pages (e.g. "/vault" or "/docs/vault")
-  const rootPrefix = path.join(
-    '/',
-    siteConfig.basePath !== '/' ? siteConfig.basePath : '',
-    siteConfig.rootDir ?? '',
-  );
-
+  // Page keys from import.meta.glob include the full path (e.g. "/vault/people/alice.td"), while pagePath is the route path (e.g. "/people/alice")
   function findPage (pagePath: string): (() => Promise<PageModule>) | undefined {
-    const base = path.join(rootPrefix, pagePath);
-
     for (const extension of CONTENT_EXTENSIONS) {
-      const loader = siteData.value.pages[base + extension];
+      const suffix = pagePath + extension;
 
-      if (loader) return loader;
+      for (const key of Object.keys(siteData.value.pages)) {
+        if (key.endsWith(suffix)) return siteData.value.pages[key];
+      }
     }
   }
 
@@ -203,8 +196,8 @@ export async function createTypedownApp (
     if (previous.pages === next.pages) return;
 
     const routePath = router.route.path;
-    const base = path.join(rootPrefix, routePath);
-    const hadPage = CONTENT_EXTENSIONS.some((extension) => !!previous.pages[base + extension]);
+    const hadPage = CONTENT_EXTENSIONS.some((extension) =>
+      Object.keys(previous.pages).some((key) => key.endsWith(routePath + extension)));
     const hasPage = !!findPage(routePath);
 
     if (!hadPage && hasPage) {

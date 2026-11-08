@@ -65,7 +65,7 @@ export function generateAppEntry (options: AppEntryOptions, ids: VirtualModuleId
     repo: options.repo,
     author: options.author,
     license: options.license,
-    rootDir: rootDirectory,
+    rootDir: rootDirectory === '.' ? undefined : rootDirectory,
     nav: options.nav,
   });
 
