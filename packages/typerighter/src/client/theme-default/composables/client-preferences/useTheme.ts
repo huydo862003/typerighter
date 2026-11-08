@@ -2,61 +2,48 @@ import {
   ref, computed, readonly,
 } from 'vue';
 import {
-  wrapHeadScript, readLocalStorage, addDocumentClass,
+  wrapHeadScript,
+  readLocalStorage,
+  addDocumentClass,
 } from './utils/buildHeadScript';
 
 export type Theme = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'td-theme';
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
-let transitionTimer: ReturnType<typeof setTimeout> | undefined;
 
-function applyTheme (theme: Theme): void {
-  if (typeof document === 'undefined') return;
-
-  const effective = theme === 'system' ? getSystemTheme() : theme;
-  const root = document.documentElement;
-
-  // Cancel any in-flight transition cleanup from a previous toggle
-  if (transitionTimer !== undefined) {
-    clearTimeout(transitionTimer);
-    transitionTimer = undefined;
-    root.classList.remove('td-theme-transition');
-  }
-
-  // Enable transition only during user-initiated toggles (not on page load)
-  if (initialized) {
-    root.classList.add('td-theme-transition');
-  }
-
-  root.classList.toggle('dark', effective === 'dark');
-
-  if (initialized) {
-    const onEnd = (): void => {
-      clearTimeout(transitionTimer);
-      transitionTimer = undefined;
-      root.classList.remove('td-theme-transition');
-      root.removeEventListener('transitionend', onEnd);
-    };
-
-    root.addEventListener('transitionend', onEnd);
-    transitionTimer = setTimeout(onEnd, 500);
-  }
-}
-
-function getSystemTheme (): 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'light';
-
-  return window.matchMedia(DARK_MEDIA_QUERY).matches ? 'dark' : 'light';
-}
-
-const theme = ref<Theme>('system');
+const theme = ref<Theme>(getStoredTheme());
 const systemTheme = ref<'light' | 'dark'>(getSystemTheme());
+
+// Head script - inlined into the HTML <head> to prevent flash of wrong theme
+export function buildThemeHeadScript (): string {
+  return wrapHeadScript(
+    `var t=${readLocalStorage(STORAGE_KEY)};`
+    + addDocumentClass(
+      `t==='dark'||(t!=='light'&&matchMedia(${JSON.stringify(DARK_MEDIA_QUERY)}).matches)`,
+      'dark',
+    ),
+  );
+}
+
 let initialized = false;
 
 export function useTheme () {
-  initialize();
+  /* Initialize on first call */
+  initialized = true;
 
+  // Listen to user's preference on system theme, apply theme if current theme is system
+  if (typeof window !== 'undefined') {
+    const mediaQuery = window.matchMedia(DARK_MEDIA_QUERY);
+
+    mediaQuery.addEventListener('change', () => {
+      systemTheme.value = getSystemTheme();
+
+      if (theme.value === 'system') applyTheme('system');
+    });
+  }
+
+  /* Expose themes */
   const effectiveTheme = computed<'light' | 'dark'>(() =>
     theme.value === 'system' ? systemTheme.value : theme.value);
 
@@ -88,38 +75,65 @@ export function useTheme () {
   };
 }
 
-// Head script - inlined into the HTML <head> to prevent flash of wrong theme
-export function buildThemeHeadScript (): string {
-  return wrapHeadScript(
-    `var t=${readLocalStorage(STORAGE_KEY)};`
-    + addDocumentClass(
-      `t==='dark'||(t!=='light'&&matchMedia(${JSON.stringify(DARK_MEDIA_QUERY)}).matches)`,
-      'dark',
-    ),
-  );
+let transitionTimer: ReturnType<typeof setTimeout> | undefined; // Apply transition on user initiated theme toggle only
+
+function applyTheme (theme: Theme): void {
+  if (typeof document === 'undefined') return;
+
+  const effectiveTheme = theme === 'system' ? getSystemTheme() : theme; // Effective theme to transition into
+
+  const rootDomNode = document.documentElement;
+
+  if (transitionTimer !== undefined) {
+    // Cancel any in-flight transition cleanup from a previous toggle
+    clearTimeout(transitionTimer);
+    transitionTimer = undefined;
+    // Cancel the transition
+    rootDomNode.classList.remove('td-theme-transition');
+  }
+
+  // Enable transition only during user-initiated toggles (not on page load)
+  if (initialized) {
+    rootDomNode.classList.add('td-theme-transition');
+  }
+
+  rootDomNode.classList.toggle('dark', effectiveTheme === 'dark'); // Toggle to trigger transition
+
+  // Schedule to end the transition
+  if (initialized) {
+    // Event is undefined when setTimeout fires
+    const onTransitionEnd = (event?: TransitionEvent): void => {
+      if (event && event.propertyName !== 'background-color') {
+        return;
+      }
+
+      clearTimeout(transitionTimer);
+      transitionTimer = undefined;
+      // Remove the transition
+      rootDomNode.classList.remove('td-theme-transition');
+      // Cleanup the handler
+      rootDomNode.removeEventListener('transitionend', onTransitionEnd);
+    };
+
+    rootDomNode.addEventListener('transitionend', onTransitionEnd);
+    transitionTimer = setTimeout(onTransitionEnd, 500);
+  }
 }
 
-function initialize (): void {
-  if (initialized) return;
-  initialized = true;
+function getStoredTheme (): 'light' | 'dark' | 'system' {
+  if (typeof window === 'undefined') return 'system';
 
-  if (typeof localStorage !== 'undefined') {
-    const stored = localStorage.getItem(STORAGE_KEY) as string | null;
+  const theme = localStorage.getItem(STORAGE_KEY);
 
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      theme.value = stored;
-    }
+  if (theme === 'light' || theme === 'dark' || theme === 'system') {
+    return theme;
   }
 
-  applyTheme(theme.value);
+  return 'system';
+}
 
-  if (typeof window !== 'undefined') {
-    const mediaQuery = window.matchMedia(DARK_MEDIA_QUERY);
+function getSystemTheme (): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light';
 
-    mediaQuery.addEventListener('change', () => {
-      systemTheme.value = getSystemTheme();
-
-      if (theme.value === 'system') applyTheme('system');
-    });
-  }
+  return window.matchMedia(DARK_MEDIA_QUERY).matches ? 'dark' : 'light';
 }
