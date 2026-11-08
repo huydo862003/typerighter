@@ -91,6 +91,7 @@ import theme from '${ids.theme}';
 import { pages as initialPages } from '${ids.pages}';
 import initialSiteData from '${ids.siteData}';
 let pages = initialPages;
+let siteData = initialSiteData;
 const contentExts = ${JSON.stringify(CONTENT_EXTENSIONS)};
 
 function findPage(base) {
@@ -106,7 +107,7 @@ async function loadPageModule(pagePath) {
 
   if (isIndexUrl(pagePath)) {
     const dirPath = getDirectoryFromPageUrl(pagePath);
-    const dir = (siteData?.value ?? initialSiteData).directoryListings[dirPath];
+    const dir = siteData.directoryListings[dirPath];
     if (dir) return {
       default: { name: 'DirectoryIndex', render() { return h(TdDirectoryIndex); } },
       pageData: { frontmatter: {}, headings: [], title: dir.title },
@@ -116,7 +117,7 @@ async function loadPageModule(pagePath) {
   return undefined;
 }
 
-const { app, router, searchIndex: searchIndexRef, siteData } = await createTypedownApp(loadPageModule, theme, ${siteConfig}, initialSiteData);
+const { app, router, searchIndex: searchIndexRef } = await createTypedownApp(loadPageModule, theme, ${siteConfig}, initialSiteData);
 ${componentRegistrations}
 app.mount('#app');
 
@@ -142,7 +143,7 @@ if (import.meta.hot) {
   });
 
   import.meta.hot.accept('${ids.siteData}', (m) => {
-    if (m) siteData.value = m.default;
+    if (m) siteData = m.default;
   });
 
   // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
