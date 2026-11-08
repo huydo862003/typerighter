@@ -62,9 +62,18 @@ pub fn collect_reference_edits(
         let Some(new_relative) = new_absolute.strip_prefix(root_dir).ok() else {
           continue;
         };
+        let normalized = normalize_path(new_relative);
+        let new_text = if normalized.starts_with('/')
+          || normalized.starts_with("./")
+          || normalized.starts_with("../")
+        {
+          normalized
+        } else {
+          format!("./{normalized}")
+        };
         TextEdit {
           range: node_trimmed_range(&ref_rope, &content),
-          new_text: normalize_path(new_relative).to_string(),
+          new_text,
         }
       }
       // Markdown link/media URL references get the URL text replaced

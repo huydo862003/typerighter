@@ -425,7 +425,7 @@ properties:
     let test_path = root.join("file.td");
     let content_with_fref = r#"---
 _type: Person
-name: fref("ali|ce.td")
+name: fref("./ali|ce.td")
 ---
 "#;
     let (content, offset) = cursor(content_with_fref);
@@ -437,15 +437,15 @@ name: fref("ali|ce.td")
       .find(|location| location.uri == uri)
       .expect("should include file.td (the fref site)");
     // the fref call is on line 2
-    // alice.td starts right after the opening quote at col 12, ends at col 20
+    // ./alice.td starts right after the opening quote at col 12, ends at col 22
     assert_eq!(fref_location.range.start.line, 2, "fref is on line 2");
     assert_eq!(
       fref_location.range.start.character, 12,
       "path string starts at col 12 (after opening quote)"
     );
     assert_eq!(
-      fref_location.range.end.character, 20,
-      "path string ends at col 20"
+      fref_location.range.end.character, 22,
+      "path string ends at col 22"
     );
   }
   // Cursor on a plain string value returns None, does not fall back to file_symbol

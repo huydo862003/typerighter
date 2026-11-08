@@ -96,19 +96,19 @@ age: 30
 "#;
   const CONTENT_WITH_FREF: &str = r#"---
 _type: Person
-friend: fref("alice.td")
+friend: fref("./alice.td")
 ---
 "#;
   const CONTENT_WITH_ASSET_FREF: &str = r#"---
 _type: Person
 name: Alice
-avatar: fref("_assets/icon.svg")
+avatar: fref("./_assets/icon.svg")
 ---
 "#;
   const CONTENT_WITH_INLINE_ASSET_FREF: &str = r#"---
 _type: Person
 name: Alice
-avatar: fref("icon.svg")
+avatar: fref("./icon.svg")
 ---
 "#;
 

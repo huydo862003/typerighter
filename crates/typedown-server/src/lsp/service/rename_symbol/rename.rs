@@ -342,7 +342,7 @@ name: Alice
     let (raw, offset) = cursor(
       r#"---
 _type: Person
-friend: fref("|alice.td")
+friend: fref("./|alice.td")
 ---
 "#,
     );
@@ -377,7 +377,7 @@ friend: fref("|alice.td")
     let (raw, offset) = cursor(
       r#"---
 _type: Person
-friend: fref("|alice.td")
+friend: fref("./|alice.td")
 ---
 "#,
     );
@@ -627,7 +627,7 @@ name: "Test"
     let test_path = root.join("file.td");
     let content_raw = r#"---
 _type: Person
-friend: fref("alice.td")
+friend: fref("./alice.td")
 ---
 
 [see alice](ali|ce.td)

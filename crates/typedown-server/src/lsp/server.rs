@@ -116,7 +116,7 @@ impl Server {
       .snapshot();
 
     // Dispatch to thread pool so the main loop stays responsive
-    // Cancelled::catch handles didChange cancellation; the outer catch_unwind
+    // Cancelled::catch handles didChange cancellation, and the outer catch_unwind
     // guards against unexpected panics so the thread pool thread survives and
     // the client always receives a response
     let method = request.method.clone();

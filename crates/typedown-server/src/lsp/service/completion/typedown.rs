@@ -2765,7 +2765,7 @@ _type: Person
 name: Alice
 ---
 
-${fref("alice.td").|
+${fref("./alice.td").|
 "#,
     );
     let (analysis, uri) = setup_with_content(&content);
