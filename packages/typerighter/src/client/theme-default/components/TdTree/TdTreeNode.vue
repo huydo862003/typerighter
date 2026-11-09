@@ -76,8 +76,7 @@ function countItems (node: ContentTreeNode): number {
 
 // eslint-disable-next-line vue/no-ref-object-reactivity-loss
 const collapsed = ref(!isUrlAncestorOf(directoryUrl.value, route.path));
-// Replaced by Vite at build time: true in SSR bundle, false in client bundle
-const isSSR = import.meta.env.SSR;
+const isSSR = typeof window === 'undefined';
 const showAll = ref(false);
 const WINDOW_SIZE = 10;
 const BIAS_AFTER = 6; // show more entries after current than before
