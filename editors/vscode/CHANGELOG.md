@@ -1,6 +1,14 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.57.1] - 2026-11-09
+
+### Fixed
+
+- packages/typerighter
+  - **Static build renders empty pages** - Pages built with `typerighter build` had empty titles, missing frontmatter, and no SEO metadata. Fixes `_meta` overrides and all page content in production builds
+  - **Sidebar HMR not showing new files** - Adding a `.td` file in a directory with more than 10 entries did not show the new entry in the sidebar until a manual refresh
+
 ## [0.57.0] - 2026-11-08
 
 ### Added
