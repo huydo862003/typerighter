@@ -7,6 +7,10 @@ export interface RpcServerOptions {
   addr?: string;
   /** Bind port (default: 0, OS picks a free port) */
   port?: number;
+  /** Start fresh, ignore cache from previous session */
+  fresh?: boolean;
+  /** Enable debug logging from the RPC server process */
+  verbose?: boolean;
 }
 
 export class RpcServer extends EventEmitter {

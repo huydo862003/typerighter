@@ -29,7 +29,11 @@ export const CONFIG_FILE_NAMES = [
   'typedown.yml',
 ];
 
-export function createAppContext (root: string): AppContext {
+export function createAppContext (root: string, {
+  verbose = false,
+}: {
+  verbose?: boolean;
+} = {}): AppContext {
   // 1. Set up file logging to .typedown/.local/logs/
   const logger = new TdLogger(initializeLogFile(root));
 
@@ -77,6 +81,7 @@ export function createAppContext (root: string): AppContext {
 
     server = new RpcServer({
       root,
+      verbose,
     });
 
     await new Promise<void>((resolve, reject) => {

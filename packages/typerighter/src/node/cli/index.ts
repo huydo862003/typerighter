@@ -77,7 +77,9 @@ export function cli () {
       base?: string;
       verbose?: boolean;
     }) => {
-      const context = createAppContext(resolveRoot(root));
+      const context = createAppContext(resolveRoot(root), {
+        verbose: options.verbose,
+      });
 
       if (options.verbose) await printVersionInfo(context);
 
@@ -151,7 +153,9 @@ export function cli () {
       fix?: boolean;
       verbose?: boolean;
     }) => {
-      const context = createAppContext(resolveRoot(root));
+      const context = createAppContext(resolveRoot(root), {
+        verbose: options.verbose,
+      });
 
       if (options.verbose) await printVersionInfo(context);
 

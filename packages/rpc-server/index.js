@@ -26,12 +26,13 @@ function resolveBin() {
 const bin = resolveBin();
 
 export class RpcServer extends EventEmitter {
-  constructor({ root, addr, port, fresh } = {}) {
+  constructor({ root, addr, port, fresh, verbose } = {}) {
     super();
     this._root = root ?? process.cwd();
     this._addr = addr ?? "127.0.0.1";
     this._port = port ?? 0;
     this._fresh = fresh ?? false;
+    this._verbose = verbose ?? false;
     this._process = undefined;
     this._listening = false;
     this._resolvedAddress = undefined;
@@ -62,7 +63,8 @@ export class RpcServer extends EventEmitter {
       throw new Error("Server is already running");
     }
 
-    const child = spawn(bin, [], {
+    const args = this._verbose ? ["--verbose"] : [];
+    const child = spawn(bin, args, {
       cwd: this._root,
       env: {
         ...process.env,
