@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.57.2] - 2026-11-09
+
+### Fixed
+
+- packages/typerighter
+  - **Schema frontmatter missing in production builds** - Pages using typed schemas (e.g. `_type: Person`) rendered without their frontmatter properties table because the build did not fetch schema definitions from the RPC server
+
 ## [0.57.1] - 2026-11-09
 
 ### Fixed
