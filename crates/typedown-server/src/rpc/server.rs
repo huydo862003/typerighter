@@ -7,8 +7,9 @@ use crossbeam_channel::Sender;
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use rayon::ThreadPool;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use ropey::Rope;
-use threadpool::ThreadPool;
 use typedown_incremental::{CacheSession, Cancelled, QueryStorage, SerializableQueryDatabase};
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
@@ -111,8 +112,11 @@ impl RpcServer {
     let watcher = Self::setup_watcher(&root_dir, &vault_root, fs_tx)?;
 
     let num_threads = std::thread::available_parallelism()
-      .map(|count| count.get().min(4))
-      .unwrap_or(2);
+      .map(|n| n.get())
+      .unwrap_or(4);
+    let thread_pool = rayon::ThreadPoolBuilder::new()
+      .num_threads(num_threads)
+      .build()?;
 
     let fs_host = Arc::clone(&host);
     let fs_thread = std::thread::spawn(move || {
@@ -122,7 +126,7 @@ impl RpcServer {
     Ok(Self {
       connection,
       host,
-      thread_pool: ThreadPool::new(num_threads),
+      thread_pool,
       cache_session,
       cache_dir,
       _watcher: watcher,
@@ -131,7 +135,8 @@ impl RpcServer {
   }
 
   pub fn shutdown(self) {
-    self.thread_pool.join();
+    // Drop thread pool first: waits for all in-flight requests to complete
+    drop(self.thread_pool);
     drop(self._watcher);
     let _ = self.fs_thread.join();
 
@@ -671,15 +676,25 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   let root_dir = config.root_dir(db);
   let files = project.files(db);
 
-  let mut items = Vec::new();
-  for (path, file) in files.iter() {
-    if !path.starts_with(&root_dir) || !is_content_file(path) || is_internal_file(path) {
-      continue;
-    }
-    let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    if let Some(nav) = export_resource_nav(db, project, *file) {
+  let entries: Vec<_> = files
+    .iter()
+    .filter(|(path, _)| {
+      path.starts_with(&root_dir) && is_content_file(path) && !is_internal_file(path)
+    })
+    .map(|(path, file)| {
+      (
+        normalize_path(path.strip_prefix(&root_dir).unwrap_or(path)),
+        *file,
+      )
+    })
+    .collect();
+
+  let items: Vec<TdSidebarItem> = entries
+    .into_par_iter()
+    .filter_map(|(relative, file)| {
+      let nav = export_resource_nav(db, project, file)?;
       let schema_label = get_schema_label(db, project, nav.schema.as_deref());
-      items.push(TdSidebarItem {
+      Some(TdSidebarItem {
         filepath: relative,
         schema: nav.schema,
         schema_label,
@@ -690,9 +705,9 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
           mtime_secs: nav.metadata.mtime_secs,
           ctime_secs: nav.metadata.ctime_secs,
         },
-      });
-    }
-  }
+      })
+    })
+    .collect();
 
   Ok(items)
 }
@@ -819,7 +834,6 @@ fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
     }),
   }
 }
-
 
 fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let db = &analysis.db;

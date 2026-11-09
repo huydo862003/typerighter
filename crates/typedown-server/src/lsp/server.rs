@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Error;
+use rayon::ThreadPool;
 use ropey::Rope;
-use threadpool::ThreadPool;
 use typedown_incremental::Cancelled;
 use typedown_lang::db::utils::is_typ_file;
 
@@ -48,26 +48,29 @@ impl Server {
     client_capabilities: ClientCapabilities,
   ) -> Self {
     let num_threads = std::thread::available_parallelism()
-      .map(|count| count.get().min(4))
-      .unwrap_or(2);
+      .map(|n| n.get())
+      .unwrap_or(4);
     Self {
       connection,
       multiproject,
       client_capabilities,
-      thread_pool: ThreadPool::new(num_threads),
+      thread_pool: rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .expect("failed to build thread pool"),
     }
   }
 
   pub fn save(self) {
-    // Wait for in-flight requests and diagnostics to finish
-    self.thread_pool.join();
+    // Drop thread pool first: waits for all in-flight requests to complete
+    drop(self.thread_pool);
     self.multiproject.save();
   }
 
   /// Called when a client disconnects but the server should keep running for the next client
   /// Waits for in-flight requests to finish and returns the Multiproject for reuse
   pub fn disconnect(self) -> Multiproject {
-    self.thread_pool.join();
+    drop(self.thread_pool);
     self.multiproject
   }
 
@@ -122,7 +125,7 @@ impl Server {
     let method = request.method.clone();
     let sender = self.connection.sender.clone();
     let request_id = request.id.clone();
-    self.thread_pool.execute(move || {
+    self.thread_pool.spawn(move || {
       let resp = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         Cancelled::catch(|| service::dispatch(&analysis, request))
       })) {
@@ -330,7 +333,7 @@ impl Server {
   // Compute and send diagnostics on a worker thread using an existing snapshot
   fn send_diagnostics_with_snapshot(&self, analysis: Analysis, path: Option<PathBuf>) {
     let sender = self.connection.sender.clone();
-    self.thread_pool.execute(move || {
+    self.thread_pool.spawn(move || {
       // Silently drop if cancelled by a newer didChange
       // Outer catch_unwind logs unexpected panics instead of losing them in the thread pool
       let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

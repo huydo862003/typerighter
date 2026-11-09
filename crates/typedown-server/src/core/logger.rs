@@ -77,7 +77,11 @@ impl Log for Logger {
 pub fn init_file(verbose: bool) {
   let file = open_log_file();
   let logger = Box::leak(Box::new(Logger { file }));
-  let level = if verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info };
+  let level = if verbose {
+    log::LevelFilter::Debug
+  } else {
+    log::LevelFilter::Info
+  };
   log::set_max_level(level);
   let _ = log::set_logger(logger);
 }
@@ -85,7 +89,11 @@ pub fn init_file(verbose: bool) {
 /// Initialize stderr-only logging (used by typedown-rpc)
 pub fn init_stderr(verbose: bool) {
   let logger = Box::leak(Box::new(Logger { file: None }));
-  let level = if verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info };
+  let level = if verbose {
+    log::LevelFilter::Debug
+  } else {
+    log::LevelFilter::Info
+  };
   log::set_max_level(level);
   let _ = log::set_logger(logger);
 }
