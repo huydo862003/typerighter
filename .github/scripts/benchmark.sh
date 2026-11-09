@@ -70,17 +70,19 @@ pnpm --filter typerighter --filter @typerighter/rpc-client --filter @typerighter
 # 3. SSG build (real-world vault, median of 3 runs)
 #
 
+repo_root="$(pwd)"
 benchmark_vault="examples/huydo862003.github.io"
+typerighter_bin="$repo_root/packages/typerighter/bin/typerighter.js"
 cd "$benchmark_vault"
-pnpm install --frozen-lockfile 2>/dev/null || pnpm install 2>/dev/null
-# Link the locally-built typerighter instead of the published version
-pnpm link ../../packages/typerighter 2>/dev/null || true
+pnpm --ignore-workspace install --no-frozen-lockfile --allow-build @typerighter/rpc-server
+# Override the published typerighter with the locally-built version
+pnpm --ignore-workspace link ../../packages/typerighter || true
 
 times=()
 for iteration in 1 2 3; do
   rm -rf dist
   start=$(date +%s%N)
-  pnpm build 2>/dev/null
+  node "$typerighter_bin" build
   end=$(date +%s%N)
   times+=( "$(elapsed_ms "$start" "$end")" )
 done
@@ -89,7 +91,7 @@ IFS=$'\n' sorted=($(sort -n <<< "${times[*]}")); unset IFS
 ssg_build_ms="${sorted[1]}"
 
 # Ensure the final dist/ exists for size measurement
-[ -d dist ] || pnpm build 2>/dev/null
+[ -d dist ] || node "$typerighter_bin" build
 
 #
 # 4. Output sizes
@@ -105,7 +107,7 @@ css_gz_bytes=$(glob_gzip_size dist '*.css')
 
 page_count=$(find dist -name '*.html' | wc -l)
 
-cd ../..
+cd "$repo_root"
 
 # npm install size = typerighter dist + rpc-client dist + rpc-server JS + LSP binary
 # This reflects what users download when they run `npm install typerighter`
