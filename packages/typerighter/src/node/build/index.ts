@@ -146,56 +146,58 @@ export async function buildSite(
   ]);
 
   try {
-    const plugins = typedown({ context: ctx });
     const customLogger = ctx.createViteLogger();
 
-    // 3. Build the client bundle (JS/CSS for the browser)
-    const phase1 = new ProgressLogger(logger, "Building client bundle...");
+    // 3 & 4. Build client and SSR bundles concurrently
+    const bundlePhase = new ProgressLogger(logger, "Building bundles...");
+    const tBundles = performance.now();
 
-    await build({
-      ...options.viteConfig,
-      root,
-      base,
-      plugins,
-      customLogger,
-      logLevel: "silent",
-      build: {
-        ...options.viteConfig?.build,
-        outDir: clientOutDir,
-        manifest: true,
-        emptyOutDir: true,
-        rollupOptions: {
-          ...options.viteConfig?.build?.rollupOptions,
-          input: clientEntryPath,
+    await Promise.all([
+      // Client bundle: produces JS/CSS for the browser plus a Vite manifest
+      build({
+        ...options.viteConfig,
+        root,
+        base,
+        plugins: typedown({ context: ctx }),
+        customLogger,
+        logLevel: "silent",
+        build: {
+          ...options.viteConfig?.build,
+          outDir: clientOutDir,
+          manifest: true,
+          emptyOutDir: true,
+          rollupOptions: {
+            ...options.viteConfig?.build?.rollupOptions,
+            input: clientEntryPath,
+          },
         },
-      },
-    });
+      }),
+      // SSR bundle: Node-runnable entry used for pre-rendering
+      build({
+        ...options.viteConfig,
+        root,
+        base,
+        plugins: typedown({ context: ctx }),
+        customLogger,
+        logLevel: "silent",
+        build: {
+          ...options.viteConfig?.build,
+          outDir: ssrOutDir,
+          ssr: ssrEntryPath,
+          emptyOutDir: true,
+        },
+      }),
+    ]);
 
     const clientChunks = await fs
       .readdir(path.join(clientOutDir, "assets"))
-      .catch(() => []);
+      .catch(() => [] as string[]);
 
-    phase1.done(`Client bundle (${clientChunks.length} chunks)`);
-
-    // 4. Build the SSR bundle (Node-runnable entry for pre-rendering)
-    const phase2 = new ProgressLogger(logger, "Building SSR bundle...");
-
-    await build({
-      ...options.viteConfig,
-      root,
-      base,
-      plugins,
-      customLogger,
-      logLevel: "silent",
-      build: {
-        ...options.viteConfig?.build,
-        outDir: ssrOutDir,
-        ssr: ssrEntryPath,
-        emptyOutDir: true,
-      },
-    });
-
-    phase2.done("SSR bundle");
+    const bundlesMs = performance.now() - tBundles;
+    bundlePhase.done(`Client (${clientChunks.length} chunks) + SSR`);
+    if (process.env.TYPEDOWN_VERBOSE === '1') process.stderr.write(
+      `[timing:phase] bundles ${bundlesMs.toFixed(0)}ms\n`
+    );
 
     // 5. Pre-render each page to a static HTML file
     const pageRoutes = files.map((file) => {

@@ -199,7 +199,7 @@ impl RpcServer {
     let request_id = req.id.clone();
     let method = req.method.clone();
 
-    self.thread_pool.execute(move || {
+    self.thread_pool.spawn(move || {
       let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let analysis = host.read().unwrap().snapshot();
         dispatch_request(&method, req.params, &analysis)
@@ -843,32 +843,38 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let root_dir = config.root_dir(db);
   let files = project.files(db);
 
-  let mut all_diagnostics = Vec::new();
-  let mut file_count: u32 = 0;
+  // Collect eligible files with their text ropes before the parallel phase
+  let entries: Vec<_> = files
+    .iter()
+    .filter(|(path, _)| {
+      path.starts_with(&*root_dir) && is_content_file(path) && !is_typ_file(path)
+    })
+    .filter_map(|(path, &file)| {
+      let relative_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+      let rope = analysis.file_rope(path)?;
+      Some((file, relative_path, rope))
+    })
+    .collect();
 
-  for (path, &file) in &*files {
-    if !path.starts_with(&*root_dir) || !is_content_file(path) || is_typ_file(path) {
-      continue;
-    }
-    file_count += 1;
+  let file_count = entries.len() as u32;
 
-    let relative_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    let rope = match analysis.file_rope(path) {
-      Some(rope) => rope,
-      None => continue,
-    };
+  // Diagnose all content files in parallel
+  let per_file: Vec<Vec<TdDiagnosticItem>> = entries
+    .into_par_iter()
+    .map(|(file, relative_path, rope)| {
+      collect_file_diagnostics(db, project, file, &relative_path, &rope)
+    })
+    .collect();
 
-    let items = collect_file_diagnostics(db, project, file, &relative_path, &rope);
-    all_diagnostics.extend(items);
-  }
+  let mut all_diagnostics: Vec<TdDiagnosticItem> = per_file.into_iter().flatten().collect();
 
   // Check for duplicate schema files
   let schema_check = check_schemas(db, project);
-  for diagnostic in schema_check.diagnostics(db) {
+  for schema_diagnostic in schema_check.diagnostics(db) {
     let filepath = if let TdDiagnostic {
       kind: TdDiagnosticKind::DuplicateSchemaName { ref path, .. },
       ..
-    } = diagnostic
+    } = schema_diagnostic
     {
       path.clone()
     } else {
@@ -879,18 +885,18 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
       line: 0,
       column: 0,
       severity: "error".to_string(),
-      code: diagnostic.code_str().to_string(),
-      message: diagnostic.message(),
+      code: schema_diagnostic.code_str().to_string(),
+      message: schema_diagnostic.message(),
     });
   }
 
   let error_count = all_diagnostics
     .iter()
-    .filter(|diagnostic| diagnostic.severity == "error")
+    .filter(|item| item.severity == "error")
     .count() as u32;
   let warning_count = all_diagnostics
     .iter()
-    .filter(|diagnostic| diagnostic.severity == "warning")
+    .filter(|item| item.severity == "warning")
     .count() as u32;
 
   Ok(TdDiagnosticReport {
