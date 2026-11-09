@@ -258,7 +258,7 @@ function toggle () {
           :class="{
             'is-active': isCurrent(folderPath),
           }"
-          :aria-label="`${folderLabel} overview`"
+          :aria-label="`${folderLabel} Overview`"
         >
           <BookOpen
             :size="14"
