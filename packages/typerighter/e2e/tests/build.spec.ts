@@ -380,6 +380,28 @@ Alice writes code.
   }
 });
 
+test('build: schema frontmatter renders without errors', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(
+      path.join(directory, 'dist', 'people', 'alice.html'),
+      'utf-8',
+    );
+
+    // Schema-typed page should have its title rendered
+    expect(html).toContain('Alice');
+
+    // Frontmatter field values should be present in the rendered HTML
+    expect(html).toContain('developer');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => { });
+  }
+});
+
 test('build: root page has no breadcrumb JSON-LD', async () => {
   const directory = await buildFixture('vault-root');
 

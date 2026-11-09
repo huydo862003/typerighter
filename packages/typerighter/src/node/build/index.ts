@@ -1,35 +1,31 @@
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import {
-  build, type InlineConfig,
-} from 'vite';
-import {
-  prerenderHtmlPages,
-} from './prerender';
+import path from "node:path";
+import fs from "node:fs/promises";
+import { build, type InlineConfig } from "vite";
+import { prerenderHtmlPages } from "./prerender";
 import {
   typedown,
-  THEME_ID, PAGES_ID, SITE_DATA_ID, SEARCH_INDEX_ID, PAGE_DATA_EVENT,
-} from '../plugin/vite';
+  THEME_ID,
+  PAGES_ID,
+  SITE_DATA_ID,
+  SEARCH_INDEX_ID,
+  PAGE_DATA_EVENT,
+} from "../plugin/vite";
+import { generateAppEntry, generateThemeModule } from "../lib/codegen";
+import { resolveUserComponents, type UserComponent } from "../lib/components";
+import { ProgressLogger } from "../lib/progress";
 import {
-  generateAppEntry, generateThemeModule,
-} from '../lib/codegen';
-import {
-  resolveUserComponents, type UserComponent,
-} from '../lib/components';
-import {
-  ProgressLogger,
-} from '../lib/progress';
-import {
-  buildContentTree, buildDirectoryListingMap, CONTENT_GLOB, type ContentSummary, type ContentTreeEntry,
-  ensureTrailingSlash, getIndexUrl, getNodeIndexItem, path as tdpath,
-} from '@/shared';
-import type {
-  AppContext,
-} from '../context';
-import {
-  buildSitemap, buildRobotsTxt, buildRssFeed,
-} from './seo';
-
+  buildContentTree,
+  buildDirectoryListingMap,
+  CONTENT_GLOB,
+  type ContentSummary,
+  type ContentTreeEntry,
+  ensureTrailingSlash,
+  getIndexUrl,
+  getNodeIndexItem,
+  path as tdpath,
+} from "@/shared";
+import type { AppContext } from "../context";
+import { buildSitemap, buildRobotsTxt, buildRssFeed } from "./seo";
 
 export interface BuildOptions {
   /** Output directory for the final build (default: "dist") */
@@ -41,11 +37,14 @@ export interface BuildOptions {
 }
 
 // Build the site into static HTML files
-export async function buildSite (ctx: AppContext, options: BuildOptions = {}): Promise<void> {
+export async function buildSite(
+  ctx: AppContext,
+  options: BuildOptions = {},
+): Promise<void> {
   const { root, logger } = ctx;
-  const outDir = path.resolve(root, options.outDir ?? 'dist');
-  const clientOutDir = path.join(outDir, '.client');
-  const ssrOutDir = path.join(outDir, '.server');
+  const outDir = path.resolve(root, options.outDir ?? "dist");
+  const clientOutDir = path.join(outDir, ".client");
+  const ssrOutDir = path.join(outDir, ".server");
 
   // Clear stale output from previous builds
   await fs.rm(outDir, { recursive: true, force: true });
@@ -53,15 +52,21 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   // 1. Fetch project metadata from the RPC server
   const tdContext = await ctx.getTdContext();
 
-  const [
-    config,
-    files,
-    sidebarItems,
-  ] = await Promise.all([
+  const [config, files, sidebarItems, schemaNames] = await Promise.all([
     tdContext.getConfig(),
     tdContext.listFiles(),
     tdContext.listSidebar(),
+    tdContext.listSchemas(),
   ]);
+
+  const schemaEntries = await Promise.all(
+    schemaNames.map(async (name) => {
+      const info = await tdContext.getSchema(name);
+
+      return [name, info.properties] as const;
+    }),
+  );
+  const schemas = Object.fromEntries(schemaEntries);
 
   // Coerce null -> undefined for optional fields from JSON-RPC
   const origin = config.origin ?? undefined;
@@ -69,7 +74,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
   const license = config.license ?? undefined;
   const repo = config.repo ?? undefined;
 
-  const rawBase = options.base ?? config.basePath ?? '/';
+  const rawBase = options.base ?? config.basePath ?? "/";
   const base = ensureTrailingSlash(rawBase);
 
   const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
@@ -77,49 +82,66 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     header: {},
   }));
   const contentTree = buildContentTree(contentItems);
-  const siteConfig = JSON.stringify({ title: config.siteTitle, description: config.siteDescription, basePath: base, origin, lang: config.lang, rootDir: config.rootDir, repo, author, license, nav: config.nav });
-  const siteData = JSON.stringify({ ready: true, contentTree });
+  const siteConfig = JSON.stringify({
+    title: config.siteTitle,
+    description: config.siteDescription,
+    basePath: base,
+    origin,
+    lang: config.lang,
+    rootDir: config.rootDir,
+    repo,
+    author,
+    license,
+    nav: config.nav,
+  });
+  const siteData = JSON.stringify({ ready: true, contentTree, schemas });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports
-  const tempDir = path.join(root, 'node_modules', '.typerighter');
+  const tempDir = path.join(root, "node_modules", ".typerighter");
   await fs.mkdir(tempDir, { recursive: true });
-  const clientEntryPath = path.join(tempDir, 'client-entry.js');
-  const ssrEntryPath = path.join(tempDir, 'ssr-entry.js');
-  const themeModulePath = path.join(tempDir, 'theme.js');
+  const clientEntryPath = path.join(tempDir, "client-entry.js");
+  const ssrEntryPath = path.join(tempDir, "ssr-entry.js");
+  const themeModulePath = path.join(tempDir, "theme.js");
 
   const userComponents = await resolveUserComponents(config.components, root);
-  const themeModule = generateThemeModule(
-    config.layout ?? undefined,
-    root,
-  );
+  const themeModule = generateThemeModule(config.layout ?? undefined, root);
 
   await Promise.all([
-    fs.writeFile(clientEntryPath, generateAppEntry({
-      rootDir: config.rootDir,
-      basePath: base,
-      origin,
-      lang: config.lang,
-      siteTitle: config.siteTitle,
-      siteDescription: config.siteDescription,
-      repo,
-      author,
-      license,
-      nav: config.nav,
-      userComponents,
-    }, {
-      theme: THEME_ID,
-      pages: PAGES_ID,
-      siteData: SITE_DATA_ID,
-      searchIndex: SEARCH_INDEX_ID,
-      pageDataEvent: PAGE_DATA_EVENT,
-    })),
-    fs.writeFile(ssrEntryPath, generateSsrEntry({
-      rootDir: config.rootDir,
-      siteConfig,
-      siteData,
-      themeModulePath,
-      userComponents,
-    })),
+    fs.writeFile(
+      clientEntryPath,
+      generateAppEntry(
+        {
+          rootDir: config.rootDir,
+          basePath: base,
+          origin,
+          lang: config.lang,
+          siteTitle: config.siteTitle,
+          siteDescription: config.siteDescription,
+          repo,
+          author,
+          license,
+          nav: config.nav,
+          userComponents,
+        },
+        {
+          theme: THEME_ID,
+          pages: PAGES_ID,
+          siteData: SITE_DATA_ID,
+          searchIndex: SEARCH_INDEX_ID,
+          pageDataEvent: PAGE_DATA_EVENT,
+        },
+      ),
+    ),
+    fs.writeFile(
+      ssrEntryPath,
+      generateSsrEntry({
+        rootDir: config.rootDir,
+        siteConfig,
+        siteData,
+        themeModulePath,
+        userComponents,
+      }),
+    ),
     fs.writeFile(themeModulePath, themeModule),
   ]);
 
@@ -128,7 +150,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
     const customLogger = ctx.createViteLogger();
 
     // 3. Build the client bundle (JS/CSS for the browser)
-    const phase1 = new ProgressLogger(logger, 'Building client bundle...');
+    const phase1 = new ProgressLogger(logger, "Building client bundle...");
 
     await build({
       ...options.viteConfig,
@@ -136,7 +158,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       base,
       plugins,
       customLogger,
-      logLevel: 'silent',
+      logLevel: "silent",
       build: {
         ...options.viteConfig?.build,
         outDir: clientOutDir,
@@ -149,12 +171,14 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       },
     });
 
-    const clientChunks = await fs.readdir(path.join(clientOutDir, 'assets')).catch(() => []);
+    const clientChunks = await fs
+      .readdir(path.join(clientOutDir, "assets"))
+      .catch(() => []);
 
     phase1.done(`Client bundle (${clientChunks.length} chunks)`);
 
     // 4. Build the SSR bundle (Node-runnable entry for pre-rendering)
-    const phase2 = new ProgressLogger(logger, 'Building SSR bundle...');
+    const phase2 = new ProgressLogger(logger, "Building SSR bundle...");
 
     await build({
       ...options.viteConfig,
@@ -162,7 +186,7 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       base,
       plugins,
       customLogger,
-      logLevel: 'silent',
+      logLevel: "silent",
       build: {
         ...options.viteConfig?.build,
         outDir: ssrOutDir,
@@ -171,25 +195,23 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
       },
     });
 
-    phase2.done('SSR bundle');
+    phase2.done("SSR bundle");
 
     // 5. Pre-render each page to a static HTML file
     const pageRoutes = files.map((file) => {
       const withoutExtension = tdpath.stripExtension(file);
 
-      return withoutExtension === 'index'
-        ? '/'
-        : `/${withoutExtension}`;
+      return withoutExtension === "index" ? "/" : `/${withoutExtension}`;
     });
 
     // Add directory index pages (root + all subdirectories)
-    pageRoutes.push('/');
+    pageRoutes.push("/");
     collectDirectoryPaths(contentTree.entries, pageRoutes);
 
-    const phase3 = new ProgressLogger(logger, 'Pre-rendering pages...');
+    const phase3 = new ProgressLogger(logger, "Pre-rendering pages...");
 
     await prerenderHtmlPages({
-      ssrEntryPath: path.join(ssrOutDir, 'ssr-entry.js'),
+      ssrEntryPath: path.join(ssrOutDir, "ssr-entry.js"),
       clientOutDir,
       outDir,
       base,
@@ -208,45 +230,65 @@ export async function buildSite (ctx: AppContext, options: BuildOptions = {}): P
 
     for (const item of sidebarItems) {
       const withoutExtension = tdpath.stripExtension(item.filepath);
-      const pageRoute = withoutExtension === 'index' ? '/' : `/${withoutExtension}`;
+      const pageRoute =
+        withoutExtension === "index" ? "/" : `/${withoutExtension}`;
 
       mtimeMap.set(pageRoute, item.fileMetadata.mtimeSecs);
     }
 
     const sitemap = buildSitemap(pageRoutes, base, origin, mtimeMap);
     const writes: Promise<void>[] = [
-      fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
+      fs.writeFile(path.join(outDir, "sitemap.xml"), sitemap),
     ];
 
     if (origin !== undefined) {
-      writes.push(fs.writeFile(path.join(outDir, 'robots.txt'), buildRobotsTxt(origin, base)));
-      writes.push(fs.writeFile(path.join(outDir, 'feed.xml'), buildRssFeed(
-        sidebarItems, base, origin, config.siteTitle, config.siteDescription, config.lang,
-      )));
+      writes.push(
+        fs.writeFile(
+          path.join(outDir, "robots.txt"),
+          buildRobotsTxt(origin, base),
+        ),
+      );
+      writes.push(
+        fs.writeFile(
+          path.join(outDir, "feed.xml"),
+          buildRssFeed(
+            sidebarItems,
+            base,
+            origin,
+            config.siteTitle,
+            config.siteDescription,
+            config.lang,
+          ),
+        ),
+      );
     }
 
     await Promise.all(writes);
 
     // 7. Copy assets to the final output directory
-    const clientAssetsDir = path.join(clientOutDir, 'assets');
-    const outAssetsDir = path.join(outDir, 'assets');
+    const clientAssetsDir = path.join(clientOutDir, "assets");
+    const outAssetsDir = path.join(outDir, "assets");
 
-    await fs.cp(clientAssetsDir, outAssetsDir, {
-      recursive: true,
-    }).catch(() => {
-      // No assets to copy
-    });
+    await fs
+      .cp(clientAssetsDir, outAssetsDir, {
+        recursive: true,
+      })
+      .catch(() => {
+        // No assets to copy
+      });
 
     await copyVaultAssets(path.join(root, config.rootDir), outDir);
 
     // 8. Copy public directory to output
     const publicDir = path.join(root, config.publicDir);
 
-    await fs.cp(publicDir, outDir, {
-      recursive: true,
-    }).catch(() => {
-      // No public directory
-    });
+    await fs
+      .cp(publicDir, outDir, {
+        recursive: true,
+      })
+      .catch(() => {
+        // No public directory
+      });
   } finally {
     // 8. Clean up intermediate directories
     await Promise.all([
@@ -268,26 +310,40 @@ interface SsrEntryOptions {
 }
 
 // Generate the SSR entry module used for pre-rendering
-function generateSsrEntry (options: SsrEntryOptions): string {
+function generateSsrEntry(options: SsrEntryOptions): string {
   const glob = `/${options.rootDir}/${CONTENT_GLOB}`;
   const parsedConfig = JSON.parse(options.siteConfig);
   const parsedData = JSON.parse(options.siteData);
   const contentTree = parsedData.contentTree ?? { entries: [] };
-  const directoryListingMap = buildDirectoryListingMap(contentTree.entries ?? [], parsedConfig.title ?? '');
-  const siteDataWithListings = JSON.stringify({ ...parsedData, directoryListings: directoryListingMap });
+  const directoryListingMap = buildDirectoryListingMap(
+    contentTree.entries ?? [],
+    parsedConfig.title ?? "",
+  );
+  const siteDataWithListings = JSON.stringify({
+    ...parsedData,
+    directoryListings: directoryListingMap,
+  });
 
   const userComponents = options.userComponents ?? [];
   const componentImports = userComponents
-    .map((component) => `import ${component.name} from ${JSON.stringify(component.absolutePath)};`)
-    .join('\n');
+    .map(
+      (component) =>
+        `import ${component.name} from ${JSON.stringify(component.absolutePath)};`,
+    )
+    .join("\n");
   const componentRegistrations = userComponents
-    .map((component) => `app.component(${JSON.stringify(component.name)}, ${component.name});`)
-    .join('\n');
+    .map(
+      (component) =>
+        `app.component(${JSON.stringify(component.name)}, ${component.name});`,
+    )
+    .join("\n");
 
   const ssrHeader = [
     componentImports,
     `import { createTypedownApp } from 'typerighter/client';`,
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return `
 ${ssrHeader}
@@ -312,7 +368,7 @@ export async function createRenderer() {
 }
 
 // Copy non-.td files from vault root to output, preserving structure
-async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> {
+async function copyVaultAssets(rootDir: string, outDir: string): Promise<void> {
   const entries = await fs.readdir(rootDir, {
     recursive: true,
     withFileTypes: true,
@@ -325,19 +381,23 @@ async function copyVaultAssets (rootDir: string, outDir: string): Promise<void> 
       const relative = path.relative(rootDir, src);
       const dest = path.join(outDir, relative);
 
-      return fs.mkdir(path.dirname(dest), { recursive: true })
+      return fs
+        .mkdir(path.dirname(dest), { recursive: true })
         .then(() => fs.copyFile(src, dest));
     });
 
   await Promise.all(copies);
 }
 
-
 // Collect directory index paths from the content tree for pre-rendering
 // Only adds dirs without an index.td (those are already covered by files.map)
-function collectDirectoryPaths (entries: ContentTreeEntry[], paths: string[], prefix: string = '') {
+function collectDirectoryPaths(
+  entries: ContentTreeEntry[],
+  paths: string[],
+  prefix: string = "",
+) {
   for (const entry of entries) {
-    if (entry.kind !== 'dir') continue;
+    if (entry.kind !== "dir") continue;
 
     const dirPath = `${prefix}/${entry.node.name}`;
 
