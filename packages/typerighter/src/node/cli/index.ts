@@ -77,6 +77,8 @@ export function cli () {
       base?: string;
       verbose?: boolean;
     }) => {
+      if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
+
       const context = createAppContext(resolveRoot(root), {
         verbose: options.verbose,
       });
@@ -153,6 +155,8 @@ export function cli () {
       fix?: boolean;
       verbose?: boolean;
     }) => {
+      if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
+
       const context = createAppContext(resolveRoot(root), {
         verbose: options.verbose,
       });
