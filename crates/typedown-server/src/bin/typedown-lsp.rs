@@ -15,18 +15,26 @@ use typedown_server::lsp::service::{commands, semantic_tokens};
 pub fn main() -> anyhow::Result<()> {
   let mut args = pico_args::Arguments::from_env();
 
-  if args.contains("--help") {
+  if args.contains(["-h", "--help"]) {
     eprintln!("Usage: typedown-lsp [OPTIONS]");
     eprintln!();
     eprintln!("Options:");
     eprintln!("  --stdio             Use stdio transport (default: TCP)");
     eprintln!("  --addr <addr>       Listen address (default: 127.0.0.1)");
     eprintln!("  --port <port>       Listen port (default: 0, auto-assign)");
-    eprintln!("  --fresh          Start fresh, ignore cache from previous session");
-    eprintln!("  --help              Show this help");
+    eprintln!("  --fresh             Start fresh, ignore cache from previous session");
+    eprintln!("  --verbose           Enable debug logging");
+    eprintln!("  -v, --version       Print version and exit");
+    eprintln!("  -h, --help          Show this help");
     return Ok(());
   }
 
+  if args.contains(["-v", "--version"]) {
+    println!("{}", env!("CARGO_PKG_VERSION"));
+    return Ok(());
+  }
+
+  let verbose = args.contains("--verbose");
   let use_stdio = args.contains("--stdio");
 
   let addr: String = args
@@ -63,7 +71,7 @@ pub fn main() -> anyhow::Result<()> {
   }
 
   // File logger available immediately, before handshake
-  logger::init_file();
+  logger::init_file(verbose);
 
   let capabilities = ServerCapabilities {
     rename_provider: Some(OneOf::Right(RenameOptions {

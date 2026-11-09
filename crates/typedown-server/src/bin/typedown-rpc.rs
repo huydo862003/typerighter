@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use typedown_incremental::Cancelled;
+use typedown_server::core::logger;
 use typedown_server::core::transport;
 use typedown_server::rpc::server::RpcServer;
 
@@ -19,17 +20,26 @@ pub fn main() -> anyhow::Result<()> {
 
   let mut args = pico_args::Arguments::from_env();
 
-  if args.contains("--help") {
+  if args.contains(["-h", "--help"]) {
     eprintln!("Usage: typedown-rpc [OPTIONS]");
     eprintln!();
     eprintln!("Options:");
     eprintln!("  --root <path>       Vault root directory (default: cwd)");
     eprintln!("  --addr <addr>       Listen address (default: 127.0.0.1)");
     eprintln!("  --port <port>       Listen port (default: 0, auto-assign)");
-    eprintln!("  --fresh          Start fresh, ignore cache from previous session");
-    eprintln!("  --help              Show this help");
+    eprintln!("  --fresh             Start fresh, ignore cache from previous session");
+    eprintln!("  --verbose           Enable debug logging to stderr");
+    eprintln!("  -v, --version       Print version and exit");
+    eprintln!("  -h, --help          Show this help");
     return Ok(());
   }
+
+  if args.contains(["-v", "--version"]) {
+    println!("{}", env!("CARGO_PKG_VERSION"));
+    return Ok(());
+  }
+
+  let verbose = args.contains("--verbose");
 
   // CLI flags take precedence over env variables
   let root: PathBuf = args
@@ -64,6 +74,8 @@ pub fn main() -> anyhow::Result<()> {
         .collect::<Vec<_>>()
     );
   }
+
+  logger::init_stderr(verbose);
 
   let root_dir = find_vault_root(&root)?;
 

@@ -33,24 +33,26 @@ impl Log for Logger {
       Level::Trace => "TRACE",
     };
 
+    let secs = std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .unwrap_or_default()
+      .as_secs();
+    let time_of_day = secs % 86400;
+    let hours = time_of_day / 3600;
+    let minutes = (time_of_day % 3600) / 60;
+    let seconds = time_of_day % 60;
+    let line = format!("[{hours:02}:{minutes:02}:{seconds:02}] [{level}] {message}");
+
     // Write to log file
     if let Some(file) = &self.file
       && let Ok(mut file) = file.lock()
     {
-      let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-      let time_of_day = secs % 86400;
-      let hours = time_of_day / 3600;
-      let minutes = (time_of_day % 3600) / 60;
-      let seconds = time_of_day % 60;
-      let _ = writeln!(
-        file,
-        "[{hours:02}:{minutes:02}:{seconds:02}] [{level}] {message}"
-      );
+      let _ = writeln!(file, "{line}");
       // Flush on every write so logs survive crashes
       let _ = file.flush();
+    } else {
+      // No file - write to stderr (used by typedown-rpc --verbose)
+      eprintln!("{line}");
     }
 
     // Send to LSP client if available
@@ -72,10 +74,19 @@ impl Log for Logger {
 
 /// Initialize file-only logging
 /// Call early so messages before the LSP handshake are captured
-pub fn init_file() {
+pub fn init_file(verbose: bool) {
   let file = open_log_file();
   let logger = Box::leak(Box::new(Logger { file }));
-  log::set_max_level(log::LevelFilter::Info);
+  let level = if verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info };
+  log::set_max_level(level);
+  let _ = log::set_logger(logger);
+}
+
+/// Initialize stderr-only logging (used by typedown-rpc)
+pub fn init_stderr(verbose: bool) {
+  let logger = Box::leak(Box::new(Logger { file: None }));
+  let level = if verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info };
+  log::set_max_level(level);
   let _ = log::set_logger(logger);
 }
 
