@@ -55,6 +55,7 @@ pub fn accept_tcp(
 ) -> anyhow::Result<(Connection, IoHandle, ShutdownSocket)> {
   // Clone the stream so reader and writer threads each own a handle to the same socket
   let (stream, _) = listener.accept()?;
+  stream.set_nodelay(true)?; // disable Nagle: small JSON-RPC messages need low latency, not coalescing
   let shutdown_socket: ShutdownSocket = Arc::new(Mutex::new(Some(stream.try_clone()?)));
   let reader_stream = stream.try_clone()?;
   let mut writer_stream = stream;

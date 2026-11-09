@@ -70,6 +70,7 @@ export class JsonRpcClient implements MessageConnection {
   static connectTcp (host: string, port: number): Promise<JsonRpcClient> {
     return new Promise((resolve, reject) => {
       const socket = createConnection({ host, port }, () => {
+        socket.setNoDelay(true); // disable Nagle: small JSON-RPC messages need low latency, not coalescing
         resolve(new JsonRpcClient(socket, socket));
       });
       socket.on('error', reject);
