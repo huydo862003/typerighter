@@ -1,3 +1,15 @@
+## [0.57.3] - 2026-11-10
+
+### Fixed
+
+- packages/typerighter
+  - **Sidebar SSR collapse not applying** - `import.meta.env.SSR` compiled to `false` in pre-built components, so collapsed tree nodes were always rendered server-side. Replaced with `typeof window === 'undefined'` for a runtime check that works correctly in pre-built packages
+  - **Overview link not found by accessibility tools** - `aria-label` on the directory overview link used lowercase "overview", overriding the visible text and breaking `getByRole('link', { name: /Overview/ })` selectors. Capitalized to match visible text
+  - **Canonical URL wrong for `/index` pages** - Pages at `/path/index` emitted `href="/path/index"` instead of `href="/path/"`. Fixed using `isIndexUrl` and `getParentUrl` shared utilities
+  - **`--verbose` flag not propagating to timing logs** - `TYPEDOWN_VERBOSE` env var was set after context creation, so timing logs were silent even with `--verbose`. Now set before `createAppContext`
+  - **Search and command palette missing accessible labels** - Site search input, command palette input, and command palette results lacked `aria-label` and `aria-selected` attributes. Added labels and selection state to all interactive inputs and results
+  - **Mobile drawer not announced as dialog** - Mobile navigation drawer was missing `role="dialog"`, `aria-modal`, and `aria-label`, so screen readers did not announce it as a modal overlay
+
 ## [0.57.2] - 2026-11-09
 
 ### Fixed
