@@ -1,5 +1,5 @@
 ---
-_label: "Getting Started"
+_label: "Getting Started with Typerighter"
 _icon: icon.rocket
 description: "Install Typedown, scaffold a project, write your first document, and deploy to the web."
 ---
