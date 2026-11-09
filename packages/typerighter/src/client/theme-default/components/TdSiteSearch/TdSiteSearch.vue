@@ -185,6 +185,7 @@ defineExpose({
         type="text"
         size="1"
         placeholder="Search..."
+        aria-label="Search"
         @keydown="onKeydown"
       >
       <TdKbdShortcut

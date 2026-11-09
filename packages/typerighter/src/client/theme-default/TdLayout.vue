@@ -408,6 +408,9 @@ function shrinkSidebar () {
         :class="{
           'is-open': isOpen,
         }"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
       >
         <header class="td-drawer-header">
           <a

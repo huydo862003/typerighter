@@ -1,7 +1,7 @@
 ---
 _label: "Getting Started with Typerighter"
 _icon: icon.rocket
-description: "Install Typedown, scaffold a project, write your first document, and deploy to the web."
+description: "Install the Typerighter CLI, scaffold a project with schemas and vault structure, write your first typed document, set up LSP in your editor, and deploy a static site in minutes."
 ---
 
 Go from zero to a live site in five steps: install the CLI, scaffold a project, write your first document, set up your editor, and deploy.

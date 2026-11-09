@@ -2,7 +2,7 @@ import type {
   OgType, PageData,
 } from '@/shared/types/ssg';
 import {
-  formatIsoDate, stripLeadingSlash, truncate,
+  formatIsoDate, getParentUrl, isIndexUrl, stripLeadingSlash, truncate,
 } from '@/shared';
 import {
   buildArticleLd, buildBreadcrumbLd, buildWebSiteLd,
@@ -30,8 +30,10 @@ export interface PageSeo {
 export function buildPageSeo (pageData: PageData, pageRoute: string, config: PageSeoConfig): PageSeo {
   const title = pageData.seoMetadata?.title ?? pageData.title;
   const description = buildPageDescription(pageData);
-  const isHomepage = pageRoute === '/';
-  const canonicalUrl = (config.origin ?? '') + config.base + stripLeadingSlash(pageRoute);
+  // Index pages are served at the parent directory URL by static hosts
+  const canonicalRoute = isIndexUrl(pageRoute) ? getParentUrl(pageRoute) + '/' : pageRoute;
+  const isHomepage = canonicalRoute === '/';
+  const canonicalUrl = (config.origin ?? '') + config.base + stripLeadingSlash(canonicalRoute);
   const dateModified = pageData.fileMetadata?.mtimeSecs !== undefined
     ? formatIsoDate(pageData.fileMetadata.mtimeSecs * 1000)
     : undefined;

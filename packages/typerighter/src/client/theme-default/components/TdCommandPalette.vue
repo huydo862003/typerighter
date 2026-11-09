@@ -293,6 +293,7 @@ watch(selectedIndex, () => {
             class="td-palette-input"
             type="text"
             placeholder="Search pages and commands..."
+            aria-label="Search pages and commands"
             autocomplete="off"
             spellcheck="false"
             @keydown="onKeydown"
@@ -325,6 +326,7 @@ watch(selectedIndex, () => {
               :class="{
                 'is-selected': index === selectedIndex,
               }"
+              :aria-selected="index === selectedIndex"
               @click.prevent="() => selectPage(index)"
               @mouseenter="() => (selectedIndex = index)"
             >
@@ -361,6 +363,7 @@ watch(selectedIndex, () => {
               :class="{
                 'is-selected': findCommandIndex(command) === selectedIndex,
               }"
+              :aria-selected="findCommandIndex(command) === selectedIndex"
               @click="() => runCommand(command)"
               @mouseenter="() => (selectedIndex = findCommandIndex(command))"
             >
