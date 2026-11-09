@@ -1,4 +1,12 @@
-## [0.57.0] - 2026-11-08
+## [0.57.1] - 2026-11-09
+
+### Fixed
+
+- packages/typerighter
+  - **Static build renders empty pages** - Pages built with `typerighter build` had empty titles, missing frontmatter, and no SEO metadata. Fixes `_meta` overrides and all page content in production builds
+  - **Sidebar HMR not showing new files** - Adding a `.td` file in a directory with more than 10 entries did not show the new entry in the sidebar until a manual refresh
+
+## [0.57.0] - 2026-11-08 (retracted)
 
 ### Added
 
@@ -28,7 +36,7 @@
   - **`TdNotFound` component not rendered** - `createRouter` was never given a `fallbackComponent`, so the not-found page rendered raw data instead of the themed component. Passed `theme.NotFound` as `fallbackComponent`
   - **Duplicate not-found heading** - `notFoundPageData` had `title: 'Not Found'` which the layout rendered as `<h1>` while `TdNotFound` also rendered its own heading. Cleared `title` and `titleHtml` to empty strings
 
-## [0.56.3] - 2026-11-08
+## [0.56.3] - 2026-11-08 (retracted)
 
 ### Fixed
 
@@ -38,7 +46,7 @@
   - Simplify rendering of Modified of in pages
   - Expanded directory entry in left sidebar causes the collapse button to be pushed outside the sidebar
 
-## [0.56.2] - 2026-11-07
+## [0.56.2] - 2026-11-07 (retracted)
 
 ### Fixed
 
@@ -56,7 +64,7 @@
 - packages/typerighter
   - **No more flash of unstyled state on first load** - The inline head script that reads dark mode and sidebar width from localStorage was silently empty due to tree-shaking. Replaced the side-effect registry with explicit exports so the script is always emitted
 
-## [0.56.0] - 2026-11-07
+## [0.56.0] - 2026-11-07 (retracted)
 
 ### Added
 
