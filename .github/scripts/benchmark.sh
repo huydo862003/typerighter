@@ -64,7 +64,7 @@ strip "$stripped" 2>/dev/null || true
 # 2. Typerighter npm package build
 #
 
-pnpm --filter typerighter @typerighter/client @typerighter/server run build 2>/dev/null
+pnpm --filter typerighter @typerighter/rpc-client @typerighter/rpc-server run build 2>/dev/null
 
 #
 # 3. SSG build (real-world vault, median of 3 runs)
