@@ -55,73 +55,6 @@ struct FsEvent {
   kind: FsEventKind,
 }
 
-fn get_schema_label(
-  db: &TypedownDatabase,
-  project: Project,
-  schema: Option<&str>,
-) -> Option<String> {
-  let name = schema?;
-  let members = schema_members(db, project);
-  let symbol = members.members(db).get(name).copied()?;
-  if let SymbolKind::UserDefinedSchema(_, file) = symbol.kind(db) {
-    Some(resolve_schema_label(db, project, file))
-  } else {
-    None
-  }
-}
-
-// Build a TdSiteConfig from the current project state
-fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
-  let config = get_vault_config(db, project);
-  let root = project.root_dir(db);
-  let root_dir = config.root_dir(db);
-  let base_path = config.base_path(db);
-
-  let root_dir_rel = normalize_path(root_dir.strip_prefix(&*root).unwrap_or(&root_dir));
-
-  TdSiteConfig {
-    version: config.version(db).to_string(),
-    base_path: base_path.to_string(),
-    origin: config.origin(db).clone(),
-    lang: config.lang(db).to_string(),
-    root_dir: root_dir_rel,
-    site_title: config.site_title(db).to_string(),
-    site_description: config.site_description(db).to_string(),
-    repo: config.repo_url(db).as_ref().map(|url| TdRepoConfig {
-      url: url.clone(),
-      root: config.repo_root(db).clone().unwrap_or_default(),
-    }),
-    author: config.author(db).clone(),
-    license: config.license(db).clone(),
-    public_dir: config.public_dir(db).to_string(),
-    nav: config
-      .nav_items(db)
-      .iter()
-      .map(|(title, link, icon)| TdNavItem {
-        title: title.clone(),
-        link: link.clone(),
-        icon: icon.clone(),
-      })
-      .collect(),
-    components: config
-      .component_entries(db)
-      .iter()
-      .map(|declaration| match declaration {
-        CustomComponentEntry::Dir { path } => TdComponentEntry::Dir { path: path.clone() },
-        CustomComponentEntry::Explicit { name, source } => TdComponentEntry::Explicit {
-          name: name.clone(),
-          source: source.clone(),
-        },
-      })
-      .collect(),
-    layout: config.layout(db).map(|layout| TdCustomLayout {
-      component: layout.component,
-      slots: layout.slots.into_iter().collect(),
-      not_found: layout.not_found,
-    }),
-  }
-}
-
 /// RPC build server over lsp-server Connection
 pub struct RpcServer {
   connection: Connection,
@@ -819,6 +752,74 @@ fn get_schema(analysis: &Analysis, schema: &str) -> RpcResult<TdSchemaInfo> {
     properties,
   })
 }
+
+fn get_schema_label(
+  db: &TypedownDatabase,
+  project: Project,
+  schema: Option<&str>,
+) -> Option<String> {
+  let name = schema?;
+  let members = schema_members(db, project);
+  let symbol = members.members(db).get(name).copied()?;
+  if let SymbolKind::UserDefinedSchema(_, file) = symbol.kind(db) {
+    Some(resolve_schema_label(db, project, file))
+  } else {
+    None
+  }
+}
+
+// Build a TdSiteConfig from the current project state
+fn build_site_config(db: &TypedownDatabase, project: Project) -> TdSiteConfig {
+  let config = get_vault_config(db, project);
+  let root = project.root_dir(db);
+  let root_dir = config.root_dir(db);
+  let base_path = config.base_path(db);
+
+  let root_dir_rel = normalize_path(root_dir.strip_prefix(&*root).unwrap_or(&root_dir));
+
+  TdSiteConfig {
+    version: config.version(db).to_string(),
+    base_path: base_path.to_string(),
+    origin: config.origin(db).clone(),
+    lang: config.lang(db).to_string(),
+    root_dir: root_dir_rel,
+    site_title: config.site_title(db).to_string(),
+    site_description: config.site_description(db).to_string(),
+    repo: config.repo_url(db).as_ref().map(|url| TdRepoConfig {
+      url: url.clone(),
+      root: config.repo_root(db).clone().unwrap_or_default(),
+    }),
+    author: config.author(db).clone(),
+    license: config.license(db).clone(),
+    public_dir: config.public_dir(db).to_string(),
+    nav: config
+      .nav_items(db)
+      .iter()
+      .map(|(title, link, icon)| TdNavItem {
+        title: title.clone(),
+        link: link.clone(),
+        icon: icon.clone(),
+      })
+      .collect(),
+    components: config
+      .component_entries(db)
+      .iter()
+      .map(|declaration| match declaration {
+        CustomComponentEntry::Dir { path } => TdComponentEntry::Dir { path: path.clone() },
+        CustomComponentEntry::Explicit { name, source } => TdComponentEntry::Explicit {
+          name: name.clone(),
+          source: source.clone(),
+        },
+      })
+      .collect(),
+    layout: config.layout(db).map(|layout| TdCustomLayout {
+      component: layout.component,
+      slots: layout.slots.into_iter().collect(),
+      not_found: layout.not_found,
+    }),
+  }
+}
+
 
 fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   let db = &analysis.db;
