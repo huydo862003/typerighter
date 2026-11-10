@@ -28,6 +28,9 @@ impl Log for Logger {
   }
 
   fn log(&self, record: &Record) {
+    if !self.enabled(record.metadata()) {
+      return;
+    }
     let message = format!("{}", record.args());
     let level = match record.level() {
       Level::Error => "ERROR",
