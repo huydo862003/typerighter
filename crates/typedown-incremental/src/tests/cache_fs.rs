@@ -211,8 +211,8 @@ fn corrupt_dep_graph_starts_clean() {
 fn old_finalized_sessions_are_removed() {
   let dir = tempfile::tempdir().unwrap();
 
-  // Run three sessions so three finalized dirs accumulate (open adds a tiny sleep to ensure unique millisecond timestamps)
-  // We just finalize without sleeping and check the count instead
+  // Run three sessions so three finalized dirs accumulate
+  let mut dirs_before: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
   let mut last_finalized_dir: Option<PathBuf> = None;
   for index in 0u8..3 {
     let (session, _) = open_session(dir.path());
@@ -220,8 +220,8 @@ fn old_finalized_sessions_are_removed() {
     identity::identity(&db, identity::IdInput::new(&db, index as usize));
     finalize(session, &db);
 
-    // Record the name of the just-finalized directory
-    last_finalized_dir = fs::read_dir(dir.path())
+    // The new dir is the one that wasn't there before
+    let current: std::collections::HashSet<PathBuf> = fs::read_dir(dir.path())
       .unwrap()
       .filter_map(|entry| entry.ok())
       .map(|entry| entry.path())
@@ -232,7 +232,9 @@ fn old_finalized_sessions_are_removed() {
             .and_then(|name| name.to_str())
             .is_some_and(|name| name.starts_with("s-") && !name.ends_with("-working"))
       })
-      .max_by_key(|path| path.file_name().unwrap().to_os_string());
+      .collect();
+    last_finalized_dir = current.difference(&dirs_before).next().cloned();
+    dirs_before = current;
   }
 
   // Opening a 4th session triggers GC, which must remove all but the most recent
