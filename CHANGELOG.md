@@ -1,4 +1,11 @@
-## [0.57.4] - 2026-11-10
+## [0.57.5] - 2026-11-10
+
+### Fixed
+
+- packages/typerighter
+  - Build paths are broken
+
+## [0.57.4] - 2026-11-10 (retracted)
 
 ### Fixed
 
