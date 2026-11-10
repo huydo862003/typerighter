@@ -64,6 +64,7 @@ struct HtmlEmitter<'a> {
   headings: Vec<ExportedHeading>,
   title: Option<String>,
   slug_counts: BTreeMap<String, usize>,
+  seen_first_image: bool,
 }
 
 impl<'a> HtmlEmitter<'a> {
@@ -76,6 +77,7 @@ impl<'a> HtmlEmitter<'a> {
       headings: Vec::new(),
       title: None,
       slug_counts: BTreeMap::new(),
+      seen_first_image: false,
     }
   }
 
@@ -762,10 +764,18 @@ impl<'a> HtmlEmitter<'a> {
       .map(|(width, height)| format!(" width=\"{width}\" height=\"{height}\""))
       .unwrap_or_default();
 
+    // First image on the page loads eagerly with high priority for faster LCP
+    let loading = if self.seen_first_image {
+      " loading=\"lazy\" decoding=\"async\""
+    } else {
+      self.seen_first_image = true;
+      " fetchpriority=\"high\" decoding=\"async\""
+    };
+
     if let Some(caption) = title {
       self.write("<figure>");
       self.write(&format!(
-        "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\"{dimension_attributes}>",
+        "<img src=\"{}\" alt=\"{}\" title=\"{}\"{loading}{dimension_attributes}>",
         html_escape(url),
         html_escape(alt),
         html_escape(caption)
@@ -776,7 +786,7 @@ impl<'a> HtmlEmitter<'a> {
       self.write("</figure>\n");
     } else {
       self.write(&format!(
-        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\"{dimension_attributes}>",
+        "<img src=\"{}\" alt=\"{}\"{loading}{dimension_attributes}>",
         html_escape(url),
         html_escape(alt)
       ));
@@ -909,12 +919,18 @@ impl<'a> HtmlEmitter<'a> {
     }
   }
 
-  fn try_resolve_fref_html(&self, node: &RedNode) -> Option<String> {
+  fn try_resolve_fref_html(&mut self, node: &RedNode) -> Option<String> {
     let target = resolve_fref_target(self.db, self.project, self.file, node)?;
 
     if target.is_image {
+      let loading = if self.seen_first_image {
+        "loading=\"lazy\" decoding=\"async\""
+      } else {
+        self.seen_first_image = true;
+        "fetchpriority=\"high\" decoding=\"async\""
+      };
       return Some(format!(
-        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{}\" {loading}>",
         html_escape(&target.url),
         html_escape(&target.name)
       ));

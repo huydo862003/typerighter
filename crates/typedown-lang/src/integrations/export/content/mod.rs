@@ -652,7 +652,7 @@ full content:
     assert!(
       exported
         .content
-        .contains(r#"<img src="/icon.svg" alt="icon" loading="lazy">"#)
+        .contains(r#"<img src="/icon.svg" alt="icon" fetchpriority="high" decoding="async">"#)
     );
   }
 
@@ -734,7 +734,7 @@ full content:
     );
     assert!(
       content.contains(
-        r#"<img src="https://img.shields.io/badge/Email-blue" alt="Email badge" loading="lazy">"#
+        r#"<img src="https://img.shields.io/badge/Email-blue" alt="Email badge" fetchpriority="high" decoding="async">"#
       ),
       "should contain image inside link: {content}",
     );
