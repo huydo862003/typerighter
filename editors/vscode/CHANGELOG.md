@@ -1,6 +1,14 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.57.4] - 2026-11-10
+
+### Fixed
+
+- packages/typerighter
+  - Root page is directed to the other wrong directory root page
+  - Suppress noisy 3rd party logs in non-verbose mode
+
 ## [0.57.3] - 2026-11-10
 
 ### Fixed
