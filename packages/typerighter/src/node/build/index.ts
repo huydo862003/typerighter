@@ -366,7 +366,8 @@ import { shallowRef } from 'vue';
 import theme from ${JSON.stringify(options.themeModulePath)};
 
 const rawPages = import.meta.glob('${glob}', { eager: true });
-const pages = Object.fromEntries(Object.entries(rawPages).map(([k, v]) => [k, () => Promise.resolve(v)]));
+const prefix = '/${options.rootDir}';
+const pages = Object.fromEntries(Object.entries(rawPages).map(([k, v]) => [k.slice(prefix.length), () => Promise.resolve(v)]));
 const siteData = shallowRef({ ...${siteDataWithListings}, pages });
 
 export async function createRenderer() {

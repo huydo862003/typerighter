@@ -38,15 +38,8 @@ export interface VirtualModuleIds {
 export function generateAppEntry (options: AppEntryOptions, ids: VirtualModuleIds): string {
   const {
     rootDir: rootDirectory = '.',
-    mountPath = '',
     userComponents = [],
   } = options;
-
-  // Full path from Vite project root to the vault directory
-  const fullRootDirectory = [
-    mountPath,
-    rootDirectory === '.' ? '' : rootDirectory,
-  ].filter(Boolean).join('/');
 
   const componentImports = userComponents
     .map((component) => `import ${component.name} from ${JSON.stringify(component.absolutePath)};`)
@@ -111,9 +104,8 @@ if (import.meta.hot) {
 
   // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
   import.meta.hot.on('${ids.pageDataEvent}', ({ filepath, pageData }) => {
-    const eventBase = path.join('/', '${fullRootDirectory}', path.stripExtension(filepath));
-    const routeBase = path.join('/', '${fullRootDirectory}', router.route.path);
-    if (eventBase === routeBase) {
+    const eventRoute = '/' + path.stripExtension(filepath);
+    if (eventRoute === router.route.path) {
       router.route.data = pageData;
     }
   });

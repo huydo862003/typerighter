@@ -89,7 +89,7 @@ export interface TypedownSiteConfig {
 export interface TypedownSiteData {
   /** Whether the data has been fetched from the server */
   ready: boolean;
-  /** Page loaders keyed by vault-relative path (e.g. "/vault/notes/intro.td") */
+  /** Page loaders keyed by route path (e.g. "/notes/intro.td") */
   pages: Record<string, () => Promise<PageModule>>;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
@@ -141,19 +141,12 @@ export async function createTypedownApp (
     theme,
   } = siteConfig;
 
-  // Strip the vault root prefix from glob keys to match against route paths exactly
-  const rootPrefix = '/' + (siteConfig.rootDir ?? '');
-
+  // Pages are keyed by route path (e.g. "/index.td", "/people/alice.td")
   function findPage (pagePath: string): (() => Promise<PageModule>) | undefined {
     for (const extension of CONTENT_EXTENSIONS) {
-      const target = pagePath + extension;
+      const loader = siteData.value.pages[pagePath + extension];
 
-      for (const key of Object.keys(siteData.value.pages)) {
-        if (!key.startsWith(rootPrefix)) continue;
-        const relative = key.slice(rootPrefix.length);
-
-        if (relative === target) return siteData.value.pages[key];
-      }
+      if (loader) return loader;
     }
   }
 
@@ -202,7 +195,7 @@ export async function createTypedownApp (
 
     const routePath = router.route.path;
     const hadPage = CONTENT_EXTENSIONS.some((extension) =>
-      Object.keys(previous.pages).some((key) => key.endsWith(routePath + extension)));
+      previous.pages[routePath + extension] !== undefined);
     const hasPage = !!findPage(routePath);
 
     if (!hadPage && hasPage) {

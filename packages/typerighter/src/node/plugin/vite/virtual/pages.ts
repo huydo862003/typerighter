@@ -27,9 +27,16 @@ export class VirtualPages implements VirtualModule {
       this.mountPath,
       rootDirectory === '.' ? '' : rootDirectory,
     ].filter(Boolean);
-    const glob = 0 < segments.length ? `/${segments.join('/')}/**/*.{td,md}` : '/**/*.{td,md}';
+    const prefix = 0 < segments.length ? '/' + segments.join('/') : '';
+    const glob = prefix ? `${prefix}/**/*.{td,md}` : '/**/*.{td,md}';
 
-    return `export const pages = import.meta.glob('${glob}');`;
+    // Strip the vault prefix from glob keys so pages are keyed by route path
+    return [
+      `const raw = import.meta.glob('${glob}');`,
+      'export const pages = Object.fromEntries(',
+      `  Object.entries(raw).map(([k, v]) => [k.slice(${prefix.length}), v])`,
+      ');',
+    ].join('\n');
   }
 
   resolvePageData (id: string): string | undefined {
