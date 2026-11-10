@@ -3,6 +3,9 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crate::db::derived::get_vault_config;
+use crate::integrations::export::content::image;
+
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 
@@ -754,10 +757,15 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_media_image(&mut self, url: &str, alt: &str, title: Option<&str>) {
+    let dimensions = self.read_image_dimensions(url);
+    let dimension_attributes = dimensions
+      .map(|(width, height)| format!(" width=\"{width}\" height=\"{height}\""))
+      .unwrap_or_default();
+
     if let Some(caption) = title {
       self.write("<figure>");
       self.write(&format!(
-        "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\"{dimension_attributes}>",
         html_escape(url),
         html_escape(alt),
         html_escape(caption)
@@ -768,11 +776,25 @@ impl<'a> HtmlEmitter<'a> {
       self.write("</figure>\n");
     } else {
       self.write(&format!(
-        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\"{dimension_attributes}>",
         html_escape(url),
         html_escape(alt)
       ));
     }
+  }
+
+  fn read_image_dimensions(&self, url: &str) -> Option<(u32, u32)> {
+    let url = url.trim();
+    if is_external_url(url) {
+      return None;
+    }
+    let config = get_vault_config::get_vault_config(self.db, self.project);
+    let root_dir = config.root_dir(self.db);
+    let relative = url.strip_prefix('/')?;
+    let path = root_dir.join(relative);
+    let mut file = std::fs::File::open(&path).ok()?;
+    let dim = image::get_image_dimensions(&mut file)?;
+    Some((dim.width, dim.height))
   }
 
   fn emit_media_github(&mut self, url: &str, alt: &str, title: Option<&str>) {
