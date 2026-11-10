@@ -846,9 +846,7 @@ fn check_vault(analysis: &Analysis) -> RpcResult<TdDiagnosticReport> {
   // Collect eligible files with their text ropes before the parallel phase
   let entries: Vec<_> = files
     .iter()
-    .filter(|(path, _)| {
-      path.starts_with(&*root_dir) && is_content_file(path) && !is_typ_file(path)
-    })
+    .filter(|(path, _)| path.starts_with(&*root_dir) && is_content_file(path) && !is_typ_file(path))
     .filter_map(|(path, &file)| {
       let relative_path = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
       let rope = analysis.file_rope(path)?;
