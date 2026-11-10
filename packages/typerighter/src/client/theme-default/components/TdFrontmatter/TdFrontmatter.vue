@@ -346,6 +346,12 @@ function toggleRail () {
   font-size: var(--font-size-td-xs);
 }
 
+@media (width < 64rem) {
+  .td-fm-box-body {
+    grid-template-columns: 100px 1fr;
+  }
+}
+
 .td-fm-box-key {
   display: flex;
   align-items: center;

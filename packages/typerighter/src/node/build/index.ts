@@ -25,7 +25,7 @@ import {
   path as tdpath,
 } from "@/shared";
 import type { AppContext } from "../context";
-import { buildSitemap, buildRobotsTxt, buildRssFeed } from "./seo";
+import { buildSitemap, buildRobotsTxt, buildRssFeed, buildLlmsTxt } from "./seo";
 
 export interface BuildOptions {
   /** Output directory for the final build (default: "dist") */
@@ -260,6 +260,18 @@ export async function buildSite(
             config.siteTitle,
             config.siteDescription,
             config.lang,
+          ),
+        ),
+      );
+      writes.push(
+        fs.writeFile(
+          path.join(outDir, "llms.txt"),
+          buildLlmsTxt(
+            sidebarItems,
+            base,
+            origin,
+            config.siteTitle,
+            config.siteDescription,
           ),
         ),
       );

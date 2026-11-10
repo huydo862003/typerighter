@@ -19,8 +19,12 @@ struct Logger {
 }
 
 impl Log for Logger {
-  fn enabled(&self, _metadata: &Metadata) -> bool {
-    true
+  fn enabled(&self, metadata: &Metadata) -> bool {
+    // Only show info+ from our own crates, warn+ from third-party
+    if metadata.level() <= Level::Warn {
+      return true;
+    }
+    metadata.target().starts_with("typedown")
   }
 
   fn log(&self, record: &Record) {
