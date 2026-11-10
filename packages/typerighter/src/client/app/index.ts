@@ -141,13 +141,18 @@ export async function createTypedownApp (
     theme,
   } = siteConfig;
 
-  // Page keys from import.meta.glob include the full path (e.g. "/vault/people/alice.td"), while pagePath is the route path (e.g. "/people/alice")
+  // Strip the vault root prefix from glob keys to match against route paths exactly
+  const rootPrefix = '/' + (siteConfig.rootDir ?? '');
+
   function findPage (pagePath: string): (() => Promise<PageModule>) | undefined {
     for (const extension of CONTENT_EXTENSIONS) {
-      const suffix = pagePath + extension;
+      const target = pagePath + extension;
 
       for (const key of Object.keys(siteData.value.pages)) {
-        if (key.endsWith(suffix)) return siteData.value.pages[key];
+        if (!key.startsWith(rootPrefix)) continue;
+        const relative = key.slice(rootPrefix.length);
+
+        if (relative === target) return siteData.value.pages[key];
       }
     }
   }
