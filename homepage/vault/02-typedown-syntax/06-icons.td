@@ -4,7 +4,7 @@ description: "Reference for Typedown's built-in icon module. Use Lucide icons wi
 _icon: icon.image
 ---
 
-Every page in the sidebar can show an icon next to its title. Set `_icon` in the frontmatter to any value from the built-in `icon` module, which wraps a curated set of [Lucide](https://lucide.dev) icons.
+Icons give your pages visual identity in the sidebar and page header, making it easier to scan a large vault at a glance. Set `_icon` in the frontmatter to any value from the built-in `icon` module, which wraps a curated set of [Lucide](https://lucide.dev) icons.
 
 ```yaml
 _icon: icon.rocket

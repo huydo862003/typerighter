@@ -1,7 +1,7 @@
 ---
 _label: "Markdown body"
 _icon: icon.edit
-description: "Headings, text formatting, code blocks, math, callouts, tables, and custom components."
+description: "Headings, text formatting, code blocks, diagrams, math, callouts, tables, links, embeds, and string interpolation."
 ---
 
 Everything after the closing `---` is the markdown body. It supports standard markdown plus Typedown extensions:
@@ -12,9 +12,10 @@ Everything after the closing `---` is the markdown body. It supports standard ma
 - Callout blocks (`note`, `tip`, `warning`, `danger`, `details`)
 - Embeds for YouTube, Spotify, Figma, GitHub, and more
 - String interpolation with `${self.field}` to render frontmatter values
-- Custom Vue components via `:::` containers and `[[shorthand]]` syntax
 
 ## Headings
+
+Headings structure your page into sections and automatically appear in the right-hand table of contents, making long documents easy to navigate.
 
 ```markdown
 # Heading 1
@@ -23,9 +24,11 @@ Everything after the closing `---` is the markdown body. It supports standard ma
 #### Heading 4
 ```
 
-Headings generate anchors and appear in the table of contents.
+Each heading also generates an anchor link that readers can share or bookmark.
 
 ## Text formatting
+
+Standard inline formatting for emphasis, deletion, and code spans:
 
 | Syntax | Result |
 | ------ | ------ |
@@ -37,7 +40,7 @@ Headings generate anchors and appear in the table of contents.
 
 ## Code blocks
 
-Fenced code blocks with an optional language label:
+Fenced code blocks render syntax-highlighted source code with optional line highlighting, titles, and line numbers. Specify a language label after the opening backticks for highlighting:
 
 ````markdown
 ```python
@@ -53,11 +56,11 @@ def greet(name):
     return f"Hello, {name}!"
 ```
 
-The opening and closing fence must have the same number of backticks.
+The opening and closing fence must have the same number of backticks. Typedown extends basic code blocks with line highlighting, titles, and line numbers via `{...}` annotations after the language.
 
 ### Line highlighting
 
-Highlight specific lines with `{line-ranges}` after the language:
+To draw attention to specific lines, add `{line-ranges}` after the language:
 
 ````markdown
 ```js{1,3}
@@ -95,7 +98,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({})
 ```
 
-Can be combined with line highlighting:
+Titles can be combined with line highlighting:
 
 ```ts{1 title=vite.config.ts}
 import { defineConfig } from 'vite'
@@ -104,7 +107,7 @@ export default defineConfig({})
 
 ### Line numbers
 
-Show line numbers with `line-numbers` inside `{...}`:
+For longer snippets where readers need to reference specific lines, add `line-numbers` inside `{...}`:
 
 ````markdown
 ```js{line-numbers}
@@ -122,7 +125,7 @@ const b = 2;
 const c = 3;
 ```
 
-Start from a specific number with `line-numbers=N`:
+You can also start numbering from a specific line with `line-numbers=N`:
 
 ```js{1,3 line-numbers=5}
 const a = 1;
@@ -133,7 +136,7 @@ const c = 3;
 
 ## Diagrams
 
-Typedown supports diagrams via fenced code blocks. Diagrams are rendered client-side using lazy-loaded libraries from CDN.
+When you need to illustrate architecture, workflows, or relationships, Typedown renders diagrams directly from text-based descriptions inside fenced code blocks. Diagrams are lazy-loaded from CDN, so they add no weight to pages that don't use them.
 
 ### Mermaid
 
@@ -200,7 +203,7 @@ Both Mermaid and D2 are loaded lazily from CDN only when a diagram block is pres
 
 ## Math
 
-Inline math with single `$`:
+For technical and academic writing, Typedown supports LaTeX math notation rendered via Temml. Use single `$` for inline math:
 
 ```markdown
 The formula is $E = mc^2$.
@@ -208,7 +211,7 @@ The formula is $E = mc^2$.
 
 Renders as: The formula is $E = mc^2$.
 
-Block math with `$$`:
+For display equations, use `$$` for a centered block:
 
 ```markdown
 $$
@@ -222,7 +225,7 @@ $$
 \int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
 $$
 
-Math content is raw text. No interpolation inside math blocks.
+Math content is raw text, so `${}` interpolation does not apply inside math blocks.
 
 ## Blockquotes
 
@@ -290,6 +293,8 @@ Renders as:
 
 ## Links and images
 
+Link to other pages in your vault, external sites, or embed images and media. Typedown resolves vault-relative paths automatically:
+
 ```markdown
 [Example](https://example.com)
 [Alice](people/alice)
@@ -318,9 +323,7 @@ The image is wrapped in a `<figure>` element with the title rendered as a `<figc
 
 ### Embeds
 
-Use image syntax with a URL to embed external content. Typerighter detects the URL and renders the appropriate embed.
-
-Supported services with custom embed rendering:
+Instead of linking to external content, you can embed it directly on the page using image syntax with a URL. Typerighter detects the service and renders the appropriate embed:
 
 | Service | Example URL |
 |---------|------------|
@@ -345,24 +348,31 @@ Here is a YouTube embed:
 
 ![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
-Any other `https://` URL without an image extension is rendered as a generic `<iframe>`. If the iframe fails to load (e.g. the site blocks framing), a fallback link is shown instead.
-
-URLs with image extensions (`.png`, `.jpg`, `.svg`, `.webp`, etc.) and relative paths are always rendered as images.
+Any other `https://` URL without an image extension is rendered as a generic `<iframe>`, with a fallback link shown if the site blocks framing. URLs with image extensions (`.png`, `.jpg`, `.svg`, `.webp`, etc.) and relative paths are always rendered as images.
 
 ## String interpolation
 
-Use `${...}` to embed expressions in the body:
+Frontmatter values can be referenced directly in the body text using `${...}` expressions, which are evaluated at build time. This keeps your prose in sync with structured data without manual duplication:
 
-```markdown
+```yaml{title=vault/tasks/setup-ci.td}
+---
+_type: Task
+title: "Set up CI"
+assignee: fref("people/alice.td")
+tags:
+  - "infra"
+  - "devops"
+---
+
 This task is assigned to ${self.assignee.name}.
-Total items: ${self.items.length()}.
+It is tagged with ${self.tags.length()} labels.
 ```
 
-Expressions are evaluated at build time.
+Here `self` refers to the current file's frontmatter, so `self.assignee.name` resolves to Alice's name from the referenced Person document.
 
 ## Callout blocks
 
-Callout blocks use `:::` with a type label:
+Callout blocks draw attention to important information like warnings, tips, or supplementary notes. They use the `:::` fence with a type label:
 
 ```markdown
 ::: note
@@ -374,9 +384,7 @@ This is a note.
 This is a note.
 :::
 
-Available types: `note`, `tip`, `warning`, `danger`, `details`, `info`.
-
-The `details` type creates a collapsible section with a title:
+The available types are `note`, `tip`, `warning`, `danger`, `details`, and `info`. The `details` type creates a collapsible section with a title:
 
 ```markdown
 ::: details Click to expand
@@ -387,164 +395,12 @@ Hidden content.
 ::: details Click to expand
 Hidden content.
 :::
-
-## Custom components
-
-Custom components can be used with two syntaxes.
-
-Container syntax wraps content in a named block:
-
-```markdown
-::: component-name {prop="value"}
-Content goes here.
-:::
-```
-
-Shorthand syntax for self-closing components:
-
-```markdown
-[[component-name]]
-[[component-name {prop="value"}]]
-```
-
-### Built-in components
-
-| Component | Description | Syntax |
-| --------- | ----------- | ------ |
-| `toc` | Table of contents for the current page | `[[toc]]` |
-| `directory-index` | Index listing of the current directory's children | `[[directory-index]]` |
-| `glossary-index` | Alphabetical glossary of all pages | `[[glossary-index]]` |
-| `note` | Note callout | `::: note ... :::` |
-| `tip` | Tip callout | `::: tip ... :::` |
-| `warning` | Warning callout | `::: warning ... :::` |
-| `danger` | Danger callout | `::: danger ... :::` |
-| `info` | Info callout | `::: info ... :::` |
-| `details` | Collapsible section with title | `::: details Title ... :::` |
-| `grid` | Grid layout container | `::: grid{columns=3} ... :::` |
-| `grid-cell` | Cell within a grid | `::: grid-cell ... :::` |
-
-#### Grid layout
-
-The `grid` component creates a CSS grid layout. Nest `grid-cell` components inside to define each cell:
-
-```markdown
-:::grid{columns=3}
-:::grid-cell
-First column
-:::
-:::grid-cell
-Second column
-:::
-:::grid-cell
-Third column
-:::
-:::
-```
-
-:::grid{columns=3}
-:::grid-cell
-First column
-:::
-:::grid-cell
-Second column
-:::
-:::grid-cell
-Third column
-:::
-:::
-
-Props:
-
-| Prop | Type | Description |
-| ---- | ---- | ----------- |
-| `columns` | number | Number of equal columns |
-
-`grid-cell` accepts `col-span` and `row-span` props to span multiple columns or rows:
-
-```markdown
-:::grid{columns=3}
-:::grid-cell{col-span=2}
-This cell spans two columns
-:::
-:::grid-cell
-Normal cell
-:::
-:::
-```
-
-:::grid{columns=3}
-:::grid-cell{col-span=2}
-This cell spans two columns
-:::
-:::grid-cell
-Normal cell
-:::
-:::
-
-### User-defined components
-
-Vue components can be registered for use in the markdown body. Registered components are available by their PascalCase name or its kebab-case equivalent.
-
-#### Registering components
-
-Declare components in `typedown.yaml` under `theme.components`. Each entry is either a folder path (scanned recursively for `.vue` files) or an explicit name-to-source mapping:
-
-```yaml
-theme:
-  components:
-    - "./src/components"
-    - { "Chart": "./src/Chart.vue" }
-```
-
-When multiple entries define the same name, the last one wins.
-
-#### Contract file
-
-Create `.typedown/components.json` alongside your vault. This file declares each component's props and enables the LSP to warn on unknown components, missing required props, and unknown props in the markdown body.
-
-```json
-{
-  "TdAlert": {
-    "source": "./src/components/TdAlert.vue",
-    "props": {
-      "kind": { "type": "string", "required": false }
-    }
-  }
-}
-```
-
-Commit the contract file with your vault. Update it when component props change.
-
-#### Example
-
-A `TdAlert` component registered in `typedown.yaml` and declared in the contract can be used as a container block:
-
-```markdown
-:::td-alert{kind="info"}
-Remember to rebuild the contract file after adding new props.
-:::
-```
-
-The component receives `kind` as a prop and the inner markdown as a slot. Any markdown syntax works inside the container, including headings, lists, code blocks, and links.
-
-#### Prop types
-
-The `type` field in the contract uses Typedown type names:
-
-| Type | Example |
-| ---- | ------- |
-| `string` | `"type": "string"` |
-| `number` | `"type": "number"` |
-| `boolean` | `"type": "boolean"` |
-| `date` | `"type": "date"` |
-| list | `"type": "list[string]"` |
-| dict | `"type": "dict[string, number]"` |
-| union | `"type": "string | number"` |
-| unknown | `"type": "any"` |
-
-Required props are enforced: the LSP warns when a required prop is absent at a usage site.
 
 ## Limitations
 
-- HTML tags are not supported. Typedown focuses on document structure.
-- Indentation-based code blocks are not supported. Use fenced code blocks.
+- HTML tags are not supported because Typedown focuses on document structure rather than raw markup.
+- Indentation-based code blocks are not supported; use fenced code blocks instead.
+
+## Custom components
+
+When built-in markdown features are not enough, you can embed Vue components directly inside your content using `:::` containers and `[[shorthand]]` syntax. See [Custom components](05-custom-components) for the full reference on built-in components, grid layouts, registering your own components, and the component contract file.

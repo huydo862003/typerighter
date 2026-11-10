@@ -12,7 +12,7 @@ Yes. A `.td` file with no `_type` field is treated as an untyped document. You c
 
 ## Can I use my existing markdown files?
 
-Rename `.md` files to `.td` and they will work as body-only documents. Standard markdown syntax is supported. To add structured data, insert a YAML frontmatter block between `---` markers at the top of the file.
+Rename `.md` files to `.td` and they work immediately as body-only documents - no frontmatter needed. Standard markdown syntax is supported. When you want to add structured data, insert a YAML frontmatter block between `---` markers at the top of the file.
 
 Typedown extends standard markdown with string interpolation (`${...}`), callout blocks (`:::`), math (`$` and `$$`), and container shorthands (`[[toc]]`). These are additive and do not break existing markdown.
 
@@ -32,11 +32,11 @@ If you need multi-user collaboration, Notion is the better tool. If you want typ
 
 ## Does it work offline?
 
-Yes. Everything runs locally. The LSP server, the dev server, and the build pipeline all work without an internet connection. Your content is plain files on disk.
+Yes, everything runs locally. The LSP server, dev server, and build pipeline all work without an internet connection, and your content remains as plain files on disk.
 
 ## What happens when I rename a file?
 
-Use your editor's rename command (F2 in VS Code, `<leader>rn` in Neovim). The LSP performs a semantic rename: it updates the file path and every `fref` that points to it across the vault. Manual renames also work, but you will need to update `fref` paths yourself.
+Use your editor's rename command (F2 in VS Code, `<leader>rn` in Neovim), and the LSP will perform a semantic rename that updates the file path and every `fref` pointing to it across the vault. Manual renames also work, but you will need to update `fref` paths yourself.
 
 ## Can I use Typedown for a blog?
 

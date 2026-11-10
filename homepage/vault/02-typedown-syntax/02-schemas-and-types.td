@@ -4,20 +4,13 @@ _icon: icon.database
 description: "Define node types with schemas, use the type system, write expressions, and link files with references."
 ---
 
-Without a schema, a `.td` file is just markdown with metadata. With one, every field gets autocompletion, type checking, and inline diagnostics.
-
-- Define a `Person` schema once, and every person document in the vault is validated against it
-- Add an `assignee: Person` field to a `Task` schema, and the editor verifies that every task links to an actual person
-- Write computed fields like `full_name: self.first_name + " " + self.last_name` that update automatically
-
-Schemas are what turn a folder of files into a typed content graph.
+Without a schema, a `.td` file is just markdown with metadata. With one, every field gets autocompletion, type checking, and inline diagnostics. Schemas are what turn a folder of files into a typed content graph.
 
 ## Defining a schema
 
 A schema file lives in `_types/` and sets `_type: schema`. The `properties` mapping declares each field and its type.
 
-```yaml
-# _types/Person.td
+```yaml{title=_types/Person.td}
 ---
 _type: schema
 properties:
@@ -30,9 +23,11 @@ properties:
 ---
 ```
 
-The file name becomes the schema name: `_types/Person.td` creates a schema named `Person`. Content files reference it with `_type: Person`.
+The file name becomes the schema name: `_types/Person.td` creates a schema named `Person`. Content files reference it with `_type: Person`. Once a schema exists, the editor gives you autocompletion, type checking, and inline diagnostics for every field that conforms to it:
 
-Without a schema, a document is untyped. With one, the editor gives you autocompletion, type checking, and inline diagnostics for every field.
+- Define a `Person` schema once, and every person document in the vault is validated against it
+- Add an `assignee: Person` field to a `Task` schema, and the editor verifies that every task links to an actual person
+- Write computed fields like `full_name: self.first_name + " " + self.last_name` that update automatically
 
 ## Built-in types
 

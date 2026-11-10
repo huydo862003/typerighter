@@ -37,7 +37,7 @@ my-site/
       getting-started.td # schemas, body interpolation, frefs
       core-concepts.td   # schema syntax, fref, vault query reference
     index.td             # home page with file structure and commands
-    components.td        # built-in component demos (flashcard, glossary)
+    components.td        # built-in component demos
   public/
     favicon.svg
     robots.txt
@@ -57,9 +57,9 @@ Open `http://localhost:8686`. The site is live with a sidebar, search, and synta
 
 ## Write your first document
 
-Open `vault/notes/getting-started.td`. Every `.td` file has two parts: a YAML frontmatter block between `---` markers and a markdown body after it.
+Open `vault/notes/getting-started.td`. Every `.td` file has two parts: a YAML frontmatter block between `---` markers that holds structured data, and a markdown body after it. The `_type` field connects the file to a schema - a template that declares which fields are allowed and what types they have, so the editor can validate your input and offer autocompletion.
 
-```yaml
+```yaml{title=vault/notes/getting-started.td}
 ---
 _type: Note
 title: "Getting started"
@@ -73,15 +73,15 @@ This file uses `_type: Note`, defined in `_types/Note.td`.
 The `title`, `description`, `tags`, and `author` fields above are all type-checked.
 ```
 
-The `_type` field tells Typedown which schema this file conforms to. The editor uses it to validate every field and offer autocompletion. Open the page at `http://localhost:8686/notes/getting-started`:
+Open the page at `http://localhost:8686/notes/getting-started` to see the result:
 
 ![Getting started page showing typed frontmatter, schema validation, and body interpolation](assets/hello-page.png)
 
 ## Edit and see changes live
 
-Add a new section to `vault/notes/getting-started.td` and save. The browser updates instantly without a full reload.
+Try editing `vault/notes/getting-started.td` by adding a new section to the markdown body and saving:
 
-```markdown
+```markdown{title=vault/notes/getting-started.td}
 ## Why Typedown?
 
 - **Typed content**: every field is validated against a schema
@@ -89,9 +89,9 @@ Add a new section to `vault/notes/getting-started.td` and save. The browser upda
 - **Live reload**: edits appear instantly in the browser
 ```
 
-The scaffold also includes a components page with live demos of `flashcard` and `glossary-index`:
+The browser updates instantly without a full reload:
 
-![Components page with flashcard demo and container fence syntax](assets/live-edit.png)
+![Live editing with instant browser updates](assets/live-edit.png)
 
 ## Deploy
 
@@ -103,8 +103,20 @@ npm run build
 
 The output goes to `dist/`. It is a self-contained static site that needs no server. See [Deploying](02-deploying) for platform-specific instructions for GitHub Pages, Netlify, Vercel, and Cloudflare Pages.
 
-## Next steps
+## What comes next
+
+As your vault grows, Typedown's type system keeps it consistent. Schemas validate fields, file references (`fref`) link documents into a traversable graph, and vault queries let you compute relationships automatically - for example, finding all tasks assigned to a person without maintaining that list by hand:
+
+```yaml{title=vault/people/alice.td}
+---
+_type: Person
+name: "Alice"
+assigned_tasks: vault.from_nodes(Task).filter((task) -> task.assignee == self)
+---
+```
+
+Explore these features in the guides:
 
 - [Set up your editor](01-editor-setup) for autocompletion, type checking, and diagnostics
-- [Learn Typedown Syntax](../02-typedown-syntax/index) to understand vaults, schemas, and expressions
+- [Learn Typedown Syntax](../02-typedown-syntax/index) to understand vaults, schemas, expressions, and vault queries
 - [Configure your site](03-configuration) for custom nav, SEO, and subpath deployments

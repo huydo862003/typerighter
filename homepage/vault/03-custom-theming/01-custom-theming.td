@@ -4,11 +4,15 @@ _icon: icon.brush
 description: "Extend or replace the Typedown default theme: custom Vue components, layout slots, and full layout replacement."
 ---
 
-Typerighter's default theme works out of the box. When you need to go further, there are three levels of customization:
+Typerighter's default theme works out of the box. When you need to go further, there are three levels of customization.
 
-- **Custom components** - register Vue components for use inside `.td` content
-- **Layout slots** - inject content into specific areas of the default layout
-- **Full layout replacement** - swap the entire layout with your own Vue component
+::: note
+All three levels involve writing Vue single-file components (`.vue` files). Familiarity with [Vue.js](https://vuejs.org/) and its Composition API is assumed in this section.
+:::
+
+- **Custom components** - register Vue components for use inside `.td` content. Start here if you need a one-off widget like a chart or alert box.
+- **Layout slots** - inject content into specific areas of the default layout. Use this to add a banner, footer widget, or analytics without changing the overall design.
+- **Full layout replacement** - swap the entire layout with your own Vue component. Use this when you want complete design control.
 
 ## Custom components
 
@@ -18,7 +22,7 @@ Register Vue components so they can be used directly inside `.td` content files.
 2. Add `.vue` files to it
 3. Register the directory in `typedown.yaml`:
 
-```yaml
+```yaml{title=typedown.yaml}
 theme:
   components:
     - "./components"
@@ -38,7 +42,7 @@ The component name is converted from kebab-case (`my-alert`) to PascalCase (`MyA
 
 If you want to add content to specific zones of the default layout without replacing it, use layout slots.
 
-```yaml
+```yaml{title=typedown.yaml}
 theme:
   components:
     - "./components"
@@ -54,7 +58,7 @@ Each slot name maps to a position in the default theme (see the [slot reference]
 
 For full control over every pixel, replace the default layout with your own Vue component.
 
-```yaml
+```yaml{title=typedown.yaml}
 theme:
   layout: "./theme/Layout.vue"
 ```
@@ -96,7 +100,7 @@ See the [Client API reference](04-client-api) for all composables and their retu
 
 ## Dark mode
 
-Typerighter manages dark mode state via `useTheme()`. It persists the user's choice in `localStorage` and toggles a `.dark` class on `<html>`.
+Typerighter manages dark mode state via `useTheme()`, which persists the user's choice in `localStorage` and toggles a `.dark` class on `<html>`.
 
 Your CSS can target `.dark` for dark mode styling:
 

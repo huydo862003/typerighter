@@ -37,15 +37,15 @@ my-project/
 
 Three kinds of things live in a vault:
 
-1. **Content files**: `.td` files that become pages on the site. They are the nodes of the graph.
-2. **Schema files**: `.td` files in `_types/` that define node types. They declare what fields a resource has.
-3. **Internal files**: `.td` files in `_`-prefixed directories (like `_partials/`, `_drafts/`). They are excluded from the site but can be imported by other files.
+1. **Content files**: `.td` files that become pages on the site. Each one is a node in the content graph.
+2. **Schema files**: `.td` files in `_types/` that define node types. Keeping schemas in a dedicated directory lets the type checker find them automatically and validate every content file against the right shape.
+3. **Internal files**: `.td` files in `_`-prefixed directories (like `_partials/`, `_drafts/`). They are excluded from the published site but still participate in the type system, so you can use them for shared data or work-in-progress content.
 
 ## Configuration
 
 The `typedown.yaml` config sits at the project root. It tells Typedown where the vault is and what metadata to use for the generated site.
 
-```yaml
+```yaml{title=typedown.yaml}
 version: "1.0.0"
 vault:
   root_dir: "vault"
@@ -61,7 +61,7 @@ site:
 | `repo` | Optional repository URL shown in the site header. |
 | `site.title` | Site title for HTML and the sidebar. |
 | `site.description` | Site description for HTML meta tags. |
-| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](04-markdown-body#user-defined-components). |
+| `theme.components` | List of Vue component sources. Each entry is a folder path or an explicit `{Name: "./path.vue"}` mapping. See [custom components](05-custom-components#user-defined-components). |
 
 ## Internal directories
 
@@ -93,9 +93,9 @@ Every `.td` file is a node in the vault graph. A document has two parts: a YAML 
 
 ```yaml
 ---
-_type: Person
-_label: "Alice Chen"
-_icon: icon.user
+_type: Person              # conforms to the Person schema
+_label: "Alice Chen"       # display name in the sidebar
+_icon: icon.user           # sidebar icon
 name: "Alice Chen"
 role: "developer"
 email: "alice@example.com"

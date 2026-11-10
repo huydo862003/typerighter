@@ -38,7 +38,7 @@ Alice could list her tasks by hand, but every time a task is added or reassigned
 
 ## Querying all documents of a type
 
-`vault.from_nodes` takes a schema name and returns a `node_set`, a lazy query builder that represents all documents conforming to that schema. The `node_set` does not materialize any results until you call a terminal method.
+`vault.from_nodes` takes a schema name and returns a query chain representing all documents of that type. The chain is lazy - it builds up filters and traversals without doing any work until you call a terminal method like `.to_list()`, `.first()`, or `.count()`.
 
 ```yaml
 # count all tasks in the vault
@@ -66,7 +66,7 @@ There are ${vault.from_nodes(Person).count()} people in this vault.
 
 ## Filtering with predicates
 
-The `.filter` method takes a closure and keeps only the documents where the predicate returns true. The closure receives each document as its parameter, and the `node_set` stays lazy through the filter step.
+The `.filter` method takes a closure and keeps only the documents where the predicate returns true. The closure receives each document as its parameter, and the chain stays lazy through the filter step.
 
 ```yaml
 # all open tasks
@@ -85,7 +85,7 @@ next_task: vault.from_nodes(Task).filter((task) -> task.status == "open").first(
 
 ## Computing back-references with follow_back
 
-This is the payoff. The `.follow_back` method reverses a forward reference. Given a `node_set` of Person documents, `.follow_back(Task, "assignee")` finds every Task whose `assignee` field points at one of those people.
+This is the payoff. The `.follow_back` method reverses a forward reference. Starting from a set of Person documents, `.follow_back(Task, "assignee")` finds every Task whose `assignee` field points at one of those people.
 
 ```yaml
 # people/alice.td
@@ -107,7 +107,7 @@ open_tasks: vault.from_node(self).follow_back(Task, "assignee").filter((task) ->
 
 ## Following forward references across sets
 
-The `.follow` method traverses a `fref` field from every document in the `node_set` to its target. If a schema has an `owner` field pointing at Person documents, `.follow("owner")` collects all the referenced owners.
+The `.follow` method traverses a `fref` field from every document in the query chain to its target. If a schema has an `owner` field pointing at Person documents, `.follow("owner")` collects all the referenced owners.
 
 ```yaml
 # all owners referenced by any item
@@ -122,7 +122,7 @@ first_owner_name: vault.from_nodes(WithBareRef).follow("owner").first().name
 
 ## Querying from the current document
 
-`vault.from_node` wraps a single document in a `node_set`. Pass `self` to start a traversal from the current file.
+`vault.from_node` wraps a single document into a query chain. Pass `self` to start a traversal from the current file.
 
 ```yaml
 _type: Person
@@ -135,7 +135,7 @@ This method is most useful as the starting point for `follow_back`, as shown in 
 
 ## Chaining traversals
 
-Builder methods compose into multi-step traversals. Each step narrows or traverses the `node_set`, and only the terminal call at the end triggers evaluation.
+Builder methods compose into multi-step traversals. Each step narrows or extends the query chain, and only the terminal call at the end triggers evaluation.
 
 ```yaml
 # from all adults, find tasks assigned to them, count those tasks
@@ -144,27 +144,27 @@ senior_task_count: vault.from_nodes(Person).filter((person) -> person.age > 18).
 
 ## API reference
 
-Each section below describes one entry point or method on the `node_set` type.
+Each section below describes one entry point or method on query chains.
 
 ### vault.from_nodes(Schema)
 
-`vault.from_nodes` takes a schema name and returns a `node_set` containing every document in the vault that conforms to that schema. The returned `node_set` is lazy and performs no work until a terminal method is called.
+Returns a query chain containing every document in the vault that conforms to the given schema. The chain is lazy and performs no work until a terminal method is called.
 
 ```
-vault.from_nodes(Person) -> node_set<Person>
+vault.from_nodes(Person) -> query chain of Person
 ```
 
 ### vault.from_node(document)
 
-`vault.from_node` wraps a single document in a `node_set`. Pass `self` to query from the current file, or pass any document obtained from another query.
+Wraps a single document into a query chain. Pass `self` to query from the current file, or pass any document obtained from another query.
 
 ```
-vault.from_node(self) -> node_set<T>
+vault.from_node(self) -> query chain of T
 ```
 
 ### Builder methods
 
-Builder methods return a new `node_set` without materializing results. They can be chained in any order before a terminal call.
+Builder methods return a new query chain without materializing results. They can be chained in any order before a terminal call.
 
 | Method | Signature | Description |
 | --- | --- | --- |

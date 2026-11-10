@@ -6,11 +6,15 @@ description: "Custom layouts, layout slots, dark mode, and custom components."
 
 The default layout has extension points for common customizations: adding a banner above the header, replacing the footer, or injecting analytics. You can fill these with layout slots in `typedown.yaml`, or replace the entire layout with your own Vue component.
 
+::: note
+This page assumes familiarity with [Vue.js](https://vuejs.org/) and its Composition API.
+:::
+
 ## Layout slots
 
 The default layout has named slots where you can inject your own components. Declare slot mappings in `typedown.yaml` under `theme.layout.slots`:
 
-```yaml
+```yaml{title=typedown.yaml}
 theme:
   components:
     - "./components"
@@ -42,7 +46,7 @@ Slot names use underscores in the YAML config because hyphens are reserved in Ty
 
 For full control, replace the default layout with your own Vue component:
 
-```yaml
+```yaml{title=typedown.yaml}
 theme:
   layout: "./theme/MyLayout.vue"
 ```
@@ -65,7 +69,7 @@ useTdContent()
 </template>
 ```
 
-`useTdContent()` must be called in your layout's `setup` before `<Content />` renders. See the [Client API reference](08-client-api) for all available composables and components.
+`useTdContent()` must be called in your layout's `setup` before `<Content />` renders. See the [Client API reference](03-client-api) for all available composables and components.
 
 ### Reusing default components
 
@@ -79,7 +83,7 @@ import { TdLayout, TdContentNav, TdThemeToggle } from 'typerighter/client/theme-
 
 Register components globally for use in `.td` files and layout slots:
 
-```yaml
+```yaml{title=typedown.yaml}
 theme:
   components:
     - "./components"        # scan directory for .vue files
@@ -91,7 +95,7 @@ Components registered this way are available in any `.td` file without importing
 
 ## Dark mode
 
-Typerighter manages dark mode with the `useTheme()` composable. It persists the user's preference in `localStorage` and toggles a `.dark` class on `<html>`.
+Typerighter manages dark mode with the `useTheme()` composable, which persists the user's preference in `localStorage` and toggles a `.dark` class on `<html>`.
 
 ```vue
 <script setup>

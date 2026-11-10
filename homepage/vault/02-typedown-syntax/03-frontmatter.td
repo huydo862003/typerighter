@@ -76,7 +76,7 @@ _icon: icon.book
 _icon: icon.lightbulb
 ```
 
-See [Icons reference](05-icons) for the full list of available icons.
+See [Icons reference](06-icons) for the full list of available icons.
 
 ## Schema inheritance: `_extends`
 
@@ -110,7 +110,7 @@ name: "Alice" # this is a comment
 
 ## Values
 
-All values are expressions. Strings must be quoted. Unquoted values are identifiers, numbers, or compound expressions.
+All values are expressions, which means you can compute values from other fields, reference linked documents, and embed results in the body - not just write static data. Strings must be quoted, while unquoted values are identifiers, numbers, or compound expressions.
 
 ```yaml
 name: "Alice"                             # string
