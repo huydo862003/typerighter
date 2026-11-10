@@ -1,4 +1,4 @@
-## [0.57.3] - 2026-11-10
+## [0.57.3] - 2026-11-10 (retracted)
 
 ### Fixed
 
@@ -10,7 +10,7 @@
   - **Search and command palette missing accessible labels** - Site search input, command palette input, and command palette results lacked `aria-label` and `aria-selected` attributes. Added labels and selection state to all interactive inputs and results
   - **Mobile drawer not announced as dialog** - Mobile navigation drawer was missing `role="dialog"`, `aria-modal`, and `aria-label`, so screen readers did not announce it as a modal overlay
 
-## [0.57.2] - 2026-11-09
+## [0.57.2] - 2026-11-09 (retracted)
 
 ### Fixed
 
