@@ -93,7 +93,7 @@ fn init_factories<T: ?Sized>(
 
 impl QueryStorage {
   fn new(revision: u32) -> Self {
-    let (inputs, interned, queries, fields) = registries();
+    let (inputs, interned, queries, fields) = get_registries();
     QueryStorage {
       revision: Arc::new(AtomicU32::new(revision)),
       cancelled: Arc::new(AtomicBool::new(false)),
@@ -283,7 +283,7 @@ type Registries = (
   &'static Vec<FieldFactory>,
 );
 
-fn registries() -> Registries {
+fn get_registries() -> Registries {
   static INPUT_REGISTRY: OnceLock<Vec<InputFactory>> = OnceLock::new();
   static INTERNED_REGISTRY: OnceLock<Vec<InternedFactory>> = OnceLock::new();
   static QUERY_REGISTRY: OnceLock<Vec<QueryFactory>> = OnceLock::new();

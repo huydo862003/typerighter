@@ -1,6 +1,7 @@
 //! Export resource content as markdown or HTML (with Vue component support)
 
 pub mod html;
+pub mod image;
 pub mod markdown;
 pub mod media;
 
@@ -651,7 +652,7 @@ full content:
     assert!(
       exported
         .content
-        .contains(r#"<img src="/icon.svg" alt="icon" loading="lazy">"#)
+        .contains(r#"<img src="/icon.svg" alt="icon" fetchpriority="high" decoding="async">"#)
     );
   }
 
@@ -733,7 +734,7 @@ full content:
     );
     assert!(
       content.contains(
-        r#"<img src="https://img.shields.io/badge/Email-blue" alt="Email badge" loading="lazy">"#
+        r#"<img src="https://img.shields.io/badge/Email-blue" alt="Email badge" fetchpriority="high" decoding="async">"#
       ),
       "should contain image inside link: {content}",
     );
@@ -956,6 +957,50 @@ full content:
     assert!(
       content.contains(r#":col-span="2""#),
       "inner grid-cell should have col-span prop: {content}"
+    );
+  }
+
+  // Local images include width and height from file headers
+  #[test]
+  fn html_export_local_image_dimensions() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "local_image.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains(r#"width="208""#),
+      "local SVG image should have width from file: {content}",
+    );
+    assert!(
+      content.contains(r#"height="128""#),
+      "local SVG image should have height from file: {content}",
+    );
+  }
+
+  // Image with title (figure) also gets dimensions
+  #[test]
+  fn html_export_image_with_title_has_dimensions() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "media_with_title.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      content.contains(r#"width="208""#),
+      "figure image should have width: {content}",
+    );
+    assert!(
+      content.contains(r#"height="128""#),
+      "figure image should have height: {content}",
+    );
+  }
+
+  // External images should not have width/height (we cannot read remote files)
+  #[test]
+  fn html_export_external_image_no_dimensions() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "linked_image.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let content = &exported.content;
+    assert!(
+      !content.contains(r#"width=""#),
+      "external image should not have width attribute: {content}",
     );
   }
 
