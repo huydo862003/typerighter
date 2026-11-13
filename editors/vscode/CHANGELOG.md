@@ -1,6 +1,16 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.58.0] - 2026-11-13
+
+### Added
+
+- packages/typerighter
+  - `typerighter update` command: bumps vault dep, updates VS Code extension, runs Neovim plugin update
+  - `setup-editor`: auto-appends config to init.lua and triggers headless nvim sync; falls back to printing snippet
+  - `setup-editor`: verifies editor binaries are not aliases before using them
+  - Background update check on startup with 24h TTL cache; prints notice on next run
+
 ## [0.57.6] - 2026-11-13
 
 - crates/typedown
