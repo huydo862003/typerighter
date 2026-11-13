@@ -128,6 +128,16 @@ export function cli () {
     });
 
   program
+    .command('update [root]', 'Update typerighter and editor plugins')
+    .action(async (root: string | undefined) => {
+      const {
+        update,
+      } = await import('./update');
+
+      await update(resolveRoot(root));
+    });
+
+  program
     .command('init [root]', 'Scaffold a new project')
     .option('--name <name>', 'Project name')
     .option('--title <title>', 'Site title')

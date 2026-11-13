@@ -1,3 +1,6 @@
+import {
+  execSync,
+} from 'node:child_process';
 import fs from 'node:fs/promises';
 import {
   existsSync,
@@ -6,6 +9,12 @@ import path from 'node:path';
 import {
   log, outro,
 } from '@clack/prompts';
+import {
+  type PluginManager,
+} from '../types';
+import {
+  commandExists,
+} from '../../sys-utils/command-exists';
 
 // Reads init.lua / init.vim to identify which plugin manager the user has installed
 export async function detectNeovimPluginManager (
@@ -52,6 +61,26 @@ export async function detectNeovimPluginManager (
     return 'lazy.nvim';
 
   return 'unknown';
+}
+
+// Verifies `nvim` is in PATH and that it is actually Neovim, not an alias to something else
+export function detectNvimBinary (): string | undefined {
+  if (!commandExists('nvim')) return undefined;
+
+  try {
+    const output = execSync('nvim --version', {
+      encoding: 'utf-8',
+      stdio: [
+        'ignore',
+        'pipe',
+        'ignore',
+      ],
+    });
+
+    return output.trimStart().startsWith('NVIM v') ? 'nvim' : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // Generates the Lua snippet the user should add to their config for the detected plugin manager
@@ -128,7 +157,7 @@ export function resolveNeovimConfigDirectory (): string | undefined {
   return candidates.find((directory) => existsSync(directory));
 }
 
-// Detects config dir, identifies plugin manager, and prints the install snippet
+// Tries to auto-configure and install; falls back to printing the config snippet
 export async function setupNeovim (): Promise<void> {
   const configDirectory = resolveNeovimConfigDirectory();
 
@@ -140,12 +169,20 @@ export async function setupNeovim (): Promise<void> {
   }
 
   const pluginManager = await detectNeovimPluginManager(configDirectory);
-  const snippet = generateNeovimSnippet(pluginManager);
 
   log.info(`Neovim config: ${configDirectory}`);
   log.info(
     `Plugin manager: ${pluginManager === 'unknown' ? 'not detected' : pluginManager}`,
   );
+
+  if (await autoInstallNeovim(configDirectory, pluginManager)) {
+    outro('Neovim plugin installed.');
+
+    return;
+  }
+
+  const snippet = generateNeovimSnippet(pluginManager);
+
   log.step('Add this to your Neovim config:\n');
   console.log(snippet);
   console.log('');
@@ -153,5 +190,75 @@ export async function setupNeovim (): Promise<void> {
   outro('Neovim setup instructions printed above.');
 }
 
-type PluginManager =
-  'lazy.nvim' | 'mini.deps' | 'packer.nvim' | 'vim-plug' | 'unknown';
+// Appends the config snippet to init.lua and triggers a headless install
+// For vim-plug (init.vim), only attempts headless install if already configured
+// Returns true if auto-install succeeded, false if the user should be shown the snippet
+async function autoInstallNeovim (
+  configDirectory: string,
+  pluginManager: PluginManager,
+): Promise<boolean> {
+  if (pluginManager === 'vim-plug') {
+    return triggerNeovimHeadlessInstall(pluginManager);
+  }
+
+  const initializeLuaPath = path.join(configDirectory, 'init.lua');
+
+  try {
+    let existing = '';
+
+    try {
+      existing = await fs.readFile(initializeLuaPath, 'utf-8');
+    } catch {
+      // File doesn't exist yet - will be created by appendFile
+    }
+
+    if (existing.includes('huydo862003/typerighter')) {
+      log.info('typerighter already in Neovim config');
+    } else {
+      const snippet = generateNeovimSnippet(pluginManager);
+
+      await fs.appendFile(initializeLuaPath, `\n\n-- typerighter\n${snippet}\n`);
+      log.success('Added typerighter to init.lua');
+    }
+  } catch {
+    return false;
+  }
+
+  return triggerNeovimHeadlessInstall(pluginManager);
+}
+
+// Returns the headless nvim command to install the plugin, or undefined if not supported
+function neovimHeadlessInstallCommand (pluginManager: PluginManager): string | undefined {
+  switch (pluginManager) {
+    case 'lazy.nvim':
+    case 'unknown':
+      return 'nvim --headless "+Lazy! sync" +qa';
+    case 'packer.nvim':
+      return 'nvim --headless -c "autocmd User PackerComplete quitall" -c "PackerSync"';
+    case 'vim-plug':
+      return 'nvim --headless +PlugInstall +qa';
+    default:
+      return undefined;
+  }
+}
+
+// Runs the headless nvim install command for the detected plugin manager
+function triggerNeovimHeadlessInstall (pluginManager: PluginManager): boolean {
+  const command = neovimHeadlessInstallCommand(pluginManager);
+
+  if (!command) return false;
+
+  log.info('Running Neovim headless install...');
+
+  try {
+    execSync(command, {
+      stdio: 'inherit',
+    });
+
+    log.success('Neovim plugin installed');
+
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -2,16 +2,13 @@ import {
   cancel, intro, isCancel, log, select,
 } from '@clack/prompts';
 import {
-  commandExists,
-} from '../../sys-utils/command-exists';
-import {
-  setupNeovim,
+  detectNvimBinary, setupNeovim,
 } from './neovim';
 import {
-  VSCODE_BINARIES, setupVscode,
+  detectVscodeBinary, setupVscode,
 } from './vscode';
 import {
-  setupZed,
+  detectZedBinary, setupZed,
 } from './zed';
 
 // Entry point for `typerighter setup-editor [editor]`
@@ -52,15 +49,17 @@ type Editor = 'neovim' | 'vscode' | 'zed';
 function detectInstalledEditors (): DetectedEditor[] {
   const editors: DetectedEditor[] = [];
 
-  if (commandExists('nvim')) {
+  const nvimBin = detectNvimBinary();
+
+  if (nvimBin) {
     editors.push({
-      bin: 'nvim',
+      bin: nvimBin,
       editor: 'neovim',
       label: 'Neovim',
     });
   }
 
-  const vscodeBin = VSCODE_BINARIES.find(commandExists);
+  const vscodeBin = detectVscodeBinary();
 
   if (vscodeBin) {
     editors.push({
@@ -70,9 +69,11 @@ function detectInstalledEditors (): DetectedEditor[] {
     });
   }
 
-  if (commandExists('zed')) {
+  const zedBin = detectZedBinary();
+
+  if (zedBin) {
     editors.push({
-      bin: 'zed',
+      bin: zedBin,
       editor: 'zed',
       label: 'Zed',
     });
