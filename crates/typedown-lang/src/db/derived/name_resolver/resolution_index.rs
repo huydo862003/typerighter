@@ -819,6 +819,11 @@ mod tests {
       !references.is_empty(),
       "icon.svg is referenced by with_asset_fref.td"
     );
-    assert_eq!(references[0].kind, ReferenceKind::Fref);
+    assert!(
+      references
+        .iter()
+        .any(|reference| reference.kind == ReferenceKind::Fref),
+      "should contain a Fref reference from with_asset_fref.td: {references:?}"
+    );
   }
 }

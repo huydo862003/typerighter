@@ -3,6 +3,9 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crate::db::derived::get_vault_config;
+use crate::integrations::export::content::image;
+
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 
@@ -61,6 +64,7 @@ struct HtmlEmitter<'a> {
   headings: Vec<ExportedHeading>,
   title: Option<String>,
   slug_counts: BTreeMap<String, usize>,
+  seen_first_image: bool,
 }
 
 impl<'a> HtmlEmitter<'a> {
@@ -73,6 +77,7 @@ impl<'a> HtmlEmitter<'a> {
       headings: Vec::new(),
       title: None,
       slug_counts: BTreeMap::new(),
+      seen_first_image: false,
     }
   }
 
@@ -754,10 +759,23 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_media_image(&mut self, url: &str, alt: &str, title: Option<&str>) {
+    let dimensions = self.read_image_dimensions(url);
+    let dimension_attributes = dimensions
+      .map(|(width, height)| format!(" width=\"{width}\" height=\"{height}\""))
+      .unwrap_or_default();
+
+    // First image on the page loads eagerly with high priority for faster LCP
+    let loading = if self.seen_first_image {
+      " loading=\"lazy\" decoding=\"async\""
+    } else {
+      self.seen_first_image = true;
+      " fetchpriority=\"high\" decoding=\"async\""
+    };
+
     if let Some(caption) = title {
       self.write("<figure>");
       self.write(&format!(
-        "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{}\" title=\"{}\"{loading}{dimension_attributes}>",
         html_escape(url),
         html_escape(alt),
         html_escape(caption)
@@ -768,11 +786,25 @@ impl<'a> HtmlEmitter<'a> {
       self.write("</figure>\n");
     } else {
       self.write(&format!(
-        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{}\"{loading}{dimension_attributes}>",
         html_escape(url),
         html_escape(alt)
       ));
     }
+  }
+
+  fn read_image_dimensions(&self, url: &str) -> Option<(u32, u32)> {
+    let url = url.trim();
+    if is_external_url(url) {
+      return None;
+    }
+    let config = get_vault_config::get_vault_config(self.db, self.project);
+    let root_dir = config.root_dir(self.db);
+    let relative = url.strip_prefix('/')?;
+    let path = root_dir.join(relative);
+    let mut file = std::fs::File::open(&path).ok()?;
+    let dim = image::get_image_dimensions(&mut file)?;
+    Some((dim.width, dim.height))
   }
 
   fn emit_media_github(&mut self, url: &str, alt: &str, title: Option<&str>) {
@@ -887,12 +919,18 @@ impl<'a> HtmlEmitter<'a> {
     }
   }
 
-  fn try_resolve_fref_html(&self, node: &RedNode) -> Option<String> {
+  fn try_resolve_fref_html(&mut self, node: &RedNode) -> Option<String> {
     let target = resolve_fref_target(self.db, self.project, self.file, node)?;
 
     if target.is_image {
+      let loading = if self.seen_first_image {
+        "loading=\"lazy\" decoding=\"async\""
+      } else {
+        self.seen_first_image = true;
+        "fetchpriority=\"high\" decoding=\"async\""
+      };
       return Some(format!(
-        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{}\" {loading}>",
         html_escape(&target.url),
         html_escape(&target.name)
       ));
