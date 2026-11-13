@@ -14,10 +14,15 @@ import {
 import {
   createAppContext,
 } from '../context';
+import {
+  runGlobalHooks,
+} from './global-hooks';
 
 const TAG = pc.bold(pc.cyan('[typerighter]'));
 
 export function cli () {
+  runGlobalHooks();
+
   const program = cac('typerighter');
 
   process.on('uncaughtException', (error) => {
@@ -25,7 +30,10 @@ export function cli () {
   });
 
   process.on('unhandledRejection', (error) => {
-    handleError('runtime', error instanceof Error ? error : new Error(String(error)));
+    handleError(
+      'runtime',
+      error instanceof Error ? error : new Error(String(error)),
+    );
   });
 
   program
@@ -35,35 +43,42 @@ export function cli () {
     .option('--host', 'Expose to network')
     .option('--fresh', 'Start fresh, ignore cache from previous session')
     .option('--verbose', 'Print version and build info')
-    .action(async (root: string | undefined, options: {
-      port?: number;
-      host?: boolean;
-      fresh?: boolean;
-      verbose?: boolean;
-    }) => {
-      if (options.verbose) {
-        console.log(`${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})\n`);
-      }
-
-      if (options.fresh) {
-        process.env.TYPEDOWN_NO_CACHE = '1';
-      }
-
-      const server = await createServer({
-        root: resolveRoot(root),
-        // Skip configFile so user's vite.config.ts does not duplicate the typedown plugin
-        configFile: false,
-        plugins: [typedown()],
-        server: {
-          port: options.port !== undefined ? Number(options.port) : undefined,
-          strictPort: options.port !== undefined,
-          host: options.host,
+    .action(
+      async (
+        root: string | undefined,
+        options: {
+          port?: number;
+          host?: boolean;
+          fresh?: boolean;
+          verbose?: boolean;
         },
-      });
+      ) => {
+        if (options.verbose) {
+          console.log(
+            `${TAG} cli v${__VERSION__} (built ${__BUILD_TIMESTAMP__})\n`,
+          );
+        }
 
-      await server.listen();
-      server.printUrls();
-    });
+        if (options.fresh) {
+          process.env.TYPEDOWN_NO_CACHE = '1';
+        }
+
+        const server = await createServer({
+          root: resolveRoot(root),
+          // Skip configFile so user's vite.config.ts does not duplicate the typedown plugin
+          configFile: false,
+          plugins: [typedown()],
+          server: {
+            port: options.port !== undefined ? Number(options.port) : undefined,
+            strictPort: options.port !== undefined,
+            host: options.host,
+          },
+        });
+
+        await server.listen();
+        server.printUrls();
+      },
+    );
 
   program
     .command('build [root]', 'Build for production')
@@ -72,29 +87,54 @@ export function cli () {
     })
     .option('--base <path>', 'Base public path')
     .option('--verbose', 'Print version and build info')
-    .action(async (root: string | undefined, options: {
-      outDir: string;
-      base?: string;
-      verbose?: boolean;
-    }) => {
-      if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
+    .action(
+      async (
+        root: string | undefined,
+        options: {
+          outDir: string;
+          base?: string;
+          verbose?: boolean;
+        },
+      ) => {
+        if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
 
-      const context = createAppContext(resolveRoot(root), {
-        verbose: options.verbose,
-      });
-
-      if (options.verbose) await printVersionInfo(context);
-
-      try {
-        await buildSite(context, {
-          outDir: options.outDir,
-          base: options.base,
+        const context = createAppContext(resolveRoot(root), {
+          verbose: options.verbose,
         });
-      } finally {
-        context.dispose();
-      }
 
-      process.exit(0);
+        if (options.verbose) await printVersionInfo(context);
+
+        try {
+          await buildSite(context, {
+            outDir: options.outDir,
+            base: options.base,
+          });
+        } finally {
+          context.dispose();
+        }
+
+        process.exit(0);
+      },
+    );
+
+  program
+    .command('setup-editor [editor]', 'Set up editor for Typedown')
+    .action(async (editor: string | undefined) => {
+      const {
+        setupEditor,
+      } = await import('./setup-editor');
+
+      await setupEditor(editor);
+    });
+
+  program
+    .command('update [root]', 'Update typerighter and editor plugins')
+    .action(async (root: string | undefined) => {
+      const {
+        update,
+      } = await import('./update');
+
+      await update(resolveRoot(root));
     });
 
   program
@@ -103,116 +143,136 @@ export function cli () {
     .option('--title <title>', 'Site title')
     .option('--description <description>', 'Site description')
     .option('--yes', 'Skip confirmation for existing projects')
-    .action(async (root: string | undefined, options: {
-      name?: string;
-      title?: string;
-      description?: string;
-      yes?: boolean;
-    }) => {
-      const {
-        initialize,
-      } = await import('./init');
+    .action(
+      async (
+        root: string | undefined,
+        options: {
+          name?: string;
+          title?: string;
+          description?: string;
+          yes?: boolean;
+        },
+      ) => {
+        const {
+          initialize,
+        } = await import('./init');
 
-      await initialize(resolveRoot(root), options);
-    });
+        await initialize(resolveRoot(root), options);
+      },
+    );
 
   program
     .command('preview [root]', 'Preview production build')
     .option('--port <port>', 'Port to listen on')
-    .action(async (root: string | undefined, options: {
-      port?: number;
-    }) => {
-      const resolvedRoot = resolveRoot(root);
-      const context = createAppContext(resolvedRoot);
+    .action(
+      async (
+        root: string | undefined,
+        options: {
+          port?: number;
+        },
+      ) => {
+        const resolvedRoot = resolveRoot(root);
+        const context = createAppContext(resolvedRoot);
 
-      try {
-        const tdContext = await context.getTdContext();
-        const config = await tdContext.getConfig();
-        const basePath = config.basePath;
+        try {
+          const tdContext = await context.getTdContext();
+          const config = await tdContext.getConfig();
+          const basePath = config.basePath;
 
-        const {
-          preview,
-        } = await import('vite');
-        const server = await preview({
-          root: resolvedRoot,
-          base: basePath,
-          preview: {
-            port: options.port !== undefined ? Number(options.port) : undefined,
-          },
-        });
+          const {
+            preview,
+          } = await import('vite');
+          const server = await preview({
+            root: resolvedRoot,
+            base: basePath,
+            preview: {
+              port:
+                options.port !== undefined ? Number(options.port) : undefined,
+            },
+          });
 
-        server.printUrls();
-      } finally {
-        context.dispose();
-      }
-    });
+          server.printUrls();
+        } finally {
+          context.dispose();
+        }
+      },
+    );
 
   program
     .command('check [root]', 'Check vault for errors')
     .option('--fix', 'Auto-fix formatting issues')
     .option('--verbose', 'Print version and build info')
-    .action(async (root: string | undefined, options: {
-      fix?: boolean;
-      verbose?: boolean;
-    }) => {
-      if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
+    .action(
+      async (
+        root: string | undefined,
+        options: {
+          fix?: boolean;
+          verbose?: boolean;
+        },
+      ) => {
+        if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
 
-      const context = createAppContext(resolveRoot(root), {
-        verbose: options.verbose,
-      });
+        const context = createAppContext(resolveRoot(root), {
+          verbose: options.verbose,
+        });
 
-      if (options.verbose) await printVersionInfo(context);
+        if (options.verbose) await printVersionInfo(context);
 
-      const {
-        logger,
-      } = context;
+        const {
+          logger,
+        } = context;
 
-      try {
-        logger.start('Checking vault...');
-        const tdContext = await context.getTdContext();
-        const report = await tdContext.checkVault();
+        try {
+          logger.start('Checking vault...');
+          const tdContext = await context.getTdContext();
+          const report = await tdContext.checkVault();
 
-        for (const diagnostic of report.diagnostics) {
-          if (diagnostic.severity === 'error') {
-            logger.error(`${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} ${diagnostic.message} (${diagnostic.code})`);
-          } else {
-            logger.warn(`${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} ${diagnostic.message} (${diagnostic.code})`);
-          }
-        }
-
-        if (options.fix && 0 < report.warningCount) {
-          const config = await tdContext.getConfig();
-          const files = await tdContext.listFiles();
-          let fixedCount = 0;
-
-          for (const filepath of files) {
-            const result = await tdContext.formatFile(filepath);
-
-            if (result.changed) {
-              const fullPath = path.resolve(config.rootDir, filepath);
-
-              fs.writeFileSync(fullPath, result.content);
-              fixedCount++;
+          for (const diagnostic of report.diagnostics) {
+            if (diagnostic.severity === 'error') {
+              logger.error(
+                `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} ${diagnostic.message} (${diagnostic.code})`,
+              );
+            } else {
+              logger.warn(
+                `${diagnostic.filepath}:${diagnostic.line}:${diagnostic.column} ${diagnostic.message} (${diagnostic.code})`,
+              );
             }
           }
 
-          if (0 < fixedCount) {
-            logger.success(`Fixed ${fixedCount} file(s)`);
+          if (options.fix && 0 < report.warningCount) {
+            const config = await tdContext.getConfig();
+            const files = await tdContext.listFiles();
+            let fixedCount = 0;
+
+            for (const filepath of files) {
+              const result = await tdContext.formatFile(filepath);
+
+              if (result.changed) {
+                const fullPath = path.resolve(config.rootDir, filepath);
+
+                fs.writeFileSync(fullPath, result.content);
+                fixedCount++;
+              }
+            }
+
+            if (0 < fixedCount) {
+              logger.success(`Fixed ${fixedCount} file(s)`);
+            }
           }
-        }
 
-        const summary = `${report.fileCount} files checked, ${report.errorCount} error(s), ${report.warningCount} warning(s)`;
+          const summary = `${report.fileCount} files checked, ${report.errorCount} error(s), ${report.warningCount} warning(s)`;
 
-        if (0 < report.errorCount) {
-          logger.error(summary);
-          process.exit(1);
-        } else {
-          logger.success(summary);
+          if (0 < report.errorCount) {
+            logger.error(summary);
+            process.exit(1);
+          } else {
+            logger.success(summary);
+          }
+        } finally {
+          context.dispose();
         }
-      } finally {
-        context.dispose();
-      }
-    });
+      },
+    );
 
   program.help();
   program.version(__VERSION__);
