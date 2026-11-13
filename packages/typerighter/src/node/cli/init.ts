@@ -4,7 +4,11 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import {
+  execSync,
+} from 'node:child_process';
+import {
   cancel,
+  confirm,
   intro,
   isCancel,
   log,
@@ -15,6 +19,9 @@ import {
 import {
   CONFIG_FILE_NAMES,
 } from '../context';
+import {
+  detectPackageManager,
+} from '../sys-utils/detect-package-manager';
 import {
   BRAND_ARROW,
   BRAND_BORDER,
@@ -39,10 +46,22 @@ export async function initialize (
     ? await collectUserInput(root, flags)
     : toOptions(flags);
 
+  // Create root directory if it doesn't exist
+  if (!existsSync(root)) {
+    await fs.mkdir(root, {
+      recursive: true,
+    });
+  }
+
   await scaffold(root, options);
 
+  const packageManager = detectPackageManager(root);
+
   if (interactive) {
-    printFurtherSteps(root);
+    await postScaffoldSteps(root, packageManager);
+  } else if (flags.yes) {
+    // Non-interactive: auto-install deps, skip editor setup
+    installDependencies(root, packageManager);
   }
 }
 
@@ -143,15 +162,6 @@ async function detectExistingProject (root: string): Promise<ExistingProject> {
   }
 
   return result;
-}
-
-function detectPackageManager (root: string): string {
-  // Prefer the manager whose lockfile is already present in the project root
-  if (existsSync(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (existsSync(path.join(root, 'yarn.lock'))) return 'yarn';
-  if (existsSync(path.join(root, 'bun.lock')) || existsSync(path.join(root, 'bun.lockb'))) return 'bun';
-
-  return 'npm';
 }
 
 function generateArticleSchema (): string {
@@ -432,17 +442,63 @@ function hasAllFlags (
   );
 }
 
-function printFurtherSteps (root: string): void {
-  const pm = detectPackageManager(root);
-  // npm uses "npm run <script>" while the others use "<pm> <script>" directly
-  const runDev = pm === 'npm' ? 'npm run dev' : `${pm} dev`;
-  const steps = ['Done scaffolding.'];
+function installDependencies (root: string, packageManager: string): void {
+  log.step(`Installing dependencies with ${packageManager}...`);
+  execSync(`${packageManager} install`, {
+    cwd: root,
+    stdio: 'inherit',
+  });
 
-  if (root !== '.') {
-    steps.push(`cd ${root}`);
+  log.success('Dependencies installed');
+}
+
+async function postScaffoldSteps (root: string, packageManager: string): Promise<void> {
+  // 1. Offer to install dependencies
+  const shouldInstall = await confirm({
+    message: `Install dependencies with ${packageManager}?`,
+    initialValue: true,
+  });
+
+  if (isCancel(shouldInstall)) {
+    cancel('Cancelled.');
+    process.exit(0);
   }
 
-  steps.push(`${pm} install`);
+  if (shouldInstall) {
+    installDependencies(root, packageManager);
+  }
+
+  // 2. Offer to set up editor
+  const shouldSetupEditor = await confirm({
+    message: 'Set up your editor for Typedown?',
+    initialValue: true,
+  });
+
+  if (isCancel(shouldSetupEditor)) {
+    cancel('Cancelled.');
+    process.exit(0);
+  }
+
+  if (shouldSetupEditor) {
+    const {
+      setupEditor,
+    } = await import('./setup-editor');
+
+    await setupEditor(undefined);
+  }
+
+  // 3. Print next steps
+  const runDev = packageManager === 'npm' ? 'npm run dev' : `${packageManager} dev`;
+  const steps = ['Done.'];
+
+  if (root !== process.cwd()) {
+    steps.push(`cd ${path.relative(process.cwd(), root)}`);
+  }
+
+  if (!shouldInstall) {
+    steps.push(`${packageManager} install`);
+  }
+
   steps.push(runDev);
 
   outro(steps.join('\n'));
