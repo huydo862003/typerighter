@@ -1,12 +1,13 @@
 ---
 _label: "CLI"
 _icon: icon.terminal
-description: "Reference for the typerighter CLI: init, dev, build, preview, and check commands with all options."
+description: "Reference for the typerighter CLI: init, setup-editor, dev, build, preview, and check commands with all options."
 ---
 
-The `typerighter` CLI handles project scaffolding, development, and production builds:
+The `typerighter` CLI handles project scaffolding, editor setup, development, and production builds:
 
 - `typerighter init` - scaffold a new project
+- `typerighter setup-editor` - configure your editor for Typedown
 - `typerighter dev` - start the dev server with hot reload
 - `typerighter build` - generate the static site
 - `typerighter preview` - preview the built site locally
@@ -21,6 +22,24 @@ typerighter init [root]
 ```
 
 - `root`: project directory (defaults to the current directory)
+
+## `typerighter setup-editor`
+
+Detect installed editors and configure them for Typedown. Sets up the LSP server, tree-sitter grammars, and file type detection.
+
+```sh
+typerighter setup-editor [editor]
+```
+
+- `editor`: `neovim`, `vscode`, or `zed`. If omitted, detects installed editors and prompts which to set up.
+
+For Neovim, adds the plugin configuration to your plugin manager.
+
+For VS Code, downloads and installs the `.vsix` extension.
+
+For Zed, opens the extension marketplace.
+
+See [Editor setup](./01-editor-setup.td) for manual instructions.
 
 ## `typerighter dev`
 

@@ -4,21 +4,75 @@ _icon: icon.code
 description: "Composables and components exported from typerighter/client for use in custom layouts."
 ---
 
-When building a custom layout, you need access to page data, routing, and site configuration. The `typerighter/client` module exports composables and components for this:
+When building a custom Typerighter layout, you need access to page data, routing, and site configuration. The `typerighter/client` module exports composables and components for this.
 
-```ts
+## Full example
+
+A complete custom layout that renders a header with site title and dark mode toggle, the page content, and a list of sibling pages:
+
+```vue{title=theme/Layout.vue}
+<script setup>
 import {
   Content,
   useRoute,
-  useRouter,
   useSiteConfig,
   useSiteData,
   useTdContent,
   useTheme,
 } from 'typerighter/client'
+import { computed } from 'vue'
+
+const route = useRoute()
+const { title, withBase, nav } = useSiteConfig()
+const siteData = useSiteData()
+const { isDark, toggle } = useTheme()
+
+useTdContent()
+
+const siblings = computed(() => {
+  if (!siteData.value.ready) return []
+  const directory = route.data?.filepath?.split('/').slice(0, -1).join('/') ?? ''
+  return siteData.value.directoryListings[`/${directory}`] ?? []
+})
+</script>
+
+<template>
+  <header>
+    <a :href="withBase('/')">{{ title }}</a>
+    <nav>
+      <a v-for="link in nav" :key="link.link" :href="withBase(link.link)">
+        {{ link.title }}
+      </a>
+    </nav>
+    <button @click="toggle">{{ isDark ? 'Light' : 'Dark' }}</button>
+  </header>
+
+  <main>
+    <h1 v-if="route.data?.title">{{ route.data.title }}</h1>
+    <Content />
+  </main>
+
+  <aside v-if="siblings.length > 0">
+    <h2>In this section</h2>
+    <ul>
+      <li v-for="entry in siblings" :key="entry.route">
+        <a :href="withBase(entry.route)">{{ entry.label ?? entry.title }}</a>
+      </li>
+    </ul>
+  </aside>
+</template>
 ```
 
-## useRoute
+Register this layout in `typedown.yaml`:
+
+```yaml{title=typedown.yaml}
+theme:
+  layout: "./theme/Layout.vue"
+```
+
+The sections below document each composable and component used in this example.
+
+## `useRoute`
 
 Returns the current route as a reactive object. Updates on every navigation.
 
@@ -30,7 +84,7 @@ route.hash    // "#getting-started"
 route.data    // PageData for the current page
 ```
 
-### PageData
+### `PageData`
 
 ```ts
 interface PageData {
@@ -46,7 +100,7 @@ interface PageData {
 }
 ```
 
-### MarkdownHeading
+### `MarkdownHeading`
 
 ```ts
 interface MarkdownHeading {
@@ -73,7 +127,7 @@ function flattenHeadings(items: MarkdownHeading[], depth = 2) {
 ```
 
 
-## useSiteConfig
+## `useSiteConfig`
 
 Returns site-wide configuration from `typedown.yaml`. Reactive across HMR config changes.
 
@@ -106,7 +160,7 @@ withBase('/guide/index')  // returns "/docs/guide/index" if basePath is "/docs"
 ```
 
 
-## useSiteData
+## `useSiteData`
 
 Returns a reactive `Ref` containing the full vault graph. Updates via HMR when content changes. Use this to query pages, schemas, and directory contents from a custom layout or component.
 
@@ -126,7 +180,7 @@ interface TypedownSiteData {
 }
 ```
 
-### ContentTree
+### `ContentTree`
 
 The full set of published pages, keyed by route path.
 
@@ -152,7 +206,7 @@ const nodes = Object.values(siteData.value.contentTree)
 const articles = nodes.filter(node => node.schema === 'Article')
 ```
 
-### SchemaInfo
+### `SchemaInfo`
 
 Metadata about a schema defined in `_types/`.
 
@@ -182,7 +236,7 @@ const schema = computed(() =>
 )
 ```
 
-### DirectoryListing
+### `DirectoryListing`
 
 The ordered list of child pages for a directory node. Keyed by directory route.
 
@@ -210,7 +264,7 @@ const siblings = computed(() => {
 ```
 
 
-## useTdContent
+## `useTdContent`
 
 Sets up the provide/inject context required by `<Content />` and returns reactive page bindings. Must be called once in your layout's `setup` function.
 
@@ -230,7 +284,7 @@ interface TypedownData {
 `isDark` reflects the current theme state, derived from `useTheme()` internally.
 
 
-## useTheme
+## `useTheme`
 
 Controls the dark mode state. Persists the user's preference in `localStorage` and toggles the `.dark` class on `<html>`.
 
@@ -262,7 +316,7 @@ To style for dark mode in CSS, target the `.dark` class on `<html>`:
 ```
 
 
-## useRouter
+## `useRouter`
 
 Returns the router for programmatic navigation.
 
@@ -282,7 +336,7 @@ interface Router {
 }
 ```
 
-## Content
+## `Content`
 
 The `<Content />` component renders the compiled markdown body of the current page. It has no props.
 

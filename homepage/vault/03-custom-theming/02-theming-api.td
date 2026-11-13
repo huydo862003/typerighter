@@ -4,11 +4,59 @@ _icon: icon.brush
 description: "Custom layouts, layout slots, dark mode, and custom components."
 ---
 
-The default layout has extension points for common customizations: adding a banner above the header, replacing the footer, or injecting analytics. You can fill these with layout slots in `typedown.yaml`, or replace the entire layout with your own Vue component.
+Typerighter's default layout has extension points for common customizations: adding a banner above the header, replacing the footer, or injecting analytics. You can fill these with layout slots in `typedown.yaml`, or replace the entire layout with your own Vue component.
 
 ::: note
 This page assumes familiarity with [Vue.js](https://vuejs.org/) and its Composition API.
 :::
+
+## Full example
+
+Here is a complete setup that adds an announcement bar above the header and a feedback widget below the content, using layout slots and two custom components.
+
+```yaml{title=typedown.yaml}
+theme:
+  components:
+    - "./components"
+  layout:
+    slots:
+      layout_top: "AnnouncementBar"
+      doc_after: "FeedbackWidget"
+```
+
+```vue{title=components/AnnouncementBar.vue}
+<script setup>
+import { ref } from 'vue'
+
+const dismissed = ref(false)
+</script>
+
+<template>
+  <div v-if="!dismissed" class="announcement">
+    <span>Typerighter v1.0 is out!</span>
+    <button @click="dismissed = true">Dismiss</button>
+  </div>
+</template>
+```
+
+```vue{title=components/FeedbackWidget.vue}
+<script setup>
+import { useRoute } from 'typerighter/client'
+
+const route = useRoute()
+</script>
+
+<template>
+  <div class="feedback">
+    <p>Was this page helpful?</p>
+    <a :href="`https://github.com/user/repo/issues/new?title=Feedback: ${route.data?.title}`">
+      Leave feedback
+    </a>
+  </div>
+</template>
+```
+
+The components are registered by scanning the `./components` directory. The slot mappings in `typedown.yaml` tell the default layout where to render them. No layout replacement needed.
 
 ## Layout slots
 
