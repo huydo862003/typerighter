@@ -4,13 +4,30 @@ _meta:
   description: "Build a typed knowledge graph from plain .td files. Schema validation, file references, computed fields, LSP support, and a built-in static site generator."
 ---
 
-Typerighter turns plain-text notes into a typed knowledge graph. You write `.td` files in your editor, define schemas to validate them, link them together with file references, and publish the result as a static site - all without leaving your local filesystem.
+Typerighter is a suite of plugins/add-ons that integrate with existing plain text editors to facilitate authoring structured notes, linking notes into a graph and thereby enabling building your knowledge graph.
 
-Your notes are plain files in git. Your editor gives you autocompletion, type checking, and go-to-definition. Your site rebuilds in seconds.
+Typerighter is not a centralized solution or introduces new platform: You still use your favorite editors and your notes are plain markdown files with YAML frontmatters in git. Therefore, it doesn't require you to change your workflow or impose any intrusive changes to your setup. Furthermore, you can choose to quit using Typerighter later without having to make heavy migrations.
+
+::: note
+Typerighter's philosophy is to enhance and be supplementary.
+:::
+
+Typerighter currently provides:
+
+- Editor plugins that gives you autocompletion, type checking, and go-to-definition. (See ${fref("./01-getting-started/01-editor-setup.td")})
+- An SSG system with a default theming so you can export a website out of the knowledge base.
 
 ## How it works
 
-A vault is a collection of `.td` files. Each file is a node. Schemas define node types. File references (`fref`) are edges. The result is a knowledge graph with type safety, autocompletion, and a static site generator built in.
+In Typerighter, we use `.td` files as an acronym for "typedown" (Typed markdown). However, `.md` files are equally accepted.
+
+A vault is a collection of `.td` files, interlinked into a knowledge network:
+
+- Each file in the vault is a node in the network.
+- Each file can optionally have a schemas, which define the general shape of the nodes, which enable various analysis such as graph traversal, graph query.
+- Files can reference each other via `fref` or markdown links. These are edges in the network.
+
+The result is a knowledge graph with type safety, autocompletion, and a static site generator built in.
 
 ```
                       Vault (graph)
@@ -33,9 +50,16 @@ A vault is a collection of `.td` files. Each file is a node. Schemas define node
      Edges  = fref("/path/to/file.td")
 ```
 
-Typedown draws from Notion's relational databases, Obsidian's linked vault model, and TypeScript's structural type system. If you have used any of these, the mental model will feel familiar.
+Typedown draws from:
 
-## What it looks like
+- Notion's relational databases
+- Obsidian's linked vault model
+- TypeScript's structural type system
+- Semantic web technology, which allows machines to parse and process human nodes.
+
+If you have used any of these, the mental model will feel familiar.
+
+## What a vault looks like
 
 Every document starts with a schema that declares its shape, and a content file that fills in the data.
 
@@ -80,7 +104,7 @@ Link files together with `fref` and traverse the graph:
 ---
 _type: Task
 title: "Implement auth"
-assignee: fref("people/alice.td")
+assignee: fref("./people/alice.td")
 assignee_name: self.assignee.name
 ---
 
