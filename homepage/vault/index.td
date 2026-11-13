@@ -21,10 +21,10 @@ Typerighter currently provides:
 
 In Typerighter, we use `.td` files as an acronym for "typedown" (Typed markdown). However, `.md` files are equally accepted.
 
-A vault is a collection of `.td` files, interlinked into a knowledge network:
+A project has a `typedown.yaml` config file at the root that points to the vault directory. The vault is a folder of `.td` files that form a knowledge network:
 
 - Each file in the vault is a node in the network.
-- Each file can optionally have a schemas, which define the general shape of the nodes, which enable various analysis such as graph traversal, graph query.
+- Each file can optionally have a schema, which defines the general shape of the node and enables graph traversal and querying.
 - Files can reference each other via `fref` or markdown links. These are edges in the network.
 
 The result is a knowledge graph with type safety, autocompletion, and a static site generator built in.
@@ -61,11 +61,17 @@ If you have used any of these, the mental model will feel familiar.
 
 ## What a vault looks like
 
-Every document starts with a schema that declares its shape, and a content file that fills in the data.
+A project starts with a `typedown.yaml` config that tells Typerighter where the vault lives:
 
-A schema defines the shape of a node:
+```yaml{title="typedown.yaml"}
+version: "1"
+vault:
+  root_dir: "vault"
+```
 
-```yaml
+Inside the vault, a `_types/` directory holds schemas, files that declare the shape of a node:
+
+```yaml{title="vault/_types/Person.td"}
 ---
 _type: schema
 properties:
@@ -78,9 +84,9 @@ properties:
 ---
 ```
 
-A content file conforms to a schema and has a markdown body:
+A content file uses `_type` to reference a schema. Its frontmatter fields are type-checked and it can have a full markdown body:
 
-```yaml
+```yaml{title="vault/people/alice.td"}
 ---
 _type: Person
 name: "Alice Chen"
@@ -98,9 +104,9 @@ Alice is a backend developer focused on authentication systems.
 | TypeScript | Proficient |
 ```
 
-Link files together with `fref` and traverse the graph:
+Link files together with `fref` and traverse the graph. Computed fields follow references at build time:
 
-```yaml
+```yaml{title="vault/tasks/task-1.td"}
 ---
 _type: Task
 title: "Implement auth"
@@ -134,6 +140,8 @@ Here is what Typedown gives you across the language, editor, and build pipeline.
 - Syntax highlighting, math rendering, and callout blocks
 - Per-page icons, breadcrumbs, and prev/next navigation
 
+![Scaffold home page with sidebar navigation, file structure, and commands table](01-getting-started/assets/initial-page.png)
+
 ## How it compares
 
 Typedown occupies a specific niche: typed structured content with a file-per-node graph model. Here is how it relates to tools you may already use.
@@ -153,24 +161,41 @@ Typedown is a good fit when you want the flexibility of plain files with the str
 
 ## Quick start
 
-Install and scaffold a new project:
+Scaffold a new project with `npx`, no global install needed:
 
-```sh
-npm install -g typerighter
-typerighter init
+```sh{title="Scaffold a new project"}
+npx typerighter init
+```
+
+The CLI prompts for a project name and description, then writes the full vault structure:
+
+```
+my-site/
+  typedown.yaml          # site config
+  vault/
+    _types/
+      Article.td         # article schema
+      Note.td            # note schema
+    notes/
+      index.td           # notes index
+      getting-started.td # example document
+    index.td             # home page
+  package.json
 ```
 
 Start the dev server:
 
-```sh
-typerighter dev
+```sh{title="Start dev server"}
+npm run dev
 ```
 
 Build for production:
 
-```sh
-typerighter build
+```sh{title="Build for production"}
+npm run build
 ```
+
+See [Getting Started](01-getting-started/index) for a full walkthrough: editor setup, writing documents, and deploying your site.
 
 ## Roadmap
 
