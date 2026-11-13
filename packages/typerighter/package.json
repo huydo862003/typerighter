@@ -67,14 +67,14 @@
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@lucide/vue": "^1.47.0",
-    "@shikijs/transformers": "^4.4.3",
+    "@shikijs/transformers": "^4.6.0",
     "@tailwindcss/vite": "^4.3.3",
     "@typerighter/rpc-client": "workspace:*",
     "@typerighter/rpc-server": "workspace:*",
     "@vitejs/plugin-vue": "^6.0.10",
     "cac": "^7.1.0",
     "picocolors": "^1.1.1",
-    "shiki": "^4.5.0",
+    "shiki": "^4.6.0",
     "striptags": "^3.2.0",
     "tailwindcss": "^4.3.3",
     "temml": "^0.13.5",
@@ -87,11 +87,11 @@
   },
   "devDependencies": {
     "@hdnax/nuclint": "^0.17.5",
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^26.4.1",
     "@unhead/vue": "^3.4.3",
     "minisearch": "^7.2.0",
-    "playwright": "^1.61.1",
+    "playwright": "^1.65.0",
     "vitest": "^5.0.1"
   }
 }
