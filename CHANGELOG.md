@@ -1,3 +1,8 @@
+## [0.57.6] - 2026-11-13
+
+- crates/typedown
+  - fref() suggestion inserting invalid fref path
+
 ## [0.57.5] - 2026-11-10
 
 ### Fixed
