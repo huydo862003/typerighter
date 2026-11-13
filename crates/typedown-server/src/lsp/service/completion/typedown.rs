@@ -232,7 +232,7 @@ fn is_fref_arg_position(node: &RedNode) -> bool {
 
 // A resolved fref candidate with display info
 struct FrefCandidate {
-  // Vault-relative path (e.g. "people/alice.td")
+  // Vault-root-relative path with / prefix (e.g. "/people/alice.td")
   path: String,
   // Human-readable label from _label field
   label: Option<String>,
@@ -266,7 +266,7 @@ fn collect_fref_candidates(
       }
 
       let relative = path.strip_prefix(&root_dir).ok()?;
-      let relative_string = relative.to_string_lossy().into_owned();
+      let relative_string = format!("/{}", relative.to_string_lossy());
       let label = get_resource_label(db, symbol);
       let schema = get_symbol_typ(db, symbol)
         .typ(db)
@@ -1861,8 +1861,7 @@ featured: fref("|")
     );
   }
 
-  // fref completions should use vault-relative paths, not project-relative paths
-  // When root_dir is "vault", fref("alice.td") not fref("vault/alice.td")
+  // fref completions should use vault-root-relative paths (/alice.td), not project-relative paths (vault/alice.td)
   #[test]
   fn fref_completion_uses_vault_relative_paths() {
     let project_root = PathBuf::from(if cfg!(windows) {
@@ -1967,10 +1966,10 @@ vault:
       .filter_map(|item| item.detail.clone())
       .collect();
 
-    // Should suggest "alice.td", not "vault/alice.td"
+    // Should suggest "/alice.td", not "vault/alice.td" or bare "alice.td"
     assert!(
-      details.iter().any(|detail| detail == "alice.td"),
-      "should suggest vault-relative path 'alice.td', got: {:?}",
+      details.iter().any(|detail| detail == "/alice.td"),
+      "should suggest vault-root-relative path '/alice.td', got: {:?}",
       details
     );
     assert!(
@@ -2003,11 +2002,11 @@ featured: fref("|")
       .find(|item| item.label == "Alice Chen")
       .expect("should have alice completion with display name as label");
 
-    // detail should contain the vault-relative path
+    // detail should contain the vault-root-relative path with / prefix
     assert_eq!(
       alice_item.detail.as_deref(),
-      Some("alice.td"),
-      "detail should be the vault-relative path"
+      Some("/alice.td"),
+      "detail should be the vault-root-relative path with / prefix"
     );
 
     // filterText should include path, basename, and label for fuzzy matching
