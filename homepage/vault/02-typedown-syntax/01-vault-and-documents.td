@@ -91,7 +91,7 @@ The number prefix is stripped from the display name.
 
 Every `.td` file is a node in the vault graph. A document has two parts: a YAML frontmatter that holds structured data, and a markdown body that holds prose.
 
-```yaml
+```yaml{title=vault/people/alice.td}
 ---
 _type: Person              # conforms to the Person schema
 _label: "Alice Chen"       # display name in the sidebar
@@ -117,7 +117,7 @@ The frontmatter is the block between `---` markers. The body is everything after
 
 The frontmatter is a YAML mapping of key-value pairs. Every value is an expression: strings, numbers, booleans, lists, and computed values all work.
 
-```yaml
+```yaml{title=vault/tasks/task-1.td}
 ---
 _type: Task
 title: "Implement auth"
@@ -126,7 +126,7 @@ done: false
 tags:
   - "backend"
   - "security"
-assignee: fref("people/alice.td")
+assignee: fref("/people/alice.td")
 ---
 ```
 

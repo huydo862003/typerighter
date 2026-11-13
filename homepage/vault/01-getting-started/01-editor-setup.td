@@ -50,8 +50,7 @@ end
 
 On NixOS, the auto-downloaded binary will not work because it is dynamically linked. Install via the flake instead:
 
-```nix
-# flake.nix
+```nix{title=flake.nix}
 {
   inputs.typerighter = {
     url = "github:huydo862003/typerighter";

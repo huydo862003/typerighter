@@ -65,7 +65,7 @@ Run `typerighter build` to produce a static site in `dist/`. Deploy it to any st
 
 Typedown supports most of CommonMark and several extensions, but some features from other tools are not available:
 
-- **`[[wiki links]]`**: Use `fref("path/to/file.td")` in frontmatter and `[text](path)` in the body instead. Typedown uses explicit typed references rather than implicit wiki-style links.
+- **`[[wiki links]]`**: Use `fref("/path/to/file.td")` in frontmatter and `[text](path)` in the body instead. Typedown uses explicit typed references rather than implicit wiki-style links.
 - **Raw HTML tags**: Inline HTML (`<div>`, `<span>`, etc.) is not rendered. Use callout blocks (`:::`) and container shorthands (`[[component]]`) for custom layout.
 - **Indentation-based code blocks**: Only fenced code blocks (triple backticks) are supported. Indenting text by 4 spaces does not create a code block.
 - **Footnotes**: Not currently supported.

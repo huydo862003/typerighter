@@ -1,26 +1,18 @@
 ---
 _label: "Getting Started with Typerighter"
 _icon: icon.rocket
-description: "Install the Typerighter CLI, scaffold a project with schemas and vault structure, write your first typed document, set up LSP in your editor, and deploy a static site in minutes."
+description: "Scaffold a project with npx, write your first typed document, set up LSP in your editor, and deploy a static site in minutes."
 ---
 
-Go from zero to a live site in five steps: install the CLI, scaffold a project, write your first document, set up your editor, and deploy.
-
-## Install
-
-Typedown ships as a single npm package. Install it globally so the CLI is available everywhere.
-
-```sh
-npm install -g typerighter
-```
+Start from scratch: scaffold a project, write your first document, set up your editor, and deploy.
 
 ## Scaffold a project
 
-Create a new directory and run `typerighter init` inside it. The CLI prompts for a project name, site title, and description, then writes the full project structure.
+Run `npx typerighter init` in an empty directory. The CLI prompts for a project name, site title, and description, then writes the full project structure. No global install needed.
 
 ```sh
 mkdir my-site && cd my-site
-typerighter init
+npx typerighter init
 ```
 
 The result:

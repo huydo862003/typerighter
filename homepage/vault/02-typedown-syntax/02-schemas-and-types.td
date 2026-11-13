@@ -95,8 +95,7 @@ properties:
 
 A schema can extend another using `_extends`. The child inherits all parent fields and can add its own.
 
-```yaml
-# _types/Contractor.td
+```yaml{title=_types/Contractor.td}
 ---
 _type: schema
 _extends: Person
@@ -114,8 +113,7 @@ Resources conforming to the child must provide fields from both parent and child
 
 Fields can declare a `default` value. If a resource omits the field, the default is used instead of producing a type error.
 
-```yaml
-# _types/Task.td
+```yaml{title=_types/Task.td}
 ---
 _type: schema
 properties:
@@ -132,7 +130,7 @@ properties:
 
 A task file can now omit `status` and `priority`:
 
-```yaml
+```yaml{title=vault/tasks/fix-login.td}
 ---
 _type: Task
 title: "Fix login bug"
@@ -145,8 +143,7 @@ The evaluator fills in `status: "todo"` and `priority: 0`. The default value mus
 
 Fields can declare a `computed` expression that derives the value from other fields. The closure receives the current resource as its parameter.
 
-```yaml
-# _types/Person.td
+```yaml{title=_types/Person.td}
 ---
 _type: schema
 properties:
@@ -162,7 +159,7 @@ properties:
 
 A person file only needs to provide `first_name` and `last_name`:
 
-```yaml
+```yaml{title=vault/people/alice.td}
 ---
 _type: Person
 first_name: "Alice"
@@ -213,13 +210,13 @@ greet: (name) -> "Hello, ${name}!"
 
 File references are edges in the vault graph. They connect one document to another and let you traverse the connection to read fields from linked resources.
 
-Use `fref("path")` to link to another file. The path is relative to the vault root.
+Use `fref("path")` to link to another file. The path is either vault-root-relative (starting with `/`) or relative to the current file (starting with `./` or `../`).
 
-```yaml
+```yaml{title=vault/tasks/task-1.td}
 ---
 _type: Task
 title: "Implement auth"
-assignee: fref("people/alice.td")
+assignee: fref("/people/alice.td")
 ---
 ```
 
@@ -227,7 +224,7 @@ This creates an edge from the Task node to the Person node. The editor resolves 
 
 ### Typed edges
 
-When a schema field has a schema type (like `Person`), the `fref` target must conform to that schema. The type checker rejects `assignee: fref("tasks/setup-ci.td")` because a Task is not a Person.
+When a schema field has a schema type (like `Person`), the `fref` target must conform to that schema. The type checker rejects `assignee: fref("/tasks/setup-ci.td")` because a Task is not a Person.
 
 ```yaml
 # _types/Task.td
@@ -279,8 +276,7 @@ This graph is what powers autocompletion across links, type checking of `fref` t
 
 Here is a schema that uses most features: primitives, enums, nullable fields, links, nested objects, and defaults.
 
-```yaml
-# _types/Project.td
+```yaml{title=_types/Project.td}
 ---
 _type: schema
 properties:
@@ -310,8 +306,7 @@ properties:
 
 And a content file conforming to it:
 
-```yaml
-# projects/website-redesign.td
+```yaml{title=vault/projects/website-redesign.td}
 ---
 _type: Project
 _label: "Website Redesign"
@@ -324,9 +319,9 @@ tags:
   - "frontend"
   - "design"
 members:
-  - fref("people/alice.td")
-  - fref("people/bob.td")
-lead: fref("people/alice.td")
+  - fref("/people/alice.td")
+  - fref("/people/bob.td")
+lead: fref("/people/alice.td")
 metadata:
   priority: "high"
   budget: 50000

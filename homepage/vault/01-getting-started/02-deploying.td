@@ -36,8 +36,7 @@ This starts a local server that serves the `dist/` directory exactly as a static
 
 Add a GitHub Actions workflow that builds the site and deploys it on every push to `main`.
 
-```yaml
-# .github/workflows/deploy.yml
+```yaml{title=.github/workflows/deploy.yml}
 name: Deploy
 on:
   push:
@@ -71,7 +70,7 @@ Set `--base` to your repository name so asset paths resolve correctly under the 
 
 Netlify detects static sites automatically. Add a `netlify.toml` at the project root:
 
-```toml
+```toml{title=netlify.toml}
 [build]
   command = "npx typerighter build"
   publish = "dist"
@@ -83,7 +82,7 @@ Push to your git remote and Netlify builds and deploys on every commit.
 
 Add a `vercel.json` at the project root:
 
-```json
+```json{title=vercel.json}
 {
   "buildCommand": "npx typerighter build",
   "outputDirectory": "dist"

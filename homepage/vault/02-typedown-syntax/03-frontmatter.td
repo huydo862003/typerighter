@@ -6,7 +6,7 @@ description: "YAML frontmatter syntax, reserved keys, type declarations, and bui
 
 Every `.td` file starts with a frontmatter block between `---` markers. This is where you declare the document's type, set field values, and write computed expressions.
 
-```yaml
+```yaml{title=vault/people/alice.td}
 ---
 _type: Person
 _label: "${self.first_name} ${self.last_name}"
@@ -116,7 +116,7 @@ All values are expressions, which means you can compute values from other fields
 name: "Alice"                             # string
 count: 42                                 # number
 active: true                              # boolean
-author: fref("people/bob.td")            # file reference
+author: fref("/people/bob.td")            # file reference
 full_name: self.first_name + " " + self.last_name  # computed
 ```
 
@@ -159,7 +159,7 @@ Every frontmatter value is an expression. These are the supported forms:
 | `42` | Number literal | `42`, `3.14` |
 | `true` / `false` | Boolean literal | `true` |
 | `null` | Null value | `null` |
-| `fref("path")` | File reference | `fref("people/alice.td")` |
+| `fref("path")` | File reference | `fref("/people/alice.td")` |
 | `self.field` | Self-reference | `self.name` |
 | `expr + expr` | Binary expression | `self.x + 1` |
 | `"${expr}"` | String interpolation | `"Hello, ${self.name}"` |

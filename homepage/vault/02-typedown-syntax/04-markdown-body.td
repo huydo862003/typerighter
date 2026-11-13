@@ -358,7 +358,7 @@ Frontmatter values can be referenced directly in the body text using `${...}` ex
 ---
 _type: Task
 title: "Set up CI"
-assignee: fref("people/alice.td")
+assignee: fref("/people/alice.td")
 tags:
   - "infra"
   - "devops"

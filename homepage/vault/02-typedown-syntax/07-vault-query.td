@@ -10,8 +10,7 @@ Forward references come naturally in Typedown. A Task document can link to a Per
 
 Consider a vault with Person and Task schemas. Each task points at its assignee:
 
-```yaml
-# _types/Task.td
+```yaml{title=_types/Task.td}
 ---
 _type: schema
 properties:
@@ -24,12 +23,11 @@ properties:
 ---
 ```
 
-```yaml
-# tasks/auth.td
+```yaml{title=vault/tasks/auth.td}
 ---
 _type: Task
 title: "Implement auth"
-assignee: fref("people/alice.td")
+assignee: fref("/people/alice.td")
 status: "open"
 ---
 ```
@@ -87,8 +85,7 @@ next_task: vault.from_nodes(Task).filter((task) -> task.status == "open").first(
 
 This is the payoff. The `.follow_back` method reverses a forward reference. Starting from a set of Person documents, `.follow_back(Task, "assignee")` finds every Task whose `assignee` field points at one of those people.
 
-```yaml
-# people/alice.td
+```yaml{title=vault/people/alice.td}
 ---
 _type: Person
 name: "Alice"
