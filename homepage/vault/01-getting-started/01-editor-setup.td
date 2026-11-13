@@ -4,12 +4,22 @@ _icon: icon.code
 description: "Set up Neovim, VS Code, or Zed for autocompletion, type checking, and diagnostics."
 ---
 
-Pick your editor below and follow the setup instructions. All editors use the same LSP server, so you get the same features everywhere:
+All editors use the same LSP server, so you get the same features everywhere:
 
 - Autocompletion for field names, schema types, and file references
 - Type checking and inline diagnostics
 - Go-to-definition, find references, and semantic rename
 - Hover info, formatting, and code actions
+
+## Quick setup
+
+The fastest way to set up your editor is the `setup-editor` command. It detects installed editors and configures them automatically:
+
+```sh
+npx typerighter setup-editor
+```
+
+If you prefer to set things up manually, or need editor-specific configuration, see the sections below.
 
 ## Neovim
 
@@ -20,7 +30,8 @@ The Neovim plugin registers the LSP, tree-sitter grammars, and file type detecti
 ```lua
 {
   "huydo862003/typerighter",
-  tag = "v0.15.1",
+  -- pin to a release tag, e.g. "v0.57.6"
+  tag = "v0.57.6",
   lazy = false,
   submodules = false,
   init = function()
@@ -85,11 +96,17 @@ The VS Code extension provides syntax highlighting, the full LSP client, a paste
 
 ### Installation
 
-The extension is not yet published on the VS Code Marketplace. Download the `.vsix` file for your platform from the [GitHub Releases](https://github.com/huydo862003/typerighter/releases) page, then install it manually:
+The extension is published on the VS Code Marketplace and Open VSX (for VS Code forks like VSCodium). Install it from the extensions panel by searching for "typedown", or run:
 
-1. Open VS Code
-2. `Ctrl+Shift+P` -> "Extensions: Install from VSIX..."
-3. Select the downloaded `.vsix` file
+```sh
+typerighter setup-editor vscode
+```
+
+You can also install from the command line directly:
+
+```sh
+code --install-extension huydo862003.typedown
+```
 
 ### Keybindings
 

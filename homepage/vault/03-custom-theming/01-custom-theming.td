@@ -16,11 +16,9 @@ All three levels involve writing Vue single-file components (`.vue` files). Fami
 
 ## Custom components
 
-Register Vue components so they can be used directly inside `.td` content files.
+Register Vue components so they can be used directly inside `.td` content files. Create a `components/` directory next to your `typedown.yaml`, add `.vue` files to it, and register the directory in the config.
 
-1. Create a `components/` directory next to your `typedown.yaml`
-2. Add `.vue` files to it
-3. Register the directory in `typedown.yaml`:
+Here is a complete example - an alert component that accepts a `kind` prop:
 
 ```yaml{title=typedown.yaml}
 theme:
@@ -28,7 +26,27 @@ theme:
     - "./components"
 ```
 
-Now use them in any `.td` file with the container directive syntax:
+```vue{title=components/MyAlert.vue}
+<script setup>
+defineProps({
+  kind: { type: String, default: 'info' },
+})
+</script>
+
+<template>
+  <div :class="['alert', `alert-${kind}`]">
+    <slot />
+  </div>
+</template>
+
+<style scoped>
+.alert { padding: 12px 16px; border-radius: 6px; }
+.alert-info { background: #e8f4fd; color: #1a5276; }
+.alert-warning { background: #fef3cd; color: #856404; }
+</style>
+```
+
+Use it in any `.td` file with the container directive syntax. The component name is converted from kebab-case (`my-alert`) to PascalCase (`MyAlert`) for matching:
 
 ```td
 :::my-alert{kind="warning"}
@@ -36,11 +54,13 @@ Watch out for this.
 :::
 ```
 
-The component name is converted from kebab-case (`my-alert`) to PascalCase (`MyAlert`) for matching.
+The inner markdown is passed as the default slot, so headings, lists, and code blocks all work inside the container.
 
 ## Layout slots
 
-If you want to add content to specific zones of the default layout without replacing it, use layout slots.
+If you want to add content to specific zones of the default layout without replacing it, use layout slots. Each slot name maps to a position in the default theme - see the [slot reference](02-theming-api) for the full list.
+
+Here is a complete example that adds an announcement bar at the top of every page:
 
 ```yaml{title=typedown.yaml}
 theme:
@@ -49,10 +69,24 @@ theme:
   layout:
     slots:
       layout_top: "AnnouncementBar"
-      doc_after: "FeedbackWidget"
 ```
 
-Each slot name maps to a position in the default theme (see the [slot reference](02-theming-api)). The value is the name of a registered component.
+```vue{title=components/AnnouncementBar.vue}
+<script setup>
+import { ref } from 'vue'
+
+const dismissed = ref(false)
+</script>
+
+<template>
+  <div v-if="!dismissed" class="banner">
+    <span>Typerighter v1.0 is out!</span>
+    <button @click="dismissed = true">Dismiss</button>
+  </div>
+</template>
+```
+
+The value of each slot is the PascalCase name of a registered component (from `theme.components`).
 
 ## Custom layout
 
@@ -65,9 +99,15 @@ theme:
 
 Your layout component imports composables from `typerighter/client`:
 
-```vue
+```vue{title=theme/Layout.vue}
 <script setup>
-import { Content, useTdContent, useRoute, useSiteConfig, useTheme } from 'typerighter/client'
+import {
+  Content,
+  useTdContent,
+  useRoute,
+  useSiteConfig,
+  useTheme,
+} from 'typerighter/client'
 
 const route = useRoute()
 const { title } = useSiteConfig()
@@ -96,7 +136,7 @@ Key points:
 - `useTheme()` controls dark mode with `toggle()` and `setTheme()`
 - No default CSS is loaded; you style everything yourself
 
-See the [Client API reference](04-client-api) for all composables and their return types.
+See the [Client API reference](03-client-api) for all composables and their return types.
 
 ## Dark mode
 

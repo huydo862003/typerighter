@@ -55,8 +55,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install -g typerighter
-      - run: typerighter build --base /your-repo-name/
+      - run: npm install
+      - run: npx typerighter build --base /your-repo-name/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

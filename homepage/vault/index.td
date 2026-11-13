@@ -4,18 +4,28 @@ _meta:
   description: "Build a typed knowledge graph from plain .td files. Schema validation, file references, computed fields, LSP support, and a built-in static site generator."
 ---
 
-Typerighter is a suite of plugins/add-ons that integrate with existing plain text editors to facilitate authoring structured notes, linking notes into a graph and thereby enabling building your knowledge graph.
+Typerighter is a **suite of plugins/add-ons** that integrate with existing plain text editors to facilitate:
 
-Typerighter is not a centralized solution or introduces new platform: You still use your favorite editors and your notes are plain markdown files with YAML frontmatters in git. Therefore, it doesn't require you to change your workflow or impose any intrusive changes to your setup. Furthermore, you can choose to quit using Typerighter later without having to make heavy migrations.
+- Authoring structured markdown notes.
+- Linking markdown notes into a graph.
+- Building your knowledge graph.
+- Exporting a live website for the knowledge base.
+
+Typerighter is not a centralized solution and does not introduce a new platform:
+
+- You still use your favorite editors and your notes are plain markdown files with YAML frontmatter in git.
+- Essentially, Typerighter doesn't require you to change your workflow or impose any intrusive changes to your setup.
+- Furthermore, you can choose to quit using Typerighter later without having to make heavy migrations.
 
 ::: note
-Typerighter's philosophy is to enhance and be supplementary.
+Typerighter's philosophy is to enhance current note taking flows and be supplementary to that only.
 :::
 
 Typerighter currently provides:
 
-- Editor plugins that gives you autocompletion, type checking, and go-to-definition. (See ${fref("./01-getting-started/01-editor-setup.td")})
-- An SSG system with a default theming so you can export a website out of the knowledge base.
+- Editor plugins that give you autocompletion, type checking, and go-to-definition. (See ${fref("./01-getting-started/01-editor-setup.td")})
+- An SSG with a default theming so you can export a website out of the knowledge base. (See ${fref("./03-custom-theming/01-custom-theming.td")})
+- A CLI tool that allows vault (a folder for storing notes) initialization, building and developing the SSG out of the vault.
 
 ## How it works
 

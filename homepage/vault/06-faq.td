@@ -4,7 +4,7 @@ _icon: icon.help
 description: "Answers to common questions about Typedown: schemas, file formats, deployment, editor support, and customization."
 ---
 
-Answers to common questions that don't fit neatly into the guide or reference.
+Answers to common questions about Typerighter that don't fit neatly into the guide or reference.
 
 ## Can I use Typedown without schemas?
 

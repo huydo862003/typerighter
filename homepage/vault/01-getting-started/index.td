@@ -4,7 +4,7 @@ _icon: icon.rocket
 description: "Scaffold a project with npx, write your first typed document, set up LSP in your editor, and deploy a static site in minutes."
 ---
 
-Start from scratch: scaffold a project, write your first document, set up your editor, and deploy.
+This guide walks you through setting up a Typerighter project from scratch: scaffold a project, set up your editor, write your first document, and deploy.
 
 ## Scaffold a project
 
@@ -36,7 +36,19 @@ my-site/
   package.json
 ```
 
-Install dependencies, then start the dev server:
+## Set up your editor
+
+Before writing content, set up your editor so you get autocompletion, type checking, and diagnostics as you type. The `setup-editor` command detects installed editors and configures them for you:
+
+```sh
+npx typerighter setup-editor
+```
+
+This installs the LSP server and registers the `.td` file type for your editor. Neovim, VS Code, and Zed are supported. See [Editor setup](01-editor-setup) for manual instructions and editor-specific details.
+
+## Start the dev server
+
+Install dependencies and start the dev server:
 
 ```sh
 npm install
@@ -49,7 +61,7 @@ Open `http://localhost:8686`. The site is live with a sidebar, search, and synta
 
 ## Write your first document
 
-Open `vault/notes/getting-started.td`. Every `.td` file has two parts: a YAML frontmatter block between `---` markers that holds structured data, and a markdown body after it. The `_type` field connects the file to a schema - a template that declares which fields are allowed and what types they have, so the editor can validate your input and offer autocompletion.
+Open `vault/notes/getting-started.td` in your editor. Every `.td` file has two parts: a YAML frontmatter block between `---` markers that holds structured data, and a markdown body after it. The `_type` field connects the file to a schema - a template that declares which fields are allowed and what types they have. With the editor set up, you should see autocompletion and type checking as you edit.
 
 ```yaml{title=vault/notes/getting-started.td}
 ---
@@ -93,7 +105,7 @@ When you are ready to publish, build the site:
 npm run build
 ```
 
-The output goes to `dist/`. It is a self-contained static site that needs no server. See [Deploying](02-deploying) for platform-specific instructions for GitHub Pages, Netlify, Vercel, and Cloudflare Pages.
+The output goes to `dist/`. It is a self-contained static site that needs no server. See [Deploying](03-deploying) for platform-specific instructions for GitHub Pages, Netlify, Vercel, and Cloudflare Pages.
 
 ## What comes next
 
@@ -109,6 +121,5 @@ assigned_tasks: vault.from_nodes(Task).filter((task) -> task.assignee == self)
 
 Explore these features in the guides:
 
-- [Set up your editor](01-editor-setup) for autocompletion, type checking, and diagnostics
 - [Learn Typedown Syntax](../02-typedown-syntax/index) to understand vaults, schemas, expressions, and vault queries
-- [Configure your site](03-configuration) for custom nav, SEO, and subpath deployments
+- [CLI reference](02-cli) for all commands and options
