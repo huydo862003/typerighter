@@ -15,7 +15,7 @@ rustc-stable-hash = "0.1"
 memmap2 = "0.9"
 tempfile = "3"
 fs2 = { version = "0.4", optional = true }
-rand = { version = "0.9", optional = true }
+rand = { version = "0.10", optional = true }
 
 [features]
 session = ["fs2", "rand"]
