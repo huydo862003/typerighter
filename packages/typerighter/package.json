@@ -92,6 +92,6 @@
     "@unhead/vue": "^3.4.3",
     "minisearch": "^7.2.0",
     "playwright": "^1.65.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.1.0"
   }
 }
