@@ -463,7 +463,7 @@ function shrinkSidebar () {
       >
         <!-- Do not use v-if-else to avoid flashes on first render -->
         <div
-          class="flex-col flex-1 overflow-y-auto"
+          class="td-sidebar-scroll"
           :style="expandedSidebarVisibilityStyle"
         >
           <slot name="sidebar-top" />
@@ -829,7 +829,7 @@ function shrinkSidebar () {
   top: var(--td-header-height);
   height: calc(100vh - var(--td-header-height));
   flex-shrink: 0;
-  overflow: clip;
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
   background: var(--color-td-surface);
@@ -848,6 +848,15 @@ function shrinkSidebar () {
   margin: 8px auto;
   width: 36px;
   flex-shrink: 0;
+}
+
+.td-sidebar-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .td-sidebar-search {
