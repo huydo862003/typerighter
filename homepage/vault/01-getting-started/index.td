@@ -93,9 +93,7 @@ Try editing `vault/notes/getting-started.td` by adding a new section to the mark
 - **Live reload**: edits appear instantly in the browser
 ```
 
-The browser updates instantly without a full reload:
-
-![Live editing with instant browser updates](assets/live-edit.png)
+The browser will update instantly without a full reload.
 
 ## Deploy
 
