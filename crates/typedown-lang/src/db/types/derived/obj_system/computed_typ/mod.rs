@@ -97,7 +97,11 @@ impl<'db> TdStaticTyp<'db> for TdComputedTyp<'db> {
           TypFn::Projection => "Projection",
           TypFn::Unwrap => "Unwrap",
         };
-        let args: Vec<String> = self.args(db).iter().map(|arg| arg.display_name(db)).collect();
+        let args: Vec<String> = self
+          .args(db)
+          .iter()
+          .map(|arg| arg.display_name(db))
+          .collect();
         format!("{}<{}>", func_name, args.join(", "))
       }
     }
