@@ -1,3 +1,10 @@
+## [0.59.1] - 2026-11-15
+
+### Fixed
+
+- packages/typerighter
+  - Left sidebar should expand 10 items at a time instead of expanding all
+
 ## [0.59.0] - 2026-11-15
 
 ### Added
