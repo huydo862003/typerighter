@@ -77,6 +77,11 @@
   --tracking-td-heading: -0.024em;
   --tracking-td-wide: 0.07em;
 
+  /* Content spacing (Notion-inspired vertical rhythm) */
+  --space-td-block: 2px;
+  --space-td-gap: 4px;
+  --space-td-section: 8px;
+
   /* Easing */
   --ease-td-out-quart: cubic-bezier(.33, 1, .68, 1);
 
