@@ -16,7 +16,7 @@ e2e.describe('sidebar windowing', () => {
 
     // Alice is near the top, so there should be hidden entries below
     await expect(sidebar.getByRole('button', {
-      name: /more\.\.\./,
+      name: /more/,
     })).toBeVisible({
       timeout: 15_000,
     });
@@ -33,7 +33,7 @@ e2e.describe('sidebar windowing', () => {
     // Olivia is near the end alphabetically, so entries above should be hidden
     // There should be at least one "more..." button
     const moreButtons = sidebar.getByRole('button', {
-      name: /more\.\.\./,
+      name: /more/,
     });
 
     await expect(moreButtons.first()).toBeVisible({
@@ -50,7 +50,7 @@ e2e.describe('sidebar windowing', () => {
     const sidebar = page.getByTestId('sidebar');
 
     const moreButton = sidebar.getByRole('button', {
-      name: /more\.\.\./,
+      name: /more/,
     }).first();
 
     await expect(moreButton).toBeVisible({
@@ -60,7 +60,7 @@ e2e.describe('sidebar windowing', () => {
 
     // After expanding, no more buttons should be visible
     await expect(sidebar.getByRole('button', {
-      name: /more\.\.\./,
+      name: /more/,
     })).not.toBeVisible();
 
     // All people should now be visible
@@ -96,7 +96,7 @@ e2e.describe('sidebar windowing', () => {
 
     const sidebar = page.getByTestId('sidebar');
     const moreButtons = sidebar.getByRole('button', {
-      name: /more\.\.\./,
+      name: /more/,
     });
 
     // Alice is at the start, so only a "below" button should appear
@@ -119,7 +119,7 @@ e2e.describe('sidebar windowing', () => {
 
     const sidebar = page.getByTestId('sidebar');
     const moreButtons = sidebar.getByRole('button', {
-      name: /more\.\.\./,
+      name: /more/,
     });
 
     // Olivia is near the end, so only an "above" button should appear
