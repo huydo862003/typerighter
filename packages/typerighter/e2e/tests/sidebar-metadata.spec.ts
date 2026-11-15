@@ -51,6 +51,29 @@ e2e.describe('sidebar metadata', () => {
     expect(svgHtml).not.toBe('');
   });
 
+  e2e('pages with _ssg.show_in_sidebar: false are hidden from sidebar', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/people/alice');
+
+    const sidebar = page.getByTestId('sidebar');
+
+    // Wait for sidebar to fully hydrate with RPC data
+    await expect(sidebar.getByText('Alice (Dev)')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Zoe has _ssg: { show_in_sidebar: false } and must not appear in sidebar
+    await expect(sidebar.getByText('Zoe (Hidden)')).not.toBeVisible();
+
+    // But the page itself is still routable
+    await testProject.goto(page, '/people/zoe');
+    await expect(page.getByText('Zoe is hidden from the sidebar')).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
   e2e('labels do not flash as filenames before loading', async ({
     page,
     testProject,

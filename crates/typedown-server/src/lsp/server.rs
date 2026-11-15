@@ -438,8 +438,8 @@ impl Server {
       .client_capabilities
       .workspace
       .as_ref()
-      .and_then(|ws| ws.file_operations.as_ref())
-      .and_then(|fo| fo.dynamic_registration)
+      .and_then(|workspace| workspace.file_operations.as_ref())
+      .and_then(|file_operation| file_operation.dynamic_registration)
       .unwrap_or(false);
 
     if !supports_dynamic {

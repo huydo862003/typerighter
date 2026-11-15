@@ -23,6 +23,7 @@ export {
   kebabToPascal, parseNumericPrefix, pascalToKebab, snakeToKebab, truncate, unslugify,
   escapeHtml, stripHtml, sanitizeInlineHtml, unescapeHtml,
   escapeRegex,
+  extractFrontmatterBuiltinFields, type FrontmatterBuiltinFields,
   formatAbsoluteTime, formatEditTime, formatRelativeTime,
   formatDateString, formatIsoDate, formatTime,
   ensureTrailingSlash, getAnchor, getDirectoryFromPageUrl, getDirectoryUrl,

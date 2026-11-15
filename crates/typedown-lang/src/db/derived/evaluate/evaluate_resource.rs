@@ -919,9 +919,11 @@ mod tests {
     let names: Vec<String> = items
       .iter()
       .filter_map(|item| match item {
-        Either::Right(obj) => obj
-          .get_owned_field(&db, "name")
-          .and_then(|name| name.as_td_string_obj().map(|s| s.value(&db))),
+        Either::Right(obj) => obj.get_owned_field(&db, "name").and_then(|name| {
+          name
+            .as_td_string_obj()
+            .map(|schema_name| schema_name.value(&db))
+        }),
         Either::Left(_) => None,
       })
       .collect();

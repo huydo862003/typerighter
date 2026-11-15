@@ -1,5 +1,5 @@
 ---
 _imports:
-  colors: "_partials/colors.td"
+  colors: "./_partials/colors.td"
 brand: colors.primary
 ---

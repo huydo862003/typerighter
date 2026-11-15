@@ -1,6 +1,9 @@
 import {
-  globSync,
+  globSync, readFileSync,
 } from 'node:fs';
+import {
+  resolve,
+} from 'node:path';
 import type {
   ViteDevServer,
 } from 'vite';
@@ -16,6 +19,7 @@ import {
   buildContentTree,
   buildDirectoryListingMap,
   debounce,
+  extractFrontmatterBuiltinFields,
   getTdResourceTitle,
   type ContentSummary,
 } from '@/shared';
@@ -46,11 +50,28 @@ export class VirtualSiteData implements VirtualModule {
       cwd: rootDirectory,
       exclude: (name: string) => name.startsWith('_'),
     });
-    const contentItems: ContentSummary[] = files.map((filepath) => ({
-      filepath,
-      label: getTdResourceTitle(filepath),
-      header: {},
-    }));
+    const contentItems: ContentSummary[] = [];
+
+    for (const filepath of files) {
+      let raw: string | undefined;
+
+      try {
+        raw = readFileSync(resolve(rootDirectory, filepath), 'utf-8');
+      } catch {
+        // skip unreadable files
+      }
+
+      const fields = raw ? extractFrontmatterBuiltinFields(raw) : undefined;
+
+      if (fields?.showInSidebar === false) continue;
+
+      contentItems.push({
+        filepath,
+        label: fields?.label ?? getTdResourceTitle(filepath),
+        header: {},
+      });
+    }
+
     const contentTree = buildContentTree(contentItems);
 
     this.data = {

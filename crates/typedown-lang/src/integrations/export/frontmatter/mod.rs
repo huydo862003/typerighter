@@ -59,6 +59,26 @@ pub fn export_resource_summary(
   }
 }
 
+/// Returns true if the file should be excluded from the sidebar
+pub fn is_hidden_from_sidebar(db: &TypedownDatabase, project: Project, file: File) -> bool {
+  let Some(symbol) = file_symbol(db, project, file).value(db) else {
+    return false;
+  };
+  let Some(obj) = evaluate_resource(db, symbol).value(db) else {
+    return false;
+  };
+  let Some(ssg_obj) = obj.get_builtin_field(db, "_ssg") else {
+    return false;
+  };
+  if ssg_obj.is_td_null_obj() {
+    return false;
+  }
+  ssg_obj
+    .get_owned_field(db, "show_in_sidebar")
+    .and_then(|field| field.as_td_bool_obj().map(|bool_obj| !bool_obj.value(db)))
+    .unwrap_or(false)
+}
+
 /// Export a lightweight sidebar nav entry (no header or body)
 pub fn export_resource_nav(
   db: &TypedownDatabase,
@@ -441,6 +461,24 @@ mod tests {
     assert!(
       exported.seo_metadata.is_none(),
       "seo_metadata should be None when not set"
+    );
+  }
+
+  #[test]
+  fn hidden_from_sidebar_when_ssg_flag_set() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "hidden_from_sidebar.td");
+    assert!(
+      is_hidden_from_sidebar(&db, project, file),
+      "file with _ssg.show_in_sidebar: false should be hidden"
+    );
+  }
+
+  #[test]
+  fn not_hidden_from_sidebar_by_default() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    assert!(
+      !is_hidden_from_sidebar(&db, project, file),
+      "file without _ssg should not be hidden"
     );
   }
 

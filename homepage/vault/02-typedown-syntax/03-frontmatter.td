@@ -40,7 +40,7 @@ Keys starting with `_` are reserved for built-in directives.
 | `_label` | no | Human-readable display label (expression) |
 | `_icon` | no | Page icon from the `icon` module (e.g., `icon.rocket`) |
 | `_extends` | no | Parent schema name (schema files only) |
-| `_imports` | no | Map of alias to vault-relative file path |
+| `_imports` | no | Map of alias to file path (`/`, `./`, or `../`) |
 | `_content` | implicit | The markdown body (available as `self._content`) |
 
 ## Type declaration: `_type`
@@ -92,11 +92,11 @@ properties:
 
 ## Module imports: `_imports`
 
-Import files from the vault into the current file's scope. Each key is an alias, each value is a vault-relative file path.
+Import files from the vault into the current file's scope. Each key is an alias, each value is a path starting with `/` (vault root), `./` (same directory), or `../` (parent directory).
 
 ```yaml
 _imports:
-  colors: "_partials/colors.td"
+  colors: "./_partials/colors.td"
 brand: colors.primary
 ```
 
@@ -146,7 +146,7 @@ Keys starting with `_` are reserved for built-in directives:
 | `_label` | no | Display label (expression, supports interpolation) |
 | `_icon` | no | Page icon from the `icon` module |
 | `_extends` | no | Parent schema name (schema files only) |
-| `_imports` | no | Map of alias to vault-relative file path |
+| `_imports` | no | Map of alias to file path (`/`, `./`, or `../`) |
 | `_content` | implicit | The markdown body, available as `self._content` |
 
 ### Value syntax
@@ -189,5 +189,5 @@ tags:
 
 # imports mapping
 _imports:
-  colors: "_partials/colors.td"
+  colors: "./_partials/colors.td"
 ```

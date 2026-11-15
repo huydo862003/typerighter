@@ -16,8 +16,8 @@ use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{
-  get_dict_typ, get_func_typ, get_icon_typ, get_null_typ, get_obj_typ, get_schema_meta_typ,
-  get_string_typ, get_sum_typ,
+  get_bool_typ, get_dict_typ, get_func_typ, get_icon_typ, get_null_typ, get_obj_typ,
+  get_schema_meta_typ, get_string_typ, get_sum_typ,
 };
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
@@ -287,6 +287,22 @@ impl<'db> TdSchemaTyp<'db> {
         let meta_typ =
           LazyTyp::eager(TdProductTyp::new(db, Some("_meta".to_string()), meta_fields).into());
         Some(get_sum_typ(db, vec![meta_typ, null_typ]).into())
+      }
+      "_ssg" => {
+        let optional_bool = get_sum_typ(
+          db,
+          vec![
+            LazyTyp::eager(get_bool_typ(db).into()),
+            LazyTyp::eager(get_null_typ(db).into()),
+          ],
+        );
+        let ssg_fields = BTreeMap::from([(
+          "show_in_sidebar".to_string(),
+          LazyTyp::eager(optional_bool.into()),
+        )]);
+        let ssg_typ =
+          LazyTyp::eager(TdProductTyp::new(db, Some("_ssg".to_string()), ssg_fields).into());
+        Some(get_sum_typ(db, vec![ssg_typ, null_typ]).into())
       }
       _ => None,
     }

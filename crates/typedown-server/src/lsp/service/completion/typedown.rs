@@ -96,6 +96,13 @@ pub fn resolve_completion(
     )));
   }
 
+  // Cursor inside an _imports value string: suggest file paths as bare vault paths
+  if is_imports_value_position(&node) {
+    return Some(CompletionResponse::Array(collect_imports_completions(
+      db, project,
+    )));
+  }
+
   // Cursor inside ${} interpolation: suggest scope variables and fref("path") completions
   if is_interp_position(&node) {
     let mut items = collect_fref_wrapped_completions(db, project, None);
@@ -228,6 +235,84 @@ fn is_fref_arg_position(node: &RedNode) -> bool {
     .children()
     .next()
     .is_some_and(|callee| callee.text().trim() == "fref")
+}
+
+// Returns true if the cursor is inside a string value inside an _imports mapping
+fn is_imports_value_position(node: &RedNode) -> bool {
+  // Must be inside a StringLit or directly in a mapping entry value
+  let string_lit = find_ancestor(node, SyntaxKind::StringLit);
+  let search_start = string_lit.as_ref().unwrap_or(node);
+  // The string is wrapped in a YamlMappingEntry
+  let Some(entry) = find_ancestor(search_start, SyntaxKind::YamlMappingEntry) else {
+    return false;
+  };
+  // The parent of that entry is a YamlMapping (the _imports block value)
+  let Some(mapping) = entry.parent() else {
+    return false;
+  };
+  if mapping.kind() != SyntaxKind::YamlMapping {
+    return false;
+  }
+  // The mapping is the value of an outer entry with key _imports
+  let Some(outer_entry) = mapping.parent().and_then(|value| value.parent()) else {
+    return false;
+  };
+  if outer_entry.kind() != SyntaxKind::YamlMappingEntry {
+    return false;
+  }
+  outer_entry
+    .children()
+    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
+    .map(|key| key.text().trim() == "_imports")
+    .unwrap_or(false)
+}
+
+// Suggest file paths as bare vault-root-relative strings for _imports values
+fn collect_imports_completions(db: &TypedownDatabase, project: Project) -> Vec<CompletionItem> {
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  project
+    .files(db)
+    .iter()
+    .filter(|(path, _)| path.starts_with(&root_dir) && is_content_file(path) && !is_typ_file(path))
+    .filter_map(|(path, target_file)| {
+      let symbol = file_symbol(db, project, *target_file).value(db)?;
+      let relative = path.strip_prefix(&root_dir).ok()?;
+      let vault_path = format!("/{}", relative.to_string_lossy());
+      let label = get_resource_label(db, symbol);
+      let display = label.clone().unwrap_or_else(|| {
+        relative
+          .file_stem()
+          .and_then(|stem| stem.to_str())
+          .unwrap_or("")
+          .to_string()
+      });
+      let basename = relative
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or_default()
+        .to_string();
+      let schema = get_symbol_typ(db, symbol)
+        .typ(db)
+        .map(|typ| typ.display_name(db));
+      let mut filter_parts = vec![vault_path.clone(), basename];
+      if let Some(ref label) = label {
+        filter_parts.push(label.clone());
+      }
+      Some(CompletionItem {
+        label: display,
+        insert_text: Some(vault_path.clone()),
+        detail: Some(vault_path),
+        label_details: schema.map(|schema| lsp_types::CompletionItemLabelDetails {
+          detail: Some(schema),
+          description: None,
+        }),
+        filter_text: Some(filter_parts.join(" ")),
+        kind: Some(CompletionItemKind::REFERENCE),
+        ..Default::default()
+      })
+    })
+    .collect()
 }
 
 // A resolved fref candidate with display info
@@ -3296,6 +3381,101 @@ $$
       doc_text.contains("The alert variant to display"),
       "documentation should contain the prop description: {doc_text}"
     );
+  }
+
+  // _imports value: cursor inside a string value inside _imports mapping suggests file paths
+  #[test]
+  fn imports_value_completion_suggests_file_paths() {
+    let (content, offset) = cursor(
+      r#"---
+_imports:
+  colors: "|"
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completion items for _imports value");
+    };
+    assert!(
+      !items.is_empty(),
+      "should suggest file paths inside _imports value"
+    );
+    // All suggestions should have vault-root-relative paths starting with /
+    for item in &items {
+      let path = item.detail.as_deref().unwrap_or("");
+      assert!(
+        path.starts_with('/'),
+        "import path suggestion should start with /: {path}"
+      );
+    }
+  }
+
+  // _imports value: should suggest alice.td and birthday.td content files
+  #[test]
+  fn imports_value_completion_includes_content_files() {
+    let (content, offset) = cursor(
+      r#"---
+_imports:
+  data: "|"
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completion items");
+    };
+    let details: Vec<&str> = items
+      .iter()
+      .filter_map(|item| item.detail.as_deref())
+      .collect();
+    assert!(
+      details.iter().any(|path| path.contains("alice")),
+      "should suggest alice.td: {details:?}"
+    );
+    assert!(
+      details.iter().any(|path| path.contains("birthday")),
+      "should suggest birthday.td: {details:?}"
+    );
+  }
+
+  // _imports value: not triggered outside _imports mapping
+  #[test]
+  fn imports_value_completion_not_triggered_outside_imports() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: "|"
+---
+"#,
+    );
+    let (analysis, uri) = setup_with_content(&content);
+    let params = make_params(uri, &content, offset);
+    let response = completion(&analysis, params);
+    // Should not return imports-style completions (REFERENCE items for content files)
+    // The name field is a string field so no fref/imports completions expected
+    if let Some(CompletionResponse::Array(items)) = response {
+      let has_alice_ref = items.iter().any(|item| {
+        item.kind == Some(CompletionItemKind::REFERENCE)
+          && item
+            .detail
+            .as_deref()
+            .map(|diagnostic| diagnostic.contains("alice"))
+            .unwrap_or(false)
+      });
+      assert!(
+        !has_alice_ref,
+        "string field should not suggest _imports-style file completions: {:?}",
+        items
+          .iter()
+          .map(|item| (&item.label, &item.detail))
+          .collect::<Vec<_>>()
+      );
+    }
   }
 
   #[test]

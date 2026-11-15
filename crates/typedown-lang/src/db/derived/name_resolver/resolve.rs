@@ -6,6 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_vault_config::get_vault_config;
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::types::{File, Project, ProjectRedNode, ResolveResult};
+use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, Expr, IdentLit, InterpFragment, SourceFile, StringLit, YamlOpKind,
 };
@@ -269,6 +270,12 @@ fn check_imports(
   };
   let project = mapping_node.project;
   let root_dir = get_vault_config(db, project).root_dir(db);
+  let source_file_dir = mapping_node
+    .file
+    .handle(db)
+    .path()
+    .and_then(|path| path.parent().map(|parent| parent.to_path_buf()))
+    .unwrap_or_else(|| root_dir.clone());
 
   for (_, path_node) in entries {
     let Some(path) =
@@ -276,9 +283,15 @@ fn check_imports(
     else {
       continue;
     };
-    let target_path = root_dir.join(&path);
+    let (start, len) = path_node.node.trimmed_range();
+    if !path.starts_with('/') && !path.starts_with("./") && !path.starts_with("../") {
+      diagnostics.push(TdDiagnosticKind::InvalidImportPath { path }.into_error(start, start + len));
+      continue;
+    }
+    let Some(target_path) = resolve_fref_path(&path, &source_file_dir, &root_dir) else {
+      continue;
+    };
     if !project.files(db).contains_key(&target_path) {
-      let (start, len) = path_node.node.trimmed_range();
       diagnostics.push(TdDiagnosticKind::UnresolvedImport { path }.into_error(start, start + len));
     }
   }
@@ -356,7 +369,7 @@ fn: (a) -> a + missing_variable
   }
 
   #[test]
-  fn resolve_unresolved_import_emits_diagnostic() {
+  fn resolve_bare_import_path_emits_invalid_import_path() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
     let project_node = make_root_node(
       &db,
@@ -365,6 +378,35 @@ fn: (a) -> a + missing_variable
       r#"---
 _imports:
   missing: "_partials/nonexistent.td"
+name: missing.foo
+---"#,
+    );
+
+    let result = resolve(&db, project_node);
+    let diagnostics = result.diagnostics(&db);
+    assert!(
+      diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::InvalidImportPath { .. },
+          ..
+        }
+      )),
+      "bare import path should emit InvalidImportPath, got: {:?}",
+      diagnostics
+    );
+  }
+
+  #[test]
+  fn resolve_unresolved_import_emits_diagnostic() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let project_node = make_root_node(
+      &db,
+      project,
+      file,
+      r#"---
+_imports:
+  missing: "./_partials/nonexistent.td"
 name: missing.foo
 ---"#,
     );

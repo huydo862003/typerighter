@@ -26,7 +26,7 @@ use typedown_lang::db::types::{CustomComponentEntry, File, Project, ProjectRedNo
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
   export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
-  resolve_schema_label,
+  is_hidden_from_sidebar, resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -692,6 +692,9 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   let items: Vec<TdSidebarItem> = entries
     .into_par_iter()
     .filter_map(|(relative, file)| {
+      if is_hidden_from_sidebar(db, project, file) {
+        return None;
+      }
       let nav = export_resource_nav(db, project, file)?;
       let schema_label = get_schema_label(db, project, nav.schema.as_deref());
       Some(TdSidebarItem {

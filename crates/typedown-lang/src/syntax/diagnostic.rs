@@ -157,6 +157,10 @@ pub enum TdDiagnosticKind {
   InvalidFrefPath { path: String },
   #[message("cannot resolve identifier '{name}'")]
   UnresolvedIdentifier { name: String },
+  #[message(
+    "invalid import path '{path}': must start with '/' (absolute) or './' / '../' (relative)"
+  )]
+  InvalidImportPath { path: String },
   #[message("cannot resolve import '{path}'")]
   UnresolvedImport { path: String },
   #[message("unknown field '{field}' on type '{on_typ}'")]

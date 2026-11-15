@@ -1534,7 +1534,7 @@ mod tests {
     assert!(
       typ
         .as_td_schema_typ()
-        .is_some_and(|s| s.name(&db).starts_with("node_set")),
+        .is_some_and(|schema| schema.name(&db).starts_with("node_set")),
       "vault.from_nodes(Person).filter(...) should return node_set, got {}",
       typ.display_name(&db)
     );
@@ -1561,7 +1561,7 @@ mod tests {
     assert!(
       typ
         .as_td_schema_typ()
-        .is_some_and(|s| s.name(&db).starts_with("node_set")),
+        .is_some_and(|schema| schema.name(&db).starts_with("node_set")),
       "follow() should return node_set, got {}",
       typ.display_name(&db)
     );

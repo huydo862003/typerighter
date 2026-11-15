@@ -20,6 +20,9 @@ export {
   escapeRegex,
 } from './regex';
 export {
+  extractFrontmatterBuiltinFields, type FrontmatterBuiltinFields,
+} from './frontmatter';
+export {
   formatAbsoluteTime, formatEditTime, formatRelativeTime,
   formatDateString, formatIsoDate, formatTime,
 } from './time';

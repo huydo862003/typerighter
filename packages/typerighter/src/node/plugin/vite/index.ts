@@ -173,7 +173,8 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
           );
 
         this.error(
-          `Vault check failed with ${report.errorCount} error(s):\n${lines.join('\n')}`,
+          `Vault check failed with ${report.errorCount} error(s):
+${lines.join('\n')}`,
         );
       }
     },
