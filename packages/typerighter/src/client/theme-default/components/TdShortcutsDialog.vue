@@ -25,9 +25,12 @@ function close () {
   emit('close');
 }
 
-watch(() => open, (value) => {
-  if (value) nextTick(() => dialogRef.value?.focus());
-});
+watch(
+  () => open,
+  (value) => {
+    if (value) nextTick(() => dialogRef.value?.focus());
+  },
+);
 </script>
 
 <template>
@@ -79,6 +82,28 @@ watch(() => open, (value) => {
                   :keys="[
                     TdKeyName.Meta,
                     TdKeyName.FSlash,
+                  ]"
+                />
+              </td>
+            </tr>
+            <tr>
+              <td>Go back</td>
+              <td>
+                <TdKbdShortcut
+                  :keys="[
+                    TdKeyName.Control,
+                    TdKeyName.BracketLeft,
+                  ]"
+                />
+              </td>
+            </tr>
+            <tr>
+              <td>Go next</td>
+              <td>
+                <TdKbdShortcut
+                  :keys="[
+                    TdKeyName.Control,
+                    TdKeyName.BracketRight,
                   ]"
                 />
               </td>
@@ -142,7 +167,7 @@ watch(() => open, (value) => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(420px, calc(100vw - 64px));
+  width: min(560px, calc(100vw - 64px));
   z-index: var(--layer-td-modal);
   background: var(--color-td-bg);
   border: 1px solid var(--color-td-line);
@@ -193,16 +218,21 @@ watch(() => open, (value) => {
 .td-shortcuts-table {
   width: 100%;
   border-collapse: collapse;
-  padding: 4px 0 12px;
+  padding: 8px 0 16px;
 }
 
 .td-shortcuts-table td {
-  padding: 6px 20px;
+  padding: 8px 20px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
 }
 
+.td-shortcuts-table td:first-child {
+  width: 100%;
+}
+
 .td-shortcuts-table td:last-child {
   text-align: right;
+  white-space: nowrap;
 }
 </style>

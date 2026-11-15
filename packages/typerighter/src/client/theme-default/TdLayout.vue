@@ -57,6 +57,9 @@ import {
   usePreviousNext,
 } from './composables/usePreviousNext';
 import {
+  providePageHistory,
+} from './composables/usePageHistory';
+import {
   TdKeyName,
 } from './utils/keys';
 import {
@@ -99,6 +102,7 @@ const {
 const router = useRouter();
 const siteData = useSiteData();
 const siteDataReady = computed(() => siteData.value.ready);
+
 const {
   isOpen, isDrawerMounted, open: openMenu, close: closeMenu,
 } = useMenu();
@@ -128,6 +132,10 @@ const palette =
 const {
   previous, next,
 } = usePreviousNext();
+const {
+  goBack,
+  goNext,
+} = providePageHistory();
 
 function closeShortcuts () {
   shortcutsOpen.value = false;
@@ -186,6 +194,49 @@ useGlobalHotkey([
   TdKeyName.Meta,
   TdKeyName.FSlash,
 ], openPalette);
+
+// Ctrl+[ / ⌘[ - go back in page history (across sessions)
+useGlobalHotkey(
+  [
+    TdKeyName.Control,
+    TdKeyName.BracketLeft,
+  ],
+  goBack,
+  {
+    ignoreWhenTyping: true,
+  },
+);
+useGlobalHotkey(
+  [
+    TdKeyName.Meta,
+    TdKeyName.BracketLeft,
+  ],
+  goBack,
+  {
+    ignoreWhenTyping: true,
+  },
+);
+// Ctrl+] / ⌘] - go next in page history (across sessions)
+useGlobalHotkey(
+  [
+    TdKeyName.Control,
+    TdKeyName.BracketRight,
+  ],
+  goNext,
+  {
+    ignoreWhenTyping: true,
+  },
+);
+useGlobalHotkey(
+  [
+    TdKeyName.Meta,
+    TdKeyName.BracketRight,
+  ],
+  goNext,
+  {
+    ignoreWhenTyping: true,
+  },
+);
 
 // Ctrl+Left / Ctrl+Right - previous / next page (ignored when typing)
 useGlobalHotkey(
@@ -472,6 +523,7 @@ function shrinkSidebar () {
             v-model:query="searchQuery"
             v-model:active="sidebarSearchActive"
             class="td-sidebar-search"
+            @open-palette="openPalette"
           />
           <TdSidebarNav
             :tree="siteData.contentTree"
@@ -869,7 +921,7 @@ function shrinkSidebar () {
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  margin: 4px 8px;
+  margin: 0 8px;
   border: none;
   background: none;
   cursor: pointer;

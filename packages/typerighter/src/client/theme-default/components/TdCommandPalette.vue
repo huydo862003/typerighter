@@ -3,7 +3,7 @@ import {
   computed, nextTick, ref, useTemplateRef, watch,
 } from 'vue';
 import {
-  Search,
+  FileText, History, Navigation, Search, SlidersHorizontal,
 } from '@lucide/vue';
 import {
   usePreviousNext,
@@ -11,6 +11,9 @@ import {
 import {
   TdKeyName,
 } from '../utils/keys';
+import {
+  usePageHistory,
+} from '../composables/usePageHistory';
 import TdKbdShortcut from './TdKbdShortcut.vue';
 import {
   highlight,
@@ -51,9 +54,20 @@ const {
 
 const filterText = computed(() => query.value.trim());
 
+const groupIcons: Record<string, unknown> = {
+  Navigate: Navigation,
+  View: SlidersHorizontal,
+  'This page': FileText,
+};
+
 function close () {
   isOpen.value = false;
   cancelSearch();
+}
+
+function navigateToRecent (path: string) {
+  close();
+  router.go(withBase(path));
 }
 
 function open () {
@@ -84,6 +98,10 @@ interface Command {
   action?: () => void;
 }
 
+const {
+  goBack, goNext, canGoBack, canGoNext, recentPages,
+} = usePageHistory();
+
 const parentUrl = computed(() => {
   const parent = getParentUrl(route.path);
 
@@ -93,6 +111,36 @@ const parentUrl = computed(() => {
 const allCommands = computed((): Command[] => {
   const commands: Command[] = [];
 
+  if (canGoBack.value) {
+    commands.push({
+      id: 'nav-back',
+      group: 'Navigate',
+      label: 'Go back',
+      keys: [
+        TdKeyName.Control,
+        TdKeyName.BracketLeft,
+      ],
+      action: () => {
+        close();
+        goBack();
+      },
+    });
+  }
+  if (canGoNext.value) {
+    commands.push({
+      id: 'nav-next-history',
+      group: 'Navigate',
+      label: 'Go next',
+      keys: [
+        TdKeyName.Control,
+        TdKeyName.BracketRight,
+      ],
+      action: () => {
+        close();
+        goNext();
+      },
+    });
+  }
   if (next.value) {
     commands.push({
       id: 'nav-next',
@@ -191,12 +239,15 @@ const groupedCommands = computed((): CommandGroup[] => {
   }));
 });
 
-const totalCount = computed(
-  () => pageResults.value.length + visibleCommands.value.length,
-);
+const totalCount = computed(() =>
+  filterText.value
+    ? pageResults.value.length + visibleCommands.value.length
+    : recentPages.value.length + visibleCommands.value.length);
 
 function findCommandIndex (command: Command): number {
-  return pageResults.value.length + visibleCommands.value.indexOf(command);
+  const offset = filterText.value ? pageResults.value.length : recentPages.value.length;
+
+  return offset + visibleCommands.value.indexOf(command);
 }
 
 function onKeydown (event: KeyboardEvent) {
@@ -230,7 +281,18 @@ function runCommand (command: Command) {
 }
 
 function selectAtIndex (index: number) {
-  if (index < pageResults.value.length) {
+  if (!filterText.value) {
+    if (index < recentPages.value.length) {
+      const entry = recentPages.value[index];
+
+      if (entry) navigateToRecent(entry.path);
+
+      return;
+    }
+    const command = visibleCommands.value[index - recentPages.value.length];
+
+    if (command) runCommand(command);
+  } else if (index < pageResults.value.length) {
     const result = pageResults.value[index];
 
     if (result) {
@@ -313,9 +375,33 @@ watch(selectedIndex, () => {
           ref="results"
           class="td-palette-results"
         >
+          <!-- Recently accessed pages (shown when query is empty) -->
+          <template v-if="!filterText && recentPages.length > 0">
+            <div class="td-palette-group-label">
+              <History :size="11" />
+              Recently Accessed Pages
+            </div>
+            <a
+              v-for="(entry, index) in recentPages"
+              :key="entry.path"
+              :href="withBase(entry.path)"
+              class="td-palette-item"
+              :class="{
+                'is-selected': index === selectedIndex,
+              }"
+              :aria-selected="index === selectedIndex"
+              @click.prevent="() => navigateToRecent(entry.path)"
+              @mouseenter="() => (selectedIndex = index)"
+            >
+              <span class="td-palette-item-label">{{ entry.title }}</span>
+              <span class="td-palette-item-path">{{ entry.path }}</span>
+            </a>
+          </template>
+
           <!-- Page results -->
           <template v-if="pageResults.length > 0">
             <div class="td-palette-group-label">
+              <Search :size="11" />
               Pages
             </div>
             <a
@@ -344,6 +430,11 @@ watch(selectedIndex, () => {
             :key="group.name"
           >
             <div class="td-palette-group-label">
+              <component
+                :is="groupIcons[group.name]"
+                v-if="groupIcons[group.name]"
+                :size="11"
+              />
               {{ group.name }}
             </div>
             <component
@@ -472,6 +563,9 @@ watch(selectedIndex, () => {
 }
 
 .td-palette-group-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding: 12px 14px 4px;
   font-size: var(--font-size-td-2xs);
   font-weight: 600;

@@ -63,4 +63,6 @@ export enum TdKeyName {
   FSlash = '/',
   Question = '?',
   Backslash = '\\',
+  BracketLeft = '[',
+  BracketRight = ']',
 }

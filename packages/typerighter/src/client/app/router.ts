@@ -204,32 +204,52 @@ export function createRouter (
     );
 
     // Prefetch page module on hover so navigation feels instant
-    window.addEventListener(
-      'pointerenter',
-      (event) => {
-        if (!(event.target instanceof HTMLAnchorElement)) return;
+    let prefetchTimer: ReturnType<typeof setTimeout> | undefined;
 
-        const linkHref = event.target.getAttribute('href');
+    window.addEventListener(
+      'pointerover',
+      (event) => {
+        if (!(event.target instanceof Element)) return;
+
+        const link = event.target.closest<HTMLAnchorElement>('a');
 
         if (
-          linkHref === null
-          || event.target.hasAttribute('download')
-          || event.target.hasAttribute('target')
+          !link
+          || link.hasAttribute('download')
+          || link.hasAttribute('target')
         )
           return;
 
+        const linkHref = link.getAttribute('href');
+
+        if (linkHref === null) return;
+
         const {
           origin, pathname,
-        } = new URL(linkHref, event.target.baseURI);
+        } = new URL(linkHref, link.baseURI);
 
         if (origin === location.origin && !pathname.match(/\.\w+$/)) {
-          const pagePath = new URL(
-            normalizeHref(linkHref, base),
-            'http://a.com',
-          ).pathname;
+          clearTimeout(prefetchTimer);
+          prefetchTimer = setTimeout(() => {
+            const pagePath = new URL(
+              normalizeHref(linkHref, base),
+              'http://a.com',
+            ).pathname;
 
-          loadPageModule(pagePath).catch(() => { });
+            loadPageModule(pagePath).catch(() => { });
+          }, 65);
         }
+      },
+      {
+        capture: true,
+        passive: true,
+      },
+    );
+
+    window.addEventListener(
+      'pointerout',
+      () => {
+        clearTimeout(prefetchTimer);
       },
       {
         capture: true,
