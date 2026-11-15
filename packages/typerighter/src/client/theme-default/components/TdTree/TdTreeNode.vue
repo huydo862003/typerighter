@@ -77,8 +77,8 @@ function countItems (node: ContentTreeNode): number {
 // eslint-disable-next-line vue/no-ref-object-reactivity-loss
 const collapsed = ref(!isUrlAncestorOf(directoryUrl.value, route.path));
 const isSSR = typeof window === 'undefined';
-const showAll = ref(false);
 const WINDOW_SIZE = 10;
+const EXPAND_STEP = 10;
 const BIAS_AFTER = 6; // show more entries after current than before
 
 const fileEntries = computed(
@@ -102,7 +102,7 @@ const activeFileIndex = computed(() => {
 });
 
 // Window range centered on active file, biased forward
-const windowRange = computed(() => {
+const baseRange = computed(() => {
   if (fileCount.value <= WINDOW_SIZE) return {
     start: 0,
     end: fileCount.value,
@@ -132,17 +132,22 @@ const windowRange = computed(() => {
   };
 });
 
-const hiddenAbove = computed(() =>
-  showAll.value ? 0 : windowRange.value.start);
-const hiddenBelow = computed(() =>
-  showAll.value ? 0 : Math.max(0, fileCount.value - windowRange.value.end));
+// Extra items revealed by clicking "more above" / "more below"
+const extraAbove = ref(0);
+const extraBelow = ref(0);
+
+const visibleRange = computed(() => ({
+  start: Math.max(0, baseRange.value.start - extraAbove.value),
+  end: Math.min(fileCount.value, baseRange.value.end + extraBelow.value),
+}));
+
+const hiddenAbove = computed(() => visibleRange.value.start);
+const hiddenBelow = computed(() => Math.max(0, fileCount.value - visibleRange.value.end));
 
 const visibleEntries = computed(() => {
-  if (showAll.value) return regularEntries.value;
-
   const {
     start, end,
-  } = windowRange.value;
+  } = visibleRange.value;
   let fileIndex = 0;
 
   return regularEntries.value.filter((entry) => {
@@ -165,8 +170,12 @@ watch(
   },
 );
 
-function expandAll () {
-  showAll.value = true;
+function expandAbove () {
+  extraAbove.value += EXPAND_STEP;
+}
+
+function expandBelow () {
+  extraBelow.value += EXPAND_STEP;
 }
 
 function isCurrent (href: string): boolean {
@@ -269,9 +278,9 @@ function toggle () {
           v-if="hiddenAbove > 0"
           class="td-tree-more"
           type="button"
-          @click="expandAll"
+          @click="expandAbove"
         >
-          {{ hiddenAbove }} more...
+          {{ hiddenAbove }} more
         </button>
         <template
           v-for="entry in visibleEntries"
@@ -322,9 +331,9 @@ function toggle () {
           v-if="hiddenBelow > 0"
           class="td-tree-more"
           type="button"
-          @click="expandAll"
+          @click="expandBelow"
         >
-          {{ hiddenBelow }} more...
+          {{ hiddenBelow }} more
         </button>
       </div>
     </div>
