@@ -56,7 +56,7 @@ export function useLazyEmbeds (): void {
         }
       },
       {
-        rootMargin: '200px',
+        rootMargin: '1000px',
       },
     );
 

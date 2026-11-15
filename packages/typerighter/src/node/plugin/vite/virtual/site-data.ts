@@ -50,9 +50,54 @@ export class VirtualSiteData implements VirtualModule {
       cwd: rootDirectory,
       exclude: (name: string) => name.startsWith('_'),
     });
+
+    // First pass: collect directories whose index.td is hidden from sidebar
+    const hiddenDirsInSidebar = new Set<string>();
+
+    for (const filepath of files) {
+      const stem = filepath.split('/').pop()
+        ?.replace(/\.td$/, '');
+
+      if (stem !== 'index') continue;
+
+      let raw: string | undefined;
+
+      try {
+        raw = readFileSync(resolve(rootDirectory, filepath), 'utf-8');
+      } catch {
+        // skip unreadable files
+      }
+
+      if (raw && extractFrontmatterBuiltinFields(raw)?.showInSidebar === false) {
+        const directory = filepath.split('/').slice(0, -1)
+          .join('/');
+
+        hiddenDirsInSidebar.add(directory);
+      }
+    }
+
+    const isUnderHiddenDirectoryInSidebar = (filepath: string): boolean => {
+      if (hiddenDirsInSidebar.size === 0) return false;
+      let current = filepath.split('/').slice(0, -1)
+        .join('/');
+
+      while (current) {
+        if (hiddenDirsInSidebar.has(current)) return true;
+        const parent = current.split('/').slice(0, -1)
+          .join('/');
+
+        if (parent === current) break;
+        current = parent;
+      }
+
+      return false;
+    };
+
     const contentItems: ContentSummary[] = [];
 
     for (const filepath of files) {
+      if (isUnderHiddenDirectoryInSidebar(filepath)) continue;
+
       let raw: string | undefined;
 
       try {
