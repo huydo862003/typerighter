@@ -1,6 +1,18 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.62.0] - 2026-11-16
+
+### Changed
+
+- packages/typerighter
+  - **KaTeX math rendering** - replaced Temml with KaTeX for math rendering; bundled fonts render consistently across all platforms
+  - **Notion-inspired content spacing** - tightened vertical rhythm for paragraphs, headings, lists, blockquotes, and tables to match Notion's block spacing model
+  - **Heading sizes** - h2/h3/h4 font sizes and line heights now match Notion (1.875em/1.5em/1.25em, line-height 1.3)
+  - **List bullet cycling** - nested unordered lists cycle through disc, circle, square markers
+  - **Callout border radius** - callout and toggle containers now have rounded corners
+  - **Toggle list padding fix** - lists inside toggle/details no longer get double left padding
+
 ## [0.61.1] - 2026-11-15
 
 ### Added
