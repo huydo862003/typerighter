@@ -1,3 +1,14 @@
+## [0.61.1] - 2026-11-15
+
+### Added
+
+- crates/typedown-lang, crates/typedown-server
+  - **Hidden index hides subtree** - when a directory's `index.td` has `_ssg: { show_in_sidebar: false }`, all files and subdirectories under that directory are hidden from the sidebar
+
+- packages/typerighter
+  - **Hidden index hides subtree** - disk scan at startup mirrors the same two-pass cascade: hidden `index.td` suppresses its entire directory tree with no flash
+  - **Lazy embed preload distance** - intersection observer `rootMargin` bumped from `200px` to `1000px` for earlier preloading of WASM-heavy embeds (Mermaid, D2)
+
 ## [0.61.0] - 2026-11-15
 
 ### Added
