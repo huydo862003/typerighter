@@ -17,7 +17,7 @@ const IMAGE_DOMAINS: &[&str] = &["img.shields.io", "badge.fury.io", "img.buymeac
 pub enum MediaKind {
   /// Standard `<img>` tag
   Image,
-  /// GitHub file permalink or gist (client-side embed via emgithub)
+  /// GitHub file permalink (client-side embed with Shiki highlighting)
   GithubCode,
   /// Known service with a transformed embed URL
   ServiceEmbed(ServiceEmbed),

@@ -213,7 +213,7 @@
   border-color: var(--color-td-danger);
 }
 
-/* GitHub embed (rendered by emgithub) */
+/* GitHub embed (loading placeholder) */
 
 .td-github-placeholder {
   position: relative;
@@ -238,18 +238,75 @@
   animation: td-spin 0.6s linear infinite;
 }
 
-.td-github-error {
-  border: 1px solid var(--color-td-danger);
+.td-github-placeholder.td-github-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-td-sm);
+  color: var(--color-td-danger);
+  border-color: var(--color-td-danger);
 }
 
-.td-content .td-github-wrapper {
-  margin: 16px 0;
+.td-github-placeholder.td-github-error::before {
+  display: none;
 }
 
-.td-content .td-github-wrapper iframe {
-  display: block;
-  border: none;
+/* GitHub embed footer */
+
+.td-content .td-github-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 16px;
+  border-top: 1px solid var(--color-td-line);
+  background-color: var(--color-td-code-header-bg);
+  min-width: 0;
 }
+
+.td-content .td-github-footer-link {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-td-ink-4);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.td-content .td-github-footer-link:hover {
+  color: var(--color-td-link);
+  text-decoration: underline;
+}
+
+/* File path: grows to fill space, dir truncates from the left */
+
+.td-content .td-github-footer-path {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.td-content .td-github-filepath-dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  unicode-bidi: plaintext;
+  min-width: 2ch;
+}
+
+.td-content .td-github-filepath-file {
+  flex-shrink: 0;
+}
+
+/* Repo + ref: fixed on the right, never truncates */
+
+.td-content .td-github-footer-repo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 
 /* Service embeds (YouTube, Spotify, etc.) */
 

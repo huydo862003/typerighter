@@ -2,11 +2,14 @@
 
 import temml from 'temml';
 import {
-  createHighlighter,
+  createServerHighlighter,
 } from './highlight';
 import {
   escapeHtml, unescapeHtml,
 } from '@/shared';
+import {
+  LANGUAGE_LABEL,
+} from '@/shared/utils/highlight';
 
 let highlighterPromise:
   | Promise<(code: string, language: string, attrs: string, lineNumberStart?: number) => Promise<string>>
@@ -22,7 +25,7 @@ export async function postprocessHtml (html: string): Promise<string> {
 
 function getHighlighter () {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter();
+    highlighterPromise = createServerHighlighter();
   }
 
   return highlighterPromise;
@@ -37,6 +40,10 @@ const CODE_PLACEHOLDER_RE =
 interface CodeBlockOptions {
   title?: string;
   lineNumbers?: string;
+}
+
+function formatLanguageLabel (language: string): string {
+  return LANGUAGE_LABEL[language.toLowerCase()] ?? language;
 }
 
 function getAttribute (attrs: string, name: string): string | undefined {
@@ -83,60 +90,6 @@ async function highlightCodeBlocks (html: string): Promise<string> {
   }
 
   return result;
-}
-
-// Short display labels for common languages
-const LANG_LABEL: Record<string, string> = {
-  typescript: 'TypeScript',
-  javascript: 'JavaScript',
-  tsx: 'TSX',
-  jsx: 'JSX',
-  python: 'Python',
-  rust: 'Rust',
-  rs: 'Rust',
-  go: 'Go',
-  java: 'Java',
-  kotlin: 'Kotlin',
-  swift: 'Swift',
-  ruby: 'Ruby',
-  php: 'PHP',
-  csharp: 'C#',
-  cpp: 'C++',
-  c: 'C',
-  bash: 'Bash',
-  sh: 'Bash',
-  shell: 'Shell',
-  zsh: 'Zsh',
-  html: 'HTML',
-  css: 'CSS',
-  scss: 'SCSS',
-  sass: 'Sass',
-  json: 'JSON',
-  yaml: 'YAML',
-  yml: 'YAML',
-  toml: 'TOML',
-  xml: 'XML',
-  sql: 'SQL',
-  markdown: 'Markdown',
-  vue: 'Vue',
-  svelte: 'Svelte',
-  racket: 'Racket',
-  haskell: 'Haskell',
-  elixir: 'Elixir',
-  clojure: 'Clojure',
-  lua: 'Lua',
-  r: 'R',
-  dart: 'Dart',
-  zig: 'Zig',
-  nim: 'Nim',
-  ocaml: 'OCaml',
-  erlang: 'Erlang',
-  scala: 'Scala',
-  txt: 'Text',
-};
-
-function formatLanguageLabel (language: string): string {
-  return LANG_LABEL[language.toLowerCase()] ?? language;
 }
 
 function wrapCodeBlock (

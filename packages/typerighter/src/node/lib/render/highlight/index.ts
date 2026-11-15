@@ -11,41 +11,26 @@ import {
   transformerNotationHighlight,
 } from '@shikijs/transformers';
 import type {
-  BundledLanguage, ShikiTransformer,
-} from 'shiki';
-import {
-  createHighlighter as _createHighlighter, guessEmbeddedLanguages, isSpecialLang,
+  ShikiTransformer,
 } from 'shiki';
 import {
   extractLanguage,
   isShellLanguage,
 } from './language';
 import {
+  createHighlighter,
+  transformerLineNumbers,
+} from '@/shared/utils/highlight';
+import {
   consoleLogger,
 } from '@/node/lib/logger';
 
-// Auto-dispose the Shiki highlighter when it is GC'd
-const highlighterRegistry = new FinalizationRegistry<() => void>((dispose) => {
-  dispose();
-});
-
-const THEME = {
-  light: 'github-light' as const,
-  dark: 'github-dark' as const,
-};
-
 // Create a Shiki-based syntax highlighter with all features enabled
-export async function createHighlighter (): Promise<(string_: string, language: string, attrs: string, lineNumberStart?: number) => Promise<string>> {
-  const highlighter = await _createHighlighter({
-    themes: [
-      THEME.light,
-      THEME.dark,
-    ],
-    langs: [],
-  });
+export async function createServerHighlighter (): Promise<(string_: string, language: string, attrs: string, lineNumberStart?: number) => Promise<string>> {
+  const highlight = await createHighlighter();
 
-  // Built-in transformers applied to every code block
-  const transformers: ShikiTransformer[] = [
+  // Annotation transformers applied to every server-rendered code block
+  const baseTransformers: ShikiTransformer[] = [
     transformerMetaHighlight(),       // ```js {1,3} - highlight specific lines
     transformerNotationDiff(),        // // [!code ++] / // [!code --] - diff markers
     transformerNotationFocus({        // // [!code focus] - dim unfocused lines
@@ -64,9 +49,7 @@ export async function createHighlighter (): Promise<(string_: string, language: 
     },
   ];
 
-  const loadedLanguages = new Set<string>(highlighter.getLoadedLanguages());
-
-  async function highlight (string_: string, language: string, attrs: string, lineNumberStart?: number): Promise<string> {
+  return async function (string_: string, language: string, attrs: string, lineNumberStart?: number): Promise<string> {
     // Parse language and separate remaining attrs from the fence info
     // e.g. "js {1,3}" -> language="js", attrs="{1,3}"
     const extracted = extractLanguage(language);
@@ -81,38 +64,12 @@ export async function createHighlighter (): Promise<(string_: string, language: 
 
     language ||= 'txt';
 
-    // Lazy-load the language grammar if not already available
     try {
-      // https://github.com/shikijs/shiki/issues/952
-      if (
-        !isSpecialLang(language)
-        && !loadedLanguages.has(language)
-      ) {
-        await highlighter.loadLanguage(language as BundledLanguage);
-        loadedLanguages.add(language);
-      }
-    } catch {
-      consoleLogger.warn(
-        `\nThe language '${language}' is not loaded, falling back to 'txt' for syntax highlighting.`,
-      );
-      language = 'txt';
-    }
-
-    string_ = string_.trimEnd();
-
-    // Load any languages embedded in the code (e.g. CSS inside HTML)
-    const embeddedLanguage = guessEmbeddedLanguages(string_, language, highlighter);
-
-    await highlighter.loadLanguage(...(embeddedLanguage as BundledLanguage[]));
-
-    // Convert code to highlighted HTML with post-processing transformers
-    const highlighted = highlighter.codeToHtml(string_, {
-      lang: language,
-      transformers: [
-        ...transformers,
+      return await highlight(string_, language, [
+        ...baseTransformers,
         {
           // Empty <span class="line"> elements collapse to zero height in the browser
-          // When using line number rows, inject a zero-width space instead of <wbr> so the flex row still has height
+          // When using line number rows, inject a space so the flex row still has height
           name: 'typedown:empty-line',
           code (hast) {
             hast.children.forEach((span) => {
@@ -141,43 +98,15 @@ export async function createHighlighter (): Promise<(string_: string, language: 
           },
         },
         ...(lineNumberStart !== undefined ? [transformerLineNumbers(lineNumberStart)] : []),
-      ],
-      // Pass raw fence attributes (e.g. line highlight ranges `{1,3-5}`) to transformers
-      meta: {
-        __raw: attrs,
-      },
-      themes: THEME,
-      defaultColor: false,
-      // Improve contrast for GitHub themes
-      colorReplacements: {
-        'github-light': {
-          '#959da5': '#6c676f',
-          '#28a745': '#0e790b',
-          '#b08800': '#846312',
-          '#e36209': '#c13617',
-          '#3192aa': '#05728b',
-          '#d73a49': '#c62739',
-          '#22863a': '#11782a',
-          '#6a737d': '#62687b',
-          '#1b7c83': '#06747a',
-          '#0366d6': '#0663d0',
-          '#cb2431': '#c82430',
-        },
-        'github-dark': {
-          '#586069': '#5b93a3',
-          '#6a737d': '#818e99',
-          '#ea4a5a': '#ef5564',
-          '#2188ff': '#268bf9',
-        },
-      },
-    });
+      ], attrs);
+    } catch {
+      consoleLogger.warn(
+        `\nThe language '${language}' is not loaded, falling back to 'txt' for syntax highlighting.`,
+      );
 
-    return highlighted;
-  }
-
-  highlighterRegistry.register(highlight, () => highlighter.dispose());
-
-  return highlight;
+      return highlight(string_, 'txt', baseTransformers, attrs);
+    }
+  };
 }
 
 // Prevent shell prompt symbols from being selectable
@@ -204,60 +133,6 @@ function transformerDisableShellSymbolSelect (): ShikiTransformer {
         tokens[0].htmlStyle['-webkit-user-select'] = 'none';
         tokens[1].content = tokens[1].content.slice(1);
       }
-    },
-  };
-}
-
-// Wrap each line span in a flex row with a line number cell and a code cell
-function transformerLineNumbers (startLine: number): ShikiTransformer {
-  return {
-    name: 'typedown:line-numbers',
-    code (hast) {
-      let lineIndex = 0;
-
-      hast.children = hast.children
-        .filter((node) => node.type === 'element')
-        .map((node) => {
-          if (node.tagName !== 'span') return node;
-
-          const lineNum = startLine + lineIndex++;
-          const classes = Array.isArray(node.properties.class) ? node.properties.class as string[] : [];
-          const extraClasses = classes.filter((cls) => cls !== 'line');
-
-          return {
-            type: 'element',
-            tagName: 'div',
-            properties: {
-              class: [
-                'td-code-row',
-                ...extraClasses,
-              ],
-            },
-            children: [
-              {
-                type: 'element',
-                tagName: 'span',
-                properties: {
-                  class: ['td-code-num'],
-                },
-                children: [
-                  {
-                    type: 'text',
-                    value: String(lineNum),
-                  },
-                ],
-              },
-              {
-                type: 'element',
-                tagName: 'span',
-                properties: {
-                  class: ['td-code-col'],
-                },
-                children: node.children,
-              },
-            ],
-          };
-        });
     },
   };
 }
