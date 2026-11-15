@@ -101,44 +101,34 @@ const activeFileIndex = computed(() => {
   return -1;
 });
 
-// Window range centered on active file, biased forward
-const baseRange = computed(() => {
-  if (fileCount.value <= WINDOW_SIZE) return {
-    start: 0,
-    end: fileCount.value,
-  };
+// Compute the initial base window start, centering on the active file biased forward
+function computeBaseStart (): number {
+  const count = fileCount.value;
+
+  if (count <= WINDOW_SIZE) return 0;
 
   const active = activeFileIndex.value;
 
-  // No active file in this directory - show first WINDOW_SIZE
-  if (active < 0) return {
-    start: 0,
-    end: WINDOW_SIZE,
-  };
+  if (active < 0) return 0;
 
   const before = WINDOW_SIZE - BIAS_AFTER;
-  let start = Math.max(0, active - before);
-  let end = start + WINDOW_SIZE;
+  const start = Math.max(0, active - before);
 
-  // Clamp to end of list
-  if (fileCount.value < end) {
-    end = fileCount.value;
-    start = Math.max(0, end - WINDOW_SIZE);
-  }
+  return fileCount.value < start + WINDOW_SIZE
+    ? Math.max(0, fileCount.value - WINDOW_SIZE)
+    : start;
+}
 
-  return {
-    start,
-    end,
-  };
-});
+// Mutable base window start - slides on navigation to keep active item at the edge
+const baseStart = ref(computeBaseStart());
 
 // Extra items revealed by clicking "more above" / "more below"
 const extraAbove = ref(0);
 const extraBelow = ref(0);
 
 const visibleRange = computed(() => ({
-  start: Math.max(0, baseRange.value.start - extraAbove.value),
-  end: Math.min(fileCount.value, baseRange.value.end + extraBelow.value),
+  start: Math.max(0, baseStart.value - extraAbove.value),
+  end: Math.min(fileCount.value, baseStart.value + WINDOW_SIZE + extraBelow.value),
 }));
 
 const hiddenAbove = computed(() => visibleRange.value.start);
@@ -167,6 +157,24 @@ watch(
   (currentPath) => {
     if (isUrlAncestorOf(directoryUrl.value, currentPath))
       collapsed.value = false;
+
+    const active = activeFileIndex.value;
+
+    if (active < 0) return;
+
+    const {
+      start, end,
+    } = visibleRange.value;
+
+    // Slide the window so the active item lands at the edge it crossed,
+    // trimming the opposite side by the same amount
+    if (active < start) {
+      baseStart.value = active;
+      extraAbove.value = 0;
+    } else if (end <= active) {
+      baseStart.value = Math.max(0, active - WINDOW_SIZE + 1);
+      extraBelow.value = 0;
+    }
   },
 );
 

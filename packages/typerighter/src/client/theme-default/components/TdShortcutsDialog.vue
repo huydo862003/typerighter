@@ -142,8 +142,7 @@ watch(() => open, (value) => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(720px, calc(100vw - 64px));
-  height: calc(100vh - 120px);
+  width: min(420px, calc(100vw - 64px));
   z-index: var(--layer-td-modal);
   background: var(--color-td-bg);
   border: 1px solid var(--color-td-line);
@@ -194,13 +193,11 @@ watch(() => open, (value) => {
 .td-shortcuts-table {
   width: 100%;
   border-collapse: collapse;
-  padding: 8px 0;
-  flex: 1;
-  overflow-y: auto;
+  padding: 4px 0 12px;
 }
 
 .td-shortcuts-table td {
-  padding: 10px 20px;
+  padding: 6px 20px;
   font-size: var(--font-size-td-sm);
   color: var(--color-td-ink-3);
 }

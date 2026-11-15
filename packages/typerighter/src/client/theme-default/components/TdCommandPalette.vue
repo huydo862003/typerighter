@@ -19,7 +19,7 @@ import {
   useSiteSearch,
 } from './TdSiteSearch/useSiteSearch';
 import {
-  getParentUrl,
+  getIndexUrl, getParentUrl,
 } from '@/shared';
 import {
   useRoute, useRouter, useSiteConfig,
@@ -122,7 +122,7 @@ const allCommands = computed((): Command[] => {
       id: 'nav-up',
       group: 'Navigate',
       label: 'Up to section overview',
-      href: withBase(parentUrl.value),
+      href: withBase(getIndexUrl(parentUrl.value)),
     });
   }
   commands.push({
