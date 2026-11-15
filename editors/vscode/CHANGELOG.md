@@ -1,6 +1,17 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.60.0] - 2026-11-15
+
+### Added
+
+- packages/typerighter
+  - **Page history navigation** - tracks visited pages in localStorage across sessions; `Ctrl+[` / `⌘[` go back and `Ctrl+]` / `⌘]` go forward through the custom history stack, independent of the browser's native back/forward
+  - **Recently Accessed Pages in command palette** - opens with `⌘/`, shows recently visited pages in an empty-state group with full arrow-key navigation
+  - **Hover prefetch debounce** - links now prefetch on `pointerover` with a 65ms intent delay and `closest('a')` traversal to handle child elements, reducing spurious prefetches
+  - **Go back / Go next keyboard shortcuts dialog rows** - shortcuts dialog now lists `Ctrl+[` and `Ctrl+]` entries
+  - **Command palette section icons** - each group (Navigate, View, This page, Recently Accessed Pages, Pages) now shows a small icon beside its label
+
 ## [0.59.1] - 2026-11-15
 
 ### Fixed
