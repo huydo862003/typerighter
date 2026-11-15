@@ -122,9 +122,11 @@ export class RpcServer extends EventEmitter {
     return this;
   }
 
-  // Let the server detect the socket close and save cache in the background
-  // The process is already unref'd so it won't block Node from exiting
+  // Kill the detached process group so no orphans remain
   close() {
+    if (this._process) {
+      this._process.kill("SIGTERM");
+    }
     return this;
   }
 }
