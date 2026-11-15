@@ -13,9 +13,12 @@ e2e.describe('sidebar windowing', () => {
     await testProject.goto(page, '/people/alice');
 
     const sidebar = page.getByTestId('sidebar');
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
 
     // Alice is near the top, so there should be hidden entries below
-    await expect(sidebar.getByRole('button', {
+    await expect(peopleFolder.getByRole('button', {
       name: /more/,
     })).toBeVisible({
       timeout: 15_000,
@@ -29,10 +32,12 @@ e2e.describe('sidebar windowing', () => {
     await testProject.goto(page, '/people/olivia');
 
     const sidebar = page.getByTestId('sidebar');
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
 
     // Olivia is near the end alphabetically, so entries above should be hidden
-    // There should be at least one "more..." button
-    const moreButtons = sidebar.getByRole('button', {
+    const moreButtons = peopleFolder.getByRole('button', {
       name: /more/,
     });
 
@@ -48,8 +53,11 @@ e2e.describe('sidebar windowing', () => {
     await testProject.goto(page, '/people/alice');
 
     const sidebar = page.getByTestId('sidebar');
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
 
-    const moreButton = sidebar.getByRole('button', {
+    const moreButton = peopleFolder.getByRole('button', {
       name: /more/,
     }).first();
 
@@ -58,16 +66,16 @@ e2e.describe('sidebar windowing', () => {
     });
     await moreButton.click();
 
-    // After expanding, no more buttons should be visible
-    await expect(sidebar.getByRole('button', {
+    // After expanding, no more buttons should be visible in the People folder
+    await expect(peopleFolder.getByRole('button', {
       name: /more/,
     })).not.toBeVisible();
 
     // All people should now be visible
-    await expect(sidebar.getByRole('link', {
+    await expect(peopleFolder.getByRole('link', {
       name: /Olivia/,
     }).first()).toBeVisible();
-    await expect(sidebar.getByRole('link', {
+    await expect(peopleFolder.getByRole('link', {
       name: /Alice/,
     }).first()).toBeVisible();
   });
@@ -79,9 +87,12 @@ e2e.describe('sidebar windowing', () => {
     await testProject.goto(page, '/people/olivia');
 
     const sidebar = page.getByTestId('sidebar');
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
 
     // Overview link should always be present even when viewing a late entry
-    await expect(sidebar.getByRole('link', {
+    await expect(peopleFolder.getByRole('link', {
       name: /Overview/,
     }).first()).toBeVisible({
       timeout: 15_000,
@@ -95,7 +106,10 @@ e2e.describe('sidebar windowing', () => {
     await testProject.goto(page, '/people/alice');
 
     const sidebar = page.getByTestId('sidebar');
-    const moreButtons = sidebar.getByRole('button', {
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
+    const moreButtons = peopleFolder.getByRole('button', {
       name: /more/,
     });
 
@@ -118,7 +132,10 @@ e2e.describe('sidebar windowing', () => {
     await testProject.goto(page, '/people/olivia');
 
     const sidebar = page.getByTestId('sidebar');
-    const moreButtons = sidebar.getByRole('button', {
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
+    const moreButtons = peopleFolder.getByRole('button', {
       name: /more/,
     });
 

@@ -12,9 +12,12 @@ e2e.describe('sidebar pagination', () => {
       await testProject.goto(page, '/notes/note-1');
 
       const sidebar = page.getByTestId('sidebar');
+      const notesFolder = sidebar.getByRole('treeitem', {
+        name: /Notes/,
+      }).first();
 
       // The folder should show at most 10 items initially, so "more" appears
-      const moreButton = sidebar.getByRole('button', {
+      const moreButton = notesFolder.getByRole('button', {
         name: /more/i,
       });
 
@@ -32,8 +35,11 @@ e2e.describe('sidebar pagination', () => {
       await testProject.goto(page, '/notes/note-1');
 
       const sidebar = page.getByTestId('sidebar');
+      const notesFolder = sidebar.getByRole('treeitem', {
+        name: /Notes/,
+      }).first();
 
-      const moreButton = sidebar.getByRole('button', {
+      const moreButton = notesFolder.getByRole('button', {
         name: /more/i,
       });
 
