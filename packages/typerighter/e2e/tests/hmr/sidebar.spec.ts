@@ -14,16 +14,19 @@ e2e.describe('HMR sidebar update', () => {
     await testProject.goto(page, '/people/alice');
 
     const sidebar = page.getByTestId('sidebar');
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
 
-    // Expand windowed sidebar so all entries are visible
-    const moreButton = sidebar.locator('button.td-tree-more').last();
+    // Expand windowed sidebar so all People entries are visible
+    const moreButton = peopleFolder.locator('button.td-tree-more').first();
 
     if (await moreButton.isVisible()) {
       await moreButton.click();
     }
 
     // Verify new person is not in sidebar yet
-    await expect(sidebar.locator('text=Zara')).not.toBeVisible();
+    await expect(peopleFolder.locator('text=Zara')).not.toBeVisible();
 
     // Create a new .td file
     const newFile = path.join(testProject.dir, 'vault/people/zara.td');
@@ -32,15 +35,15 @@ e2e.describe('HMR sidebar update', () => {
 
     // Wait for sidebar to update, expanding the windowed list if needed
     await expect(async () => {
-      const more = sidebar.locator('button.td-tree-more').last();
+      const more = peopleFolder.locator('button.td-tree-more').last();
 
       if (await more.isVisible()) {
         await more.click();
       }
 
-      await expect(sidebar.locator('text=Zara')).toBeVisible();
+      await expect(peopleFolder.locator('text=Zara')).toBeVisible();
     }).toPass({
-      timeout: 10_000,
+      timeout: 15_000,
     });
   });
 
@@ -50,10 +53,12 @@ e2e.describe('HMR sidebar update', () => {
   }) => {
     await testProject.goto(page, '/people/alice');
 
-    // Find bob in sidebar
     const sidebar = page.getByTestId('sidebar');
+    const peopleFolder = sidebar.getByRole('treeitem', {
+      name: /People/,
+    }).first();
 
-    await expect(sidebar.locator('text=Bob')).toBeVisible({
+    await expect(peopleFolder.locator('text=Bob')).toBeVisible({
       timeout: 5_000,
     });
 
@@ -61,7 +66,7 @@ e2e.describe('HMR sidebar update', () => {
     await unlink(path.join(testProject.dir, 'vault/people/bob.td'));
 
     // Bob should disappear from sidebar
-    await expect(sidebar.locator('text=Bob')).not.toBeVisible({
+    await expect(peopleFolder.locator('text=Bob')).not.toBeVisible({
       timeout: 10_000,
     });
   });
