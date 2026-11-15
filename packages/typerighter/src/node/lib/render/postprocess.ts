@@ -1,6 +1,6 @@
-// Post-process Rust-emitted HTML: replace code/math placeholders with shiki and Temml output
+// Post-process Rust-emitted HTML: replace code/math placeholders with shiki and KaTeX output
 
-import temml from 'temml';
+import katex from 'katex';
 import {
   createServerHighlighter,
 } from './highlight';
@@ -154,7 +154,7 @@ function renderMathBlocks (html: string): string {
 const INLINE_MARKUP_RE = /`([^`]+)`|\$([^$]+)\$/g;
 
 // Render inline code and math in a plain-text string to HTML
-// Used server-side to pre-render titles so clients do not need temml
+// Used server-side to pre-render titles so clients do not need KaTeX
 export function renderInlineTitleHtml (text: string): string {
   let lastIndex = 0;
   let result = '';
@@ -166,7 +166,7 @@ export function renderInlineTitleHtml (text: string): string {
       result += `<code>${escapeHtml(match[1])}</code>`;
     } else if (match[2] !== undefined) {
       try {
-        result += temml.renderToString(match[2], {
+        result += katex.renderToString(match[2], {
           throwOnError: false,
         });
       } catch {
@@ -186,7 +186,7 @@ function renderTex (escapedTex: string, displayMode: boolean): string {
   const tag = displayMode ? 'div' : 'span';
 
   try {
-    return temml.renderToString(unescapeHtml(escapedTex), {
+    return katex.renderToString(unescapeHtml(escapedTex), {
       throwOnError: false,
       displayMode,
     });

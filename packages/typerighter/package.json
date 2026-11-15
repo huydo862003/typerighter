@@ -73,11 +73,11 @@
     "@typerighter/rpc-server": "workspace:*",
     "@vitejs/plugin-vue": "^6.0.10",
     "cac": "^7.1.0",
+    "katex": "^0.19.1",
     "picocolors": "^1.1.1",
     "shiki": "^4.6.0",
     "striptags": "^3.2.0",
     "tailwindcss": "^4.3.3",
-    "temml": "^0.13.5",
     "vite": "^8.3.5",
     "vue": "^3.5.44",
     "vue-component-meta": "^3.3.13"
@@ -88,6 +88,7 @@
   "devDependencies": {
     "@hdnax/nuclint": "^0.17.5",
     "@playwright/test": "^1.65.0",
+    "@types/katex": "^0.16.8",
     "@types/node": "^26.4.1",
     "@unhead/vue": "^3.4.3",
     "minisearch": "^7.2.0",

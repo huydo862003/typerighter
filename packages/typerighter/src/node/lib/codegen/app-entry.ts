@@ -72,7 +72,7 @@ export function generateAppEntry (options: AppEntryOptions, ids: VirtualModuleId
   return `
 ${header}
 import 'typerighter/fonts.css';
-import('typerighter/math.css');
+import 'typerighter/math.css';
 import { createTypedownApp } from 'typerighter/client';
 import { path } from 'typerighter/shared';
 import { shallowRef } from 'vue';

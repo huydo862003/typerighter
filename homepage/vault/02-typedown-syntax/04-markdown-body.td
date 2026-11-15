@@ -203,7 +203,7 @@ Both Mermaid and D2 are loaded lazily from CDN only when a diagram block is pres
 
 ## Math
 
-For technical and academic writing, Typedown supports LaTeX math notation rendered via Temml. Use single `$` for inline math:
+For technical and academic writing, Typedown supports LaTeX math notation rendered via Katex. Use single `$` for inline math:
 
 ```markdown
 The formula is $E = mc^2$.

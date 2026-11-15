@@ -8,7 +8,7 @@ import {
   escapeHtml,
 } from '@/shared';
 
-// temml is loaded lazily as it's very heavy
+// KaTeX is loaded lazily as it's heavy
 export function useLazyInlineMarkup (getText: () => string): Ref<string> {
   // Starts with code-only rendering, then upgrades to math if the text contains '$'
   const rendered = ref(renderCodeOnly(getText()));

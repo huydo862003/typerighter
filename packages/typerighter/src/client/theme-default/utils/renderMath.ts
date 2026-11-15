@@ -1,4 +1,4 @@
-import temml from 'temml';
+import katex from 'katex';
 import {
   INLINE_RE,
 } from './inlineRe';
@@ -17,7 +17,7 @@ export function renderInlineMarkup (text: string): string {
       result += `<code>${escapeHtml(match[1])}</code>`;
     } else if (match[2] !== undefined) {
       try {
-        result += temml.renderToString(match[2], {
+        result += katex.renderToString(match[2], {
           throwOnError: false,
         });
       } catch {
