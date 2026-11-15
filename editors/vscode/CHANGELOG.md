@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.59.0] - 2026-11-15
+
+### Added
+
+- packages/typerighter
+  - Replace the emgithub github embed with a custom component
+
 ## [0.58.1] - 2026-11-14
 
 ### Fixed
