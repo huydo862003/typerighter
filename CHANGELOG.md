@@ -1,3 +1,15 @@
+## [0.61.0] - 2026-11-15
+
+### Added
+
+- crates/typedown-lang, crates/typedown-server
+  - **`_ssg` builtin field** - pages with `_ssg: { show_in_sidebar: false }` are excluded from the sidebar while remaining routable
+  - **`_imports` path validation** - import paths must start with `/`, `./`, or `../`; bare paths (e.g. `"_partials/foo.td"`) emit `InvalidImportPath` diagnostic
+  - **LSP completion for `_imports` values** - vault file paths suggested when cursor is inside an `_imports` value string
+
+- packages/typerighter
+  - **Sidebar hidden pages** - pages with `_ssg: { show_in_sidebar: false }` are excluded from sidebar scan at startup (no flash)
+
 ## [0.60.0] - 2026-11-15
 
 ### Added
