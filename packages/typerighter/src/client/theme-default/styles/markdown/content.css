@@ -70,11 +70,15 @@
 /* Paragraphs */
 
 .td-content p {
-  margin: 12px 0;
+  margin: 4px 0;
   font-size: var(--font-size-td-base);
   line-height: 1.5;
   text-wrap: pretty;
   overflow-wrap: break-word;
+}
+
+.td-content p + p {
+  margin-top: 12px;
 }
 
 /* Links */
