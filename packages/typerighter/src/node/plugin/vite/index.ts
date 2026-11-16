@@ -262,7 +262,7 @@ ${lines.join('\n')}`,
 
       // Invalidate a file's .td modules and send HMR update to the browser
       // Page data modules are NOT invalidated here - they self-accept and receive updates via WS events
-      function invalidateFileModules (...filepaths: string[]) {
+      function notifyFileModulesHmrClient (...filepaths: string[]) {
         if (!server) return;
         tdContext
           .getConfig()
@@ -300,7 +300,7 @@ ${lines.join('\n')}`,
         filepath, affectedFiles = [],
       }) => {
         if (!server) return;
-        invalidateFileModules(filepath, ...affectedFiles);
+        notifyFileModulesHmrClient(filepath, ...affectedFiles);
         virtualPageData.notifyHmrClient(server, tdContext, filepath);
       });
 
@@ -317,8 +317,7 @@ ${lines.join('\n')}`,
         virtualSiteData.notifyHmrClient(server);
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.notifyHmrClient(server);
-        virtualPages.invalidate(server);
-        invalidateFileModules(filepath, ...affectedFiles);
+        notifyFileModulesHmrClient(filepath, ...affectedFiles);
         virtualPageData.notifyHmrClient(server, tdContext, filepath);
       });
 
@@ -349,7 +348,7 @@ ${lines.join('\n')}`,
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
-        invalidateFileModules(filepath);
+        notifyFileModulesHmrClient(filepath);
       });
 
       // Schema changed: patch schema locally
