@@ -1,3 +1,8 @@
+## [0.63.1] - 2026-11-17
+
+- packages/typerighter
+  - Fix some spacing between elements
+
 ## [0.63.0] - 2026-11-16
 
 ### Changed
