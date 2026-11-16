@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -338,22 +338,6 @@ impl RpcServer {
         }
       }
 
-      // Apply changes to the host
-      {
-        let mut host_guard = host.write().unwrap();
-        for event in &all_events {
-          match &event.kind {
-            FsEventKind::Created | FsEventKind::Modified => {
-              host_guard.on_disk_change(event.path.clone())
-            }
-            FsEventKind::Removed => host_guard.on_disk_delete(event.path.clone()),
-            FsEventKind::Renamed(to) => {
-              host_guard.on_did_rename_file(event.path.clone(), to.clone())
-            }
-          }
-        }
-      }
-
       // Collect unique affected paths (including rename destinations)
       let mut affected_paths: HashSet<PathBuf> = HashSet::new();
       for event in &all_events {
@@ -378,6 +362,49 @@ impl RpcServer {
         }
       }
 
+      // Snapshot old sidebar metadata before updating the database
+      // This lets us compare old/new to determine notification type
+      let old_sidebar: HashMap<PathBuf, Option<TdSidebarItem>> = Cancelled::catch(|| {
+        let analysis = host.read().unwrap().snapshot();
+        let db = &analysis.db;
+        let project = analysis.project;
+        let config = get_vault_config(db, project);
+        let root_dir = config.root_dir(db);
+        let files = project.files(db);
+
+        let mut result = HashMap::new();
+        for path in &affected_paths {
+          if !path.starts_with(&root_dir) || !is_content_file(path) {
+            continue;
+          }
+          let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+          if let Some(file) = files.get(path) {
+            result.insert(
+              path.clone(),
+              build_sidebar_item(db, project, *file, &relative),
+            );
+          }
+        }
+        result
+      })
+      .unwrap_or_default();
+
+      // Apply changes to the host
+      {
+        let mut host_guard = host.write().unwrap();
+        for event in &all_events {
+          match &event.kind {
+            FsEventKind::Created | FsEventKind::Modified => {
+              host_guard.on_disk_change(event.path.clone())
+            }
+            FsEventKind::Removed => host_guard.on_disk_delete(event.path.clone()),
+            FsEventKind::Renamed(to) => {
+              host_guard.on_did_rename_file(event.path.clone(), to.clone())
+            }
+          }
+        }
+      }
+
       // If a concurrent write cancels these queries, skip and let the next batch retry
       let Ok(()) = Cancelled::catch(|| {
         let analysis = host.read().unwrap().snapshot();
@@ -397,7 +424,7 @@ impl RpcServer {
           send_notification(&sender, NOTIF_COMPONENT_CONTRACT_CHANGED, &());
         }
 
-        // Stat each path and emit normalized notifications
+        // Emit fine-grained notifications per path
         for path in &affected_paths {
           if !path.starts_with(&root_dir) {
             continue;
@@ -413,36 +440,85 @@ impl RpcServer {
             else {
               continue;
             };
-            let method = if path.exists() {
-              NOTIF_SCHEMA_UPDATED
-            } else {
-              NOTIF_SCHEMA_DELETED
-            };
             let affected_files = collect_affected_files(db, project, path, &root_dir);
-            send_notification(
-              &sender,
-              method,
-              &TdSchemaNotification {
-                schema: name,
-                affected_files,
-              },
-            );
+            if path.exists() {
+              // Push schema properties so client avoids N getSchema calls
+              if let Ok(info) = get_schema(&analysis, &name) {
+                send_notification(
+                  &sender,
+                  NOTIF_SCHEMA_CHANGED,
+                  &TdSchemaChangedNotification {
+                    schema: name,
+                    affected_files,
+                    label: info.label,
+                    properties: info.properties,
+                  },
+                );
+              }
+            } else {
+              send_notification(
+                &sender,
+                NOTIF_SCHEMA_DELETED,
+                &TdSchemaDeletedNotification {
+                  schema: name,
+                  affected_files,
+                },
+              );
+            }
           } else if is_content_file(path) || is_asset_file(path) {
-            let method = if path.exists() {
-              NOTIF_CONTENT_UPDATED
+            if !path.exists() {
+              send_notification(
+                &sender,
+                NOTIF_CONTENT_DELETED,
+                &TdContentDeletedNotification { filepath: relative },
+              );
+            } else if !old_sidebar.contains_key(path) {
+              // New file: not in old snapshot
+              let files = project.files(db);
+              let new_sidebar = files
+                .get(path)
+                .and_then(|file| build_sidebar_item(db, project, *file, &relative));
+              send_notification(
+                &sender,
+                NOTIF_CONTENT_CREATED,
+                &TdContentCreatedNotification {
+                  filepath: relative,
+                  sidebar: new_sidebar,
+                },
+              );
             } else {
-              NOTIF_CONTENT_DELETED
-            };
-            let affected_files = if path.exists() {
-              collect_affected_files(db, project, path, &root_dir)
-            } else {
-              vec![]
-            };
-            let notification = TdContentNotification {
-              filepath: relative,
-              affected_files,
-            };
-            send_notification(&sender, method, &notification);
+              // Existing file modified: compare old/new sidebar metadata
+              let affected_files = collect_affected_files(db, project, path, &root_dir);
+              let files = project.files(db);
+              let new_sidebar = files
+                .get(path)
+                .and_then(|file| build_sidebar_item(db, project, *file, &relative));
+              if has_sidebar_metadata_changed(
+                old_sidebar.get(path).and_then(|item| item.as_ref()),
+                new_sidebar.as_ref(),
+              ) {
+                // Frontmatter changed: push new sidebar entry
+                send_notification(
+                  &sender,
+                  NOTIF_CONTENT_METADATA_CHANGED,
+                  &TdContentMetadataNotification {
+                    filepath: relative,
+                    affected_files,
+                    sidebar: new_sidebar,
+                  },
+                );
+              } else {
+                // Body-only change: lightweight notification
+                send_notification(
+                  &sender,
+                  NOTIF_CONTENT_BODY_CHANGED,
+                  &TdContentBodyNotification {
+                    filepath: relative,
+                    affected_files,
+                  },
+                );
+              }
+            }
           }
         }
       }) else {
@@ -452,9 +528,53 @@ impl RpcServer {
   }
 }
 
+/// Compare sidebar-relevant fields only, ignoring file_metadata (mtime changes on every save)
+fn has_sidebar_metadata_changed(
+  old_item: Option<&TdSidebarItem>,
+  new_item: Option<&TdSidebarItem>,
+) -> bool {
+  match (old_item, new_item) {
+    (None, None) => false,
+    (Some(_), None) | (None, Some(_)) => true,
+    (Some(old), Some(new)) => {
+      old.label != new.label
+        || old.schema != new.schema
+        || old.schema_label != new.schema_label
+        || old.icon != new.icon
+        || old.excerpt != new.excerpt
+    }
+  }
+}
+
+/// Build a sidebar item for a single file, or None if it should be hidden
+fn build_sidebar_item(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  relative: &str,
+) -> Option<TdSidebarItem> {
+  if is_hidden_from_sidebar(db, project, file) {
+    return None;
+  }
+  let nav = export_resource_nav(db, project, file)?;
+  let schema_label = get_schema_label(db, project, nav.schema.as_deref());
+  Some(TdSidebarItem {
+    filepath: relative.to_string(),
+    schema: nav.schema,
+    schema_label,
+    label: nav.label,
+    icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
+    excerpt: nav.excerpt,
+    file_metadata: TdFileMetadata {
+      mtime_secs: nav.metadata.mtime_secs,
+      ctime_secs: nav.metadata.ctime_secs,
+    },
+  })
+}
+
 fn send_notification<T: serde::Serialize>(sender: &Sender<Message>, method: &str, params: &T) {
-  let notififcation = Notification::new(method.to_string(), serde_json::to_value(params).unwrap());
-  let _ = sender.send(Message::Notification(notififcation));
+  let notification = Notification::new(method.to_string(), serde_json::to_value(params).unwrap());
+  let _ = sender.send(Message::Notification(notification));
 }
 
 fn parse_params<T: serde::de::DeserializeOwned>(params: serde_json::Value) -> RpcResult<T> {
@@ -740,25 +860,10 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   let items: Vec<TdSidebarItem> = entries
     .into_par_iter()
     .filter_map(|(relative, file)| {
-      if is_hidden_from_sidebar(db, project, file)
-        || is_under_hidden_directory_in_sidebar(&relative, &hidden_directories_in_sidebar)
-      {
+      if is_under_hidden_directory_in_sidebar(&relative, &hidden_directories_in_sidebar) {
         return None;
       }
-      let nav = export_resource_nav(db, project, file)?;
-      let schema_label = get_schema_label(db, project, nav.schema.as_deref());
-      Some(TdSidebarItem {
-        filepath: relative,
-        schema: nav.schema,
-        schema_label,
-        label: nav.label,
-        icon: nav.icon.map(|icon| TdIcon { name: icon.name }),
-        excerpt: nav.excerpt,
-        file_metadata: TdFileMetadata {
-          mtime_secs: nav.metadata.mtime_secs,
-          ctime_secs: nav.metadata.ctime_secs,
-        },
-      })
+      build_sidebar_item(db, project, file, &relative)
     })
     .collect();
 
@@ -1064,14 +1169,14 @@ fn collect_file_diagnostics(
   let root = parse_result.ast(db).node.clone();
   if let Some(body) = SourceFile::cast(root.clone()).and_then(|source_file| source_file.body()) {
     for diagnostic in lint_markdown(&body) {
-      items.push(lint_diag_to_item(&diagnostic, filepath, rope));
+      items.push(convert_lint_diagnostic(&diagnostic, filepath, rope));
     }
   }
 
   items
 }
 
-fn lint_diag_to_item(lint: &TdDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
+fn convert_lint_diagnostic(lint: &TdDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
   let (start, _) = lint.offsets();
   let start = start.min(rope.len_chars());
   let line = rope.char_to_line(start);

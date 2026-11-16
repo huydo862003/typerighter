@@ -209,8 +209,8 @@ ${lines.join('\n')}`,
       const tdContext = await resolveTdContext();
 
       if (id === RESOLVED_SEARCH_INDEX_ID)
-        return virtualSearchIndex.load(tdContext);
-      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load(tdContext);
+        return virtualSearchIndex.load();
+      if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load();
       if (id === RESOLVED_PAGES_ID) return virtualPages.load(tdContext);
       if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context!);
       if (id === RESOLVED_THEME_ID) return virtualTheme.load(context!);
@@ -291,41 +291,85 @@ ${lines.join('\n')}`,
           .catch(() => { });
       }
 
-      // Content updated: file was created, modified, or renamed
-      tdContext.rpc.onContentUpdated(({
+      // Body-only change: the hot path (~90% of edits)
+      // No sidebar fetch, no search reindex - just re-render the page
+      tdContext.rpc.onContentBodyChanged(({
         filepath, affectedFiles = [],
       }) => {
         if (!server) return;
-        virtualSearchIndex.reindex(rootDirectory, filepath);
-        virtualSearchIndex.invalidate(server);
-        virtualPages.invalidate(server);
-        virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath, ...affectedFiles);
         virtualPages.sendPageData(server, tdContext, filepath);
       });
 
-      // Content deleted: file was removed from disk
+      // Frontmatter changed: patch sidebar locally, reindex search
+      tdContext.rpc.onContentMetadataChanged(({
+        filepath, affectedFiles = [], sidebar,
+      }) => {
+        if (!server) return;
+
+        if (sidebar) {
+          virtualSiteData.upsertSidebarEntry(sidebar);
+        }
+
+        virtualSiteData.invalidate(server);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
+        virtualSearchIndex.invalidate(server);
+        virtualPages.invalidate(server);
+        invalidateFileModules(filepath, ...affectedFiles);
+        virtualPages.sendPageData(server, tdContext, filepath);
+      });
+
+      // New file created: add to sidebar
+      tdContext.rpc.onContentCreated(({
+        filepath, sidebar,
+      }) => {
+        if (!server) return;
+
+        if (sidebar) {
+          virtualSiteData.upsertSidebarEntry(sidebar);
+        }
+
+        virtualSiteData.invalidate(server);
+        virtualSearchIndex.reindex(rootDirectory, filepath);
+        virtualSearchIndex.invalidate(server);
+        virtualPages.invalidate(server);
+      });
+
+      // File deleted: remove from sidebar
       tdContext.rpc.onContentDeleted(({
         filepath,
       }) => {
         if (!server) return;
+
+        virtualSiteData.removeSidebarEntry(filepath);
+        virtualSiteData.invalidate(server);
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.invalidate(server);
         virtualPages.invalidate(server);
-        virtualSiteData.fetch(tdContext, server);
         invalidateFileModules(filepath);
       });
 
-      // Schema updated or deleted: affects all pages and sidebar
-      function handleSchemaChange () {
+      // Schema changed: patch schema locally
+      tdContext.rpc.onSchemaChanged(({
+        schema, properties,
+      }) => {
         if (!server) return;
-        virtualSiteData.clear();
-        hmrInvalidateAll(server);
-        virtualSiteData.fetch(tdContext, server);
-      }
 
-      tdContext.rpc.onSchemaUpdated(handleSchemaChange);
-      tdContext.rpc.onSchemaDeleted(handleSchemaChange);
+        virtualSiteData.patchSchema(schema, properties);
+        virtualSiteData.invalidate(server);
+        hmrInvalidateAll(server);
+      });
+
+      // Schema deleted
+      tdContext.rpc.onSchemaDeleted(({
+        schema,
+      }) => {
+        if (!server) return;
+
+        virtualSiteData.removeSchema(schema);
+        virtualSiteData.invalidate(server);
+        hmrInvalidateAll(server);
+      });
 
       const initialConfig = await tdContext.getConfig();
 

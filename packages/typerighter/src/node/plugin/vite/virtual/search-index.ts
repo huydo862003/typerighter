@@ -3,11 +3,7 @@ import type {
 } from 'vite';
 import {
   invalidateVirtualModule,
-  type VirtualModule,
 } from './utils';
-import type {
-  TypedownContext,
-} from '@/node/lib/typedown-context';
 import {
   SearchIndexer,
 } from '@/node/lib/search-indexer';
@@ -17,10 +13,10 @@ import {
 
 const RESOLVED_ID = '\0@typedown/search-index';
 
-export class VirtualSearchIndex implements VirtualModule {
+export class VirtualSearchIndex {
   private indexer = new SearchIndexer();
 
-  load (_context: TypedownContext): string {
+  load (): string {
     return `export default ${JSON.stringify(this.indexer.serialize())}`;
   }
 

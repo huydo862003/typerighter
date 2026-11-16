@@ -7,7 +7,6 @@ import {
 } from '../constants';
 import {
   invalidateVirtualModule,
-  type VirtualModule,
 } from './utils';
 import type {
   TypedownContext,
@@ -16,7 +15,7 @@ import {
   buildPageData,
 } from '@/node/lib/render/vue';
 
-export class VirtualPages implements VirtualModule {
+export class VirtualPages {
   // Path within the host Vite project where typedown is mounted (empty when typedown is at the Vite root)
   constructor (private readonly mountPath: string = '') {}
 

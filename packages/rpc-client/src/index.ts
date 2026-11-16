@@ -26,9 +26,24 @@ export interface TdDiagnosticItem {
   message: string;
 }
 
-export interface TdContentNotification {
+export interface TdContentBodyNotification {
   filepath: string;
   affectedFiles?: string[];
+}
+
+export interface TdContentMetadataNotification {
+  filepath: string;
+  affectedFiles?: string[];
+  sidebar?: TdSidebarItem;
+}
+
+export interface TdContentCreatedNotification {
+  filepath: string;
+  sidebar?: TdSidebarItem;
+}
+
+export interface TdContentDeletedNotification {
+  filepath: string;
 }
 
 export interface TdFileMetadata {
@@ -86,7 +101,14 @@ export interface TdFormatResult {
   changed: boolean;
 }
 
-export interface TdSchemaNotification {
+export interface TdSchemaChangedNotification {
+  schema: string;
+  affectedFiles?: string[];
+  label: string;
+  properties: Record<string, any>;
+}
+
+export interface TdSchemaDeletedNotification {
   schema: string;
   affectedFiles?: string[];
 }
@@ -167,9 +189,11 @@ const METHOD_GET_CONFIG = 'typedown_build.get_config';
 const METHOD_CHECK_VAULT = 'typedown_build.check_vault';
 const METHOD_FORMAT_FILE = 'typedown_build.format_file';
 
-const NOTIF_CONTENT_UPDATED = 'typedown_build.content_updated';
+const NOTIF_CONTENT_BODY_CHANGED = 'typedown_build.content_body_changed';
+const NOTIF_CONTENT_METADATA_CHANGED = 'typedown_build.content_metadata_changed';
+const NOTIF_CONTENT_CREATED = 'typedown_build.content_created';
 const NOTIF_CONTENT_DELETED = 'typedown_build.content_deleted';
-const NOTIF_SCHEMA_UPDATED = 'typedown_build.schema_updated';
+const NOTIF_SCHEMA_CHANGED = 'typedown_build.schema_changed';
 const NOTIF_SCHEMA_DELETED = 'typedown_build.schema_deleted';
 const NOTIF_CONFIG_CHANGED = 'typedown_build.config_changed';
 const NOTIF_COMPONENT_CONTRACT_CHANGED = 'typedown_build.component_contract_changed';
@@ -255,19 +279,27 @@ export class RpcClient {
 
   /* Notification handlers, server pushes these when FS changes are detected */
 
-  onContentUpdated (callback: (notification: TdContentNotification) => void): void {
-    this.rpc.onNotification(NOTIF_CONTENT_UPDATED, callback);
+  onContentBodyChanged (callback: (notification: TdContentBodyNotification) => void): void {
+    this.rpc.onNotification(NOTIF_CONTENT_BODY_CHANGED, callback);
   }
 
-  onContentDeleted (callback: (notification: TdContentNotification) => void): void {
+  onContentMetadataChanged (callback: (notification: TdContentMetadataNotification) => void): void {
+    this.rpc.onNotification(NOTIF_CONTENT_METADATA_CHANGED, callback);
+  }
+
+  onContentCreated (callback: (notification: TdContentCreatedNotification) => void): void {
+    this.rpc.onNotification(NOTIF_CONTENT_CREATED, callback);
+  }
+
+  onContentDeleted (callback: (notification: TdContentDeletedNotification) => void): void {
     this.rpc.onNotification(NOTIF_CONTENT_DELETED, callback);
   }
 
-  onSchemaUpdated (callback: (notification: TdSchemaNotification) => void): void {
-    this.rpc.onNotification(NOTIF_SCHEMA_UPDATED, callback);
+  onSchemaChanged (callback: (notification: TdSchemaChangedNotification) => void): void {
+    this.rpc.onNotification(NOTIF_SCHEMA_CHANGED, callback);
   }
 
-  onSchemaDeleted (callback: (notification: TdSchemaNotification) => void): void {
+  onSchemaDeleted (callback: (notification: TdSchemaDeletedNotification) => void): void {
     this.rpc.onNotification(NOTIF_SCHEMA_DELETED, callback);
   }
 

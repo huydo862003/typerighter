@@ -22,9 +22,11 @@ pub const METHOD_FORMAT_FILE: &str = "typedown_build.format_file";
 
 /* JSON-RPC notification names (server -> client) */
 
-pub const NOTIF_CONTENT_UPDATED: &str = "typedown_build.content_updated";
+pub const NOTIF_CONTENT_BODY_CHANGED: &str = "typedown_build.content_body_changed";
+pub const NOTIF_CONTENT_METADATA_CHANGED: &str = "typedown_build.content_metadata_changed";
+pub const NOTIF_CONTENT_CREATED: &str = "typedown_build.content_created";
 pub const NOTIF_CONTENT_DELETED: &str = "typedown_build.content_deleted";
-pub const NOTIF_SCHEMA_UPDATED: &str = "typedown_build.schema_updated";
+pub const NOTIF_SCHEMA_CHANGED: &str = "typedown_build.schema_changed";
 pub const NOTIF_SCHEMA_DELETED: &str = "typedown_build.schema_deleted";
 pub const NOTIF_CONFIG_CHANGED: &str = "typedown_build.config_changed";
 pub const NOTIF_COMPONENT_CONTRACT_CHANGED: &str = "typedown_build.component_contract_changed";
@@ -147,7 +149,7 @@ pub struct TdContentSummary {
 }
 
 /// Lightweight sidebar item (no header/content/excerpt)
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TdSidebarItem {
   pub filepath: String,
@@ -220,14 +222,14 @@ pub struct TdHeading {
 }
 
 /// Page icon
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct TdIcon {
   /// Lucide icon name
   pub name: String,
 }
 
 /// File metadata
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TdFileMetadata {
   /// Last modification time as seconds since UNIX epoch
@@ -288,19 +290,57 @@ pub struct TdDiagnosticReport {
 
 /* Subscription notifications */
 
-/// Content file event payload for updated or deleted
+/// Body-only edit: frontmatter unchanged, only body content was modified
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct TdContentNotification {
+pub struct TdContentBodyNotification {
   pub filepath: String,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub affected_files: Vec<String>,
 }
 
-/// Schema file event: A schema file was created, changed, or deleted
+/// Frontmatter changed: sidebar entry may need updating
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct TdSchemaNotification {
+pub struct TdContentMetadataNotification {
+  pub filepath: String,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub affected_files: Vec<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub sidebar: Option<TdSidebarItem>,
+}
+
+/// New content file created
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdContentCreatedNotification {
+  pub filepath: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub sidebar: Option<TdSidebarItem>,
+}
+
+/// Content file deleted (unchanged from before)
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdContentDeletedNotification {
+  pub filepath: String,
+}
+
+/// Schema file changed: pushes new properties so client avoids refetch
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdSchemaChangedNotification {
+  pub schema: String,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub affected_files: Vec<String>,
+  pub label: String,
+  pub properties: serde_json::Value,
+}
+
+/// Schema file deleted
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TdSchemaDeletedNotification {
   pub schema: String,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub affected_files: Vec<String>,

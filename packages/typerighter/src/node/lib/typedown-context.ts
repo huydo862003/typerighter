@@ -26,8 +26,18 @@ export class TypedownContext {
       this.cachedConfig = config;
     });
 
-    // Content updated: file was created, modified, or renamed (exists on disk)
-    client.onContentUpdated(({
+    // Body-only edit: invalidate file cache for changed + affected files
+    client.onContentBodyChanged(({
+      filepath, affectedFiles = [],
+    }) => {
+      this.cachedFileMap.delete(filepath);
+      for (const affected of affectedFiles) {
+        this.cachedFileMap.delete(affected);
+      }
+    });
+
+    // Frontmatter changed: also invalidate file list (sidebar may change)
+    client.onContentMetadataChanged(({
       filepath, affectedFiles = [],
     }) => {
       this.cachedFiles = undefined;
@@ -37,7 +47,12 @@ export class TypedownContext {
       }
     });
 
-    // Content deleted: file was removed from disk
+    // New file created
+    client.onContentCreated(() => {
+      this.cachedFiles = undefined;
+    });
+
+    // File deleted
     client.onContentDeleted(({
       filepath,
     }) => {
@@ -45,7 +60,7 @@ export class TypedownContext {
       this.cachedFileMap.delete(filepath);
     });
 
-    client.onSchemaUpdated(({
+    client.onSchemaChanged(({
       schema, affectedFiles = [],
     }) => {
       this.cachedSchemas = undefined;

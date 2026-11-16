@@ -1,14 +1,6 @@
 import type {
   ViteDevServer,
 } from 'vite';
-import type {
-  TypedownContext,
-} from '@/node/lib/typedown-context';
-
-export interface VirtualModule {
-  load(context: TypedownContext): string | Promise<string>;
-  invalidate(server: ViteDevServer): void;
-}
 
 // Invalidate a virtual module and push an HMR update to the client
 export function invalidateVirtualModule (

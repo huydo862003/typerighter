@@ -7,9 +7,11 @@ import {
 import type {
   ViteDevServer,
 } from 'vite';
+import type {
+  TdSidebarItem,
+} from '@typerighter/rpc-client';
 import {
   invalidateVirtualModule,
-  type VirtualModule,
 } from './utils';
 import type {
   TypedownContext,
@@ -18,7 +20,6 @@ import {
   type ContentTree,
   buildContentTree,
   buildDirectoryListingMap,
-  debounce,
   extractFrontmatterBuiltinFields,
   getTdResourceTitle,
   type ContentSummary,
@@ -27,6 +28,7 @@ import {
 const RESOLVED_ID = '\0@typedown/site-data';
 
 interface SiteData {
+  contentItems: ContentSummary[];
   contentTree: ContentTree;
   schemas: Record<string, unknown>;
   directoryListings: ReturnType<typeof buildDirectoryListingMap>;
@@ -41,7 +43,7 @@ const EMPTY = {
   directoryListings: {},
 };
 
-export class VirtualSiteData implements VirtualModule {
+export class VirtualSiteData {
   private data: SiteData | undefined;
 
   // Seed the sidebar from disk so it renders instantly
@@ -120,19 +122,24 @@ export class VirtualSiteData implements VirtualModule {
     const contentTree = buildContentTree(contentItems);
 
     this.data = {
+      contentItems,
       contentTree,
       schemas: {},
       directoryListings: buildDirectoryListingMap(contentTree.entries, ''),
     };
   }
 
-  load (_context: TypedownContext): string {
-    const payload = this.data
-      ? {
-        ready: true,
-        ...this.data,
-      }
-      : EMPTY;
+  load (): string {
+    if (!this.data) {
+      return `export default ${JSON.stringify(EMPTY)}`;
+    }
+
+    const payload = {
+      ready: true,
+      contentTree: this.data.contentTree,
+      schemas: this.data.schemas,
+      directoryListings: this.data.directoryListings,
+    };
 
     return `export default ${JSON.stringify(payload)}`;
   }
@@ -141,27 +148,90 @@ export class VirtualSiteData implements VirtualModule {
     this.data = undefined;
   }
 
-  // Fetch full data from RPC in background, push to client via HMR when ready
-  // Debounced so rapid edits only trigger one RPC round-trip
-  fetch = debounce((context: TypedownContext, server?: ViteDevServer): void => {
+  // Fetch full data from RPC (used on initial load and config changes, not during HMR)
+  fetch (context: TypedownContext, server: ViteDevServer): void {
     fetchFromRpc(context)
       .then((result) => {
         this.data = result;
-        if (server) this.invalidate(server);
+        this.invalidate(server);
       })
       .catch((error) => {
         console.error('[typedown] Failed to fetch site data:', error instanceof Error ? error.message : error);
       });
-  }, 200);
+  }
 
   // Fetch and block until data is ready (for production builds)
   async fetchSync (context: TypedownContext): Promise<void> {
     this.data = await fetchFromRpc(context);
   }
 
+  // Patch a single sidebar entry, rebuild tree
+  upsertSidebarEntry (sidebarItem: TdSidebarItem): void {
+    if (!this.data) return;
+    const index = this.data.contentItems.findIndex(
+      (item) => item.filepath === sidebarItem.filepath,
+    );
+
+    const summary = convertSidebarItemToSummary(sidebarItem);
+
+    if (0 <= index) {
+      this.data.contentItems[index] = summary;
+    } else {
+      this.data.contentItems.push(summary);
+    }
+
+    this.rebuildTree();
+  }
+
+  // Remove a sidebar entry by filepath
+  removeSidebarEntry (filepath: string): void {
+    if (!this.data) return;
+    this.data.contentItems = this.data.contentItems.filter(
+      (item) => item.filepath !== filepath,
+    );
+    this.rebuildTree();
+  }
+
+  // Update a schema's properties
+  patchSchema (name: string, properties: unknown): void {
+    if (!this.data) return;
+    this.data.schemas[name] = properties;
+  }
+
+  // Remove a schema
+  removeSchema (name: string): void {
+    if (!this.data) return;
+    const {
+      [name]: _, ...remaining
+    } = this.data.schemas;
+
+    this.data.schemas = remaining;
+  }
+
+  private rebuildTree (): void {
+    if (!this.data) return;
+    const contentTree = buildContentTree(this.data.contentItems);
+
+    this.data.contentTree = contentTree;
+    this.data.directoryListings = buildDirectoryListingMap(contentTree.entries, '');
+  }
+
   invalidate (server: ViteDevServer): void {
     invalidateVirtualModule(server, RESOLVED_ID);
   }
+}
+
+function convertSidebarItemToSummary (item: TdSidebarItem): ContentSummary {
+  return {
+    filepath: item.filepath,
+    schema: item.schema,
+    schemaLabel: item.schemaLabel,
+    label: item.label,
+    icon: item.icon,
+    header: {},
+    excerpt: item.excerpt,
+    fileMetadata: item.fileMetadata,
+  };
 }
 
 async function fetchFromRpc (context: TypedownContext): Promise<SiteData> {
@@ -196,6 +266,7 @@ async function fetchFromRpc (context: TypedownContext): Promise<SiteData> {
   const directoryListings = buildDirectoryListingMap(contentTree.entries, config.siteTitle);
 
   return {
+    contentItems,
     contentTree,
     schemas,
     directoryListings,
