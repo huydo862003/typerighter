@@ -2,7 +2,7 @@ import type {
   Component, InjectionKey,
 } from 'vue';
 import {
-  inject, markRaw, nextTick, reactive, readonly,
+  inject, markRaw, nextTick, reactive, toValue,
 } from 'vue';
 import {
   resolveRootUrl,
@@ -114,9 +114,7 @@ export function createRouter (
 
         route.path = pendingPath;
         route.contentSfc = markRaw(component);
-        route.data = import.meta.env.PROD
-          ? markRaw(pageData)
-          : (readonly(pageData) as PageData);
+        route.data = toValue(pageData);
 
         syncRouteQueryAndHash(targetLocation);
 

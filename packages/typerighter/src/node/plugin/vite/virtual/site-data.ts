@@ -11,8 +11,8 @@ import type {
   TdSidebarItem,
 } from '@typerighter/rpc-client';
 import {
-  invalidateVirtualModule,
-} from './utils';
+  SITE_DATA_EVENT,
+} from '../constants';
 import type {
   TypedownContext,
 } from '@/node/lib/typedown-context';
@@ -24,8 +24,6 @@ import {
   getTdResourceTitle,
   type ContentSummary,
 } from '@/shared';
-
-const RESOLVED_ID = '\0@typedown/site-data';
 
 interface SiteData {
   contentItems: ContentSummary[];
@@ -70,7 +68,10 @@ export class VirtualSiteData {
         // skip unreadable files
       }
 
-      if (raw && extractFrontmatterBuiltinFields(raw)?.showInSidebar === false) {
+      if (
+        raw
+        && extractFrontmatterBuiltinFields(raw)?.showInSidebar === false
+      ) {
         const directory = filepath.split('/').slice(0, -1)
           .join('/');
 
@@ -130,18 +131,18 @@ export class VirtualSiteData {
   }
 
   load (): string {
-    if (!this.data) {
-      return `export default ${JSON.stringify(EMPTY)}`;
-    }
+    const payload = this.serializeState();
 
-    const payload = {
-      ready: true,
-      contentTree: this.data.contentTree,
-      schemas: this.data.schemas,
-      directoryListings: this.data.directoryListings,
-    };
-
-    return `export default ${JSON.stringify(payload)}`;
+    return `
+import { shallowRef } from 'vue'
+export const siteData = shallowRef(${JSON.stringify(payload)})
+export default siteData
+if (import.meta.hot) {
+  import.meta.hot.on(${JSON.stringify(SITE_DATA_EVENT)}, (data) => {
+    siteData.value = data
+  })
+  import.meta.hot.accept()
+}`;
   }
 
   clear (): void {
@@ -153,10 +154,13 @@ export class VirtualSiteData {
     fetchFromRpc(context)
       .then((result) => {
         this.data = result;
-        this.invalidate(server);
+        this.notifyHmrClient(server);
       })
       .catch((error) => {
-        console.error('[typedown] Failed to fetch site data:', error instanceof Error ? error.message : error);
+        console.error(
+          '[typedown] Failed to fetch site data:',
+          error instanceof Error ? error.message : error,
+        );
       });
   }
 
@@ -202,10 +206,18 @@ export class VirtualSiteData {
   removeSchema (name: string): void {
     if (!this.data) return;
     const {
-      [name]: _, ...remaining
+      [name]: _removed, ...remainingSchemas
     } = this.data.schemas;
 
-    this.data.schemas = remaining;
+    this.data.schemas = remainingSchemas;
+  }
+
+  notifyHmrClient (server: ViteDevServer): void {
+    server.hot.send({
+      type: 'custom',
+      event: SITE_DATA_EVENT,
+      data: this.serializeState(),
+    });
   }
 
   private rebuildTree (): void {
@@ -213,11 +225,21 @@ export class VirtualSiteData {
     const contentTree = buildContentTree(this.data.contentItems);
 
     this.data.contentTree = contentTree;
-    this.data.directoryListings = buildDirectoryListingMap(contentTree.entries, '');
+    this.data.directoryListings = buildDirectoryListingMap(
+      contentTree.entries,
+      '',
+    );
   }
 
-  invalidate (server: ViteDevServer): void {
-    invalidateVirtualModule(server, RESOLVED_ID);
+  private serializeState (): Record<string, unknown> {
+    if (!this.data) return EMPTY;
+
+    return {
+      ready: true,
+      contentTree: this.data.contentTree,
+      schemas: this.data.schemas,
+      directoryListings: this.data.directoryListings,
+    };
   }
 }
 
@@ -263,7 +285,10 @@ async function fetchFromRpc (context: TypedownContext): Promise<SiteData> {
     header: {},
   }));
   const contentTree = buildContentTree(contentItems);
-  const directoryListings = buildDirectoryListingMap(contentTree.entries, config.siteTitle);
+  const directoryListings = buildDirectoryListingMap(
+    contentTree.entries,
+    config.siteTitle,
+  );
 
   return {
     contentItems,

@@ -4,9 +4,6 @@ import type {
 import {
   RESOLVED_THEME_ID,
 } from '../constants';
-import {
-  invalidateVirtualModule,
-} from './utils';
 import type {
   AppContext,
 } from '@/node/context';
@@ -19,13 +16,12 @@ export class VirtualTheme {
     const tdContext = await context.getTdContext();
     const config = await tdContext.getConfig();
 
-    return generateThemeModule(
-      config.layout ?? undefined,
-      context.root,
-    );
+    return generateThemeModule(config.layout ?? undefined, context.root);
   }
 
   invalidate (server: ViteDevServer): void {
-    invalidateVirtualModule(server, RESOLVED_THEME_ID);
+    const module_ = server.moduleGraph.getModuleById(RESOLVED_THEME_ID);
+
+    if (module_) server.moduleGraph.invalidateModule(module_);
   }
 }

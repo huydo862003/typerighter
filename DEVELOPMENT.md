@@ -188,18 +188,12 @@ This is how `std::hash` works (`Hash`/`Hasher`), how rustc does it (`Encodable`/
 
 ### HMR in Vite
 
-Two problems:
-- **Race condition**: Vite's watcher fires before Rust finishes re-indexing, so we suppress `handleHotUpdate` for `.td` files and let the Rust RPC events drive invalidation instead.
-- **Client-side hot reload**: `.td` files become Vue SFCs, so Vue's HMR runtime handles `import.meta.hot.accept()` automatically.
+Follow [Vite HMR API](https://vite.dev/guide/api-hmr) for conventions. Key decisions in this codebase:
 
-Making data hot-reloadable: every piece of dynamic data lives in its own virtual module. The app entry imports each one and accepts HMR updates. When data changes on the server side, we invalidate the virtual module and push an HMR update.
-
-Things to avoid:
-1. Don't inline data as JSON in the app entry (forces full reload on change)
-2. Don't use `const` for data that needs HMR (closures capture the binding, not the value)
-3. Don't put `import.meta.glob` in the app entry (invalidating the app module to re-scan forces a full reload)
-4. Don't `provide()` a plain object (use `shallowRef` for reactivity)
-5. Don't use full reloads for data changes (reserve for structural changes like `basePath`)
+- Vite's watcher fires before Rust finishes re-indexing, so we suppress `handleHotUpdate` for `.td` files and let Rust RPC events drive updates
+- Reactive virtual modules (site-data, search-index, page-data) export a `shallowRef`, self-accept HMR, and receive updates via custom WS events - no module invalidation needed
+- The pages module uses `import.meta.glob` which requires module invalidation for Vite to re-evaluate the glob
+- Static modules (app, theme) only change on config changes which trigger full reload
 
 ### Parameterized types vs universal types
 

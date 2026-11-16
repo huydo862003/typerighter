@@ -26,7 +26,6 @@ import {
   RESOLVED_VIRTUAL_APP_ID,
   PAGES_ID,
   RESOLVED_PAGES_ID,
-  PAGE_DATA_PREFIX,
   SITE_DATA_ID,
   RESOLVED_SITE_DATA_ID,
   SEARCH_INDEX_ID,
@@ -40,6 +39,9 @@ import {
 import {
   VirtualPages,
 } from './virtual/pages';
+import {
+  VirtualPageData,
+} from './virtual/page-data';
 import {
   VirtualTheme,
 } from './virtual/theme';
@@ -92,6 +94,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   const virtualApp = new VirtualApp(options.root ?? '');
   const virtualTheme = new VirtualTheme();
   const virtualPages = new VirtualPages(options.root ?? '');
+  const virtualPageData = new VirtualPageData();
   const virtualSiteData = new VirtualSiteData();
   const virtualSearchIndex = new VirtualSearchIndex();
 
@@ -184,8 +187,9 @@ ${lines.join('\n')}`,
       if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID)
         return RESOLVED_VIRTUAL_APP_ID;
       if (id === PAGES_ID) return RESOLVED_PAGES_ID;
-      if (id.startsWith(PAGE_DATA_PREFIX))
-        return virtualPages.resolvePageData(id);
+      const resolvedPageData = virtualPageData.resolve(id);
+
+      if (resolvedPageData) return resolvedPageData;
       if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
       if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
       if (id === THEME_ID) return RESOLVED_THEME_ID;
@@ -193,8 +197,8 @@ ${lines.join('\n')}`,
 
     // Serve virtual modules
     async load (id) {
-      if (virtualPages.isPageDataModule(id)) {
-        return virtualPages.loadPageData(id, await resolveTdContext());
+      if (virtualPageData.isResolved(id)) {
+        return virtualPageData.load(id, await resolveTdContext());
       }
 
       if (
@@ -256,7 +260,8 @@ ${lines.join('\n')}`,
         hmrFullReload(server);
       });
 
-      // Invalidate a file's modules and send HMR update to the browser
+      // Invalidate a file's .td modules and send HMR update to the browser
+      // Page data modules are NOT invalidated here - they self-accept and receive updates via WS events
       function invalidateFileModules (...filepaths: string[]) {
         if (!server) return;
         tdContext
@@ -277,8 +282,6 @@ ${lines.join('\n')}`,
                 server.moduleGraph.invalidateModule(module_);
                 updates.push(makeHmrUpdate(module_));
               }
-
-              virtualPages.invalidatePageData(server, filepath);
             }
 
             if (0 < updates.length) {
@@ -298,7 +301,7 @@ ${lines.join('\n')}`,
       }) => {
         if (!server) return;
         invalidateFileModules(filepath, ...affectedFiles);
-        virtualPages.sendPageData(server, tdContext, filepath);
+        virtualPageData.notifyHmrClient(server, tdContext, filepath);
       });
 
       // Frontmatter changed: patch sidebar locally, reindex search
@@ -311,12 +314,12 @@ ${lines.join('\n')}`,
           virtualSiteData.upsertSidebarEntry(sidebar);
         }
 
-        virtualSiteData.invalidate(server);
+        virtualSiteData.notifyHmrClient(server);
         virtualSearchIndex.reindex(rootDirectory, filepath);
-        virtualSearchIndex.invalidate(server);
+        virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
         invalidateFileModules(filepath, ...affectedFiles);
-        virtualPages.sendPageData(server, tdContext, filepath);
+        virtualPageData.notifyHmrClient(server, tdContext, filepath);
       });
 
       // New file created: add to sidebar
@@ -329,9 +332,9 @@ ${lines.join('\n')}`,
           virtualSiteData.upsertSidebarEntry(sidebar);
         }
 
-        virtualSiteData.invalidate(server);
+        virtualSiteData.notifyHmrClient(server);
         virtualSearchIndex.reindex(rootDirectory, filepath);
-        virtualSearchIndex.invalidate(server);
+        virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
       });
 
@@ -342,9 +345,9 @@ ${lines.join('\n')}`,
         if (!server) return;
 
         virtualSiteData.removeSidebarEntry(filepath);
-        virtualSiteData.invalidate(server);
+        virtualSiteData.notifyHmrClient(server);
         virtualSearchIndex.reindex(rootDirectory, filepath);
-        virtualSearchIndex.invalidate(server);
+        virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
         invalidateFileModules(filepath);
       });
@@ -356,7 +359,7 @@ ${lines.join('\n')}`,
         if (!server) return;
 
         virtualSiteData.patchSchema(schema, properties);
-        virtualSiteData.invalidate(server);
+        virtualSiteData.notifyHmrClient(server);
         hmrInvalidateAll(server);
       });
 
@@ -367,7 +370,7 @@ ${lines.join('\n')}`,
         if (!server) return;
 
         virtualSiteData.removeSchema(schema);
-        virtualSiteData.invalidate(server);
+        virtualSiteData.notifyHmrClient(server);
         hmrInvalidateAll(server);
       });
 

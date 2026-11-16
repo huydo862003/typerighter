@@ -16,3 +16,5 @@ export const THEME_ID = '@typedown/theme';
 export const RESOLVED_THEME_ID = '\0' + THEME_ID;
 
 export const PAGE_DATA_EVENT = 'typedown:page-data';
+export const SITE_DATA_EVENT = 'typedown:site-data';
+export const SEARCH_INDEX_EVENT = 'typedown:search-index';

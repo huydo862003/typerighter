@@ -31,7 +31,6 @@ export interface VirtualModuleIds {
   pages: string;
   siteData: string;
   searchIndex: string;
-  pageDataEvent: string;
 }
 
 // Generate the client app entry module source code
@@ -74,40 +73,23 @@ ${header}
 import 'typerighter/fonts.css';
 import 'typerighter/math.css';
 import { createTypedownApp } from 'typerighter/client';
-import { path } from 'typerighter/shared';
-import { shallowRef } from 'vue';
+import { shallowRef, watch } from 'vue';
 import theme from '${ids.theme}';
 import { pages as initialPages } from '${ids.pages}';
-import initialSiteData from '${ids.siteData}';
+import { siteData as siteDataRef } from '${ids.siteData}';
+import { searchIndex as searchIndexRef } from '${ids.searchIndex}';
 
-const siteData = shallowRef({ ...initialSiteData, pages: initialPages });
-const { app, router, searchIndex: searchIndexRef } = await createTypedownApp({ ...${siteConfig}, theme }, siteData);
+const siteData = shallowRef({ ...siteDataRef.value, pages: initialPages });
+watch(siteDataRef, (data) => { siteData.value = { ...data, pages: siteData.value.pages }; });
+
+const { app, router } = await createTypedownApp({ ...${siteConfig}, theme }, { siteData, searchIndex: searchIndexRef });
 ${componentRegistrations}
 app.mount('#app');
 
-// Load search index in the background after the app is mounted
-import('${ids.searchIndex}').then((m) => { searchIndexRef.value = m.default; });
-
-// Accept HMR so modules update without a full page reload
+// Pages module changes on file add/delete (rare) - accept to avoid full page reload
 if (import.meta.hot) {
   import.meta.hot.accept('${ids.pages}', (m) => {
     if (m) siteData.value = { ...siteData.value, pages: m.pages };
-  });
-
-  import.meta.hot.accept('${ids.searchIndex}', (m) => {
-    if (m) searchIndexRef.value = m.default;
-  });
-
-  import.meta.hot.accept('${ids.siteData}', (m) => {
-    if (m) siteData.value = { ...m.default, pages: siteData.value.pages };
-  });
-
-  // Update route.data directly when content changes - Vue SFC setup only re-runs on script block changes
-  import.meta.hot.on('${ids.pageDataEvent}', ({ filepath, pageData }) => {
-    const eventRoute = '/' + path.stripExtension(filepath);
-    if (eventRoute === router.route.path) {
-      router.route.data = pageData;
-    }
   });
 }
 `;

@@ -129,14 +129,21 @@ const searchIndexSymbol: InjectionKey<ShallowRef<string | undefined>> = Symbol(
   'typedown-search-index',
 );
 
+export interface TypedownAppState {
+  siteData: Ref<TypedownSiteData>;
+  searchIndex: ShallowRef<string | undefined>;
+}
+
 export async function createTypedownApp (
   siteConfig: TypedownSiteConfig,
-  siteData: Ref<TypedownSiteData>,
+  state: TypedownAppState,
 ): Promise<{
   app: App;
   router: Router;
-  searchIndex: ShallowRef<string | undefined>;
 }> {
+  const {
+    siteData, searchIndex,
+  } = state;
   const {
     theme,
   } = siteConfig;
@@ -224,8 +231,6 @@ export async function createTypedownApp (
   app.provide(siteConfigSymbol, siteConfig);
   app.provide(siteDataSymbol, siteData);
   app.provide(pageLoaderSymbol, loadPageModule);
-  const searchIndex = shallowRef(siteData.value.searchIndex);
-
   app.provide(searchIndexSymbol, searchIndex);
   app.component('TypedownContent', Content);
 
@@ -258,7 +263,6 @@ export async function createTypedownApp (
   return {
     app,
     router,
-    searchIndex,
   };
 }
 

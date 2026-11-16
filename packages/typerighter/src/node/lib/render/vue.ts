@@ -64,9 +64,11 @@ export async function renderToVueSfc (
     `export default { name: ${JSON.stringify(filepath)} }`,
     '</script>',
     '<script setup>',
+    'import { watch } from \'vue\'',
     'import { useRouter } from \'typerighter/client\'',
     `import { pageData } from ${pageDataImport}`,
-    'useRouter().route.data = pageData',
+    'const route = useRouter().route',
+    'watch(pageData, (data) => { route.data = data }, { immediate: true })',
     '</script>',
     // Inlined rather than bound with `v-html`: the content has to pass through the Vue compiler for custom components and their slots to resolve
     `<template><div class="typedown-content">\n${escapeVueInterpolation(html)}\n</div></template>`,

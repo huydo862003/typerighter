@@ -7,11 +7,7 @@ import {
   SITE_DATA_ID,
   SEARCH_INDEX_ID,
   THEME_ID,
-  PAGE_DATA_EVENT,
 } from '../constants';
-import {
-  invalidateVirtualModule,
-} from './utils';
 import type {
   AppContext,
 } from '@/node/context';
@@ -53,12 +49,13 @@ export class VirtualApp {
         pages: PAGES_ID,
         siteData: SITE_DATA_ID,
         searchIndex: SEARCH_INDEX_ID,
-        pageDataEvent: PAGE_DATA_EVENT,
       },
     );
   }
 
   invalidate (server: ViteDevServer): void {
-    invalidateVirtualModule(server, RESOLVED_VIRTUAL_APP_ID);
+    const module_ = server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_APP_ID);
+
+    if (module_) server.moduleGraph.invalidateModule(module_);
   }
 }

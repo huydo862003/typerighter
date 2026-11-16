@@ -8,7 +8,6 @@ import {
   PAGES_ID,
   SITE_DATA_ID,
   SEARCH_INDEX_ID,
-  PAGE_DATA_EVENT,
 } from "../plugin/vite";
 import { generateAppEntry, generateThemeModule } from "../lib/codegen";
 import { resolveUserComponents, type UserComponent } from "../lib/components";
@@ -128,7 +127,6 @@ export async function buildSite(
           pages: PAGES_ID,
           siteData: SITE_DATA_ID,
           searchIndex: SEARCH_INDEX_ID,
-          pageDataEvent: PAGE_DATA_EVENT,
         },
       ),
     ),
@@ -371,7 +369,7 @@ const pages = Object.fromEntries(Object.entries(rawPages).map(([k, v]) => [k.sli
 const siteData = shallowRef({ ...${siteDataWithListings}, pages });
 
 export async function createRenderer() {
-  const { app, router } = await createTypedownApp({ ...${options.siteConfig}, theme }, siteData);
+  const { app, router } = await createTypedownApp({ ...${options.siteConfig}, theme }, { siteData, searchIndex: shallowRef(undefined) });
   ${componentRegistrations}
   return async function render(url) {
     await router.go(url, { replace: true });
