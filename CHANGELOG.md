@@ -1,3 +1,10 @@
+## Unreleased
+
+### Changed
+
+- packages/typerighter
+  - Reduce spacing between bullet points
+
 ## [0.62.0] - 2026-11-16
 
 ### Changed
