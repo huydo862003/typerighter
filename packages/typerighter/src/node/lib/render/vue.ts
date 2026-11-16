@@ -68,6 +68,7 @@ export async function renderToVueSfc (
     'import { useRouter } from \'typerighter/client\'',
     `import { pageData } from ${pageDataImport}`,
     'const route = useRouter().route',
+    // FIXME: This is bad, should be centralized in router, but ok for now
     'watch(pageData, (data) => { route.data = data }, { immediate: true })',
     '</script>',
     // Inlined rather than bound with `v-html`: the content has to pass through the Vue compiler for custom components and their slots to resolve
