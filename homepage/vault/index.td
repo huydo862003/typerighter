@@ -65,7 +65,7 @@ Typedown draws from:
 - Notion's relational databases
 - Obsidian's linked vault model
 - TypeScript's structural type system
-- Semantic web technology, which allows machines to parse and process human nodes.
+- Semantic web technology, which allows machines to parse and process human notes.
 
 If you have used any of these, the mental model will feel familiar.
 

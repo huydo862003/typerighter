@@ -814,6 +814,10 @@ function shrinkSidebar () {
   isolation: isolate;
 }
 
+.td-content-body {
+  padding-top: 4px;
+}
+
 .td-content {
   padding: 44px 32px 48px;
   max-width: 860px;
