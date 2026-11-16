@@ -1,9 +1,14 @@
-## Unreleased
+## [0.63.0] - 2026-11-16
 
 ### Changed
 
 - packages/typerighter
   - Reduce spacing between bullet points
+
+### Performance
+
+- packages/typerighter, crates/typedown-server
+  - Incremental HMR notification instead of client request flooding
 
 ## [0.62.0] - 2026-11-16
 
