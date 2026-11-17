@@ -26,7 +26,7 @@ use typedown_lang::db::types::{CustomComponentEntry, File, Project, ProjectRedNo
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
   export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
-  is_hidden_from_sidebar, resolve_schema_label,
+  export_ssg_flags, resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -553,7 +553,7 @@ fn build_sidebar_item(
   file: File,
   relative: &str,
 ) -> Option<TdSidebarItem> {
-  if is_hidden_from_sidebar(db, project, file) {
+  if !export_ssg_flags(db, project, file).show_in_sidebar {
     return None;
   }
   let nav = export_resource_nav(db, project, file)?;
@@ -717,7 +717,11 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
         title: metadata.title,
         description: metadata.description,
         image: metadata.image,
+        lang: metadata.lang,
       }),
+      show_in_sidebar: exported.ssg_flags.show_in_sidebar,
+      show_in_search: exported.ssg_flags.show_in_search,
+      crawlable: exported.ssg_flags.crawlable,
     });
   }
 
@@ -804,7 +808,7 @@ pub fn collect_hidden_directories_in_sidebar(
       if stem != "index" {
         return None;
       }
-      if !is_hidden_from_sidebar(db, project, *file) {
+      if export_ssg_flags(db, project, *file).show_in_sidebar {
         return None;
       }
       let dir = Path::new(relative)

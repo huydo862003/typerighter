@@ -46,8 +46,11 @@ pub fn get_vault_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     FuncSignature::new(
       db,
       Some(TypParams::new(db, vec![from_nodes_variable], vec![])),
-      vec![from_nodes_variable_typ, nullable_options],
-      from_nodes_return,
+      vec![
+        LazyTyp::eager(from_nodes_variable_typ),
+        LazyTyp::eager(nullable_options),
+      ],
+      LazyTyp::eager(from_nodes_return),
     ),
     FuncKind::Native(NativeFuncKind::NodeSetFromVault),
   );
@@ -75,8 +78,8 @@ pub fn get_vault_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     FuncSignature::new(
       db,
       Some(TypParams::new(db, vec![from_node_variable], vec![])),
-      vec![from_node_variable_typ],
-      from_node_return,
+      vec![LazyTyp::eager(from_node_variable_typ)],
+      LazyTyp::eager(from_node_return),
     ),
     FuncKind::Native(NativeFuncKind::NodeSetFromNode),
   );

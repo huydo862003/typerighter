@@ -79,9 +79,9 @@ fn get_func_param_typ<'db>(
       .iter()
       .filter_map(|param| param.value())
       .position(|name| name == param_name)
-      && let Some(typ) = params.get(index)
+      && let Some(typ) = params.get(index).and_then(|lazy| lazy.resolve(db))
     {
-      return TypResult::new(db, Some(typ.clone()), vec![]);
+      return TypResult::new(db, Some(typ), vec![]);
     }
     return TypResult::new(db, None, vec![]);
   }
@@ -181,7 +181,11 @@ fn infer_param_from_call_site<'db>(
 
   // Extract param type at this position
   if let TdTypEnum::TdFuncTyp(func) = callee_typ {
-    return func.signature(db).params(db).get(arg_index).cloned();
+    return func
+      .signature(db)
+      .params(db)
+      .get(arg_index)
+      .and_then(|lazy| lazy.resolve(db));
   }
   None
 }

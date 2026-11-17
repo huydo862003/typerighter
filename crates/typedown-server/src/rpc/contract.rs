@@ -197,6 +197,12 @@ pub struct TdBuiltResource {
   /// SEO metadata from _meta builtin
   #[serde(skip_serializing_if = "Option::is_none")]
   pub seo_metadata: Option<TdSeoMeta>,
+  /// Whether the page appears in the sidebar
+  pub show_in_sidebar: bool,
+  /// Whether the page appears in client-side search
+  pub show_in_search: bool,
+  /// Whether search engines should index this page
+  pub crawlable: bool,
 }
 
 /// SEO fields from the _meta builtin field
@@ -209,6 +215,8 @@ pub struct TdSeoMeta {
   pub description: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub image: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lang: Option<String>,
 }
 
 /// Heading extracted from page content

@@ -47,7 +47,7 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
     for member in self.members(db) {
       let resolved = member.resolve(db)?;
       let signature = resolved.index_typ(db, key_typ)?;
-      ret_typs.push(LazyTyp::eager(signature.ret(db)));
+      ret_typs.push(signature.ret(db));
     }
     if ret_typs.is_empty() {
       return None;
@@ -56,8 +56,8 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
     Some(FuncSignature::new(
       db,
       None,
-      vec![key_typ.clone()],
-      union_ret,
+      vec![LazyTyp::eager(key_typ.clone())],
+      LazyTyp::eager(union_ret),
     ))
   }
 
@@ -83,7 +83,7 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
           diagnostics,
         };
       };
-      ret_typs.push(LazyTyp::eager(signature.ret(db)));
+      ret_typs.push(signature.ret(db));
     }
     if ret_typs.is_empty() {
       return CallTypResult {
@@ -93,7 +93,12 @@ impl<'db> TdStaticTyp<'db> for TdSumTyp<'db> {
     }
     let union_ret = get_sum_typ(db, ret_typs).into();
     CallTypResult {
-      signature: Some(FuncSignature::new(db, None, arg_typs, union_ret)),
+      signature: Some(FuncSignature::new(
+        db,
+        None,
+        arg_typs.into_iter().map(LazyTyp::eager).collect(),
+        LazyTyp::eager(union_ret),
+      )),
       diagnostics,
     }
   }

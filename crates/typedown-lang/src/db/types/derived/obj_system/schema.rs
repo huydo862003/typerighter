@@ -14,10 +14,12 @@ use super::product::{PropertyDescriptor, TdProductTyp};
 use super::typecheck::substitute_bound_variables;
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
+use crate::db::derived::builtin_schemas::schema_meta_field::get_schema_meta_builtin_field_typ;
+use crate::db::derived::builtin_schemas::schema_ssg_field::get_schema_ssg_builtin_field_typ;
 use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::get_builtin_typs::{
-  get_bool_typ, get_dict_typ, get_func_typ, get_icon_typ, get_null_typ, get_obj_typ,
-  get_schema_meta_typ, get_string_typ, get_sum_typ,
+  get_dict_typ, get_func_typ, get_icon_typ, get_null_typ, get_obj_typ, get_schema_meta_typ,
+  get_string_typ, get_sum_typ,
 };
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
@@ -170,7 +172,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
       .parent_typ(db)
       .map(|parent| parent.runtime_vtable(db))
       .unwrap_or_default();
-    let signature = FuncSignature::new(db, None, vec![], get_string_typ(db).into());
+    let signature = FuncSignature::new(db, None, vec![], LazyTyp::eager(get_string_typ(db).into()));
     let to_string_func = TdFuncObj::new(
       db,
       BUILTIN_TO_STRING.to_string(),
@@ -188,7 +190,7 @@ impl<'db> TdStaticTyp<'db> for TdSchemaTyp<'db> {
       .parent_typ(db)
       .map(|parent| parent.static_vtable(db))
       .unwrap_or_default();
-    let signature = FuncSignature::new(db, None, vec![], get_string_typ(db).into());
+    let signature = FuncSignature::new(db, None, vec![], LazyTyp::eager(get_string_typ(db).into()));
     let func_typ = get_func_typ(db, signature).into();
     result
       .entry(BUILTIN_TO_STRING.to_string())
@@ -269,39 +271,11 @@ impl<'db> TdSchemaTyp<'db> {
       "_type" => Some(get_schema_meta_typ(db).into()),
       "_extends" => Some(get_schema_meta_typ(db).into()),
       "_meta" => {
-        let optional_string = get_sum_typ(
-          db,
-          vec![
-            LazyTyp::eager(get_string_typ(db).into()),
-            LazyTyp::eager(get_null_typ(db).into()),
-          ],
-        );
-        let meta_fields = BTreeMap::from([
-          ("title".to_string(), LazyTyp::eager(optional_string.into())),
-          (
-            "description".to_string(),
-            LazyTyp::eager(optional_string.into()),
-          ),
-          ("image".to_string(), LazyTyp::eager(optional_string.into())),
-        ]);
-        let meta_typ =
-          LazyTyp::eager(TdProductTyp::new(db, Some("_meta".to_string()), meta_fields).into());
+        let meta_typ = LazyTyp::eager(get_schema_meta_builtin_field_typ(db).into());
         Some(get_sum_typ(db, vec![meta_typ, null_typ]).into())
       }
       "_ssg" => {
-        let optional_bool = get_sum_typ(
-          db,
-          vec![
-            LazyTyp::eager(get_bool_typ(db).into()),
-            LazyTyp::eager(get_null_typ(db).into()),
-          ],
-        );
-        let ssg_fields = BTreeMap::from([(
-          "show_in_sidebar".to_string(),
-          LazyTyp::eager(optional_bool.into()),
-        )]);
-        let ssg_typ =
-          LazyTyp::eager(TdProductTyp::new(db, Some("_ssg".to_string()), ssg_fields).into());
+        let ssg_typ = LazyTyp::eager(get_schema_ssg_builtin_field_typ(db).into());
         Some(get_sum_typ(db, vec![ssg_typ, null_typ]).into())
       }
       _ => None,
@@ -362,7 +336,15 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
         if let Some(schema_typ) = self.schema(db).as_td_schema_typ()
           && let Some(prop_descriptor) = schema_typ.fields(db).get(key)
         {
-          if let Some(ref computed_enum) = prop_descriptor.computed_func
+          let computed_obj = match &prop_descriptor.computed_func {
+            Some(Either::Left(node)) => {
+              let scope = get_file_runtime_scope(db, node.project, node.file);
+              evaluate_node(db, node.clone(), scope).value(db)
+            }
+            Some(Either::Right(obj)) => Some(obj.clone()),
+            None => None,
+          };
+          if let Some(ref computed_enum) = computed_obj
             && let Some(func_obj) = computed_enum.as_td_func_obj()
             && let Ok(result_value) =
               func_obj.call(db, self.project(db), None, vec![(*self).into()])

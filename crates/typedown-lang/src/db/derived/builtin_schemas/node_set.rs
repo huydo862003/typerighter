@@ -59,7 +59,7 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     TdFuncObj::new(
       db,
       "to_list".to_string(),
-      FuncSignature::new(db, None, vec![], list_of_element),
+      FuncSignature::new(db, None, vec![], LazyTyp::eager(list_of_element)),
       FuncKind::Native(NativeFuncKind::NodeSetToList),
     ),
   );
@@ -69,7 +69,7 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     TdFuncObj::new(
       db,
       "first".to_string(),
-      FuncSignature::new(db, None, vec![], nullable_element),
+      FuncSignature::new(db, None, vec![], LazyTyp::eager(nullable_element)),
       FuncKind::Native(NativeFuncKind::NodeSetFirst),
     ),
   );
@@ -79,7 +79,7 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     TdFuncObj::new(
       db,
       "count".to_string(),
-      FuncSignature::new(db, None, vec![], number_typ),
+      FuncSignature::new(db, None, vec![], LazyTyp::eager(number_typ)),
       FuncKind::Native(NativeFuncKind::NodeSetCount),
     ),
   );
@@ -89,7 +89,12 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     TdFuncObj::new(
       db,
       "contains".to_string(),
-      FuncSignature::new(db, None, vec![element_typ.clone()], bool_typ.clone()),
+      FuncSignature::new(
+        db,
+        None,
+        vec![LazyTyp::eager(element_typ.clone())],
+        LazyTyp::eager(bool_typ.clone()),
+      ),
       FuncKind::Native(NativeFuncKind::NodeSetContains),
     ),
   );
@@ -109,7 +114,12 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
   // Step 3: add self-referential vtable entries
   let filter_pred_typ: TdTypEnum = get_func_typ(
     db,
-    FuncSignature::new(db, None, vec![element_typ.clone()], bool_typ),
+    FuncSignature::new(
+      db,
+      None,
+      vec![LazyTyp::eager(element_typ.clone())],
+      LazyTyp::eager(bool_typ),
+    ),
   )
   .into();
 
@@ -118,7 +128,12 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
     TdFuncObj::new(
       db,
       "filter".to_string(),
-      FuncSignature::new(db, None, vec![filter_pred_typ], node_set_base.clone()),
+      FuncSignature::new(
+        db,
+        None,
+        vec![LazyTyp::eager(filter_pred_typ)],
+        LazyTyp::eager(node_set_base.clone()),
+      ),
       FuncKind::Native(NativeFuncKind::NodeSetFilter),
     ),
   );
@@ -155,8 +170,8 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
       FuncSignature::new(
         db,
         Some(follow_params),
-        vec![follow_key_typ, nullable_obj],
-        follow_return,
+        vec![LazyTyp::eager(follow_key_typ), LazyTyp::eager(nullable_obj)],
+        LazyTyp::eager(follow_return),
       ),
       FuncKind::Native(NativeFuncKind::NodeSetFollow),
     ),
@@ -185,8 +200,11 @@ pub fn get_node_set_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
       FuncSignature::new(
         db,
         Some(follow_back_params),
-        vec![follow_back_source_typ, string_typ],
-        follow_back_return,
+        vec![
+          LazyTyp::eager(follow_back_source_typ),
+          LazyTyp::eager(string_typ),
+        ],
+        LazyTyp::eager(follow_back_return),
       ),
       FuncKind::Native(NativeFuncKind::NodeSetFollowBack),
     ),

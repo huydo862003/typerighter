@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use typedown_incremental::InputId;
@@ -7,7 +7,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
 use typedown_lang::db::utils::{is_content_file, is_internal_file};
 use typedown_lang::db::{QueryStorage, TypedownDatabase};
-use typedown_lang::integrations::export::{export_resource_nav, is_hidden_from_sidebar};
+use typedown_lang::integrations::export::{export_resource_nav, export_ssg_flags};
 use typedown_server::rpc::server::{
   collect_hidden_directories_in_sidebar, is_under_hidden_directory_in_sidebar,
 };
@@ -38,7 +38,7 @@ fn list_sidebar_paths(db: &TypedownDatabase) -> Vec<String> {
     .filter(|(path, _)| {
       path.starts_with(&root_dir) && is_content_file(path) && !is_internal_file(path)
     })
-    .filter(|(_, file)| !is_hidden_from_sidebar(db, project, **file))
+    .filter(|(_, file)| export_ssg_flags(db, project, **file).show_in_sidebar)
     .filter_map(|(path, file)| {
       export_resource_nav(db, project, *file)?;
       Some(normalize_path(path.strip_prefix(&root_dir).unwrap_or(path)))
@@ -122,14 +122,14 @@ This page is hidden.
   // Visible file should not be hidden
   let visible = *project_files.get(&visible_path).unwrap();
   assert!(
-    !is_hidden_from_sidebar(&db, project, visible),
+    export_ssg_flags(&db, project, visible).show_in_sidebar,
     "visible.td should not be hidden"
   );
 
   // Hidden file should be detected as hidden
   let hidden = *project_files.get(&hidden_path).unwrap();
   assert!(
-    is_hidden_from_sidebar(&db, project, hidden),
+    !export_ssg_flags(&db, project, hidden).show_in_sidebar,
     "hidden.td with _ssg.show_in_sidebar: false should be hidden"
   );
 
@@ -139,7 +139,7 @@ This page is hidden.
     .filter(|(path, _)| {
       path.starts_with(&root_dir) && is_content_file(path) && !is_internal_file(path)
     })
-    .filter(|(_, file)| !is_hidden_from_sidebar(&db, project, **file))
+    .filter(|(_, file)| export_ssg_flags(&db, project, **file).show_in_sidebar)
     .filter_map(|(path, file)| {
       export_resource_nav(&db, project, *file)?;
       Some(normalize_path(path.strip_prefix(&root_dir).unwrap_or(path)))
@@ -163,14 +163,13 @@ fn list_sidebar_includes_pages_without_ssg() {
   assert!(!paths.is_empty(), "sidebar should have entries");
 }
 
-// Build an in-memory vault and return vault-relative sidebar paths using the
-// same two-pass filtering logic as list_sidebar in server.rs
-fn sidebar_paths_for_vault(
+// Build an in-memory vault and return vault-relative sidebar paths using the same two-pass filtering logic as list_sidebar in server.rs
+fn get_sidebar_paths_for_vault(
   db: &TypedownDatabase,
-  vault: &PathBuf,
+  vault: &Path,
   files: HashMap<PathBuf, File>,
 ) -> Vec<String> {
-  let project = Project::new(db, vault.clone(), files, None);
+  let project = Project::new(db, vault.into(), files, None);
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
   let project_files = project.files(db);
@@ -193,7 +192,7 @@ fn sidebar_paths_for_vault(
   let mut paths: Vec<String> = entries
     .into_iter()
     .filter(|(relative, file)| {
-      !is_hidden_from_sidebar(db, project, *file)
+      export_ssg_flags(db, project, *file).show_in_sidebar
         && !is_under_hidden_directory_in_sidebar(relative, &hidden_directories)
     })
     .filter_map(|(relative, file)| {
@@ -208,7 +207,7 @@ fn sidebar_paths_for_vault(
 
 fn make_vault(
   db: &TypedownDatabase,
-  vault: &PathBuf,
+  vault: &Path,
   td_files: &[(&str, &str)],
 ) -> HashMap<PathBuf, File> {
   let config_path = vault.join("typedown.yaml");
@@ -287,7 +286,7 @@ _label: "Bob"
       ),
     ],
   );
-  let paths = sidebar_paths_for_vault(&db, &vault, files);
+  let paths = get_sidebar_paths_for_vault(&db, &vault, files);
 
   assert!(
     paths.iter().any(|path| path.contains("root")),
@@ -348,7 +347,7 @@ _label: "Note"
       ),
     ],
   );
-  let paths = sidebar_paths_for_vault(&db, &vault, files);
+  let paths = get_sidebar_paths_for_vault(&db, &vault, files);
 
   assert!(
     !paths.iter().any(|path| path.starts_with("people")),
@@ -403,7 +402,7 @@ _label: "Secret"
       ),
     ],
   );
-  let paths = sidebar_paths_for_vault(&db, &vault, files);
+  let paths = get_sidebar_paths_for_vault(&db, &vault, files);
 
   assert!(
     paths.iter().any(|path| path.contains("alice")),
@@ -453,7 +452,7 @@ _label: "Alice"
       ),
     ],
   );
-  let paths = sidebar_paths_for_vault(&db, &vault, files);
+  let paths = get_sidebar_paths_for_vault(&db, &vault, files);
 
   assert_eq!(paths.len(), 3, "all files should appear: {paths:?}");
 }
@@ -486,7 +485,7 @@ _label: "Alice"
       ),
     ],
   );
-  let paths = sidebar_paths_for_vault(&db, &vault, files);
+  let paths = get_sidebar_paths_for_vault(&db, &vault, files);
 
   assert!(
     paths.iter().any(|path| path.contains("alice")),

@@ -23,6 +23,7 @@ pub(crate) struct ResourceFields {
   pub label: Option<String>,
   pub icon: Option<ExportedIcon>,
   pub seo_metadata: Option<ExportedSeoMeta>,
+  pub ssg_flags: ExportedSsgFlags,
   pub header: serde_json::Value,
   pub metadata: ExportedFileMetadata,
   pub excerpt: Option<String>,
@@ -35,6 +36,7 @@ pub(crate) struct BlobFields {
   pub metadata: ExportedFileMetadata,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ResourceKind {
   Blob(BlobFields),
   Content(ResourceFields),
@@ -59,24 +61,33 @@ pub fn export_resource_summary(
   }
 }
 
-/// Returns true if the file should be excluded from the sidebar
-pub fn is_hidden_from_sidebar(db: &TypedownDatabase, project: Project, file: File) -> bool {
+/// Extract SSG flags from the _ssg builtin field
+pub fn export_ssg_flags(db: &TypedownDatabase, project: Project, file: File) -> ExportedSsgFlags {
   let Some(symbol) = file_symbol(db, project, file).value(db) else {
-    return false;
+    return ExportedSsgFlags::default();
   };
   let Some(obj) = evaluate_resource(db, symbol).value(db) else {
-    return false;
+    return ExportedSsgFlags::default();
   };
   let Some(ssg_obj) = obj.get_builtin_field(db, "_ssg") else {
-    return false;
+    return ExportedSsgFlags::default();
   };
   if ssg_obj.is_td_null_obj() {
-    return false;
+    return ExportedSsgFlags::default();
   }
-  ssg_obj
-    .get_owned_field(db, "show_in_sidebar")
-    .and_then(|field| field.as_td_bool_obj().map(|bool_obj| !bool_obj.value(db)))
-    .unwrap_or(false)
+
+  let extract_bool = |key: &str| -> bool {
+    ssg_obj
+      .get_owned_field(db, key)
+      .and_then(|field| field.as_td_bool_obj().map(|bool_obj| bool_obj.value(db)))
+      .unwrap_or(true)
+  };
+
+  ExportedSsgFlags {
+    show_in_sidebar: extract_bool("show_in_sidebar"),
+    show_in_search: extract_bool("show_in_search"),
+    crawlable: extract_bool("crawlable"),
+  }
 }
 
 /// Export a lightweight sidebar nav entry (no header or body)
@@ -121,7 +132,7 @@ pub(crate) fn extract_resource(
     }));
   }
 
-  let (schema, header, label, icon, seo_metadata) = if let Some(ref obj) = obj {
+  let (schema, header, label, icon, seo_metadata, ssg_flags) = if let Some(ref obj) = obj {
     let schema = if let Some(schema_obj) = obj.as_td_schema_obj() {
       Some(schema_obj.schema(db).display_name(db))
     } else if obj.as_td_product_obj().is_some() || obj.as_td_dict_obj().is_some() {
@@ -150,8 +161,9 @@ pub(crate) fn extract_resource(
     });
 
     let seo_metadata = export_seo_metadata(db, project, obj);
+    let ssg_flags = export_ssg_flags(db, project, file);
 
-    (schema, header, label, icon, seo_metadata)
+    (schema, header, label, icon, seo_metadata, ssg_flags)
   } else {
     (
       None,
@@ -159,6 +171,7 @@ pub(crate) fn extract_resource(
       None,
       None,
       None,
+      ExportedSsgFlags::default(),
     )
   };
 
@@ -187,6 +200,7 @@ pub(crate) fn extract_resource(
     label,
     icon,
     seo_metadata,
+    ssg_flags,
     header,
     metadata,
     excerpt,
@@ -231,7 +245,11 @@ fn export_seo_metadata(
     })
   });
 
-  if title.is_none() && description.is_none() && image.is_none() {
+  let lang = meta_obj
+    .get_owned_field(db, "lang")
+    .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
+
+  if title.is_none() && description.is_none() && image.is_none() && lang.is_none() {
     return None;
   }
 
@@ -239,6 +257,7 @@ fn export_seo_metadata(
     title,
     description,
     image,
+    lang,
   })
 }
 
@@ -467,19 +486,61 @@ mod tests {
   #[test]
   fn hidden_from_sidebar_when_ssg_flag_set() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "hidden_from_sidebar.td");
+    let flags = export_ssg_flags(&db, project, file);
     assert!(
-      is_hidden_from_sidebar(&db, project, file),
+      !flags.show_in_sidebar,
       "file with _ssg.show_in_sidebar: false should be hidden"
     );
   }
 
   #[test]
-  fn not_hidden_from_sidebar_by_default() {
+  fn ssg_defaults_when_no_ssg_field() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
+    let flags = export_ssg_flags(&db, project, file);
     assert!(
-      !is_hidden_from_sidebar(&db, project, file),
-      "file without _ssg should not be hidden"
+      flags.show_in_sidebar,
+      "show_in_sidebar should default to true"
     );
+    assert!(
+      flags.show_in_search,
+      "show_in_search should default to true"
+    );
+    assert!(flags.crawlable, "crawlable should default to true");
+  }
+
+  #[test]
+  fn ssg_show_in_search_false() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "ssg_no_search.td");
+    let flags = export_ssg_flags(&db, project, file);
+    assert!(
+      flags.show_in_sidebar,
+      "show_in_sidebar should still be true"
+    );
+    assert!(!flags.show_in_search, "show_in_search should be false");
+    assert!(flags.crawlable, "crawlable should still be true");
+  }
+
+  #[test]
+  fn ssg_crawlable_false() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "ssg_not_crawlable.td");
+    let flags = export_ssg_flags(&db, project, file);
+    assert!(
+      flags.show_in_sidebar,
+      "show_in_sidebar should still be true"
+    );
+    assert!(flags.show_in_search, "show_in_search should still be true");
+    assert!(!flags.crawlable, "crawlable should be false");
+  }
+
+  #[test]
+  fn meta_lang_exported() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "meta_with_lang.td");
+    let exported = export_resource_html(&db, project, file).expect("should export");
+    let seo = exported
+      .seo_metadata
+      .expect("seo_metadata should be present");
+    assert_eq!(seo.lang.as_deref(), Some("vi"));
+    assert_eq!(seo.title.as_deref(), Some("Người Việt"));
   }
 
   #[test]

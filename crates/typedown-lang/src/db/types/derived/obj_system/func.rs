@@ -40,9 +40,14 @@ impl<'db> TdRuntimeObj<'db> for TdFuncTyp<'db> {
     let params: Vec<String> = signature
       .params(db)
       .iter()
+      .filter_map(|param| param.resolve(db))
       .map(|param| param.source_path(db))
       .collect();
-    let ret = signature.ret(db).source_path(db);
+    let ret = signature
+      .ret(db)
+      .resolve(db)
+      .map(|typ| typ.source_path(db))
+      .unwrap_or_default();
     format!("@builtin::function[({}) -> {}]", params.join(", "), ret)
   }
 }
@@ -53,9 +58,14 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
     let params: Vec<String> = signature
       .params(db)
       .iter()
+      .filter_map(|param| param.resolve(db))
       .map(|param| param.display_name(db))
       .collect();
-    let ret = signature.ret(db).display_name(db);
+    let ret = signature
+      .ret(db)
+      .resolve(db)
+      .map(|typ| typ.display_name(db))
+      .unwrap_or_default();
     format!("fn({}) -> {}", params.join(", "), ret)
   }
 
@@ -76,7 +86,11 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
       };
     };
 
-    let params = signature.params(db);
+    let params: Vec<TdTypEnum<'db>> = signature
+      .params(db)
+      .iter()
+      .filter_map(|param| param.resolve(db))
+      .collect();
     let bound_vars = typ_params.params(db);
     let target_binder = TdBoundVariableTyp::binder(bound_vars[0], db);
 
@@ -134,10 +148,19 @@ impl<'db> TdStaticTyp<'db> for TdFuncTyp<'db> {
       .iter()
       .map(|param| substitute_bound_variables(db, param, &target_binder, &resolved))
       .collect();
-    let new_ret = substitute_bound_variables(db, &signature.ret(db), &target_binder, &resolved);
+    let ret_typ = signature
+      .ret(db)
+      .resolve(db)
+      .unwrap_or_else(|| get_func_typ(db, signature).into());
+    let new_ret = substitute_bound_variables(db, &ret_typ, &target_binder, &resolved);
 
     CallTypResult {
-      signature: Some(FuncSignature::new(db, None, new_params, new_ret)),
+      signature: Some(FuncSignature::new(
+        db,
+        None,
+        new_params.into_iter().map(LazyTyp::eager).collect(),
+        LazyTyp::eager(new_ret),
+      )),
       diagnostics,
     }
   }
@@ -149,7 +172,15 @@ impl<'db> TdFuncTyp<'db> {
     params: Vec<TdTypEnum<'db>>,
     ret: TdTypEnum<'db>,
   ) -> TdFuncTyp<'db> {
-    get_func_typ(db, FuncSignature::new(db, None, params, ret))
+    get_func_typ(
+      db,
+      FuncSignature::new(
+        db,
+        None,
+        params.into_iter().map(LazyTyp::eager).collect(),
+        LazyTyp::eager(ret),
+      ),
+    )
   }
 }
 

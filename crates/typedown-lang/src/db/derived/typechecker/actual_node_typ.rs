@@ -1,8 +1,7 @@
 //! Tracked query to get the actual (bottom-up) type of an AST node
 // This is the idea of bidirectional typechecking
 
-use std::collections::BTreeMap;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
@@ -21,8 +20,8 @@ use crate::db::types::derived::obj_system::{
 };
 use crate::db::types::{
   Binder, BuiltinMacroKind, FuncSignature, LazyTyp, LitValue, ProjectRedNode, Symbol, SymbolKind,
-  TdBoundVariableTyp, TdDictTyp, TdFreeVariableTyp, TdListTyp, TdMetatypeInstanceTyp, TdTypEnum,
-  TypParams, TypResult, Variance,
+  TdBoundVariableTyp, TdDictTyp, TdFreeVariableTyp, TdListTyp, TdMetatypeInstanceTyp, TdSchemaTyp,
+  TdTypEnum, TypParams, TypResult, Variance,
 };
 use crate::db::types::{File, Project};
 use crate::db::utils::resolve_fref_path;
@@ -31,6 +30,7 @@ use crate::syntax::ast::{
   PostfixExpr, SourceFile, StringLit, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
 use crate::syntax::diagnostic::*;
+use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
@@ -275,7 +275,36 @@ fn get_mapping_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     }
   }
 
-  // No _type: infer a structural shape from the entries
+  // If the parent field's declared type contains a schema, infer this mapping as that schema
+  let parent_field_name = get_parent_field_name(&project_node.node);
+  let expected = parent_field_name.and_then(|name| TdSchemaTyp::builtin_field_typ(db, &name));
+  let schema_candidates: Vec<TdSchemaTyp> = match expected.as_ref() {
+    Some(TdTypEnum::TdSchemaTyp(schema)) => vec![*schema],
+    Some(TdTypEnum::TdSumTyp(sum)) => sum
+      .members(db)
+      .iter()
+      .filter_map(|member| {
+        member
+          .resolve(db)
+          .and_then(|resolved| resolved.as_td_schema_typ().copied())
+      })
+      .collect(),
+    _ => vec![],
+  };
+
+  let entry_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
+
+  for schema in &schema_candidates {
+    let schema_fields = schema.get_fields(db);
+    let all_keys_known = entry_keys
+      .iter()
+      .all(|key| key.starts_with('_') || schema_fields.contains_key(*key));
+    if all_keys_known {
+      return TypResult::new(db, Some((*schema).into()), vec![]);
+    }
+  }
+
+  // No _type and no schema expected: infer a structural shape from the entries
   let mut diagnostics = vec![];
   let mut fields = BTreeMap::new();
   for (key, value_node) in entries {
@@ -461,7 +490,7 @@ fn get_call_typ<'db>(
     diagnostics.push(kind.into_error(call_offset, call_len));
   }
   if let Some(signature) = call_result.signature {
-    return TypResult::new(db, Some(signature.ret(db)), diagnostics);
+    return TypResult::new(db, signature.ret(db).resolve(db), diagnostics);
   }
 
   TypResult::new(db, None, diagnostics)
@@ -623,7 +652,7 @@ fn get_index_typ<'db>(
     .unwrap_or_else(|| get_number_typ(db).into());
 
   if let Some(signature) = expr_typ.index_typ(db, &key_typ) {
-    return TypResult::new(db, Some(signature.ret(db)), diagnostics);
+    return TypResult::new(db, signature.ret(db).resolve(db), diagnostics);
   }
 
   TypResult::new(db, None, diagnostics)
@@ -645,12 +674,21 @@ fn generalize_free_variables<'db>(
     }
     TdTypEnum::TdFuncTyp(func) => {
       let signature = func.signature(db);
-      let new_params: Vec<TdTypEnum<'db>> = signature
+      let new_params: Vec<LazyTyp<'db>> = signature
         .params(db)
         .iter()
-        .map(|param| generalize_free_variables(db, param, mapping))
+        .filter_map(|param| {
+          let resolved = param.resolve(db)?;
+          Some(LazyTyp::eager(generalize_free_variables(
+            db, &resolved, mapping,
+          )))
+        })
         .collect();
-      let new_ret = generalize_free_variables(db, &signature.ret(db), mapping);
+      let new_ret = signature
+        .ret(db)
+        .resolve(db)
+        .map(|resolved| LazyTyp::eager(generalize_free_variables(db, &resolved, mapping)))
+        .unwrap_or(signature.ret(db));
       get_func_typ(
         db,
         FuncSignature::new(db, signature.typ_params(db), new_params, new_ret),
@@ -752,22 +790,25 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
   let expected = expected_node_typ(db, project_node.clone()).typ(db);
   let param_typs: Vec<TdTypEnum> = match expected {
     Some(TdTypEnum::TdFuncTyp(func)) => {
-      let typs = func.signature(db).params(db);
-      if typs.len() != params.len() {
+      let lazy_typs = func.signature(db).params(db);
+      if lazy_typs.len() != params.len() {
         let (trimmed_offset, trimmed_len) = project_node.node.trimmed_range();
         return TypResult::new(
           db,
           None,
           vec![
             TdDiagnosticKind::WrongArgCount {
-              expected: typs.len(),
+              expected: lazy_typs.len(),
               got: params.len(),
             }
             .into_error(trimmed_offset, trimmed_offset + trimmed_len),
           ],
         );
       }
-      typs
+      lazy_typs
+        .iter()
+        .filter_map(|lazy| lazy.resolve(db))
+        .collect()
     }
     _ => {
       // No expected type: infer each param type from body usage
@@ -850,12 +891,30 @@ fn get_closure_typ<'db>(db: &'db TypedownDatabase, project_node: ProjectRedNode)
     Some(TypParams::new(db, bound_variables, vec![]))
   };
 
-  let signature = FuncSignature::new(db, typ_params, param_typs, ret);
+  let lazy_params: Vec<LazyTyp> = param_typs.into_iter().map(LazyTyp::eager).collect();
+  let signature = FuncSignature::new(db, typ_params, lazy_params, LazyTyp::eager(ret));
   let func_typ = get_func_typ(db, signature);
   TypResult::new(
     db,
     Some(func_typ.into()),
     body_result.diagnostics(db).clone(),
+  )
+}
+
+fn get_parent_field_name(node: &RedNode) -> Option<String> {
+  let value_node = node.parent()?;
+  if value_node.kind() != SyntaxKind::YamlMappingEntryValue {
+    return None;
+  }
+  let entry_node = value_node.parent()?;
+  if entry_node.kind() != SyntaxKind::YamlMappingEntry {
+    return None;
+  }
+  Some(
+    entry_node
+      .children()
+      .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)?
+      .text(),
   )
 }
 
@@ -1118,7 +1177,12 @@ mod tests {
     let field_typ = number_lit
       .lookup_field_typ(&db, "to_string")
       .expect("should have to_string method");
-    let expected_signature = FuncSignature::new(&db, None, vec![], get_string_typ(&db).into());
+    let expected_signature = FuncSignature::new(
+      &db,
+      None,
+      vec![],
+      LazyTyp::eager(get_string_typ(&db).into()),
+    );
     let expected_func_typ: TdTypEnum = get_func_typ(&db, expected_signature).into();
 
     assert_eq!(field_typ, expected_func_typ);
@@ -1321,8 +1385,10 @@ mod tests {
     let result = generalize_free_variables(&db, &func, &mapping);
     if let TdTypEnum::TdFuncTyp(result_func) = result {
       let signature = result_func.signature(&db);
-      assert_eq!(signature.params(&db)[0], bound_variables[0].into());
-      assert_eq!(signature.ret(&db), bound_variables[0].into());
+      let param_typ = signature.params(&db)[0].resolve(&db).unwrap();
+      let ret_typ = signature.ret(&db).resolve(&db).unwrap();
+      assert_eq!(param_typ, bound_variables[0].into());
+      assert_eq!(ret_typ, bound_variables[0].into());
     } else {
       panic!("expected function type");
     }

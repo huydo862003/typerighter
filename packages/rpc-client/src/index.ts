@@ -155,6 +155,7 @@ export interface TdSeoMeta {
   title?: string;
   description?: string;
   image?: string;
+  lang?: string;
 }
 
 export interface TdBuiltResource {
@@ -169,6 +170,9 @@ export interface TdBuiltResource {
   excerpt?: string;
   fileMetadata: TdFileMetadata;
   seoMetadata?: TdSeoMeta;
+  showInSidebar: boolean;
+  showInSearch: boolean;
+  crawlable: boolean;
 }
 
 // Server-reserved JSON-RPC error code for cancelled queries (-32000 to -32099)

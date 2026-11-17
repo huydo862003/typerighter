@@ -244,7 +244,7 @@ mod tests {
       TdExistentialTyp::new(&db, existential_params, Some(LazyTyp::eager(list_string)));
 
     let index_signature = existential_typ.index_typ(&db, &number_typ).unwrap();
-    assert_eq!(index_signature.ret(&db), string_typ);
+    assert_eq!(index_signature.ret(&db).resolve(&db).unwrap(), string_typ);
   }
 
   #[test]
@@ -253,7 +253,12 @@ mod tests {
     let string_typ: TdTypEnum = get_string_typ(&db).into();
     let number_typ: TdTypEnum = get_number_typ(&db).into();
 
-    let signature = FuncSignature::new(&db, None, vec![string_typ.clone()], number_typ.clone());
+    let signature = FuncSignature::new(
+      &db,
+      None,
+      vec![LazyTyp::eager(string_typ.clone())],
+      LazyTyp::eager(number_typ.clone()),
+    );
     let func_typ: TdTypEnum = get_func_typ(&db, signature).into();
 
     let existential_params = TypParams::new(&db, vec![], vec![]);
@@ -262,6 +267,14 @@ mod tests {
 
     let call_result = existential_typ.call_typ(&db, vec![string_typ]);
     assert!(call_result.diagnostics.is_empty());
-    assert_eq!(call_result.signature.unwrap().ret(&db), number_typ);
+    assert_eq!(
+      call_result
+        .signature
+        .unwrap()
+        .ret(&db)
+        .resolve(&db)
+        .unwrap(),
+      number_typ
+    );
   }
 }

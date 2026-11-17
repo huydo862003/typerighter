@@ -37,6 +37,8 @@ export interface PageData {
   seoMetadata?: SeoMeta;
   /** Plain-text excerpt from the page body, used as description fallback */
   excerpt?: string;
+  showInSearch?: boolean;
+  crawlable?: boolean;
 }
 
 export interface PageModule {
@@ -48,6 +50,7 @@ export interface SeoMeta {
   title?: string;
   description?: string;
   image?: string;
+  lang?: string;
 }
 
 export interface TypedownData {

@@ -4,8 +4,8 @@ use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{get_number_typ, get_string_typ};
-use crate::db::types::FuncSignature;
 use crate::db::types::Project;
+use crate::db::types::{FuncSignature, LazyTyp};
 use typedown_incremental::Id;
 
 #[query_derived]
@@ -49,7 +49,12 @@ impl<'db> TdStaticTyp<'db> for TdStringTyp<'db> {
     _key_typ: &TdTypEnum<'db>,
   ) -> Option<FuncSignature<'db>> {
     let key_typ: TdTypEnum = get_number_typ(db).into();
-    Some(FuncSignature::new(db, None, vec![key_typ], (*self).into()))
+    Some(FuncSignature::new(
+      db,
+      None,
+      vec![LazyTyp::eager(key_typ)],
+      LazyTyp::eager((*self).into()),
+    ))
   }
 }
 

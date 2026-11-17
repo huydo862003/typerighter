@@ -66,6 +66,10 @@ function readPage (rootDirectory: string, filepath: string): PageIndexInput | un
 
   if (!raw.trim()) return undefined;
 
+  const fields = extractFrontmatterBuiltinFields(raw);
+
+  if (fields?.showInSearch === false) return undefined;
+
   const relative = filepath.slice(rootDirectory.length + 1);
   const {
     title, body,

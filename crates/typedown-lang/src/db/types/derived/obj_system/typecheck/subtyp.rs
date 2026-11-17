@@ -313,8 +313,16 @@ fn is_subtyp_of_env<'db>(
       (TdTypEnum::TdFuncTyp(subtyp_func), TdTypEnum::TdFuncTyp(supertyp_func)) => {
         let subtyp_signature = subtyp_func.signature(db);
         let supertyp_signature = supertyp_func.signature(db);
-        let subtyp_params = subtyp_signature.params(db);
-        let supertyp_params = supertyp_signature.params(db);
+        let subtyp_params: Vec<TdTypEnum<'db>> = subtyp_signature
+          .params(db)
+          .iter()
+          .filter_map(|param| param.resolve(db))
+          .collect();
+        let supertyp_params: Vec<TdTypEnum<'db>> = supertyp_signature
+          .params(db)
+          .iter()
+          .filter_map(|param| param.resolve(db))
+          .collect();
         if subtyp_params.len() != supertyp_params.len() {
           return false;
         }
@@ -326,8 +334,12 @@ fn is_subtyp_of_env<'db>(
         }
         // Return type is covariant: subtype return type must be a subtype of supertype return type
         {
-          let sub_ret = subtyp_signature.ret(db);
-          let super_ret = supertyp_signature.ret(db);
+          let Some(sub_ret) = subtyp_signature.ret(db).resolve(db) else {
+            return false;
+          };
+          let Some(super_ret) = supertyp_signature.ret(db).resolve(db) else {
+            return false;
+          };
           is_subtyp_of_env(db, &sub_ret, &super_ret, env)
         }
       }

@@ -236,7 +236,17 @@ export async function buildSite(
       mtimeMap.set(pageRoute, item.fileMetadata.mtimeSecs);
     }
 
-    const sitemap = buildSitemap(pageRoutes, base, origin, mtimeMap);
+    // Filter out non-crawlable pages from the sitemap
+    const resources = await tdContext.getFiles(files);
+    const nonCrawlableFiles = new Set(
+      files.filter((_, index) => resources[index].crawlable === false),
+    );
+    const crawlableRoutes = pageRoutes.filter((route) => {
+      const filepath = route === '/' ? 'index' : tdpath.stripLeadingSlash(route);
+
+      return !nonCrawlableFiles.has(filepath + '.td') && !nonCrawlableFiles.has(filepath + '.md');
+    });
+    const sitemap = buildSitemap(crawlableRoutes, base, origin, mtimeMap);
     const writes: Promise<void>[] = [
       fs.writeFile(path.join(outDir, "sitemap.xml"), sitemap),
     ];

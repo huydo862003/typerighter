@@ -8,21 +8,25 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{
-  get_bool_typ, get_dict_typ, get_list_typ, get_null_typ, get_number_typ, get_obj_typ,
-  get_string_typ, get_sum_typ, get_typ_typ,
+  get_bool_typ, get_dict_typ, get_func_typ, get_list_typ, get_null_typ, get_number_typ,
+  get_obj_typ, get_string_typ, get_sum_typ, get_typ_typ,
 };
-use crate::db::types::{BuiltinSchemaKind, LazyTyp, Symbol, SymbolKind, TdProductTyp, TdStaticTyp};
+use crate::db::types::{
+  BuiltinSchemaKind, FuncSignature, LazyTyp, PropertyDescriptor, Symbol, SymbolKind, TdSchemaTyp,
+  TdStaticTyp,
+};
 
 fn get_schema_prop_symbol(db: &TypedownDatabase) -> Symbol {
   Symbol::new(db, SymbolKind::BuiltinSchema(BuiltinSchemaKind::SchemaProp))
 }
 
 #[query_derived]
-pub fn get_schema_prop_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> {
+pub fn get_schema_prop_typ<'db>(db: &'db TypedownDatabase) -> TdSchemaTyp<'db> {
   let typ_typ = get_typ_typ(db).into();
   let string_typ = get_string_typ(db).into();
   let bool_typ = get_bool_typ(db).into();
   let number_typ = get_number_typ(db).into();
+  let obj_typ = get_obj_typ(db).into();
 
   // The base scalar types that the `type` field accepts
   let base_typ_lazys = vec![
@@ -68,7 +72,7 @@ pub fn get_schema_prop_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> 
     .typ(db);
 
   // type field: sum of [base types, list[...], dict[...]]
-  let typ_field = LazyTyp::eager(
+  let typ_field_typ = LazyTyp::eager(
     get_sum_typ(
       db,
       [
@@ -83,12 +87,34 @@ pub fn get_schema_prop_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> 
   );
 
   // default field: Object | Null
-  // evaluate_type will enforce that the default value actually of the type declared in field "type"
-  let default_field = LazyTyp::eager(
+  let nullable_obj = LazyTyp::eager(
     get_sum_typ(
       db,
       vec![
-        LazyTyp::eager(get_obj_typ(db).into()),
+        LazyTyp::eager(obj_typ),
+        LazyTyp::eager(get_null_typ(db).into()),
+      ],
+    )
+    .into(),
+  );
+
+  // computed field: function (obj) -> obj | null
+  let computed_func_typ = LazyTyp::eager(
+    get_sum_typ(
+      db,
+      vec![
+        LazyTyp::eager(
+          get_func_typ(
+            db,
+            FuncSignature::new(
+              db,
+              None,
+              vec![LazyTyp::eager(get_obj_typ(db).into())],
+              LazyTyp::eager(get_obj_typ(db).into()),
+            ),
+          )
+          .into(),
+        ),
         LazyTyp::eager(get_null_typ(db).into()),
       ],
     )
@@ -96,9 +122,39 @@ pub fn get_schema_prop_typ<'db>(db: &'db TypedownDatabase) -> TdProductTyp<'db> 
   );
 
   let fields = BTreeMap::from([
-    ("type".to_string(), typ_field),
-    ("default".to_string(), default_field),
+    (
+      "type".to_string(),
+      PropertyDescriptor {
+        field_typ: typ_field_typ,
+        default_value: None,
+        computed_func: None,
+      },
+    ),
+    (
+      "default".to_string(),
+      PropertyDescriptor {
+        field_typ: nullable_obj.clone(),
+        default_value: None,
+        computed_func: None,
+      },
+    ),
+    (
+      "computed".to_string(),
+      PropertyDescriptor {
+        field_typ: computed_func_typ,
+        default_value: None,
+        computed_func: None,
+      },
+    ),
   ]);
 
-  TdProductTyp::new(db, Some("SchemaProperty".to_string()), fields)
+  TdSchemaTyp::new(
+    db,
+    "SchemaProperty".to_string(),
+    BTreeMap::new(),
+    fields,
+    BTreeMap::new(),
+    None,
+    None,
+  )
 }

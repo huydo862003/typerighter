@@ -11,7 +11,7 @@ pub use crate::integrations::bindings::{
   resolve_schema_label, serialize_handle, serialize_value,
 };
 pub use content::{export_resource_html, export_resource_markdown};
-pub use frontmatter::{export_resource_nav, export_resource_summary, is_hidden_from_sidebar};
+pub use frontmatter::{export_resource_nav, export_resource_summary, export_ssg_flags};
 pub use props::{Widget, export_prop_descriptors};
 pub use types::*;
 

@@ -20,7 +20,7 @@ use typedown_types::either::Either;
 pub struct PropertyDescriptor<'db> {
   pub field_typ: LazyTyp<'db>,
   pub default_value: Option<TdObjEnum<'db>>,
-  pub computed_func: Option<TdObjEnum<'db>>,
+  pub computed_func: Option<Either<ProjectRedNode, TdObjEnum<'db>>>,
 }
 
 impl<'db> StableHash for PropertyDescriptor<'db> {
@@ -43,7 +43,7 @@ impl<'db> Decodable for PropertyDescriptor<'db> {
   fn decode(data: &mut &[u8], decoder: &Decoder) -> Self {
     let field_typ = LazyTyp::decode(data, decoder);
     let default_value = Option::<TdObjEnum>::decode(data, decoder);
-    let computed_func = Option::<TdObjEnum<'db>>::decode(data, decoder);
+    let computed_func = Option::<Either<ProjectRedNode, TdObjEnum<'db>>>::decode(data, decoder);
     PropertyDescriptor {
       field_typ,
       default_value,

@@ -4,7 +4,7 @@ use super::base::{TdRuntimeObj, TdStaticTyp, TdTypTyp};
 use super::{TdObjEnum, TdTypEnum};
 use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::get_never_typ;
-use crate::db::types::{CallTypResult, FuncSignature};
+use crate::db::types::{CallTypResult, FuncSignature, LazyTyp};
 
 #[query_derived]
 pub struct TdNeverTyp<'db> {}
@@ -41,8 +41,8 @@ impl<'db> TdStaticTyp<'db> for TdNeverTyp<'db> {
     Some(FuncSignature::new(
       db,
       None,
-      vec![key_typ.clone()],
-      get_never_typ(db).into(),
+      vec![LazyTyp::eager(key_typ.clone())],
+      LazyTyp::eager(get_never_typ(db).into()),
     ))
   }
 
@@ -55,8 +55,8 @@ impl<'db> TdStaticTyp<'db> for TdNeverTyp<'db> {
       signature: Some(FuncSignature::new(
         db,
         None,
-        arg_typs,
-        get_never_typ(db).into(),
+        arg_typs.into_iter().map(LazyTyp::eager).collect(),
+        LazyTyp::eager(get_never_typ(db).into()),
       )),
       diagnostics: vec![],
     }
@@ -96,11 +96,17 @@ mod tests {
     // index type returns signature returning never
     let number_typ: TdTypEnum = get_number_typ(&db).into();
     let index_signature = never_typ.index_typ(&db, &number_typ).unwrap();
-    assert_eq!(index_signature.ret(&db), never_enum);
+    assert_eq!(
+      index_signature.ret(&db).resolve(&db),
+      Some(never_enum.clone())
+    );
 
     // call type returns signature returning never
     let call_result = never_typ.call_typ(&db, vec![number_typ]);
     assert!(call_result.diagnostics.is_empty());
-    assert_eq!(call_result.signature.unwrap().ret(&db), never_enum);
+    assert_eq!(
+      call_result.signature.unwrap().ret(&db).resolve(&db),
+      Some(never_enum)
+    );
   }
 }

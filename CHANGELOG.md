@@ -1,3 +1,22 @@
+## [0.64.0] - 2026-11-18
+
+### Added
+
+- crates/typedown-lang, crates/typedown-server
+  - **`_meta.lang`** - per-page language override via `_meta: { lang: "vi" }`
+  - **`_ssg.show_in_search`** - exclude pages from client-side search via `_ssg: { show_in_search: false }`
+  - **`_ssg.crawlable`** - prevent search engine indexing via `_ssg: { crawlable: false }`
+  - **Schema-typed builtin fields** - `_ssg` and `_meta` are now proper schema types with defaults and type validation
+  - **Lazy `FuncSignature`** - function params and return types use `LazyTyp` for deferred resolution
+  - **Deferred computed closures** - computed field closures are evaluated lazily, avoiding cycles during schema construction
+
+### Changed
+
+- crates/typedown-lang
+  - Unified builtin field handling in typechecker - builtin fields go through the same validation path as schema fields
+  - `SchemaProperty` is now a `TdSchemaTyp` with `type`, `default`, and `computed` field descriptors
+  - Computed return type validation moved from evaluate_typ to typecheck phase
+
 ## [0.63.2] - 2026-11-17
 
 - packages/typerighter

@@ -3,11 +3,13 @@
 export interface FrontmatterBuiltinFields {
   label: string | undefined;
   showInSidebar: boolean;
+  showInSearch: boolean;
+  crawlable: boolean;
 }
 
 const LABEL_RE = /^_label:\s*["'](.+)["']\s*$/;
 const SSG_BLOCK_RE = /^_ssg:\s*$/;
-const SHOW_IN_SIDEBAR_RE = /^\s+show_in_sidebar:\s*(true|false)\s*$/;
+const SSG_BOOL_RE = /^\s+(show_in_sidebar|show_in_search|crawlable):\s*(true|false)\s*$/;
 
 // Returns undefined if the file has no frontmatter block
 export function extractFrontmatterBuiltinFields (
@@ -23,16 +25,29 @@ export function extractFrontmatterBuiltinFields (
 
   let label: string | undefined;
   let showInSidebar = true;
+  let showInSearch = true;
+  let crawlable = true;
   let inSsgBlock = false;
 
   for (const line of lines) {
     if (line.startsWith(' ') || line.startsWith('\t')) {
       if (inSsgBlock) {
-        const match = SHOW_IN_SIDEBAR_RE.exec(line);
+        const match = SSG_BOOL_RE.exec(line);
 
         if (match) {
-          showInSidebar = match[1] === 'true';
-          inSsgBlock = false;
+          const value = match[2] === 'true';
+
+          switch (match[1]) {
+            case 'show_in_sidebar':
+              showInSidebar = value;
+              break;
+            case 'show_in_search':
+              showInSearch = value;
+              break;
+            case 'crawlable':
+              crawlable = value;
+              break;
+          }
         }
       }
       continue;
@@ -57,5 +72,7 @@ export function extractFrontmatterBuiltinFields (
   return {
     label,
     showInSidebar,
+    showInSearch,
+    crawlable,
   };
 }

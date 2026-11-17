@@ -9,14 +9,16 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::check_custom_components::check_custom_components;
-use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use crate::db::derived::evaluate::evaluate_typ::{evaluate_typ, resolve_typ_lazy};
 use crate::db::derived::get_builtin_typs::{get_bool_typ, get_null_typ, get_number_typ};
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::typecheck::{is_nullable, is_subtyp_of};
-use crate::db::types::{File, Project, ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult};
+use crate::db::types::{
+  File, LazyTyp, Project, ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult,
+};
 use crate::syntax::ast::{
   AstNode, Expr, IdentLit, InterpFragment, SourceFile, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
@@ -240,6 +242,22 @@ fn typecheck_md_body(
   }
 }
 
+// For nullable types like `schema | null`, extract the non-null member so field lookups work on the underlying type
+fn unwrap_nullable<'db>(db: &'db TypedownDatabase, typ: &TdTypEnum<'db>) -> TdTypEnum<'db> {
+  if let TdTypEnum::TdSumTyp(sum) = typ {
+    let non_null: Vec<_> = sum
+      .members(db)
+      .iter()
+      .filter_map(|member| member.resolve(db))
+      .filter(|resolved| !resolved.is_td_null_typ())
+      .collect();
+    if non_null.len() == 1 {
+      return non_null.into_iter().next().unwrap();
+    }
+  }
+  typ.clone()
+}
+
 fn check_mapping_fields<'db>(
   db: &'db TypedownDatabase,
   mapping_node: ProjectRedNode,
@@ -247,11 +265,25 @@ fn check_mapping_fields<'db>(
   expected_typ: &TdTypEnum<'db>,
 ) -> Vec<TdDiagnostic> {
   let mut diagnostics = vec![];
-  let declared_fields = expected_typ.get_fields(db);
+  // For nullable types like `_meta_schema | null`, unwrap to the non-null member so get_fields returns the schema's declared fields
+  let effective_typ = unwrap_nullable(db, expected_typ);
+  let mut declared_fields = effective_typ.get_fields(db);
+
+  // Skip _type/_extends (handled separately as schema references) and _content (body, not in frontmatter)
+  for (key, _) in entries {
+    if key == "_type" || key == "_extends" || key == "_content" {
+      continue;
+    }
+    if let Some(builtin_typ) = TdSchemaTyp::builtin_field_typ(db, key) {
+      declared_fields
+        .entry(key.clone())
+        .or_insert_with(|| LazyTyp::eager(builtin_typ));
+    }
+  }
 
   for (key, value_node) in entries {
-    // _type requires the value to resolve to a schema symbol
-    if key == "_type" {
+    // _type and _extends require the value to resolve to a schema symbol
+    if key == "_type" || key == "_extends" {
       let resolved = referee(db, value_node.clone());
       if let Some(symbol) = resolved.value(db)
         && !symbol.kind(db).is_schema()
@@ -259,7 +291,7 @@ fn check_mapping_fields<'db>(
         let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
         diagnostics.push(
           TdDiagnosticKind::FieldTypMismatch {
-            field: "_type".to_string(),
+            field: key.clone(),
             expected: "schema".to_string(),
           }
           .into_error(trimmed_offset, trimmed_offset + trimmed_len),
@@ -267,25 +299,15 @@ fn check_mapping_fields<'db>(
       }
       continue;
     }
-    // Built-in fields (_label, _icon) have fixed types
-    if let Some(builtin_typ) = TdSchemaTyp::builtin_field_typ(db, key) {
-      let value_result = actual_node_typ(db, value_node.clone());
-      if let Some(actual_typ) = value_result.typ(db)
-        && !is_subtyp_of(db, &actual_typ, &builtin_typ)
-      {
-        let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
-        diagnostics.push(
-          TdDiagnosticKind::FieldTypMismatch {
-            field: key.clone(),
-            expected: builtin_typ.display_name(db),
-          }
-          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-        );
-      }
-      continue;
-    }
+
     if let Some(field_lazy) = declared_fields.get(key) {
       if let Some(field_typ) = field_lazy.resolve(db) {
+        // Schema property descriptor mappings are validated during evaluate_typ
+        if expected_typ.as_td_schema_meta_typ().is_some() && value_node.mapping_entries().is_some()
+        {
+          continue;
+        }
+
         // Recursively typecheck the field value
         let typecheck_result = typecheck(db, value_node.clone());
         diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
@@ -293,15 +315,8 @@ fn check_mapping_fields<'db>(
         // Check synthesized type against expected field type
         let value_result = actual_node_typ(db, value_node.clone());
         let is_optional = is_nullable(db, &field_typ);
-        // Skip structural subtype check for schema declaration fields that hold mappings:
-        // schema metatype fields like `properties` are validated structurally during
-        // schema member resolution, not via subtype comparison here
-        let is_schema_meta_mapping =
-          expected_typ.as_td_schema_meta_typ().is_some() && value_node.mapping_entries().is_some();
         match value_result.typ(db) {
-          Some(actual_typ)
-            if !is_subtyp_of(db, &actual_typ, &field_typ) && !is_schema_meta_mapping =>
-          {
+          Some(actual_typ) if !is_subtyp_of(db, &actual_typ, &field_typ) => {
             let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
             diagnostics.push(
               TdDiagnosticKind::FieldTypMismatch {
@@ -370,6 +385,39 @@ fn check_mapping_fields<'db>(
                 .into_error(offset, offset + len),
               );
             }
+
+            // Validate computed closure return type against declared field type
+            for (prop_name, computed_node) in &descriptor_entries {
+              if prop_name != "computed" {
+                continue;
+              }
+              let computed_typ = actual_node_typ(db, computed_node.clone());
+              diagnostics.extend(computed_typ.diagnostics(db).iter().cloned());
+
+              if let Some(TdTypEnum::TdFuncTyp(func)) = computed_typ.typ(db)
+                && let Some(ret_typ) = func.signature(db).ret(db).resolve(db)
+              {
+                // Get the declared field type from the sibling `type:` entry
+                let declared = descriptor_entries
+                  .iter()
+                  .find(|(key, _)| key == "type")
+                  .and_then(|(_, typ_node)| resolve_typ_lazy(db, typ_node.clone(), &mut vec![]))
+                  .and_then(|lazy| lazy.resolve(db));
+
+                if let Some(declared_typ) = declared
+                  && !is_subtyp_of(db, &ret_typ, &declared_typ)
+                {
+                  let (offset, len) = computed_node.node.trimmed_range();
+                  diagnostics.push(
+                    TdDiagnosticKind::FieldTypMismatch {
+                      field: "computed".to_string(),
+                      expected: declared_typ.display_name(db),
+                    }
+                    .into_error(offset, offset + len),
+                  );
+                }
+              }
+            }
           }
         }
       }
@@ -381,28 +429,28 @@ fn check_mapping_fields<'db>(
   let (trimmed_offset, trimmed_len) = mapping_node.node.trimmed_range();
   let present_keys: HashSet<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
 
-  let default_fields: HashSet<String> = expected_typ
+  let schema_descriptors = effective_typ
     .as_td_schema_typ()
-    .map(|path| {
-      path
-        .fields(db)
-        .iter()
-        .filter_map(|(key, descriptor)| {
-          if descriptor.default_value.is_some() {
-            Some(key.clone())
-          } else {
-            None
-          }
-        })
-        .collect()
-    })
+    .map(|schema| schema.fields(db))
     .unwrap_or_default();
+
+  // Fields with defaults or computed values can be omitted
+  let optional_fields: HashSet<String> = schema_descriptors
+    .iter()
+    .filter_map(|(key, descriptor)| {
+      if descriptor.default_value.is_some() || descriptor.computed_func.is_some() {
+        Some(key.clone())
+      } else {
+        None
+      }
+    })
+    .collect();
 
   for (field_name, field_lazy) in declared_fields {
     let is_optional = field_lazy
       .resolve(db)
       .is_some_and(|typ| is_nullable(db, &typ))
-      || default_fields.contains(&field_name);
+      || optional_fields.contains(&field_name);
     if !is_optional && !present_keys.contains(field_name.as_str()) {
       diagnostics.push(
         TdDiagnosticKind::MissingRequiredField { field: field_name }
@@ -466,7 +514,11 @@ fn check_call(
       .push(TdDiagnosticKind::NotCallable.into_error(trimmed_offset, trimmed_offset + trimmed_len));
     return diagnostics;
   };
-  let params = signature.params(db);
+  let lazy_params = signature.params(db);
+  let params: Vec<TdTypEnum> = lazy_params
+    .iter()
+    .filter_map(|lazy| lazy.resolve(db))
+    .collect();
 
   if args.len() > params.len() {
     diagnostics.push(
@@ -1883,6 +1935,47 @@ mod tests {
         }
       )),
       "providing more args than params should emit WrongArgCount: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_default_field_can_be_omitted() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "default_field_omitted.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "omitting a field with default should not error: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_computed_field_can_be_omitted() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "computed_field_omitted.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "omitting a computed field should not error: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_computed_wrong_return_type() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/ComputedWrongReturn.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    let has_mismatch = result
+      .diagnostics(&db)
+      .iter()
+      .any(|diagnostic| diagnostic.code_str() == "field-typ-mismatch");
+    assert!(
+      has_mismatch,
+      "computed with wrong return type should produce field-typ-mismatch: {:?}",
       result.diagnostics(&db)
     );
   }

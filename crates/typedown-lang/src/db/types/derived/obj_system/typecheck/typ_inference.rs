@@ -45,13 +45,31 @@ pub(crate) fn substitute_bound_variables<'db>(
     TdTypEnum::TdFreeVariableTyp(_) | TdTypEnum::TdExistentialVariableTyp(_) => typ.clone(),
     TdTypEnum::TdFuncTyp(func) => {
       let signature = func.signature(db);
-      let new_params: Vec<TdTypEnum<'db>> = signature
+      let new_params: Vec<LazyTyp<'db>> = signature
         .params(db)
         .iter()
-        .map(|param| substitute_bound_variables(db, param, target_binder, bindings))
+        .filter_map(|param| {
+          let resolved = param.resolve(db)?;
+          Some(LazyTyp::eager(substitute_bound_variables(
+            db,
+            &resolved,
+            target_binder,
+            bindings,
+          )))
+        })
         .collect();
-      let new_ret = substitute_bound_variables(db, &signature.ret(db), target_binder, bindings);
-      // preserve typ_params so inner type variables are not dropped
+      let new_ret = signature
+        .ret(db)
+        .resolve(db)
+        .map(|resolved| {
+          LazyTyp::eager(substitute_bound_variables(
+            db,
+            &resolved,
+            target_binder,
+            bindings,
+          ))
+        })
+        .unwrap_or(signature.ret(db));
       get_func_typ(
         db,
         FuncSignature::new(db, signature.typ_params(db), new_params, new_ret),
@@ -138,11 +156,14 @@ pub(crate) fn substitute_bound_variables<'db>(
       let vtable = schema.vtable(db);
       let has_variables = vtable.values().any(|func| {
         let signature = func.signature(db);
-        signature
-          .params(db)
-          .iter()
-          .chain(std::iter::once(&signature.ret(db)))
-          .any(|typ| contains_variable(db, typ))
+        signature.params(db).iter().any(|lazy| {
+          lazy
+            .resolve(db)
+            .is_some_and(|typ| contains_variable(db, &typ))
+        }) || signature
+          .ret(db)
+          .resolve(db)
+          .is_some_and(|typ| contains_variable(db, &typ))
       });
       if !has_variables {
         return typ.clone();
@@ -151,12 +172,31 @@ pub(crate) fn substitute_bound_variables<'db>(
         .into_iter()
         .map(|(name, func)| {
           let signature = func.signature(db);
-          let new_params: Vec<TdTypEnum<'db>> = signature
+          let new_params: Vec<LazyTyp<'db>> = signature
             .params(db)
             .iter()
-            .map(|param| substitute_bound_variables(db, param, target_binder, bindings))
+            .filter_map(|param| {
+              let resolved = param.resolve(db)?;
+              Some(LazyTyp::eager(substitute_bound_variables(
+                db,
+                &resolved,
+                target_binder,
+                bindings,
+              )))
+            })
             .collect();
-          let new_ret = substitute_bound_variables(db, &signature.ret(db), target_binder, bindings);
+          let new_ret = signature
+            .ret(db)
+            .resolve(db)
+            .map(|resolved| {
+              LazyTyp::eager(substitute_bound_variables(
+                db,
+                &resolved,
+                target_binder,
+                bindings,
+              ))
+            })
+            .unwrap_or(signature.ret(db));
           let new_signature = FuncSignature::new(db, signature.typ_params(db), new_params, new_ret);
           let new_func = TdFuncObj::new(db, name.clone(), new_signature, func.func(db));
           (name, new_func)
@@ -234,14 +274,19 @@ pub(crate) fn infer_bindings<'db>(
         if let TdTypEnum::TdFuncTyp(func_arg) = arg {
           let param_signature = func_param.signature(db);
           let arg_signature = func_arg.signature(db);
-          let param_sig_params = param_signature.params(db);
-          let arg_sig_params = arg_signature.params(db);
-          for (param, arg) in param_sig_params.iter().zip(arg_sig_params.iter()) {
-            infer_from_pair(db, param, arg, bindings);
-          }
+          for (param_lazy, arg_lazy) in param_signature
+            .params(db)
+            .iter()
+            .zip(arg_signature.params(db).iter())
           {
-            let param_ret = param_signature.ret(db);
-            let arg_ret = arg_signature.ret(db);
+            if let (Some(param), Some(arg)) = (param_lazy.resolve(db), arg_lazy.resolve(db)) {
+              infer_from_pair(db, &param, &arg, bindings);
+            }
+          }
+          if let (Some(param_ret), Some(arg_ret)) = (
+            param_signature.ret(db).resolve(db),
+            arg_signature.ret(db).resolve(db),
+          ) {
             infer_from_pair(db, &param_ret, &arg_ret, bindings);
           }
         }
@@ -301,9 +346,16 @@ pub fn substitute_variables<'db>(
       let new_params: Vec<TdTypEnum<'db>> = signature
         .params(db)
         .iter()
-        .map(|param| substitute_variables(db, param, bindings))
+        .filter_map(|param| {
+          let resolved = param.resolve(db)?;
+          Some(substitute_variables(db, &resolved, bindings))
+        })
         .collect();
-      let new_ret = substitute_variables(db, &signature.ret(db), bindings);
+      let new_ret = signature
+        .ret(db)
+        .resolve(db)
+        .map(|resolved| substitute_variables(db, &resolved, bindings))
+        .unwrap_or_else(|| typ.clone());
       TdFuncTyp::get(db, new_params, new_ret).into()
     }
     TdTypEnum::TdListTyp(list) => {
@@ -367,11 +419,14 @@ pub fn substitute_variables<'db>(
       // Check for variables in eager types only (skip lazy to avoid resolving self-references)
       let has_variables = vtable.values().any(|func| {
         let signature = func.signature(db);
-        signature
-          .params(db)
-          .iter()
-          .chain(std::iter::once(&signature.ret(db)))
-          .any(|typ| contains_variable(db, typ))
+        signature.params(db).iter().any(|lazy| {
+          lazy
+            .resolve(db)
+            .is_some_and(|typ| contains_variable(db, &typ))
+        }) || signature
+          .ret(db)
+          .resolve(db)
+          .is_some_and(|typ| contains_variable(db, &typ))
       });
       if !has_variables {
         return typ.clone();
@@ -380,13 +435,21 @@ pub fn substitute_variables<'db>(
         .into_iter()
         .map(|(name, func)| {
           let signature = func.signature(db);
-          // Substitute params and ret directly (they are now TdTypEnum)
-          let new_params: Vec<TdTypEnum<'db>> = signature
+          let new_params: Vec<LazyTyp<'db>> = signature
             .params(db)
             .iter()
-            .map(|param| substitute_variables(db, param, bindings))
+            .filter_map(|param| {
+              let resolved = param.resolve(db)?;
+              Some(LazyTyp::eager(substitute_variables(
+                db, &resolved, bindings,
+              )))
+            })
             .collect();
-          let new_ret = substitute_variables(db, &signature.ret(db), bindings);
+          let new_ret = signature
+            .ret(db)
+            .resolve(db)
+            .map(|resolved| LazyTyp::eager(substitute_variables(db, &resolved, bindings)))
+            .unwrap_or(signature.ret(db));
           let new_signature = FuncSignature::new(db, signature.typ_params(db), new_params, new_ret);
           let new_func = TdFuncObj::new(db, name.clone(), new_signature, func.func(db));
           (name, new_func)
@@ -643,7 +706,10 @@ mod tests {
     );
 
     if let TdTypEnum::TdFuncTyp(func) = result {
-      assert_eq!(func.signature(&db).ret(&db), string_typ);
+      assert_eq!(
+        func.signature(&db).ret(&db).resolve(&db).unwrap(),
+        string_typ
+      );
     } else {
       panic!("expected function type");
     }
@@ -721,8 +787,8 @@ mod tests {
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![bound_variable_t_typ.clone()],
-      bound_variable_t_typ,
+      vec![LazyTyp::eager(bound_variable_t_typ.clone())],
+      LazyTyp::eager(bound_variable_t_typ),
     );
     let func = get_func_typ(&db, signature);
 
@@ -730,8 +796,11 @@ mod tests {
     let call_result = func.call_typ(&db, vec![string_typ.clone()]);
     assert!(call_result.diagnostics.is_empty());
     let instantiated = call_result.signature.unwrap();
-    assert_eq!(instantiated.ret(&db), string_typ);
-    assert_eq!(instantiated.params(&db)[0], string_typ);
+    assert_eq!(instantiated.ret(&db).resolve(&db).unwrap(), string_typ);
+    assert_eq!(
+      instantiated.params(&db)[0].resolve(&db).unwrap(),
+      string_typ
+    );
   }
 
   #[test]
@@ -755,8 +824,8 @@ mod tests {
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![bound_variable_t_typ.clone()],
-      bound_variable_t_typ,
+      vec![LazyTyp::eager(bound_variable_t_typ.clone())],
+      LazyTyp::eager(bound_variable_t_typ),
     );
     let func = get_func_typ(&db, signature);
 
@@ -803,15 +872,23 @@ mod tests {
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![bound_variable_t_typ],
-      bound_variable_u_typ,
+      vec![LazyTyp::eager(bound_variable_t_typ)],
+      LazyTyp::eager(bound_variable_u_typ),
     );
     let func = get_func_typ(&db, signature);
 
     // U falls back to upper bound (Obj)
     let call_result = func.call_typ(&db, vec![string_typ]);
     assert!(call_result.diagnostics.is_empty());
-    assert_eq!(call_result.signature.unwrap().ret(&db), obj_typ);
+    assert_eq!(
+      call_result
+        .signature
+        .unwrap()
+        .ret(&db)
+        .resolve(&db)
+        .unwrap(),
+      obj_typ
+    );
   }
 
   // Simulates: filter: <T>(list[T], (T) -> bool) -> list[T]
@@ -849,8 +926,11 @@ mod tests {
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![list_of_t.clone(), closure_of_t],
-      list_of_t,
+      vec![
+        LazyTyp::eager(list_of_t.clone()),
+        LazyTyp::eager(closure_of_t),
+      ],
+      LazyTyp::eager(list_of_t),
     );
     let func = get_func_typ(&db, signature);
 
@@ -863,15 +943,25 @@ mod tests {
     );
     let instantiated = call_result.signature.unwrap();
     assert_eq!(
-      instantiated.ret(&db).display_name(&db),
+      instantiated
+        .ret(&db)
+        .resolve(&db)
+        .unwrap()
+        .display_name(&db),
       list_of_string.display_name(&db)
     );
     assert_eq!(
-      instantiated.params(&db)[0].display_name(&db),
+      instantiated.params(&db)[0]
+        .resolve(&db)
+        .unwrap()
+        .display_name(&db),
       list_of_string.display_name(&db)
     );
     assert_eq!(
-      instantiated.params(&db)[1].display_name(&db),
+      instantiated.params(&db)[1]
+        .resolve(&db)
+        .unwrap()
+        .display_name(&db),
       TdTypEnum::from(TdFuncTyp::get(
         &db,
         vec![string_typ.clone()],
@@ -913,8 +1003,11 @@ mod tests {
     let signature = FuncSignature::new(
       &db,
       Some(typ_params),
-      vec![closure_of_t, list_of_t.clone()],
-      list_of_t,
+      vec![
+        LazyTyp::eager(closure_of_t),
+        LazyTyp::eager(list_of_t.clone()),
+      ],
+      LazyTyp::eager(list_of_t),
     );
     let func = get_func_typ(&db, signature);
 
@@ -927,7 +1020,11 @@ mod tests {
     );
     let instantiated = call_result.signature.unwrap();
     assert_eq!(
-      instantiated.ret(&db).display_name(&db),
+      instantiated
+        .ret(&db)
+        .resolve(&db)
+        .unwrap()
+        .display_name(&db),
       list_of_string.display_name(&db)
     );
   }
@@ -962,8 +1059,8 @@ mod tests {
     let inner_sig = FuncSignature::new(
       &db,
       Some(inner_typ_params),
-      vec![bound_y.into()],
-      bound_x.into(),
+      vec![LazyTyp::eager(bound_y.into())],
+      LazyTyp::eager(bound_x.into()),
     );
     let inner_closure: TdTypEnum = get_func_typ(&db, inner_sig).into();
 
@@ -972,8 +1069,8 @@ mod tests {
     let outer_sig = FuncSignature::new(
       &db,
       Some(outer_typ_params),
-      vec![bound_x.into()],
-      inner_closure,
+      vec![LazyTyp::eager(bound_x.into())],
+      LazyTyp::eager(inner_closure),
     );
     let outer_func = get_func_typ(&db, outer_sig);
 
@@ -987,7 +1084,7 @@ mod tests {
     let first_sig = first_result
       .signature
       .expect("first call should return a signature");
-    let first_ret = first_sig.ret(&db);
+    let first_ret = first_sig.ret(&db).resolve(&db).unwrap();
     assert!(
       first_ret.as_td_func_typ().is_some(),
       "first call result should be a function, got {}",
@@ -1005,7 +1102,7 @@ mod tests {
       .signature
       .expect("second call should return a signature");
     assert_eq!(
-      second_sig.ret(&db).display_name(&db),
+      second_sig.ret(&db).resolve(&db).unwrap().display_name(&db),
       number_typ.display_name(&db),
       "second call result should be number"
     );

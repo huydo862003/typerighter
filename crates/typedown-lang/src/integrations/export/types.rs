@@ -44,6 +44,26 @@ pub struct ExportedSeoMeta {
   pub description: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub image: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lang: Option<String>,
+}
+
+/// SSG flags from the _ssg builtin field
+#[derive(serde::Serialize, Clone)]
+pub struct ExportedSsgFlags {
+  pub show_in_sidebar: bool,
+  pub show_in_search: bool,
+  pub crawlable: bool,
+}
+
+impl Default for ExportedSsgFlags {
+  fn default() -> Self {
+    Self {
+      show_in_sidebar: true,
+      show_in_search: true,
+      crawlable: true,
+    }
+  }
 }
 
 /// Structured export result with HTML content and extracted headings
@@ -70,6 +90,9 @@ pub struct ExportedResourceHtml {
   /// Plain-text excerpt from the first paragraph, used as description fallback
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
+  /// SSG flags from the _ssg builtin field
+  #[serde(flatten)]
+  pub ssg_flags: ExportedSsgFlags,
 }
 
 /// Content listing entry: includes header for filtering, no body

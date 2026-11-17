@@ -16,8 +16,8 @@ use crate::db::types::typecheck::substitute_variables;
 #[query_interned]
 pub struct FuncSignature<'db> {
   pub typ_params: Option<TypParams<'db>>,
-  pub params: Vec<TdTypEnum<'db>>,
-  pub ret: TdTypEnum<'db>,
+  pub params: Vec<LazyTyp<'db>>,
+  pub ret: LazyTyp<'db>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, StableCompare)]

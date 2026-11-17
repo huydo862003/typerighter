@@ -416,6 +416,104 @@ age: 30
   }
 
   #[test]
+  fn valid_meta_with_lang_produces_no_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_meta:
+  title: "Custom Title"
+  lang: "vi"
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.is_empty(),
+      "valid _meta with lang should produce zero diagnostics, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn meta_lang_wrong_typ_produces_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_meta:
+  lang: 42
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.contains(&"field-typ-mismatch".to_string()),
+      "_meta.lang with wrong type should produce field-typ-mismatch, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn valid_ssg_produces_no_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_ssg:
+  show_in_sidebar: false
+  show_in_search: false
+  crawlable: false
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.is_empty(),
+      "valid _ssg should produce zero diagnostics, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn ssg_wrong_typ_produces_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_ssg:
+  crawlable: "yes"
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.contains(&"field-typ-mismatch".to_string()),
+      "_ssg.crawlable with wrong type should produce field-typ-mismatch, got: {codes:?}"
+    );
+  }
+
+  #[test]
+  fn ssg_partial_fields_produces_no_diagnostic() {
+    let analysis = setup(
+      r#"---
+_type: Person
+_ssg:
+  show_in_sidebar: false
+name: "Alice"
+age: 30
+---
+"#,
+    );
+    let codes = diagnostic_codes(&analysis);
+    assert!(
+      codes.is_empty(),
+      "partial _ssg should produce zero diagnostics (defaults apply), got: {codes:?}"
+    );
+  }
+
+  #[test]
   fn invalid_config_produces_diagnostic() {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
     let db = TypedownDatabase {

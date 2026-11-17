@@ -35,6 +35,8 @@ export interface HtmlTemplateOptions {
   ogType?: OgType;
   /** Pre-built JSON-LD blocks to inject into head */
   jsonLdBlocks?: string[];
+  /** Whether search engines should index this page */
+  crawlable?: boolean;
   /** Extra tags injected into head (CSS links, module preloads) */
   headExtra?: string;
   /** SSR-rendered content inside div#app */
@@ -92,7 +94,7 @@ export function renderHtmlDocument (options: HtmlTemplateOptions): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="Typerighter">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="${options.crawlable === false ? 'noindex, nofollow' : 'index, follow'}">
     <title>${pageTitle}</title>
     <meta name="description" content="${description}">${authorMeta}${canonical}
     <link rel="icon" href="${options.base}favicon.svg" type="image/svg+xml">

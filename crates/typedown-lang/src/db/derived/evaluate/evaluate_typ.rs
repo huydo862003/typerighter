@@ -360,25 +360,8 @@ pub(crate) fn resolve_property_descriptor<'db>(
     evaluate_node(db, def_node, file_scope).value(db)
   });
 
-  let computed_func = computed_func_value.and_then(|computed_node| {
-    let scope = get_file_runtime_scope(db, computed_node.project, computed_node.file);
-    let result = evaluate_node(db, computed_node.clone(), scope);
-    diagnostics.extend(result.diagnostics(db).iter().cloned());
-    let value = result.value(db)?;
-    let Some(func_obj) = value.as_td_func_obj() else {
-      let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-      diagnostics.push(
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "computed".to_string(),
-          expected: "function".to_string(),
-        }
-        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-      );
-      return None;
-    };
-
-    let signature = func_obj.signature(db);
-    // Count params from the closure AST node if available
+  let computed_func = computed_func_value.map(|computed_node| {
+    // Validate param count from AST without evaluating the closure body
     let param_count = ClosureExpr::cast(computed_node.node.clone())
       .and_then(|closure| {
         closure.params().map(|params| match params {
@@ -386,7 +369,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
           Either::Right(_) => 1,
         })
       })
-      .unwrap_or_else(|| signature.params(db).len());
+      .unwrap_or(1);
 
     if param_count != 1 {
       let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
@@ -397,44 +380,16 @@ pub(crate) fn resolve_property_descriptor<'db>(
         }
         .into_error(trimmed_offset, trimmed_offset + trimmed_len),
       );
-      return None;
     }
 
-    // Infer return type: from closure body if AST closure, else from signature
-    let ret_typ = ClosureExpr::cast(computed_node.node.clone())
-      .and_then(|closure| closure.body())
-      .map(|body_expr| {
-        let body_node = ProjectRedNode::new(
-          computed_node.project,
-          computed_node.file,
-          body_expr.syntax().clone(),
-        );
-        actual_node_typ(db, body_node).typ(db)
-      })
-      .unwrap_or_else(|| Some(signature.ret(db)));
-
-    if let Some(ref lazy) = field_typ
-      && let Some(declared_typ) = lazy.resolve(db)
-      && let Some(ret_typ) = ret_typ
-      && !is_subtyp_of(db, &ret_typ, &declared_typ)
-    {
-      let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-      diagnostics.push(
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "computed".to_string(),
-          expected: declared_typ.display_name(db),
-        }
-        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-      );
-    }
-    Some(value)
+    Either::<ProjectRedNode, TdObjEnum>::Left(computed_node)
   });
 
   if field_typ.is_none()
-    && let Some(ref computed_enum) = computed_func
-    && let Some(func_obj) = computed_enum.as_td_func_obj()
+    && let Some(Either::Right(ref computed_obj)) = computed_func
+    && let Some(func_obj) = computed_obj.as_td_func_obj()
   {
-    field_typ = Some(LazyTyp::eager(func_obj.signature(db).ret(db)));
+    field_typ = Some(func_obj.signature(db).ret(db));
   }
 
   field_typ.map(|lazy| PropertyDescriptor {
@@ -444,7 +399,7 @@ pub(crate) fn resolve_property_descriptor<'db>(
   })
 }
 
-fn resolve_typ_lazy<'db>(
+pub(crate) fn resolve_typ_lazy<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
   diagnostics: &mut Vec<TdDiagnostic>,
@@ -1769,15 +1724,11 @@ properties:
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
-    assert_eq!(
-      diagnostics,
-      vec![
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "computed".to_string(),
-          expected: "number".to_string(),
-        }
-        .into_error(72, 87)
-      ]
+    // Return type validation happens in typecheck, not resolve_property_descriptor
+    assert!(
+      diagnostics.is_empty(),
+      "computed return type is validated in typecheck phase, not here: {:?}",
+      diagnostics
     );
   }
 
@@ -1805,22 +1756,13 @@ properties:
 
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
-    // (a, b) -> a + b has wrong param count AND operand type errors from untyped params
     assert!(
       diagnostics.iter().any(|diagnostic| matches!(
         &diagnostic.kind,
         TdDiagnosticKind::FieldTypMismatch { field, expected }
           if field == "computed" && expected == "function expecting 1 parameter"
       )),
-      "should have FieldTypMismatch for computed, got {:?}",
-      diagnostics
-    );
-    assert!(
-      diagnostics.iter().any(|diagnostic| matches!(
-        &diagnostic.kind,
-        TdDiagnosticKind::OperandTypMismatch { op, .. } if op == "+"
-      )),
-      "should have OperandTypMismatch for +, got {:?}",
+      "should have FieldTypMismatch for computed param count, got {:?}",
       diagnostics
     );
   }

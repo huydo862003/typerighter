@@ -169,8 +169,8 @@ fn get_expected_call_arg_typ<'db>(
 
   if let Some(TdTypEnum::TdFuncTyp(func)) = callee_typ {
     let params = func.signature(db).params(db);
-    if let Some(param_typ) = params.get(arg_index) {
-      return TypResult::new(db, Some(param_typ.clone()), vec![]);
+    if let Some(param_typ) = params.get(arg_index).and_then(|lazy| lazy.resolve(db)) {
+      return TypResult::new(db, Some(param_typ), vec![]);
     }
   }
 
@@ -199,7 +199,8 @@ fn get_expected_call_callee_typ<'db>(
     }
   }
 
-  let signature = FuncSignature::new(db, None, param_typs, ret);
+  let lazy_params: Vec<LazyTyp> = param_typs.into_iter().map(LazyTyp::eager).collect();
+  let signature = FuncSignature::new(db, None, lazy_params, LazyTyp::eager(ret));
   let func_typ = get_func_typ(db, signature);
   TypResult::new(db, Some(func_typ.into()), vec![])
 }
@@ -215,8 +216,8 @@ fn get_expected_closure_body_typ<'db>(
   let expected = expected_node_typ(db, closure_node).typ(db);
   match expected {
     Some(TdTypEnum::TdFuncTyp(func)) => {
-      let ret = func.signature(db).ret(db);
-      TypResult::new(db, Some(ret), vec![])
+      let ret = func.signature(db).ret(db).resolve(db);
+      TypResult::new(db, ret, vec![])
     }
     _ => TypResult::new(db, None, vec![]),
   }

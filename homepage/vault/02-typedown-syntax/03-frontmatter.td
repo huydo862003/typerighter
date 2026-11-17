@@ -41,6 +41,8 @@ Keys starting with `_` are reserved for built-in directives.
 | `_icon` | no | Page icon from the `icon` module (e.g., `icon.rocket`) |
 | `_extends` | no | Parent schema name (schema files only) |
 | `_imports` | no | Map of alias to file path (`/`, `./`, or `../`) |
+| `_meta` | no | SEO metadata (title, description, image, lang) |
+| `_ssg` | no | Static site generation flags (sidebar, search, crawlability) |
 | `_content` | implicit | The markdown body (available as `self._content`) |
 
 ## Type declaration: `_type`
@@ -100,6 +102,48 @@ _imports:
 brand: colors.primary
 ```
 
+## SEO metadata: `_meta`
+
+Override SEO metadata for the page. All fields are optional.
+
+```yaml
+_meta:
+  title: "Custom page title"
+  description: "Custom meta description"
+  image: "/images/og-cover.png"
+  lang: "vi"
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `title` | string | Custom page title for `<title>` and Open Graph |
+| `description` | string | Meta description for search results |
+| `image` | string | Open Graph image path |
+| `lang` | string | Page language override (e.g., `"vi"`, `"ja"`) |
+
+When omitted, `title` falls back to `_label` or the filename. `description` falls back to the first paragraph. `lang` falls back to the site-wide `lang` in `typedown.yaml`.
+
+## Static site generation: `_ssg`
+
+Control how the page appears in the sidebar, search index, and to search engines. All fields default to `true`.
+
+```yaml
+_ssg:
+  show_in_sidebar: false
+  show_in_search: false
+  crawlable: false
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `show_in_sidebar` | boolean | `true` | Whether the page appears in sidebar navigation |
+| `show_in_search` | boolean | `true` | Whether the page appears in client-side search results |
+| `crawlable` | boolean | `true` | Whether search engines should index this page |
+
+Setting `crawlable: false` adds `<meta name="robots" content="noindex, nofollow">` and excludes the page from `sitemap.xml`.
+
+When a directory's `index.td` has `show_in_sidebar: false`, all files under that directory are hidden from the sidebar.
+
 ## Comments
 
 Line comments use `#`:
@@ -147,6 +191,8 @@ Keys starting with `_` are reserved for built-in directives:
 | `_icon` | no | Page icon from the `icon` module |
 | `_extends` | no | Parent schema name (schema files only) |
 | `_imports` | no | Map of alias to file path (`/`, `./`, or `../`) |
+| `_meta` | no | SEO metadata: `title`, `description`, `image`, `lang` |
+| `_ssg` | no | SSG flags: `show_in_sidebar`, `show_in_search`, `crawlable` |
 | `_content` | implicit | The markdown body, available as `self._content` |
 
 ### Value syntax
