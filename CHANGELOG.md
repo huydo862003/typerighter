@@ -1,3 +1,8 @@
+## [0.63.2] - 2026-11-17
+
+- packages/typerighter
+  - Finetune the callout padding and paragraph spacings
+
 ## [0.63.1] - 2026-11-17
 
 - packages/typerighter
