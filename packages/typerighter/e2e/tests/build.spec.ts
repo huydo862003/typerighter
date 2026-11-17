@@ -419,3 +419,78 @@ test('build: root page has no breadcrumb JSON-LD', async () => {
     }).catch(() => { });
   }
 });
+
+test('build: crawlable false adds noindex meta', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(
+      path.join(directory, 'dist', 'not-crawlable.html'),
+      'utf-8',
+    );
+
+    expect(html).toContain('name="robots" content="noindex, nofollow"');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => { });
+  }
+});
+
+test('build: crawlable false excludes page from sitemap', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const sitemap = await readFile(
+      path.join(directory, 'dist', 'sitemap.xml'),
+      'utf-8',
+    );
+
+    expect(sitemap).not.toContain('/not-crawlable');
+    // Other pages should still be in sitemap
+    expect(sitemap).toContain('<loc>');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => { });
+  }
+});
+
+test('build: normal pages still have index, follow', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(
+      path.join(directory, 'dist', 'index.html'),
+      'utf-8',
+    );
+
+    expect(html).toContain('name="robots" content="index, follow"');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => { });
+  }
+});
+
+test('build: _meta.lang overrides html lang attribute', async () => {
+  const directory = await buildFixture('vault-root');
+
+  try {
+    const html = await readFile(
+      path.join(directory, 'dist', 'vietnamese-page.html'),
+      'utf-8',
+    );
+
+    expect(html).toContain('lang="vi"');
+    expect(html).toContain('Trang Tiếng Việt');
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    }).catch(() => { });
+  }
+});

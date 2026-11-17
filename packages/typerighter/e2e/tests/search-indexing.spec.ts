@@ -145,4 +145,19 @@ e2e.describe('search indexing', () => {
       timeout: 15_000,
     });
   });
+
+  e2e('excludes pages with show_in_search: false', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page);
+    const sidebar = page.getByTestId('sidebar');
+
+    // "Zygomorphic" only appears in hidden-from-search.td which has show_in_search: false
+    const results = await searchFor(page, sidebar, 'Zygomorphic');
+
+    // Wait a moment for search to complete, then verify no results
+    await page.waitForTimeout(2_000);
+    await expect(results).toHaveCount(0);
+  });
 });
