@@ -19,9 +19,6 @@ site:
     - title: "Custom Theming"
       link: "/03-custom-theming/index"
       icon: icon.palette
-    - title: "FAQ"
-      link: "/06-faq"
-      icon: icon.help
 theme:
   components:
     - "./components"
