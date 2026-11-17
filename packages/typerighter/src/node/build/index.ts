@@ -22,6 +22,7 @@ import {
   getIndexUrl,
   getNodeIndexItem,
   path as tdpath,
+  stripLeadingSlash,
 } from "@/shared";
 import type { AppContext } from "../context";
 import { buildSitemap, buildRobotsTxt, buildRssFeed, buildLlmsTxt } from "./seo";
@@ -242,7 +243,7 @@ export async function buildSite(
       files.filter((_, index) => resources[index].crawlable === false),
     );
     const crawlableRoutes = pageRoutes.filter((route) => {
-      const filepath = route === '/' ? 'index' : tdpath.stripLeadingSlash(route);
+      const filepath = route === '/' ? 'index' : stripLeadingSlash(route);
 
       return !nonCrawlableFiles.has(filepath + '.td') && !nonCrawlableFiles.has(filepath + '.md');
     });
