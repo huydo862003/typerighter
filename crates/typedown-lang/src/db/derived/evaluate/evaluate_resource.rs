@@ -313,6 +313,29 @@ mod tests {
     assert_eq!(string_obj.value(&db), "Alice Smith");
   }
 
+  #[test]
+  fn evaluate_computed_field_with_vault_query() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "computed_vault_query_resource.td");
+    let symbol = file_symbol(&db, project, file)
+      .value(&db)
+      .expect("file_symbol should return a resource symbol");
+    let result = evaluate_resource(&db, symbol);
+    let obj = result.value(&db).expect("should produce an object");
+    let person_count = obj
+      .get_owned_field(&db, "personCount")
+      .expect("should evaluate computed personCount from vault query");
+    let num_obj = person_count
+      .as_td_number_obj()
+      .expect("expected TdNumberObj for vault query count result");
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "computed vault query should produce no diagnostics: {:?}",
+      result.diagnostics(&db)
+    );
+    assert_eq!(num_obj.value(&db), 27.0);
+  }
+
   // fref("file.td").prop evaluates the referenced resource and accesses a field on it
   #[test]
   fn fref_prop_accesses_field_on_referenced_resource() {

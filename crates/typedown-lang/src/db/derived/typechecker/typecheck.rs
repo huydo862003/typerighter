@@ -1979,4 +1979,17 @@ mod tests {
       result.diagnostics(&db)
     );
   }
+
+  #[test]
+  fn typecheck_computed_vault_query_no_errors() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "_types/ComputedVaultQuery.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "computed field with vault query should produce no type errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
 }
