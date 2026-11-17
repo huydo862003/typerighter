@@ -1336,8 +1336,13 @@ mod tests {
 
     // A free variable from a different site, not in the mapping
     let other_site = {
-      let files: Vec<_> = project.files(&db).values().copied().collect();
-      parse_file(&db, project, files[1]).ast(&db)
+      let other_file = project
+        .files(&db)
+        .iter()
+        .find(|(path, _)| !path.ends_with("valid_person.td"))
+        .map(|(_, file)| *file)
+        .expect("fixture must have more than one file");
+      parse_file(&db, project, other_file).ast(&db)
     };
     let other_bound = TdBoundVariableTyp::new(
       &db,
