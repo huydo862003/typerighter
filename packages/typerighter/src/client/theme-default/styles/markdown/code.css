@@ -333,7 +333,7 @@
 @media (min-width: 40rem) {
   .td-content div[class*="language-"] {
     margin: 16px 0;
-    border-radius: 8px;
+    border-radius: var(--radius-td-lg);
   }
 }
 
@@ -384,7 +384,7 @@
   width: 32px;
   height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  border-radius: var(--radius-td-sm);
   background-color: var(--color-td-code-bg);
   cursor: pointer;
   opacity: 0;

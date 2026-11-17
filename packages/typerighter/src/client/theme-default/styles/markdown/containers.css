@@ -1,7 +1,7 @@
 .td-content .td-callout {
   margin: 16px 0;
-  padding: 12px 16px;
-  border-radius: var(--radius-td-md);
+  padding: 20px;
+  border-radius: var(--radius-td-xl);
 }
 
 .td-content .td-callout-title {
@@ -94,11 +94,11 @@
 /* Code blocks need margin instead of padding so overflow-x scrolling works correctly */
 .td-content details.td-callout > div[class*="language-"] {
   margin: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-td-lg);
 }
 
 .td-content .td-callout div[class*="language-"] {
   margin-left: 0;
   margin-right: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-td-lg);
 }
