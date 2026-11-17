@@ -1,6 +1,12 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.64.1] - 2026-11-18
+
+### Fixed
+
+- Type error when building
+
 ## [0.64.0] - 2026-11-18
 
 ### Added

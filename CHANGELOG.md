@@ -1,3 +1,9 @@
+## [0.64.1] - 2026-11-18
+
+### Fixed
+
+- Type error when building
+
 ## [0.64.0] - 2026-11-18
 
 ### Added
@@ -17,17 +23,17 @@
   - `SchemaProperty` is now a `TdSchemaTyp` with `type`, `default`, and `computed` field descriptors
   - Computed return type validation moved from evaluate_typ to typecheck phase
 
-## [0.63.2] - 2026-11-17
+## [0.63.2] - 2026-11-17 (retracted)
 
 - packages/typerighter
   - Finetune the callout padding and paragraph spacings
 
-## [0.63.1] - 2026-11-17
+## [0.63.1] - 2026-11-17 (retracted)
 
 - packages/typerighter
   - Fix some spacing between elements
 
-## [0.63.0] - 2026-11-16
+## [0.63.0] - 2026-11-16 (retracted)
 
 ### Changed
 
@@ -39,7 +45,7 @@
 - packages/typerighter, crates/typedown-server
   - Incremental HMR notification instead of client request flooding
 
-## [0.62.0] - 2026-11-16
+## [0.62.0] - 2026-11-16 (retracted)
 
 ### Changed
 
@@ -51,7 +57,7 @@
   - **Callout border radius** - callout and toggle containers now have rounded corners
   - **Toggle list padding fix** - lists inside toggle/details no longer get double left padding
 
-## [0.61.1] - 2026-11-15
+## [0.61.1] - 2026-11-15 (retracted)
 
 ### Added
 
@@ -62,7 +68,7 @@
   - **Hidden index hides subtree** - disk scan at startup mirrors the same two-pass cascade: hidden `index.td` suppresses its entire directory tree with no flash
   - **Lazy embed preload distance** - intersection observer `rootMargin` bumped from `200px` to `1000px` for earlier preloading of WASM-heavy embeds (Mermaid, D2)
 
-## [0.61.0] - 2026-11-15
+## [0.61.0] - 2026-11-15 (retracted)
 
 ### Added
 
@@ -74,7 +80,7 @@
 - packages/typerighter
   - **Sidebar hidden pages** - pages with `_ssg: { show_in_sidebar: false }` are excluded from sidebar scan at startup (no flash)
 
-## [0.60.0] - 2026-11-15
+## [0.60.0] - 2026-11-15 (retracted)
 
 ### Added
 
@@ -85,28 +91,28 @@
   - **Go back / Go next keyboard shortcuts dialog rows** - shortcuts dialog now lists `Ctrl+[` and `Ctrl+]` entries
   - **Command palette section icons** - each group (Navigate, View, This page, Recently Accessed Pages, Pages) now shows a small icon beside its label
 
-## [0.59.1] - 2026-11-15
+## [0.59.1] - 2026-11-15 (retracted)
 
 ### Fixed
 
 - packages/typerighter
   - Left sidebar should expand 10 items at a time instead of expanding all
 
-## [0.59.0] - 2026-11-15
+## [0.59.0] - 2026-11-15 (retracted)
 
 ### Added
 
 - packages/typerighter
   - Replace the emgithub github embed with a custom component
 
-## [0.58.1] - 2026-11-14
+## [0.58.1] - 2026-11-14 (retracted)
 
 ### Fixed
 
 - packages/typerighter
   - Left sidebar cannot be scrolled using gestures
 
-## [0.58.0] - 2026-11-13
+## [0.58.0] - 2026-11-13 (retracted)
 
 ### Added
 
@@ -116,12 +122,12 @@
   - `setup-editor`: verifies editor binaries are not aliases before using them
   - Background update check on startup with 24h TTL cache; prints notice on next run
 
-## [0.57.6] - 2026-11-13
+## [0.57.6] - 2026-11-13 (retracted)
 
 - crates/typedown
   - fref() suggestion inserting invalid fref path
 
-## [0.57.5] - 2026-11-10
+## [0.57.5] - 2026-11-10 (retracted)
 
 ### Fixed
 
@@ -256,14 +262,14 @@
 - .github
   - **Benchmark uses real-world vault** - CI now benchmarks against a 1.3k page vault submodule instead of the homepage, with per-page build speed (ms/page) and DX/UX split in PR comments
 
-## [0.55.2] - 2026-11-06
+## [0.55.2] - 2026-11-06 (retracted)
 
 ### Fixed
 
 - packages/typerighter
   - Duplicate origin in canonical url
 
-## [0.55.1] - 2026-11-06
+## [0.55.1] - 2026-11-06 (retracted)
 
 ### Fixed
 
@@ -276,7 +282,7 @@
   - **Fix horizontal overflow on small viewports** - Pages could overflow horizontally on narrow screens.
   - **Fix SEO naming consistency** - `generateSitemap`/`generateRobotsTxt`/`generateRssFeed` renamed to `buildSitemap`/`buildRobotsTxt`/`buildRssFeed` to match the `build*` convention used throughout. `canonicalUrl` now always includes the origin prefix. `isDirectoryIndex` removed from public-facing SEO APIs (computed internally).
 
-## [0.55.0] - 2026-11-06
+## [0.55.0] - 2026-11-06 (retracted)
 
 ### Added
 
@@ -295,7 +301,7 @@
   - SVG dimensions parsed from markup string (viewBox preferred) instead of DOM queries
   - Placeholder styles (spinner, error border) moved to content.css; diagram styles are scoped in the component
 
-## [0.54.0] - 2026-11-05
+## [0.54.0] - 2026-11-05 (retracted)
 
 ### Added
 
@@ -309,7 +315,7 @@
   - Enhanced type inference pipeline for function and closure
   - Better infrastructure to support generic functions and types
 
-## [0.53.2] - 2026-11-03
+## [0.53.2] - 2026-11-03 (retracted)
 
 ### Fixed
 
@@ -334,7 +340,7 @@
 - crates/typedown-lang, packages/typerighter
   - Support grid component
 
-## [0.52.2] - 2026-11-01
+## [0.52.2] - 2026-11-01 (retracted)
 
 ### Added
 
@@ -357,14 +363,14 @@
   - Navbar active item shows background highlight with smooth transition
   - Sidebar fref list icons align to first baseline instead of center
 
-## [0.52.1] - 2026-11-01
+## [0.52.1] - 2026-11-01 (retracted)
 
 ### Fixed
 
 - crates/typedown-lang
   - `fref()` with absolute paths (e.g. `fref("/design/concepts/affordance.td")`) resolved to null in frontmatter. `Path::join` with a leading `/` replaces the base path entirely, bypassing the vault root. Now uses `resolve_fref_path` consistently.
 
-## [0.52.0] - 2026-11-01
+## [0.52.0] - 2026-11-01 (retracted)
 
 ### Added
 
@@ -388,14 +394,14 @@
   - Link color changed to warmer muted blue (#3D6B99)
   - Embed wrapper reserves space to prevent layout shift
 
-## [0.51.1] - 2026-10-31
+## [0.51.1] - 2026-10-31 (retracted)
 
 ### Fixed
 
 - crates/typwdown-lang
   - Infinite loop when parsing indentation-mismatched closing ::: of container blocks
 
-## [0.51.0] - 2026-10-31
+## [0.51.0] - 2026-10-31 (retracted)
 
 ### Added
 
@@ -413,7 +419,7 @@
   - LAX prefix matching no longer falsely continues blockquotes past blank lines
   - Formatter uses actual marker width for nested content indentation instead of fixed 2-space depth
 
-## [0.50.0] - 2026-10-30
+## [0.50.0] - 2026-10-30 (retracted)
 
 ### Added
 
@@ -439,7 +445,7 @@
   - Opening `$$` math delimiter was not concealed (node range spans to next line)
   - Smart action `<CR>` on markdown links now uses LSP definition instead of raw file open
 
-## [0.49.0] - 2026-10-30
+## [0.49.0] - 2026-10-30 (retracted)
 
 ### Added
 
@@ -458,21 +464,21 @@
   - Dark mode code blocks now use warm neutral background instead of cold blue
   - Code block header styling updated to match design reference (language badge, compact header, border)
 
-## [0.48.2] - 2026-10-29
+## [0.48.2] - 2026-10-29 (retracted)
 
 ### Fixed
 
 - crates/typedown-lang
   - Bugs in parsing codeblock props with quotes
 
-## [0.48.1] - 2026-10-29
+## [0.48.1] - 2026-10-29 (retracted)
 
 ### Fixed
 
 - packages/typerighter
   - Codeblock light mode color
 
-## [0.48.0] - 2026-10-28
+## [0.48.0] - 2026-10-28 (retracted)
 
 ### Added
 
@@ -515,7 +521,7 @@
   - Tree-sitter scanner returns false on `\` so `\*` is not treated as emphasis
   - TextMate grammar: `md-escape` pattern moved before emphasis to prevent `\*` from italicizing
 
-## [0.47.0] - 2026-10-28
+## [0.47.0] - 2026-10-28 (retracted)
 
 ### Added
 
@@ -526,7 +532,7 @@
 - homepage
   - Documentation for Mermaid and D2 diagram syntax
 
-## [0.46.4] - 2026-10-27
+## [0.46.4] - 2026-10-27 (retracted)
 
 ### Added
 
@@ -592,7 +598,7 @@
 - editors/vscode
   - Update textmate grammar
 
-## [0.46.0] - 2026-10-27
+## [0.46.0] - 2026-10-27 (retracted)
 
 ### Added
 
@@ -608,14 +614,14 @@
   - HTML export link handling improved; export no longer requires a feature flag
   - Container blocks inside blockquotes now format correctly
 
-## [0.45.4] - 2026-10-27
+## [0.45.4] - 2026-10-27 (retracted)
 
 ### Fixed
 
 - crates/typedown-lang
   - Formatter incorrectly indent the closing ```
 
-## [0.45.3] - 2026-10-26
+## [0.45.3] - 2026-10-26 (retracted)
 
 ### Fixed
 
@@ -624,7 +630,7 @@
   - Formatter dedent internal indentation in code blocks
   - Disallow bare paths in frefs
 
-## [0.45.2] - 2026-10-25
+## [0.45.2] - 2026-10-25 (retracted)
 
 ### Performance
 
@@ -632,7 +638,7 @@
   - Use burnt sushi crate to speed up file matching
   - Exclude unnecessary folders when running integration tests
 
-## [0.45.1] - 2026-10-24
+## [0.45.1] - 2026-10-24 (retracted)
 
 ### Fixed
 
@@ -643,7 +649,7 @@
 - crates/typedown-server
   - Fix rename service silently failing when any single file in a batch rename had issues
 
-## [0.45.0] - 2026-10-19
+## [0.45.0] - 2026-10-19 (retracted)
 
 ### Fixed
 
@@ -656,7 +662,7 @@
 - packages/typerighter
   - E2e test fixture `vault-mounted` and `mounted.spec.ts` covering the `root` option: page content loads, titles resolve, unknown paths render the Vue app
 
-## [0.44.2] - 2026-10-16
+## [0.44.2] - 2026-10-16 (retracted)
 
 ### Added
 
@@ -665,7 +671,7 @@
   - Support various JS expressions in prop value
   - Add autocompletion/go to definition for container
 
-## [0.44.1] - 2026-10-15
+## [0.44.1] - 2026-10-15 (retracted)
 
 ### Changed
 
@@ -673,7 +679,7 @@
   - Make index entry of folder more visible
   - Increase hit area of folder toggle in sidebar
 
-## [0.44.0] - 2026-10-14
+## [0.44.0] - 2026-10-14 (retracted)
 
 ### Added
 
@@ -701,7 +707,7 @@
   - `CustomComponentProp.type_name` renamed to `typ_name`
   - Removed empty `integrations/types.rs`
 
-## [0.43.1] - 2026-10-14
+## [0.43.1] - 2026-10-14 (retracted)
 
 ### Fixed
 
@@ -713,7 +719,7 @@
 - crates/typedown-lang, packages/typerighter
   - Support not found component config
 
-## [0.43.0] - 2026-10-13
+## [0.43.0] - 2026-10-13 (retracted)
 
 ### Added
 
@@ -757,14 +763,14 @@
   - Lazily load Temml (math rendering)
   - Fonts emitted as external woff2 files instead of inlined
 
-## [0.42.1] - 2026-10-12
+## [0.42.1] - 2026-10-12 (retracted)
 
 ### Fixed
 
 - crates/typedown-incremental
   - Race condition on deserializing derived identities
 
-## [0.42.0] - 2026-10-11
+## [0.42.0] - 2026-10-11 (retracted)
 
 ### Performance
 
@@ -773,7 +779,7 @@
   - Improve cache performance
   - Improve prerendering speed
 
-## [0.41.0] - 2026-10-10
+## [0.41.0] - 2026-10-10 (retracted)
 
 ### Fixed
 
@@ -791,14 +797,14 @@
 - packages/typerighter
   - TOC and schema label HMR updates now propagate correctly to the client
 
-## [0.40.7] - 2026-10-09
+## [0.40.7] - 2026-10-09 (retracted)
 
 ### Fixed
 
 - crates/typedown-server
   - LSP: Double escapes in snippet
 
-## [0.40.6] - 2026-10-04
+## [0.40.6] - 2026-10-04 (retracted)
 
 ### Fixed
 
@@ -818,7 +824,7 @@
   - LSP: enum and date completions inside an existing string literal no longer insert extra surrounding quotes
   - Schema HMR now clears only the transitive set of affected content files instead of the full cache
 
-## [0.40.4] - 2026-09-29
+## [0.40.4] - 2026-09-29 (retracted)
 
 ### Fixed
 
@@ -839,7 +845,7 @@
   - HMR site data fetch debounced so rapid edits trigger only one RPC round-trip
   - Sidebar data preserved during HMR fetch instead of clearing and flashing empty
 
-## [0.40.3] - 2026-09-27
+## [0.40.3] - 2026-09-27 (retracted)
 
 ### Fixed
 
@@ -850,7 +856,7 @@
 - packages/typerighter
   - Fix coloring of bullet point in widget list
 
-## [0.40.2] - 2026-09-25
+## [0.40.2] - 2026-09-25 (retracted)
 
 ### Added
 
@@ -871,7 +877,7 @@
 - `is_external_url` moved to shared `db::utils`
 - Dangling link check in go-to-definition returns None for nonexistent targets
 
-## [0.40.1] - 2026-09-24
+## [0.40.1] - 2026-09-24 (retracted)
 
 ### Fixed
 
@@ -907,7 +913,7 @@
 - bump vitest 5.0.0 to 5.0.1
 - bump rust-overlay, nixpkgs
 
-## [0.39.0] - 2026-09-23
+## [0.39.0] - 2026-09-23 (retracted)
 
 ### Fixed
 
@@ -932,7 +938,7 @@
   - Vue SSR uses `shallowRef` for siteData to avoid deep-proxying the content tree
   - CLI no longer hangs after build completes
 
-## [0.38.1] - 2026-09-20
+## [0.38.1] - 2026-09-20 (retracted)
 
 ### Fixed
 
@@ -940,7 +946,7 @@
   - Improve search result for more context and remove unnecessary groupings
   - Auto focus search box when sidebar opens
 
-## [0.38.0] - 2026-09-20
+## [0.38.0] - 2026-09-20 (retracted)
 
 ### Fixed
 
