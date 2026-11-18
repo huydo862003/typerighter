@@ -422,9 +422,10 @@ impl<'db> TdSchemaObj<'db> {
       for (key, descriptor) in schema_typ.fields(db).iter() {
         if !result.contains_key(key)
           && (descriptor.computed_func.is_some() || descriptor.default_value.is_some())
-          && let Some(value) = self.get_owned_field(db, key) {
-            result.insert(key.clone(), value);
-          }
+          && let Some(value) = self.get_owned_field(db, key)
+        {
+          result.insert(key.clone(), value);
+        }
       }
     }
     result
