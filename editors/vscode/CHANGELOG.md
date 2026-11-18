@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.64.5] - 2026-11-18
+
+### Fixed
+
+- crates/typedown-lang
+  - `follow_back` now traverses list fields and resolves lazy items when matching targets
+
 ## [0.64.4] - 2026-11-18
 
 ### Fixed
