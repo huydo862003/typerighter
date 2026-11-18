@@ -35,6 +35,8 @@ pub enum NodeSetPlan<'db> {
   FollowBack {
     source: TdNodeSetObj<'db>,
     field_name: String,
+    // Schema type to search among - only resources of this type are checked
+    search_schema: TdSchemaTyp<'db>,
   },
 }
 
@@ -179,7 +181,7 @@ pub(crate) fn materialize_as_list<'db>(
       }
       targets
     }
-    NodeSetPlan::FollowBack { source, field_name } => {
+    NodeSetPlan::FollowBack { source, field_name, search_schema } => {
       let target_ids: HashSet<_> = materialize_as_list(db, source)
         .items(db)
         .into_iter()
@@ -189,8 +191,15 @@ pub(crate) fn materialize_as_list<'db>(
         })
         .collect();
       let mut seen = HashSet::new();
+      // Only search resources matching the declared schema type
       vault_resources(db, project)
         .into_iter()
+        .filter(|obj| {
+          obj
+            .as_td_schema_obj()
+            .map(|schema_obj| schema_obj.schema(db).as_td_schema_typ().copied() == Some(search_schema))
+            .unwrap_or(false)
+        })
         .filter(|obj| {
           let Some(field_value) = obj.get_owned_field(db, &field_name) else {
             return false;

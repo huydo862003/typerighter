@@ -152,12 +152,13 @@ fn serialize(
       if !visiting.insert(id) {
         return serde_json::json!({"$kind": "ref", "schema": schema_name});
       }
-      let mut fields = serde_json::Map::new();
-      for (key, entry) in schema_obj.builtins(db) {
-        if let Some(item) = evaluate_lazy_field(db, entry) {
-          fields.insert(key, serialize(db, project, &item, visiting, true));
-        }
-      }
+      let mut fields = serialize_object_fields(
+        db,
+        project,
+        schema_obj.builtins(db),
+        std::iter::empty(),
+        visiting,
+      );
       for (key, value) in schema_obj.all_fields(db) {
         fields.insert(key, serialize(db, project, &value, visiting, true));
       }
@@ -425,6 +426,123 @@ mod tests {
       value["fields"]["fullName"], "Alice Smith",
       "computed field accessing r.firstName/r.lastName should resolve: {value}"
     );
+  }
+
+  #[test]
+  fn computed_vault_query_serializes_result() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "computed_vault_query_resource.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate resource");
+    let value = serialize_value(&db, project, &obj);
+    // personCount is computed via vault.from_nodes(Person).count()
+    // The vault has 3 Person instances
+    assert!(
+      value["fields"]["personCount"].is_number(),
+      "computed vault query should produce a number: {value}"
+    );
+  }
+
+  #[test]
+  fn computed_backref_serializes_without_infinite_loop() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "backref_parent.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate resource");
+    // This must terminate - computed field returns list of schema objects via follow_back
+    let value = serialize_value(&db, project, &obj);
+    assert!(
+      value["fields"]["children"].is_array(),
+      "computed backref should produce a list: {value}"
+    );
+  }
+
+  #[test]
+  fn serialize_all_vault_resources_with_computed_fields() {
+    // Simulate a full build: serialize every resource in the vault
+    // This catches infinite loops from computed backref chains
+    let (db, project, _) = load_vault_fixture("evaluate/my_vault", "backref_parent.td");
+    for file in project.files(&db).values() {
+      let Some(symbol) = file_symbol(&db, project, *file).value(&db) else {
+        continue;
+      };
+      let Some(obj) = evaluate_resource(&db, symbol).value(&db) else {
+        continue;
+      };
+      // Must terminate for every resource
+      let _ = serialize_value(&db, project, &obj);
+    }
+  }
+
+  // computed_vault_query fixture vault
+  // Author (computed books via follow_back), Book (author field), Tag (computed books + bookCount)
+  // Alice has book_one, book_two; Bob has book_three
+  // Fiction has book_one, book_two; Nonfiction has book_three
+
+  const CVQ: &str = "evaluate/computed_vault_query";
+
+  #[test]
+  fn computed_follow_back_returns_correct_list() {
+    let (db, project, file) = load_vault_fixture(CVQ, "alice.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate alice");
+    let value = serialize_value(&db, project, &obj);
+    let books = &value["fields"]["books"];
+    assert!(books.is_array(), "books should be a list: {value}");
+    assert_eq!(books.as_array().unwrap().len(), 2, "Alice should have 2 books: {value}");
+  }
+
+  #[test]
+  fn computed_follow_back_single_match() {
+    let (db, project, file) = load_vault_fixture(CVQ, "bob.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate bob");
+    let value = serialize_value(&db, project, &obj);
+    let books = &value["fields"]["books"];
+    assert!(books.is_array(), "books should be a list: {value}");
+    assert_eq!(books.as_array().unwrap().len(), 1, "Bob should have 1 book: {value}");
+  }
+
+  #[test]
+  fn computed_count_via_vault_query() {
+    let (db, project, file) = load_vault_fixture(CVQ, "fiction.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate fiction tag");
+    let value = serialize_value(&db, project, &obj);
+    assert_eq!(
+      value["fields"]["bookCount"], 2.0,
+      "Fiction tag should count 2 books: {value}"
+    );
+  }
+
+  #[test]
+  fn computed_count_via_vault_query_other_tag() {
+    let (db, project, file) = load_vault_fixture(CVQ, "nonfiction.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate nonfiction tag");
+    let value = serialize_value(&db, project, &obj);
+    assert_eq!(
+      value["fields"]["bookCount"], 1.0,
+      "Nonfiction tag should count 1 book: {value}"
+    );
+  }
+
+  #[test]
+  fn computed_vault_query_all_resources_serialize() {
+    // Full build simulation - must terminate without infinite loop
+    let (db, project, _) = load_vault_fixture(CVQ, "alice.td");
+    let mut serialized_count = 0;
+    for file in project.files(&db).values() {
+      let Some(symbol) = file_symbol(&db, project, *file).value(&db) else {
+        continue;
+      };
+      let Some(obj) = evaluate_resource(&db, symbol).value(&db) else {
+        continue;
+      };
+      let _ = serialize_value(&db, project, &obj);
+      serialized_count += 1;
+    }
+    assert!(serialized_count >= 7, "should serialize at least 7 resources, got {serialized_count}");
   }
 
   #[test]

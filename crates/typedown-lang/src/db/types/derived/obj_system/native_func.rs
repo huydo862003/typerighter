@@ -196,8 +196,14 @@ fn node_set_follow_back<'db>(
   let Some(TdObjEnum::TdNodeSetObj(source)) = this else {
     return Err(vec![]);
   };
-  // First arg: source schema type (used for type checking, not runtime)
-  // Second arg: field name string
+  let Some(search_schema) = args
+    .first()
+    .and_then(|arg| arg.as_td_typ_obj())
+    .and_then(|typ| typ.as_td_schema_typ())
+    .copied()
+  else {
+    return Err(vec![]);
+  };
   let Some(field_name) = args
     .get(1)
     .and_then(|arg| arg.as_td_string_obj())
@@ -205,7 +211,14 @@ fn node_set_follow_back<'db>(
   else {
     return Err(vec![]);
   };
-  Ok(TdNodeSetObj::new(db, project, NodeSetPlan::FollowBack { source, field_name }).into())
+  Ok(
+    TdNodeSetObj::new(
+      db,
+      project,
+      NodeSetPlan::FollowBack { source, field_name, search_schema },
+    )
+    .into(),
+  )
 }
 
 /* Terminal operations */
