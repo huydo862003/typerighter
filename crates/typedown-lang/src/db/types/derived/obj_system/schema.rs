@@ -290,6 +290,8 @@ pub struct TdSchemaObj<'db> {
   pub project: Project,
   pub file_symbol: Option<Symbol>,
   pub builtins: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
+  // WARNING: only contains explicitly set fields, not computed fields or defaults
+  // Use get_owned_field() to access fields with computed/default fallback
   pub fields: BTreeMap<String, Either<ProjectRedNode, TdObjEnum<'db>>>,
 }
 
@@ -397,5 +399,34 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
       return Err(vec![]);
     };
     func.call(db, project, this, args)
+  }
+}
+
+impl<'db> TdSchemaObj<'db> {
+  // Instance fields + computed/default fields from the schema's property descriptors
+  pub fn all_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdObjEnum<'db>> {
+    let mut result = BTreeMap::new();
+    for (key, entry) in self.fields(db).iter() {
+      let obj = match entry.clone() {
+        Either::Left(node) => {
+          let scope = get_file_runtime_scope(db, node.project, node.file);
+          evaluate_node(db, node, scope).value(db)
+        }
+        Either::Right(obj) => Some(obj),
+      };
+      if let Some(obj) = obj {
+        result.insert(key.clone(), obj);
+      }
+    }
+    if let Some(schema_typ) = self.schema(db).as_td_schema_typ() {
+      for (key, descriptor) in schema_typ.fields(db).iter() {
+        if !result.contains_key(key)
+          && (descriptor.computed_func.is_some() || descriptor.default_value.is_some())
+          && let Some(value) = self.get_owned_field(db, key) {
+            result.insert(key.clone(), value);
+          }
+      }
+    }
+    result
   }
 }

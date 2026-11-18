@@ -152,13 +152,15 @@ fn serialize(
       if !visiting.insert(id) {
         return serde_json::json!({"$kind": "ref", "schema": schema_name});
       }
-      let fields = serialize_object_fields(
-        db,
-        project,
-        schema_obj.builtins(db),
-        schema_obj.fields(db),
-        visiting,
-      );
+      let mut fields = serde_json::Map::new();
+      for (key, entry) in schema_obj.builtins(db) {
+        if let Some(item) = evaluate_lazy_field(db, entry) {
+          fields.insert(key, serialize(db, project, &item, visiting, true));
+        }
+      }
+      for (key, value) in schema_obj.all_fields(db) {
+        fields.insert(key, serialize(db, project, &value, visiting, true));
+      }
       visiting.remove(&id);
       serde_json::json!({
         "_type": "schema",
@@ -398,6 +400,31 @@ mod tests {
     assert_eq!(value["_type"], "blob");
     assert_eq!(value["format"], "png");
     assert_eq!(value["handle"]["path"], "/vault/_assets/photo.png");
+  }
+
+  #[test]
+  fn computed_field_included_in_serialized_output() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "computed_resource.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate resource");
+    let value = serialize_value(&db, project, &obj);
+    assert_eq!(
+      value["fields"]["fullName"], "Alice Smith",
+      "computed field should appear in serialized fields: {value}"
+    );
+  }
+
+  #[test]
+  fn computed_field_access_reads_instance_fields() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "computed_field_access_resource.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate resource");
+    let value = serialize_value(&db, project, &obj);
+    assert_eq!(
+      value["fields"]["fullName"], "Alice Smith",
+      "computed field accessing r.firstName/r.lastName should resolve: {value}"
+    );
   }
 
   #[test]
