@@ -8,4 +8,7 @@ properties:
   bookCount:
     type: number
     computed: (r) -> vault.from_node(r).follow_back(Book, "tag").count()
+  textbooks:
+    type: list[Textbook]
+    computed: (r) -> vault.from_node(r).follow_back(Textbook, "tag").to_list()
 ---

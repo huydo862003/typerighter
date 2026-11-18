@@ -554,6 +554,46 @@ mod tests {
   }
 
   #[test]
+  fn follow_back_finds_inherited_field() {
+    // Textbook extends Book. Book declares "tag: Tag?"
+    // Tag.textbooks uses follow_back(Textbook, "tag")
+    // Should find textbook_one (tag: nonfiction) via inherited "tag" field
+    let (db, project, file) = load_vault_fixture(CVQ, "nonfiction.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate nonfiction tag");
+    let value = serialize_value(&db, project, &obj);
+    let textbooks = &value["fields"]["textbooks"];
+    assert!(textbooks.is_array(), "textbooks should be a list: {value}");
+    assert_eq!(
+      textbooks.as_array().unwrap().len(),
+      1,
+      "follow_back(Textbook, 'tag') should find textbook_one via inherited field: {value}"
+    );
+  }
+
+  #[test]
+  fn all_fields_includes_inherited_fields() {
+    // Textbook extends Book. Book declares "title: string", "author: Author"
+    // all_fields on a Textbook instance should include inherited fields
+    let (db, project, file) = load_vault_fixture(CVQ, "textbook_one.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate textbook");
+    let value = serialize_value(&db, project, &obj);
+    assert_eq!(
+      value["fields"]["title"], "Textbook One",
+      "inherited field 'title' should be present: {value}"
+    );
+    assert!(
+      !value["fields"]["author"].is_null(),
+      "inherited field 'author' should be present: {value}"
+    );
+    assert_eq!(
+      value["fields"]["edition"], 2.0,
+      "own field 'edition' should be present: {value}"
+    );
+  }
+
+  #[test]
   fn computed_vault_query_all_resources_serialize() {
     // Full build simulation - must terminate without infinite loop
     let (db, project, _) = load_vault_fixture(CVQ, "alice.td");
