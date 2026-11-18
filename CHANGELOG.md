@@ -1,3 +1,10 @@
+## [0.64.3] - 2026-11-18
+
+### Performance
+
+- crates/typedown-lang
+  - Optimize vault query with schema-targeted search and memoized index
+
 ## [0.64.2] - 2026-11-18
 
 ### Fixed
