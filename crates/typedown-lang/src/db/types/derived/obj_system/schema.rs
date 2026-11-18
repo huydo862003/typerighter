@@ -402,32 +402,46 @@ impl<'db> TdRuntimeObj<'db> for TdSchemaObj<'db> {
   }
 }
 
+// Memoized wrapper so computed closures (which may do vault queries) are evaluated once per object
+#[query_derived]
+struct ResolvedFields<'db> {
+  fields: BTreeMap<String, TdObjEnum<'db>>,
+}
+
+#[query_derived]
+fn resolve_all_fields<'db>(
+  db: &'db TypedownDatabase,
+  schema_obj: TdSchemaObj<'db>,
+) -> ResolvedFields<'db> {
+  let mut result = BTreeMap::new();
+  for (key, entry) in schema_obj.fields(db).iter() {
+    let obj = match entry.clone() {
+      Either::Left(node) => {
+        let scope = get_file_runtime_scope(db, node.project, node.file);
+        evaluate_node(db, node, scope).value(db)
+      }
+      Either::Right(obj) => Some(obj),
+    };
+    if let Some(obj) = obj {
+      result.insert(key.clone(), obj);
+    }
+  }
+  if let Some(schema_typ) = schema_obj.schema(db).as_td_schema_typ() {
+    for (key, descriptor) in schema_typ.fields(db).iter() {
+      if !result.contains_key(key)
+        && (descriptor.computed_func.is_some() || descriptor.default_value.is_some())
+        && let Some(value) = schema_obj.get_owned_field(db, key)
+      {
+        result.insert(key.clone(), value);
+      }
+    }
+  }
+  ResolvedFields::new(db, result)
+}
+
 impl<'db> TdSchemaObj<'db> {
   // Instance fields + computed/default fields from the schema's property descriptors
   pub fn all_fields(&self, db: &'db TypedownDatabase) -> BTreeMap<String, TdObjEnum<'db>> {
-    let mut result = BTreeMap::new();
-    for (key, entry) in self.fields(db).iter() {
-      let obj = match entry.clone() {
-        Either::Left(node) => {
-          let scope = get_file_runtime_scope(db, node.project, node.file);
-          evaluate_node(db, node, scope).value(db)
-        }
-        Either::Right(obj) => Some(obj),
-      };
-      if let Some(obj) = obj {
-        result.insert(key.clone(), obj);
-      }
-    }
-    if let Some(schema_typ) = self.schema(db).as_td_schema_typ() {
-      for (key, descriptor) in schema_typ.fields(db).iter() {
-        if !result.contains_key(key)
-          && (descriptor.computed_func.is_some() || descriptor.default_value.is_some())
-          && let Some(value) = self.get_owned_field(db, key)
-        {
-          result.insert(key.clone(), value);
-        }
-      }
-    }
-    result
+    resolve_all_fields(db, *self).fields(db).clone()
   }
 }

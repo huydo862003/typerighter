@@ -445,8 +445,7 @@ mod tests {
 
   #[test]
   fn computed_backref_serializes_without_infinite_loop() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "backref_parent.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "backref_parent.td");
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate resource");
     // This must terminate - computed field returns list of schema objects via follow_back
@@ -489,7 +488,11 @@ mod tests {
     let value = serialize_value(&db, project, &obj);
     let books = &value["fields"]["books"];
     assert!(books.is_array(), "books should be a list: {value}");
-    assert_eq!(books.as_array().unwrap().len(), 2, "Alice should have 2 books: {value}");
+    assert_eq!(
+      books.as_array().unwrap().len(),
+      2,
+      "Alice should have 2 books: {value}"
+    );
   }
 
   #[test]
@@ -500,7 +503,11 @@ mod tests {
     let value = serialize_value(&db, project, &obj);
     let books = &value["fields"]["books"];
     assert!(books.is_array(), "books should be a list: {value}");
-    assert_eq!(books.as_array().unwrap().len(), 1, "Bob should have 1 book: {value}");
+    assert_eq!(
+      books.as_array().unwrap().len(),
+      1,
+      "Bob should have 1 book: {value}"
+    );
   }
 
   #[test]
@@ -542,7 +549,10 @@ mod tests {
       let _ = serialize_value(&db, project, &obj);
       serialized_count += 1;
     }
-    assert!(serialized_count >= 7, "should serialize at least 7 resources, got {serialized_count}");
+    assert!(
+      serialized_count >= 7,
+      "should serialize at least 7 resources, got {serialized_count}"
+    );
   }
 
   #[test]

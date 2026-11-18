@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hasher;
 
 use hashbrown::HashSet;
@@ -98,6 +99,28 @@ fn vault_resources<'db>(db: &'db TypedownDatabase, project: Project) -> Vec<TdOb
     .collect()
 }
 
+// Vault resources indexed by schema name, memoized to avoid repeated full scans
+#[query_derived]
+fn vault_resource_index<'db>(db: &'db TypedownDatabase, project: Project) -> VaultSchemaIndex<'db> {
+  let mut entries: BTreeMap<String, Vec<TdObjEnum<'db>>> = BTreeMap::new();
+  for obj in vault_resources(db, project) {
+    if let Some(schema_obj) = obj.as_td_schema_obj()
+      && let Some(schema_typ) = schema_obj.schema(db).as_td_schema_typ()
+    {
+      entries
+        .entry(schema_typ.name(db).clone())
+        .or_default()
+        .push(obj);
+    }
+  }
+  VaultSchemaIndex::new(db, entries)
+}
+
+#[query_derived]
+struct VaultSchemaIndex<'db> {
+  entries: BTreeMap<String, Vec<TdObjEnum<'db>>>,
+}
+
 #[query_derived]
 pub(crate) fn materialize_as_list<'db>(
   db: &'db TypedownDatabase,
@@ -109,14 +132,12 @@ pub(crate) fn materialize_as_list<'db>(
     NodeSetPlan::FromNodes {
       schema_typ,
       where_func,
-    } => vault_resources(db, project)
+    } => vault_resource_index(db, project)
+      .entries(db)
+      .get(schema_typ.name(db).as_str())
+      .cloned()
+      .unwrap_or_default()
       .into_iter()
-      .filter(|obj| {
-        obj
-          .as_td_schema_obj()
-          .map(|schema_obj| schema_obj.schema(db).as_td_schema_typ().copied() == Some(schema_typ))
-          .unwrap_or(false)
-      })
       .filter(|obj| {
         let Some(ref func) = where_func else {
           return true;
@@ -181,7 +202,11 @@ pub(crate) fn materialize_as_list<'db>(
       }
       targets
     }
-    NodeSetPlan::FollowBack { source, field_name, search_schema } => {
+    NodeSetPlan::FollowBack {
+      source,
+      field_name,
+      search_schema,
+    } => {
       let target_ids: HashSet<_> = materialize_as_list(db, source)
         .items(db)
         .into_iter()
@@ -191,15 +216,12 @@ pub(crate) fn materialize_as_list<'db>(
         })
         .collect();
       let mut seen = HashSet::new();
-      // Only search resources matching the declared schema type
-      vault_resources(db, project)
+      vault_resource_index(db, project)
+        .entries(db)
+        .get(search_schema.name(db).as_str())
+        .cloned()
+        .unwrap_or_default()
         .into_iter()
-        .filter(|obj| {
-          obj
-            .as_td_schema_obj()
-            .map(|schema_obj| schema_obj.schema(db).as_td_schema_typ().copied() == Some(search_schema))
-            .unwrap_or(false)
-        })
         .filter(|obj| {
           let Some(field_value) = obj.get_owned_field(db, &field_name) else {
             return false;

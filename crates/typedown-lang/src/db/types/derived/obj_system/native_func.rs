@@ -215,7 +215,11 @@ fn node_set_follow_back<'db>(
     TdNodeSetObj::new(
       db,
       project,
-      NodeSetPlan::FollowBack { source, field_name, search_schema },
+      NodeSetPlan::FollowBack {
+        source,
+        field_name,
+        search_schema,
+      },
     )
     .into(),
   )
