@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.64.2] - 2026-11-18
+
+### Fixed
+
+- crates/typedown-lang
+  - Serialization should include computed and default fields
+
 ## [0.64.1] - 2026-11-18
 
 ### Fixed
