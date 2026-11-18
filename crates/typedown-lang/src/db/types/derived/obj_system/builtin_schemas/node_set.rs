@@ -99,7 +99,8 @@ fn vault_resources<'db>(db: &'db TypedownDatabase, project: Project) -> Vec<TdOb
     .collect()
 }
 
-// Vault resources indexed by schema name, memoized to avoid repeated full scans
+// Vault resources indexed by schema name (including parent schema names for inheritance)
+// Memoized to avoid repeated full scans
 #[query_derived]
 fn vault_resource_index<'db>(db: &'db TypedownDatabase, project: Project) -> VaultSchemaIndex<'db> {
   let mut entries: BTreeMap<String, Vec<TdObjEnum<'db>>> = BTreeMap::new();
@@ -107,10 +108,17 @@ fn vault_resource_index<'db>(db: &'db TypedownDatabase, project: Project) -> Vau
     if let Some(schema_obj) = obj.as_td_schema_obj()
       && let Some(schema_typ) = schema_obj.schema(db).as_td_schema_typ()
     {
-      entries
-        .entry(schema_typ.name(db).clone())
-        .or_default()
-        .push(obj);
+      // Register under own name and all ancestor schema names
+      let mut current = Some(*schema_typ);
+      while let Some(typ) = current {
+        entries
+          .entry(typ.name(db).clone())
+          .or_default()
+          .push(obj.clone());
+        current = typ
+          .parent(db)
+          .and_then(|parent| parent.as_td_schema_typ().copied());
+      }
     }
   }
   VaultSchemaIndex::new(db, entries)

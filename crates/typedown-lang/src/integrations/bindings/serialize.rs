@@ -488,10 +488,11 @@ mod tests {
     let value = serialize_value(&db, project, &obj);
     let books = &value["fields"]["books"];
     assert!(books.is_array(), "books should be a list: {value}");
+    // 2 Books + 1 Textbook (extends Book)
     assert_eq!(
       books.as_array().unwrap().len(),
-      2,
-      "Alice should have 2 books: {value}"
+      3,
+      "Alice should have 3 books (including subtypes): {value}"
     );
   }
 
@@ -528,9 +529,27 @@ mod tests {
     let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
     let obj = result.value(&db).expect("should evaluate nonfiction tag");
     let value = serialize_value(&db, project, &obj);
+    // 1 Book + 1 Textbook (extends Book)
     assert_eq!(
-      value["fields"]["bookCount"], 1.0,
-      "Nonfiction tag should count 1 book: {value}"
+      value["fields"]["bookCount"], 2.0,
+      "Nonfiction tag should count 2 books (including subtypes): {value}"
+    );
+  }
+
+  #[test]
+  fn from_nodes_includes_subtypes() {
+    // Author.books uses follow_back(Book, "author")
+    // Textbook extends Book, so textbook_one (by alice) should be included
+    let (db, project, file) = load_vault_fixture(CVQ, "alice.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate alice");
+    let value = serialize_value(&db, project, &obj);
+    let books = &value["fields"]["books"];
+    // book_one, book_two (Book) + textbook_one (Textbook extends Book)
+    assert_eq!(
+      books.as_array().unwrap().len(),
+      3,
+      "follow_back should include subtypes: {value}"
     );
   }
 
