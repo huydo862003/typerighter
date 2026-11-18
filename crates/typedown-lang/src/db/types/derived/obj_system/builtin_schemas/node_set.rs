@@ -9,8 +9,10 @@ use typedown_types::either::Either;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::builtin_schemas::node_set::get_node_set_typ;
+use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use crate::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use crate::db::derived::name_resolver::file_symbol::file_symbol;
+use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::types::TdRuntimeObj;
 use crate::db::types::{Project, SymbolKind};
 use crate::db::types::{TdFuncObj, TdListObj, TdObjEnum, TdSchemaTyp, TdTypEnum};
@@ -234,7 +236,22 @@ pub(crate) fn materialize_as_list<'db>(
           let Some(field_value) = obj.get_owned_field(db, &field_name) else {
             return false;
           };
-          target_ids.contains(&field_value.as_id()) && seen.insert(obj.as_id())
+          let matches = if let Some(list) = field_value.as_td_list_obj() {
+            // List field: check if any item's ID is in target_ids
+            list.items(db).iter().any(|entry| {
+              let resolved = match entry.clone() {
+                Either::Right(item) => Some(item),
+                Either::Left(node) => {
+                  let scope = get_file_runtime_scope(db, node.project, node.file);
+                  evaluate_node(db, node, scope).value(db)
+                }
+              };
+              resolved.is_some_and(|item| target_ids.contains(&item.as_id()))
+            })
+          } else {
+            target_ids.contains(&field_value.as_id())
+          };
+          matches && seen.insert(obj.as_id())
         })
         .collect()
     }

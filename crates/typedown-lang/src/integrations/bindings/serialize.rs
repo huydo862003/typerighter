@@ -629,4 +629,25 @@ mod tests {
       "ref should have url: {value}",
     );
   }
+
+  // Minimal reproduction: schema-level computed follow_back returns empty.
+  // Topic has computed articles via follow_back(Article, "topics").
+  // Article instances have topics: [math].
+  // Expected: math.articles = [intro, advanced].
+  const CSFB: &str = "evaluate/computed_schema_follow_back";
+
+  #[test]
+  fn computed_schema_follow_back_finds_referencing_instances() {
+    let (db, project, file) = load_vault_fixture(CSFB, "math.td");
+    let result = evaluate_resource(&db, file_symbol(&db, project, file).value(&db).unwrap());
+    let obj = result.value(&db).expect("should evaluate math topic");
+    let value = serialize_value(&db, project, &obj);
+    let articles = &value["fields"]["articles"];
+    assert!(articles.is_array(), "articles should be a list: {value}");
+    assert_eq!(
+      articles.as_array().unwrap().len(),
+      2,
+      "Math topic should have 2 articles via follow_back: {value}"
+    );
+  }
 }
