@@ -1,3 +1,10 @@
+## [0.64.4] - 2026-11-18
+
+### Fixed
+
+- crates/typedown-lang
+  - Vault query should respect schema subtyping
+
 ## [0.64.3] - 2026-11-18
 
 ### Performance
