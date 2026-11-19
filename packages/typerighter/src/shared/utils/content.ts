@@ -14,6 +14,42 @@ import {
   basename, filestem, dirname,
 } from './path';
 
+// Return a cascade-filtered copy of items for sidebar nav:
+// - excludes items with ssg.showInSidebar === false
+// - excludes items under directories whose index.td has ssg.showInSidebar === false
+export function buildCascadeFilteredItems (items: ContentSummary[]): ContentSummary[] {
+  const hiddenDirs = new Set<string>();
+
+  for (const item of items) {
+    const stem = item.filepath.split('/').pop()
+      ?.replace(/\.td$/, '');
+
+    if (stem !== 'index') continue;
+    if (item.ssg?.showInSidebar !== false) continue;
+
+    const directory = item.filepath.split('/').slice(0, -1)
+      .join('/');
+
+    hiddenDirs.add(directory);
+  }
+
+  return items.filter((item) => {
+    if (item.ssg?.showInSidebar === false) return false;
+
+    if (hiddenDirs.size === 0) return true;
+
+    const parts = item.filepath.split('/').slice(0, -1);
+    let directory = '';
+
+    for (const part of parts) {
+      directory = directory ? `${directory}/${part}` : part;
+      if (hiddenDirs.has(directory)) return false;
+    }
+
+    return true;
+  });
+}
+
 // Build a recursive tree from a flat list of content summaries, grouped by directory
 export function buildContentTree (items: ContentSummary[]): ContentTree {
   const root: ContentTreeNode = {
@@ -89,7 +125,7 @@ export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle
     return getIndexUrl(`${urlPrefix}/${child.name}`);
   }
 
-  function toListingEntries (nodeEntries: ContentTreeEntry[], urlPrefix: string): DirectoryListingEntry[] {
+  function toListingEntries (nodeEntries: ContentTreeEntry[], urlPrefix: string, isDirectoryHidden: boolean): DirectoryListingEntry[] {
     const result: DirectoryListingEntry[] = [];
 
     for (const entry of nodeEntries) {
@@ -103,6 +139,8 @@ export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle
           },
         });
       } else if (!isIndexFile(entry.item.filepath)) {
+        // Hidden directories show all entries; visible directories filter out hidden entries
+        if (!isDirectoryHidden && entry.item.ssg?.showInSidebar === false) continue;
         result.push({
           kind: 'file',
           item: toDirectoryEntry(entry.item),
@@ -113,28 +151,35 @@ export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle
     return result;
   }
 
+  function isDirectoryNodeHidden (node: ContentTreeNode): boolean {
+    const indexItem = getNodeIndexItem(node);
+
+    return indexItem?.ssg?.showInSidebar === false;
+  }
+
   function walk (nodeEntries: ContentTreeEntry[], urlPrefix: string) {
     for (const entry of nodeEntries) {
       if (entry.kind !== 'dir') continue;
 
       const node = entry.node;
       const directoryUrl = urlPrefix ? `${urlPrefix}/${node.name}` : `/${node.name}`;
+      const hidden = isDirectoryNodeHidden(node);
 
       map[directoryUrl] = {
         title: unslugify(node.name),
         url: directoryUrl,
-        entries: toListingEntries(node.entries, directoryUrl),
+        entries: toListingEntries(node.entries, directoryUrl, hidden),
       };
 
       walk(node.entries, directoryUrl);
     }
   }
 
-  // Root directory
+  // Root directory (always treated as visible)
   map['/'] = {
     title: rootTitle,
     url: '/',
-    entries: toListingEntries(entries, ''),
+    entries: toListingEntries(entries, '', false),
   };
 
   walk(entries, '');
@@ -229,5 +274,6 @@ function toDirectoryEntry (item: ContentSummary): DirectoryEntry {
     tags: 0 < tags.length ? tags : undefined,
     mtimeSecs: item.fileMetadata?.mtimeSecs,
     schema: item.schema,
+    showInSidebar: item.ssg?.showInSidebar ?? true,
   };
 }

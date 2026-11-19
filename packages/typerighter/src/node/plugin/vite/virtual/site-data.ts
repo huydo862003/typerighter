@@ -18,6 +18,7 @@ import type {
 } from '@/node/lib/typedown-context';
 import {
   type ContentTree,
+  buildCascadeFilteredItems,
   buildContentTree,
   buildDirectoryListingMap,
   extractFrontmatterBuiltinFields,
@@ -26,7 +27,10 @@ import {
 } from '@/shared';
 
 interface SiteData {
+  // Cascade-filtered items for the sidebar nav tree
   contentItems: ContentSummary[];
+  // All items including hidden ones, for directory listings
+  fullContentItems: ContentSummary[];
   contentTree: ContentTree;
   schemas: Record<string, unknown>;
   directoryListings: ReturnType<typeof buildDirectoryListingMap>;
@@ -51,56 +55,9 @@ export class VirtualSiteData {
       exclude: (name: string) => name.startsWith('_'),
     });
 
-    // First pass: collect directories whose index.td is hidden from sidebar
-    const hiddenDirsInSidebar = new Set<string>();
+    const fullContentItems: ContentSummary[] = [];
 
     for (const filepath of files) {
-      const stem = filepath.split('/').pop()
-        ?.replace(/\.td$/, '');
-
-      if (stem !== 'index') continue;
-
-      let raw: string | undefined;
-
-      try {
-        raw = readFileSync(resolve(rootDirectory, filepath), 'utf-8');
-      } catch {
-        // skip unreadable files
-      }
-
-      if (
-        raw
-        && extractFrontmatterBuiltinFields(raw)?.showInSidebar === false
-      ) {
-        const directory = filepath.split('/').slice(0, -1)
-          .join('/');
-
-        hiddenDirsInSidebar.add(directory);
-      }
-    }
-
-    const isUnderHiddenDirectoryInSidebar = (filepath: string): boolean => {
-      if (hiddenDirsInSidebar.size === 0) return false;
-      let current = filepath.split('/').slice(0, -1)
-        .join('/');
-
-      while (current) {
-        if (hiddenDirsInSidebar.has(current)) return true;
-        const parent = current.split('/').slice(0, -1)
-          .join('/');
-
-        if (parent === current) break;
-        current = parent;
-      }
-
-      return false;
-    };
-
-    const contentItems: ContentSummary[] = [];
-
-    for (const filepath of files) {
-      if (isUnderHiddenDirectoryInSidebar(filepath)) continue;
-
       let raw: string | undefined;
 
       try {
@@ -111,22 +68,28 @@ export class VirtualSiteData {
 
       const fields = raw ? extractFrontmatterBuiltinFields(raw) : undefined;
 
-      if (fields?.showInSidebar === false) continue;
-
-      contentItems.push({
+      fullContentItems.push({
         filepath,
         label: fields?.label ?? getTdResourceTitle(filepath),
         header: {},
+        ssg: {
+          showInSidebar: fields?.showInSidebar ?? true,
+          showInSearch: fields?.showInSearch ?? true,
+          crawlable: fields?.crawlable ?? true,
+        },
       });
     }
 
+    const contentItems = buildCascadeFilteredItems(fullContentItems);
     const contentTree = buildContentTree(contentItems);
+    const fullContentTree = buildContentTree(fullContentItems);
 
     this.data = {
       contentItems,
+      fullContentItems,
       contentTree,
       schemas: {},
-      directoryListings: buildDirectoryListingMap(contentTree.entries, ''),
+      directoryListings: buildDirectoryListingMap(fullContentTree.entries, ''),
     };
   }
 
@@ -172,16 +135,15 @@ if (import.meta.hot) {
   // Patch a single sidebar entry, rebuild tree
   upsertSidebarEntry (sidebarItem: TdSidebarItem): void {
     if (!this.data) return;
-    const index = this.data.contentItems.findIndex(
+    const summary = convertSidebarItemToSummary(sidebarItem);
+    const fullIndex = this.data.fullContentItems.findIndex(
       (item) => item.filepath === sidebarItem.filepath,
     );
 
-    const summary = convertSidebarItemToSummary(sidebarItem);
-
-    if (0 <= index) {
-      this.data.contentItems[index] = summary;
+    if (0 <= fullIndex) {
+      this.data.fullContentItems[fullIndex] = summary;
     } else {
-      this.data.contentItems.push(summary);
+      this.data.fullContentItems.push(summary);
     }
 
     this.rebuildTree();
@@ -190,7 +152,7 @@ if (import.meta.hot) {
   // Remove a sidebar entry by filepath
   removeSidebarEntry (filepath: string): void {
     if (!this.data) return;
-    this.data.contentItems = this.data.contentItems.filter(
+    this.data.fullContentItems = this.data.fullContentItems.filter(
       (item) => item.filepath !== filepath,
     );
     this.rebuildTree();
@@ -222,11 +184,14 @@ if (import.meta.hot) {
 
   private rebuildTree (): void {
     if (!this.data) return;
-    const contentTree = buildContentTree(this.data.contentItems);
+    const contentItems = buildCascadeFilteredItems(this.data.fullContentItems);
+    const contentTree = buildContentTree(contentItems);
+    const fullContentTree = buildContentTree(this.data.fullContentItems);
 
+    this.data.contentItems = contentItems;
     this.data.contentTree = contentTree;
     this.data.directoryListings = buildDirectoryListingMap(
-      contentTree.entries,
+      fullContentTree.entries,
       '',
     );
   }
@@ -253,6 +218,7 @@ function convertSidebarItemToSummary (item: TdSidebarItem): ContentSummary {
     header: {},
     excerpt: item.excerpt,
     fileMetadata: item.fileMetadata,
+    ssg: item.ssg,
   };
 }
 
@@ -279,19 +245,22 @@ async function fetchFromRpc (context: TypedownContext): Promise<SiteData> {
   );
   const schemas = Object.fromEntries(schemaEntries);
 
-  // Build content tree from lightweight sidebar items
-  const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
+  // Build content tree from all sidebar items (including hidden)
+  const fullContentItems: ContentSummary[] = sidebarItems.map((item) => ({
     ...item,
     header: {},
   }));
+  const contentItems = buildCascadeFilteredItems(fullContentItems);
   const contentTree = buildContentTree(contentItems);
+  const fullContentTree = buildContentTree(fullContentItems);
   const directoryListings = buildDirectoryListingMap(
-    contentTree.entries,
+    fullContentTree.entries,
     config.siteTitle,
   );
 
   return {
     contentItems,
+    fullContentItems,
     contentTree,
     schemas,
     directoryListings,

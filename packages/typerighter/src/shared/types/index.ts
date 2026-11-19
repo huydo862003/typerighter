@@ -1,5 +1,5 @@
 export type {
-  ContentIcon, ContentSummary, ContentTree, ContentTreeEntry, ContentTreeNode,
+  ContentIcon, ContentSsg, ContentSummary, ContentTree, ContentTreeEntry, ContentTreeNode,
   DirectoryEntry, DirectoryListing, DirectoryListingEntry, FileMetadata,
   PropertyDescriptor, PropertyWidget, SchemaDefinition, SubdirectoryEntry,
 } from './content';

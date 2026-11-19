@@ -8,9 +8,6 @@ use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
 use typedown_lang::db::utils::{is_content_file, is_internal_file};
 use typedown_lang::db::{QueryStorage, TypedownDatabase};
 use typedown_lang::integrations::export::{export_resource_nav, export_ssg_flags};
-use typedown_server::rpc::server::{
-  collect_hidden_directories_in_sidebar, is_under_hidden_directory_in_sidebar,
-};
 use typedown_types::path::normalize_path;
 
 use super::utils::example_vault;
@@ -187,14 +184,9 @@ fn get_sidebar_paths_for_vault(
     })
     .collect();
 
-  let hidden_directories = collect_hidden_directories_in_sidebar(db, project, &entries);
-
   let mut paths: Vec<String> = entries
     .into_iter()
-    .filter(|(relative, file)| {
-      export_ssg_flags(db, project, *file).show_in_sidebar
-        && !is_under_hidden_directory_in_sidebar(relative, &hidden_directories)
-    })
+    .filter(|(_, file)| export_ssg_flags(db, project, *file).show_in_sidebar)
     .filter_map(|(relative, file)| {
       export_resource_nav(db, project, file)?;
       Some(relative)
@@ -244,8 +236,8 @@ vault:
 }
 
 #[test]
-fn hidden_index_hides_entire_subtree() {
-  // people/index.td is hidden, so people/alice.td and people/bob.td should not appear
+fn hidden_index_only_hides_itself() {
+  // people/index.td is hidden but alice and bob have no _ssg - they remain visible
   let db = TypedownDatabase {
     storage: QueryStorage::default(),
   };
@@ -293,14 +285,22 @@ _label: "Bob"
     "root.td should be visible: {paths:?}"
   );
   assert!(
-    !paths.iter().any(|path| path.contains("people")),
-    "all people/* should be hidden when index is hidden: {paths:?}"
+    !paths.iter().any(|path| path == "people/index.td"),
+    "people/index.td should be hidden: {paths:?}"
+  );
+  assert!(
+    paths.iter().any(|path| path.contains("alice")),
+    "people/alice.td should still be visible: {paths:?}"
+  );
+  assert!(
+    paths.iter().any(|path| path.contains("bob")),
+    "people/bob.td should still be visible: {paths:?}"
   );
 }
 
 #[test]
-fn hidden_index_hides_nested_subdirs() {
-  // people/index.td hidden, people/authors/hemingway.td also hidden transitively
+fn hidden_index_does_not_affect_nested_subdirs() {
+  // people/index.td hidden; alice and hemingway have no _ssg so they remain visible
   let db = TypedownDatabase {
     storage: QueryStorage::default(),
   };
@@ -350,8 +350,16 @@ _label: "Note"
   let paths = get_sidebar_paths_for_vault(&db, &vault, files);
 
   assert!(
-    !paths.iter().any(|path| path.starts_with("people")),
-    "all people/* should be hidden transitively: {paths:?}"
+    !paths.iter().any(|path| path == "people/index.td"),
+    "people/index.td should be hidden: {paths:?}"
+  );
+  assert!(
+    paths.iter().any(|path| path.contains("alice")),
+    "people/alice.td should be visible: {paths:?}"
+  );
+  assert!(
+    paths.iter().any(|path| path.contains("hemingway")),
+    "people/authors/hemingway.td should be visible: {paths:?}"
   );
   assert!(
     paths.iter().any(|path| path.contains("notes")),
@@ -412,9 +420,14 @@ _label: "Secret"
     paths.iter().any(|path| path == "people/index.td"),
     "people/index.td should be visible: {paths:?}"
   );
+  // internal/index.td is hidden but secret.td has no _ssg so it remains visible
   assert!(
-    !paths.iter().any(|path| path.contains("internal")),
-    "people/internal/* should be hidden: {paths:?}"
+    !paths.iter().any(|path| path == "people/internal/index.td"),
+    "people/internal/index.td should be hidden: {paths:?}"
+  );
+  assert!(
+    paths.iter().any(|path| path.contains("secret")),
+    "people/internal/secret.td should be visible (no _ssg): {paths:?}"
   );
 }
 
@@ -494,5 +507,46 @@ _label: "Alice"
   assert!(
     paths.iter().any(|path| path.contains("index")),
     "index should be visible: {paths:?}"
+  );
+}
+
+#[test]
+fn hidden_index_does_not_cascade_to_children() {
+  // people/index.td is hidden but alice.td has no _ssg - alice should still appear
+  let db = TypedownDatabase {
+    storage: QueryStorage::default(),
+  };
+  let vault = PathBuf::from("/vault_no_cascade");
+  let files = make_vault(
+    &db,
+    &vault,
+    &[
+      (
+        "people/index.td",
+        r#"---
+_label: "People"
+_ssg:
+  show_in_sidebar: false
+---
+"#,
+      ),
+      (
+        "people/alice.td",
+        r#"---
+_label: "Alice"
+---
+"#,
+      ),
+    ],
+  );
+  let paths = get_sidebar_paths_for_vault(&db, &vault, files);
+
+  assert!(
+    !paths.iter().any(|path| path == "people/index.td"),
+    "people/index.td should be hidden: {paths:?}"
+  );
+  assert!(
+    paths.iter().any(|path| path == "people/alice.td"),
+    "people/alice.td should still be visible when only the index is hidden: {paths:?}"
   );
 }

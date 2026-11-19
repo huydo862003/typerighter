@@ -554,16 +554,13 @@ fn has_sidebar_metadata_changed(
   }
 }
 
-/// Build a sidebar item for a single file, or None if it should be hidden
+/// Build a sidebar item for a single file, or None if the file has no nav data
 fn build_sidebar_item(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   relative: &str,
 ) -> Option<TdSidebarItem> {
-  if !export_ssg_flags(db, project, file).show_in_sidebar {
-    return None;
-  }
   let nav = export_resource_nav(db, project, file)?;
   let schema_label = get_schema_label(db, project, nav.schema.as_deref());
   let flags = export_ssg_flags(db, project, file);
@@ -806,50 +803,6 @@ fn list_files_grouped_by_schema(
   Ok(groups)
 }
 
-// Collect vault-relative dir prefixes (e.g. "people/") whose index.td is hidden from sidebar
-pub fn collect_hidden_directories_in_sidebar(
-  db: &TypedownDatabase,
-  project: Project,
-  entries: &[(String, File)],
-) -> Vec<String> {
-  entries
-    .iter()
-    .filter_map(|(relative, file)| {
-      let stem = Path::new(relative)
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or("");
-      if stem != "index" {
-        return None;
-      }
-      if export_ssg_flags(db, project, *file).show_in_sidebar {
-        return None;
-      }
-      let dir = Path::new(relative)
-        .parent()
-        .and_then(|path| path.to_str())
-        .unwrap_or("");
-      // Empty dir means vault root - sentinel "/" means hide all
-      if dir.is_empty() {
-        Some("/".to_string())
-      } else {
-        Some(format!("{dir}/"))
-      }
-    })
-    .collect()
-}
-
-// Returns true if the given vault-relative path is under any of the hidden directories
-pub fn is_under_hidden_directory_in_sidebar(relative: &str, hidden_directories: &[String]) -> bool {
-  hidden_directories.iter().any(|dir| {
-    if dir == "/" {
-      true
-    } else {
-      relative.starts_with(dir.as_str())
-    }
-  })
-}
-
 fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   let db = &analysis.db;
   let project = analysis.project;
@@ -858,30 +811,14 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   let root_dir = config.root_dir(db);
   let files = project.files(db);
 
-  let entries: Vec<_> = files
+  let items: Vec<TdSidebarItem> = files
     .iter()
     .filter(|(path, _)| {
       path.starts_with(&root_dir) && is_content_file(path) && !is_internal_file(path)
     })
-    .map(|(path, file)| {
-      (
-        normalize_path(path.strip_prefix(&root_dir).unwrap_or(path)),
-        *file,
-      )
-    })
-    .collect();
-
-  // Collect directories whose index.td is hidden from sidebar
-  // Any file under these directories is also excluded
-  let hidden_directories_in_sidebar = collect_hidden_directories_in_sidebar(db, project, &entries);
-
-  let items: Vec<TdSidebarItem> = entries
-    .into_par_iter()
-    .filter_map(|(relative, file)| {
-      if is_under_hidden_directory_in_sidebar(&relative, &hidden_directories_in_sidebar) {
-        return None;
-      }
-      build_sidebar_item(db, project, file, &relative)
+    .filter_map(|(path, file)| {
+      let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+      build_sidebar_item(db, project, *file, &relative)
     })
     .collect();
 

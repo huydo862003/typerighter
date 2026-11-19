@@ -13,6 +13,7 @@ import { generateAppEntry, generateThemeModule } from "../lib/codegen";
 import { resolveUserComponents, type UserComponent } from "../lib/components";
 import { ProgressLogger } from "../lib/progress";
 import {
+  buildCascadeFilteredItems,
   buildContentTree,
   buildDirectoryListingMap,
   CONTENT_GLOB,
@@ -77,11 +78,13 @@ export async function buildSite(
   const rawBase = options.base ?? config.basePath ?? "/";
   const base = ensureTrailingSlash(rawBase);
 
-  const contentItems: ContentSummary[] = sidebarItems.map((item) => ({
+  const fullContentItems: ContentSummary[] = sidebarItems.map((item) => ({
     ...item,
     header: {},
   }));
+  const contentItems = buildCascadeFilteredItems(fullContentItems);
   const contentTree = buildContentTree(contentItems);
+  const fullContentTree = buildContentTree(fullContentItems);
   const siteConfig = JSON.stringify({
     title: config.siteTitle,
     description: config.siteDescription,
@@ -94,7 +97,7 @@ export async function buildSite(
     license,
     nav: config.nav,
   });
-  const siteData = JSON.stringify({ ready: true, contentTree, schemas });
+  const siteData = JSON.stringify({ ready: true, contentTree, fullContentTree, schemas });
 
   // 2. Generate entry files inside the project so Vite can resolve 'typerighter/*' imports
   const tempDir = path.join(root, "node_modules", ".typerighter");
@@ -337,9 +340,9 @@ function generateSsrEntry(options: SsrEntryOptions): string {
   const glob = `/${options.rootDir}/${CONTENT_GLOB}`;
   const parsedConfig = JSON.parse(options.siteConfig);
   const parsedData = JSON.parse(options.siteData);
-  const contentTree = parsedData.contentTree ?? { entries: [] };
+  const fullContentTree = parsedData.fullContentTree ?? parsedData.contentTree ?? { entries: [] };
   const directoryListingMap = buildDirectoryListingMap(
-    contentTree.entries ?? [],
+    fullContentTree.entries ?? [],
     parsedConfig.title ?? "",
   );
   const siteDataWithListings = JSON.stringify({

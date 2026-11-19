@@ -5,7 +5,7 @@ export {
   EXTERNAL_URL_RE,
 } from './regexes';
 export type {
-  ContentIcon, ContentSummary, ContentTree, ContentTreeEntry, ContentTreeNode,
+  ContentIcon, ContentSsg, ContentSummary, ContentTree, ContentTreeEntry, ContentTreeNode,
   DirectoryEntry, DirectoryListing, DirectoryListingEntry, FileMetadata,
   PropertyDescriptor, PropertyWidget, SchemaDefinition, SubdirectoryEntry,
   AnyOfSchema, ArraySchema, ConstSchema, DictSchema, EnumSchema, JsonSchema,
@@ -16,7 +16,7 @@ export {
   isOptional, makeOptional,
 } from './types';
 export {
-  buildContentTree, buildDirectoryListingMap, getNodeIndexItem,
+  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, getNodeIndexItem,
   getTdIndexTitle, getTdResourceTitle, isIndexFile,
   debounce, throttle,
   isBuiltinField,

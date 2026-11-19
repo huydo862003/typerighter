@@ -3,6 +3,12 @@ export interface ContentIcon {
   name: string;
 }
 
+export interface ContentSsg {
+  showInSidebar: boolean;
+  showInSearch: boolean;
+  crawlable: boolean;
+}
+
 export interface ContentSummary {
   /** File path relative to content dir, with extension */
   filepath: string;
@@ -20,6 +26,8 @@ export interface ContentSummary {
   excerpt?: string;
   /** File metadata (absent during initial disk scan, populated after RPC) */
   fileMetadata?: FileMetadata;
+  /** SSG visibility flags */
+  ssg?: ContentSsg;
 }
 
 export interface ContentTree {
@@ -54,6 +62,8 @@ export interface DirectoryEntry {
   mtimeSecs?: number;
   /** Schema type name */
   schema?: string;
+  /** Whether this entry is shown in the sidebar */
+  showInSidebar: boolean;
 }
 
 export interface DirectoryListing {

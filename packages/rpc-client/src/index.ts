@@ -58,6 +58,12 @@ export interface TdHeading {
   slug: string;
 }
 
+export interface TdSsgFlags {
+  showInSidebar: boolean;
+  showInSearch: boolean;
+  crawlable: boolean;
+}
+
 export interface TdSidebarItem {
   filepath: string;
   schema?: string;
@@ -66,6 +72,7 @@ export interface TdSidebarItem {
   icon?: TdIcon;
   excerpt?: string;
   fileMetadata: TdFileMetadata;
+  ssg: TdSsgFlags;
 }
 
 export interface TdContentSummary {
