@@ -8,7 +8,9 @@ use crate::db::TypedownDatabase;
 use crate::db::derived::get_builtin_typs::{get_date_typ, get_datetime_typ, get_time_typ};
 use crate::db::types::Project;
 use typedown_incremental::Id;
-pub(crate) use utils::{is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time};
+pub(crate) use utils::{
+  is_valid_iso_date, is_valid_iso_datetime, is_valid_iso_time, normalize_to_iso_date,
+};
 
 // DateTime
 
@@ -153,8 +155,8 @@ impl<'db> TdStaticTyp<'db> for TdDateTyp<'db> {
     let arg = args.into_iter().next()?;
     let string_obj = arg.as_td_string_obj()?;
     let value = string_obj.value(db);
-    if is_valid_iso_date(&value) {
-      return Some(TdDateObj::new(db, value).into());
+    if let Some(canonical) = normalize_to_iso_date(&value) {
+      return Some(TdDateObj::new(db, canonical).into());
     }
     None
   }

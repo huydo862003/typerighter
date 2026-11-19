@@ -629,18 +629,91 @@ fn collect_value_completions(
   // Enum values from union of literals
   collect_enum_items(db, &typ, inside_str, &mut items);
 
-  // Date placeholder
+  // Date completions: current date + placeholder
   if typ.is_td_date_typ() || has_nullable_member(db, &typ, TdTypEnum::is_td_date_typ) {
-    let (label, insert) = if inside_str {
-      ("YYYY-MM-DD", "$1")
+    let today = current_iso_date_str();
+    let (today_insert, placeholder_label, placeholder_insert) = if inside_str {
+      (today.clone(), "YYYY-MM-DD", "$1".to_string())
     } else {
-      (r#""YYYY-MM-DD""#, r#""$1""#)
+      (
+        format!("\"{}\"", today),
+        r#""YYYY-MM-DD""#,
+        r#""$1""#.to_string(),
+      )
     };
     items.push(CompletionItem {
-      label: label.to_string(),
-      insert_text: Some(insert.to_string()),
+      label: "today".to_string(),
+      insert_text: Some(today_insert),
+      insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+      detail: Some(today),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+    items.push(CompletionItem {
+      label: placeholder_label.to_string(),
+      insert_text: Some(placeholder_insert),
       insert_text_format: Some(InsertTextFormat::SNIPPET),
       detail: Some("ISO 8601 date".to_string()),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+  }
+
+  // Time completions: current time + placeholder
+  if typ.is_td_time_typ() || has_nullable_member(db, &typ, TdTypEnum::is_td_time_typ) {
+    let now = current_iso_time_str();
+    let (now_insert, placeholder_label, placeholder_insert) = if inside_str {
+      (now.clone(), "HH:MM:SS", "$1".to_string())
+    } else {
+      (
+        format!("\"{}\"", now),
+        r#""HH:MM:SS""#,
+        r#""$1""#.to_string(),
+      )
+    };
+    items.push(CompletionItem {
+      label: "now".to_string(),
+      insert_text: Some(now_insert),
+      insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+      detail: Some(now),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+    items.push(CompletionItem {
+      label: placeholder_label.to_string(),
+      insert_text: Some(placeholder_insert),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      detail: Some("ISO 8601 time".to_string()),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+  }
+
+  // Datetime completions: current datetime + placeholder
+  if typ.is_td_date_time_typ() || has_nullable_member(db, &typ, TdTypEnum::is_td_date_time_typ) {
+    let now = current_iso_datetime_str();
+    let (now_insert, placeholder_label, placeholder_insert) = if inside_str {
+      (now.clone(), "YYYY-MM-DDTHH:MM:SS", "$1".to_string())
+    } else {
+      (
+        format!("\"{}\"", now),
+        r#""YYYY-MM-DDTHH:MM:SS""#,
+        r#""$1""#.to_string(),
+      )
+    };
+    items.push(CompletionItem {
+      label: "now".to_string(),
+      insert_text: Some(now_insert),
+      insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+      detail: Some(now),
+      kind: Some(CompletionItemKind::VALUE),
+      ..Default::default()
+    });
+    items.push(CompletionItem {
+      label: placeholder_label.to_string(),
+      insert_text: Some(placeholder_insert),
+      insert_text_format: Some(InsertTextFormat::SNIPPET),
+      detail: Some("ISO 8601 datetime".to_string()),
       kind: Some(CompletionItemKind::VALUE),
       ..Default::default()
     });
@@ -1150,6 +1223,21 @@ fn collect_container_slot_completions(
   Some(items)
 }
 
+// Returns current date in YYYY-MM-DD format
+fn current_iso_date_str() -> String {
+  chrono::Utc::now().format("%Y-%m-%d").to_string()
+}
+
+// Returns current time in HH:MM:SS format
+fn current_iso_time_str() -> String {
+  chrono::Utc::now().format("%H:%M:%S").to_string()
+}
+
+// Returns current datetime in YYYY-MM-DDTHH:MM:SS format
+fn current_iso_datetime_str() -> String {
+  chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string()
+}
+
 #[cfg(test)]
 mod tests {
   use super::resolve_completion as completion;
@@ -1190,6 +1278,10 @@ properties:
     type: string
   date:
     type: date
+  start_time:
+    type: time
+  created_at:
+    type: datetime
 ---
 "#;
 
@@ -2682,7 +2774,7 @@ priority: "high"
     );
   }
 
-  // Date field suggests ISO 8601 placeholder
+  // Date field suggests ISO 8601 placeholder and "today" with current date
   #[test]
   fn date_field_suggests_date_placeholder() {
     let (content, offset) = cursor(
@@ -2699,11 +2791,84 @@ date: d|
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions for date field");
     };
-    let has_date = items.iter().any(|item| item.label.contains("YYYY-MM-DD"));
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
-      has_date,
-      "date field should suggest ISO format: {:?}",
-      items.iter().map(|item| &item.label).collect::<Vec<_>>()
+      labels.iter().any(|label| label.contains("YYYY-MM-DD")),
+      "date field should suggest ISO placeholder: {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"today"),
+      "date field should suggest 'today': {:?}",
+      labels
+    );
+    // "today" insert_text should be a quoted YYYY-MM-DD value
+    let today_item = items.iter().find(|item| item.label == "today").unwrap();
+    let insert = today_item.insert_text.as_deref().unwrap_or("");
+    assert!(
+      insert.starts_with('"') && insert.ends_with('"') && insert.len() == 12,
+      "today insert_text should be a quoted YYYY-MM-DD, got: {:?}",
+      insert
+    );
+  }
+
+  // Time field suggests HH:MM:SS placeholder and "now" with current time
+  #[test]
+  fn time_field_suggests_time_placeholder_and_now() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Event
+start_time: n|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions for time field");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"now"),
+      "time field should suggest 'now': {:?}",
+      labels
+    );
+    assert!(
+      labels.iter().any(|label| label.contains("HH:MM:SS")),
+      "time field should suggest HH:MM:SS placeholder: {:?}",
+      labels
+    );
+  }
+
+  // Datetime field suggests ISO datetime placeholder and "now" with current datetime
+  #[test]
+  fn datetime_field_suggests_datetime_placeholder_and_now() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Event
+created_at: n|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions for datetime field");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"now"),
+      "datetime field should suggest 'now': {:?}",
+      labels
+    );
+    assert!(
+      labels.iter().any(|label| label.contains("YYYY-MM-DD")),
+      "datetime field should suggest ISO placeholder: {:?}",
+      labels
     );
   }
 

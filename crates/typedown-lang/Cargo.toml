@@ -16,7 +16,7 @@ smallvec = "1"
 hashbrown = "0.17.1"
 inventory = "0.3.24"
 bitflags = "2.13.0"
-regex = "1.12.4"
+chrono = "0.4"
 ambassador = "0.5.1"
 derive_more = { version = "2.1.1", features = ["from"] }
 enum-as-inner = "0.7.0"

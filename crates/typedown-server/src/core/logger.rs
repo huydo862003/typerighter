@@ -40,15 +40,8 @@ impl Log for Logger {
       Level::Trace => "TRACE",
     };
 
-    let secs = std::time::SystemTime::now()
-      .duration_since(std::time::UNIX_EPOCH)
-      .unwrap_or_default()
-      .as_secs();
-    let time_of_day = secs % 86400;
-    let hours = time_of_day / 3600;
-    let minutes = (time_of_day % 3600) / 60;
-    let seconds = time_of_day % 60;
-    let line = format!("[{hours:02}:{minutes:02}:{seconds:02}] [{level}] {message}");
+    let timestamp = chrono::Utc::now().format("%H:%M:%S");
+    let line = format!("[{timestamp}] [{level}] {message}");
 
     // Write to log file
     if let Some(file) = &self.file
