@@ -143,6 +143,14 @@ pub fn resolve_completion(
 
   // Cursor in a mapping key or blank line: suggest field names from the declared type
   if let Some((typ, mapping)) = find_enclosing_mapping_typ(db, project, file, &node) {
+    // When cursor is deeper-indented than the found mapping's entries, the cursor may be on a blank line inside a product-typed nested value that the parser hasn't yet created a mapping node for
+    if let Some(nested_typ) =
+      find_product_typ_at_deeper_indent(db, project, &mapping, &rope, offset)
+    {
+      return Some(CompletionResponse::Array(
+        collect_field_completions_from_typ(db, &nested_typ, &[]),
+      ));
+    }
     let existing = collect_existing_keys(&mapping);
     return Some(CompletionResponse::Array(
       collect_field_completions_from_typ(db, &typ, &existing),
@@ -855,6 +863,59 @@ fn make_simple_typ_placeholder(db: &TypedownDatabase, typ: &TdTypEnum, indent: u
       nested
     }
     _ => "value".to_string(),
+  }
+}
+
+// When cursor is indented deeper than mapping entries, find the product type for the last entry whose key is at a lesser column than the cursor
+fn find_product_typ_at_deeper_indent<'db>(
+  db: &'db TypedownDatabase,
+  project: Project,
+  mapping: &RedNode,
+  rope: &Rope,
+  cursor_offset: usize,
+) -> Option<TdTypEnum<'db>> {
+  let cursor_line = rope.char_to_line(cursor_offset);
+  let cursor_column = cursor_offset - rope.line_to_char(cursor_line);
+
+  // Walk entries in order
+  // Track the last one whose key column < cursor column and that starts before the cursor position
+  let mut candidate_key: Option<String> = None;
+
+  for entry in mapping
+    .children()
+    .filter(|child| child.kind() == SyntaxKind::YamlMappingEntry)
+  {
+    if entry.start_offset() >= cursor_offset {
+      break;
+    }
+    let Some(key_node) = entry
+      .children()
+      .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
+    else {
+      continue;
+    };
+    let key_line = rope.char_to_line(key_node.start_offset());
+    let key_column = key_node.start_offset() - rope.line_to_char(key_line);
+
+    if key_column < cursor_column {
+      candidate_key = Some(key_node.text().trim().to_string());
+    }
+  }
+
+  let key = candidate_key?;
+  let field_typ = resolve_field_typ_from_schema(db, project, mapping, &key)?;
+
+  if field_typ.is_td_product_typ() {
+    Some(field_typ)
+  } else if has_nullable_member(db, &field_typ, TdTypEnum::is_td_product_typ) {
+    field_typ.as_td_sum_typ().and_then(|sum| {
+      sum
+        .members(db)
+        .iter()
+        .find_map(|member| member.resolve(db).filter(|typ| typ.is_td_product_typ()))
+    })
+  } else {
+    None
   }
 }
 
@@ -3548,6 +3609,66 @@ name: "|"
     );
 
     (analysis, uri)
+  }
+
+  // Cursor on a blank line inside a nested mapping with no prior entries
+  // (the inner mapping has not been started yet, so the parser sees value position)
+  #[test]
+  fn field_completion_on_blank_line_in_nested_mapping_no_prior_entries() {
+    let (content, offset) = cursor(
+      r#"---
+_type: PersonWithAddress
+name: Alice
+address:
+  |
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected field completions for blank line under address");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"street"),
+      "should suggest 'street' from address type, got: {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"city"),
+      "should suggest 'city' from address type, got: {:?}",
+      labels
+    );
+  }
+
+  // Cursor on a partial key without colon inside a nested mapping
+  #[test]
+  fn field_completion_on_partial_key_without_colon_in_nested_mapping() {
+    let (content, offset) = cursor(
+      r#"---
+_type: PersonWithAddress
+name: Alice
+address:
+  str|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected field completions for partial key under address");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"street"),
+      "should suggest 'street' from address type, got: {:?}",
+      labels
+    );
   }
 
   #[test]
