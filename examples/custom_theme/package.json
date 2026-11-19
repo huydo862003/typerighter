@@ -1,6 +1,6 @@
 {
   "name": "custom_theme",
-  "version": "0.64.5",
+  "version": "0.64.6",
   "private": true,
   "type": "module",
   "scripts": {

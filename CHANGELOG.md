@@ -1,3 +1,11 @@
+## [0.64.6] - 2026-11-19
+
+### Changed
+
+- crates/typedown-lang
+  - More consistent typechecking of schema files
+  - Infer the types of `computed` and `default` more precisely, enable autocompletion
+
 ## [0.64.5] - 2026-11-18
 
 ### Fixed
