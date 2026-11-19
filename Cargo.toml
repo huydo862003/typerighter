@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "editors/zed"]
 
 [workspace.package]
-version = "0.64.6"
+version = "0.65.0"
 
 [profile.release]
 lto = "thin"

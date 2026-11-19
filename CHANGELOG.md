@@ -1,3 +1,20 @@
+## [0.65.0] - 2026-11-19
+
+### Added
+
+- crates/typedown-server
+  - **Create linked resource in markdown body** - code action now triggers in prose, inserts `${fref(...)}` with interpolation wrapping
+  - **Backward link creation** - "Create new {Schema} linking back here" when other schemas reference the current file's type
+  - **Schema picker prompt** - when schema can't be inferred from field type, prompts user to select from available schemas
+  - **`:TypedownCreateLinkedResource`** (nvim) / **`Typedown: Create Linked Resource`** (VSCode) - dedicated commands for quick access
+  - Filename slug from selected text in markdown body
+
+### Changed
+
+- crates/typedown-lang
+  - Scaffolding skips computed fields, uses actual default values, comments out optional fields
+  - All fref paths now have `/` prefix
+
 ## [0.64.6] - 2026-11-19
 
 ### Changed
