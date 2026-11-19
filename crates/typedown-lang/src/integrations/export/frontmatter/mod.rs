@@ -151,9 +151,14 @@ pub(crate) fn extract_resource(
       }
     }
 
-    let label = obj
-      .get_builtin_field(db, "_label")
-      .and_then(|obj| obj.as_td_string_obj().map(|string| string.value(db)));
+    // _label is typed string | null, but the value may be coerced to a date/time obj
+    // (e.g. "2026-11-19"), so fall back to to_display_string to avoid losing the label
+    let label = obj.get_builtin_field(db, "_label").map(|field| {
+      field
+        .as_td_string_obj()
+        .map(|string| string.value(db))
+        .unwrap_or_else(|| field.to_display_string(db))
+    });
     let icon = obj.get_builtin_field(db, "_icon").and_then(|obj| {
       obj.as_td_icon_obj().map(|icon| ExportedIcon {
         name: icon.lucide_name(db),
@@ -361,6 +366,18 @@ mod tests {
       "schemaless file with _icon should have icon"
     );
     assert_eq!(exported.icon.unwrap().name, "book-open");
+  }
+
+  // _label: "2026-11-19" is coerced to TdDateObj internally, but should still export as label text
+  #[test]
+  fn exports_date_string_label() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "label_with_date.td");
+    let nav = export_resource_nav(&db, project, file).expect("should export nav");
+    assert_eq!(
+      nav.label.as_deref(),
+      Some("2026-11-19"),
+      "date-valued _label should be preserved as the ISO string"
+    );
   }
 
   #[test]

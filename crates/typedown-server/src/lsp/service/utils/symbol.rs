@@ -157,6 +157,11 @@ pub fn get_string_content_node(string_lit: &RedNode) -> Option<RedNode> {
 pub fn get_resource_label(db: &TypedownDatabase, symbol: Symbol) -> Option<String> {
   let obj = evaluate_resource(db, symbol).value(db)?;
   let field = obj.get_builtin_field(db, "_label")?;
-  let string_obj = field.as_td_string_obj()?;
-  Some(string_obj.value(db))
+  // _label is typed string | null, but the value may be coerced to a date/time obj
+  // (e.g. "2026-11-19"), so fall back to to_display_string to avoid losing the label
+  if let Some(string_obj) = field.as_td_string_obj() {
+    Some(string_obj.value(db))
+  } else {
+    Some(field.to_display_string(db))
+  }
 }
