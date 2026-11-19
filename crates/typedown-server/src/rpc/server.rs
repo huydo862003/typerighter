@@ -549,6 +549,7 @@ fn has_sidebar_metadata_changed(
         || old.schema_label != new.schema_label
         || old.icon != new.icon
         || old.excerpt != new.excerpt
+        || old.ssg != new.ssg
     }
   }
 }
@@ -565,6 +566,7 @@ fn build_sidebar_item(
   }
   let nav = export_resource_nav(db, project, file)?;
   let schema_label = get_schema_label(db, project, nav.schema.as_deref());
+  let flags = export_ssg_flags(db, project, file);
   Some(TdSidebarItem {
     filepath: relative.to_string(),
     schema: nav.schema,
@@ -575,6 +577,11 @@ fn build_sidebar_item(
     file_metadata: TdFileMetadata {
       mtime_secs: nav.metadata.mtime_secs,
       ctime_secs: nav.metadata.ctime_secs,
+    },
+    ssg: TdSsgFlags {
+      show_in_sidebar: flags.show_in_sidebar,
+      show_in_search: flags.show_in_search,
+      crawlable: flags.crawlable,
     },
   })
 }
@@ -1112,6 +1119,52 @@ fn format_file(analysis: &Analysis, file_path: &str) -> RpcResult<TdFormatResult
     content: formatted,
     changed,
   })
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::rpc::contract::{TdFileMetadata, TdSidebarItem, TdSsgFlags};
+
+  fn make_item(label: Option<&str>, show_in_search: bool) -> TdSidebarItem {
+    TdSidebarItem {
+      filepath: "test.td".to_string(),
+      schema: None,
+      schema_label: None,
+      label: label.map(str::to_string),
+      icon: None,
+      excerpt: None,
+      file_metadata: TdFileMetadata {
+        mtime_secs: 0,
+        ctime_secs: 0,
+      },
+      ssg: TdSsgFlags {
+        show_in_sidebar: true,
+        show_in_search,
+        crawlable: true,
+      },
+    }
+  }
+
+  #[test]
+  fn sidebar_changed_when_show_in_search_differs() {
+    let old = make_item(Some("Page"), true);
+    let new = make_item(Some("Page"), false);
+    assert!(
+      has_sidebar_metadata_changed(Some(&old), Some(&new)),
+      "should detect show_in_search change"
+    );
+  }
+
+  #[test]
+  fn sidebar_unchanged_when_show_in_search_same() {
+    let old = make_item(Some("Page"), true);
+    let new = make_item(Some("Page"), true);
+    assert!(
+      !has_sidebar_metadata_changed(Some(&old), Some(&new)),
+      "should not trigger when nothing changed"
+    );
+  }
 }
 
 /// Collect all diagnostics for a single content file

@@ -164,6 +164,16 @@ pub struct TdSidebarItem {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub excerpt: Option<String>,
   pub file_metadata: TdFileMetadata,
+  pub ssg: TdSsgFlags,
+}
+
+/// SSG visibility flags from the _ssg builtin field
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TdSsgFlags {
+  pub show_in_sidebar: bool,
+  pub show_in_search: bool,
+  pub crawlable: bool,
 }
 
 /// Structured build result: header (frontmatter), HTML content, and extracted headings
