@@ -34,6 +34,7 @@ suite('Code Actions', () => {
     ok(0 < createActions.length, 'should offer at least one create action on schema-typed field');
 
     const actionWithCommand = createActions.find((action) => action.command);
+
     ok(actionWithCommand, 'at least one create action should have a command for the prompt flow');
   });
 
