@@ -74,7 +74,7 @@ repo_root="$(pwd)"
 benchmark_vault="examples/huydo862003.github.io"
 typerighter_bin="$repo_root/packages/typerighter/bin/typerighter.js"
 cd "$benchmark_vault"
-pnpm --ignore-workspace install --no-frozen-lockfile --allow-build @typerighter/rpc-server
+pnpm --ignore-workspace install --no-frozen-lockfile --allow-build @typerighter/rpc-server --config.minimumReleaseAge=0
 # Override the published typerighter with the locally-built version
 pnpm --ignore-workspace link ../../packages/typerighter || true
 

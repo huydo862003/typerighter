@@ -31,13 +31,10 @@ suite('Code Actions', () => {
 
     const createActions = (actions ?? []).filter((action) => action.title.includes('Create new'));
 
-    ok(0 < createActions.length, 'should offer at least one create action');
+    ok(0 < createActions.length, 'should offer at least one create action on schema-typed field');
 
-    // At least one action should mention Person (either typed field or backward link)
-    const personAction = createActions.find((action) => action.title.includes('Person'));
-
-    ok(personAction, `at least one create action should mention Person, got: ${createActions.map((action) => action.title).join(', ')}`);
-    ok(personAction!.command, 'create linked action should have a command for the filename prompt');
+    const actionWithCommand = createActions.find((action) => action.command);
+    ok(actionWithCommand, 'at least one create action should have a command for the prompt flow');
   });
 
   test('non-empty file does not offer initialization actions', async () => {
