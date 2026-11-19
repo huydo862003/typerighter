@@ -4,20 +4,17 @@ pub(crate) fn is_valid_iso_date(string: &str) -> bool {
   normalize_to_iso_date(string).is_some()
 }
 
-// Parses a date string in any supported format and returns the canonical ISO 8601 form (YYYY-MM-DD), or None if the input does not match any known format
-//
-// Supported formats:
-//   YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, natural language (e.g. "March 1 2024", "1 Jan 2024", "Jan 1 2024")
+// Parses a date string and returns the canonical ISO 8601 form (YYYY-MM-DD), or None if the input is not a valid ISO date
+// Requires strict YYYY-MM-DD format (4-digit year, 2-digit month, 2-digit day)
 pub(crate) fn normalize_to_iso_date(string: &str) -> Option<String> {
-  const FORMATS: &[&str] = &[
-    "%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%B %d %Y", "%d %B %Y", "%b %d %Y", "%d %b %Y",
-  ];
-  for format in FORMATS {
-    if let Ok(date) = NaiveDate::parse_from_str(string, format) {
-      return Some(date.format("%Y-%m-%d").to_string());
-    }
+  // chrono's %Y-%m-%d accepts non-padded values, so check structure first
+  let bytes = string.as_bytes();
+  if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+    return None;
   }
-  None
+  NaiveDate::parse_from_str(string, "%Y-%m-%d")
+    .ok()
+    .map(|date| date.format("%Y-%m-%d").to_string())
 }
 
 pub(crate) fn is_valid_iso_time(string: &str) -> bool {
@@ -105,48 +102,6 @@ mod tests {
   }
 
   #[test]
-  fn alt_date_formats_accepted() {
-    assert!(is_valid_iso_date("2024/01/15")); // YYYY/MM/DD
-    assert!(is_valid_iso_date("15/01/2024")); // DD/MM/YYYY
-  }
-
-  #[test]
-  fn alt_date_formats_normalize_to_iso() {
-    assert_eq!(
-      normalize_to_iso_date("2024/01/15").as_deref(),
-      Some("2024-01-15")
-    );
-    assert_eq!(
-      normalize_to_iso_date("15/01/2024").as_deref(),
-      Some("2024-01-15")
-    );
-  }
-
-  #[test]
-  fn natural_date_formats_accepted() {
-    assert!(is_valid_iso_date("March 1 2024"));
-    assert!(is_valid_iso_date("1 Jan 2024"));
-    assert!(is_valid_iso_date("Jan 1 2024"));
-    assert!(is_valid_iso_date("February 29 2024"));
-  }
-
-  #[test]
-  fn natural_date_formats_normalize_to_iso() {
-    assert_eq!(
-      normalize_to_iso_date("March 1 2024").as_deref(),
-      Some("2024-03-01")
-    );
-    assert_eq!(
-      normalize_to_iso_date("1 Jan 2024").as_deref(),
-      Some("2024-01-01")
-    );
-    assert_eq!(
-      normalize_to_iso_date("Jan 1 2024").as_deref(),
-      Some("2024-01-01")
-    );
-  }
-
-  #[test]
   fn iso_date_invalid() {
     assert!(!is_valid_iso_date("2024-13-01")); // month out of range
     assert!(!is_valid_iso_date("2024-00-01")); // month zero
@@ -154,6 +109,10 @@ mod tests {
     assert!(!is_valid_iso_date("2024-01-00")); // day zero
     assert!(!is_valid_iso_date("not-a-date"));
     assert!(!is_valid_iso_date("2024-01")); // missing day
+    assert!(!is_valid_iso_date("2024-1-15")); // non-padded month
+    assert!(!is_valid_iso_date("24-01-15")); // two-digit year
+    assert!(!is_valid_iso_date("15/01/2024")); // slash format not supported
+    assert!(!is_valid_iso_date("2024/01/15")); // slash format not supported
   }
 
   #[test]
