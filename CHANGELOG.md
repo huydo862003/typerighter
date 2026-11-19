@@ -1,3 +1,27 @@
+## [0.66.0] - 2026-11-20
+
+### Added
+
+- crates/typedown-server
+  - Date, time, and datetime completion now suggests current date/time ("today" / "now") based on field type
+
+### Fixed
+
+- crates/typedown-server
+  - SSG now updates reactively when vault files change
+  - Hidden files are no longer included as directory entries in nav
+  - Field name completion now triggers before the `:` separator
+  - fref completion now inserts paths with `/` prefix, matching the validator requirement
+  - SSG strips `.td` extension from resource URLs
+  - Snippet insertion now ensures the frontmatter `---` fence is present
+  - Unknown field diagnostic range now points to the field name correctly
+  - Date fields with ISO string values (e.g. `_label: "2026-11-19"`) now render correctly in sidebar and SSG nav
+
+### Changed
+
+- crates/typedown-lang
+  - Date/time/datetime validation migrated from regex to chrono; `regex` dependency removed
+
 ## [0.65.0] - 2026-11-19
 
 ### Added
