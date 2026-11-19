@@ -1058,52 +1058,6 @@ fn format_file(analysis: &Analysis, file_path: &str) -> RpcResult<TdFormatResult
   })
 }
 
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use crate::rpc::contract::{TdFileMetadata, TdSidebarItem, TdSsgFlags};
-
-  fn make_item(label: Option<&str>, show_in_search: bool) -> TdSidebarItem {
-    TdSidebarItem {
-      filepath: "test.td".to_string(),
-      schema: None,
-      schema_label: None,
-      label: label.map(str::to_string),
-      icon: None,
-      excerpt: None,
-      file_metadata: TdFileMetadata {
-        mtime_secs: 0,
-        ctime_secs: 0,
-      },
-      ssg: TdSsgFlags {
-        show_in_sidebar: true,
-        show_in_search,
-        crawlable: true,
-      },
-    }
-  }
-
-  #[test]
-  fn sidebar_changed_when_show_in_search_differs() {
-    let old = make_item(Some("Page"), true);
-    let new = make_item(Some("Page"), false);
-    assert!(
-      has_sidebar_metadata_changed(Some(&old), Some(&new)),
-      "should detect show_in_search change"
-    );
-  }
-
-  #[test]
-  fn sidebar_unchanged_when_show_in_search_same() {
-    let old = make_item(Some("Page"), true);
-    let new = make_item(Some("Page"), true);
-    assert!(
-      !has_sidebar_metadata_changed(Some(&old), Some(&new)),
-      "should not trigger when nothing changed"
-    );
-  }
-}
-
 /// Collect all diagnostics for a single content file
 fn collect_file_diagnostics(
   db: &TypedownDatabase,
@@ -1189,5 +1143,51 @@ fn convert_lint_diagnostic(lint: &TdDiagnostic, filepath: &str, rope: &Rope) -> 
     severity: "warning".to_string(),
     code: lint.code_str().to_string(),
     message: lint.message(),
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::rpc::contract::{TdFileMetadata, TdSidebarItem, TdSsgFlags};
+
+  fn make_item(label: Option<&str>, show_in_search: bool) -> TdSidebarItem {
+    TdSidebarItem {
+      filepath: "test.td".to_string(),
+      schema: None,
+      schema_label: None,
+      label: label.map(str::to_string),
+      icon: None,
+      excerpt: None,
+      file_metadata: TdFileMetadata {
+        mtime_secs: 0,
+        ctime_secs: 0,
+      },
+      ssg: TdSsgFlags {
+        show_in_sidebar: true,
+        show_in_search,
+        crawlable: true,
+      },
+    }
+  }
+
+  #[test]
+  fn sidebar_changed_when_show_in_search_differs() {
+    let old = make_item(Some("Page"), true);
+    let new = make_item(Some("Page"), false);
+    assert!(
+      has_sidebar_metadata_changed(Some(&old), Some(&new)),
+      "should detect show_in_search change"
+    );
+  }
+
+  #[test]
+  fn sidebar_unchanged_when_show_in_search_same() {
+    let old = make_item(Some("Page"), true);
+    let new = make_item(Some("Page"), true);
+    assert!(
+      !has_sidebar_metadata_changed(Some(&old), Some(&new)),
+      "should not trigger when nothing changed"
+    );
   }
 }

@@ -789,8 +789,8 @@ full content:
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
     let exported = export_resource_html(&db, project, file).expect("should export");
     assert!(
-      exported.content.contains(r#"href="/other.td""#),
-      "relative link should resolve with base path: {}",
+      exported.content.contains(r#"href="/other""#),
+      "relative .td link should have .td stripped for browser navigation: {}",
       exported.content
     );
   }

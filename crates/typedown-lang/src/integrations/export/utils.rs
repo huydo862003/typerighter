@@ -71,6 +71,11 @@ pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &Path) -> String 
       .to_string()
   };
 
+  let relative = relative
+    .strip_suffix(".td")
+    .map(|stripped| stripped.to_string())
+    .unwrap_or(relative);
+
   prepend_base_path(base_path, &relative)
 }
 
@@ -126,6 +131,26 @@ mod tests {
     assert_eq!(html_escape("a & b"), "a &amp; b");
     assert_eq!(html_escape("\"quoted\""), "&quot;quoted&quot;");
     assert_eq!(html_escape("it's"), "it&#39;s");
+  }
+
+  // .td extension stripped from internal links so browsers navigate instead of download
+  #[test]
+  fn resolve_vault_url_strips_td_extension() {
+    assert_eq!(
+      resolve_vault_url("page.td", "", Path::new("")),
+      "/page",
+      "relative .td link"
+    );
+    assert_eq!(
+      resolve_vault_url("/page.td", "", Path::new("")),
+      "/page",
+      "absolute .td link"
+    );
+    assert_eq!(
+      resolve_vault_url("sub/page.td", "", Path::new("")),
+      "/sub/page",
+      "nested relative .td link"
+    );
   }
 
   // Protocol-based external URL detection
