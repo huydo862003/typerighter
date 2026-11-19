@@ -74,11 +74,9 @@ repo_root="$(pwd)"
 benchmark_vault="examples/huydo862003.github.io"
 typerighter_bin="$repo_root/packages/typerighter/bin/typerighter.js"
 cd "$benchmark_vault"
-# Trust the lockfile to skip supply-chain release-age checks for freshly published packages
-echo 'trust-lockfile=true' > .npmrc
-pnpm --ignore-workspace install --no-frozen-lockfile --allow-build @typerighter/rpc-server
+pnpm --ignore-workspace install --no-frozen-lockfile --allow-build @typerighter/rpc-server --trust-lockfile
 # Override the published typerighter with the locally-built version
-pnpm --ignore-workspace link ../../packages/typerighter || true
+pnpm --ignore-workspace --config.trustLockfile=true link ../../packages/typerighter || true
 
 times=()
 for iteration in 1 2 3; do
