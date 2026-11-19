@@ -42,28 +42,55 @@ pub fn resolve_code_action(
   let mut actions: Vec<lsp_types::CodeActionOrCommand> = Vec::new();
   let requested_kinds = &params.context.only;
 
+  let rope = analysis.file_rope(&path)?;
+
   // Schema initialization for empty frontmatter
   if source
     .frontmatter()
     .is_none_or(|frontmatter| frontmatter.mapping().is_none())
   {
-    let has_delimiters = source.frontmatter().is_some();
+    // Check actual file content for --- delimiters
+    // (the parser creates a YamlFrontmatter node even for files without them)
+    let first_line = rope.line(0).to_string();
+    let has_delimiters = first_line.starts_with("---");
+
+    // When delimiters exist, insert content between them; find the closing --- line
+    let insert_range = if has_delimiters {
+      let closing_line = (1..rope.len_lines())
+        .find(|&line| rope.line(line).to_string().starts_with("---"))
+        .unwrap_or(1) as u32;
+      lsp_types::Range {
+        start: lsp_types::Position {
+          line: 1,
+          character: 0,
+        },
+        end: lsp_types::Position {
+          line: closing_line,
+          character: 0,
+        },
+      }
+    } else {
+      // No delimiters: insert from start of file
+      lsp_types::Range {
+        start: lsp_types::Position {
+          line: 0,
+          character: 0,
+        },
+        end: lsp_types::Position {
+          line: 0,
+          character: 0,
+        },
+      }
+    };
+
     for (name, template) in collect_schemas(db, project) {
       let new_text = if has_delimiters {
-        format!(
-          "_type: {name}
-{template}"
-        )
+        format!("_type: {name}\n{template}")
       } else {
-        format!(
-          "---
-_type: {name}
-{template}---
-"
-        )
+        format!("---\n_type: {name}\n{template}---\n")
       };
       let edit = TextEdit {
-        range: params.range,
+        range: insert_range,
         new_text,
       };
 
@@ -81,9 +108,6 @@ _type: {name}
       }));
     }
   }
-
-  // "Create and link" actions
-  let rope = analysis.file_rope(&path)?;
   let offset = lsp_position_to_text_offset(&rope, params.range.start)?;
   if let Some(node) = node_at_offset(root, offset.saturating_sub(1)) {
     // 1. Schema-typed frontmatter field
@@ -901,6 +925,159 @@ properties:
     assert!(
       prompts.iter().any(|prompt| prompt["kind"] == "select"),
       "should have a select prompt for schema: {prompts:?}"
+    );
+  }
+
+  fn get_init_edit(
+    response: &[lsp_types::CodeActionOrCommand],
+    name: &str,
+  ) -> Option<lsp_types::TextEdit> {
+    response.iter().find_map(|action| match action {
+      lsp_types::CodeActionOrCommand::CodeAction(code_action)
+        if code_action.title.contains(name) =>
+      {
+        code_action
+          .edit
+          .as_ref()
+          .and_then(|edit| edit.changes.as_ref())
+          .and_then(|changes| changes.values().next())
+          .map(|edits| edits[0].clone())
+      }
+      _ => None,
+    })
+  }
+
+  // Empty file (no delimiters): edit must include opening and closing ---
+  #[test]
+  fn init_on_empty_file_produces_delimiters() {
+    let (analysis, uri) = setup("");
+    let params = make_params(uri);
+    let response = code_action(&analysis, params).expect("should return actions");
+    let edit = get_init_edit(&response, "Task").expect("should have Task action");
+
+    assert!(
+      edit.new_text.starts_with("---\n"),
+      "new_text must start with ---: {:?}",
+      edit.new_text
+    );
+    assert!(
+      edit.new_text.trim_end().ends_with("---"),
+      "new_text must end with ---: {:?}",
+      edit.new_text
+    );
+    // Range must be at start of file so the frontmatter is inserted there
+    assert_eq!(
+      edit.range.start,
+      Position {
+        line: 0,
+        character: 0
+      },
+      "range start must be at start of file"
+    );
+  }
+
+  // File with content but no frontmatter: insert full frontmatter at start
+  #[test]
+  fn init_on_body_only_file_inserts_frontmatter_at_start() {
+    let (analysis, uri) = setup(
+      "
+Some prose content here.
+",
+    );
+    let params = make_params(uri);
+    let response = code_action(&analysis, params).expect("should return actions");
+    let edit = get_init_edit(&response, "Task").expect("should have Task action");
+
+    assert!(
+      edit.new_text.starts_with("---\n"),
+      "new_text must start with ---: {:?}",
+      edit.new_text
+    );
+    assert_eq!(
+      edit.range.start,
+      Position {
+        line: 0,
+        character: 0
+      },
+      "range start must be at start of file"
+    );
+  }
+
+  // File with content and a --- horizontal rule (not frontmatter): insert frontmatter at start
+  #[test]
+  fn init_on_file_with_body_separator_inserts_frontmatter_at_start() {
+    let (analysis, uri) = setup(
+      "Some content
+---
+More content
+",
+    );
+    let params = make_params(uri);
+    let response = code_action(&analysis, params).expect("should return actions");
+    let edit = get_init_edit(&response, "Task").expect("should have Task action");
+
+    assert!(
+      edit.new_text.starts_with("---\n"),
+      "new_text must start with --- when no frontmatter: {:?}",
+      edit.new_text
+    );
+    assert_eq!(
+      edit.range.start,
+      Position {
+        line: 0,
+        character: 0
+      },
+      "range start must be at start of file"
+    );
+  }
+
+  // File with only an opening --- (no closing delimiter): insert content after the opening line
+  #[test]
+  fn init_on_file_with_only_opening_delimiter_inserts_after_it() {
+    let (analysis, uri) = setup(
+      "---
+",
+    );
+    let params = make_params(uri);
+    let response = code_action(&analysis, params).expect("should return actions");
+    let edit = get_init_edit(&response, "Task").expect("should have Task action");
+
+    // has_delimiters=true so no extra --- in new_text
+    assert!(
+      !edit.new_text.starts_with("---"),
+      "new_text must NOT start with --- when opening delimiter already exists: {:?}",
+      edit.new_text
+    );
+    // Insert at or after line 1 (after the opening ---)
+    assert!(
+      edit.range.start.line >= 1,
+      "range must start after the opening ---, got line {}",
+      edit.range.start.line
+    );
+  }
+
+  // File with empty delimiters: edit must NOT add extra ---, content goes inside existing fences
+  #[test]
+  fn init_on_empty_delimiters_inserts_inside_fences() {
+    let (analysis, uri) = setup(
+      "---
+---
+",
+    );
+    let params = make_params(uri);
+    let response = code_action(&analysis, params).expect("should return actions");
+    let edit = get_init_edit(&response, "Task").expect("should have Task action");
+
+    assert!(
+      !edit.new_text.contains("---"),
+      "new_text must NOT contain --- (delimiters already exist): {:?}",
+      edit.new_text
+    );
+    // Range must be positioned inside the existing delimiters (after line 0)
+    assert!(
+      edit.range.start.line >= 1,
+      "range must start inside the existing delimiters (line >= 1), got line {}",
+      edit.range.start.line
     );
   }
 }
