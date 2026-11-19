@@ -72,7 +72,6 @@ pnpm --filter typerighter --filter @typerighter/rpc-client --filter @typerighter
 
 repo_root="$(pwd)"
 benchmark_vault="examples/huydo862003.github.io"
-typerighter_bin="$repo_root/packages/typerighter/bin/typerighter.js"
 cd "$benchmark_vault"
 pnpm --ignore-workspace install --no-frozen-lockfile --allow-build @typerighter/rpc-server --trust-lockfile
 # Override the published typerighter with the locally-built version
@@ -82,7 +81,7 @@ times=()
 for iteration in 1 2 3; do
   rm -rf dist
   start=$(date +%s%N)
-  timeout 300 node "$typerighter_bin" build || { echo "SSG build timed out (iteration $iteration)"; exit 1; }
+  timeout 300 pnpm build || { echo "SSG build timed out (iteration $iteration)"; exit 1; }
   end=$(date +%s%N)
   times+=( "$(elapsed_ms "$start" "$end")" )
 done
@@ -91,7 +90,7 @@ IFS=$'\n' sorted=($(sort -n <<< "${times[*]}")); unset IFS
 ssg_build_ms="${sorted[1]}"
 
 # Ensure the final dist/ exists for size measurement
-[ -d dist ] || node "$typerighter_bin" build
+[ -d dist ] || pnpm build
 
 #
 # 4. Output sizes
