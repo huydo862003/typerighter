@@ -371,11 +371,15 @@ fn check_mapping_fields<'db>(
         }
       }
     } else if expected_typ.as_td_schema_typ().is_some() && !key.starts_with('_') {
-      // Excess property: key not declared on the schema
-      let (start_offset, end_offset) = YamlMapping::cast(mapping_node.node.clone())
+      // Excess property: key not declared on the schema; highlight the key node
+      let (key_start, key_len) = YamlMapping::cast(mapping_node.node.clone())
         .and_then(|mapping| mapping.find_entry(key))
-        .and_then(|entry| entry.key_node())
-        .map(|node| node.trimmed_range())
+        .map(|entry| {
+          entry
+            .key_node()
+            .map(|node| node.trimmed_range())
+            .unwrap_or_else(|| entry.syntax().trimmed_range())
+        })
         .unwrap_or_else(|| value_node.node.trimmed_range());
 
       diagnostics.push(
@@ -383,7 +387,7 @@ fn check_mapping_fields<'db>(
           field: key.clone(),
           on_typ: expected_typ.display_name(db),
         }
-        .into_error(start_offset, end_offset),
+        .into_error(key_start, key_start + key_len),
       );
     }
   }
@@ -877,6 +881,61 @@ mod tests {
         .any(|diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::UnknownField { field, on_typ, ..}, .. } if field == "favorite_color" && on_typ == "Person")),
       "expected UnknownField for 'favorite_color', got: {:?}",
       diagnostics
+    );
+  }
+
+  // Diagnostic range for UnknownField should cover the key text, not the value
+  // excess_field.td: "favorite_color: blue" is on line 5 (offset 38)
+  //   "favorite_color" = 14 chars → range 38..52
+  //   "blue" = 4 chars at offset 54 → must NOT be the range
+  #[test]
+  fn typecheck_excess_field_diagnostic_covers_key_not_value() {
+    let (db, project, file) = load_vault_fixture("typecheck/my_vault", "excess_field.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    let diagnostics = result.diagnostics(&db);
+
+    let diag = diagnostics
+      .iter()
+      .find(|diagnostic| {
+        matches!(&diagnostic.kind, TdDiagnosticKind::UnknownField { field, .. } if field == "favorite_color")
+      })
+      .expect("expected UnknownField diagnostic for 'favorite_color'");
+
+    // The fixture content:
+    // ---
+    // _type: Person
+    // name: Alice
+    // age: 30
+    // favorite_color: blue
+    // ---
+    //
+    // Offset of "favorite_color" = 4 + 14 + 12 + 8 = 38
+    // Length of "favorite_color" = 14, so end = 52
+    // Offset of "blue" = 54 (after "favorite_color: ")
+    let key_start = 38usize;
+    let key_end = 52usize;
+    let value_offset = 54usize;
+
+    assert!(
+      diag.start_offset == key_start,
+      "diagnostic should start at key offset {key_start}, got start={}",
+      diag.start_offset
+    );
+    assert!(
+      diag.end_offset == key_end,
+      "diagnostic should end at key end {key_end}, got end={}",
+      diag.end_offset
+    );
+    assert!(
+      diag.start_offset < value_offset,
+      "diagnostic start ({}) must be before value offset ({value_offset})",
+      diag.start_offset
+    );
+    assert!(
+      diag.end_offset <= value_offset,
+      "diagnostic end ({}) must not reach into value at {value_offset}",
+      diag.end_offset
     );
   }
 
