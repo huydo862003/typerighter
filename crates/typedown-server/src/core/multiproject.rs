@@ -70,6 +70,13 @@ impl Multiproject {
   /// Save all project caches to disk
   /// Must be called on the main thread after the event loop exits
   pub fn save(mut self) {
+    let no_cache =
+      std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|value| value == "1" || value == "true");
+    if no_cache {
+      log::info!("Skipping cache save (TYPEDOWN_NO_CACHE)");
+      self.projects.clear();
+      return;
+    }
     // Take ownership so Drop sees an empty map and does not warn
     let projects = std::mem::take(&mut self.projects);
     for (root_dir, project) in projects.into_iter() {

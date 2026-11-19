@@ -41,7 +41,7 @@ export function cli () {
     .alias('dev')
     .option('--port <port>', 'Port to listen on')
     .option('--host', 'Expose to network')
-    .option('--fresh', 'Start fresh, ignore cache from previous session')
+    .option('--fresh', 'Skip loading and saving incremental cache')
     .option('--verbose', 'Print version and build info')
     .action(
       async (
@@ -86,6 +86,7 @@ export function cli () {
       default: 'dist',
     })
     .option('--base <path>', 'Base public path')
+    .option('--fresh', 'Skip loading and saving incremental cache')
     .option('--verbose', 'Print version and build info')
     .action(
       async (
@@ -93,9 +94,11 @@ export function cli () {
         options: {
           outDir: string;
           base?: string;
+          fresh?: boolean;
           verbose?: boolean;
         },
       ) => {
+        if (options.fresh) process.env.TYPEDOWN_NO_CACHE = '1';
         if (options.verbose) process.env.TYPEDOWN_VERBOSE = '1';
 
         const context = createAppContext(resolveRoot(root), {

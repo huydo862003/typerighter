@@ -81,7 +81,7 @@ times=()
 for iteration in 1 2 3; do
   rm -rf dist
   start=$(date +%s%N)
-  timeout 300 pnpm build || { echo "SSG build timed out (iteration $iteration)"; exit 1; }
+  timeout 300 pnpm build -- --fresh || { echo "SSG build timed out (iteration $iteration)"; exit 1; }
   end=$(date +%s%N)
   times+=( "$(elapsed_ms "$start" "$end")" )
 done
@@ -90,7 +90,7 @@ IFS=$'\n' sorted=($(sort -n <<< "${times[*]}")); unset IFS
 ssg_build_ms="${sorted[1]}"
 
 # Ensure the final dist/ exists for size measurement
-[ -d dist ] || pnpm build
+[ -d dist ] || pnpm build -- --fresh
 
 #
 # 4. Output sizes

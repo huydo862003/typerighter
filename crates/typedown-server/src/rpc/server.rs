@@ -140,6 +140,13 @@ impl RpcServer {
     drop(self._watcher);
     let _ = self.fs_thread.join();
 
+    let no_cache =
+      std::env::var("TYPEDOWN_NO_CACHE").is_ok_and(|value| value == "1" || value == "true");
+    if no_cache {
+      log::info!("Skipping cache save (TYPEDOWN_NO_CACHE)");
+      return;
+    }
+
     match Arc::try_unwrap(self.host) {
       Err(_) => log::warn!("Skipping cache save: host still referenced"),
       Ok(host) => {
