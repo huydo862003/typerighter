@@ -82,7 +82,7 @@ times=()
 for iteration in 1 2 3; do
   rm -rf dist
   start=$(date +%s%N)
-  node "$typerighter_bin" build
+  timeout 300 node "$typerighter_bin" build || { echo "SSG build timed out (iteration $iteration)"; exit 1; }
   end=$(date +%s%N)
   times+=( "$(elapsed_ms "$start" "$end")" )
 done
