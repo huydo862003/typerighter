@@ -24,6 +24,20 @@ vim.keymap.set('i', '<CR>', function()
   return vim.api.nvim_replace_termcodes(keys, true, false, true)
 end, { buffer = true, expr = true })
 
+-- Create a new .td file and insert fref() at cursor
+-- Filters code actions to only show create-linked and backward-link actions
+vim.api.nvim_buf_create_user_command(0, 'TypedownCreateLinkedResource', function()
+  vim.lsp.buf.code_action({
+    filter = function(action)
+      return action.title and (
+        action.title:find("Create new.*link") or
+        action.title:find("linking back")
+      )
+    end,
+    apply = true,
+  })
+end, { desc = "Create linked resource" })
+
 -- Auto-pair $ for inline math: insert $|$ or skip over closing $
 vim.keymap.set('i', '$', function()
   local line = vim.api.nvim_get_current_line()

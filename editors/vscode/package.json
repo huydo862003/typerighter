@@ -81,6 +81,21 @@
         "path": "./snippets/typedown.json"
       }
     ],
+    "commands": [
+      {
+        "command": "typedown.createLinkedResource",
+        "title": "Create Linked Resource",
+        "category": "Typedown"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "typedown.createLinkedResource",
+          "when": "editorLangId == typedown"
+        }
+      ]
+    },
     "configurationDefaults": {
       "[typedown]": {
         "editor.tabSize": 2,
