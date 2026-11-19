@@ -3512,4 +3512,85 @@ name: "|"
       kind_item.documentation
     );
   }
+
+  // Place test file inside _types/ so it's treated as a schema file
+  fn setup_schema(content: &str) -> (Analysis, Uri) {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let typ_root = root.join("_types");
+    let test_path = typ_root.join("TestSchema.td");
+    let uri = path_to_uri(&test_path, "file");
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let config_file = File::new(
+      &db,
+      FileHandle::Content(
+        root.join("typedown.yaml"),
+        VAULT_CONFIG.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let test_file = File::new(
+      &db,
+      FileHandle::Content(
+        test_path.clone(),
+        content.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+
+    let files = HashMap::from([
+      (root.join("typedown.yaml"), config_file),
+      (test_path, test_file),
+    ]);
+
+    let project = Project::new(&db, root, files, None);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    (analysis, uri)
+  }
+
+  #[test]
+  fn computed_closure_dot_access_suggests_schema_fields() {
+    let (content, offset) = cursor(
+      r#"---
+_type: schema
+properties:
+  name:
+    type: string
+  age:
+    type: number
+  label:
+    type: string
+    computed: (r) -> r.|
+---
+"#,
+    );
+    let (analysis, uri) = setup_schema(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected completions for r. inside computed closure");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"name"),
+      "r. should suggest 'name' field: {:?}",
+      labels
+    );
+    assert!(
+      labels.contains(&"age"),
+      "r. should suggest 'age' field: {:?}",
+      labels
+    );
+  }
 }

@@ -9,7 +9,7 @@ use typedown_macros::query_derived;
 
 use crate::db::TypedownDatabase;
 use crate::db::derived::check_custom_components::check_custom_components;
-use crate::db::derived::evaluate::evaluate_typ::{evaluate_typ, resolve_typ_lazy};
+use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use crate::db::derived::get_builtin_typs::{get_bool_typ, get_null_typ, get_number_typ};
 use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
@@ -19,6 +19,7 @@ use crate::db::types::typecheck::{is_nullable, is_subtyp_of};
 use crate::db::types::{
   File, LazyTyp, Project, ProjectRedNode, TdSchemaTyp, TdTypEnum, TypecheckResult,
 };
+use crate::db::utils::is_typ_file;
 use crate::syntax::ast::{
   AstNode, Expr, IdentLit, InterpFragment, SourceFile, YamlFrontmatter, YamlMapping, YamlOpKind,
 };
@@ -26,27 +27,27 @@ use crate::syntax::red::RedNode;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
+mod schema;
+
 #[query_derived(no_hash)]
 pub fn typecheck<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
 ) -> TypecheckResult<'db> {
-  // SourceFile/YamlFrontmatter: delegate to the frontmatter mapping for type resolution
+  if project_node
+    .file
+    .handle(db)
+    .path()
+    .is_some_and(|path| is_typ_file(path))
+  {
+    return schema::typecheck_schema(db, project_node);
+  }
+
   let node = project_node.node.clone();
+
+  // SourceFile: delegate to frontmatter mapping, then typecheck markdown body
   if let Some(source_file) = SourceFile::cast(node.clone()) {
-    let mut diagnostics = check_custom_components(db, project_node.project, project_node.file)
-      .diagnostics(db)
-      .clone();
-    if let Some(frontmatter) = source_file.frontmatter()
-      && let Some(mapping) = frontmatter.mapping()
-    {
-      let mapping_node = ProjectRedNode::new(
-        project_node.project,
-        project_node.file,
-        mapping.syntax().clone(),
-      );
-      diagnostics.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
-    }
+    let mut diagnostics = typecheck_frontmatter(db, &project_node, source_file.frontmatter());
     if let Some(body) = source_file.body() {
       typecheck_md_body(
         db,
@@ -99,7 +100,7 @@ pub fn typecheck_with_expected<'db>(
 }
 
 // Validate structure based on the node kind
-fn typecheck_body<'db>(
+pub(crate) fn typecheck_body<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
   declared_typ: &TdTypEnum<'db>,
@@ -222,6 +223,28 @@ fn typecheck_body<'db>(
   diagnostics
 }
 
+// Check custom components and typecheck the frontmatter mapping
+pub(crate) fn typecheck_frontmatter(
+  db: &TypedownDatabase,
+  project_node: &ProjectRedNode,
+  frontmatter: Option<YamlFrontmatter>,
+) -> Vec<TdDiagnostic> {
+  let mut diagnostics = check_custom_components(db, project_node.project, project_node.file)
+    .diagnostics(db)
+    .clone();
+  if let Some(frontmatter) = frontmatter
+    && let Some(mapping) = frontmatter.mapping()
+  {
+    let mapping_node = ProjectRedNode::new(
+      project_node.project,
+      project_node.file,
+      mapping.syntax().clone(),
+    );
+    diagnostics.extend(typecheck(db, mapping_node).diagnostics(db).iter().cloned());
+  }
+  diagnostics
+}
+
 // Walk an MdBody subtree and typecheck each interpolation expression
 fn typecheck_md_body(
   db: &TypedownDatabase,
@@ -269,6 +292,7 @@ fn check_mapping_fields<'db>(
   let effective_typ = unwrap_nullable(db, expected_typ);
   let mut declared_fields = effective_typ.get_fields(db);
 
+  // Collect builtin fields and insert to declared fields
   // Skip _type/_extends (handled separately as schema references) and _content (body, not in frontmatter)
   for (key, _) in entries {
     if key == "_type" || key == "_extends" || key == "_content" {
@@ -281,6 +305,7 @@ fn check_mapping_fields<'db>(
     }
   }
 
+  // Type check each entry
   for (key, value_node) in entries {
     // _type and _extends require the value to resolve to a schema symbol
     if key == "_type" || key == "_extends" {
@@ -302,12 +327,6 @@ fn check_mapping_fields<'db>(
 
     if let Some(field_lazy) = declared_fields.get(key) {
       if let Some(field_typ) = field_lazy.resolve(db) {
-        // Schema property descriptor mappings are validated during evaluate_typ
-        if expected_typ.as_td_schema_meta_typ().is_some() && value_node.mapping_entries().is_some()
-        {
-          continue;
-        }
-
         // Recursively typecheck the field value
         let typecheck_result = typecheck(db, value_node.clone());
         diagnostics.extend(typecheck_result.diagnostics(db).iter().cloned());
@@ -315,6 +334,7 @@ fn check_mapping_fields<'db>(
         // Check synthesized type against expected field type
         let value_result = actual_node_typ(db, value_node.clone());
         let is_optional = is_nullable(db, &field_typ);
+
         match value_result.typ(db) {
           Some(actual_typ) if !is_subtyp_of(db, &actual_typ, &field_typ) => {
             let (trimmed_offset, trimmed_len) = value_node.node.trimmed_range();
@@ -357,6 +377,7 @@ fn check_mapping_fields<'db>(
         .and_then(|entry| entry.key_node())
         .map(|node| node.trimmed_range())
         .unwrap_or_else(|| value_node.node.trimmed_range());
+
       diagnostics.push(
         TdDiagnosticKind::UnknownField {
           field: key.clone(),
@@ -365,64 +386,6 @@ fn check_mapping_fields<'db>(
         .into_error(start_offset, end_offset),
       );
     }
-  }
-
-  // For schema metatype, validate that each property descriptor mapping has a required `type` field
-  if expected_typ.as_td_schema_meta_typ().is_some() {
-    for (key, value_node) in entries {
-      if key == "properties"
-        && let Some(descriptors) = value_node.mapping_entries()
-      {
-        for (_, descriptor_node) in &descriptors {
-          if let Some(descriptor_entries) = descriptor_node.mapping_entries() {
-            let has_typ_field = descriptor_entries.iter().any(|(key, _)| key == "type");
-            if !has_typ_field {
-              let (offset, len) = descriptor_node.node.trimmed_range();
-              diagnostics.push(
-                TdDiagnosticKind::MissingRequiredField {
-                  field: "type".to_string(),
-                }
-                .into_error(offset, offset + len),
-              );
-            }
-
-            // Validate computed closure return type against declared field type
-            for (prop_name, computed_node) in &descriptor_entries {
-              if prop_name != "computed" {
-                continue;
-              }
-              let computed_typ = actual_node_typ(db, computed_node.clone());
-              diagnostics.extend(computed_typ.diagnostics(db).iter().cloned());
-
-              if let Some(TdTypEnum::TdFuncTyp(func)) = computed_typ.typ(db)
-                && let Some(ret_typ) = func.signature(db).ret(db).resolve(db)
-              {
-                // Get the declared field type from the sibling `type:` entry
-                let declared = descriptor_entries
-                  .iter()
-                  .find(|(key, _)| key == "type")
-                  .and_then(|(_, typ_node)| resolve_typ_lazy(db, typ_node.clone(), &mut vec![]))
-                  .and_then(|lazy| lazy.resolve(db));
-
-                if let Some(declared_typ) = declared
-                  && !is_subtyp_of(db, &ret_typ, &declared_typ)
-                {
-                  let (offset, len) = computed_node.node.trimmed_range();
-                  diagnostics.push(
-                    TdDiagnosticKind::FieldTypMismatch {
-                      field: "computed".to_string(),
-                      expected: declared_typ.display_name(db),
-                    }
-                    .into_error(offset, offset + len),
-                  );
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    return diagnostics;
   }
 
   // Check required fields are present (null values are checked above)
@@ -1989,6 +1952,137 @@ mod tests {
     assert!(
       result.diagnostics(&db).is_empty(),
       "computed field with vault query should produce no type errors: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_computed_body_valid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/ComputedBodyValid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "computed (r) -> r.a + r.b should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_computed_body_invalid_operand() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/ComputedBodyInvalid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
+      "computed (r) -> r.a + \"hello\" should report operand mismatch: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_computed_body_unknown_field() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/ComputedBodyUnknownField.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::UnknownField { field, .. },
+          ..
+        } if field == "nonexistent"
+      )),
+      "computed (r) -> r.nonexistent should report unknown field: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_computed_body_wrong_arg_count() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/ComputedBodyWrongArgCount.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::WrongArgCount { .. },
+          ..
+        }
+      )),
+      "to_string(1, 2) should report wrong arg count: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_default_expr_valid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/DefaultExprValid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).is_empty(),
+      "default: 1 + 2 for number field should pass: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_default_expr_invalid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/DefaultExprInvalid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(
+        |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, .. }, .. } if field == "default")
+      ),
+      "default: 1 + 2 for string field should report field-typ-mismatch: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_default_expr_body_invalid() {
+    let (db, project, file) =
+      load_vault_fixture("typecheck/my_vault", "_types/DefaultExprBodyInvalid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::OperandTypMismatch { .. },
+          ..
+        }
+      )),
+      "default: 1 + true should report operand mismatch: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
+  #[test]
+  fn typecheck_default_literal_mismatch() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/DefaultInvalid.td");
+    let root_node = parse_file(&db, project, file).ast(&db);
+    let result = typecheck(&db, root_node);
+    assert!(
+      result.diagnostics(&db).iter().any(
+        |diagnostic| matches!(diagnostic, TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, .. }, .. } if field == "default")
+      ),
+      "default: 123 for string field should report field-typ-mismatch: {:?}",
       result.diagnostics(&db)
     );
   }

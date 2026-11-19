@@ -17,15 +17,14 @@ use crate::db::derived::name_resolver::referee::referee;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
 use crate::db::derived::parse_file::parse_file;
 use crate::db::derived::schema_prop::get_schema_prop_typ;
-use crate::db::derived::typechecker::actual_node_typ::actual_node_typ;
 use crate::db::types::typecheck::is_subtyp_of;
 use crate::db::types::{
   BuiltinSchemaKind, File, LazyTyp, LitValue, Project, ProjectRedNode, PropertyDescriptor, Symbol,
   SymbolKind, TdBlobTyp, TdObjEnum, TdProductTyp, TdSchemaTyp, TdStaticTyp, TdTypEnum, TypResult,
 };
 use crate::syntax::ast::{
-  AstNode, BinaryExpr, ClosureExpr, IdentLit, IndexExpr, NumberLit, ParenExpr, PostfixExpr,
-  PrefixExpr, StringLit, YamlOpKind,
+  AstNode, BinaryExpr, IdentLit, IndexExpr, NumberLit, ParenExpr, PostfixExpr, PrefixExpr,
+  StringLit, YamlOpKind,
 };
 use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
@@ -335,55 +334,12 @@ pub(crate) fn resolve_property_descriptor<'db>(
     return None;
   }
 
-  if let (Some(lazy), Some(ref definition_node)) = (&field_typ, default_value.clone())
-    && let Some(declared_typ) = lazy.resolve(db)
-  {
-    let actual_typ_result = actual_node_typ(db, definition_node.clone());
-    diagnostics.extend(actual_typ_result.diagnostics(db).iter().cloned());
-    if actual_typ_result
-      .typ(db)
-      .is_some_and(|actual_typ| !is_subtyp_of(db, &actual_typ, &declared_typ))
-    {
-      let (trimmed_offset, trimmed_len) = definition_node.node.trimmed_range();
-      diagnostics.push(
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "default".to_string(),
-          expected: declared_typ.display_name(db),
-        }
-        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-      );
-    }
-  }
-
   let default_obj = default_value.and_then(|def_node| {
     let file_scope = get_file_runtime_scope(db, def_node.project, def_node.file);
     evaluate_node(db, def_node, file_scope).value(db)
   });
 
-  let computed_func = computed_func_value.map(|computed_node| {
-    // Validate param count from AST without evaluating the closure body
-    let param_count = ClosureExpr::cast(computed_node.node.clone())
-      .and_then(|closure| {
-        closure.params().map(|params| match params {
-          Either::Left(param_list) => param_list.params().count(),
-          Either::Right(_) => 1,
-        })
-      })
-      .unwrap_or(1);
-
-    if param_count != 1 {
-      let (trimmed_offset, trimmed_len) = computed_node.node.trimmed_range();
-      diagnostics.push(
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "computed".to_string(),
-          expected: "function expecting 1 parameter".to_string(),
-        }
-        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-      );
-    }
-
-    Either::<ProjectRedNode, TdObjEnum>::Left(computed_node)
-  });
+  let computed_func = computed_func_value.map(Either::<ProjectRedNode, TdObjEnum>::Left);
 
   if field_typ.is_none()
     && let Some(Either::Right(ref computed_obj)) = computed_func
@@ -715,21 +671,16 @@ mod tests {
     assert!(result.typ(&db).is_some());
   }
 
+  // Default type validation is now handled by the typecheck query, not evaluate_typ
   #[test]
   fn evaluate_typ_schema_with_mismatched_default_fixture() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/DefaultInvalid.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
     let result = evaluate_typ(&db, symbol);
-    let diagnostics = result.diagnostics(&db);
-    assert_eq!(diagnostics.len(), 1);
     assert!(
-      matches!(
-        &diagnostics[0],
-        TdDiagnostic { kind: TdDiagnosticKind::FieldTypMismatch { field, expected, ..}, .. }
-          if field == "default" && expected == "string"
-      ),
-      "expected FieldTypeMismatch for 'default', got {:?}",
-      diagnostics
+      result.diagnostics(&db).is_empty(),
+      "default validation moved to typecheck: {:?}",
+      result.diagnostics(&db)
     );
   }
 
@@ -1652,8 +1603,9 @@ properties:
     );
   }
 
+  // Default type validation is now handled by the typecheck query, not resolve_property_descriptor
   #[test]
-  fn evaluate_schema_with_invalid_default_emits_diagnostic() {
+  fn evaluate_schema_with_invalid_default_no_diagnostic() {
     let db = make_db();
     let root = make_root_node(
       &db,
@@ -1673,15 +1625,10 @@ properties:
 
     let lazy = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(lazy.is_some());
-    assert_eq!(
-      diagnostics,
-      vec![
-        TdDiagnosticKind::FieldTypMismatch {
-          field: "default".to_string(),
-          expected: "number".to_string(),
-        }
-        .into_error(67, 81)
-      ]
+    assert!(
+      diagnostics.is_empty(),
+      "default validation moved to typecheck: {:?}",
+      diagnostics
     );
   }
 
@@ -1732,8 +1679,9 @@ properties:
     );
   }
 
+  // Computed param count validation is now handled by the typecheck query
   #[test]
-  fn evaluate_schema_with_invalid_computed_param_count_emits_diagnostic() {
+  fn evaluate_schema_with_invalid_computed_param_count_no_diagnostic() {
     let db = make_db();
     let root = make_root_node(
       &db,
@@ -1757,12 +1705,8 @@ properties:
     let descriptor = resolve_property_descriptor(&db, prop_node.clone(), &mut diagnostics);
     assert!(descriptor.is_some());
     assert!(
-      diagnostics.iter().any(|diagnostic| matches!(
-        &diagnostic.kind,
-        TdDiagnosticKind::FieldTypMismatch { field, expected }
-          if field == "computed" && expected == "function expecting 1 parameter"
-      )),
-      "should have FieldTypMismatch for computed param count, got {:?}",
+      diagnostics.is_empty(),
+      "computed param validation moved to typecheck: {:?}",
       diagnostics
     );
   }

@@ -24,6 +24,7 @@ use crate::db::types::{
   TdTypEnum, TypParams, TypResult, Variance,
 };
 use crate::db::types::{File, Project};
+use crate::db::utils::is_typ_file;
 use crate::db::utils::resolve_fref_path;
 use crate::syntax::ast::{
   AstNode, CallExpr, ClosureExpr, DictLit, Expr, IdentLit, IndexExpr, MathLit, NumberLit,
@@ -36,10 +37,28 @@ use typedown_incremental::QueryDatabase;
 use typedown_macros::query_derived;
 use typedown_types::either::Either;
 
+mod schema;
+
 // Infer the type of an AST node bottom-up from its structure
 // Exception: closures read expected(closure) to get param types
 #[query_derived(no_hash)]
 pub fn actual_node_typ<'db>(
+  db: &'db TypedownDatabase,
+  project_node: ProjectRedNode,
+) -> TypResult<'db> {
+  if project_node
+    .file
+    .handle(db)
+    .path()
+    .is_some_and(|path| is_typ_file(path))
+  {
+    return schema::actual_node_typ_schema(db, project_node);
+  }
+
+  actual_node_typ_content(db, project_node)
+}
+
+pub(super) fn actual_node_typ_content<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
 ) -> TypResult<'db> {

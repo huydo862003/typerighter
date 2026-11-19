@@ -18,6 +18,7 @@ use crate::db::types::{
   TdTypEnum, TypResult,
 };
 use crate::db::utils::is_schemaless_file;
+use crate::db::utils::is_typ_file;
 use crate::syntax::ast::{
   AstNode, BinaryExpr, CallExpr, ClosureExpr, Expr, ParenExpr, PrefixExpr, YamlOpKind,
 };
@@ -28,6 +29,8 @@ use typedown_macros::query_derived;
 
 use crate::db::types::PathStep;
 
+mod schema;
+
 /// Result of walking up from a node to the nearest _typ anchor
 struct AnchorResult<'db> {
   symbol: Symbol,
@@ -37,6 +40,22 @@ struct AnchorResult<'db> {
 
 #[query_derived(no_hash)]
 pub fn expected_node_typ<'db>(
+  db: &'db TypedownDatabase,
+  project_node: ProjectRedNode,
+) -> TypResult<'db> {
+  if project_node
+    .file
+    .handle(db)
+    .path()
+    .is_some_and(|path| is_typ_file(path))
+  {
+    return schema::expected_node_typ_schema(db, project_node);
+  }
+
+  expected_node_typ_content(db, project_node)
+}
+
+pub(super) fn expected_node_typ_content<'db>(
   db: &'db TypedownDatabase,
   project_node: ProjectRedNode,
 ) -> TypResult<'db> {
