@@ -187,9 +187,10 @@ h.test("no create-linked action on string field", function()
   if result then
     for _, action in ipairs(result) do
       if action.title then
+        -- Typed-field create actions use "and link to" in the title
         h.assert(
-          not action.title:find("Create new"),
-          "string field should not offer create-linked: " .. action.title
+          not action.title:find("and link to"),
+          "string field should not offer typed-field create-linked: " .. action.title
         )
       end
     end

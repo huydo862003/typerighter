@@ -29,24 +29,15 @@ suite('Code Actions', () => {
       new vscode.Range(new vscode.Position(4, 0), new vscode.Position(4, 0)),
     );
 
-    if (actions && 0 < actions.length) {
-      const createActions = actions.filter((action) => action.title.includes('Create new'));
+    const createActions = (actions ?? []).filter((action) => action.title.includes('Create new'));
 
-      if (0 < createActions.length) {
-        const action = createActions[0];
+    ok(0 < createActions.length, 'should offer at least one create action');
 
-        // Should mention the target schema type
-        ok(
-          action.title.includes('Person'),
-          `create action should mention Person, got: ${action.title}`,
-        );
-        // Should have a command (for the prompt flow)
-        ok(
-          action.command,
-          'create linked action should have a command for the filename prompt',
-        );
-      }
-    }
+    // At least one action should mention Person (either typed field or backward link)
+    const personAction = createActions.find((action) => action.title.includes('Person'));
+
+    ok(personAction, `at least one create action should mention Person, got: ${createActions.map((action) => action.title).join(', ')}`);
+    ok(personAction!.command, 'create linked action should have a command for the filename prompt');
   });
 
   test('non-empty file does not offer initialization actions', async () => {
@@ -77,8 +68,9 @@ suite('Code Actions', () => {
       new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 0)),
     );
 
-    const createActions = (actions ?? []).filter((action) => action.title.includes('Create new'));
+    // Filter for schema-typed field actions specifically (not backward links)
+    const typedFieldActions = (actions ?? []).filter((action) => action.title.includes('and link to'));
 
-    strictEqual(createActions.length, 0, 'string field should not offer create-linked action');
+    strictEqual(typedFieldActions.length, 0, 'string field should not offer typed-field create-linked action');
   });
 });
