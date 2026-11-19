@@ -25,7 +25,7 @@ use typedown_lang::db::types::{
 };
 use typedown_lang::db::utils::{get_mapping_schema_name, kebab_to_pascal};
 use typedown_lang::syntax::ast::{
-  AstNode, BinaryExpr, Expr, MdContainerBlock, MdContainerShorthand, YamlOpKind,
+  AstNode, BinaryExpr, Expr, MdContainerBlock, MdContainerShorthand, YamlMappingEntry, YamlOpKind,
 };
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -481,7 +481,7 @@ fn get_declared_field_typ_at_value<'db>(
 
   // Empty value: resolve from the entry key name
   let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
-  let key_text = get_entry_key_text(&entry)?;
+  let key_text = YamlMappingEntry::cast(entry.clone()).and_then(|typed_entry| typed_entry.key())?;
   let mapping = entry
     .parent()
     .filter(|parent| parent.kind() == SyntaxKind::YamlMapping)?;
@@ -715,17 +715,9 @@ fn get_declared_field<'db>(
 
   // Fall back to looking up the field name in the enclosing schema
   let entry = entry_value.parent()?;
-  let key_text = get_entry_key_text(&entry)?;
+  let key_text = YamlMappingEntry::cast(entry.clone()).and_then(|typed_entry| typed_entry.key())?;
   let mapping = find_ancestor(&entry, SyntaxKind::YamlMapping)?;
   resolve_field_typ_from_schema(db, project, &mapping, &key_text)
-}
-
-// Extract the key text from a YamlMappingEntry node
-fn get_entry_key_text(entry: &RedNode) -> Option<String> {
-  entry
-    .children()
-    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
-    .map(|key| key.text().trim().to_string())
 }
 
 // Look up a field's declared type from the enclosing schema

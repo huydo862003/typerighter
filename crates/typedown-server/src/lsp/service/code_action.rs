@@ -2,17 +2,15 @@ use lsp_types::{
   CodeAction, CodeActionKind, CodeActionParams, CodeActionResponse, Command, TextEdit,
   WorkspaceEdit,
 };
+use ropey::Rope;
 use std::collections::HashMap;
-use typedown_incremental::StableCompare;
 use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::expected_node_typ::expected_node_typ;
-use typedown_lang::db::types::typecheck::is_nullable;
-use typedown_lang::db::types::{
-  File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
-};
+use typedown_lang::db::types::{File, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum};
 use typedown_lang::db::types::{Scope, ScopeKind};
 use typedown_lang::db::utils::get_mapping_schema_name;
 use typedown_lang::syntax::ast::{AstNode, Expr, SourceFile};
@@ -24,7 +22,10 @@ use crate::core::utils::ast::{find_ancestor, is_in_mapping_value_position, node_
 use crate::core::utils::position::lsp_position_to_text_offset;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::commands;
-use crate::lsp::service::commands::create_linked_resource::CreateLinkedResourceArgs;
+use crate::lsp::service::commands::create_linked_resource::{
+  CreateLinkedResourceArgs, InsertContext,
+};
+use crate::lsp::service::template::{collect_schema_names, collect_schemas, slugify};
 
 pub fn resolve_code_action(
   analysis: &Analysis,
@@ -81,16 +82,27 @@ _type: {name}
     }
   }
 
-  // "Create new {Schema} and link here" for schema-typed fields
+  // "Create and link" actions
   let rope = analysis.file_rope(&path)?;
   let offset = lsp_position_to_text_offset(&rope, params.range.start)?;
-  if let Some(node) = node_at_offset(root, offset.saturating_sub(1))
-    && let Some(action) = create_linked_action(db, project, file, &node, &params)
-  {
-    actions.push(lsp_types::CodeActionOrCommand::CodeAction(action));
+  if let Some(node) = node_at_offset(root, offset.saturating_sub(1)) {
+    // 1. Schema-typed frontmatter field
+    if let Some(action) = create_linked_for_typed_field(db, project, file, &node, &params) {
+      actions.push(lsp_types::CodeActionOrCommand::CodeAction(action));
+    }
+
+    // 2. Markdown body
+    if let Some(action) = create_linked_for_markdown_body(db, project, &node, &params, &rope) {
+      actions.push(lsp_types::CodeActionOrCommand::CodeAction(action));
+    }
+
+    // 3. Backward link (from frontmatter or markdown body)
+    if let Some(action) = create_backward_link(db, project, file, &node, &params) {
+      actions.push(lsp_types::CodeActionOrCommand::CodeAction(action));
+    }
   }
 
-  // Filter by requested kinds if the client specified any
+  // Filter by requested kinds
   if let Some(only_kind) = requested_kinds {
     actions.retain(|action| {
       let kind = match action {
@@ -111,47 +123,40 @@ _type: {name}
   Some(actions)
 }
 
-// Offer "Create new {Schema} and link here" when cursor is on a schema-typed field
-fn create_linked_action(
+// Trigger on schema-typed frontmatter fields (e.g., assignee: on a Task with type Person)
+fn create_linked_for_typed_field(
   db: &TypedownDatabase,
   project: Project,
   file: File,
   node: &RedNode,
   params: &CodeActionParams,
 ) -> Option<CodeAction> {
-  // Must be in or near a value position
   let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
   let entry_key = entry
     .children()
     .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)?;
   let key_text = entry_key.text().trim().to_string();
 
-  // Resolve the field's declared type
   let typ = resolve_entry_type(db, project, file, node, &entry)?;
-
-  // Extract the schema name from the type (or nullable wrapper)
   let schema_name = extract_schema_name(db, &typ)?;
 
-  // Detect if the field is a list
-  let is_list = typ.is_td_list_typ()
-    || typ.as_td_sum_typ().is_some_and(|sum| {
-      sum
-        .members(db)
-        .iter()
-        .any(|member| member.resolve(db).is_some_and(|typ| typ.is_td_list_typ()))
-    });
+  let insert_context = if is_list_typed(db, &typ) {
+    InsertContext::FrontmatterListItem
+  } else {
+    InsertContext::FrontmatterValue
+  };
 
   let args = CreateLinkedResourceArgs {
     schema: schema_name.clone(),
     source_uri: params.text_document.uri.as_str().to_string(),
     line: params.range.start.line,
     character: params.range.start.character,
-    is_list,
+    insert_context,
     filename: String::new(),
     prompts: vec![commands::Prompt::Input {
       field: "filename".to_string(),
       prompt: format!("New {schema_name} filename:"),
-      default: Some("untitled.td".to_string()),
+      default: Some("untitled".to_string()),
     }],
   };
 
@@ -167,6 +172,150 @@ fn create_linked_action(
   })
 }
 
+// Trigger when cursor is in markdown body
+fn create_linked_for_markdown_body(
+  db: &TypedownDatabase,
+  project: Project,
+  node: &RedNode,
+  params: &CodeActionParams,
+  rope: &Rope,
+) -> Option<CodeAction> {
+  // Must be in markdown body, not frontmatter, not inside ${} interpolation
+  find_ancestor(node, SyntaxKind::MdBody)?;
+  if find_ancestor(node, SyntaxKind::YamlFrontmatter).is_some() {
+    return None;
+  }
+  if find_ancestor(node, SyntaxKind::InterpFragment).is_some() {
+    return None;
+  }
+
+  let schema_names = collect_schema_names(db, project);
+  if schema_names.is_empty() {
+    return None;
+  }
+
+  // Use selected text as filename slug default
+  let has_selection = params.range.start != params.range.end;
+  let selected_text = if has_selection {
+    extract_text_from_rope(rope, &params.range)
+  } else {
+    String::new()
+  };
+  let default_filename = if selected_text.is_empty() {
+    "untitled".to_string()
+  } else {
+    slugify(&selected_text)
+  };
+
+  let args = CreateLinkedResourceArgs {
+    schema: String::new(),
+    source_uri: params.text_document.uri.as_str().to_string(),
+    line: params.range.start.line,
+    character: params.range.start.character,
+    insert_context: InsertContext::MarkdownBody,
+    filename: String::new(),
+    prompts: vec![
+      commands::Prompt::Select {
+        field: "schema".to_string(),
+        prompt: "Schema:".to_string(),
+        choices: schema_names,
+      },
+      commands::Prompt::Input {
+        field: "filename".to_string(),
+        prompt: "Filename:".to_string(),
+        default: Some(default_filename),
+      },
+    ],
+  };
+
+  Some(CodeAction {
+    title: "Create new file and link here".to_string(),
+    kind: Some(CodeActionKind::REFACTOR),
+    command: Some(Command {
+      title: "Create linked resource".to_string(),
+      command: commands::CREATE_LINKED_RESOURCE.to_string(),
+      arguments: Some(vec![serde_json::to_value(args).ok()?]),
+    }),
+    ..Default::default()
+  })
+}
+
+// Trigger when current file has a schema and other schemas reference it
+fn create_backward_link(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+  params: &CodeActionParams,
+) -> Option<CodeAction> {
+  let source_schema_name = get_file_schema_name(db, project, file)?;
+  let candidates = find_schemas_with_field_typed_as(db, project, &source_schema_name);
+  if candidates.is_empty() {
+    return None;
+  }
+
+  // Also trigger from markdown body (#5)
+  let in_frontmatter = find_ancestor(node, SyntaxKind::YamlFrontmatter).is_some();
+  let in_body = find_ancestor(node, SyntaxKind::MdBody).is_some();
+  if !in_frontmatter && !in_body {
+    return None;
+  }
+
+  let mut prompts = vec![];
+
+  let (schema, field) = if candidates.len() == 1 {
+    candidates[0].clone()
+  } else {
+    let choices: Vec<String> = candidates
+      .iter()
+      .map(|(schema, _)| schema.clone())
+      .collect();
+    prompts.push(commands::Prompt::Select {
+      field: "schema".to_string(),
+      prompt: "Schema to create:".to_string(),
+      choices,
+    });
+    // Field will be resolved at execution time from the chosen schema
+    (String::new(), String::new())
+  };
+
+  prompts.push(commands::Prompt::Input {
+    field: "filename".to_string(),
+    prompt: "Filename:".to_string(),
+    default: Some("untitled".to_string()),
+  });
+
+  let title = if candidates.len() == 1 {
+    format!("Create new {} linking back here", candidates[0].0)
+  } else {
+    "Create new file linking back here".to_string()
+  };
+
+  let args = CreateLinkedResourceArgs {
+    schema,
+    source_uri: params.text_document.uri.as_str().to_string(),
+    line: params.range.start.line,
+    character: params.range.start.character,
+    insert_context: InsertContext::BackwardLink {
+      field,
+      source_schema: source_schema_name,
+    },
+    filename: String::new(),
+    prompts,
+  };
+
+  Some(CodeAction {
+    title,
+    kind: Some(CodeActionKind::REFACTOR),
+    command: Some(Command {
+      title: "Create backward link".to_string(),
+      command: commands::CREATE_LINKED_RESOURCE.to_string(),
+      arguments: Some(vec![serde_json::to_value(args).ok()?]),
+    }),
+    ..Default::default()
+  })
+}
+
 // Resolve the declared type of a mapping entry's value
 fn resolve_entry_type<'db>(
   db: &'db TypedownDatabase,
@@ -175,7 +324,6 @@ fn resolve_entry_type<'db>(
   node: &RedNode,
   entry: &RedNode,
 ) -> Option<TdTypEnum<'db>> {
-  // Try via the value expression
   if is_in_mapping_value_position(node) {
     let entry_value = find_ancestor(node, SyntaxKind::YamlMappingEntryValue)?;
     if let Some(value_expr) = entry_value.children().find_map(Expr::cast) {
@@ -203,12 +351,11 @@ fn resolve_entry_type<'db>(
   prop.field_typ.resolve(db)
 }
 
-// Extract the schema name from a type, handling nullable and list wrappers
+// Extract schema name from a type, handling nullable and list wrappers
 fn extract_schema_name(db: &TypedownDatabase, typ: &TdTypEnum) -> Option<String> {
   if typ.is_td_schema_typ() {
     return Some(typ.display_name(db));
   }
-  // Check nullable: T? -> extract T if T is a schema
   if let Some(sum) = typ.as_td_sum_typ() {
     for member in sum.members(db) {
       if let Some(resolved) = member.resolve(db)
@@ -218,7 +365,6 @@ fn extract_schema_name(db: &TypedownDatabase, typ: &TdTypEnum) -> Option<String>
       }
     }
   }
-  // Check list[Schema]
   if let Some(list) = typ.as_td_list_typ() {
     let resolved = list.element_typ(db)?.resolve(db)?;
     if resolved.is_td_schema_typ() {
@@ -228,95 +374,99 @@ fn extract_schema_name(db: &TypedownDatabase, typ: &TdTypEnum) -> Option<String>
   None
 }
 
-// Collect all schemas with their field templates
-fn collect_schemas(db: &TypedownDatabase, project: Project) -> Vec<(String, String)> {
-  let scope = Scope::new(db, ScopeKind::Project(project));
-
-  members(db, scope)
-    .members(db)
-    .iter()
-    .filter(|(_, symbol)| matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(..)))
-    .filter_map(|(name, symbol)| {
-      let typ = evaluate_typ(db, *symbol).typ(db)?;
-      let schema = typ.as_td_schema_typ()?;
-      let fields = schema.fields(db);
-
-      let mut template = String::new();
-
-      // Builtin fields with sensible defaults
-      template.push_str(&format!("# _label: \"{name}\"\n"));
-      template.push_str("# _icon: icon.file\n");
-
-      for (field_name, prop_descriptor) in &fields {
-        let default = format_default_value(db, &prop_descriptor.field_typ);
-        let optional = prop_descriptor
-          .field_typ
-          .resolve(db)
-          .is_some_and(|typ| is_nullable(db, &typ));
-
-        if optional {
-          template.push_str(&format!("# {field_name}: {default}\n"));
-        } else {
-          template.push_str(&format!("{field_name}: {default}\n"));
-        }
-      }
-
-      Some((name.clone(), template))
+fn is_list_typed(db: &TypedownDatabase, typ: &TdTypEnum) -> bool {
+  typ.is_td_list_typ()
+    || typ.as_td_sum_typ().is_some_and(|sum| {
+      sum
+        .members(db)
+        .iter()
+        .any(|member| member.resolve(db).is_some_and(|typ| typ.is_td_list_typ()))
     })
-    .collect()
 }
 
-// Generate a default value string for a schema field type
-fn format_default_value(db: &TypedownDatabase, lazy: &LazyTyp) -> String {
-  let Some(typ) = lazy.resolve(db) else {
-    return r#""""#.to_string();
-  };
-  match typ {
-    TdTypEnum::TdLitTyp(lit) => match lit.value(db) {
-      LitValue::String(string) => format!(r#""{string}""#),
-      _ => r#""""#.to_string(),
-    },
-    TdTypEnum::TdStringTyp(_) => r#""""#.to_string(),
-    TdTypEnum::TdNumberTyp(_) => "0".to_string(),
-    TdTypEnum::TdBoolTyp(_) => "false".to_string(),
-    TdTypEnum::TdDateTyp(_) => r#""""#.to_string(),
-    TdTypEnum::TdDateTimeTyp(_) => r#""""#.to_string(),
-    TdTypEnum::TdTimeTyp(_) => r#""""#.to_string(),
-    TdTypEnum::TdSchemaTyp(schema) => {
-      format!(r#"fref("{}")"#, schema.name(db))
-    }
-    TdTypEnum::TdListTyp(_) => "[]".to_string(),
-
-    TdTypEnum::TdSumTyp(sum) => {
-      let mut members: Vec<_> = sum.members(db).into_iter().collect();
-      members.sort_by(|left_member, right_member| left_member.stable_cmp(db, right_member));
-      // Optional type: use non-null member's default
-      let non_null: Vec<_> = members
-        .iter()
-        .filter(|member| {
-          member
-            .resolve(db)
-            .is_none_or(|typ| typ.as_td_null_typ().is_none())
-        })
-        .collect();
-      if non_null.len() == 1 {
-        return format_default_value(db, non_null[0]);
-      }
-      // Enum: use first literal as default
-      members
-        .iter()
-        .find_map(|member| {
-          if let Some(TdTypEnum::TdLitTyp(lit)) = member.resolve(db)
-            && let LitValue::String(string) = lit.value(db)
-          {
-            return Some(format!("\"{string}\""));
-          }
-          None
-        })
-        .unwrap_or_else(|| r#""""#.to_string())
-    }
-    _ => r#""""#.to_string(),
+// Get the _type schema name of the current file
+fn get_file_schema_name(db: &TypedownDatabase, project: Project, file: File) -> Option<String> {
+  let symbol = file_symbol(db, project, file).value(db)?;
+  if !matches!(symbol.kind(db), SymbolKind::UserDefinedResource(_, _)) {
+    return None;
   }
+  let root = parse_file(db, project, file).ast(db).node.clone();
+  let mapping = SourceFile::cast(root)?.frontmatter()?.mapping()?;
+  let type_value = mapping
+    .entries()
+    .find(|(key, _)| key == "_type")
+    .map(|(_, value)| value)?;
+  Some(type_value.syntax().text().trim().to_string())
+}
+
+// Find schemas with a field typed as the given schema name
+// Returns (target_schema_name, field_name) pairs
+fn find_schemas_with_field_typed_as(
+  db: &TypedownDatabase,
+  project: Project,
+  source_schema: &str,
+) -> Vec<(String, String)> {
+  let scope = Scope::new(db, ScopeKind::Project(project));
+  let mut results = vec![];
+
+  for (name, symbol) in members(db, scope).members(db).iter() {
+    if !matches!(symbol.kind(db), SymbolKind::UserDefinedSchema(..)) {
+      continue;
+    }
+    let Some(typ) = evaluate_typ(db, *symbol).typ(db) else {
+      continue;
+    };
+    let Some(schema) = typ.as_td_schema_typ() else {
+      continue;
+    };
+
+    for (field_name, descriptor) in schema.fields(db) {
+      let field_references_source = descriptor
+        .field_typ
+        .resolve(db)
+        .is_some_and(|field_typ| references_schema(db, &field_typ, source_schema));
+      if field_references_source {
+        results.push((name.clone(), field_name.clone()));
+      }
+    }
+  }
+
+  results
+}
+
+// Check if a type references a schema by name (handles nullable and list wrappers)
+fn references_schema(db: &TypedownDatabase, typ: &TdTypEnum, schema_name: &str) -> bool {
+  if typ.is_td_schema_typ() && typ.display_name(db) == schema_name {
+    return true;
+  }
+  if let Some(sum) = typ.as_td_sum_typ() {
+    return sum.members(db).iter().any(|member| {
+      member
+        .resolve(db)
+        .is_some_and(|typ| references_schema(db, &typ, schema_name))
+    });
+  }
+  if let Some(list) = typ.as_td_list_typ() {
+    return list
+      .element_typ(db)
+      .and_then(|lazy| lazy.resolve(db))
+      .is_some_and(|typ| references_schema(db, &typ, schema_name));
+  }
+  false
+}
+
+fn extract_text_from_rope(rope: &Rope, range: &lsp_types::Range) -> String {
+  let start_line = range.start.line as usize;
+  let end_line = range.end.line as usize;
+  if start_line >= rope.len_lines() || end_line >= rope.len_lines() {
+    return String::new();
+  }
+  let start_offset = rope.line_to_char(start_line) + range.start.character as usize;
+  let end_offset = rope.line_to_char(end_line) + range.end.character as usize;
+  if start_offset >= rope.len_chars() || end_offset > rope.len_chars() {
+    return String::new();
+  }
+  rope.slice(start_offset..end_offset).to_string()
 }
 
 #[cfg(test)]
@@ -344,8 +494,7 @@ properties:
   status:
     type: ['todo', 'in_progress', 'done']
   assignee:
-    type: Person
-    optional: true
+    type: Person?
 ---
 "#;
 
@@ -359,7 +508,25 @@ properties:
 ---
 "#;
 
+  // Pet references Person via owner field
+  const SCHEMA_PET: &str = r#"---
+_type: schema
+properties:
+  name:
+    type: string
+  owner:
+    type: Person
+---
+"#;
+
   fn setup(content: &str) -> (Analysis, lsp_types::Uri) {
+    setup_with_schemas(content, &[])
+  }
+
+  fn setup_with_schemas(
+    content: &str,
+    extra_schemas: &[(&str, &str)],
+  ) -> (Analysis, lsp_types::Uri) {
     let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
     let typ_root = root.join("_types");
     let test_path = root.join("file.td");
@@ -369,7 +536,7 @@ properties:
       storage: QueryStorage::default(),
     };
 
-    let files = HashMap::from([
+    let mut files = HashMap::from([
       (
         root.join("typedown.yaml"),
         File::new(
@@ -412,6 +579,21 @@ properties:
       ),
     ]);
 
+    for (name, schema_content) in extra_schemas {
+      let schema_path = typ_root.join(format!("{name}.td"));
+      files.insert(
+        schema_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(
+            schema_path,
+            schema_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      );
+    }
+
     let project = Project::new(&db, root, files, None);
     let analysis = Analysis::new(
       db,
@@ -441,6 +623,31 @@ properties:
     }
   }
 
+  fn make_params_with_selection(
+    uri: lsp_types::Uri,
+    start_line: u32,
+    start_char: u32,
+    end_line: u32,
+    end_char: u32,
+  ) -> CodeActionParams {
+    CodeActionParams {
+      text_document: TextDocumentIdentifier { uri },
+      range: Range {
+        start: Position {
+          line: start_line,
+          character: start_char,
+        },
+        end: Position {
+          line: end_line,
+          character: end_char,
+        },
+      },
+      context: CodeActionContext::default(),
+      work_done_progress_params: Default::default(),
+      partial_result_params: Default::default(),
+    }
+  }
+
   fn make_params_with_only(
     uri: lsp_types::Uri,
     line: u32,
@@ -462,13 +669,26 @@ properties:
     }
   }
 
+  fn action_titles(response: &Option<Vec<lsp_types::CodeActionOrCommand>>) -> Vec<String> {
+    response
+      .as_ref()
+      .map(|actions| {
+        actions
+          .iter()
+          .filter_map(|action| match action {
+            lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
+              Some(code_action.title.clone())
+            }
+            _ => None,
+          })
+          .collect()
+      })
+      .unwrap_or_default()
+  }
+
   #[test]
   fn offers_schema_actions_for_empty_file() {
-    let (analysis, uri) = setup(
-      r#"---
----
-"#,
-    );
+    let (analysis, uri) = setup("---\n---\n");
     let params = make_params(uri);
     let response = code_action(&analysis, params).expect("should return actions");
 
@@ -492,19 +712,15 @@ properties:
 
   #[test]
   fn no_init_actions_for_file_with_content() {
-    let (analysis, uri) = setup(
-      r#"---
-_type: Task
-title: "hello"
----
-"#,
-    );
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\n");
     let params = make_params(uri);
     let response = code_action(&analysis, params);
 
     let has_init = response.as_ref().is_some_and(|actions| {
       actions.iter().any(|action| match action {
-        lsp_types::CodeActionOrCommand::CodeAction(ca) => ca.title.starts_with("Initialize"),
+        lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
+          code_action.title.starts_with("Initialize")
+        }
         _ => false,
       })
     });
@@ -516,74 +732,93 @@ title: "hello"
 
   #[test]
   fn create_linked_action_on_schema_typed_field() {
-    let (analysis, uri) = setup(
-      r#"---
-_type: Task
-title: "hello"
-assignee:
----
-"#,
-    );
-    // Cursor on the assignee line (line 3)
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\nassignee:\n---\n");
     let params = make_params_at(uri, 3, 5);
     let response = code_action(&analysis, params);
-
-    let has_create = response.as_ref().is_some_and(|actions| {
-      actions.iter().any(|action| match action {
-        lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
-          code_action.title.contains("Create new Person")
-        }
-        _ => false,
-      })
-    });
+    let titles = action_titles(&response);
     assert!(
-      has_create,
-      "should offer create linked action on Person-typed field: {:?}",
-      response.as_ref().map(|action| action
+      titles
         .iter()
-        .map(|action| match action {
-          lsp_types::CodeActionOrCommand::CodeAction(code_action) => code_action.title.clone(),
-          _ => String::new(),
-        })
-        .collect::<Vec<_>>())
+        .any(|title| title.contains("Create new Person")),
+      "should offer create linked on Person-typed field: {titles:?}"
     );
   }
 
   #[test]
   fn no_create_linked_on_string_field() {
-    let (analysis, uri) = setup(
-      r#"---
-_type: Task
-title: "hello"
----
-"#,
-    );
-    // Cursor on the title line (line 2)
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\n");
     let params = make_params_at(uri, 2, 5);
     let response = code_action(&analysis, params);
-
-    let has_create = response.as_ref().is_some_and(|actions| {
-      actions.iter().any(|action| match action {
-        lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
-          code_action.title.contains("Create new")
-        }
-        _ => false,
-      })
-    });
+    let titles = action_titles(&response);
     assert!(
-      !has_create,
-      "should not offer create linked on string field"
+      !titles.iter().any(|title| title.contains("Create new")),
+      "should not offer create linked on string field: {titles:?}"
+    );
+  }
+
+  #[test]
+  fn create_linked_action_in_markdown_body() {
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\nSome prose here\n");
+    let params = make_params_at(uri, 4, 5);
+    let response = code_action(&analysis, params);
+    let titles = action_titles(&response);
+    assert!(
+      titles
+        .iter()
+        .any(|title| title.contains("Create new file and link here")),
+      "should offer create linked in markdown body: {titles:?}"
+    );
+  }
+
+  #[test]
+  fn no_create_linked_in_frontmatter_body() {
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\n");
+    // Cursor on _type line, inside frontmatter
+    let params = make_params_at(uri, 1, 2);
+    let response = code_action(&analysis, params);
+    let titles = action_titles(&response);
+    assert!(
+      !titles
+        .iter()
+        .any(|title| title.contains("Create new file and link here")),
+      "should not offer markdown body action in frontmatter: {titles:?}"
+    );
+  }
+
+  #[test]
+  fn backward_link_action_when_referencing_schema_exists() {
+    let (analysis, uri) = setup_with_schemas(
+      "---\n_type: Person\nname: \"Alice\"\n---\n",
+      &[("Pet", SCHEMA_PET)],
+    );
+    let params = make_params_at(uri, 2, 0);
+    let response = code_action(&analysis, params);
+    let titles = action_titles(&response);
+    assert!(
+      titles
+        .iter()
+        .any(|title| title.contains("linking back here")),
+      "should offer backward link when Pet references Person: {titles:?}"
+    );
+  }
+
+  #[test]
+  fn no_backward_link_when_no_referencing_schemas() {
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\n");
+    let params = make_params_at(uri, 2, 0);
+    let response = code_action(&analysis, params);
+    let titles = action_titles(&response);
+    assert!(
+      !titles
+        .iter()
+        .any(|title| title.contains("linking back here")),
+      "should not offer backward link when no schemas reference Task: {titles:?}"
     );
   }
 
   #[test]
   fn context_only_filters_actions() {
-    let (analysis, uri) = setup(
-      "---
----
-",
-    );
-    // Request only refactor actions, should not return quickfix (init) actions
+    let (analysis, uri) = setup("---\n---\n");
     let params = make_params_with_only(uri, 0, 0, vec![lsp_types::CodeActionKind::REFACTOR]);
     let response = code_action(&analysis, params);
 
@@ -603,10 +838,7 @@ title: "hello"
 
   #[test]
   fn generated_template_includes_fields() {
-    let (analysis, uri) = setup(
-      "---
----",
-    );
+    let (analysis, uri) = setup("---\n---");
     let params = make_params(uri);
     let response = code_action(&analysis, params).expect("should return actions");
 
@@ -634,9 +866,41 @@ title: "hello"
       text.contains(r#""done""#) || text.contains(r#""todo""#),
       "enum should default to first option: {text}"
     );
+  }
+
+  #[test]
+  fn markdown_body_action_has_schema_select_prompt() {
+    let (analysis, uri) = setup("---\n_type: Task\ntitle: \"hello\"\n---\nSome text\n");
+    let params = make_params_at(uri, 4, 5);
+    let response = code_action(&analysis, params);
+
+    let action = response
+      .as_ref()
+      .and_then(|actions| {
+        actions.iter().find_map(|action| match action {
+          lsp_types::CodeActionOrCommand::CodeAction(code_action)
+            if code_action.title.contains("Create new file") =>
+          {
+            Some(code_action)
+          }
+          _ => None,
+        })
+      })
+      .expect("should have markdown body action");
+
+    let args_json = action
+      .command
+      .as_ref()
+      .and_then(|cmd| cmd.arguments.as_ref())
+      .and_then(|args| args.first())
+      .expect("should have command args");
+
+    let prompts = args_json["prompts"]
+      .as_array()
+      .expect("should have prompts");
     assert!(
-      text.contains(r#"assignee: fref("Person")"#),
-      "relation should use fref: {text}"
+      prompts.iter().any(|prompt| prompt["kind"] == "select"),
+      "should have a select prompt for schema: {prompts:?}"
     );
   }
 }

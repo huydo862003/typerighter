@@ -1,4 +1,5 @@
-//! Creates a new .td file with templated frontmatter and inserts fref() at the source location
+// Creates a new .td file with templated frontmatter and inserts fref() at the source location
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -16,15 +17,27 @@ use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::members;
 use typedown_lang::db::derived::typechecker::get_symbol_typ::get_symbol_typ;
 use typedown_lang::db::types::derived::obj_system::TdStaticTyp;
-use typedown_lang::db::types::{Project, SymbolKind};
-use typedown_lang::db::types::{Scope, ScopeKind};
+use typedown_lang::db::types::{Project, Scope, ScopeKind, SymbolKind};
 
 use typedown_types::path::normalize_path;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
+use crate::lsp::service::template::build_template;
 
 static REQUEST_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum InsertContext {
+  FrontmatterValue,
+  FrontmatterListItem,
+  MarkdownBody,
+  BackwardLink {
+    field: String,
+    source_schema: String,
+  },
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,11 +46,9 @@ pub struct CreateLinkedResourceArgs {
   pub source_uri: String,
   pub line: u32,
   pub character: u32,
-  pub is_list: bool,
-  // Filled by the editor after prompting
+  pub insert_context: InsertContext,
   #[serde(default)]
   pub filename: String,
-  // Editor resolves these before sending the command
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub prompts: Vec<super::Prompt>,
 }
@@ -50,7 +61,8 @@ pub fn execute(
   if args.filename.is_empty() {
     anyhow::bail!("filename is required");
   }
-  // Ensure .td extension
+
+  // 1. Resolve paths
   let filename = if args.filename.ends_with(".td") {
     args.filename.clone()
   } else {
@@ -68,30 +80,49 @@ pub fn execute(
   let project = analysis.project;
   let config = get_vault_config(db, project);
   let root_dir = config.root_dir(db);
+
   let target_dir =
     find_nearest_schema_directory(db, project, &args.schema, &root_dir, &source_path);
-  let relative_path = if let Some(dir) = &target_dir {
-    format!(
-      "{}/{}",
-      normalize_path(dir.strip_prefix(&root_dir).unwrap_or(dir)),
-      filename
-    )
-  } else {
-    // No existing files of this schema, create next to the source file
-    let source_dir = source_path.parent().unwrap_or(&root_dir);
-    let rel_dir = normalize_path(source_dir.strip_prefix(&root_dir).unwrap_or(source_dir));
-    if rel_dir.is_empty() {
-      filename.clone()
-    } else {
-      format!("{rel_dir}/{filename}")
-    }
-  };
+  let relative_path = resolve_relative_path(&target_dir, &root_dir, &source_path, &filename);
   let absolute_path = root_dir.join(&relative_path);
+  let fref_path = format!("/{relative_path}");
 
-  // Build the templated frontmatter
-  let frontmatter = build_template(db, project, &args.schema);
+  // 2. Build the new file's frontmatter
+  let backward_link = match &args.insert_context {
+    InsertContext::BackwardLink {
+      field,
+      source_schema,
+    } => {
+      let source_relative =
+        normalize_path(source_path.strip_prefix(&root_dir).unwrap_or(&source_path));
+      // Resolve field at runtime when empty (multi-candidate case)
+      let resolved_field = if field.is_empty() {
+        resolve_backward_link_field(db, project, &args.schema, source_schema).unwrap_or_default()
+      } else {
+        field.clone()
+      };
+      Some((resolved_field, format!("/{source_relative}")))
+    }
+    _ => None,
+  };
+  let frontmatter = build_template(
+    db,
+    project,
+    &args.schema,
+    backward_link
+      .as_ref()
+      .map(|(field, path)| (field.as_str(), path.as_str())),
+  );
 
-  // Resolve URIs
+  // 3. Build the fref text to insert at source cursor
+  let fref_text = match &args.insert_context {
+    InsertContext::FrontmatterValue => format!(r#"fref("{fref_path}")"#),
+    InsertContext::FrontmatterListItem => format!("\n  - fref(\"{fref_path}\")"),
+    InsertContext::MarkdownBody => format!(r#"${{fref("{fref_path}")}}"#),
+    InsertContext::BackwardLink { .. } => String::new(),
+  };
+
+  // 4. Build workspace edit
   let scheme = analysis
     .scheme_map
     .get(&absolute_path)
@@ -99,26 +130,14 @@ pub fn execute(
     .unwrap_or("file");
   let new_file_uri = path_to_uri(&absolute_path, scheme);
 
-  // Build the fref text to insert
-  let fref_text = if args.is_list {
-    format!(
-      r#"
-  - fref("{}")"#,
-      relative_path
-    )
-  } else {
-    format!(r#"fref("{}")"#, relative_path)
-  };
-
-  // Create workspace edit: create file + write frontmatter + insert fref at source
-  let document_changes = DocumentChanges::Operations(vec![
+  let mut operations = vec![
     // Create the new file
     DocumentChangeOperation::Op(ResourceOp::Create(CreateFile {
       uri: new_file_uri.clone(),
       options: None,
       annotation_id: None,
     })),
-    // Write the frontmatter to the new file
+    // Write frontmatter to the new file
     DocumentChangeOperation::Edit(TextDocumentEdit {
       text_document: OptionalVersionedTextDocumentIdentifier {
         uri: new_file_uri.clone(),
@@ -129,8 +148,11 @@ pub fn execute(
         new_text: frontmatter,
       })],
     }),
-    // Insert fref at the source cursor
-    DocumentChangeOperation::Edit(TextDocumentEdit {
+  ];
+
+  // Insert fref at source cursor (skip for backward links)
+  if !fref_text.is_empty() {
+    operations.push(DocumentChangeOperation::Edit(TextDocumentEdit {
       text_document: OptionalVersionedTextDocumentIdentifier {
         uri: source_uri,
         version: None,
@@ -148,13 +170,14 @@ pub fn execute(
         },
         new_text: fref_text,
       })],
-    }),
-  ]);
+    }));
+  }
 
+  // 5. Apply edit and open new file
   let edit_params = ApplyWorkspaceEditParams {
     label: Some(format!("Create {}", args.schema)),
     edit: WorkspaceEdit {
-      document_changes: Some(document_changes),
+      document_changes: Some(DocumentChanges::Operations(operations)),
       ..Default::default()
     },
   };
@@ -166,25 +189,46 @@ pub fn execute(
   );
   connection.sender.send(edit_request.into())?;
 
-  let show_params = ShowDocumentParams {
-    uri: new_file_uri,
-    external: Some(false),
-    take_focus: Some(true),
-    selection: None,
-  };
   let show_request = lsp_server::Request::new(
     next_request_id(),
     "window/showDocument".to_string(),
-    show_params,
+    ShowDocumentParams {
+      uri: new_file_uri,
+      external: Some(false),
+      take_focus: Some(true),
+      selection: None,
+    },
   );
   connection.sender.send(show_request.into())?;
 
   Ok(())
 }
 
-// Unique request ID for server-to-client requests
 fn next_request_id() -> lsp_server::RequestId {
   lsp_server::RequestId::from(REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed) as i32)
+}
+
+fn resolve_relative_path(
+  target_dir: &Option<PathBuf>,
+  root_dir: &Path,
+  source_path: &Path,
+  filename: &str,
+) -> String {
+  if let Some(dir) = target_dir {
+    format!(
+      "{}/{}",
+      normalize_path(dir.strip_prefix(root_dir).unwrap_or(dir)),
+      filename
+    )
+  } else {
+    let source_dir = source_path.parent().unwrap_or(root_dir);
+    let rel_dir = normalize_path(source_dir.strip_prefix(root_dir).unwrap_or(source_dir));
+    if rel_dir.is_empty() {
+      filename.to_string()
+    } else {
+      format!("{rel_dir}/{filename}")
+    }
+  }
 }
 
 // Find the directory with existing files of this schema nearest to the source file
@@ -224,7 +268,6 @@ fn find_nearest_schema_directory(
   best
 }
 
-// Count how many path components two paths share from the root
 fn common_prefix_len(left_path: &Path, right_path: &Path) -> usize {
   left_path
     .components()
@@ -233,26 +276,26 @@ fn common_prefix_len(left_path: &Path, right_path: &Path) -> usize {
     .count()
 }
 
-// Build a frontmatter template with all fields from the schema
-fn build_template(db: &TypedownDatabase, project: Project, schema_name: &str) -> String {
-  let mut template = format!(
-    "---
-_type: {schema_name}
-"
-  );
+// Find the field on target_schema that references source_schema
+fn resolve_backward_link_field(
+  db: &TypedownDatabase,
+  project: Project,
+  target_schema: &str,
+  source_schema: &str,
+) -> Option<String> {
+  let scope = Scope::new(db, ScopeKind::Project(project));
+  let symbol = *members(db, scope).members(db).get(target_schema)?;
+  let typ = evaluate_typ(db, symbol).typ(db)?;
+  let schema = typ.as_td_schema_typ()?;
 
-  let typ = members(db, Scope::new(db, ScopeKind::Project(project)))
-    .members(db)
-    .get(schema_name)
-    .copied()
-    .and_then(|symbol| evaluate_typ(db, symbol).typ(db));
-
-  if let Some(schema) = typ.as_ref().and_then(|typ| typ.as_td_schema_typ()) {
-    for (field_name, _) in schema.fields(db) {
-      template.push_str(&format!("{field_name}: \n"));
+  for (field_name, descriptor) in schema.fields(db) {
+    let matches = descriptor
+      .field_typ
+      .resolve(db)
+      .is_some_and(|field_typ| field_typ.display_name(db).contains(source_schema));
+    if matches {
+      return Some(field_name);
     }
   }
-
-  template.push_str("---\n");
-  template
+  None
 }

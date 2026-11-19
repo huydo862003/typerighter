@@ -123,6 +123,36 @@ impl YamlMappingEntry {
   pub fn entry(&self) -> Option<(String, Expr)> {
     Some((self.key()?, self.value()?))
   }
+
+  pub fn is_inside_schema_properties(&self) -> bool {
+    let descriptor_mapping = match self.0.parent() {
+      Some(parent) if parent.kind() == SyntaxKind::YamlMapping => parent,
+      _ => return false,
+    };
+    let prop_entry_value = match descriptor_mapping.parent() {
+      Some(parent) if parent.kind() == SyntaxKind::YamlMappingEntryValue => parent,
+      _ => return false,
+    };
+    let prop_entry = match prop_entry_value.parent() {
+      Some(parent) if parent.kind() == SyntaxKind::YamlMappingEntry => parent,
+      _ => return false,
+    };
+    let properties_mapping = match prop_entry.parent() {
+      Some(parent) if parent.kind() == SyntaxKind::YamlMapping => parent,
+      _ => return false,
+    };
+    let properties_entry_value = match properties_mapping.parent() {
+      Some(parent) if parent.kind() == SyntaxKind::YamlMappingEntryValue => parent,
+      _ => return false,
+    };
+    let properties_entry = match properties_entry_value.parent() {
+      Some(parent) if parent.kind() == SyntaxKind::YamlMappingEntry => parent,
+      _ => return false,
+    };
+    YamlMappingEntry::cast(properties_entry)
+      .and_then(|entry| entry.key())
+      .is_some_and(|key| key.trim() == "properties")
+  }
 }
 
 /// The YAML sequence

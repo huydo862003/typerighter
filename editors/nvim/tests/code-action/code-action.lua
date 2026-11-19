@@ -100,6 +100,77 @@ h.test("no initialization actions on non-empty file", function()
   end
 end)
 
+h.test("create linked resource in markdown body offers schema picker", function()
+  h.open_fixture("basic-vault", "with-body.td")
+  local client = h.wait_for_lsp()
+  h.assert(client, "LSP should attach")
+
+  -- Position in the markdown body (line 5)
+  local params = vim.lsp.util.make_range_params(0, client.offset_encoding)
+  params.range.start = { line = 5, character = 5 }
+  params.range["end"] = { line = 5, character = 5 }
+  params.context = { diagnostics = {} }
+
+  local result = h.lsp_request("textDocument/codeAction", params)
+  h.assert(result, "should return code actions in markdown body")
+
+  local body_action = nil
+  for _, action in ipairs(result) do
+    if action.title and action.title:find("Create new file and link here") then
+      body_action = action
+      break
+    end
+  end
+  h.assert(body_action, "should have 'Create new file and link here' action in body")
+
+  local args = body_action.command.arguments and body_action.command.arguments[1]
+  h.assert(args, "command should have arguments")
+  h.assert(args.prompts, "should have prompts")
+
+  -- Should have a select prompt for schema and an input prompt for filename
+  local has_select = false
+  local has_input = false
+  for _, prompt in ipairs(args.prompts) do
+    if prompt.kind == "select" then has_select = true end
+    if prompt.kind == "input" then has_input = true end
+  end
+  h.assert(has_select, "should have a select prompt for schema")
+  h.assert(has_input, "should have an input prompt for filename")
+
+  -- insertContext should be markdownBody
+  h.assert_eq(args.insertContext.kind, "markdownBody", "insert context should be markdownBody")
+end)
+
+h.test("backward link action when referencing schema exists", function()
+  h.open_fixture("basic-vault", "alice.td")
+  local client = h.wait_for_lsp()
+  h.assert(client, "LSP should attach")
+
+  -- Position in frontmatter
+  local params = vim.lsp.util.make_range_params(0, client.offset_encoding)
+  params.range.start = { line = 2, character = 0 }
+  params.range["end"] = { line = 2, character = 0 }
+  params.context = { diagnostics = {} }
+
+  local result = h.lsp_request("textDocument/codeAction", params)
+  h.assert(result, "should return code actions")
+
+  local backward_action = nil
+  for _, action in ipairs(result) do
+    if action.title and action.title:find("linking back here") then
+      backward_action = action
+      break
+    end
+  end
+  h.assert(backward_action, "should have backward link action (Pet references Person via owner)")
+
+  local args = backward_action.command.arguments and backward_action.command.arguments[1]
+  h.assert(args, "command should have arguments")
+  h.assert(args.insertContext, "should have insertContext")
+  h.assert_eq(args.insertContext.kind, "backwardLink", "insert context should be backwardLink")
+  h.assert(args.insertContext.field, "should have field in backward link context")
+end)
+
 h.test("no create-linked action on string field", function()
   h.open_fixture("basic-vault", "alice.td")
   local client = h.wait_for_lsp()

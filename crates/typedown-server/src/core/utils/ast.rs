@@ -1,4 +1,4 @@
-use typedown_lang::syntax::ast::{AstNode, CallExpr, Expr};
+use typedown_lang::syntax::ast::{AstNode, CallExpr, Expr, YamlMappingEntry};
 use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
@@ -75,43 +75,11 @@ pub fn ident_is_typ_reference(node: &RedNode) -> bool {
   match key_text.as_deref() {
     Some("_type") => true,
     // `type: string` inside a schema property descriptor
-    Some("type") => is_inside_schema_properties(&entry),
+    Some("type") => {
+      YamlMappingEntry::cast(entry.clone()).is_some_and(|entry| entry.is_inside_schema_properties())
+    }
     _ => false,
   }
-}
-
-/// Check if a mapping entry is nested inside the `properties` mapping of a schema
-fn is_inside_schema_properties(entry: &RedNode) -> bool {
-  // Walk up:
-  // entry -> mapping (prop descriptor) -> value -> entry (prop name) -> mapping (properties) -> value -> entry (properties key)
-  let prop_descriptor_mapping = match entry.parent() {
-    Some(mapping) if mapping.kind() == SyntaxKind::YamlMapping => mapping,
-    _ => return false,
-  };
-  let properties_entry_value = match prop_descriptor_mapping.parent() {
-    Some(value) if value.kind() == SyntaxKind::YamlMappingEntryValue => value,
-    _ => return false,
-  };
-  let prop_name_entry = match properties_entry_value.parent() {
-    Some(entry) if entry.kind() == SyntaxKind::YamlMappingEntry => entry,
-    _ => return false,
-  };
-  let properties_mapping = match prop_name_entry.parent() {
-    Some(mapping) if mapping.kind() == SyntaxKind::YamlMapping => mapping,
-    _ => return false,
-  };
-  let properties_value = match properties_mapping.parent() {
-    Some(value) if value.kind() == SyntaxKind::YamlMappingEntryValue => value,
-    _ => return false,
-  };
-  let properties_entry = match properties_value.parent() {
-    Some(entry) if entry.kind() == SyntaxKind::YamlMappingEntry => entry,
-    _ => return false,
-  };
-  properties_entry
-    .children()
-    .find(|child| child.kind() == SyntaxKind::YamlMappingEntryKey)
-    .is_some_and(|key| key.text().trim() == "properties")
 }
 
 /// Walk up to find the nearest ancestor with the given syntax kind

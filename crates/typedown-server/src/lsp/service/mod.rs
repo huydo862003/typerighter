@@ -8,6 +8,7 @@ pub mod inlay_hint;
 pub mod references;
 pub mod rename_symbol;
 pub mod semantic_tokens;
+pub mod template;
 pub mod utils;
 
 use lsp_server::{ErrorCode, Request, Response};
