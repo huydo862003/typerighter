@@ -565,6 +565,13 @@ fn collect_value_completions(
 
   let mut items = vec![make_keyword_item("true"), make_keyword_item("false")];
 
+  // Get declared type early so the scope loop can gate fref on schema-typed fields
+  let declared_typ = get_declared_field(db, project, file, node);
+  let is_schema_typed = declared_typ.as_ref().is_some_and(|typ| {
+    typ.is_td_schema_typ() || has_nullable_member(db, typ, TdTypEnum::is_td_schema_typ)
+  });
+  let inside_str = find_ancestor(node, SyntaxKind::StringLit).is_some();
+
   // Variables in scope (icon, fref, vault, file names, imports, closure params)
   // Find the nearest Expr ancestor to resolve scope (captures enclosing closures)
   let current_scope = get_nearest_expr_ancestor(node)
@@ -580,6 +587,10 @@ fn collect_value_completions(
     }
     // Assets are not valid expression values
     if matches!(symbol.kind(db), SymbolKind::Asset(..)) {
+      continue;
+    }
+    // fref is only relevant for schema-typed fields and only outside string literals
+    if name == "fref" && (!is_schema_typed || inside_str) {
       continue;
     }
     let kind = match symbol.kind(db) {
@@ -607,16 +618,13 @@ fn collect_value_completions(
   }
 
   // Type-specific completions from declared field type
-  let Some(typ) = get_declared_field(db, project, file, node) else {
+  let Some(typ) = declared_typ else {
     return Some(items);
   };
 
   if is_nullable(db, &typ) {
     items.push(make_keyword_item("null"));
   }
-
-  // When cursor is already inside a string literal, completions must not add surrounding quotes
-  let inside_str = find_ancestor(node, SyntaxKind::StringLit).is_some();
 
   // Enum values from union of literals
   collect_enum_items(db, &typ, inside_str, &mut items);
@@ -2334,6 +2342,81 @@ name: a|
     );
   }
 
+  // fref scope variable should not appear for non-schema-typed fields (string, number, etc.)
+  #[test]
+  fn fref_snippet_not_suggested_for_string_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: n|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let fref_item = items.iter().find(|item| item.label == "fref");
+    assert!(
+      fref_item.is_none(),
+      "fref should not be suggested for string field, got: {:?}",
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
+    );
+  }
+
+  // fref scope variable should still appear for schema-typed fields (unquoted value)
+  #[test]
+  fn fref_snippet_suggested_for_schema_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Task
+assignee: f|
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let has_fref = items.iter().any(|item| item.label == "fref");
+    assert!(
+      has_fref,
+      "fref should be suggested for schema-typed (Person?) field, got: {:?}",
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
+    );
+  }
+
+  // fref should not appear when typing a string literal on a schema-typed field
+  #[test]
+  fn fref_snippet_not_suggested_inside_string_on_schema_field() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Task
+assignee: "f|"
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = completion(&analysis, params);
+    let Some(CompletionResponse::Array(items)) = response else {
+      panic!("expected value completions");
+    };
+    let fref_item = items.iter().find(|item| item.label == "fref");
+    assert!(
+      fref_item.is_none(),
+      "fref should not be suggested inside a string literal, got: {:?}",
+      items.iter().map(|item| &item.label).collect::<Vec<_>>()
+    );
+  }
+
   // Resource files should never appear as bare completions (no insert_text wrapping)
   // They should only be suggested via fref() when the field type is a schema
   #[test]
@@ -2676,7 +2759,11 @@ name: i|
     };
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(labels.contains(&"icon"), "should suggest builtin 'icon'");
-    assert!(labels.contains(&"fref"), "should suggest builtin 'fref'");
+    // fref is omitted for non-schema-typed fields (name is a string field)
+    assert!(
+      !labels.contains(&"fref"),
+      "should not suggest 'fref' for string field"
+    );
     assert!(labels.contains(&"vault"), "should suggest builtin 'vault'");
   }
 
