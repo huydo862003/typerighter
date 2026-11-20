@@ -147,6 +147,7 @@ impl SyntaxKind {
         | SyntaxKind::CodeBlock
         | SyntaxKind::MathBlock
         | SyntaxKind::MdHorizontalRule
+        | SyntaxKind::MdMedia
     )
   }
 
@@ -158,7 +159,6 @@ impl SyntaxKind {
         | SyntaxKind::MdBoldItalic
         | SyntaxKind::MdStrikethrough
         | SyntaxKind::MdLink
-        | SyntaxKind::MdMedia
         | SyntaxKind::MdText
         | SyntaxKind::MdHtmlEntity
         | SyntaxKind::InlineCode

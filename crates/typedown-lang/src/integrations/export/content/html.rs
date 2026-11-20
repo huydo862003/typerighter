@@ -210,42 +210,27 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_paragraph(&mut self, node: &RedNode) {
-    // Check if paragraph contains block-level children (e.g. indented nested containers)
-    let has_blocks = node.children().any(|child| {
-      matches!(
-        child.kind(),
-        SyntaxKind::MdContainerBlock | SyntaxKind::MdContainerShorthand
-      )
-    });
-    if has_blocks {
-      // Emit inline content as <p>, block children as blocks
-      let mut in_inline = false;
-      for child in node.children() {
-        if matches!(
-          child.kind(),
-          SyntaxKind::MdContainerBlock | SyntaxKind::MdContainerShorthand
-        ) {
-          if in_inline {
-            self.write("</p>\n");
-            in_inline = false;
-          }
-          self.emit_block(&child);
-        } else if matches!(child.kind(), SyntaxKind::Whitespace | SyntaxKind::Newline) {
-          continue;
-        } else {
-          if !in_inline {
-            self.write("<p>");
-            in_inline = true;
-          }
-          self.emit_inline(&child);
+    // Wrap inline runs in <p>, break out block children directly
+    let mut in_inline = false;
+
+    for child in node.children() {
+      if child.kind().is_md_block() {
+        if in_inline {
+          self.write("</p>\n");
+          in_inline = false;
         }
+        self.emit_block(&child);
+      } else if matches!(child.kind(), SyntaxKind::Whitespace | SyntaxKind::Newline) {
+        continue;
+      } else {
+        if !in_inline {
+          self.write("<p>");
+          in_inline = true;
+        }
+        self.emit_inline(&child);
       }
-      if in_inline {
-        self.write("</p>\n");
-      }
-    } else {
-      self.write("<p>");
-      self.emit_inline(node);
+    }
+    if in_inline {
       self.write("</p>\n");
     }
   }
@@ -1342,6 +1327,45 @@ mod tests {
 "#
       ),
       "disabled"
+    );
+  }
+
+  #[test]
+  fn media_in_list_item_is_detected_as_block() {
+    let root = parse_body(
+      r#"
+- ![](report.pdf)
+"#,
+    );
+    let list_item = find_first(&root, SyntaxKind::MdBulletListItem);
+
+    assert!(list_item.is_some());
+    let list_item = list_item.unwrap();
+    let has_block = list_item.children().any(|child| child.kind().is_md_block());
+
+    assert!(has_block, "list item with media should have block children");
+  }
+
+  #[test]
+  fn text_then_media_in_list_item_has_block_children() {
+    let root = parse_body(
+      r#"
+- Download here
+  ![](report.pdf)
+"#,
+    );
+    let list_item = find_first(&root, SyntaxKind::MdBulletListItem);
+
+    assert!(list_item.is_some());
+    let list_item = list_item.unwrap();
+    let block_count = list_item
+      .children()
+      .filter(|child| child.kind().is_md_block())
+      .count();
+
+    assert!(
+      block_count >= 2,
+      "list item with text paragraph + media should have at least 2 block children, got {block_count}"
     );
   }
 }

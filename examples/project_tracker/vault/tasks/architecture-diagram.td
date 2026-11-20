@@ -107,6 +107,13 @@ export const ERROR_CODES = {
 
 ![Architecture spec](_assets/architecture-spec.pdf)
 
+Attachments:
+
+- First attachment
+
+  ![Architecture spec](_assets/architecture-spec.pdf)
+- ![Architecture spec](_assets/architecture-spec.pdf)
+
 ## Logo
 
 ![Typedown logo](/typedown.svg "The Typedown project logo")
