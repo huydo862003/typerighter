@@ -348,6 +348,16 @@ Here is a YouTube embed:
 
 ![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
+### PDF files
+
+Files with a `.pdf` extension render as a file card with download and open-in-new-tab buttons:
+
+```markdown
+![](spec.pdf)
+```
+
+### Generic iframes
+
 Any other `https://` URL without an image extension is rendered as a generic `<iframe>`, with a fallback link shown if the site blocks framing. URLs with image extensions (`.png`, `.jpg`, `.svg`, `.webp`, etc.) and relative paths are always rendered as images.
 
 ## String interpolation

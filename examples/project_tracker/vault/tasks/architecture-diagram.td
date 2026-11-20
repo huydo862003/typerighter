@@ -103,6 +103,10 @@ export const ERROR_CODES = {
 
 ![Database schema](https://dbdiagram.io/embed#c=ClRhYmxlIHVzZXJzIHsKICBpZCBpbnQgW3BrXQogIG5hbWUgdmFyY2hhcgogIGVtYWlsIHZhcmNoYXIKfQoKVGFibGUgcG9zdHMgewogIGlkIGludCBbcGtdCiAgdXNlcl9pZCBpbnQgW3JlZjogPiB1c2Vycy5pZF0KICB0aXRsZSB2YXJjaGFyCiAgY29udGVudCB0ZXh0Cn0KClRhYmxlIGNvbW1lbnRzIHsKICBpZCBpbnQgW3BrXQogIHBvc3RfaWQgaW50IFtyZWY6ID4gcG9zdHMuaWRdCiAgdXNlcl9pZCBpbnQgW3JlZjogPiB1c2Vycy5pZF0KICBib2R5IHRleHQKfQo%3D "Project ERD")
 
+### PDF
+
+![Architecture spec](_assets/architecture-spec.pdf)
+
 ## Logo
 
 ![Typedown logo](/typedown.svg "The Typedown project logo")

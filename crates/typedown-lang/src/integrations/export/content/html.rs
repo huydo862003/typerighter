@@ -748,6 +748,7 @@ impl<'a> HtmlEmitter<'a> {
 
     match classify_media_url(&url) {
       MediaKind::Image => self.emit_media_image(&url, &alt, title.as_deref()),
+      MediaKind::Pdf => self.emit_media_pdf(&url, &alt, title.as_deref()),
       MediaKind::GithubCode => self.emit_media_github(&url, &alt, title.as_deref()),
       MediaKind::ServiceEmbed(embed) => {
         self.emit_media_iframe(&alt, title.as_deref(), &embed);
@@ -791,6 +792,28 @@ impl<'a> HtmlEmitter<'a> {
         html_escape(alt)
       ));
     }
+  }
+
+  fn emit_media_pdf(&mut self, url: &str, _alt: &str, _title: Option<&str>) {
+    let escaped_url = html_escape(url);
+    let filename = url
+      .split(['?', '#'])
+      .next()
+      .unwrap_or(url)
+      .rsplit('/')
+      .next()
+      .unwrap_or(url);
+    let escaped_label = html_escape(filename);
+
+    self.write(&format!(
+      r#"<div class="td-pdf-card">
+<span class="td-pdf-card-icon"><LucideIcon name="file-text" :size="20" /></span>
+<span class="td-pdf-card-label">{escaped_label}</span>
+<a href="{escaped_url}" download class="td-pdf-card-btn" aria-label="Download"><LucideIcon name="download" :size="16" /></a>
+<a href="{escaped_url}" target="_blank" rel="noopener" class="td-pdf-card-btn" aria-label="Open in new tab"><LucideIcon name="external-link" :size="16" /></a>
+</div>
+"#
+    ));
   }
 
   fn read_image_dimensions(&self, url: &str) -> Option<(u32, u32)> {

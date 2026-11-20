@@ -17,6 +17,8 @@ const IMAGE_DOMAINS: &[&str] = &["img.shields.io", "badge.fury.io", "img.buymeac
 pub enum MediaKind {
   /// Standard `<img>` tag
   Image,
+  /// Embedded PDF viewer via `<object>` tag
+  Pdf,
   /// GitHub file permalink (client-side embed with Shiki highlighting)
   GithubCode,
   /// Known service with a transformed embed URL
@@ -56,6 +58,10 @@ pub fn classify_media_url(url: &str) -> MediaKind {
 
   if is_image_url(url) {
     return MediaKind::Image;
+  }
+
+  if has_pdf_extension(url) {
+    return MediaKind::Pdf;
   }
 
   if is_github_code_url(url) {
@@ -99,6 +105,20 @@ fn extract_path(url: &str) -> &str {
     .find('/')
     .map_or("", |index| &after_scheme[index..]);
   after_host.split(['?', '#']).next().unwrap_or(after_host)
+}
+
+fn has_pdf_extension(url: &str) -> bool {
+  // For relative URLs without '/', extract_path returns "" so check the raw URL too
+  let path = extract_path(url);
+  let check = if path.is_empty() {
+    url.split(['?', '#']).next().unwrap_or(url)
+  } else {
+    path
+  };
+  Path::new(check)
+    .extension()
+    .and_then(|extension| extension.to_str())
+    .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
 }
 
 fn is_image_url(url: &str) -> bool {
@@ -282,6 +302,13 @@ fn extract_youtube_id(url: &str) -> Option<&str> {
 mod tests {
   use super::*;
 
+  fn assert_pdf(url: &str) {
+    assert!(
+      matches!(classify_media_url(url), MediaKind::Pdf),
+      "{url} should be Pdf"
+    );
+  }
+
   fn assert_image(url: &str) {
     assert!(
       matches!(classify_media_url(url), MediaKind::Image),
@@ -322,6 +349,15 @@ mod tests {
     assert_image("/assets/icon.svg");
     assert_image("img.webp?w=100");
     assert_image("https://example.com/photo.png");
+  }
+
+  #[test]
+  fn pdf_by_extension() {
+    assert_pdf("report.pdf");
+    assert_pdf("report.PDF");
+    assert_pdf("/assets/whitepaper.pdf");
+    assert_pdf("https://example.com/docs/report.pdf");
+    assert_pdf("paper.pdf?page=2");
   }
 
   #[test]
