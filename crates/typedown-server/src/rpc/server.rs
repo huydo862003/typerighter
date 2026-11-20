@@ -811,7 +811,7 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   let root_dir = config.root_dir(db);
   let files = project.files(db);
 
-  let items: Vec<TdSidebarItem> = files
+  let mut items: Vec<TdSidebarItem> = files
     .iter()
     .filter(|(path, _)| {
       path.starts_with(&root_dir) && is_content_file(path) && !is_internal_file(path)
@@ -822,7 +822,62 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
     })
     .collect();
 
+  apply_ssg_cascade(&mut items);
+
   Ok(items)
+}
+
+// Cascade SSG flags from index.td to all files in the same directory and subdirectories
+fn apply_ssg_cascade(items: &mut [TdSidebarItem]) {
+  // Collect flags set to false on index files
+  let mut dir_overrides: HashMap<String, (bool, bool, bool)> = HashMap::new();
+  for item in items.iter() {
+    let path = Path::new(&item.filepath);
+    let stem = path.file_stem().and_then(|stem| stem.to_str());
+    if stem != Some("index") {
+      continue;
+    }
+    let dir = path
+      .parent()
+      .and_then(|parent| parent.to_str())
+      .unwrap_or("")
+      .to_string();
+    dir_overrides.insert(
+      dir,
+      (
+        item.ssg.show_in_sidebar,
+        item.ssg.show_in_search,
+        item.ssg.crawlable,
+      ),
+    );
+  }
+
+  if dir_overrides.is_empty() {
+    return;
+  }
+
+  for item in items.iter_mut() {
+    let path = Path::new(&item.filepath);
+    let mut current = path.parent();
+    while let Some(dir) = current {
+      let dir_str = dir.to_str().unwrap_or("");
+      if let Some(&(sidebar, search, crawlable)) = dir_overrides.get(dir_str) {
+        if !sidebar {
+          item.ssg.show_in_sidebar = false;
+        }
+        if !search {
+          item.ssg.show_in_search = false;
+        }
+        if !crawlable {
+          item.ssg.crawlable = false;
+        }
+      }
+      if dir_str.is_empty() {
+        break;
+      }
+      current = dir.parent();
+    }
+  }
 }
 
 fn get_config(analysis: &Analysis) -> RpcResult<TdSiteConfig> {

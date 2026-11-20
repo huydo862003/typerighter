@@ -14,40 +14,8 @@ import {
   basename, filestem, dirname,
 } from './path';
 
-// Return a cascade-filtered copy of items for sidebar nav:
-// - excludes items with ssg.showInSidebar === false
-// - excludes items under directories whose index.td has ssg.showInSidebar === false
 export function buildCascadeFilteredItems (items: ContentSummary[]): ContentSummary[] {
-  const hiddenDirs = new Set<string>();
-
-  for (const item of items) {
-    const stem = item.filepath.split('/').pop()
-      ?.replace(/\.td$/, '');
-
-    if (stem !== 'index') continue;
-    if (item.ssg?.showInSidebar !== false) continue;
-
-    const directory = item.filepath.split('/').slice(0, -1)
-      .join('/');
-
-    hiddenDirs.add(directory);
-  }
-
-  return items.filter((item) => {
-    if (item.ssg?.showInSidebar === false) return false;
-
-    if (hiddenDirs.size === 0) return true;
-
-    const parts = item.filepath.split('/').slice(0, -1);
-    let directory = '';
-
-    for (const part of parts) {
-      directory = directory ? `${directory}/${part}` : part;
-      if (hiddenDirs.has(directory)) return false;
-    }
-
-    return true;
-  });
+  return items.filter((item) => item.ssg?.showInSidebar !== false);
 }
 
 // Build a recursive tree from a flat list of content summaries, grouped by directory
