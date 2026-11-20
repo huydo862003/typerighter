@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.66.1] - 2026-11-20
+
+### Fixed
+
+- crates/typedown-server
+  - Cascade _ssg settings
+
 ## [0.66.0] - 2026-11-20
 
 ### Added
