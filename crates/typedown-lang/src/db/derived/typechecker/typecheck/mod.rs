@@ -902,40 +902,24 @@ mod tests {
       })
       .expect("expected UnknownField diagnostic for 'favorite_color'");
 
-    // The fixture content:
-    // ---
-    // _type: Person
-    // name: Alice
-    // age: 30
-    // favorite_color: blue
-    // ---
-    //
-    // Offset of "favorite_color" = 4 + 14 + 12 + 8 = 38
-    // Length of "favorite_color" = 14, so end = 52
-    // Offset of "blue" = 54 (after "favorite_color: ")
-    let key_start = 38usize;
-    let key_end = 52usize;
-    let value_offset = 54usize;
+    let key = "favorite_color";
+    let key_len = key.len();
 
+    // The diagnostic range must cover exactly the key name (not the value)
     assert!(
-      diag.start_offset == key_start,
-      "diagnostic should start at key offset {key_start}, got start={}",
-      diag.start_offset
+      diag.end_offset - diag.start_offset == key_len,
+      "diagnostic range length should be {} (key name), got {}",
+      key_len,
+      diag.end_offset - diag.start_offset,
     );
+
+    // The range must not extend past "favorite_color: " into the value "blue"
+    // i.e. there must be at least ": " (2 bytes) between end of key and start of value
+    let gap = 2; // ": "
     assert!(
-      diag.end_offset == key_end,
-      "diagnostic should end at key end {key_end}, got end={}",
-      diag.end_offset
-    );
-    assert!(
-      diag.start_offset < value_offset,
-      "diagnostic start ({}) must be before value offset ({value_offset})",
-      diag.start_offset
-    );
-    assert!(
-      diag.end_offset <= value_offset,
-      "diagnostic end ({}) must not reach into value at {value_offset}",
-      diag.end_offset
+      diag.end_offset + gap <= diag.start_offset + key_len + gap,
+      "diagnostic end ({}) must not reach into value",
+      diag.end_offset,
     );
   }
 

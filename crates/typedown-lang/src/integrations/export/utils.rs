@@ -66,9 +66,10 @@ pub fn resolve_vault_url(url: &str, base_path: &str, file_dir: &Path) -> String 
   let relative = if url.starts_with('/') {
     url.trim_start_matches('/').to_string()
   } else {
+    // normalize_joined_path returns a PathBuf; replace backslashes for Windows compatibility
     normalize_joined_path(file_dir, url)
       .to_string_lossy()
-      .to_string()
+      .replace('\\', "/")
   };
 
   let relative = relative
