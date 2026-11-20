@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.67.1] - 2026-11-20
+
+### Fixed
+
+- crates/typedown-lang
+  - Support blocks nested in paragraphs
+
 ## [0.67.0] - 2026-11-20
 
 ### Added
