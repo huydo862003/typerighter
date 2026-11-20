@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.67.0] - 2026-11-20
+
+### Added
+
+- crates/typedown-lang, packages/typerighter
+  - Support media for pdf as file card
+
 ## [0.66.1] - 2026-11-20
 
 ### Fixed
