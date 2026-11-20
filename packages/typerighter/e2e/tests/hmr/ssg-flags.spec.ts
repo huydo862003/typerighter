@@ -50,8 +50,19 @@ _ssg:
     await testProject.modifyFile('vault/people/zoe.td', (content) =>
       content.replace('show_in_sidebar: false', 'show_in_sidebar: true'));
 
-    // Zoe should appear in sidebar
-    await expect(sidebar.getByText('Zoe (Hidden)')).toBeVisible({
+    // Zoe is alphabetically last and may be behind the windowed "N more" button
+    await expect(async () => {
+      const moreButtons = sidebar.getByRole('button', {
+        name: /\d+ more/,
+      });
+      const count = await moreButtons.count();
+
+      if (0 < count) {
+        await moreButtons.last().click();
+      }
+
+      await expect(sidebar.getByText('Zoe (Hidden)')).toBeVisible();
+    }).toPass({
       timeout: 10_000,
     });
   });

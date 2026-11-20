@@ -121,4 +121,3 @@ describe('buildDirectoryListingMap - visibility filtering', () => {
     expect(names.some((name) => name.toLowerCase().includes('secret'))).toBe(false);
   });
 });
-
