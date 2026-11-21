@@ -645,14 +645,16 @@ function shrinkSidebar () {
               <Content />
             </div>
             <slot name="doc-content-after" />
-            <TdPreviousNext />
-            <a
-              v-if="siteConfig.repo && page.filepath"
-              :href="editPageUrl(page.filepath)"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="td-page-edit"
-            >Edit this page</a>
+            <div class="td-content-footer">
+              <TdPreviousNext />
+              <a
+                v-if="siteConfig.repo && page.filepath"
+                :href="editPageUrl(page.filepath)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="td-page-edit"
+              >Edit this page</a>
+            </div>
             <slot name="doc-after" />
           </article>
         </main>
@@ -808,6 +810,8 @@ function shrinkSidebar () {
 /* Main content */
 
 .td-main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   position: relative;
   z-index: 0;
@@ -819,10 +823,17 @@ function shrinkSidebar () {
 }
 
 .td-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
   padding: 44px 32px 48px;
   max-width: 860px;
   margin: 0 auto;
   overflow-x: hidden;
+}
+
+.td-content-footer {
+  margin-top: auto;
 }
 
 .td-page-eyebrow {
