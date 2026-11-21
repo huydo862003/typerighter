@@ -322,7 +322,8 @@ fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> O
   {
     let config = get_vault_config(db, project);
     let root_dir = config.root_dir(db);
-    return Some(root_dir.join(path_string));
+    let stripped = path_string.strip_prefix('/').unwrap_or(&path_string);
+    return Some(root_dir.join(stripped));
   }
   None
 }
@@ -497,6 +498,31 @@ name: fref("ali|ce.td")
     assert!(
       location.uri.as_str().contains("alice"),
       "should point to alice.td, got: {:?}",
+      location.uri
+    );
+  }
+
+  // fref resolves from vault root, not project root
+  // When root_dir is "vault", fref("alice.td") should resolve to /project/vault/alice.td
+  #[test]
+  fn definition_on_fref_with_leading_slash() {
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: fref("/ali|ce.td")
+---
+"#,
+    );
+    let (analysis, uri) = setup(&content);
+    let params = make_params(uri, &content, offset);
+
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for fref with leading slash");
+    };
+    assert!(
+      location.uri.as_str().contains("alice"),
+      "fref with / prefix should resolve from vault root to alice.td, got: {:?}",
       location.uri
     );
   }
