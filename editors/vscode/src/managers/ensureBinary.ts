@@ -38,7 +38,7 @@ const OS_ARCH_MAP: Record<string, string> = {
   'win32-x64': 'windows-x86_64',
 };
 
-const DOWNLOAD_TIMEOUT_MS = 60_000;
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 // Returns the path to the LSP binary, downloading it if missing or corrupted
 // Checks for a local dev binary first, placed by setup-binary.mjs during development
@@ -83,7 +83,10 @@ export async function ensureBinary (): Promise<string> {
       title: `Downloading typedown-lsp ${version}`,
       cancellable: false,
     },
-    async () => {
+    async (progress) => {
+      progress.report({
+        message: 'Connecting...',
+      });
       await mkdir(versionDirectory, {
         recursive: true,
       });
@@ -95,23 +98,26 @@ export async function ensureBinary (): Promise<string> {
       try {
         const result = await fetch(url, {
           signal: controller.signal,
+          redirect: 'follow',
         });
 
         if (!result.ok) {
-          throw new Error(`Failed to download LSP binary: HTTP ${result.status} from ${url}`);
+          throw new Error(`HTTP ${result.status} downloading ${url}`);
         }
 
         if (!result.body) {
           throw new Error('Response body is empty');
         }
 
+        progress.report({
+          message: 'Downloading...',
+        });
+
         const temporaryPath = `${binPath}.tmp`;
 
         try {
           await pipeline(
-            Readable.fromWeb(result.body as ReadableStream, {
-              signal: controller.signal,
-            }),
+            Readable.fromWeb(result.body as ReadableStream),
             createWriteStream(temporaryPath),
           );
 
@@ -123,6 +129,11 @@ export async function ensureBinary (): Promise<string> {
           });
           throw error;
         }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error(`Download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s. Check your network and try again.`);
+        }
+        throw error;
       } finally {
         clearTimeout(timeout);
       }
