@@ -15,7 +15,7 @@
   "devDependencies": {
     "@hdnax/nuclint": "^0.18.1",
     "@stylistic/eslint-plugin": "^5.10.0",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-import-x": "^4.17.1",
