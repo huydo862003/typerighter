@@ -205,6 +205,41 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.api.nvim_buf_create_user_command(event.buf, "TypedownLint", function()
       vim.diagnostic.setloclist({ open = true })
     end, { desc = "Show typedown diagnostics in location list" })
+
+    vim.api.nvim_buf_create_user_command(event.buf, "TypedownBacklinks", function()
+      local client = vim.lsp.get_clients({ name = "typedown-lsp", bufnr = event.buf })[1]
+      if not client then
+        vim.notify("[typedown] LSP not attached", vim.log.levels.WARN)
+        return
+      end
+      local uri = vim.uri_from_bufnr(event.buf)
+      client.request("workspace/executeCommand", {
+        command = "_typerighter.backlinks",
+        arguments = { { uri = uri } },
+      }, function(err, result)
+        if err then
+          vim.notify("[typedown] Backlinks failed: " .. err.message, vim.log.levels.ERROR)
+          return
+        end
+        if not result or #result == 0 then
+          vim.notify("[typedown] No backlinks found", vim.log.levels.INFO)
+          return
+        end
+        -- Convert LSP locations to quickfix items
+        local items = {}
+        for _, location in ipairs(result) do
+          local path = vim.uri_to_fname(location.uri)
+          table.insert(items, {
+            filename = path,
+            lnum = location.range.start.line + 1,
+            col = location.range.start.character + 1,
+            text = vim.fn.fnamemodify(path, ":t:r"),
+          })
+        end
+        vim.fn.setqflist({}, " ", { title = "Backlinks", items = items })
+        vim.cmd("copen")
+      end)
+    end, { desc = "Show pages that link to the current file" })
   end,
 })
 

@@ -1,12 +1,14 @@
+pub mod backlinks;
 pub mod create_linked_resource;
 
 use serde::{Deserialize, Serialize};
 
 pub const COMMAND_PREFIX: &str = "_typerighter.";
 pub const CREATE_LINKED_RESOURCE: &str = "_typerighter.createLinkedResource";
+pub const BACKLINKS: &str = "_typerighter.backlinks";
 
 pub fn command_ids() -> Vec<String> {
-  vec![CREATE_LINKED_RESOURCE.to_string()]
+  vec![CREATE_LINKED_RESOURCE.to_string(), BACKLINKS.to_string()]
 }
 
 // A prompt that the editor should show before sending the command

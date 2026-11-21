@@ -29,6 +29,7 @@ use crate::core::multiproject::{Multiproject, ProjectEntry};
 use crate::core::utils::lsp::{try_extract_path_from_notification, try_extract_path_from_request};
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::notification::diagnostics::{publish_diagnostics, publish_diagnostics_for_file};
+use crate::lsp::service::commands::backlinks::BacklinksArgs;
 use crate::lsp::service::commands::create_linked_resource::{
   self as create_linked, CreateLinkedResourceArgs,
 };
@@ -189,6 +190,31 @@ impl Server {
           .connection
           .sender
           .send(Message::Response(Response::new_ok(req.id, ())))?;
+      }
+      commands::BACKLINKS => {
+        let args: BacklinksArgs = serde_json::from_value(
+          params
+            .arguments
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::msg("missing arguments"))?,
+        )?;
+
+        let target_uri: lsp_types::Uri = args.uri.parse().map_err(|_| Error::msg("invalid URI"))?;
+        let path =
+          uri_to_path(&target_uri).ok_or_else(|| Error::msg("Failed to convert URI to path"))?;
+        let project_entry = self.multiproject.load_nearest_project(&path)?;
+        let analysis = project_entry
+          .host
+          .read()
+          .map_err(|_| Error::msg("RwLock poisoned"))?
+          .snapshot();
+
+        let locations = commands::backlinks::execute(&analysis, args);
+        self
+          .connection
+          .sender
+          .send(Message::Response(Response::new_ok(req.id, locations)))?;
       }
       _ => {
         self
