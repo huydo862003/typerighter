@@ -26,12 +26,30 @@ export function usePreviousNext (): {
 
   const result = computed(() => {
     const allPages = flattenTree(siteData.value.contentTree, siteTitle);
-    const index = allPages.findIndex((page) => page.url === route.path);
+    let index = allPages.findIndex((page) => page.url === route.path);
+
+    // Page is SSG-hidden: use fullContentTree scoped to its directory
+    if (index === -1 && siteData.value.fullContentTree) {
+      const directory = route.path.split('/').slice(0, -1)
+        .join('/');
+      const fullPages = flattenTree(siteData.value.fullContentTree, siteTitle);
+      const scopedPages = fullPages.filter((page) => page.url.startsWith(directory + '/'));
+
+      index = scopedPages.findIndex((page) => page.url === route.path);
+
+      if (index !== -1) {
+        return buildResult(scopedPages, index);
+      }
+    }
 
     if (index === -1) return {};
 
-    const previous = 0 < index ? allPages[index - 1] : undefined;
-    const next = index < allPages.length - 1 ? allPages[index + 1] : undefined;
+    return buildResult(allPages, index);
+  });
+
+  function buildResult (pages: PreviousNextLink[], index: number) {
+    const previous = 0 < index ? pages[index - 1] : undefined;
+    const next = index < pages.length - 1 ? pages[index + 1] : undefined;
 
     return {
       previous: previous
@@ -47,7 +65,7 @@ export function usePreviousNext (): {
         }
         : undefined,
     };
-  });
+  }
 
   return {
     previous: computed(() => result.value.previous),

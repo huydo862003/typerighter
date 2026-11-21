@@ -199,9 +199,12 @@ if (import.meta.hot) {
   private serializeState (): Record<string, unknown> {
     if (!this.data) return EMPTY;
 
+    const fullContentTree = buildContentTree(this.data.fullContentItems);
+
     return {
       ready: true,
       contentTree: this.data.contentTree,
+      fullContentTree,
       schemas: this.data.schemas,
       directoryListings: this.data.directoryListings,
     };
