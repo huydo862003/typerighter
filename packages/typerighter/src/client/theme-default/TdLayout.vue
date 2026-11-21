@@ -840,8 +840,6 @@ function shrinkSidebar () {
 /* Main content */
 
 .td-main {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
   position: relative;
   z-index: 0;
