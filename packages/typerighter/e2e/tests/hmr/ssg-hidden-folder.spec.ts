@@ -30,7 +30,7 @@ e2e.describe('SSG hidden folder navigation', () => {
     await expect(nextLink.locator('.td-prevnext-title')).toHaveText('Charlie (Hidden)');
   });
 
-  e2e('first hidden page has no previous link', async ({
+  e2e('first hidden page links back to virtual index', async ({
     page,
     testProject,
   }) => {
@@ -42,8 +42,11 @@ e2e.describe('SSG hidden folder navigation', () => {
       timeout: 10_000,
     });
 
-    // No previous link
-    await expect(nav.locator('.td-prevnext-link.is-previous')).not.toBeVisible();
+    // Previous should be the virtual index
+    const previousLink = nav.locator('.td-prevnext-link.is-previous');
+
+    await expect(previousLink).toBeVisible();
+    await expect(previousLink.locator('.td-prevnext-title')).toHaveText('Hidden folder');
 
     // Next should be Bravo
     const nextLink = nav.locator('.td-prevnext-link.is-next');
@@ -72,6 +75,26 @@ e2e.describe('SSG hidden folder navigation', () => {
 
     // No next link
     await expect(nav.locator('.td-prevnext-link.is-next')).not.toBeVisible();
+  });
+
+  e2e('virtual index page shows prev/next', async ({
+    page,
+    testProject,
+  }) => {
+    // hidden-folder has no index.td, so /hidden-folder/index is virtual
+    await testProject.goto(page, '/hidden-folder/index');
+
+    const nav = page.locator('nav[aria-label="Page navigation"]');
+
+    await expect(nav).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Virtual index is first in the folder, so next should be Alpha
+    const nextLink = nav.locator('.td-prevnext-link.is-next');
+
+    await expect(nextLink).toBeVisible();
+    await expect(nextLink.locator('.td-prevnext-title')).toHaveText('Alpha (Hidden)');
   });
 
   e2e('hidden page shows edit link at the bottom', async ({

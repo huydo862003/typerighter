@@ -5,7 +5,7 @@ import {
   useSiteData, useRoute, useSiteConfig,
 } from '../../app';
 import {
-  getDirectoryUrl, getNodeIndexItem, getTdContentUrl, getTdIndexTitle, getTdResourceTitle, isIndexFile,
+  getDirectoryUrl, getIndexUrl, getNodeIndexItem, getTdContentUrl, getTdIndexTitle, getTdResourceTitle, isIndexFile, unslugify,
   type ContentTree, type ContentTreeNode, type ContentSummary,
 } from '@/shared';
 
@@ -79,6 +79,12 @@ function flattenNode (node: ContentTreeNode, urlPrefix: string, pages: PreviousN
 
   if (indexItem) {
     pages.push(getItemLink(indexItem));
+  } else {
+    // Virtual index page for directories without index.td
+    pages.push({
+      url: getIndexUrl(directoryUrl),
+      title: unslugify(node.name),
+    });
   }
 
   for (const entry of node.entries) {
@@ -98,6 +104,11 @@ function flattenTree (tree: ContentTree, siteTitle: string): PreviousNextLink[] 
 
   if (indexEntry && indexEntry.kind === 'file') {
     pages.push(getItemLink(indexEntry.item, siteTitle));
+  } else {
+    pages.push({
+      url: '/index',
+      title: siteTitle,
+    });
   }
 
   for (const entry of tree.entries) {
