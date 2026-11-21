@@ -65,7 +65,7 @@
 }
 
 .td-content details.td-callout summary {
-  padding: 12px 16px;
+  padding: 12px 20px;
   font-weight: 600;
   font-size: var(--font-size-td-sm);
   cursor: pointer;
@@ -78,22 +78,30 @@
 
 .td-content details.td-callout[open] summary {
   border-bottom: 1px solid var(--color-td-line-soft);
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .td-content details.td-callout > :not(summary):not(div[class*="language-"]):not(ul):not(ol) {
-  padding: 0 16px;
+  padding: 0 20px;
+}
+
+.td-content details.td-callout > p + p {
+  margin-top: 16px;
+}
+
+.td-content details.td-callout > :last-child {
+  margin-bottom: 16px;
 }
 
 .td-content details.td-callout > ul,
 .td-content details.td-callout > ol {
-  margin-left: 16px;
-  margin-right: 16px;
+  margin-left: 20px;
+  margin-right: 20px;
 }
 
 /* Code blocks need margin instead of padding so overflow-x scrolling works correctly */
 .td-content details.td-callout > div[class*="language-"] {
-  margin: 8px 16px;
+  margin: 8px 20px;
   border-radius: var(--radius-td-lg);
 }
 
