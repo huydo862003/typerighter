@@ -201,8 +201,8 @@ fn get_diagnostics_for_file(
 
 fn lint_diag_to_lsp(lint: &TdDiagnostic, rope: &Rope) -> Diagnostic {
   let (start, end) = lint.offsets();
-  let start = start.min(rope.len_chars());
-  let end = end.min(rope.len_chars());
+  let start = start.min(rope.len_bytes());
+  let end = end.min(rope.len_bytes());
   Diagnostic {
     range: lsp_types::Range {
       start: text_offset_to_lsp_position(rope, start),

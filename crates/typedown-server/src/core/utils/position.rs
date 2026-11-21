@@ -3,7 +3,9 @@ use ropey::Rope;
 use typedown_lang::syntax::red::RedNode;
 use typedown_types::text_range::TextRange;
 
-pub fn text_offset_to_lsp_position(rope: &Rope, char_offset: usize) -> Position {
+pub fn text_offset_to_lsp_position(rope: &Rope, byte_offset: usize) -> Position {
+  let byte_offset = byte_offset.min(rope.len_bytes());
+  let char_offset = rope.byte_to_char(byte_offset);
   let line = rope.char_to_line(char_offset);
   let column = char_offset - rope.line_to_char(line);
   Position {
@@ -14,7 +16,9 @@ pub fn text_offset_to_lsp_position(rope: &Rope, char_offset: usize) -> Position 
 
 pub fn lsp_position_to_text_offset(rope: &Rope, position: Position) -> Option<usize> {
   let line_start = rope.try_line_to_char(position.line as usize).ok()?;
-  Some(line_start + position.character as usize)
+  let char_offset = line_start + position.character as usize;
+
+  Some(rope.char_to_byte(char_offset))
 }
 
 pub fn text_range_to_lsp_range(rope: &Rope, range: TextRange) -> Range {

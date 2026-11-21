@@ -127,13 +127,20 @@ fn lint_trailing_whitespace(body: &MdBody, diagnostics: &mut Vec<TdDiagnostic>) 
   let source = body.syntax().text();
   let body_offset = body.syntax().start_offset();
 
-  let mut offset = body_offset;
-  for line in source.lines() {
-    if line != line.trim_end() {
+  let mut position = 0;
+  while position < source.len() {
+    let line_end = source[position..]
+      .find('\n')
+      .map_or(source.len(), |index| position + index);
+    let line = &source[position..line_end];
+    // Strip \r for \r\n line endings
+    let content = line.strip_suffix('\r').unwrap_or(line);
+    if content != content.trim_end() {
+      let offset = body_offset + position;
       diagnostics
-        .push(TdDiagnosticKind::TrailingWhitespace {}.into_warning(offset, offset + line.len()));
+        .push(TdDiagnosticKind::TrailingWhitespace {}.into_warning(offset, offset + content.len()));
     }
-    offset += line.len() + 1; // +1 for newline
+    position = line_end + 1;
   }
 }
 
