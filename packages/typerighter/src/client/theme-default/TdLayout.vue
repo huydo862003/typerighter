@@ -264,6 +264,36 @@ useGlobalHotkey(
   },
 );
 
+// Ctrl+A / ⌘A - select only the page content, not sidebar/header
+function selectContent () {
+  const content = document.getElementById('td-content');
+
+  if (!content) return;
+
+  const selection = window.getSelection();
+
+  if (!selection) return;
+
+  const range = document.createRange();
+
+  range.selectNodeContents(content);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+useGlobalHotkey([
+  TdKeyName.Control,
+  TdKeyName.a,
+], selectContent, {
+  ignoreWhenTyping: true,
+});
+useGlobalHotkey([
+  TdKeyName.Meta,
+  TdKeyName.a,
+], selectContent, {
+  ignoreWhenTyping: true,
+});
+
 watchEffect(() => {
   if (typeof document === 'undefined') return;
   const pageTitle = title.value;
