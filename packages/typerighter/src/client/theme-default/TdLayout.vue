@@ -1087,10 +1087,6 @@ function shrinkSidebar () {
     display: none;
   }
 
-  .td-header-breadcrumb {
-    display: none;
-  }
-
   .td-content {
     padding: 24px 16px 60px;
   }

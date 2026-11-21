@@ -28,14 +28,8 @@ interface Crumb {
 
 const crumbs = computed((): Crumb[] => {
   const routePath = stripTrailingSlash(route.path);
-  const result: Crumb[] = [
-    {
-      name: 'Home',
-      href: withBase(getIndexUrl('/')),
-    },
-  ];
 
-  if (routePath === '/') return result;
+  if (routePath === '/') return [];
 
   const parts = routePath.replace(/^\//, '').split('/');
 
@@ -43,21 +37,19 @@ const crumbs = computed((): Crumb[] => {
     ? parts.slice(0, -1)
     : parts;
 
-  for (let index = 0; index < visibleParts.length; index++) {
+  return visibleParts.map((part, index) => {
     const basePath = '/' + visibleParts.slice(0, index + 1).join('/');
     const isLast = index === visibleParts.length - 1;
 
-    result.push({
-      name: unslugify(visibleParts[index]),
+    return {
+      name: unslugify(part),
       href: withBase(isLast ? basePath : getIndexUrl(basePath)),
-    });
-  }
-
-  return result;
+    };
+  });
 });
 
 const needsCollapse = computed(() => MAX_VISIBLE < crumbs.value.length);
-const collapsedCrumbs = computed(() => crumbs.value.slice(1, -2));
+const collapsedCrumbs = computed(() => crumbs.value.slice(0, -2));
 
 watch(() => route.path, () => {
   ellipsisOpen.value = false;
@@ -66,20 +58,18 @@ watch(() => route.path, () => {
 
 <template>
   <nav
+    v-if="crumbs.length > 0"
     class="td-breadcrumb"
     aria-label="Breadcrumb"
   >
-    <a
-      :href="crumbs[0].href"
-      class="td-breadcrumb-link td-breadcrumb-home"
-    >{{ crumbs[0].name }}</a>
+    <!-- Leading "/" acts as the home separator (brand already shows "Home") -->
+    <span
+      class="td-breadcrumb-sep"
+      aria-hidden="true"
+    >/</span>
 
-    <!-- When collapsed: ellipsis dropdown for middle crumbs -->
+    <!-- When collapsed: ellipsis dropdown for middle crumbs, then last two -->
     <template v-if="needsCollapse">
-      <span
-        class="td-breadcrumb-sep"
-        aria-hidden="true"
-      >/</span>
       <TdDropdown v-model:open="ellipsisOpen">
         <template #trigger>
           <button
@@ -97,7 +87,6 @@ watch(() => route.path, () => {
         >{{ crumb.name }}</a>
       </TdDropdown>
 
-      <!-- Last two crumbs -->
       <template
         v-for="crumb in crumbs.slice(-2)"
         :key="crumb.href"
@@ -118,18 +107,14 @@ watch(() => route.path, () => {
       </template>
     </template>
 
-    <!-- When not collapsed: all crumbs normally -->
+    <!-- When not collapsed: all crumbs with separators between them -->
     <template v-else>
       <template
-        v-for="(crumb, index) in crumbs.slice(1)"
+        v-for="(crumb, index) in crumbs"
         :key="crumb.href"
       >
-        <span
-          class="td-breadcrumb-sep"
-          aria-hidden="true"
-        >/</span>
         <a
-          v-if="index < crumbs.length - 2"
+          v-if="index < crumbs.length - 1"
           :href="crumb.href"
           class="td-breadcrumb-link"
         >{{ crumb.name }}</a>
@@ -137,6 +122,11 @@ watch(() => route.path, () => {
           v-else
           class="td-breadcrumb-current"
         >{{ crumb.name }}</span>
+        <span
+          v-if="index < crumbs.length - 1"
+          class="td-breadcrumb-sep"
+          aria-hidden="true"
+        >/</span>
       </template>
     </template>
   </nav>
@@ -171,8 +161,11 @@ watch(() => route.path, () => {
   transition: color var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
-.td-breadcrumb-home {
-  flex-shrink: 0;
+@media (width < 64rem) {
+  .td-breadcrumb-link,
+  .td-breadcrumb-current {
+    max-width: 12ch;
+  }
 }
 
 .td-breadcrumb-link:hover {
