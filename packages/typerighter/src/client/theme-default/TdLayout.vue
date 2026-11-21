@@ -266,7 +266,7 @@ useGlobalHotkey(
 
 // Ctrl+A / ⌘A - select only the page content, not sidebar/header
 function selectContent () {
-  const content = document.getElementById('td-content');
+  const content = document.querySelector('.td-content-body');
 
   if (!content) return;
 
