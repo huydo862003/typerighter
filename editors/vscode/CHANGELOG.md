@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.67.2] - 2026-11-21
+
+### Fixed
+
+- packages/typerighter
+  - More compact breadcrumb and show breadcrumb on small screens
+
 ## [0.67.1] - 2026-11-20
 
 ### Fixed
