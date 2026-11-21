@@ -1,6 +1,32 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.68.0] - 2026-11-21
+
+### Added
+
+- crates/typedown-server
+  - Backlinks command (`_typerighter.backlinks`) finds all pages referencing a file
+- editors/nvim
+  - `:TypedownBacklinks` command shows pages linking to the current file in quickfix
+- packages/typerighter
+  - PDF file card for `![](file.pdf)` with download and open-in-new-tab buttons
+  - Prev/next navigation for SSG-hidden pages scoped to their folder
+  - Virtual index pages included in prev/next flow
+  - Ctrl+A scoped to page content
+
+### Fixed
+
+- crates/typedown-lang
+  - Block-level media (embeds, PDF cards) no longer wrapped in invalid `<p>` tags
+  - Trailing whitespace lint offset drift on multi-line files
+- crates/typedown-server
+  - Diagnostic positions correct for files with multi-byte UTF-8 characters
+  - `fref("/path")` with leading slash resolves from vault root
+- packages/typerighter
+  - Prev/next and edit link pinned to bottom of page
+  - Toggle list padding and paragraph spacing consistent with outer content
+
 ## [0.67.2] - 2026-11-21
 
 ### Fixed
