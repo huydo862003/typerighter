@@ -1855,10 +1855,7 @@ Paragraph after containers.
 "#;
     let result = fmt(input);
     // Count closing ::: - should be exactly 4 (Setup + Definition + Equivalent + outer)
-    let closing_count = result
-      .lines()
-      .filter(|line| line.trim() == ":::")
-      .count();
+    let closing_count = result.lines().filter(|line| line.trim() == ":::").count();
     assert_eq!(
       closing_count, 4,
       "should have exactly 4 closing :::, got {closing_count} in:\n{result}"

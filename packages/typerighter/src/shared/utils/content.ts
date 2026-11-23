@@ -98,6 +98,9 @@ export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle
 
     for (const entry of nodeEntries) {
       if (entry.kind === 'dir') {
+        // Visible directories exclude hidden sub-directories
+        if (!isDirectoryHidden && isDirectoryNodeHidden(entry.node)) continue;
+
         result.push({
           kind: 'dir',
           sub: {
@@ -107,8 +110,9 @@ export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle
           },
         });
       } else if (!isIndexFile(entry.item.filepath)) {
-        // Hidden directories show all entries; visible directories filter out hidden entries
+        // Visible directories exclude hidden files
         if (!isDirectoryHidden && entry.item.ssg?.showInSidebar === false) continue;
+
         result.push({
           kind: 'file',
           item: toDirectoryEntry(entry.item),

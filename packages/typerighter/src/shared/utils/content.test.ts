@@ -120,6 +120,37 @@ describe('buildDirectoryListingMap - visibility filtering', () => {
     expect(names.some((name) => name.toLowerCase().includes('alice'))).toBe(true);
     expect(names.some((name) => name.toLowerCase().includes('secret'))).toBe(false);
   });
+
+  it('visible root excludes hidden sub-directories', () => {
+    const items = [
+      item('public/index.td'),
+      item('public/page.td'),
+      item('archive/index.td', { showInSidebar: false }),
+      item('archive/old.td'),
+    ];
+    const tree = buildContentTree(items);
+    const map = buildDirectoryListingMap(tree.entries, 'Site');
+    const rootEntries = map['/']?.entries ?? [];
+    const rootNames = rootEntries.map((entry) => entry.kind === 'file' ? entry.item.name : entry.sub.name);
+
+    expect(rootNames.some((name) => name.toLowerCase().includes('public'))).toBe(true);
+    expect(rootNames.some((name) => name.toLowerCase().includes('archive'))).toBe(false);
+  });
+
+  it('hidden directory listing includes all its children', () => {
+    const items = [
+      item('archive/index.td', { showInSidebar: false }),
+      item('archive/old-a.td'),
+      item('archive/old-b.td', { showInSidebar: false }),
+    ];
+    const tree = buildContentTree(items);
+    const map = buildDirectoryListingMap(tree.entries, 'Site');
+    const archiveEntries = map['/archive']?.entries ?? [];
+    const names = archiveEntries.map((entry) => entry.kind === 'file' ? entry.item.name : entry.sub.name);
+
+    expect(names.some((name) => name.toLowerCase().includes('old a'))).toBe(true);
+    expect(names.some((name) => name.toLowerCase().includes('old b'))).toBe(true);
+  });
 });
 
 function labeledItem (filepath: string, label: string): ContentSummary {

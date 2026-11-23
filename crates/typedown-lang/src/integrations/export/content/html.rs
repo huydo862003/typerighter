@@ -534,7 +534,11 @@ impl<'a> HtmlEmitter<'a> {
 
   fn emit_component_container(&mut self, node: &RedNode, label: &str) {
     // Skip containers with empty or invalid labels to avoid broken HTML
-    if label.is_empty() || !label.chars().all(|char| char.is_alphanumeric() || char == '-') {
+    if label.is_empty()
+      || !label
+        .chars()
+        .all(|char| char.is_alphanumeric() || char == '-')
+    {
       return;
     }
 
