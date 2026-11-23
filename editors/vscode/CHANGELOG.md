@@ -1,6 +1,14 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.68.1] - 2026-11-23
+
+### Fixed
+
+- crates/typedown-lang
+  - Self-referential field override in subtypes (e.g. `PltBook.children: list[PltBook]`) no longer causes query cycle crash
+  - YAML-standard `''` escape inside single-quoted strings now emits `UnexpectedToken` diagnostic instead of silently truncation
+
 ## [0.68.0] - 2026-11-21
 
 ### Added
