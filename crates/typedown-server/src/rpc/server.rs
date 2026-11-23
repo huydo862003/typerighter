@@ -1150,9 +1150,10 @@ fn collect_file_diagnostics(
   let mut seen = std::collections::HashSet::new();
   for diagnostic in &typedown_diagnostics {
     let (start, _) = diagnostic.offsets();
-    let start = start.min(rope.len_chars());
-    let line = rope.char_to_line(start);
-    let column = start - rope.line_to_char(line);
+    let start = start.min(rope.len_bytes());
+    let char_offset = rope.byte_to_char(start);
+    let line = rope.char_to_line(char_offset);
+    let column = char_offset - rope.line_to_char(line);
     let (line, column) = (line as u32 + 1, column as u32 + 1);
 
     let code = diagnostic.code_str().to_string();
@@ -1188,9 +1189,10 @@ fn collect_file_diagnostics(
 
 fn convert_lint_diagnostic(lint: &TdDiagnostic, filepath: &str, rope: &Rope) -> TdDiagnosticItem {
   let (start, _) = lint.offsets();
-  let start = start.min(rope.len_chars());
-  let line = rope.char_to_line(start);
-  let column = start - rope.line_to_char(line);
+  let start = start.min(rope.len_bytes());
+  let char_offset = rope.byte_to_char(start);
+  let line = rope.char_to_line(char_offset);
+  let column = char_offset - rope.line_to_char(line);
   TdDiagnosticItem {
     filepath: filepath.to_string(),
     line: line as u32 + 1,

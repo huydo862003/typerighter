@@ -1518,4 +1518,425 @@ Important note.
 "#
     );
   }
+
+  #[test]
+  fn nested_containers_no_extraneous_closing() {
+    let input = r#"---
+---
+::: details Outer
+Content before nested.
+
+::: details Inner
+Inner content.
+:::
+:::
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#"::: details Outer
+Content before nested.
+
+::: details Inner
+Inner content.
+:::
+:::
+"#
+    );
+  }
+
+  #[test]
+  fn deeply_nested_containers() {
+    let input = r#"---
+---
+::: details Level 1
+::: details Level 2
+::: details Level 3
+Deep content.
+:::
+:::
+:::
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#"::: details Level 1
+::: details Level 2
+::: details Level 3
+Deep content.
+:::
+:::
+:::
+"#
+    );
+  }
+
+  #[test]
+  fn multiple_sibling_nested_containers() {
+    let input = r#"---
+---
+::: details Outer
+Text before.
+
+::: details Inner A
+Content A.
+:::
+
+::: details Inner B
+Content B.
+:::
+:::
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#"::: details Outer
+Text before.
+
+::: details Inner A
+Content A.
+:::
+
+::: details Inner B
+Content B.
+:::
+:::
+"#
+    );
+  }
+
+  #[test]
+  fn nested_details_with_math_and_text() {
+    let input = r#"---
+---
+::: details What does this mean?
+::: details Setup
+- A **rule** has **premises** and a **conclusion**.
+:::
+
+::: details Definition
+A rule instance
+
+$$
+(P1 \in R \wedge Pn \in R) \Rightarrow (C \in R)
+$$
+:::
+
+::: details Equivalent form
+**Closure form**
+
+$$
+\neg((P1 \in R) \wedge (C \notin R))
+$$
+:::
+:::
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#"::: details What does this mean?
+::: details Setup
+- A **rule** has **premises** and a **conclusion**.
+:::
+
+::: details Definition
+A rule instance
+
+$$
+(P1 \in R \wedge Pn \in R) \Rightarrow (C \in R)
+$$
+:::
+
+::: details Equivalent form
+**Closure form**
+
+$$
+\neg((P1 \in R) \wedge (C \notin R))
+$$
+:::
+:::
+"#
+    );
+  }
+
+  #[test]
+  fn repro_extraneous_closing_fence() {
+    // Exact reproduction from the user's file
+    let input = r#"---
+_type: PltBook
+_label: 'Chapter 3. Untyped arithmetic expressions'
+phase: fref("/01-programming-language-theory/phases/phase-01-foundations-of-program-specification-and-semantics.td")
+journey: fref("/01-programming-language-theory/index.td")
+url: "https://www.cis.upenn.edu/~bcpierce/tapl/"
+cover: fref("/01-programming-language-theory/01-books/01-types-and-programming-languages/assets/types-and-programming-languages.jpg")
+status: "Reading"
+concepts:
+  - fref("/01-programming-language-theory/02-concepts/term.td")
+  - fref("/01-programming-language-theory/02-concepts/bnf.td")
+  - fref("/01-programming-language-theory/02-concepts/metavariable.td")
+  - fref("/01-programming-language-theory/02-concepts/program.td")
+  - fref("/01-programming-language-theory/02-concepts/metalanguage.td")
+  - fref("/01-programming-language-theory/02-concepts/object-language.td")
+  - fref("/01-programming-language-theory/02-concepts/metatheory.td")
+  - fref("/01-programming-language-theory/02-concepts/term-expression.td")
+  - fref("/01-programming-language-theory/02-concepts/meta-mathematics.td")
+  - fref("/01-programming-language-theory/02-concepts/structural-abstract-syntax-concrete-surface-syntax.td")
+  - fref("/01-programming-language-theory/02-concepts/untyped-calculus-of-booleans-and-numbers-nonsensical-term.td")
+  - fref("/01-programming-language-theory/02-concepts/value.td")
+  - fref("/01-programming-language-theory/02-concepts/inductive-definition-term.td")
+  - fref("/01-programming-language-theory/02-concepts/logical-system.td")
+  - fref("/01-programming-language-theory/02-concepts/natural-deduction-style.td")
+  - fref("/01-programming-language-theory/02-concepts/axiom-inference-rule.td")
+  - fref("/01-programming-language-theory/02-concepts/rule-schema-inference-rule-concrete-rule-instance-of-an.td")
+  - fref("/01-programming-language-theory/02-concepts/inductive-definition-2-dimensional-inference-rule-format.td")
+  - fref("/01-programming-language-theory/02-concepts/structural-induction.td")
+  - fref("/01-programming-language-theory/02-concepts/small-step-structural-operational-semantics-sos.td")
+  - fref("/01-programming-language-theory/02-concepts/operational-semantics.td")
+  - fref("/01-programming-language-theory/02-concepts/denotational-semantics.td")
+  - fref("/01-programming-language-theory/02-concepts/axiomatic-semantics.td")
+  - fref("/01-programming-language-theory/02-concepts/big-step-natural-operational-semantics-small-step.td")
+  - fref("/01-programming-language-theory/02-concepts/term-value.td")
+  - fref("/01-programming-language-theory/02-concepts/evaluation-reduction-relation.td")
+  - fref("/01-programming-language-theory/02-concepts/evaluation-strategy.td")
+  - fref("/01-programming-language-theory/02-concepts/computation-rule-congruence-rule.td")
+  - fref("/01-programming-language-theory/02-concepts/instance-of-an-inference-rule.td")
+  - fref("/01-programming-language-theory/02-concepts/inference-rule.td")
+  - fref("/01-programming-language-theory/02-concepts/one-step-evaluation-relation.td")
+  - fref("/01-programming-language-theory/02-concepts/derivable-evaluation-statement-judgement.td")
+  - fref("/01-programming-language-theory/02-concepts/evaluation-reduction-relation-derivable.td")
+  - fref("/01-programming-language-theory/02-concepts/induction-on-derivations.td")
+  - fref("/01-programming-language-theory/02-concepts/normal-form.td")
+  - fref("/01-programming-language-theory/02-concepts/normal-form-value.td")
+  - fref("/01-programming-language-theory/02-concepts/stuck-term-value-normal-form.td")
+  - fref("/01-programming-language-theory/02-concepts/desired-property-termination-of-evaluation-desired-property.td")
+  - fref("/01-programming-language-theory/02-concepts/desired-property-determinacy-of-one-step-evaluation.td")
+  - fref("/01-programming-language-theory/02-concepts/untyped-calculus-of-booleans-and-numbers.td")
+  - fref("/01-programming-language-theory/02-concepts/operational-semantics-untyped-calculus-of-booleans-and.td")
+  - fref("/01-programming-language-theory/02-concepts/pure-untyped-lambda-calculus-runtime-error-stuck-term.td")
+  - fref("/01-programming-language-theory/02-concepts/pure-untyped-lambda-calculus-syntactic-category.td")
+parent: fref("/01-programming-language-theory/01-books/01-types-and-programming-languages/03-part-i-untyped-systems/index.td")
+---
+
+## Syntax
+
+- There are more than one way to describe a syntax of a language.
+
+  - The BNF notation above.
+  - Inductive definition (more verbose).
+
+    The set of terms ($\mathcal{T}$) is the smallest set such that:
+
+    1. $\{\text{true}, \text{false}, 0\} \subseteq \mathcal{T}$.
+    2. If $\text{t}_1 \in \mathcal{T}$, then $\{\text{succ } \text{t}_1, \text{pred } \text{t}_1, \text{iszero } \text{t}_1\} \subseteq \mathcal{T}$ .
+    3. If $\text{t}_1 \in \mathcal{T}, \text{ t}_2 \in \mathcal{T}, \text{ and } \text{t}_3 \in \mathcal{T}$, then $\text{if } \text{t}_1 \text{ then } \text{t}_2 \text{ else } \text{t}_3 \in \mathcal{T}$.
+
+    - Structure of the definition
+
+      - Clause 1 specifies **base elements** (`true`, `false`, `0`).
+      - Clause 2 specifies **rules** for building **compound expressions** (`succ t1`, `if t1 then t2 else t3`, etc.) from existing terms.
+      - **"Smallest set":** This crucial phrase ensures that T contains **no elements** other than those absolutely required by the construction rules in the preceding clauses.
+    - Formally, the definition defines T as a set of **trees**, not a set of linear strings.
+    - The use of **parentheses** in written examples (the linear form) serves merely to clarify the underlying **tree structure** (the abstract syntax) of compound subterms.
+  - 2-dimensional inference rule format.
+
+    - A different shorthand for the same inductive definition of terms.
+    - Commonly used in "natural deduction style" presentations of logical systems.
+
+    - Each rule is read, "If we have established the statements in the premise(s) listed above the line, then we may derive the conclusion below the line."
+    - The fact that $T$ is the smallest set satisfying these rules is often (as here) not stated explicitly.
+    - **Inference rule (generic term):** The term **inference rule** is used generically throughout the book to refer to **any rule in the system**, including both **axioms** and **rules with one or more premises**.
+    - **Axioms:** Rules with **no premises** (like the first three base cases for true, false, and 0). They are often written **without the horizontal bar**.
+    - **Rule schemas (formal terminology):** What are called "inference rules" are technically **rule schemas** because their premises and conclusions contain **metavariables** (`t1`, `t2`, etc.).
+
+      - Each schema formally represents an **infinite set of concrete rules** that are obtained by consistently replacing the metavariables with all possible phrases from the appropriate syntactic category (e.g., replacing t with every possible term).
+  - Concrete generator notation.
+
+    - More "concrete" style that gives an explicit procedure for generating the elements of $T$.
+
+### Exercise 3.2.4
+
+**Task**: How many elements does $S_3$ have?
+
+::: details Solution
+Take $l_i = | S_i |$ for any $i \ge 0$.
+
+Then, $l_{i+1} = 3 + 3l_i + l_i^3$.
+
+- $l_0 = 0$.
+- $l_1 = 3$.
+- $l_2 = 3 + 9 + 3^3 = 39$.
+- $l_3 = 3 + 3*39 + 39^3 = ...$
+:::
+"#;
+    let result = fmt(input);
+    let closing_count = result.lines().filter(|line| line.trim() == ":::").count();
+    assert_eq!(
+      closing_count, 1,
+      "should have exactly 1 closing ::: for the single details block, got {closing_count} in:\n{result}"
+    );
+    // Formatting must be idempotent
+    let second = fmt(&format!("---\n---\n{result}"));
+    assert_eq!(result, second, "formatting should be idempotent");
+  }
+
+  #[test]
+  fn many_top_level_details_then_text() {
+    // Reproduces the user's file: many :::details at top level followed by content after
+    let input = r#"---
+---
+## Section
+
+::: details Solution
+Content A.
+:::
+
+::: details Proof
+Content B.
+:::
+
+::: tip
+Important note.
+:::
+
+## Next section
+
+Paragraph after containers.
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#"## Section
+
+::: details Solution
+Content A.
+:::
+
+::: details Proof
+Content B.
+:::
+
+::: tip
+Important note.
+:::
+
+## Next section
+
+Paragraph after containers.
+"#
+    );
+  }
+
+  #[test]
+  fn nested_details_indented_in_list() {
+    // Reproduces the structure from the user's file: nested :::details inside a list item
+    let input = r#"---
+---
+- Text before.
+
+  ::: details What does this mean?
+  ::: details Setup
+  - A **rule** has **premises**.
+  :::
+
+  ::: details Definition
+  A rule instance.
+  :::
+
+  ::: details Equivalent form
+  **Closure form**
+
+  $$
+  (P1 \in R) \Rightarrow (C \in R)
+  $$
+  :::
+
+  **Satisfying a rule = being closed under that rule.**
+  :::
+"#;
+    let result = fmt(input);
+    // Count closing ::: - should be exactly 4 (Setup + Definition + Equivalent + outer)
+    let closing_count = result
+      .lines()
+      .filter(|line| line.trim() == ":::")
+      .count();
+    assert_eq!(
+      closing_count, 4,
+      "should have exactly 4 closing :::, got {closing_count} in:\n{result}"
+    );
+    // Should NOT end with extraneous :::
+    let last_non_empty = result.lines().rev().find(|line| !line.trim().is_empty());
+    assert_ne!(
+      last_non_empty,
+      Some(":::"),
+      "should not have extraneous ::: at end of file, output:\n{result}"
+    );
+  }
+
+  #[test]
+  fn many_consecutive_details_blocks() {
+    let input = r#"---
+---
+:::details Question one
+Answer one.
+:::
+
+:::details Question two
+Answer two.
+:::
+
+:::details Question three
+Answer three.
+:::
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#":::details Question one
+Answer one.
+:::
+
+:::details Question two
+Answer two.
+:::
+
+:::details Question three
+Answer three.
+:::
+"#
+    );
+  }
+
+  #[test]
+  fn nested_container_with_code_block() {
+    let input = r#"---
+---
+::: details Outer
+Some text.
+
+```css
+:root { --x: 1; }
+```
+
+::: details Inner
+Inner text.
+:::
+:::
+"#;
+    let result = fmt(input);
+    assert_eq!(
+      result,
+      r#"::: details Outer
+Some text.
+
+```css
+:root { --x: 1; }
+```
+
+::: details Inner
+Inner text.
+:::
+:::
+"#
+    );
+  }
 }

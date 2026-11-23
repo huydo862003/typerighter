@@ -26,8 +26,8 @@ pub fn publish_diagnostics_for_file(analysis: &Analysis, path: &Path) -> Vec<Not
 pub(super) fn to_lsp_diagnostic(diagnostic: &TdDiagnostic, rope: &Rope) -> Option<Diagnostic> {
   let (start_offset, end_offset) = diagnostic.offsets();
 
-  let start_offset = start_offset.min(rope.len_chars());
-  let end_offset = end_offset.min(rope.len_chars());
+  let start_offset = start_offset.min(rope.len_bytes());
+  let end_offset = end_offset.min(rope.len_bytes());
 
   let range = lsp_types::Range {
     start: text_offset_to_lsp_position(rope, start_offset),

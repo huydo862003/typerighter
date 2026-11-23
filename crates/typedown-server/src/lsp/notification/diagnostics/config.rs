@@ -55,8 +55,8 @@ pub fn publish_diagnostics(analysis: &Analysis) -> Vec<Notification> {
 fn to_lsp_diagnostic(diag: &TdDiagnostic, rope: &Rope) -> Diagnostic {
   let (start_offset, end_offset) = diag.offsets();
 
-  let start_offset = start_offset.min(rope.len_chars());
-  let end_offset = end_offset.min(rope.len_chars());
+  let start_offset = start_offset.min(rope.len_bytes());
+  let end_offset = end_offset.min(rope.len_bytes());
 
   let range = lsp_types::Range {
     start: text_offset_to_lsp_position(rope, start_offset),

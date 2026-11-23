@@ -33,7 +33,7 @@ pub fn format_document(
   // Replace the entire body range with the formatted text
   let body_node = body.syntax();
   let start = body_node.start_offset();
-  let end = (start + body_node.text_len()).min(rope.len_chars()); // AST span may exceed rope length
+  let end = (start + body_node.text_len()).min(rope.len_bytes());
 
   let range = lsp_types::Range {
     start: text_offset_to_lsp_position(&rope, start),
