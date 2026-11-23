@@ -1,6 +1,28 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.68.2] - 2026-11-23
+
+### Added
+
+- packages/typerighter
+  - Breadcrumb and command palette show page `_label` instead of unslugified path
+  - Command palette collapses long paths into first / ... / second-to-last / last
+
+### Fixed
+
+- crates/typedown-lang
+  - Malformed containers with empty labels no longer produce invalid HTML tags
+- crates/typedown-server
+  - Format edit range uses byte offsets, fixing extraneous `:::` on files with multi-byte characters
+  - All diagnostic offset clamping uses byte length instead of char length
+  - `fref("./relative")` go-to-definition resolves relative to the file's directory
+- packages/typerighter
+  - Visible directory index pages no longer list hidden sub-directories or hidden pages
+  - Hidden directory index pages show all their children including individually hidden ones
+  - Nested details blocks styled correctly with consistent padding
+  - Toggle list paragraph spacing consistent with outer content
+
 ## [0.68.1] - 2026-11-23
 
 ### Fixed
