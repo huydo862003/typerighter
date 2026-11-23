@@ -145,29 +145,6 @@ fn evaluate_user_defined_schema<'db>(
     if let Some(child_descriptor) =
       resolve_property_descriptor(db, prop_node.clone(), &mut diagnostics)
     {
-      // Validate that a redefined inherited field type is a subtype of the parent field type
-      if let Some(parent_descriptor) = inherited_fields.get(prop_name)
-        && let (Some(child_field_typ), Some(parent_field_typ)) = (
-          child_descriptor.field_typ.resolve(db),
-          parent_descriptor.field_typ.resolve(db),
-        )
-        && !is_subtyp_of(db, &child_field_typ, &parent_field_typ)
-      {
-        let parent_name = parent_typ
-          .as_ref()
-          .and_then(|typ| typ.as_td_schema_typ())
-          .map(|schema| schema.name(db))
-          .unwrap_or_default();
-        diagnostics.push(
-          TdDiagnosticKind::FieldRefinementViolation {
-            field: prop_name.clone(),
-            parent_schema: parent_name,
-            expected: parent_field_typ.display_name(db),
-            got: child_field_typ.display_name(db),
-          }
-          .into_error(trimmed_offset, trimmed_offset + trimmed_len),
-        );
-      }
       child_fields.insert(prop_name.clone(), child_descriptor);
     }
   }
@@ -188,6 +165,78 @@ fn evaluate_user_defined_schema<'db>(
     ),
     diagnostics,
   )
+}
+
+// Separate from evaluate_typ so the schema is cached before we resolve field types
+#[query_derived(no_hash)]
+pub fn validate_subtype_refinement<'db>(
+  db: &'db TypedownDatabase,
+  symbol: Symbol,
+) -> TypResult<'db> {
+  let mut diagnostics = vec![];
+
+  let child_typ = match evaluate_typ(db, symbol).typ(db) {
+    Some(typ) => typ,
+    None => return TypResult::new(db, None, diagnostics),
+  };
+  let schema = match child_typ.as_td_schema_typ() {
+    Some(schema) => schema,
+    None => return TypResult::new(db, None, diagnostics),
+  };
+  let parent_typ = match schema.parent(db) {
+    Some(parent) => parent,
+    None => return TypResult::new(db, None, diagnostics),
+  };
+  let parent_schema = match parent_typ.as_td_schema_typ() {
+    Some(schema) => schema,
+    None => return TypResult::new(db, None, diagnostics),
+  };
+
+  let SymbolKind::UserDefinedSchema(project, file) = symbol.kind(db) else {
+    return TypResult::new(db, None, diagnostics);
+  };
+  let root_node = parse_file(db, project, file).ast(db);
+  let Some(entries) = root_node.mapping_entries() else {
+    return TypResult::new(db, None, diagnostics);
+  };
+  let Some((_, props_node)) = entries.iter().find(|(key, _)| key == "properties") else {
+    return TypResult::new(db, None, diagnostics);
+  };
+  let Some(prop_entries) = props_node.mapping_entries() else {
+    return TypResult::new(db, None, diagnostics);
+  };
+
+  let parent_fields = parent_schema.fields(db);
+
+  for (prop_name, prop_node) in &prop_entries {
+    let (trimmed_offset, trimmed_len) = prop_node.node.trimmed_range();
+
+    let Some(parent_descriptor) = parent_fields.get(prop_name) else {
+      continue;
+    };
+    let child_fields = schema.fields(db);
+    let Some(child_descriptor) = child_fields.get(prop_name) else {
+      continue;
+    };
+
+    if let (Some(child_field_typ), Some(parent_field_typ)) = (
+      child_descriptor.field_typ.resolve(db),
+      parent_descriptor.field_typ.resolve(db),
+    ) && !is_subtyp_of(db, &child_field_typ, &parent_field_typ)
+    {
+      diagnostics.push(
+        TdDiagnosticKind::FieldRefinementViolation {
+          field: prop_name.clone(),
+          parent_schema: parent_schema.name(db),
+          expected: parent_field_typ.display_name(db),
+          got: child_field_typ.display_name(db),
+        }
+        .into_error(trimmed_offset, trimmed_offset + trimmed_len),
+      );
+    }
+  }
+
+  TypResult::new(db, Some(child_typ), diagnostics)
 }
 
 // Resolve _extends parent, pre-walking to detect cycles
@@ -816,11 +865,36 @@ mod tests {
     );
   }
 
+  // Subtype overriding a field with a self-referential type (e.g. PltBook.children: list[PltBook])
+  // should not cause a query cycle panic
+  #[test]
+  fn self_referential_field_override_no_cycle() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/computed_self_ref_cycle", "_types/PltBook.td");
+    let symbol = file_symbol(&db, project, file).value(&db).unwrap();
+    let result = evaluate_typ(&db, symbol);
+    assert!(
+      result.typ(&db).is_some(),
+      "PltBook schema should resolve without cycle panic"
+    );
+    assert!(
+      !result.diagnostics(&db).iter().any(|diagnostic| matches!(
+        diagnostic,
+        TdDiagnostic {
+          kind: TdDiagnosticKind::CircularExtension { .. },
+          ..
+        }
+      )),
+      "should not emit CircularExtension: {:?}",
+      result.diagnostics(&db)
+    );
+  }
+
   #[test]
   fn extends_field_widening_emits_diagnostic() {
     let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/WidenChild.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    let result = evaluate_typ(&db, symbol);
+    let result = validate_subtype_refinement(&db, symbol);
     let diagnostics = result.diagnostics(&db);
     assert!(
       diagnostics.iter().any(

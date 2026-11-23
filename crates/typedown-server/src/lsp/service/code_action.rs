@@ -647,31 +647,6 @@ properties:
     }
   }
 
-  fn make_params_with_selection(
-    uri: lsp_types::Uri,
-    start_line: u32,
-    start_char: u32,
-    end_line: u32,
-    end_char: u32,
-  ) -> CodeActionParams {
-    CodeActionParams {
-      text_document: TextDocumentIdentifier { uri },
-      range: Range {
-        start: Position {
-          line: start_line,
-          character: start_char,
-        },
-        end: Position {
-          line: end_line,
-          character: end_char,
-        },
-      },
-      context: CodeActionContext::default(),
-      work_done_progress_params: Default::default(),
-      partial_result_params: Default::default(),
-    }
-  }
-
   fn make_params_with_only(
     uri: lsp_types::Uri,
     line: u32,

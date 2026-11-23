@@ -1284,9 +1284,9 @@ impl<S: Utf8Stream> ParseCtx<S> {
         .iter()
         .map(|child| child.text_len())
         .sum::<usize>();
-      self.diagnostics.push(
-        TdDiagnosticKind::UnexpectedToken {}.into_error(offset - len, offset),
-      );
+      self
+        .diagnostics
+        .push(TdDiagnosticKind::UnexpectedToken {}.into_error(offset - len, offset));
       children.push(self.emit(SyntaxKind::Error, &error_children));
     }
     result

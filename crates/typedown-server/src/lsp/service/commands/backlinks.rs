@@ -96,7 +96,7 @@ mod tests {
   use crate::core::analysis::Analysis;
   use crate::core::utils::uri::path_to_uri;
   use std::collections::HashMap;
-  use std::path::PathBuf;
+  use std::path::{Path, PathBuf};
   use std::sync::{Arc, Condvar, Mutex};
   use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
   use typedown_lang::db::{QueryStorage, TypedownDatabase};
@@ -183,7 +183,7 @@ properties:
     )
   }
 
-  fn backlinks(analysis: &Analysis, path: &PathBuf) -> Vec<Location> {
+  fn backlinks(analysis: &Analysis, path: &Path) -> Vec<Location> {
     let uri = path_to_uri(path, "file");
     execute(
       analysis,
