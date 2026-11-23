@@ -22,7 +22,7 @@ import {
   useSiteSearch,
 } from './TdSiteSearch/useSiteSearch';
 import {
-  getIndexUrl, getParentUrl,
+  getIndexUrl, getParentUrl, unslugify,
 } from '@/shared';
 import {
   useRoute, useRouter, useSiteConfig,
@@ -59,6 +59,35 @@ const groupIcons: Record<string, unknown> = {
   View: SlidersHorizontal,
   'This page': FileText,
 };
+
+const MAX_CRUMB_LENGTH = 12;
+const MAX_VISIBLE_CRUMBS = 3;
+
+// Collapse path into breadcrumb-style: first / … / second-to-last / last
+function collapsePath (path: string): string {
+  const segments = path.split('/').filter(Boolean).map(unslugify);
+
+  if (segments.length === 0) return '/';
+
+  const truncated = segments.map(truncateCrumb);
+
+  if (truncated.length <= MAX_VISIBLE_CRUMBS) {
+    return truncated.join(' / ');
+  }
+
+  return [
+    truncated[0],
+    '\u2026',
+    truncated[truncated.length - 2],
+    truncated[truncated.length - 1],
+  ].join(' / ');
+}
+
+function truncateCrumb (segment: string): string {
+  if (segment.length <= MAX_CRUMB_LENGTH) return segment;
+
+  return segment.slice(0, MAX_CRUMB_LENGTH - 1) + '\u2026';
+}
 
 function close () {
   isOpen.value = false;
@@ -394,7 +423,7 @@ watch(selectedIndex, () => {
               @mouseenter="() => (selectedIndex = index)"
             >
               <span class="td-palette-item-label">{{ entry.title }}</span>
-              <span class="td-palette-item-path">{{ entry.path }}</span>
+              <span class="td-palette-item-path">{{ collapsePath(entry.path) }}</span>
             </a>
           </template>
 
@@ -420,7 +449,7 @@ watch(selectedIndex, () => {
                 class="td-palette-item-label"
                 v-html="highlight(result.title, filterText)"
               />
-              <span class="td-palette-item-path">{{ result.id }}</span>
+              <span class="td-palette-item-path">{{ collapsePath(result.id) }}</span>
             </a>
           </template>
 
@@ -614,6 +643,11 @@ watch(selectedIndex, () => {
 
 .td-palette-item-path {
   flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
   font-size: var(--font-size-td-2xs);
   color: var(--color-td-ink-4);
   font-family: var(--font-mono);
