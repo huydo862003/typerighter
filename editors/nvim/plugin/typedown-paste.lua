@@ -153,6 +153,14 @@ local function handle_binary_paste()
   local relative_path = "./_assets/" .. filename
   local fref_text = string.format('${fref("%s")}', relative_path)
 
+  -- Notify LSP that a new file was created so fref resolves immediately
+  local client = vim.lsp.get_clients({ name = "typedown-lsp", bufnr = bufnr })[1]
+  if client then
+    client.notify("workspace/didChangeWatchedFiles", {
+      changes = { { uri = vim.uri_from_fname(dest_path), type = 1 } }, -- 1 = Created
+    })
+  end
+
   vim.schedule(function()
     local cursor = vim.api.nvim_win_get_cursor(0)
     local row = cursor[1] - 1
