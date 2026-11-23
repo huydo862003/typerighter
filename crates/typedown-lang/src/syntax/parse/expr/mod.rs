@@ -1279,6 +1279,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       }
     };
     if !error_children.is_empty() {
+      let offset = self.lex_ctx.offset();
+      let len = error_children
+        .iter()
+        .map(|child| child.text_len())
+        .sum::<usize>();
+      self.diagnostics.push(
+        TdDiagnosticKind::UnexpectedToken {}.into_error(offset - len, offset),
+      );
       children.push(self.emit(SyntaxKind::Error, &error_children));
     }
     result

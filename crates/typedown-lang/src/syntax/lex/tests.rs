@@ -224,6 +224,40 @@ fn yaml_sq_string() {
 }
 
 #[test]
+fn yaml_sq_string_backslash_escape() {
+  let tokens = lex_yaml(r"'it\'s'");
+  assert_tokens(
+    &tokens,
+    &[
+      (SyntaxKind::YamlIndent, ""),
+      (SyntaxKind::SqStrStart, "'"),
+      (SyntaxKind::SqStrContent, r"it\'s"),
+      (SyntaxKind::SqStrEnd, "'"),
+      (SyntaxKind::Eof, ""),
+    ],
+  );
+}
+
+// 'What''s' (YAML-standard '' escape) is lexed as two strings, truncating the value
+#[test]
+fn yaml_sq_string_double_quote_splits_into_two() {
+  let tokens = lex_yaml("'What''s'");
+  assert_tokens(
+    &tokens,
+    &[
+      (SyntaxKind::YamlIndent, ""),
+      (SyntaxKind::SqStrStart, "'"),
+      (SyntaxKind::SqStrContent, "What"),
+      (SyntaxKind::SqStrEnd, "'"),
+      (SyntaxKind::SqStrStart, "'"),
+      (SyntaxKind::SqStrContent, "s"),
+      (SyntaxKind::SqStrEnd, "'"),
+      (SyntaxKind::Eof, ""),
+    ],
+  );
+}
+
+#[test]
 fn yaml_empty_string() {
   let tokens = lex_yaml("\"\"");
   assert_tokens(

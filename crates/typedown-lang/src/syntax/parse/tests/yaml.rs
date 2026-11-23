@@ -169,6 +169,17 @@ fn string_value() {
   assert_eq!(tree, expected);
 }
 
+#[test]
+fn yaml_double_single_quote_escape_emits_diagnostic() {
+  let (_tree, diagnostics) = parse_frontmatter_with_diagnostics("title: 'What''s'");
+  assert!(
+    diagnostics
+      .iter()
+      .any(|diagnostic| matches!(diagnostic.kind, TdDiagnosticKind::UnexpectedToken)),
+    "expected UnexpectedToken diagnostic, got {diagnostics:?}"
+  );
+}
+
 // Flow sequences
 #[test]
 fn flow_list_value() {

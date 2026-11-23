@@ -77,6 +77,8 @@ pub enum TdDiagnosticKind {
   MissingTableSeparatorRow,
   #[message("table row has {found} columns, expected {expected}")]
   TableColumnCountMismatch { expected: usize, found: usize },
+  #[message("unexpected token")]
+  UnexpectedToken,
   #[message("block content must be indented further than its parent")]
   InsufficientBlockIndent {
     expected_more_than: usize,
