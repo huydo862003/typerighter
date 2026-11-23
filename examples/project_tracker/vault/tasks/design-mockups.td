@@ -37,6 +37,18 @@ The design system uses a constrained set of tokens:
   --radius-lg: 12px;
 }
 ```
+
+::: details Color palette
+The color palette is split into light and dark themes.
+
+Light theme uses warm grays, dark theme uses cool grays.
+:::
+
+::: details Typography scale
+Font sizes follow a modular scale with ratio 1.25.
+
+Base size is 16px.
+:::
 :::
 
 ## Deliverables

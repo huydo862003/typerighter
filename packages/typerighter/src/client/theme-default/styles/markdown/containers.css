@@ -56,15 +56,20 @@
   color: var(--color-td-danger);
 }
 
-/* Details */
+/* Details - padding lives on the element, summary stretches with negative margin */
 .td-content details.td-callout {
   border-left: none;
   border: 1px solid var(--color-td-line-soft);
   border-radius: var(--radius-td-md);
-  padding: 0;
+  padding: 0 20px 16px;
 }
 
-.td-content details.td-callout summary {
+.td-content details.td-callout:not([open]) {
+  padding-bottom: 0;
+}
+
+.td-content details.td-callout > summary {
+  margin: 0 -20px;
   padding: 12px 20px;
   font-weight: 600;
   font-size: var(--font-size-td-sm);
@@ -72,37 +77,21 @@
   user-select: none;
 }
 
-.td-content details.td-callout summary:hover {
+.td-content details.td-callout > summary:hover {
   color: var(--color-td-link);
 }
 
-.td-content details.td-callout[open] summary {
+.td-content details.td-callout[open] > summary {
   border-bottom: 1px solid var(--color-td-line-soft);
   margin-bottom: 12px;
-}
-
-.td-content details.td-callout > :not(summary):not(div[class*="language-"]):not(ul):not(ol) {
-  padding: 0 20px;
 }
 
 .td-content details.td-callout > p + p {
   margin-top: 16px;
 }
 
-.td-content details.td-callout > :last-child {
-  margin-bottom: 16px;
-}
-
-.td-content details.td-callout > ul,
-.td-content details.td-callout > ol {
-  margin-left: 20px;
-  margin-right: 20px;
-}
-
-/* Code blocks need margin instead of padding so overflow-x scrolling works correctly */
-.td-content details.td-callout > div[class*="language-"] {
-  margin: 8px 20px;
-  border-radius: var(--radius-td-lg);
+.td-content details.td-callout > details.td-callout {
+  margin-top: 8px;
 }
 
 .td-content .td-callout div[class*="language-"] {
