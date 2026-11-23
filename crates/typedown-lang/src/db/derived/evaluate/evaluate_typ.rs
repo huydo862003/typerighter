@@ -30,8 +30,19 @@ use std::collections::HashSet;
 use typedown_incremental::QueryDatabase;
 use typedown_types::either::Either;
 
-#[query_derived(no_hash)]
 pub fn evaluate_typ<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult<'db> {
+  let base = evaluate_typ_unvalidated(db, symbol);
+  let refinement = validate_subtype(db, symbol);
+  let mut diagnostics = base.diagnostics(db).to_vec();
+  diagnostics.extend(refinement.diagnostics(db).iter().cloned());
+  TypResult::new(db, base.typ(db), diagnostics)
+}
+
+#[query_derived(no_hash)]
+pub(crate) fn evaluate_typ_unvalidated<'db>(
+  db: &'db TypedownDatabase,
+  symbol: Symbol,
+) -> TypResult<'db> {
   match symbol.kind(db) {
     SymbolKind::BuiltinSchema(kind) => {
       let typ: TdTypEnum = match kind {
@@ -167,15 +178,12 @@ fn evaluate_user_defined_schema<'db>(
   )
 }
 
-// Separate from evaluate_typ so the schema is cached before we resolve field types
+// Separate from evaluate_typ_unvalidated so the schema is cached before we resolve field types
 #[query_derived(no_hash)]
-pub fn validate_subtype_refinement<'db>(
-  db: &'db TypedownDatabase,
-  symbol: Symbol,
-) -> TypResult<'db> {
+pub(crate) fn validate_subtype<'db>(db: &'db TypedownDatabase, symbol: Symbol) -> TypResult<'db> {
   let mut diagnostics = vec![];
 
-  let child_typ = match evaluate_typ(db, symbol).typ(db) {
+  let child_typ = match evaluate_typ_unvalidated(db, symbol).typ(db) {
     Some(typ) => typ,
     None => return TypResult::new(db, None, diagnostics),
   };
@@ -894,7 +902,7 @@ mod tests {
   fn extends_field_widening_emits_diagnostic() {
     let (db, project, file) = load_vault_fixture("evaluate/extends_vault", "_types/WidenChild.td");
     let symbol = file_symbol(&db, project, file).value(&db).unwrap();
-    let result = validate_subtype_refinement(&db, symbol);
+    let result = validate_subtype(&db, symbol);
     let diagnostics = result.diagnostics(&db);
     assert!(
       diagnostics.iter().any(

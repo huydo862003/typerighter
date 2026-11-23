@@ -9,7 +9,7 @@ use typedown_incremental::{
 
 use super::{TdBoundVariableTyp, TdTypEnum};
 use crate::db::TypedownDatabase;
-use crate::db::derived::evaluate::evaluate_typ::evaluate_typ;
+use crate::db::derived::evaluate::evaluate_typ::evaluate_typ_unvalidated;
 use crate::db::types::Symbol;
 use crate::db::types::typecheck::substitute_variables;
 
@@ -144,7 +144,7 @@ impl<'db> LazyTyp<'db> {
     match self {
       LazyTyp::Eager(typ) => Some(typ.clone()),
       LazyTyp::Lazy(symbol, bindings) => {
-        let base = evaluate_typ(db, *symbol).typ(db)?;
+        let base = evaluate_typ_unvalidated(db, *symbol).typ(db)?;
         if bindings.is_empty() {
           return Some(base);
         }

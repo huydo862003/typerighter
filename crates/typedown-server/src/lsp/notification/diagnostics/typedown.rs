@@ -8,9 +8,7 @@ use typedown_lang::db::TypedownDatabase;
 use typedown_lang::db::derived::check_schemas::check_schemas;
 use typedown_lang::db::derived::evaluate::evaluate_config::evaluate_config;
 use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
-use typedown_lang::db::derived::evaluate::evaluate_typ::{
-  evaluate_typ, validate_subtype_refinement,
-};
+use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
@@ -167,8 +165,6 @@ fn get_diagnostics_for_file(
     if symbol.kind(db).is_schema() {
       let evaluated_result = evaluate_typ(db, symbol);
       td_diagnostics.extend(evaluated_result.diagnostics(db).iter().cloned());
-      let refinement_result = validate_subtype_refinement(db, symbol);
-      td_diagnostics.extend(refinement_result.diagnostics(db).iter().cloned());
     } else {
       let evaluated_result = evaluate_resource(db, symbol);
       td_diagnostics.extend(evaluated_result.diagnostics(db).iter().cloned());
