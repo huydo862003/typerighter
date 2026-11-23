@@ -13,7 +13,7 @@ use typedown_lang::db::types::{
   File, FileHandle, Project, ProjectRedNode, Scope, Symbol, SymbolKind,
 };
 use typedown_lang::db::utils::kebab_to_pascal;
-use typedown_lang::db::utils::{get_mapping_schema_name, is_external_url};
+use typedown_lang::db::utils::{get_mapping_schema_name, is_external_url, resolve_fref_path};
 use typedown_lang::syntax::ast::StringLit;
 use typedown_lang::syntax::ast::{
   AstNode, MdContainerBlock, MdContainerShorthand, MdLink, MdMedia,
@@ -52,7 +52,7 @@ pub fn resolve_definition(
   }
 
   // fref("path") string argument: jump to the referenced file
-  if let Some(target_path) = get_fref_target(db, project, &node) {
+  if let Some(target_path) = get_fref_target(db, project, file, &node) {
     let scheme = analysis
       .scheme_map
       .get(&target_path)
@@ -313,7 +313,12 @@ fn resolve_markdown_link_definition(
 }
 
 // Resolve the target path from a fref() string argument
-fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> Option<PathBuf> {
+fn get_fref_target(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  node: &RedNode,
+) -> Option<PathBuf> {
   let call_expr = containing_fref_expr(node)?;
 
   if let Some(first_arg) = call_expr.args().into_iter().next()
@@ -322,8 +327,11 @@ fn get_fref_target(db: &TypedownDatabase, project: Project, node: &RedNode) -> O
   {
     let config = get_vault_config(db, project);
     let root_dir = config.root_dir(db);
-    let stripped = path_string.strip_prefix('/').unwrap_or(&path_string);
-    return Some(root_dir.join(stripped));
+    let file_dir = file.handle(db).path()?.parent()?.to_path_buf();
+    // resolve_fref_path handles ./ ../ and / prefixed paths
+    // Bare paths (no prefix) fall back to vault root
+    return resolve_fref_path(&path_string, &file_dir, &root_dir)
+      .or_else(|| Some(root_dir.join(&path_string)));
   }
   None
 }
@@ -524,6 +532,87 @@ name: fref("/ali|ce.td")
       location.uri.as_str().contains("alice"),
       "fref with / prefix should resolve from vault root to alice.td, got: {:?}",
       location.uri
+    );
+  }
+
+  #[test]
+  fn definition_on_fref_relative_path() {
+    let root = PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+    let sub_path = root.join("sub/file.td");
+    let (content, offset) = cursor(
+      r#"---
+_type: Person
+name: fref("./ali|ce.td")
+---
+"#,
+    );
+
+    let uri = path_to_uri(&sub_path, "file");
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let files = HashMap::from([
+      (
+        root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("typedown.yaml"),
+            VAULT_CONFIG.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("_types/Person.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("_types/Person.td"),
+            SCHEMA_PERSON.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        sub_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(sub_path, content.clone(), FileMetadata::default()),
+        ),
+      ),
+      (
+        root.join("sub/alice.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("sub/alice.td"),
+            CONTENT_ALICE.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, root, files, None);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let params = make_params(uri, &content, offset);
+    let response = definition(&analysis, params);
+    let Some(GotoDefinitionResponse::Scalar(location)) = response else {
+      panic!("expected a definition for fref with relative path");
+    };
+    let target = location.uri.to_string();
+    assert!(
+      target.contains("sub") && target.contains("alice"),
+      "fref ./alice.td from sub/ should resolve to sub/alice.td, got: {target}"
     );
   }
 
