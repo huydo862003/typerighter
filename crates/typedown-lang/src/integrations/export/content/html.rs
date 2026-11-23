@@ -472,6 +472,10 @@ impl<'a> HtmlEmitter<'a> {
   fn emit_container(&mut self, node: &RedNode) {
     let (label, title) = extract_container_label_and_title(node);
 
+    if label.is_empty() {
+      return;
+    }
+
     let contract = self
       .project
       .custom_component_contract(self.db)
@@ -529,6 +533,11 @@ impl<'a> HtmlEmitter<'a> {
   }
 
   fn emit_component_container(&mut self, node: &RedNode, label: &str) {
+    // Skip containers with empty or invalid labels to avoid broken HTML
+    if label.is_empty() || !label.chars().all(|char| char.is_alphanumeric() || char == '-') {
+      return;
+    }
+
     let props = extract_container_props(node);
     let prop_string = if props.is_empty() {
       String::new()
