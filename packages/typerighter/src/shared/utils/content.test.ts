@@ -125,7 +125,9 @@ describe('buildDirectoryListingMap - visibility filtering', () => {
     const items = [
       item('public/index.td'),
       item('public/page.td'),
-      item('archive/index.td', { showInSidebar: false }),
+      item('archive/index.td', {
+        showInSidebar: false,
+      }),
       item('archive/old.td'),
     ];
     const tree = buildContentTree(items);
@@ -139,9 +141,13 @@ describe('buildDirectoryListingMap - visibility filtering', () => {
 
   it('hidden directory listing includes all its children', () => {
     const items = [
-      item('archive/index.td', { showInSidebar: false }),
+      item('archive/index.td', {
+        showInSidebar: false,
+      }),
       item('archive/old-a.td'),
-      item('archive/old-b.td', { showInSidebar: false }),
+      item('archive/old-b.td', {
+        showInSidebar: false,
+      }),
     ];
     const tree = buildContentTree(items);
     const map = buildDirectoryListingMap(tree.entries, 'Site');

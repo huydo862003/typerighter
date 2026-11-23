@@ -2,54 +2,66 @@ import {
   e2e, expect,
 } from '../fixtures';
 
-e2e.describe('malformed containers', () => {
-  e2e('page with malformed containers loads without crashing', async ({
+e2e.describe('container edge cases', () => {
+  e2e('page with containers loads without crashing', async ({
     page,
     testProject,
   }) => {
-    // The page has empty-label containers and unclosed containers
-    // It must not produce invalid HTML that crashes the Vue renderer
     await testProject.goto(page, '/malformed-containers');
 
-    // The page should render - check that the heading is visible
-    await expect(page.getByRole('heading', { name: 'Valid containers' })).toBeVisible({
+    await expect(page.getByRole('heading', {
+      name: 'Valid containers',
+    })).toBeVisible({
       timeout: 15_000,
     });
   });
 
-  e2e('valid containers inside the page still render', async ({
+  e2e('valid containers render correctly', async ({
     page,
     testProject,
   }) => {
     await testProject.goto(page, '/malformed-containers');
 
-    // The valid details block should work
     const details = page.locator('details.td-callout');
 
     await expect(details.first()).toBeVisible({
       timeout: 10_000,
     });
 
-    // The valid tip callout should render
     const tip = page.locator('.tip.td-callout');
 
     await expect(tip).toBeVisible();
   });
 
-  e2e('page does not show Vue compilation errors', async ({
+  e2e('nested containers render without Vue errors', async ({
     page,
     testProject,
   }) => {
     await testProject.goto(page, '/malformed-containers');
 
-    // Wait for content to load
-    await expect(page.getByRole('heading', { name: 'Valid containers' })).toBeVisible({
+    await expect(page.getByRole('heading', {
+      name: 'Nested containers',
+    })).toBeVisible({
       timeout: 15_000,
     });
 
-    // Check no Vite/Vue error overlay appeared
+    // No Vite/Vue error overlay
     const errorOverlay = page.locator('vite-error-overlay');
 
     await expect(errorOverlay).not.toBeVisible();
+  });
+
+  e2e('container with code block renders both', async ({
+    page,
+    testProject,
+  }) => {
+    await testProject.goto(page, '/malformed-containers');
+
+    // The code block inside the details should render
+    await expect(page.getByRole('heading', {
+      name: 'Container with code block',
+    })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

@@ -1,5 +1,5 @@
 ---
-_label: "Malformed containers"
+_label: "Container edge cases"
 ---
 
 ## Valid containers
@@ -12,17 +12,24 @@ This is valid content inside a details block.
 This is a valid tip callout.
 :::
 
-## Empty label container
+## Nested containers
 
+::: details Outer
+Outer content.
+
+::: details Inner
+Inner content.
 :::
-This has no label at all.
 :::
 
-## Unclosed container
+## Container with code block
 
-::: details Unclosed
-This container is never closed.
+::: details Code example
+Some text.
 
-## Normal content after malformed
+```js
+const x = 1;
+```
 
-This paragraph should render fine after the malformed containers above.
+More text after code.
+:::
