@@ -155,6 +155,47 @@ export function buildDirectoryListingMap (entries: ContentTreeEntry[], rootTitle
   return map;
 }
 
+// Look up a display label for a URL path segment from the content tree
+// For directories, uses the index item's label or unslugified dir name
+// For files, uses the item's label or unslugified filename
+export function findCrumbLabel (tree: ContentTree, urlSegments: string[], segmentIndex: number): string {
+  const segment = urlSegments[segmentIndex];
+  let currentEntries = tree.entries;
+
+  // Walk to the right level in the tree
+  for (let index = 0; index < segmentIndex; index++) {
+    const directoryEntry = currentEntries.find(
+      (entry) => entry.kind === 'dir' && entry.node.name === urlSegments[index],
+    );
+
+    if (!directoryEntry || directoryEntry.kind !== 'dir') return unslugify(segment);
+
+    currentEntries = directoryEntry.node.entries;
+  }
+
+  // Check if segment matches a directory
+  const directoryEntry = currentEntries.find(
+    (entry) => entry.kind === 'dir' && entry.node.name === segment,
+  );
+
+  if (directoryEntry && directoryEntry.kind === 'dir') {
+    const indexItem = getNodeIndexItem(directoryEntry.node);
+
+    return indexItem?.label ?? unslugify(segment);
+  }
+
+  // Check if segment matches a file
+  const fileEntry = currentEntries.find(
+    (entry) => entry.kind === 'file' && filestem(entry.item.filepath) === segment,
+  );
+
+  if (fileEntry && fileEntry.kind === 'file') {
+    return fileEntry.item.label ?? unslugify(segment);
+  }
+
+  return unslugify(segment);
+}
+
 export function getNodeIndexItem (node: ContentTreeNode): ContentSummary | undefined {
   for (const entry of node.entries) {
     if (entry.kind === 'file' && isIndexFile(entry.item.filepath)) return entry.item;

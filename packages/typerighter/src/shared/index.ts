@@ -16,7 +16,7 @@ export {
   isOptional, makeOptional,
 } from './types';
 export {
-  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, getNodeIndexItem,
+  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, findCrumbLabel, getNodeIndexItem,
   getTdIndexTitle, getTdResourceTitle, isIndexFile,
   debounce, throttle,
   isBuiltinField,

@@ -5,7 +5,7 @@ import type {
   ContentSummary,
 } from '../types/content';
 import {
-  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap,
+  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, findCrumbLabel,
 } from './content';
 
 function item (filepath: string, ssg?: Partial<ContentSummary['ssg']>): ContentSummary {
@@ -119,5 +119,85 @@ describe('buildDirectoryListingMap - visibility filtering', () => {
 
     expect(names.some((name) => name.toLowerCase().includes('alice'))).toBe(true);
     expect(names.some((name) => name.toLowerCase().includes('secret'))).toBe(false);
+  });
+});
+
+function labeledItem (filepath: string, label: string): ContentSummary {
+  return {
+    filepath,
+    label,
+    header: {},
+    ssg: {
+      showInSidebar: true,
+      showInSearch: true,
+      crawlable: true,
+    },
+  };
+}
+
+describe('findCrumbLabel', () => {
+  it('returns file label for leaf page', () => {
+    const tree = buildContentTree([labeledItem('people/alice.td', 'Alice (Dev)')]);
+
+    expect(findCrumbLabel(tree, [
+      'people',
+      'alice',
+    ], 1)).toBe('Alice (Dev)');
+  });
+
+  it('returns directory index label for folder crumb', () => {
+    const tree = buildContentTree([
+      labeledItem('people/index.td', 'Team Members'),
+      labeledItem('people/alice.td', 'Alice'),
+    ]);
+
+    expect(findCrumbLabel(tree, [
+      'people',
+      'alice',
+    ], 0)).toBe('Team Members');
+  });
+
+  it('falls back to unslugify when no label', () => {
+    const tree = buildContentTree([item('people/alice.td')]);
+
+    expect(findCrumbLabel(tree, [
+      'people',
+      'alice',
+    ], 1)).toBe('Alice');
+  });
+
+  it('falls back to unslugify for directory without index', () => {
+    const tree = buildContentTree([item('people/alice.td')]);
+
+    expect(findCrumbLabel(tree, [
+      'people',
+      'alice',
+    ], 0)).toBe('People');
+  });
+
+  it('handles deeply nested paths', () => {
+    const tree = buildContentTree([labeledItem('a/b/c/page.td', 'Deep Page')]);
+
+    expect(findCrumbLabel(tree, [
+      'a',
+      'b',
+      'c',
+      'page',
+    ], 3)).toBe('Deep Page');
+    expect(findCrumbLabel(tree, [
+      'a',
+      'b',
+      'c',
+      'page',
+    ], 0)).toBe('A');
+  });
+
+  it('returns unslugify for nonexistent segment', () => {
+    const tree = buildContentTree([item('people/alice.td')]);
+
+    expect(findCrumbLabel(tree, [
+      'missing',
+      'page',
+    ], 0)).toBe('Missing');
   });
 });

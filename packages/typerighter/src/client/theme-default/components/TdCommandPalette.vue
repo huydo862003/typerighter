@@ -22,10 +22,10 @@ import {
   useSiteSearch,
 } from './TdSiteSearch/useSiteSearch';
 import {
-  getIndexUrl, getParentUrl, unslugify,
+  findCrumbLabel, getIndexUrl, getParentUrl,
 } from '@/shared';
 import {
-  useRoute, useRouter, useSiteConfig,
+  useRoute, useRouter, useSiteConfig, useSiteData,
 } from '@/client/app';
 
 const emit = defineEmits<{
@@ -43,6 +43,7 @@ const router = useRouter();
 const {
   withBase,
 } = useSiteConfig();
+const siteData = useSiteData();
 const {
   previous, next,
 } = usePreviousNext();
@@ -63,35 +64,31 @@ const groupIcons: Record<string, unknown> = {
 const MAX_CRUMB_LENGTH = 12;
 const MAX_VISIBLE_CRUMBS = 3;
 
-// Collapse path into breadcrumb-style: first / … / second-to-last / last
-function collapsePath (path: string): string {
-  const segments = path.split('/').filter(Boolean).map(unslugify);
-
-  if (segments.length === 0) return '/';
-
-  const truncated = segments.map(truncateCrumb);
-
-  if (truncated.length <= MAX_VISIBLE_CRUMBS) {
-    return truncated.join(' / ');
-  }
-
-  return [
-    truncated[0],
-    '\u2026',
-    truncated[truncated.length - 2],
-    truncated[truncated.length - 1],
-  ].join(' / ');
-}
-
-function truncateCrumb (segment: string): string {
-  if (segment.length <= MAX_CRUMB_LENGTH) return segment;
-
-  return segment.slice(0, MAX_CRUMB_LENGTH - 1) + '\u2026';
-}
-
 function close () {
   isOpen.value = false;
   cancelSearch();
+}
+
+// Collapse path into breadcrumb-style: first / ... / second-to-last / last
+function collapsePath (path: string): string {
+  const segments = path.split('/').filter(Boolean);
+
+  if (segments.length === 0) return '/';
+
+  const tree = siteData.value.fullContentTree ?? siteData.value.contentTree;
+  const labels = segments.map((_, index) =>
+    truncateCrumb(findCrumbLabel(tree, segments, index)));
+
+  if (labels.length <= MAX_VISIBLE_CRUMBS) {
+    return labels.join(' / ');
+  }
+
+  return [
+    labels[0],
+    '\u2026',
+    labels[labels.length - 2],
+    labels[labels.length - 1],
+  ].join(' / ');
 }
 
 function navigateToRecent (path: string) {
@@ -104,6 +101,12 @@ function open () {
   isOpen.value = true;
   selectedIndex.value = 0;
   nextTick(() => inputRef.value?.focus());
+}
+
+function truncateCrumb (segment: string): string {
+  if (segment.length <= MAX_CRUMB_LENGTH) return segment;
+
+  return segment.slice(0, MAX_CRUMB_LENGTH - 1) + '\u2026';
 }
 
 defineExpose({

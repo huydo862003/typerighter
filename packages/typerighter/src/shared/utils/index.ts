@@ -1,5 +1,5 @@
 export {
-  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, getNodeIndexItem,
+  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, findCrumbLabel, getNodeIndexItem,
   getTdIndexTitle, getTdResourceTitle, isIndexFile,
 } from './content';
 export {
