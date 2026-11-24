@@ -1,3 +1,27 @@
+## [0.69.0] - 2026-11-24
+
+### Added
+
+- crates/typedown-lang
+  - Component resource pipeline: extract structured data (slot text, prop values) from custom component containers at build time
+  - `export_component_resources()` function to collect resources from a page body
+- crates/typedown-server
+  - `list_component_resources` RPC endpoint filtered by component type
+- packages/rpc-client
+  - `listComponentResources(componentType)` RPC client method
+- packages/typerighter
+  - `defineResource()` macro for Vue SFCs to declare extractable fields (slots and props)
+  - `@typedown/resources?type=<name>` virtual module serving reactive `ShallowRef<Resource[]>` with HMR
+  - Built-in `flashcard` component now declares a resource with `question`, `answer`, and `deck` fields
+  - Built-in `deck-set` component consumes flashcard resources
+
+### Changed
+
+- crates/typedown-lang
+  - Renamed `export_resource_html/markdown/nav/summary` to `export_page_resource_*` to distinguish from component resources
+- packages/typerighter
+  - `sm2.ts` moved from `components/custom/flashcard/` to `composables/flashcard/` (pure algorithm, not a component)
+
 ## [0.68.2] - 2026-11-23
 
 ### Added
