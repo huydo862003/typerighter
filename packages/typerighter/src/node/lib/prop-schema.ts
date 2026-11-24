@@ -1,8 +1,12 @@
-// Pure prop-to-JSON-Schema conversion
+// Pure prop-to-JSON-Schema conversion + resource declaration extraction
 // No @/ aliases so builtin-contract.ts can import this directly
+import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import type {
-  ComponentMetaChecker, PropertyMeta, PropertyMetaSchema,
+  ComponentMetaChecker,
+  PropertyMeta,
+  PropertyMetaSchema,
 } from 'vue-component-meta';
 import {
   makeOptional,
@@ -21,6 +25,12 @@ export interface ContractEntry {
   props?: Record<string, ComponentPropertyEntry>;
   slots?: string[];
   deprecated?: string;
+  resource?: {
+    fields: Record<string, {
+      from: string;
+      name: string;
+    }>;
+  };
 }
 
 // Build a component contract from a list of components using a pre-created checker
@@ -61,14 +71,21 @@ export function buildContractWithChecker (
         }
       }
 
+      const allSlotNames = new Set([
+        'default',
+        ...meta.slots.map((slot) => slot.name),
+      ]);
       const slotNames = meta.slots
         .map((slot) => slot.name)
         .filter((name) => name !== 'default');
+
+      const resource = extractResourceDeclaration(component.absolutePath, allSlotNames);
 
       contract[component.name] = {
         source,
         props: hasAnyProperty ? props : undefined,
         slots: 0 < slotNames.length ? slotNames : undefined,
+        resource,
       };
     } catch {
       // Component failed to parse: register without props so the name is still known
@@ -82,7 +99,9 @@ export function buildContractWithChecker (
 }
 
 // Homogeneous array -> { type: "array", items: <element> }
-function convertArrayElementsToSchema (elements: PropertyMetaSchema[] | undefined): JsonSchema | undefined {
+function convertArrayElementsToSchema (
+  elements: PropertyMetaSchema[] | undefined,
+): JsonSchema | undefined {
   if (!elements || elements.length !== 1) return undefined;
 
   const inner = convertPropertyMetaToSchema(elements[0]);
@@ -107,7 +126,9 @@ function convertObjectToSchema (
 
   // Regex fallback for index signatures (vue-component-meta lacks structured info)
   const match =
-    /^(?:Record<string,\s*(\w+)>|\{\s*\[key:\s*string\]:\s*(\w+);\s*\})$/.exec(type);
+    /^(?:Record<string,\s*(\w+)>|\{\s*\[key:\s*string\]:\s*(\w+);\s*\})$/.exec(
+      type,
+    );
 
   if (!match) return undefined;
 
@@ -140,8 +161,12 @@ function convertPrimitiveTypeToSchema (type: string): JsonSchema | undefined {
       // Handle raw union strings like 'number | "auto"' from strict:false mode
       if (type.includes(' | ')) {
         const members = type.split(' | ').map((part) => part.trim());
-        const isNullable = members.some((part) => part === 'undefined' || part === 'null');
-        const concrete = members.filter((part) => part !== 'undefined' && part !== 'null');
+        const isNullable = members.some(
+          (part) => part === 'undefined' || part === 'null',
+        );
+        const concrete = members.filter(
+          (part) => part !== 'undefined' && part !== 'null',
+        );
 
         if (concrete.length === 0) return undefined;
         const schemas: JsonSchema[] = [];
@@ -161,11 +186,12 @@ function convertPrimitiveTypeToSchema (type: string): JsonSchema | undefined {
             schemas.push(inner);
           }
         }
-        const schema = schemas.length === 1
-          ? schemas[0]
-          : {
-            oneOf: schemas,
-          } as JsonSchema;
+        const schema =
+          schemas.length === 1
+            ? schemas[0]
+            : ({
+              oneOf: schemas,
+            } as JsonSchema);
 
         return isNullable ? makeOptional(schema) : schema;
       }
@@ -208,7 +234,9 @@ function convertPropertiesToProductSchema (
 }
 
 // Dispatch on PropertyMetaSchema kind: string -> primitive, enum/array/object -> recurse
-function convertPropertyMetaToSchema (schema: PropertyMetaSchema): JsonSchema | undefined {
+function convertPropertyMetaToSchema (
+  schema: PropertyMetaSchema,
+): JsonSchema | undefined {
   if (typeof schema === 'string') return convertPrimitiveTypeToSchema(schema);
 
   switch (schema.kind) {
@@ -232,10 +260,16 @@ function convertPropertyMetaToSchema (schema: PropertyMetaSchema): JsonSchema | 
 }
 
 // Strip undefined/null from union, handle single-type and literal enum unions
-function convertUnionMembersToSchema (members: PropertyMetaSchema[] | undefined): JsonSchema | undefined {
+function convertUnionMembersToSchema (
+  members: PropertyMetaSchema[] | undefined,
+): JsonSchema | undefined {
   const all = members ?? [];
-  const isNullable = all.some((member) => member === 'undefined' || member === 'null');
-  const concrete = all.filter((member) => member !== 'undefined' && member !== 'null');
+  const isNullable = all.some(
+    (member) => member === 'undefined' || member === 'null',
+  );
+  const concrete = all.filter(
+    (member) => member !== 'undefined' && member !== 'null',
+  );
 
   if (concrete.length === 0) return undefined;
 
@@ -285,4 +319,97 @@ function convertUnionMembersToSchema (members: PropertyMetaSchema[] | undefined)
   };
 
   return isNullable ? makeOptional(schema) : schema;
+}
+
+// Extract defineResource({ fields: { ... } }) macro from a Vue SFC source file
+// Returns the fields object or undefined if the component doesn't declare a resource
+function extractResourceDeclaration (
+  filePath: string,
+  knownSlots: Set<string>,
+): ContractEntry['resource'] {
+  let source: string;
+
+  try {
+    source = fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return undefined;
+  }
+
+  // Find defineResource( and extract the balanced {...} argument (handles nested braces)
+  const marker = /defineResource\s*\(\s*\{/.exec(source);
+
+  if (!marker) return undefined;
+
+  const objectStart = marker.index + marker[0].length - 1;
+  let depth = 1;
+  let position = objectStart + 1;
+
+  while (position < source.length && 0 < depth) {
+    if (source[position] === '{') depth++;
+    else if (source[position] === '}') depth--;
+    position++;
+  }
+
+  if (depth !== 0) return undefined;
+
+  const objectSource = source.slice(objectStart, position);
+
+  try {
+    // Evaluate in an empty sandbox: no access to globals, require, process, etc
+    // Only static object literals with primitives are allowed
+    const parsed = vm.runInNewContext(
+      `(${objectSource})`,
+      Object.create(null),
+      {
+        timeout: 100,
+      },
+    );
+
+    if (
+      parsed
+      && typeof parsed === 'object'
+      && parsed.fields
+      && typeof parsed.fields === 'object'
+    ) {
+      const fields: Record<string, {
+        from: string;
+        name: string;
+      }> = {};
+
+      for (const [
+        key,
+        value,
+      ] of Object.entries(parsed.fields)) {
+        if (
+          value
+          && typeof value === 'object'
+          && 'from' in value
+          && 'name' in value
+          && typeof (value as Record<string, unknown>).from === 'string'
+          && typeof (value as Record<string, unknown>).name === 'string'
+        ) {
+          const from = (value as Record<string, string>).from;
+          const name = (value as Record<string, string>).name;
+
+          // Validate slot names exist on the component
+          if (from === 'slot' && !knownSlots.has(name)) continue;
+
+          fields[key] = {
+            from,
+            name,
+          };
+        }
+      }
+
+      return 0 < Object.keys(fields).length
+        ? {
+          fields,
+        }
+        : undefined;
+    }
+  } catch {
+    // Malformed defineResource argument - skip silently
+  }
+
+  return undefined;
 }

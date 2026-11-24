@@ -11,7 +11,9 @@ use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{Project, ProjectRedNode};
-use typedown_lang::integrations::export::{export_resource_html, export_resource_summary};
+use typedown_lang::integrations::export::{
+  export_page_resource_html, export_page_resource_summary,
+};
 use typedown_server::core::utils::fs::get_cache_dir;
 
 use super::utils::{setup_db_cached, setup_db_fresh};
@@ -31,7 +33,7 @@ pub fn run_rpc_queries(db: &TypedownDatabase) {
     let _ = parse_file(db, project, *file);
     if let Some(symbol) = file_symbol(db, project, *file).value(db) {
       let _ = evaluate_resource(db, symbol);
-      if let Some(exported) = export_resource_html(db, project, *file) {
+      if let Some(exported) = export_page_resource_html(db, project, *file) {
         assert!(
           !exported.header.is_null(),
           "export header should not be null for {}",
@@ -39,7 +41,7 @@ pub fn run_rpc_queries(db: &TypedownDatabase) {
         );
         export_count += 1;
       }
-      let _ = export_resource_summary(db, project, *file);
+      let _ = export_page_resource_summary(db, project, *file);
     }
   }
   assert!(

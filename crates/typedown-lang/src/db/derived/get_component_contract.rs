@@ -6,6 +6,7 @@ use crate::db::TypedownDatabase;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::{
   CustomComponentContractResult, CustomComponentProp, CustomComponentTyp, File, FileHandle,
+  ResourceFieldKind, ResourceFieldSource,
 };
 use crate::integrations::json_schema::{is_optional, parse_json_schema, unwrap_optional};
 use typedown_incremental::QueryDatabase;
@@ -83,12 +84,33 @@ fn parse_contract_entries(db: &TypedownDatabase, json: &str) -> Vec<CustomCompon
         .and_then(|deprecated_entry| deprecated_entry.as_str())
         .map(String::from);
 
+      let resource = entry
+        .get("resource")
+        .and_then(|resource_entry| resource_entry.get("fields"))
+        .and_then(|fields| fields.as_object())
+        .map(|fields| {
+          fields
+            .iter()
+            .filter_map(|(key, value)| {
+              let from_str = value.get("from")?.as_str()?;
+              let name = value.get("name")?.as_str()?.to_string();
+              let kind = match from_str {
+                "slot" => ResourceFieldKind::Slot,
+                "prop" => ResourceFieldKind::Prop,
+                _ => return None,
+              };
+              Some((key.clone(), ResourceFieldSource { kind, name }))
+            })
+            .collect()
+        });
+
       Some(CustomComponentTyp {
         name: name.clone(),
         source,
         props,
         slots,
         deprecated,
+        resource,
       })
     })
     .collect()
@@ -213,5 +235,28 @@ mod tests {
     let entries = parse_contract_entries(&db, json);
     assert!(entries[0].slots.is_empty());
     assert!(entries[0].deprecated.is_none());
+  }
+
+  #[test]
+  fn parse_component_with_resource_declaration() {
+    let db = make_db();
+    let json = r#"{"Flashcard":{"source":"./Flashcard.vue","props":{},"slots":["key"],"resource":{"fields":{"question":{"from":"slot","name":"default"},"answer":{"from":"slot","name":"key"}}}}}"#;
+    let entries = parse_contract_entries(&db, json);
+    let resource = entries[0].resource.as_ref().unwrap();
+    assert_eq!(resource.len(), 2);
+    let question = resource.get("question").unwrap();
+    assert_eq!(question.kind, ResourceFieldKind::Slot);
+    assert_eq!(question.name, "default");
+    let answer = resource.get("answer").unwrap();
+    assert_eq!(answer.kind, ResourceFieldKind::Slot);
+    assert_eq!(answer.name, "key");
+  }
+
+  #[test]
+  fn parse_component_without_resource_is_none() {
+    let db = make_db();
+    let json = r#"{"Chart":{"source":"./Chart.vue","props":{}}}"#;
+    let entries = parse_contract_entries(&db, json);
+    assert!(entries[0].resource.is_none());
   }
 }

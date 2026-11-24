@@ -249,6 +249,20 @@ pub struct CustomComponentTyp {
   pub slots: Vec<String>,
   // If set, the component is deprecated with this message
   pub deprecated: Option<String>,
+  // Resource declaration: maps field names to extraction sources
+  pub resource: Option<BTreeMap<String, ResourceFieldSource>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
+pub enum ResourceFieldKind {
+  Slot,
+  Prop,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]
+pub struct ResourceFieldSource {
+  pub kind: ResourceFieldKind,
+  pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, StableCompare, Encodable, Decodable, StableHash)]

@@ -1,6 +1,7 @@
 //! Layer 3: Typed AST nodes wrapping untyped RedNodes
 //! Each AST type checks the SyntaxKind on cast, providing a type-safe API over the generic tree structure
 
+use std::collections::BTreeMap;
 use std::hash::Hash;
 
 use crate::syntax::syntax_kind::SyntaxKind;
@@ -457,30 +458,19 @@ impl MdContainerBlock {
     if title.is_empty() { None } else { Some(title) }
   }
 
-  pub fn prop_names(&self) -> Vec<String> {
-    let Some(prop_block) = self
-      .0
-      .children()
-      .find(|child| child.kind() == SyntaxKind::MdContainerPropBlock)
-    else {
-      return Vec::new();
-    };
+  pub fn props(&self) -> Vec<(String, Option<String>)> {
+    extract_props_from_container(&self.0)
+  }
 
-    prop_block
-      .children()
-      .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
-      .filter_map(|item| {
-        // Collect key tokens (Ident and `-` for kebab-case like `col-span`)
-        let key: String = item
-          .children()
-          .take_while(|child| {
-            child.kind() == SyntaxKind::Ident
-              || (child.kind() == SyntaxKind::MdSymbol && child.text() == "-")
-          })
-          .map(|child| child.text().to_string())
-          .collect();
-        if key.is_empty() { None } else { Some(key) }
-      })
+  pub fn prop_names(&self) -> Vec<String> {
+    self.props().into_iter().map(|(key, _)| key).collect()
+  }
+
+  pub fn prop_values(&self) -> BTreeMap<String, String> {
+    self
+      .props()
+      .into_iter()
+      .filter_map(|(key, value)| Some((key, value?)))
       .collect()
   }
 
@@ -532,32 +522,52 @@ impl MdContainerShorthand {
     if label.is_empty() { None } else { Some(label) }
   }
 
-  pub fn prop_names(&self) -> Vec<String> {
-    let Some(prop_block) = self
-      .0
-      .children()
-      .find(|child| child.kind() == SyntaxKind::MdContainerPropBlock)
-    else {
-      return Vec::new();
-    };
+  pub fn props(&self) -> Vec<(String, Option<String>)> {
+    extract_props_from_container(&self.0)
+  }
 
-    prop_block
-      .children()
-      .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
-      .filter_map(|item| {
-        // Collect key tokens (Ident and `-` for kebab-case like `col-span`)
-        let key: String = item
-          .children()
-          .take_while(|child| {
-            child.kind() == SyntaxKind::Ident
-              || (child.kind() == SyntaxKind::MdSymbol && child.text() == "-")
-          })
-          .map(|child| child.text().to_string())
-          .collect();
-        if key.is_empty() { None } else { Some(key) }
-      })
+  pub fn prop_names(&self) -> Vec<String> {
+    self.props().into_iter().map(|(key, _)| key).collect()
+  }
+
+  pub fn prop_values(&self) -> BTreeMap<String, String> {
+    self
+      .props()
+      .into_iter()
+      .filter_map(|(key, value)| Some((key, value?)))
       .collect()
   }
+}
+
+// Extract (key, optional value) pairs from a container's prop block
+fn extract_props_from_container(container: &RedNode) -> Vec<(String, Option<String>)> {
+  let Some(prop_block) = container
+    .children()
+    .find(|child| child.kind() == SyntaxKind::MdContainerPropBlock)
+  else {
+    return Vec::new();
+  };
+
+  prop_block
+    .children()
+    .filter(|item| item.kind() == SyntaxKind::MdContainerPropItem)
+    .filter_map(|item| {
+      let text = item.text();
+      let trimmed = text.trim();
+      if let Some(eq) = trimmed.find('=') {
+        let key = trimmed[..eq].to_string();
+        let raw_value = &trimmed[eq + 1..];
+        let value = raw_value
+          .trim_matches(|char| char == '"' || char == '\'')
+          .to_string();
+        Some((key, Some(value)))
+      } else if !trimmed.is_empty() {
+        Some((trimmed.to_string(), None))
+      } else {
+        None
+      }
+    })
+    .collect()
 }
 
 /// The Markdown link

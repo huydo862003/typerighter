@@ -105,6 +105,7 @@ export default defineConfig({
         'vue-component-meta',
         'typescript',
         /^node:/,
+        /^@typedown\//,
       ],
     },
   },

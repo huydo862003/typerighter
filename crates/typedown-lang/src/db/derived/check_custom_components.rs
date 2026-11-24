@@ -373,6 +373,7 @@ mod tests {
       props: Some(vec![]),
       slots: vec![],
       deprecated: None,
+      resource: None,
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
@@ -403,6 +404,7 @@ mod tests {
       }]),
       slots: vec![],
       deprecated: None,
+      resource: None,
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
@@ -430,6 +432,7 @@ mod tests {
       props: Some(vec![]),
       slots: vec![],
       deprecated: None,
+      resource: None,
     }];
     let mut diagnostuis = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostuis);
@@ -479,6 +482,7 @@ content
       props: Some(vec![]),
       slots: vec![],
       deprecated: None,
+      resource: None,
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
@@ -506,6 +510,7 @@ content
       props: Some(vec![]),
       slots: vec![],
       deprecated: Some("use new-widget instead".to_string()),
+      resource: None,
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
@@ -540,6 +545,7 @@ the answer
       props: Some(vec![]),
       slots: vec!["key".to_string()],
       deprecated: None,
+      resource: None,
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);
@@ -571,6 +577,7 @@ the answer
       props: Some(vec![]),
       slots: vec!["key".to_string()],
       deprecated: None,
+      resource: None,
     }];
     let mut diagnostics = Vec::new();
     validate(block.syntax(), &name, &contract, &mut diagnostics);

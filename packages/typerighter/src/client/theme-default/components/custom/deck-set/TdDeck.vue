@@ -1,46 +1,50 @@
 <script setup lang="ts">
 import {
-  computed, onMounted, ref,
+  computed, onMounted, ref, watch,
 } from 'vue';
 import {
   ChevronLeft, ChevronRight, ChevronsRight, Check,
 } from '@lucide/vue';
 import {
-  useSiteConfig,
-} from '@/client/app';
-import {
-  getCardStates,
-  isDue,
-  reviewCard,
-} from '@/client/theme-default/composables/useFlashcardStore';
+  useFlashcardStore,
+} from '@/client/theme-default/composables/flashcard';
 import type {
   CardState,
-} from '@/client/theme-default/composables/useFlashcardStore';
+} from '@/client/theme-default/composables/flashcard';
 import type {
-  ContentSummary,
+  Resource,
 } from '@/shared';
 
 const {
-  /** Deck display name */
   name,
-  /** Flashcard content items in this deck */
   cards,
 } = defineProps<{
   /** Deck display name */
   name: string;
   /** Flashcard content items in this deck */
-  cards: ContentSummary[];
+  cards: Resource[];
 }>();
 
 const {
-  withBase,
-} = useSiteConfig();
+  getCardStates, isCardDue, reviewCard,
+} = useFlashcardStore();
+
+const GRADE_INDEX: Record<string, number> = {
+  again: 0,
+  hard: 1,
+  good: 2,
+  easy: 3,
+};
 
 type Mode = 'browse' | 'review' | 'done';
-interface Tally { again: number;
-                  hard: number;
-                  good: number;
-                  easy: number; }
+interface Tally {
+  again: number;
+  hard: number;
+  good: number;
+  easy: number;
+}
+
+// State
 
 const expanded = ref(false);
 const mode = ref<Mode>('browse');
@@ -56,31 +60,23 @@ const tally = ref<Tally>({
 });
 const cardStates = ref<Map<string, CardState>>(new Map());
 
-onMounted(async () => {
-  const ids = cards.map((card) => card.filepath);
-
-  cardStates.value = await getCardStates(ids);
-});
+// Derived
 
 const dueCards = computed(() =>
-  cards.filter((card) => isDue(cardStates.value.get(card.filepath))));
+  cards.filter((card) => isCardDue(cardStates.value.get(card.filepath))));
 
-const dueCount = computed(() => dueCards.value.length);
 const currentCard = computed(() => {
   const filepath = queue.value[position.value];
 
   return cards.find((card) => card.filepath === filepath);
 });
+
 const remaining = computed(() => queue.value.length - position.value);
+
 const progressPct = computed(() =>
-  0 < queue.value.length ? Math.round((position.value / queue.value.length) * 100) : 0);
-
-const subtitle = computed(() => {
-  if (mode.value === 'browse') return `${cards.length} cards \u00b7 select a card to see its answer`;
-  if (mode.value === 'review') return `Reviewing \u00b7 ${remaining.value} left in this session`;
-
-  return 'Session finished';
-});
+  0 < queue.value.length
+    ? Math.round((position.value / queue.value.length) * 100)
+    : 0);
 
 const actionLabel = computed(() => {
   if (mode.value === 'browse') return 'Review';
@@ -89,12 +85,19 @@ const actionLabel = computed(() => {
   return 'End';
 });
 
+const doneSummary = computed(() =>
+  0 < dueCards.value.length
+    ? `${dueCards.value.length} card${dueCards.value.length === 1 ? '' : 's'} still due`
+    : 'All cards reviewed. Nothing due right now.');
+
+// Helpers
+
 function endReview (): void {
   mode.value = 'browse';
   revealed.value = false;
 }
 
-function getCardGrade (card: ContentSummary): string {
+function getCardGrade (card: Resource): string {
   const state = cardStates.value.get(card.filepath);
 
   if (!state) return 'due';
@@ -102,21 +105,14 @@ function getCardGrade (card: ContentSummary): string {
   return state.lastGrade ?? 'due';
 }
 
-function getCardUrl (card: ContentSummary): string {
-  return withBase('/' + card.filepath.replace(/\.td$/, ''));
-}
+// Actions
 
 async function grade (level: 'again' | 'hard' | 'good' | 'easy'): Promise<void> {
   const filepath = queue.value[position.value];
 
   if (!filepath) return;
 
-  const next = await reviewCard(filepath, [
-    'again',
-    'hard',
-    'good',
-    'easy',
-  ].indexOf(level));
+  const next = await reviewCard(filepath, GRADE_INDEX[level]);
 
   cardStates.value.set(filepath, next);
   tally.value[level]++;
@@ -127,11 +123,11 @@ async function grade (level: 'again' | 'hard' | 'good' | 'easy'): Promise<void> 
 
   if (queue.value.length <= nextPosition) {
     mode.value = 'done';
-    revealed.value = false;
   } else {
     position.value = nextPosition;
-    revealed.value = false;
   }
+
+  revealed.value = false;
 }
 
 function gradeAgain (): void {
@@ -155,6 +151,10 @@ function handleAction (): void {
   else endReview();
 }
 
+async function loadCardStates (): Promise<void> {
+  cardStates.value = await getCardStates(cards.map((card) => card.filepath));
+}
+
 function previousCard (): void {
   if (0 < position.value) {
     position.value--;
@@ -168,13 +168,9 @@ function revealAnswer (): void {
 
 function skipCard (): void {
   if (remaining.value <= 1) return;
-  const current = queue.value[position.value];
+  const current = queue.value.splice(position.value, 1)[0];
 
-  queue.value = [
-    ...queue.value.slice(0, position.value),
-    ...queue.value.slice(position.value + 1),
-    current,
-  ];
+  queue.value.push(current);
   revealed.value = false;
 }
 
@@ -203,10 +199,10 @@ function toggleExpanded (): void {
   expanded.value = !expanded.value;
 }
 
-const doneSummary = computed(() =>
-  0 < dueCount.value
-    ? `${dueCount.value} card${dueCount.value === 1 ? '' : 's'} still due`
-    : 'All cards reviewed. Nothing due right now.');
+// Lifecycle
+
+onMounted(loadCardStates);
+watch(() => cards, loadCardStates);
 </script>
 
 <template>
@@ -235,12 +231,17 @@ const doneSummary = computed(() =>
         </h3>
       </div>
       <span class="td-deck-due-counter">
-        <strong class="td-deck-due-num">{{ dueCount }} due</strong> / {{ cards.length }}
+        <strong class="td-deck-due-num">{{ dueCards.length }} due</strong> /
+        {{ cards.length }}
       </span>
       <button
         type="button"
         class="td-deck-action"
-        :class="mode === 'browse' ? 'td-deck-action-primary' : 'td-deck-action-secondary'"
+        :class="
+          mode === 'browse'
+            ? 'td-deck-action-primary'
+            : 'td-deck-action-secondary'
+        "
         @click.stop="handleAction"
       >
         {{ actionLabel }}
@@ -272,17 +273,23 @@ const doneSummary = computed(() =>
                 :aria-expanded="expandedId === card.filepath"
                 @click="() => toggleCard(card.filepath)"
               >
-                <span class="td-deck-list-num">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="td-deck-list-num">{{
+                  String(index + 1).padStart(2, "0")
+                }}</span>
                 <span class="td-deck-list-text">
-                  <span class="td-deck-list-q">{{ card.label || card.filepath }}</span>
+                  <span class="td-deck-list-q">{{
+                    card.fields.question || card.filepath
+                  }}</span>
                   <span
-                    v-if="card.excerpt"
+                    v-if="card.fields.answer"
                     class="td-deck-list-hint"
-                  >{{ card.excerpt }}</span>
+                  >{{
+                    card.fields.answer
+                  }}</span>
                 </span>
                 <span
                   class="td-deck-chip"
-                  :class="`td-deck-chip-${ getCardGrade(card)}`"
+                  :class="`td-deck-chip-${getCardGrade(card)}`"
                 >{{ getCardGrade(card) }}</span>
                 <ChevronRight
                   aria-hidden="true"
@@ -301,7 +308,7 @@ const doneSummary = computed(() =>
               >
                 <div>
                   <p class="td-deck-list-answer">
-                    <a :href="getCardUrl(card)">View card page</a>
+                    {{ card.fields.answer }}
                   </p>
                 </div>
               </div>
@@ -322,7 +329,7 @@ const doneSummary = computed(() =>
                 <div
                   class="td-deck-progress-fill"
                   :style="{
-                    width: `${progressPct }%`,
+                    width: `${progressPct}%`,
                   }"
                 />
               </div>
@@ -354,33 +361,34 @@ const doneSummary = computed(() =>
 
             <div class="td-deck-question">
               <h3 class="td-deck-question-text">
-                {{ currentCard.label || currentCard.filepath }}
+                {{ currentCard.fields.question || currentCard.filepath }}
               </h3>
-              <p
-                v-if="currentCard.excerpt"
-                class="td-deck-question-hint"
-              >
-                {{ currentCard.excerpt }}
-              </p>
             </div>
 
-            <div
-              v-if="revealed"
-              class="td-deck-answer-panel"
+            <Transition
+              name="td-deck-reveal"
+              mode="out-in"
             >
-              <p class="td-deck-answer-eyebrow">
-                Answer
-              </p>
-              <p class="td-deck-answer-text">
-                <a :href="getCardUrl(currentCard)">View full answer on card page</a>
-              </p>
-            </div>
-            <div
-              v-else
-              class="td-deck-answer-placeholder"
-            >
-              Try to recall the answer, then reveal it.
-            </div>
+              <div
+                v-if="revealed"
+                key="answer"
+                class="td-deck-answer-panel"
+              >
+                <p class="td-deck-answer-eyebrow">
+                  Answer
+                </p>
+                <p class="td-deck-answer-text">
+                  {{ currentCard.fields.answer }}
+                </p>
+              </div>
+              <div
+                v-else
+                key="placeholder"
+                class="td-deck-answer-placeholder"
+              >
+                Try to recall the answer, then reveal it.
+              </div>
+            </Transition>
 
             <div class="td-deck-bottom-row">
               <button
@@ -456,12 +464,12 @@ const doneSummary = computed(() =>
                 Back to deck
               </button>
               <button
-                v-if="dueCount > 0"
+                v-if="dueCards.length > 0"
                 type="button"
                 class="td-deck-action-primary"
                 @click="startReview"
               >
-                Review {{ dueCount }} again
+                Review {{ dueCards.length }} again
               </button>
             </div>
           </div>
@@ -488,7 +496,7 @@ const doneSummary = computed(() =>
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--color-td-surface-muted, #F4F1EC);
+  background: var(--color-td-surface-muted, #f4f1ec);
   border-bottom: 1px solid var(--color-td-line-soft);
   flex-shrink: 0;
   cursor: pointer;
@@ -522,13 +530,6 @@ const doneSummary = computed(() =>
   font-size: 14px;
   line-height: 20px;
   font-weight: 600;
-}
-
-.td-deck-subtitle {
-  margin: 0;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-td-ink-4);
 }
 
 .td-deck-due-counter {
@@ -658,7 +659,7 @@ const doneSummary = computed(() =>
   margin: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 0 56px 16px 64px;
+  padding: 8px 56px 16px 64px;
   font-size: 14px;
   line-height: 1.55;
   color: var(--color-td-ink-3);
@@ -683,11 +684,30 @@ const doneSummary = computed(() =>
   text-transform: capitalize;
 }
 
-.td-deck-chip-due { background: #FBEDE6; color: #9C3A18; }
-.td-deck-chip-again { background: #FCE8E8; color: #B42318; }
-.td-deck-chip-hard { background: #FAF0DA; color: #8A5A00; }
-.td-deck-chip-good { background: #E8EEFB; color: #2451B8; }
-.td-deck-chip-easy { background: #E2F3EA; color: #0E6E46; }
+.td-deck-chip-due {
+  background: var(--color-td-danger-bg);
+  color: var(--color-td-danger);
+}
+
+.td-deck-chip-again {
+  background: var(--color-td-danger-bg);
+  color: var(--color-td-danger);
+}
+
+.td-deck-chip-hard {
+  background: var(--color-td-warning-bg);
+  color: var(--color-td-warning-text);
+}
+
+.td-deck-chip-good {
+  background: var(--color-td-info-bg);
+  color: var(--color-td-info);
+}
+
+.td-deck-chip-easy {
+  background: var(--color-td-tip-bg);
+  color: var(--color-td-tip);
+}
 
 /* Review mode */
 .td-deck-review {
@@ -792,7 +812,7 @@ const doneSummary = computed(() =>
   box-sizing: border-box;
   padding: 18px 20px;
   border-radius: 10px;
-  background: var(--color-td-surface-muted, #F7F5F1);
+  background: var(--color-td-surface-muted, #f7f5f1);
   border: 1px solid var(--color-td-line-soft);
 }
 
@@ -870,10 +890,25 @@ const doneSummary = computed(() =>
   opacity: 0.85;
 }
 
-.td-deck-grade-again { background: #FCE8E8; color: #B42318; }
-.td-deck-grade-hard { background: #FAF0DA; color: #8A5A00; }
-.td-deck-grade-good { background: #E8EEFB; color: #2451B8; }
-.td-deck-grade-easy { background: #E2F3EA; color: #0E6E46; }
+.td-deck-grade-again {
+  background: var(--color-td-danger-bg);
+  color: var(--color-td-danger);
+}
+
+.td-deck-grade-hard {
+  background: var(--color-td-warning-bg);
+  color: var(--color-td-warning-text);
+}
+
+.td-deck-grade-good {
+  background: var(--color-td-info-bg);
+  color: var(--color-td-info);
+}
+
+.td-deck-grade-easy {
+  background: var(--color-td-tip-bg);
+  color: var(--color-td-tip);
+}
 
 /* Done mode */
 .td-deck-done {
@@ -891,11 +926,11 @@ const doneSummary = computed(() =>
   width: 56px;
   height: 56px;
   border-radius: 28px;
-  background: #E2F3EA;
+  background: var(--color-td-tip-bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #0E6E46;
+  color: var(--color-td-tip);
 }
 
 .td-deck-done-title {
@@ -935,5 +970,20 @@ const doneSummary = computed(() =>
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Answer reveal transition */
+.td-deck-reveal-enter-active,
+.td-deck-reveal-leave-active {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.td-deck-reveal-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.td-deck-reveal-leave-to {
+  opacity: 0;
 }
 </style>

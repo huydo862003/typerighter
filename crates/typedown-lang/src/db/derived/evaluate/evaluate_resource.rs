@@ -108,7 +108,7 @@ mod tests {
     derived::typechecker::typecheck::typecheck,
     fixtures::{load_vault_fixture, make_blob_obj},
   };
-  use crate::integrations::export::export_resource_markdown;
+  use crate::integrations::export::export_page_resource_markdown;
   use crate::syntax::diagnostic::*;
   use std::path::PathBuf;
   use typedown_types::either::Either;
@@ -915,7 +915,7 @@ mod tests {
   #[test]
   fn imports_stripped_from_export() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_imports.td");
-    let result = export_resource_markdown(&db, project, file);
+    let result = export_page_resource_markdown(&db, project, file);
     let exported = result.expect("file with imports should export");
     let header = exported.header;
     // Header uses bindings _type format: fields are nested under "fields"

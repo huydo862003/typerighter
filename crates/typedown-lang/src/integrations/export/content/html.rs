@@ -12,18 +12,19 @@ use crate::db::derived::evaluate::evaluate_node::evaluate_node;
 use super::media::{MediaKind, ServiceEmbed, classify_media_url};
 use crate::db::derived::get_component_contract::get_component_contract;
 use crate::db::derived::name_resolver::scope::get_file_runtime_scope;
-use crate::db::types::{File, Project, ProjectRedNode, TdRuntimeObj};
+use crate::db::types::{File, Project, ProjectRedNode, ResourceFieldKind, TdRuntimeObj};
 use crate::integrations::export::utils::is_string_quoted;
 use crate::syntax::ast::{
   AstNode, CodeBlock, InlineCode, InlineMath, InterpFragment, MathBlock, MdBody, MdBold,
-  MdBoldItalic, MdHeading, MdInlineElement, MdItalic, MdLink, MdMedia, MdStrikethrough, MdTable,
-  MdTableCell,
+  MdBoldItalic, MdContainerBlock, MdHeading, MdInlineElement, MdItalic, MdLink, MdMedia,
+  MdStrikethrough, MdTable, MdTableCell,
 };
 use crate::syntax::red::RedNode;
 use crate::syntax::syntax_kind::SyntaxKind;
 
-use crate::db::utils::is_external_url;
+use crate::db::utils::{is_external_url, kebab_to_pascal};
 use crate::integrations::bindings::file_ref::resolve_fref_target;
+use crate::integrations::export::types::ExportedComponentResource;
 use crate::integrations::export::utils::{
   extract_plain_text, html_escape, is_callout, resolve_vault_url, slugify, strip_quotes,
 };
@@ -43,6 +44,7 @@ pub struct HtmlBodyResult {
   pub html: String,
   pub headings: Vec<ExportedHeading>,
   pub title: Option<String>,
+  pub resources: Vec<ExportedComponentResource>,
 }
 
 pub fn export_html_body(
@@ -65,6 +67,7 @@ struct HtmlEmitter<'a> {
   title: Option<String>,
   slug_counts: BTreeMap<String, usize>,
   seen_first_image: bool,
+  resources: Vec<ExportedComponentResource>,
 }
 
 impl<'a> HtmlEmitter<'a> {
@@ -78,6 +81,7 @@ impl<'a> HtmlEmitter<'a> {
       title: None,
       slug_counts: BTreeMap::new(),
       seen_first_image: false,
+      resources: Vec::new(),
     }
   }
 
@@ -100,6 +104,7 @@ impl<'a> HtmlEmitter<'a> {
       html: self.out,
       headings: self.headings,
       title: self.title,
+      resources: self.resources,
     }
   }
 
@@ -584,6 +589,67 @@ impl<'a> HtmlEmitter<'a> {
     }
 
     self.write(&format!("</{label}>\n"));
+
+    // Extract component resources if the contract declares them
+    let block = MdContainerBlock::cast(node.clone());
+    if let Some(block) = &block {
+      self.extract_component_resources(node, label, &block.prop_values());
+    }
+  }
+
+  // Collect slot text and prop values from a container for components that declare a resource
+  fn extract_component_resources(
+    &mut self,
+    container: &RedNode,
+    label: &str,
+    prop_values: &BTreeMap<String, String>,
+  ) {
+    // Look up the component contract (components.json)
+    let contract_file = match self.project.custom_component_contract(self.db) {
+      Some(file) => file,
+      None => return,
+    };
+
+    // Find the component entry by kebab or PascalCase name
+    let contract = get_component_contract(self.db, contract_file);
+    let pascal_label = kebab_to_pascal(label);
+    let component_entries = contract.entries(self.db);
+    let Some(component) = component_entries
+      .iter()
+      .find(|entry| entry.name == label || entry.name == pascal_label)
+    else {
+      return;
+    };
+
+    // Check if the component declares a resource with extractable fields
+    let Some(declared_fields) = &component.resource else {
+      return;
+    };
+
+    // Extract each declared field from the container's slots or props
+    let mut extracted = BTreeMap::new();
+    for (field_name, source) in declared_fields {
+      match source.kind {
+        ResourceFieldKind::Slot => {
+          if let Some(text) = extract_slot_plain_text(container, &source.name) {
+            extracted.insert(field_name.clone(), text);
+          }
+        }
+        ResourceFieldKind::Prop => {
+          if let Some(value) = prop_values.get(&source.name) {
+            extracted.insert(field_name.clone(), value.clone());
+          }
+        }
+      }
+    }
+
+    // Emit the resource if any fields were extracted
+    if !extracted.is_empty() {
+      self.resources.push(ExportedComponentResource {
+        component_type: component.name.clone(),
+        fields: extracted,
+      });
+    }
   }
 
   fn emit_container_shorthand(&mut self, node: &RedNode) {
@@ -600,6 +666,8 @@ impl<'a> HtmlEmitter<'a> {
     } else {
       self.write(&format!("<{label} {props} />\n"));
     }
+
+    self.extract_component_resources(node, &label, &shorthand.prop_values());
   }
 
   fn emit_slot_blocks(&mut self, node: &RedNode) {
@@ -1127,6 +1195,25 @@ fn extract_slot_name(node: &RedNode) -> Option<String> {
   } else {
     Some(name.to_string())
   }
+}
+
+// Extract plain text from a named slot inside a container
+// "default" matches the first slot (before any === separator)
+fn extract_slot_plain_text(container: &RedNode, target_slot: &str) -> Option<String> {
+  let mut is_target = target_slot == "default";
+  for child in container.children() {
+    match child.kind() {
+      SyntaxKind::MdContainerSlot if is_target => {
+        let text = extract_plain_text(&child);
+        return if text.is_empty() { None } else { Some(text) };
+      }
+      SyntaxKind::MdContainerSlotSeparator => {
+        is_target = extract_slot_name(&child).is_some_and(|name| name == target_slot);
+      }
+      _ => {}
+    }
+  }
+  None
 }
 
 fn extract_ordered_list_start_number(node: &RedNode) -> usize {

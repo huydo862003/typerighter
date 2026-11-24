@@ -94,6 +94,8 @@ export interface TypedownSiteData {
   pages: Record<string, () => Promise<PageModule>>;
   /** Content files as a recursive directory tree */
   contentTree: ContentTree;
+  /** Full content tree including SSG-hidden pages */
+  fullContentTree?: ContentTree;
   /** Serialized MiniSearch index for full-text search */
   searchIndex?: string;
   /** Schema definitions keyed by schema name */

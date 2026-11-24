@@ -128,6 +128,10 @@ export class TypedownContext {
     return withRetry(() => this.rpc.listSidebar());
   }
 
+  async listComponentResources (componentType: string): ReturnType<RpcClient['listComponentResources']> {
+    return withRetry(() => this.rpc.listComponentResources(componentType));
+  }
+
   /* Project operations */
 
   async getConfig (): Promise<TdSiteConfig> {

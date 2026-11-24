@@ -17,7 +17,7 @@ export type Grade = 'again' | 'hard' | 'good' | 'easy';
 
 export const SCHEMA_VERSION = 1;
 
-export function isDue (state: CardState | undefined): boolean {
+export function isCardDue (state: CardState | undefined): boolean {
   return !state || state.nextReview <= Date.now();
 }
 
@@ -38,20 +38,25 @@ const GRADE_NAMES: Grade[] = [
   'easy',
 ];
 
+// SM-2 quality scores: again=0 hard=3 good=4 easy=5
+// Scores below 3 reset the card (lapse), scores >= 3 advance it
+const QUALITY_SCORES = [
+  0,
+  3,
+  4,
+  5,
+];
+
 // quality: 0=again 1=hard 2=good 3=easy
 export function nextState (current: CardState, quality: number): CardState {
   const gradeName = GRADE_NAMES[quality] ?? 'again';
-  const score = [
-    0,
-    2,
-    4,
-    5,
-  ][quality] ?? 0;
+  const score = QUALITY_SCORES[quality] ?? 0;
   const nextEase = Math.max(
     MIN_EASE,
     current.easeFactor + (0.1 - (5 - score) * (0.08 + (5 - score) * 0.02)),
   );
 
+  // Lapse: reset repetitions, short retry interval
   if (score < 3) {
     return {
       version: SCHEMA_VERSION,
@@ -63,6 +68,7 @@ export function nextState (current: CardState, quality: number): CardState {
     };
   }
 
+  // Pass: advance interval based on repetition count
   let nextInterval: number;
 
   if (current.repetitions === 0) {
@@ -71,6 +77,11 @@ export function nextState (current: CardState, quality: number): CardState {
     nextInterval = 6;
   } else {
     nextInterval = Math.round(current.interval * nextEase);
+  }
+
+  // "hard" gets a shorter interval (60% of normal)
+  if (quality === 1) {
+    nextInterval = Math.max(1, Math.round(nextInterval * 0.6));
   }
 
   return {

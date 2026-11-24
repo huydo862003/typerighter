@@ -7,7 +7,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::types::{File, FileHandle, FileMetadata, Project};
 use typedown_lang::db::utils::{is_content_file, is_internal_file};
 use typedown_lang::db::{QueryStorage, TypedownDatabase};
-use typedown_lang::integrations::export::{export_resource_nav, export_ssg_flags};
+use typedown_lang::integrations::export::{export_page_resource_nav, export_ssg_flags};
 use typedown_types::path::normalize_path;
 
 use super::utils::example_vault;
@@ -37,7 +37,7 @@ fn list_sidebar_paths(db: &TypedownDatabase) -> Vec<String> {
     })
     .filter(|(_, file)| export_ssg_flags(db, project, **file).show_in_sidebar)
     .filter_map(|(path, file)| {
-      export_resource_nav(db, project, *file)?;
+      export_page_resource_nav(db, project, *file)?;
       Some(normalize_path(path.strip_prefix(&root_dir).unwrap_or(path)))
     })
     .collect();
@@ -138,7 +138,7 @@ This page is hidden.
     })
     .filter(|(_, file)| export_ssg_flags(&db, project, **file).show_in_sidebar)
     .filter_map(|(path, file)| {
-      export_resource_nav(&db, project, *file)?;
+      export_page_resource_nav(&db, project, *file)?;
       Some(normalize_path(path.strip_prefix(&root_dir).unwrap_or(path)))
     })
     .collect();
@@ -188,7 +188,7 @@ fn get_sidebar_paths_for_vault(
     .into_iter()
     .filter(|(_, file)| export_ssg_flags(db, project, *file).show_in_sidebar)
     .filter_map(|(relative, file)| {
-      export_resource_nav(db, project, file)?;
+      export_page_resource_nav(db, project, file)?;
       Some(relative)
     })
     .collect();

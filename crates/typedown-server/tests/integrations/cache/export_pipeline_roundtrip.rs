@@ -8,7 +8,9 @@ use typedown_lang::db::derived::evaluate::evaluate_resource::evaluate_resource;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::types::Project;
-use typedown_lang::integrations::export::{export_resource_html, export_resource_summary};
+use typedown_lang::integrations::export::{
+  export_page_resource_html, export_page_resource_summary,
+};
 use typedown_server::core::utils::fs::get_cache_dir;
 
 use crate::utils::{
@@ -30,7 +32,7 @@ fn export_pipeline_roundtrip() {
       if path.extension().and_then(|extension| extension.to_str()) != Some("td") {
         continue;
       }
-      if let Some(exported) = export_resource_html(&db, project, *file) {
+      if let Some(exported) = export_page_resource_html(&db, project, *file) {
         assert!(
           !exported.header.is_null(),
           "header should not be null for {}",
@@ -58,8 +60,8 @@ fn export_pipeline_roundtrip() {
     let _ = parse_file(&db, project, *file);
     if let Some(symbol) = file_symbol(&db, project, *file).value(&db) {
       let _ = evaluate_resource(&db, symbol);
-      let _ = export_resource_html(&db, project, *file);
-      let _ = export_resource_summary(&db, project, *file);
+      let _ = export_page_resource_html(&db, project, *file);
+      let _ = export_page_resource_summary(&db, project, *file);
     }
   }
   let serialized = db.dump();

@@ -12,7 +12,7 @@ use crate::integrations::export::frontmatter::{ResourceKind, extract_resource};
 use crate::integrations::export::types::*;
 
 /// Export a resource file as structured header and CommonMark body
-pub fn export_resource_markdown(
+pub fn export_page_resource_markdown(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -41,7 +41,7 @@ pub fn export_resource_markdown(
 }
 
 /// Export a resource file as structured header and HTML body (with Vue components).
-pub fn export_resource_html(
+pub fn export_page_resource_html(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -59,6 +59,7 @@ pub fn export_resource_html(
       seo_metadata: None,
       excerpt: None,
       ssg_flags: ExportedSsgFlags::default(),
+      resources: Vec::new(),
     }),
     ResourceKind::Content(fields) => {
       let content = html::export_html_body(db, project, file, &fields.body);
@@ -74,9 +75,23 @@ pub fn export_resource_html(
         seo_metadata: fields.seo_metadata,
         excerpt: fields.excerpt,
         ssg_flags: fields.ssg_flags,
+        resources: content.resources,
       })
     }
   }
+}
+
+/// Extract component resources from a page without generating HTML
+pub fn export_component_resources(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+) -> Vec<ExportedComponentResource> {
+  let Some(ResourceKind::Content(fields)) = extract_resource(db, project, file) else {
+    return Vec::new();
+  };
+  let content = html::export_html_body(db, project, file, &fields.body);
+  content.resources
 }
 
 #[cfg(test)]
@@ -85,9 +100,42 @@ mod tests {
   use crate::db::fixtures::load_vault_fixture;
 
   #[test]
+  fn extracts_component_resources_from_flashcard_container() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "flashcard_resource.td");
+    let resources = export_component_resources(&db, project, file);
+    assert_eq!(resources.len(), 1, "should extract one flashcard resource");
+    let resource = &resources[0];
+    assert_eq!(resource.component_type, "Flashcard");
+    assert!(
+      resource.fields.contains_key("question"),
+      "should have a question field"
+    );
+    assert!(
+      resource.fields.contains_key("answer"),
+      "should have an answer field"
+    );
+  }
+
+  #[test]
+  fn extracts_deck_prop_from_flashcard_container() {
+    let (db, project, file) =
+      load_vault_fixture("evaluate/my_vault", "flashcard_with_deck.td");
+    let resources = export_component_resources(&db, project, file);
+    assert_eq!(resources.len(), 1);
+    let resource = &resources[0];
+    assert_eq!(
+      resource.fields.get("deck").map(String::as_str),
+      Some("Biology"),
+      "should extract deck prop value"
+    );
+    assert!(resource.fields.contains_key("question"));
+    assert!(resource.fields.contains_key("answer"));
+  }
+
+  #[test]
   fn exports_content_body() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let result = export_resource_markdown(&db, project, file);
+    let result = export_page_resource_markdown(&db, project, file);
     let exported = result.expect("should export");
     assert!(
       exported.content.contains("Hello world"),
@@ -99,7 +147,7 @@ mod tests {
   #[test]
   fn exports_markdown_body() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert_eq!(
       exported.content,
       r"Hello world
@@ -110,7 +158,7 @@ mod tests {
   #[test]
   fn exports_all_markdown_elements() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(content.contains("# Heading 1"), "should contain h1");
     assert!(content.contains("## Heading 2"), "should contain h2");
@@ -126,7 +174,7 @@ mod tests {
   #[test]
   fn exports_container_shorthand() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_shorthand.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains(
@@ -157,7 +205,7 @@ mod tests {
   #[test]
   fn exports_unresolved_interpolation_as_empty() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_unresolved_interp.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       !content.contains("question"),
@@ -175,7 +223,7 @@ mod tests {
   #[test]
   fn exports_nested_blocks_without_extra_indentation() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_nested_blocks.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     let content = &exported.content;
 
     for line in content.lines() {
@@ -214,7 +262,7 @@ full content:
   #[test]
   fn exports_container_with_title() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("::: details Click to expand"),
       "should contain container with title: {}",
@@ -225,7 +273,7 @@ full content:
   #[test]
   fn fref_uses_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("[Alice](/blog/alice)"),
       "fref should use base_path /blog: {}",
@@ -236,7 +284,7 @@ full content:
   #[test]
   fn fref_resolves_image_asset_to_markdown_image() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_asset_fref.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("![icon](/icon.svg)"),
       "image asset fref should produce markdown image: {}",
@@ -247,7 +295,7 @@ full content:
   #[test]
   fn fref_default_base_path() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_fref.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert!(
       !exported.content.contains("/blog"),
       "default base_path should not have /blog prefix: {}",
@@ -258,7 +306,7 @@ full content:
   #[test]
   fn export_separates_blocks_with_blank_lines() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     let lines: Vec<&str> = exported.content.lines().collect();
     let heading_indices: Vec<usize> = lines
       .iter()
@@ -283,7 +331,7 @@ full content:
   fn markdown_export_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
     let exported =
-      export_resource_markdown(&db, project, file).expect("body-only file should export");
+      export_page_resource_markdown(&db, project, file).expect("body-only file should export");
     assert!(
       exported
         .content
@@ -295,7 +343,7 @@ full content:
   #[test]
   fn html_export_simple_paragraph() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_with_content.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert_eq!(
       exported.content,
       r"<p>Hello world</p>
@@ -306,7 +354,7 @@ full content:
   #[test]
   fn html_export_headings() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     // leading H1 is stripped from content - layout renders the title
     assert!(
       !exported.content.contains("<h1"),
@@ -328,7 +376,7 @@ full content:
   #[test]
   fn html_export_heading_titles_preserve_special_chars() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let titles: Vec<&str> = exported
       .headings
       .iter()
@@ -355,7 +403,7 @@ full content:
   #[test]
   fn html_export_heading_with_inline_markup() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_special_headings.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains(r#"href="https://example.com""#),
       r"heading should contain rendered link:
@@ -379,7 +427,7 @@ full content:
   #[test]
   fn html_export_inline_markup() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains("<strong>bold</strong>"));
     assert!(exported.content.contains("<em>italic</em>"));
     assert!(
@@ -393,14 +441,14 @@ full content:
   #[test]
   fn html_export_inline_code() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains("<code>inline code</code>"));
   }
 
   #[test]
   fn html_export_code_block_placeholder() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r#"<pre class="td-code-placeholder" data-lang="python" data-meta="python"><code>print(&quot;hello&quot;)"#
     ));
@@ -412,21 +460,21 @@ full content:
   #[test]
   fn html_export_code_block_with_title() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(r#"data-title="config.ts""#));
   }
 
   #[test]
   fn html_export_code_block_with_line_numbers() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(r#"data-line-numbers="5""#));
   }
 
   #[test]
   fn html_export_inline_math_placeholder() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported
         .content
@@ -437,7 +485,7 @@ full content:
   #[test]
   fn html_export_math_block_placeholder() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported
         .content
@@ -448,7 +496,7 @@ full content:
   #[test]
   fn html_export_blockquote() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r"<blockquote>
 <p>blockquote line</p>
@@ -459,7 +507,7 @@ full content:
   #[test]
   fn html_export_table() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(r#"<table tabindex="0">"#));
     assert!(exported.content.contains("<th>"));
     assert!(exported.content.contains("Col1"));
@@ -474,7 +522,7 @@ full content:
   #[test]
   fn html_export_table_inline_code() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_table_inline_code.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("<code>_type</code>"),
       "inline code _type should be preserved in table cell: {}",
@@ -500,7 +548,7 @@ full content:
   #[test]
   fn html_export_bullet_list() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r"<ul>
 <li>"
@@ -512,7 +560,7 @@ full content:
   #[test]
   fn html_export_ordered_list() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r"<ol>
 <li>"
@@ -523,7 +571,7 @@ full content:
   #[test]
   fn html_export_callout_container() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r#"<div class="note td-callout"><p class="td-callout-title td-callout-title-default">NOTE</p>"#
     ));
@@ -533,7 +581,7 @@ full content:
   #[test]
   fn html_export_code_block_in_callout() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported
         .content
@@ -544,7 +592,7 @@ full content:
   #[test]
   fn html_export_details_container() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported
         .content
@@ -561,7 +609,7 @@ full content:
   #[test]
   fn html_export_external_link() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r#"<LucideIcon name="arrow-up-right" class="td-external-link-icon" /><a href="https://example.com" class="td-external-link" target="_blank" rel="noopener noreferrer">link text</a>"#
     ));
@@ -570,7 +618,7 @@ full content:
   #[test]
   fn html_export_code_in_link_text() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("<code>code</code> in link</a>"),
       "inline code in link should render as <code>code</code> inside <a>: {}",
@@ -586,7 +634,7 @@ full content:
   #[test]
   fn html_export_container_shorthand() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_shorthand.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(exported.content.contains(
       r"<toc />
 "
@@ -604,7 +652,7 @@ full content:
   #[test]
   fn html_export_container_empty_named_slot() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_container_empty_slot.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("<template #key>"),
@@ -623,7 +671,7 @@ full content:
   #[test]
   fn html_export_blob_empty() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert_eq!(exported.schema, Some("blob".to_string()));
     assert!(exported.content.is_empty());
     assert!(exported.headings.is_empty());
@@ -633,7 +681,7 @@ full content:
   #[test]
   fn html_export_schema_and_header() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert_eq!(exported.schema, Some("Person".to_string()));
     // Header now uses _type-tagged bindings format
     let fields = &exported.header["fields"];
@@ -644,7 +692,7 @@ full content:
   #[test]
   fn html_export_fref_link() {
     let (db, project, file) = load_vault_fixture("evaluate/base_path_vault", "with_fref.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported
         .content
@@ -655,7 +703,7 @@ full content:
   #[test]
   fn html_export_fref_image() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_asset_fref.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported
         .content
@@ -666,7 +714,7 @@ full content:
   #[test]
   fn html_export_relative_fref_image() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "subdir/relative_fref.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains("<img src=") && exported.content.contains("test.svg"),
       "relative fref should render as img tag: {}",
@@ -677,7 +725,7 @@ full content:
   #[test]
   fn html_export_no_raw_markdown() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(!exported.content.contains(
       r"
 > "
@@ -697,7 +745,7 @@ full content:
   #[test]
   fn html_export_heading_slugs_unique() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "all_md_elements.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let slugs: Vec<&str> = exported
       .headings
       .iter()
@@ -717,7 +765,8 @@ full content:
   #[test]
   fn html_export_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
-    let exported = export_resource_html(&db, project, file).expect("body-only file should export");
+    let exported =
+      export_page_resource_html(&db, project, file).expect("body-only file should export");
     assert!(
       exported
         .content
@@ -733,7 +782,7 @@ full content:
   #[test]
   fn html_linked_image_badge() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "linked_image.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains(r#"<a href="mailto:huydo862003@gmail.com""#),
@@ -754,7 +803,7 @@ full content:
   #[test]
   fn html_export_body_only_nested_vault() {
     let (db, project, file) = load_vault_fixture("evaluate/nested_vault", "vault/body_only.td");
-    let exported = export_resource_html(&db, project, file);
+    let exported = export_page_resource_html(&db, project, file);
     assert!(
       exported.is_some(),
       "body-only file in nested vault should export"
@@ -770,7 +819,7 @@ full content:
   #[test]
   fn html_export_preserves_external_url() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains(r#"href="https://example.com""#),
       "external URL should pass through unchanged: {}",
@@ -781,7 +830,7 @@ full content:
   #[test]
   fn html_export_preserves_anchor_url() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains(r##"href="#section""##),
       "anchor URL should pass through unchanged: {}",
@@ -792,7 +841,7 @@ full content:
   #[test]
   fn html_export_resolves_relative_link() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "url_resolution.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.content.contains(r#"href="/other""#),
       "relative .td link should have .td stripped for browser navigation: {}",
@@ -803,7 +852,7 @@ full content:
   #[test]
   fn html_export_media_with_title() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "media_with_title.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("<figure>"),
@@ -822,7 +871,7 @@ full content:
   #[test]
   fn html_export_link_with_title() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "link_with_title.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains(r#"title="Visit Example""#),
@@ -837,7 +886,7 @@ full content:
   #[test]
   fn html_export_github_file_embed() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "github_embed.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("class=\"td-github-placeholder\""),
@@ -860,7 +909,7 @@ full content:
   #[test]
   fn html_export_github_gist_embed() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "github_embed.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("data-url=\"https://gist.github.com/octocat/6cad326836d38bd3a7ae\""),
@@ -871,7 +920,7 @@ full content:
   #[test]
   fn html_export_nested_bullet_list() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "nested_list.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert_eq!(
       exported.content,
       r##"<ul>
@@ -911,7 +960,7 @@ full content:
   #[test]
   fn html_export_nested_container_indented() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "md_nested_container.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("<grid"),
@@ -939,7 +988,7 @@ full content:
   fn html_export_nested_container_not_indented() {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "md_nested_container_flat.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains("<grid-cell>"),
@@ -955,7 +1004,7 @@ full content:
   fn html_export_nested_container_with_props() {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "md_nested_container_props.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains(r#":columns="3""#),
@@ -971,7 +1020,7 @@ full content:
   #[test]
   fn html_export_local_image_dimensions() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "local_image.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains(r#"width="208""#),
@@ -987,7 +1036,7 @@ full content:
   #[test]
   fn html_export_image_with_title_has_dimensions() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "media_with_title.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       content.contains(r#"width="208""#),
@@ -1003,7 +1052,7 @@ full content:
   #[test]
   fn html_export_external_image_no_dimensions() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "linked_image.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     assert!(
       !content.contains(r#"width=""#),
@@ -1016,7 +1065,7 @@ full content:
   fn html_export_vault_query_interpolation() {
     let (db, project, file) =
       load_vault_fixture("evaluate/graph_query_vault", "vault_query_interp.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let content = &exported.content;
     // Interpolation should be evaluated to a concrete number, not raw expression
     assert!(

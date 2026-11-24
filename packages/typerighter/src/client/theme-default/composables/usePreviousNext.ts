@@ -24,7 +24,10 @@ export function usePreviousNext (): {
     withBase, title: siteTitle,
   } = useSiteConfig();
 
-  const result = computed(() => {
+  const result = computed((): {
+    previous?: PreviousNextLink;
+    next?: PreviousNextLink;
+  } => {
     const allPages = flattenTree(siteData.value.contentTree, siteTitle);
     let index = allPages.findIndex((page) => page.url === route.path);
 

@@ -30,6 +30,8 @@ import {
   RESOLVED_SITE_DATA_ID,
   SEARCH_INDEX_ID,
   RESOLVED_SEARCH_INDEX_ID,
+  COMPONENT_RESOURCES_PREFIX,
+  RESOLVED_COMPONENT_RESOURCES_PREFIX,
   THEME_ID,
   RESOLVED_THEME_ID,
 } from './constants';
@@ -51,6 +53,9 @@ import {
 import {
   VirtualSearchIndex,
 } from './virtual/search-index';
+import {
+  VirtualResources,
+} from './virtual/resources';
 import {
   resolveAliases,
 } from './alias';
@@ -97,6 +102,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   const virtualPageData = new VirtualPageData();
   const virtualSiteData = new VirtualSiteData();
   const virtualSearchIndex = new VirtualSearchIndex();
+  const virtualResources = new VirtualResources();
 
   const cache: TypedownPluginCache = {
     devHtml: undefined,
@@ -187,6 +193,7 @@ ${lines.join('\n')}`,
       if (id === '/' + VIRTUAL_APP_ID || id === VIRTUAL_APP_ID)
         return RESOLVED_VIRTUAL_APP_ID;
       if (id === PAGES_ID) return RESOLVED_PAGES_ID;
+      if (id.startsWith(COMPONENT_RESOURCES_PREFIX)) return '\0' + id;
       const resolvedPageData = virtualPageData.resolve(id);
 
       if (resolvedPageData) return resolvedPageData;
@@ -199,6 +206,14 @@ ${lines.join('\n')}`,
     async load (id) {
       if (virtualPageData.isResolved(id)) {
         return virtualPageData.load(id, await resolveTdContext());
+      }
+
+      if (id.startsWith(RESOLVED_COMPONENT_RESOURCES_PREFIX)) {
+        const componentType = id.slice(RESOLVED_COMPONENT_RESOURCES_PREFIX.length);
+
+        await virtualResources.fetch(await resolveTdContext(), componentType);
+
+        return virtualResources.load(componentType);
       }
 
       if (
@@ -302,6 +317,7 @@ ${lines.join('\n')}`,
         if (!server) return;
         notifyFileModulesHmrClient(filepath, ...affectedFiles);
         virtualPageData.notifyHmrClient(server, tdContext, filepath);
+        virtualResources.invalidate(tdContext, server).catch(() => { });
       });
 
       // Frontmatter changed: patch sidebar locally, reindex search
@@ -319,6 +335,7 @@ ${lines.join('\n')}`,
         virtualSearchIndex.notifyHmrClient(server);
         notifyFileModulesHmrClient(filepath, ...affectedFiles);
         virtualPageData.notifyHmrClient(server, tdContext, filepath);
+        virtualResources.invalidate(tdContext, server).catch(() => { });
       });
 
       // New file created: add to sidebar
@@ -335,6 +352,7 @@ ${lines.join('\n')}`,
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
+        virtualResources.invalidate(tdContext, server).catch(() => { });
       });
 
       // File deleted: remove from sidebar
@@ -349,6 +367,7 @@ ${lines.join('\n')}`,
         virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
         notifyFileModulesHmrClient(filepath);
+        virtualResources.invalidate(tdContext, server).catch(() => { });
       });
 
       // Schema changed: patch schema locally

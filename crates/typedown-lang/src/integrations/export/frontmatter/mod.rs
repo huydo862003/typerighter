@@ -43,7 +43,7 @@ pub(crate) enum ResourceKind {
 }
 
 /// Export a content listing entry (no body, includes header)
-pub fn export_resource_summary(
+pub fn export_page_resource_summary(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -91,7 +91,7 @@ pub fn export_ssg_flags(db: &TypedownDatabase, project: Project, file: File) -> 
 }
 
 /// Export a lightweight sidebar nav entry (no header or body)
-pub fn export_resource_nav(
+pub fn export_page_resource_nav(
   db: &TypedownDatabase,
   project: Project,
   file: File,
@@ -293,14 +293,16 @@ mod tests {
   use crate::db::types::{File, FileHandle, FileMetadata, Project, TdRuntimeObj};
   use crate::db::{QueryStorage, TypedownDatabase};
   use crate::integrations::bindings::file_ref::resolve_schema_label;
-  use crate::integrations::export::content::{export_resource_html, export_resource_markdown};
+  use crate::integrations::export::content::{
+    export_page_resource_html, export_page_resource_markdown,
+  };
   use std::collections::HashMap;
   use std::path::PathBuf;
 
   #[test]
   fn exports_header_fields() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert_eq!(
       exported.schema,
       Some("Person".to_string()),
@@ -327,14 +329,14 @@ mod tests {
   #[test]
   fn returns_none_for_schema() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "_types/Person.td");
-    let result = export_resource_markdown(&db, project, file);
+    let result = export_page_resource_markdown(&db, project, file);
     assert!(result.is_none(), "schema should return None");
   }
 
   #[test]
   fn exports_asset_as_blob_descriptor() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "icon.svg");
-    let exported = export_resource_markdown(&db, project, file).expect("asset should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("asset should export");
     assert_eq!(exported.schema, Some("blob".to_string()));
     assert!(exported.content.is_empty(), "asset has no markdown body");
   }
@@ -343,7 +345,7 @@ mod tests {
   fn exports_schemaless_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless.td");
     let exported =
-      export_resource_markdown(&db, project, file).expect("schemaless file should export");
+      export_page_resource_markdown(&db, project, file).expect("schemaless file should export");
     assert_eq!(
       exported.schema, None,
       "schemaless file should have no schema"
@@ -358,7 +360,7 @@ mod tests {
   #[test]
   fn exports_schemaless_file_with_label_and_icon() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "schemaless_with_label.td");
-    let exported = export_resource_markdown(&db, project, file).expect("should export");
+    let exported = export_page_resource_markdown(&db, project, file).expect("should export");
     assert_eq!(exported.schema, None);
     assert_eq!(exported.label.as_deref(), Some("My Custom Title"));
     assert!(
@@ -372,7 +374,7 @@ mod tests {
   #[test]
   fn exports_date_string_label() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "label_with_date.td");
-    let nav = export_resource_nav(&db, project, file).expect("should export nav");
+    let nav = export_page_resource_nav(&db, project, file).expect("should export nav");
     assert_eq!(
       nav.label.as_deref(),
       Some("2026-11-19"),
@@ -398,7 +400,7 @@ mod tests {
   fn summary_export_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
     let exported =
-      export_resource_summary(&db, project, file).expect("body-only file should export");
+      export_page_resource_summary(&db, project, file).expect("body-only file should export");
     assert!(exported.schema.is_none());
     assert!(exported.excerpt.is_some());
   }
@@ -406,14 +408,15 @@ mod tests {
   #[test]
   fn nav_export_body_only_file() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "body_only.td");
-    let exported = export_resource_nav(&db, project, file).expect("body-only file should export");
+    let exported =
+      export_page_resource_nav(&db, project, file).expect("body-only file should export");
     assert!(exported.schema.is_none());
   }
 
   #[test]
   fn exports_fref_list_in_header() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "book_with_frefs.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let header = &exported.header;
     assert_eq!(
       header["_type"], "schema",
@@ -450,7 +453,7 @@ mod tests {
   fn exports_absolute_fref_in_header() {
     let (db, project, file) =
       load_vault_fixture("evaluate/my_vault", "book_with_absolute_frefs.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let header = &exported.header;
     assert_eq!(header["_type"], "schema", "header should be _type-tagged");
     let fields = header
@@ -483,7 +486,7 @@ mod tests {
   #[test]
   fn extracts_seo_metadata() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "with_meta.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let seo = exported.seo_metadata.expect("_meta should be extracted");
     assert_eq!(seo.title.as_deref(), Some("Custom SEO Title"));
     assert_eq!(seo.description.as_deref(), Some("Custom SEO description"));
@@ -493,7 +496,7 @@ mod tests {
   #[test]
   fn no_seo_metadata_when_absent() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "valid_person.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     assert!(
       exported.seo_metadata.is_none(),
       "seo_metadata should be None when not set"
@@ -552,7 +555,7 @@ mod tests {
   #[test]
   fn meta_lang_exported() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "meta_with_lang.td");
-    let exported = export_resource_html(&db, project, file).expect("should export");
+    let exported = export_page_resource_html(&db, project, file).expect("should export");
     let seo = exported
       .seo_metadata
       .expect("seo_metadata should be present");
@@ -638,7 +641,8 @@ name: "Alice"
         .is_none()
     );
 
-    let exported = export_resource_markdown(&db, project, content_file).expect("should export");
+    let exported =
+      export_page_resource_markdown(&db, project, content_file).expect("should export");
     assert_eq!(exported.schema.as_deref(), Some("MySchema"));
 
     schema_file.set_handle(
@@ -674,8 +678,8 @@ properties:
       "should have _icon after mutation"
     );
 
-    let exported2 =
-      export_resource_markdown(&db, project, content_file).expect("should export after mutation");
+    let exported2 = export_page_resource_markdown(&db, project, content_file)
+      .expect("should export after mutation");
     assert_eq!(exported2.schema.as_deref(), Some("MySchema"));
   }
 }

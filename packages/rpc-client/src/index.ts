@@ -180,6 +180,12 @@ export interface TdBuiltResource {
   showInSidebar: boolean;
   showInSearch: boolean;
   crawlable: boolean;
+  resources?: TdComponentResourceEntry[];
+}
+
+export interface TdComponentResourceEntry {
+  type: string;
+  fields: Record<string, string>;
 }
 
 // Server-reserved JSON-RPC error code for cancelled queries (-32000 to -32099)
@@ -193,6 +199,7 @@ const METHOD_REQUEST_FILES = 'typedown_build.request_files';
 const METHOD_LIST_VAULT = 'typedown_build.list_vault';
 const METHOD_LIST_FILES_GROUPED_BY_SCHEMA = 'typedown_build.list_files_grouped_by_schema';
 const METHOD_LIST_SIDEBAR = 'typedown_build.list_sidebar';
+const METHOD_LIST_COMPONENT_RESOURCES = 'typedown_build.list_component_resources';
 const METHOD_LIST_SCHEMAS = 'typedown_build.list_schemas';
 const METHOD_GET_SCHEMA = 'typedown_build.get_schema';
 const METHOD_GET_VERSION = 'typedown_build.get_version';
@@ -262,6 +269,10 @@ export class RpcClient {
 
   listSidebar (): Promise<TdSidebarItem[]> {
     return this.rpc.sendRequest(METHOD_LIST_SIDEBAR, {});
+  }
+
+  listComponentResources (componentType: string): Promise<Array<{ type: string; filepath: string; fields: Record<string, string> }>> {
+    return this.rpc.sendRequest(METHOD_LIST_COMPONENT_RESOURCES, { componentType });
   }
 
   listSchemas (): Promise<string[]> {

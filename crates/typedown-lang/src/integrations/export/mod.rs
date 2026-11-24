@@ -10,8 +10,10 @@ pub use crate::integrations::bindings::{
   FrefTarget, ResolvedRef, evaluate_lazy_field, resolve_file_ref, resolve_fref_target,
   resolve_schema_label, serialize_handle, serialize_value,
 };
-pub use content::{export_resource_html, export_resource_markdown};
-pub use frontmatter::{export_resource_nav, export_resource_summary, export_ssg_flags};
+pub use content::{
+  export_component_resources, export_page_resource_html, export_page_resource_markdown,
+};
+pub use frontmatter::{export_page_resource_nav, export_page_resource_summary, export_ssg_flags};
 pub use props::{Widget, export_prop_descriptors};
 pub use types::*;
 

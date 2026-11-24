@@ -25,8 +25,8 @@ use typedown_lang::db::derived::typechecker::typecheck::typecheck;
 use typedown_lang::db::types::{CustomComponentEntry, File, Project, ProjectRedNode, SymbolKind};
 use typedown_lang::db::utils::{is_content_file, is_internal_file, is_typ_file};
 use typedown_lang::integrations::export::{
-  export_prop_descriptors, export_resource_html, export_resource_nav, export_resource_summary,
-  export_ssg_flags, resolve_schema_label,
+  export_component_resources, export_page_resource_html, export_page_resource_nav,
+  export_page_resource_summary, export_prop_descriptors, export_ssg_flags, resolve_schema_label,
 };
 use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::integrations::lint::lint_markdown;
@@ -561,7 +561,7 @@ fn build_sidebar_item(
   file: File,
   relative: &str,
 ) -> Option<TdSidebarItem> {
-  let nav = export_resource_nav(db, project, file)?;
+  let nav = export_page_resource_nav(db, project, file)?;
   let schema_label = get_schema_label(db, project, nav.schema.as_deref());
   let flags = export_ssg_flags(db, project, file);
   Some(TdSidebarItem {
@@ -614,6 +614,12 @@ fn dispatch_request(
     schema: String,
   }
 
+  #[derive(serde::Deserialize)]
+  #[serde(rename_all = "camelCase")]
+  struct ResourceParams {
+    component_type: String,
+  }
+
   match method {
     METHOD_REQUEST_FILE => {
       let params: FilePathParams = parse_params(params)?;
@@ -628,6 +634,10 @@ fn dispatch_request(
       Ok(serde_json::to_value(list_files_grouped_by_schema(analysis)?).unwrap())
     }
     METHOD_LIST_SIDEBAR => Ok(serde_json::to_value(list_sidebar(analysis)?).unwrap()),
+    METHOD_LIST_COMPONENT_RESOURCES => {
+      let params: ResourceParams = parse_params(params)?;
+      Ok(serde_json::to_value(list_component_resources(analysis, &params.component_type)?).unwrap())
+    }
     METHOD_LIST_SCHEMAS => Ok(serde_json::to_value(list_schemas(analysis)?).unwrap()),
     METHOD_GET_SCHEMA => {
       let params: SchemaParams = parse_params(params)?;
@@ -696,7 +706,7 @@ fn build_files(analysis: &Analysis, file_paths: &[String]) -> RpcResult<Vec<TdBu
       .get(&path)
       .ok_or_else(|| RpcError::invalid_params(format!("File not found: {entry}")))?;
 
-    let exported = export_resource_html(db, project, *file)
+    let exported = export_page_resource_html(db, project, *file)
       .ok_or_else(|| RpcError::invalid_params(format!("File is not a resource: {entry}")))?;
 
     let schema_label = get_schema_label(db, project, exported.schema.as_deref());
@@ -781,7 +791,7 @@ fn list_files_grouped_by_schema(
       continue;
     }
     let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    if let Some(summary) = export_resource_summary(db, project, *file) {
+    if let Some(summary) = export_page_resource_summary(db, project, *file) {
       let group_key = summary.schema.clone().unwrap_or_default();
       let schema_label = get_schema_label(db, project, summary.schema.as_deref());
       groups.entry(group_key).or_default().push(TdContentSummary {
@@ -825,6 +835,36 @@ fn list_sidebar(analysis: &Analysis) -> RpcResult<Vec<TdSidebarItem>> {
   apply_ssg_cascade(&mut items);
 
   Ok(items)
+}
+
+fn list_component_resources(
+  analysis: &Analysis,
+  component_type: &str,
+) -> RpcResult<Vec<serde_json::Value>> {
+  let db = &analysis.db;
+  let project = analysis.project;
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  let files = project.files(db);
+
+  let mut result = Vec::new();
+  for (path, file) in files.iter() {
+    if !path.starts_with(&root_dir) || !is_content_file(path) {
+      continue;
+    }
+    let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+    for resource in export_component_resources(db, project, *file) {
+      if resource.component_type == component_type {
+        result.push(serde_json::json!({
+          "type": resource.component_type,
+          "filepath": relative,
+          "fields": resource.fields,
+        }));
+      }
+    }
+  }
+
+  Ok(result)
 }
 
 // Cascade SSG flags from index.td to all files in the same directory and subdirectories

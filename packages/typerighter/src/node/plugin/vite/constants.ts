@@ -12,9 +12,14 @@ export const RESOLVED_SITE_DATA_ID = '\0' + SITE_DATA_ID;
 export const SEARCH_INDEX_ID = '@typedown/search-index';
 export const RESOLVED_SEARCH_INDEX_ID = '\0' + SEARCH_INDEX_ID;
 
+export const COMPONENT_RESOURCES_ID = '@typedown/resources';
+export const COMPONENT_RESOURCES_PREFIX = COMPONENT_RESOURCES_ID + '?type=';
+export const RESOLVED_COMPONENT_RESOURCES_PREFIX = '\0' + COMPONENT_RESOURCES_PREFIX;
+
 export const THEME_ID = '@typedown/theme';
 export const RESOLVED_THEME_ID = '\0' + THEME_ID;
 
 export const PAGE_DATA_EVENT = 'typedown:page-data';
 export const SITE_DATA_EVENT = 'typedown:site-data';
 export const SEARCH_INDEX_EVENT = 'typedown:search-index';
+export const RESOURCES_EVENT = 'typedown:resources';

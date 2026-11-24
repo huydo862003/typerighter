@@ -17,6 +17,7 @@ pub const METHOD_LIST_SCHEMAS: &str = "typedown_build.list_schemas";
 pub const METHOD_GET_SCHEMA: &str = "typedown_build.get_schema";
 pub const METHOD_GET_VERSION: &str = "typedown_build.get_version";
 pub const METHOD_GET_CONFIG: &str = "typedown_build.get_config";
+pub const METHOD_LIST_COMPONENT_RESOURCES: &str = "typedown_build.list_component_resources";
 pub const METHOD_CHECK_VAULT: &str = "typedown_build.check_vault";
 pub const METHOD_FORMAT_FILE: &str = "typedown_build.format_file";
 

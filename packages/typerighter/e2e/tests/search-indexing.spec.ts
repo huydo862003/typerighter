@@ -1,9 +1,12 @@
+import type {
+  Locator, Page,
+} from '@playwright/test';
 import {
   e2e, expect,
 } from '../fixtures';
 
 // Helper: type a query and wait for results
-async function searchFor (page, sidebar, query) {
+async function searchFor (page: Page, sidebar: Locator, query: string) {
   const searchInput = sidebar.locator('input[type="text"]');
 
   await expect(searchInput).toBeVisible({

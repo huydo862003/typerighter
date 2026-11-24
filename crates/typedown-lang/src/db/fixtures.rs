@@ -158,7 +158,17 @@ pub fn load_vault_fixture(
     )
   });
 
-  let project = Project::new(&db, vault, files, None);
+  let contract_path = vault.join(".typedown/components.json");
+  let contract_file = if contract_path.is_file() {
+    Some(File::new(
+      &db,
+      FileHandle::Path(contract_path.clone(), get_path_metadata(&contract_path)),
+    ))
+  } else {
+    None
+  };
+
+  let project = Project::new(&db, vault, files, contract_file);
   (db, project, target_file)
 }
 

@@ -4,6 +4,9 @@ import {
   ref,
   watch,
 } from 'vue';
+import {
+  defineResource,
+} from '@/shared';
 
 defineOptions({
   inheritAttrs: false,
@@ -15,6 +18,7 @@ const {
   disabled = false,
   questionLabel = 'Question',
   keyLabel = 'Answer',
+  deck = undefined,
 } = defineProps<{
   /** HTML id attribute */
   id?: string;
@@ -26,7 +30,26 @@ const {
   questionLabel?: string;
   /** Caption shown above the key */
   keyLabel?: string;
+  /** Deck name for grouping in a deck-set */
+  deck?: string;
 }>();
+
+defineResource({
+  fields: {
+    question: {
+      from: 'slot',
+      name: 'default',
+    },
+    answer: {
+      from: 'slot',
+      name: 'key',
+    },
+    deck: {
+      from: 'prop',
+      name: 'deck',
+    },
+  },
+});
 
 const isRevealed = ref(initialState);
 

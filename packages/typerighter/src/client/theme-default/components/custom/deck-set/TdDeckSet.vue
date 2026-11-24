@@ -2,42 +2,36 @@
 import {
   computed, onMounted,
 } from 'vue';
+import {
+  resources,
+} from '@typedown/resources?type=flashcard';
 import TdDeck from './TdDeck.vue';
 import {
-  pruneStaleCards,
-} from '@/client/theme-default/composables/useFlashcardStore';
+  useFlashcardStore,
+} from '@/client/theme-default/composables/flashcard';
 import {
-  useSiteData, useRoute,
+  useRoute,
 } from '@/client/app';
 import {
-  ensureTrailingSlash, flattenContentTree, getParentUrl, stripLeadingSlash,
+  ensureTrailingSlash, getParentUrl, stripLeadingSlash,
 } from '@/shared';
 import type {
-  ContentSummary,
+  Resource,
 } from '@/shared';
 
 const {
-  name,
-  schema = undefined,
-  folder = undefined,
+  name, folder = undefined,
 } = defineProps<{
   /** Display name shown above the deck set */
   name: string;
-  /** Filter by schema name (e.g. "PltFlashcard"). If omitted, matches any schema containing "Flashcard" */
-  schema?: string;
   /** Folder to scan for flashcards. Same format as fref() paths: "/abs", "./rel", "../rel". Defaults to current directory */
   folder?: string;
 }>();
 
 const route = useRoute();
-const siteData = useSiteData();
-
-function isFlashcardSchema (schemaName: string | undefined): boolean {
-  if (!schemaName) return false;
-  if (schema) return schemaName === schema;
-
-  return schemaName.includes('Flashcard');
-}
+const {
+  pruneStaleCards,
+} = useFlashcardStore();
 
 function resolveFolder (): string {
   const pageDirectory = stripLeadingSlash(getParentUrl(route.path));
@@ -56,17 +50,15 @@ function resolveFolder (): string {
 }
 
 const decks = computed(() => {
-  const allItems = flattenContentTree(siteData.value.contentTree.entries);
   const prefix = ensureTrailingSlash(resolveFolder());
 
-  const flashcards = allItems.filter(
-    (item) => isFlashcardSchema(item.schema) && item.filepath.startsWith(prefix),
-  );
+  const flashcards = resources.value.filter((resource) =>
+    resource.filepath.startsWith(prefix));
 
-  const groups = new Map<string, ContentSummary[]>();
+  const groups = new Map<string, Resource[]>();
 
   for (const card of flashcards) {
-    const deckName = (card.header?.deck as string) ?? '';
+    const deckName = card.fields.deck ?? '';
     const list = groups.get(deckName) ?? [];
 
     list.push(card);
@@ -83,10 +75,9 @@ const decks = computed(() => {
 });
 
 onMounted(async () => {
-  const allFlashcards = flattenContentTree(siteData.value.contentTree.entries)
-    .filter((item) => isFlashcardSchema(item.schema));
-
-  await pruneStaleCards(new Set(allFlashcards.map((item) => item.filepath)));
+  await pruneStaleCards(
+    new Set(resources.value.map((resource) => resource.filepath)),
+  );
 });
 </script>
 

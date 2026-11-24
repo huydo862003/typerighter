@@ -36,6 +36,8 @@ These components are available without any configuration:
 | `details` | Collapsible section with title | `::: details Title ... :::` |
 | `grid` | Grid layout container | `::: grid{columns=3} ... :::` |
 | `grid-cell` | Cell within a grid | `::: grid-cell ... :::` |
+| `flashcard` | Flip card with question and answer sides | `::: flashcard ... :::` |
+| `deck-set` | Aggregates flashcards for spaced repetition review | `[[deck-set {name="My Deck"}]]` |
 
 ### Grid layout
 
@@ -94,6 +96,45 @@ This cell spans two columns
 Normal cell
 :::
 :::
+
+### Flashcard
+
+The `flashcard` component creates a flip card with a question on the front and an answer on the back. The default slot holds the question text, and the `key` slot holds the answer:
+
+```markdown
+:::flashcard
+What is the capital of France?
+
+=== key
+Paris
+:::
+```
+
+Props:
+
+| Prop | Type | Description |
+| ---- | ---- | ----------- |
+| `question-label` | string | Caption above the question (default: "Question") |
+| `key-label` | string | Caption above the answer (default: "Answer") |
+| `revealed` | boolean | Start with the answer side showing |
+| `disabled` | boolean | Disable flipping interaction |
+
+### Deck set
+
+The `deck-set` component collects all flashcards from the vault and presents them as a reviewable deck with spaced repetition (SM-2 algorithm). Card progress is stored locally in IndexedDB.
+
+```markdown
+[[deck-set {name="Biology"}]]
+```
+
+Props:
+
+| Prop | Type | Description |
+| ---- | ---- | ----------- |
+| `name` | string | Display name shown above the deck (required) |
+| `folder` | string | Folder to scan for flashcards. Same format as fref paths: `/abs`, `./rel`, `../rel`. Defaults to the current directory |
+
+The deck set finds flashcards by querying the component resource pipeline. Each flashcard's question and answer text are extracted from its slots at build time, so the deck can display card previews without loading every page.
 
 ## User-defined components
 

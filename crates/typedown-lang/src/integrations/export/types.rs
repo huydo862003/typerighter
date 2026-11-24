@@ -1,6 +1,8 @@
 //! Public types for resource export results
 
-use super::content::html::ExportedHeading;
+use std::collections::BTreeMap;
+
+use crate::integrations::export::content::html::ExportedHeading;
 
 /// Structured export result for markdown output
 #[derive(serde::Serialize)]
@@ -93,6 +95,16 @@ pub struct ExportedResourceHtml {
   /// SSG flags from the _ssg builtin field
   #[serde(flatten)]
   pub ssg_flags: ExportedSsgFlags,
+  /// Component resources extracted from the page body
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub resources: Vec<ExportedComponentResource>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, Default)]
+pub struct ExportedComponentResource {
+  #[serde(rename = "type")]
+  pub component_type: String,
+  pub fields: BTreeMap<String, String>,
 }
 
 /// Content listing entry: includes header for filtering, no body
