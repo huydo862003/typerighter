@@ -24,7 +24,7 @@
 ### Fixed
 
 - packages/typerighter
-  - Make deck overflow-auto
+  - Make deck entry overflow auto
 
 ## [0.69.0] - 2026-11-24
 
