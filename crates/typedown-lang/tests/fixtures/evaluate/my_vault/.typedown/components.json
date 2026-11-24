@@ -1,0 +1,15 @@
+{
+  "Flashcard": {
+    "source": "typerighter/src/client/theme-default/components/custom/flashcard/TdFlashcard.vue",
+    "props": {
+      "deck": { "schema": { "type": "string" }, "required": false }
+    },
+    "resource": {
+      "fields": {
+        "question": { "from": "slot", "name": "default" },
+        "answer": { "from": "slot", "name": "key" },
+        "deck": { "from": "prop", "name": "deck" }
+      }
+    }
+  }
+}
