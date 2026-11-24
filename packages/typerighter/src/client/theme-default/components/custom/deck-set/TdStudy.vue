@@ -10,12 +10,14 @@ import {
 } from '@/client/theme-default/composables/flashcard';
 import type {
   CardState,
+  StudyMode,
 } from '@/client/theme-default/composables/flashcard';
+import {
+  previewIntervals,
+} from '@/client/theme-default/composables/flashcard/sm2';
 import type {
   Resource,
 } from '@/shared';
-
-export type StudyMode = 'review' | 'preview' | 'cram';
 
 const {
   deckName,
@@ -82,31 +84,13 @@ const intervals = computed(() => {
   const state = currentEntry.value
     ? cardStates.value.get(currentEntry.value.filepath)
     : undefined;
-
-  if (!state) {
-    return {
-      again: '<1m',
-      hard: '1d',
-      good: '1d',
-      easy: '4d',
-    };
-  }
-
-  const ease = state.easeFactor;
-  const reps = state.repetitions;
-  const interval = state.interval;
-
-  let baseInterval: number;
-
-  if (reps === 0) baseInterval = 1;
-  else if (reps === 1) baseInterval = 6;
-  else baseInterval = Math.round(interval * ease);
+  const preview = previewIntervals(state);
 
   return {
-    again: '<1m',
-    hard: formatInterval(Math.max(1, Math.round(baseInterval * 0.6))),
-    good: formatInterval(baseInterval),
-    easy: formatInterval(Math.round(baseInterval * 1.3)),
+    again: formatInterval(preview.again),
+    hard: formatInterval(preview.hard),
+    good: formatInterval(preview.good),
+    easy: formatInterval(preview.easy),
   };
 });
 
@@ -116,6 +100,7 @@ function close () {
 
 async function grade (level: 'again' | 'hard' | 'good' | 'easy') {
   if (!revealed.value) return;
+  if (queue.value.length === 0) return;
 
   const entry = queue.value.shift()!;
 

@@ -8,12 +8,10 @@ import {
 import TdStudy from './TdStudy.vue';
 import type {
   StudyMode,
-} from './TdStudy.vue';
+  CardState,
+} from '@/client/theme-default/composables/flashcard';
 import {
   useFlashcardStore,
-} from '@/client/theme-default/composables/flashcard';
-import type {
-  CardState,
 } from '@/client/theme-default/composables/flashcard';
 import {
   useRoute,

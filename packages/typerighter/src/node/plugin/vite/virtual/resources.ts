@@ -36,10 +36,10 @@ if (import.meta.hot) {
 }`;
   }
 
+  // Full fetch from RPC, used on initial load
   async fetch (context: TypedownContext, componentType: string): Promise<void> {
     const resources = await context.listComponentResources(componentType);
 
-    // Render math placeholders in resource fields (slot HTML contains raw LaTeX placeholders)
     for (const resource of resources) {
       for (const key of Object.keys(resource.fields)) {
         resource.fields[key] = renderMathBlocks(resource.fields[key]);
@@ -49,9 +49,62 @@ if (import.meta.hot) {
     this.cache.set(componentType, resources);
   }
 
-  async invalidate (context: TypedownContext, server: ViteDevServer): Promise<void> {
-    for (const componentType of this.cache.keys()) {
-      await this.fetch(context, componentType);
+  // Patch cache for a single file: remove old entries, add new ones
+  // Returns the set of component types that changed (need HMR push)
+  patchFile (filepath: string, newResources: Resource[]): Set<string> {
+    const changed = new Set<string>();
+
+    // Render math in new resources
+    for (const resource of newResources) {
+      for (const key of Object.keys(resource.fields)) {
+        resource.fields[key] = renderMathBlocks(resource.fields[key]);
+      }
+    }
+
+    for (const [
+      componentType,
+      cached,
+    ] of this.cache) {
+      const hadEntries = cached.some((resource) => resource.filepath === filepath);
+      const newEntries = newResources.filter((resource) => resource.type === componentType);
+
+      if (!hadEntries && newEntries.length === 0) continue;
+
+      // Replace entries for this filepath
+      const filtered = cached.filter((resource) => resource.filepath !== filepath);
+
+      this.cache.set(componentType, [
+        ...filtered,
+        ...newEntries,
+      ]);
+      changed.add(componentType);
+    }
+
+    // Handle new component types not yet in cache
+    for (const resource of newResources) {
+      if (!changed.has(resource.type) && !this.cache.has(resource.type)) {
+        // New type not in cache yet, skip (will be fetched on first load)
+        continue;
+      }
+    }
+
+    return changed;
+  }
+
+  // Remove all entries for a deleted file
+  removeFile (filepath: string, server: ViteDevServer): void {
+    for (const [
+      componentType,
+      cached,
+    ] of this.cache) {
+      const hadEntries = cached.some((resource) => resource.filepath === filepath);
+
+      if (!hadEntries) continue;
+
+      this.cache.set(
+        componentType,
+        cached.filter((resource) => resource.filepath !== filepath),
+      );
       this.notifyHmrClient(server, componentType);
     }
   }

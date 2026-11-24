@@ -93,3 +93,36 @@ export function nextState (current: CardState, quality: number): CardState {
     lastGrade: gradeName,
   };
 }
+
+// Returns predicted next intervals (in days) for each grade given a card state
+// 0 means sub-day (e.g. 60s retry for "again")
+export function previewIntervals (state: CardState | undefined): {
+  again: number;
+  hard: number;
+  good: number;
+  easy: number;
+} {
+  if (!state || state.repetitions === 0) {
+    return {
+      again: 0,
+      hard: 1,
+      good: 1,
+      easy: 4,
+    };
+  }
+
+  let baseInterval: number;
+
+  if (state.repetitions === 1) {
+    baseInterval = 6;
+  } else {
+    baseInterval = Math.round(state.interval * state.easeFactor);
+  }
+
+  return {
+    again: 0,
+    hard: Math.max(1, Math.round(baseInterval * 0.6)),
+    good: baseInterval,
+    easy: Math.round(baseInterval * 1.3),
+  };
+}

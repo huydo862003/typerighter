@@ -52,3 +52,7 @@ See the [Navigation Guide](navigation) for keyboard shortcuts and tips.
 ### C++ and C#
 
 ### node.js vs Deno
+
+## Knowledge Graph
+
+[[knowledge-graph]]

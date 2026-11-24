@@ -19,6 +19,7 @@ import TdFlashcard from '../theme-default/components/custom/flashcard/TdFlashcar
 import TdGrid from '../theme-default/components/custom/TdGrid.vue';
 import TdGridCell from '../theme-default/components/custom/TdGridCell.vue';
 import TdGlossaryIndex from '../theme-default/components/custom/glossary/TdGlossaryIndex.vue';
+import TdKnowledgeGraph from '../theme-default/components/custom/TdKnowledgeGraph.vue';
 import TdLucideIcon from '../theme-default/components/TdLucideIcon.vue';
 import {
   Content,
@@ -242,6 +243,7 @@ export async function createTypedownApp (
   app.component('DeckSet', TdDeckSet);
   app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('GlossaryIndex', TdGlossaryIndex);
+  app.component('KnowledgeGraph', TdKnowledgeGraph);
   app.component('Flashcard', TdFlashcard);
   app.component('Grid', TdGrid);
   app.component('GridCell', TdGridCell);

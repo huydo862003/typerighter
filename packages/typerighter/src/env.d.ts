@@ -13,6 +13,24 @@ declare module '@typedown/resources?type=flashcard' {
   }>>;
 }
 
+declare module '@typedown/link-graph' {
+  import type {
+    ShallowRef,
+  } from 'vue';
+
+  export const linkGraph: ShallowRef<{
+    nodes: Array<{
+      id: string;
+      label: string;
+      schema?: string;
+    }>;
+    edges: Array<{
+      source: string;
+      target: string;
+    }>;
+  }>;
+}
+
 declare module '*.vue' {
   import type {
     DefineComponent,

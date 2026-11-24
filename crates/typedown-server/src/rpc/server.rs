@@ -18,7 +18,9 @@ use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::schema_members;
-use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
+use typedown_lang::db::derived::name_resolver::resolution_index::{
+  find_transitive_referrers, resolution_index,
+};
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
@@ -485,12 +487,17 @@ impl RpcServer {
               let new_sidebar = files
                 .get(path)
                 .and_then(|file| build_sidebar_item(db, project, *file, &relative));
+              let component_resources = files
+                .get(path)
+                .map(|file| file_component_resources(db, project, *file, &relative))
+                .unwrap_or_default();
               send_notification(
                 &sender,
                 NOTIF_CONTENT_CREATED,
                 &TdContentCreatedNotification {
                   filepath: relative,
                   sidebar: new_sidebar,
+                  component_resources,
                 },
               );
             } else {
@@ -505,6 +512,10 @@ impl RpcServer {
                 new_sidebar.as_ref(),
               ) {
                 // Frontmatter changed: push new sidebar entry
+                let component_resources = files
+                  .get(path)
+                  .map(|file| file_component_resources(db, project, *file, &relative))
+                  .unwrap_or_default();
                 send_notification(
                   &sender,
                   NOTIF_CONTENT_METADATA_CHANGED,
@@ -512,16 +523,22 @@ impl RpcServer {
                     filepath: relative,
                     affected_files,
                     sidebar: new_sidebar,
+                    component_resources,
                   },
                 );
               } else {
                 // Body-only change: lightweight notification
+                let component_resources = files
+                  .get(path)
+                  .map(|file| file_component_resources(db, project, *file, &relative))
+                  .unwrap_or_default();
                 send_notification(
                   &sender,
                   NOTIF_CONTENT_BODY_CHANGED,
                   &TdContentBodyNotification {
                     filepath: relative,
                     affected_files,
+                    component_resources,
                   },
                 );
               }
@@ -588,6 +605,25 @@ fn send_notification<T: serde::Serialize>(sender: &Sender<Message>, method: &str
   let _ = sender.send(Message::Notification(notification));
 }
 
+// Extract component resources for a single file, serialized as JSON values
+fn file_component_resources(
+  db: &TypedownDatabase,
+  project: Project,
+  file: File,
+  relative: &str,
+) -> Vec<serde_json::Value> {
+  export_component_resources(db, project, file)
+    .into_iter()
+    .map(|resource| {
+      serde_json::json!({
+        "type": resource.component_type,
+        "filepath": relative,
+        "fields": resource.fields,
+      })
+    })
+    .collect()
+}
+
 fn parse_params<T: serde::de::DeserializeOwned>(params: serde_json::Value) -> RpcResult<T> {
   serde_json::from_value(params).map_err(|error| RpcError::invalid_params(error.to_string()))
 }
@@ -638,6 +674,7 @@ fn dispatch_request(
       let params: ResourceParams = parse_params(params)?;
       Ok(serde_json::to_value(list_component_resources(analysis, &params.component_type)?).unwrap())
     }
+    METHOD_LINK_GRAPH => Ok(serde_json::to_value(link_graph(analysis)?).unwrap()),
     METHOD_LIST_SCHEMAS => Ok(serde_json::to_value(list_schemas(analysis)?).unwrap()),
     METHOD_GET_SCHEMA => {
       let params: SchemaParams = parse_params(params)?;
@@ -865,6 +902,89 @@ fn list_component_resources(
   }
 
   Ok(result)
+}
+
+fn link_graph(analysis: &Analysis) -> RpcResult<serde_json::Value> {
+  let db = &analysis.db;
+  let project = analysis.project;
+  let config = get_vault_config(db, project);
+  let root_dir = config.root_dir(db);
+  let files = project.files(db);
+
+  let mut nodes = Vec::new();
+  let mut edges = Vec::new();
+
+  // Build a filepath -> file map for target resolution
+  let mut filepath_map: HashMap<String, File> = HashMap::new();
+
+  for (path, file) in files.iter() {
+    if !path.starts_with(&root_dir) || !is_content_file(path) {
+      continue;
+    }
+    let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+    filepath_map.insert(relative.clone(), *file);
+
+    let nav = export_page_resource_nav(db, project, *file);
+    let label = nav
+      .as_ref()
+      .and_then(|nav| nav.label.clone())
+      .unwrap_or_else(|| relative.clone());
+    let schema = nav.as_ref().and_then(|nav| nav.schema.clone());
+
+    nodes.push(serde_json::json!({
+      "id": relative,
+      "label": label,
+      "schema": schema,
+    }));
+  }
+
+  // Pre-build def_id -> relative filepath index for O(1) lookups
+  let def_id_to_path: HashMap<String, String> = filepath_map
+    .iter()
+    .filter_map(|(relative, file)| {
+      let sym = file_symbol(db, project, *file).value(db)?;
+      Some((sym.definition_id(db).to_string(), relative.clone()))
+    })
+    .collect();
+
+  // For each content file, find outgoing links via the resolution index
+  for (path, file) in files.iter() {
+    if !path.starts_with(&root_dir) || !is_content_file(path) {
+      continue;
+    }
+    let source = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
+    let index = resolution_index(db, project, *file);
+
+    for def_id in index.definition_ids(db) {
+      if let Some(target) = def_id_to_path.get(&def_id)
+        && *target != source
+      {
+        edges.push(serde_json::json!({
+          "source": source,
+          "target": target,
+        }));
+      }
+    }
+  }
+
+  // Deduplicate edges
+  edges.sort_by(|first, second| {
+    let key_a = (
+      first["source"].as_str().unwrap_or(""),
+      first["target"].as_str().unwrap_or(""),
+    );
+    let key_b = (
+      second["source"].as_str().unwrap_or(""),
+      second["target"].as_str().unwrap_or(""),
+    );
+    key_a.cmp(&key_b)
+  });
+  edges.dedup();
+
+  Ok(serde_json::json!({
+    "nodes": nodes,
+    "edges": edges,
+  }))
 }
 
 // Cascade SSG flags from index.td to all files in the same directory and subdirectories
@@ -1245,8 +1365,12 @@ fn convert_lint_diagnostic(lint: &TdDiagnostic, filepath: &str, rope: &Rope) -> 
 
 #[cfg(test)]
 mod tests {
+  use std::sync::{Condvar, Mutex};
+
   use super::*;
+  use crate::core::analysis::Analysis;
   use crate::rpc::contract::{TdFileMetadata, TdSidebarItem, TdSsgFlags};
+  use typedown_lang::db::types::{FileHandle, FileMetadata};
 
   fn make_item(label: Option<&str>, show_in_search: bool) -> TdSidebarItem {
     TdSidebarItem {
@@ -1285,6 +1409,131 @@ mod tests {
     assert!(
       !has_sidebar_metadata_changed(Some(&old), Some(&new)),
       "should not trigger when nothing changed"
+    );
+  }
+
+  #[test]
+  fn link_graph_returns_nodes_and_edges() {
+    let root = std::path::PathBuf::from(if cfg!(windows) { "C:\\vault" } else { "/vault" });
+
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+
+    let config_content = r#"version: "1"
+vault:
+  root_dir: "."
+"#;
+    let schema_content = r#"---
+_type: schema
+properties:
+  ref:
+    type: Note
+---
+"#;
+    let note_content = r#"---
+_type: Note
+---
+"#;
+    let card_content = r#"---
+_type: Card
+ref: fref("/note.td")
+---
+"#;
+
+    let files = HashMap::from([
+      (
+        root.join("typedown.yaml"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("typedown.yaml"),
+            config_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("_types/Note.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("_types/Note.td"),
+            schema_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("_types/Card.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("_types/Card.td"),
+            schema_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("note.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("note.td"),
+            note_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        root.join("card.td"),
+        File::new(
+          &db,
+          FileHandle::Content(
+            root.join("card.td"),
+            card_content.to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+    ]);
+
+    let project = Project::new(&db, root, files, None);
+    let analysis = Analysis::new(
+      db,
+      project,
+      Arc::new(HashMap::new()),
+      Arc::new(HashMap::new()),
+      Arc::new((Mutex::new(1), Condvar::new())),
+    );
+
+    let result = link_graph(&analysis)
+      .ok()
+      .expect("link_graph should succeed");
+    let nodes = result["nodes"].as_array().unwrap();
+    let edges = result["edges"].as_array().unwrap();
+
+    // Should have content nodes
+    assert!(
+      nodes
+        .iter()
+        .any(|node| node["id"].as_str() == Some("note.td")),
+      "should have note.td node, got: {nodes:?}"
+    );
+    assert!(
+      nodes
+        .iter()
+        .any(|node| node["id"].as_str() == Some("card.td")),
+      "should have card.td node, got: {nodes:?}"
+    );
+
+    // card.td references note.td via fref
+    assert!(
+      edges.iter().any(|edge| {
+        edge["source"].as_str() == Some("card.td") && edge["target"].as_str() == Some("note.td")
+      }),
+      "should have edge from card.td to note.td, got: {edges:?}"
     );
   }
 }

@@ -29,17 +29,20 @@ export interface TdDiagnosticItem {
 export interface TdContentBodyNotification {
   filepath: string;
   affectedFiles?: string[];
+  componentResources?: TdComponentResourceEntry[];
 }
 
 export interface TdContentMetadataNotification {
   filepath: string;
   affectedFiles?: string[];
   sidebar?: TdSidebarItem;
+  componentResources?: TdComponentResourceEntry[];
 }
 
 export interface TdContentCreatedNotification {
   filepath: string;
   sidebar?: TdSidebarItem;
+  componentResources?: TdComponentResourceEntry[];
 }
 
 export interface TdContentDeletedNotification {
@@ -185,6 +188,7 @@ export interface TdBuiltResource {
 
 export interface TdComponentResourceEntry {
   type: string;
+  filepath: string;
   fields: Record<string, string>;
 }
 
@@ -204,6 +208,7 @@ const METHOD_LIST_SCHEMAS = 'typedown_build.list_schemas';
 const METHOD_GET_SCHEMA = 'typedown_build.get_schema';
 const METHOD_GET_VERSION = 'typedown_build.get_version';
 const METHOD_GET_CONFIG = 'typedown_build.get_config';
+const METHOD_LINK_GRAPH = 'typedown_build.link_graph';
 const METHOD_CHECK_VAULT = 'typedown_build.check_vault';
 const METHOD_FORMAT_FILE = 'typedown_build.format_file';
 
@@ -273,6 +278,10 @@ export class RpcClient {
 
   listComponentResources (componentType: string): Promise<Array<{ type: string; filepath: string; fields: Record<string, string> }>> {
     return this.rpc.sendRequest(METHOD_LIST_COMPONENT_RESOURCES, { componentType });
+  }
+
+  getLinkGraph (): Promise<{ nodes: Array<{ id: string; label: string; schema?: string }>; edges: Array<{ source: string; target: string }> }> {
+    return this.rpc.sendRequest(METHOD_LINK_GRAPH, {});
   }
 
   listSchemas (): Promise<string[]> {

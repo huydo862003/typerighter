@@ -16,6 +16,9 @@ export const COMPONENT_RESOURCES_ID = '@typedown/resources';
 export const COMPONENT_RESOURCES_PREFIX = COMPONENT_RESOURCES_ID + '?type=';
 export const RESOLVED_COMPONENT_RESOURCES_PREFIX = '\0' + COMPONENT_RESOURCES_PREFIX;
 
+export const LINK_GRAPH_ID = '@typedown/link-graph';
+export const RESOLVED_LINK_GRAPH_ID = '\0' + LINK_GRAPH_ID;
+
 export const THEME_ID = '@typedown/theme';
 export const RESOLVED_THEME_ID = '\0' + THEME_ID;
 
@@ -23,3 +26,4 @@ export const PAGE_DATA_EVENT = 'typedown:page-data';
 export const SITE_DATA_EVENT = 'typedown:site-data';
 export const SEARCH_INDEX_EVENT = 'typedown:search-index';
 export const RESOURCES_EVENT = 'typedown:resources';
+export const LINK_GRAPH_EVENT = 'typedown:link-graph';

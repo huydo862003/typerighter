@@ -1,3 +1,24 @@
+## [0.70.0] - 2026-11-24
+
+### Added
+
+- crates/typedown-server
+  - `typedown_build.link_graph` RPC endpoint returns vault pages and their inter-links
+- packages/typerighter
+  - Knowledge graph component (`[[knowledge-graph]]`) and Ctrl+G overlay
+  - Deck set redesigned as table with full-viewport study mode
+  - Three study modes: review, preview, cram
+  - Multi-deck flashcards via `deck=["A", "B"]`
+  - Deck ordering by numeric prefix
+  - Flashcard Q&A rendered as HTML with math support
+
+### Changed
+
+- crates/typedown-server
+  - Component resources for the changed file are included in content notifications, avoiding full vault re-scan on each edit
+- packages/typerighter
+  - Resource HMR patches the cache for the changed file only (O(1)) instead of re-fetching all resources via RPC
+
 ## [0.69.1] - 2026-11-24
 
 ### Fixed

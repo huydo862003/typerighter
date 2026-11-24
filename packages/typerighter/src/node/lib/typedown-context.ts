@@ -132,6 +132,10 @@ export class TypedownContext {
     return withRetry(() => this.rpc.listComponentResources(componentType));
   }
 
+  async getLinkGraph (): ReturnType<RpcClient['getLinkGraph']> {
+    return withRetry(() => this.rpc.getLinkGraph());
+  }
+
   /* Project operations */
 
   async getConfig (): Promise<TdSiteConfig> {

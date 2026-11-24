@@ -34,6 +34,8 @@ import {
   RESOLVED_COMPONENT_RESOURCES_PREFIX,
   THEME_ID,
   RESOLVED_THEME_ID,
+  LINK_GRAPH_ID,
+  RESOLVED_LINK_GRAPH_ID,
 } from './constants';
 import {
   VirtualApp,
@@ -53,6 +55,9 @@ import {
 import {
   VirtualSearchIndex,
 } from './virtual/search-index';
+import {
+  VirtualLinkGraph,
+} from './virtual/link-graph';
 import {
   VirtualResources,
 } from './virtual/resources';
@@ -103,6 +108,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   const virtualSiteData = new VirtualSiteData();
   const virtualSearchIndex = new VirtualSearchIndex();
   const virtualResources = new VirtualResources();
+  const virtualLinkGraph = new VirtualLinkGraph();
 
   const cache: TypedownPluginCache = {
     devHtml: undefined,
@@ -199,6 +205,7 @@ ${lines.join('\n')}`,
       if (resolvedPageData) return resolvedPageData;
       if (id === SITE_DATA_ID) return RESOLVED_SITE_DATA_ID;
       if (id === SEARCH_INDEX_ID) return RESOLVED_SEARCH_INDEX_ID;
+      if (id === LINK_GRAPH_ID) return RESOLVED_LINK_GRAPH_ID;
       if (id === THEME_ID) return RESOLVED_THEME_ID;
     },
 
@@ -218,6 +225,7 @@ ${lines.join('\n')}`,
 
       if (
         id !== RESOLVED_SEARCH_INDEX_ID
+        && id !== RESOLVED_LINK_GRAPH_ID
         && id !== RESOLVED_SITE_DATA_ID
         && id !== RESOLVED_PAGES_ID
         && id !== RESOLVED_VIRTUAL_APP_ID
@@ -229,6 +237,8 @@ ${lines.join('\n')}`,
 
       if (id === RESOLVED_SEARCH_INDEX_ID)
         return virtualSearchIndex.load();
+      if (id === RESOLVED_LINK_GRAPH_ID)
+        return virtualLinkGraph.load();
       if (id === RESOLVED_SITE_DATA_ID) return virtualSiteData.load();
       if (id === RESOLVED_PAGES_ID) return virtualPages.load(tdContext);
       if (id === RESOLVED_VIRTUAL_APP_ID) return virtualApp.load(context!);
@@ -245,6 +255,8 @@ ${lines.join('\n')}`,
       virtualSearchIndex.index(rootDirectory);
       virtualSiteData.scan(rootDirectory);
       virtualSiteData.fetch(tdContext, server);
+      virtualLinkGraph.fetch(tdContext)
+        .catch(() => { });
 
       // Print vault diagnostics after the server URL is shown
       devServer.httpServer?.once('listening', async () => {
@@ -312,17 +324,19 @@ ${lines.join('\n')}`,
       // Body-only change: the hot path (~90% of edits)
       // No sidebar fetch, no search reindex - just re-render the page
       tdContext.rpc.onContentBodyChanged(({
-        filepath, affectedFiles = [],
+        filepath, affectedFiles = [], componentResources = [],
       }) => {
         if (!server) return;
         notifyFileModulesHmrClient(filepath, ...affectedFiles);
         virtualPageData.notifyHmrClient(server, tdContext, filepath);
-        virtualResources.invalidate(tdContext, server).catch(() => { });
+        for (const type of virtualResources.patchFile(filepath, componentResources)) {
+          virtualResources.notifyHmrClient(server, type);
+        }
       });
 
       // Frontmatter changed: patch sidebar locally, reindex search
       tdContext.rpc.onContentMetadataChanged(({
-        filepath, affectedFiles = [], sidebar,
+        filepath, affectedFiles = [], sidebar, componentResources = [],
       }) => {
         if (!server) return;
 
@@ -335,12 +349,18 @@ ${lines.join('\n')}`,
         virtualSearchIndex.notifyHmrClient(server);
         notifyFileModulesHmrClient(filepath, ...affectedFiles);
         virtualPageData.notifyHmrClient(server, tdContext, filepath);
-        virtualResources.invalidate(tdContext, server).catch(() => { });
+        for (const type of virtualResources.patchFile(filepath, componentResources)) {
+          virtualResources.notifyHmrClient(server, type);
+        }
+        virtualLinkGraph.fetch(tdContext).then(() => {
+          if (server) virtualLinkGraph.notifyHmrClient(server);
+        })
+          .catch(() => { });
       });
 
       // New file created: add to sidebar
       tdContext.rpc.onContentCreated(({
-        filepath, sidebar,
+        filepath, sidebar, componentResources = [],
       }) => {
         if (!server) return;
 
@@ -352,7 +372,9 @@ ${lines.join('\n')}`,
         virtualSearchIndex.reindex(rootDirectory, filepath);
         virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
-        virtualResources.invalidate(tdContext, server).catch(() => { });
+        for (const type of virtualResources.patchFile(filepath, componentResources)) {
+          virtualResources.notifyHmrClient(server, type);
+        }
       });
 
       // File deleted: remove from sidebar
@@ -367,7 +389,7 @@ ${lines.join('\n')}`,
         virtualSearchIndex.notifyHmrClient(server);
         virtualPages.invalidate(server);
         notifyFileModulesHmrClient(filepath);
-        virtualResources.invalidate(tdContext, server).catch(() => { });
+        virtualResources.removeFile(filepath, server);
       });
 
       // Schema changed: patch schema locally

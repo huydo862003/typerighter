@@ -31,6 +31,7 @@ import {
 const emit = defineEmits<{
   'toggle-sidebar': [];
   'show-shortcuts': [];
+  'toggle-graph': [];
 }>();
 const isOpen = ref(false);
 const query = ref('');
@@ -223,6 +224,19 @@ const allCommands = computed((): Command[] => {
     action: () => {
       close();
       emit('show-shortcuts');
+    },
+  });
+  commands.push({
+    id: 'view-graph',
+    group: 'View',
+    label: 'Knowledge graph',
+    keys: [
+      TdKeyName.Control,
+      TdKeyName.g,
+    ],
+    action: () => {
+      close();
+      emit('toggle-graph');
     },
   });
   commands.push({
