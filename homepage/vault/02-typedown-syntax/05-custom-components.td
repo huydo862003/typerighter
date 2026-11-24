@@ -38,6 +38,7 @@ These components are available without any configuration:
 | `grid-cell` | Cell within a grid | `::: grid-cell ... :::` |
 | `flashcard` | Flip card with question and answer sides | `::: flashcard ... :::` |
 | `deck-set` | Aggregates flashcards for spaced repetition review | `[[deck-set {name="My Deck"}]]` |
+| `knowledge-graph` | Interactive graph of vault pages and their links | `[[knowledge-graph]]` |
 
 ### Grid layout
 
@@ -135,6 +136,18 @@ Props:
 | `folder` | string | Folder to scan for flashcards. Same format as fref paths: `/abs`, `./rel`, `../rel`. Defaults to the current directory |
 
 The deck set finds flashcards by querying the component resource pipeline. Each flashcard's question and answer text are extracted from its slots at build time, so the deck can display card previews without loading every page.
+
+### Knowledge graph
+
+The `knowledge-graph` component renders an interactive force-directed graph of all pages in the vault and the links between them. Nodes are colored by schema type. Click a node to navigate to that page.
+
+```markdown
+[[knowledge-graph]]
+```
+
+The graph supports panning (drag), zooming (scroll wheel), and node dragging. Floating zoom controls appear on hover.
+
+You can also open the knowledge graph as a full-screen overlay from any page with the keyboard shortcut `Ctrl+G` (or `Cmd+G` on macOS). Press `Escape` to close the overlay.
 
 ## User-defined components
 
