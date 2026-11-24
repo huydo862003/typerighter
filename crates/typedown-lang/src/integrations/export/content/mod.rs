@@ -117,6 +117,57 @@ mod tests {
   }
 
   #[test]
+  fn resource_slot_fields_contain_html() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "flashcard_with_markdown.td");
+    let resources = export_component_resources(&db, project, file);
+    assert_eq!(resources.len(), 1);
+    let resource = &resources[0];
+
+    let question = resource
+      .fields
+      .get("question")
+      .expect("should have question");
+    assert!(
+      question.contains("<strong>"),
+      "question should contain HTML bold tag, got: {question}"
+    );
+
+    let answer = resource.fields.get("answer").expect("should have answer");
+    assert!(
+      answer.contains("<ul>") || answer.contains("<li>"),
+      "answer should contain HTML list tags, got: {answer}"
+    );
+    assert!(
+      answer.contains("<em>"),
+      "answer should contain HTML italic tag, got: {answer}"
+    );
+  }
+
+  #[test]
+  fn resource_plain_text_fields_still_work() {
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "flashcard_resource.td");
+    let resources = export_component_resources(&db, project, file);
+    assert_eq!(resources.len(), 1);
+    let resource = &resources[0];
+
+    let question = resource
+      .fields
+      .get("question")
+      .expect("should have question");
+    // Plain text should still work, just wrapped in <p>
+    assert!(
+      question.contains("capital of France"),
+      "plain question should contain text, got: {question}"
+    );
+
+    let answer = resource.fields.get("answer").expect("should have answer");
+    assert!(
+      answer.contains("Paris"),
+      "plain answer should contain text, got: {answer}"
+    );
+  }
+
+  #[test]
   fn extracts_deck_prop_from_flashcard_container() {
     let (db, project, file) = load_vault_fixture("evaluate/my_vault", "flashcard_with_deck.td");
     let resources = export_component_resources(&db, project, file);

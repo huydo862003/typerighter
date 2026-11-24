@@ -631,8 +631,8 @@ impl<'a> HtmlEmitter<'a> {
     for (field_name, source) in declared_fields {
       match source.kind {
         ResourceFieldKind::Slot => {
-          if let Some(text) = extract_slot_plain_text(container, &source.name) {
-            extracted.insert(field_name.clone(), text);
+          if let Some(html) = self.extract_slot_html(container, &source.name) {
+            extracted.insert(field_name.clone(), html);
           }
         }
         ResourceFieldKind::Prop => {
@@ -650,6 +650,39 @@ impl<'a> HtmlEmitter<'a> {
         fields: extracted,
       });
     }
+  }
+
+  // Render a slot's content as HTML using a fresh emitter
+  fn extract_slot_html(&self, container: &RedNode, target_slot: &str) -> Option<String> {
+    let slot_node = find_target_slot(container, target_slot)?;
+    let mut sub = HtmlEmitter {
+      db: self.db,
+      project: self.project,
+      file: self.file,
+      out: String::new(),
+      headings: Vec::new(),
+      slug_counts: BTreeMap::new(),
+      title: None,
+      seen_first_image: true,
+      resources: Vec::new(),
+    };
+
+    for child in slot_node.children() {
+      let kind = child.kind();
+
+      if kind == SyntaxKind::Whitespace || kind == SyntaxKind::Newline {
+        continue;
+      }
+      if kind.is_md_block() {
+        sub.emit_block(&child);
+      } else if kind != SyntaxKind::MdSymbol {
+        sub.emit_inline(&child);
+      }
+    }
+
+    let html = sub.out.trim().to_string();
+
+    if html.is_empty() { None } else { Some(html) }
   }
 
   fn emit_container_shorthand(&mut self, node: &RedNode) {
@@ -1199,20 +1232,19 @@ fn extract_slot_name(node: &RedNode) -> Option<String> {
 
 // Extract plain text from a named slot inside a container
 // "default" matches the first slot (before any === separator)
-fn extract_slot_plain_text(container: &RedNode, target_slot: &str) -> Option<String> {
+fn find_target_slot(container: &RedNode, target_slot: &str) -> Option<RedNode> {
   let mut is_target = target_slot == "default";
+
   for child in container.children() {
     match child.kind() {
-      SyntaxKind::MdContainerSlot if is_target => {
-        let text = extract_plain_text(&child);
-        return if text.is_empty() { None } else { Some(text) };
-      }
+      SyntaxKind::MdContainerSlot if is_target => return Some(child),
       SyntaxKind::MdContainerSlotSeparator => {
         is_target = extract_slot_name(&child).is_some_and(|name| name == target_slot);
       }
       _ => {}
     }
   }
+
   None
 }
 

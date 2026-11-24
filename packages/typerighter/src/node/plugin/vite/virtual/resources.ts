@@ -14,6 +14,9 @@ import type {
 import type {
   TypedownContext,
 } from '@/node/lib/typedown-context';
+import {
+  renderMathBlocks,
+} from '@/node/lib/render/postprocess';
 
 export class VirtualResources {
   private cache = new Map<string, Resource[]>();
@@ -34,7 +37,16 @@ if (import.meta.hot) {
   }
 
   async fetch (context: TypedownContext, componentType: string): Promise<void> {
-    this.cache.set(componentType, await context.listComponentResources(componentType));
+    const resources = await context.listComponentResources(componentType);
+
+    // Render math placeholders in resource fields (slot HTML contains raw LaTeX placeholders)
+    for (const resource of resources) {
+      for (const key of Object.keys(resource.fields)) {
+        resource.fields[key] = renderMathBlocks(resource.fields[key]);
+      }
+    }
+
+    this.cache.set(componentType, resources);
   }
 
   async invalidate (context: TypedownContext, server: ViteDevServer): Promise<void> {

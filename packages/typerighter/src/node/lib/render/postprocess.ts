@@ -143,7 +143,7 @@ function wrapCodeBlock (
 const MATH_INLINE_RE = /<span class="td-math-inline">([\s\S]*?)<\/span>/g;
 const MATH_BLOCK_RE = /<div class="td-math-block">([\s\S]*?)<\/div>/g;
 
-function renderMathBlocks (html: string): string {
+export function renderMathBlocks (html: string): string {
   html = html.replace(MATH_INLINE_RE, (_, tex) => renderTex(tex, false));
   html = html.replace(MATH_BLOCK_RE, (_, tex) => renderTex(tex, true));
 

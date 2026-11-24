@@ -277,15 +277,10 @@ watch(() => cards, loadCardStates);
                   String(index + 1).padStart(2, "0")
                 }}</span>
                 <span class="td-deck-list-text">
-                  <span class="td-deck-list-q">{{
-                    card.fields.question || card.filepath
-                  }}</span>
                   <span
-                    v-if="card.fields.answer"
-                    class="td-deck-list-hint"
-                  >{{
-                    card.fields.answer
-                  }}</span>
+                    class="td-deck-list-q"
+                    v-html="card.fields.question || card.filepath"
+                  />
                 </span>
                 <span
                   class="td-deck-chip"
@@ -307,9 +302,10 @@ watch(() => cards, loadCardStates);
                 }"
               >
                 <div>
-                  <p class="td-deck-list-answer">
-                    {{ card.fields.answer }}
-                  </p>
+                  <div
+                    class="td-deck-list-answer"
+                    v-html="card.fields.answer"
+                  />
                 </div>
               </div>
             </li>
@@ -360,9 +356,10 @@ watch(() => cards, loadCardStates);
             </div>
 
             <div class="td-deck-question">
-              <h3 class="td-deck-question-text">
-                {{ currentCard.fields.question || currentCard.filepath }}
-              </h3>
+              <div
+                class="td-deck-question-text"
+                v-html="currentCard.fields.question || currentCard.filepath"
+              />
             </div>
 
             <Transition name="td-deck-reveal">
@@ -374,9 +371,10 @@ watch(() => cards, loadCardStates);
                 <p class="td-deck-answer-eyebrow">
                   Answer
                 </p>
-                <p class="td-deck-answer-text">
-                  {{ currentCard.fields.answer }}
-                </p>
+                <div
+                  class="td-deck-answer-text"
+                  v-html="currentCard.fields.answer"
+                />
               </div>
               <div
                 v-else
@@ -634,6 +632,11 @@ watch(() => cards, loadCardStates);
   font-weight: 500;
 }
 
+.td-deck-list-q :deep(p) {
+  margin: 0;
+  font-size: inherit;
+}
+
 .td-deck-list-hint {
   font-size: 13px;
   color: var(--color-td-ink-4);
@@ -654,13 +657,23 @@ watch(() => cards, loadCardStates);
 
 .td-deck-list-answer {
   margin: 0;
-  min-height: 0;
-  max-height: 120px;
-  overflow-y: auto;
-  padding: 8px 56px 16px 64px;
+  padding: 4px 24px 12px 64px;
   font-size: 14px;
   line-height: 1.55;
   color: var(--color-td-ink-3);
+}
+
+.td-deck-list-answer :deep(p) {
+  margin: 4px 0;
+  font-size: inherit;
+}
+
+.td-deck-list-answer :deep(p:first-child) {
+  margin-top: 0;
+}
+
+.td-deck-list-answer :deep(p:last-child) {
+  margin-bottom: 0;
 }
 
 .td-deck-list-answer a {
@@ -796,6 +809,11 @@ watch(() => cards, loadCardStates);
   font-weight: 600;
 }
 
+.td-deck-question-text :deep(p) {
+  margin: 0;
+  font-size: inherit;
+}
+
 .td-deck-question-hint {
   margin: 0;
   font-size: 15px;
@@ -827,6 +845,19 @@ watch(() => cards, loadCardStates);
   margin: 0;
   font-size: 16px;
   line-height: 1.6;
+}
+
+.td-deck-answer-text :deep(p) {
+  margin: 4px 0;
+  font-size: inherit;
+}
+
+.td-deck-answer-text :deep(p:first-child) {
+  margin-top: 0;
+}
+
+.td-deck-answer-text :deep(p:last-child) {
+  margin-bottom: 0;
 }
 
 .td-deck-answer-text a {

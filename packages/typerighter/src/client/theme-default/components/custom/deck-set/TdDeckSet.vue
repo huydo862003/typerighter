@@ -33,6 +33,25 @@ const {
   pruneStaleCards,
 } = useFlashcardStore();
 
+// Parse deck field: string -> single deck, JSON array -> multiple decks
+function parseDeckField (raw: string | undefined): string[] {
+  if (!raw) return [''];
+
+  if (raw.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === 'string');
+      }
+    } catch {
+      // Not valid JSON, treat as plain string
+    }
+  }
+
+  return [raw];
+}
+
 function resolveFolder (): string {
   const pageDirectory = stripLeadingSlash(getParentUrl(route.path));
 
@@ -58,11 +77,14 @@ const decks = computed(() => {
   const groups = new Map<string, Resource[]>();
 
   for (const card of flashcards) {
-    const deckName = card.fields.deck ?? '';
-    const list = groups.get(deckName) ?? [];
+    const deckNames = parseDeckField(card.fields.deck);
 
-    list.push(card);
-    groups.set(deckName, list);
+    for (const deckName of deckNames) {
+      const list = groups.get(deckName) ?? [];
+
+      list.push(card);
+      groups.set(deckName, list);
+    }
   }
 
   // Named decks sorted alphabetically, unnamed deck last

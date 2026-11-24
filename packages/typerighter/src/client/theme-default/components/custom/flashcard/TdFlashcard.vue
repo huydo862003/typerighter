@@ -18,7 +18,7 @@ const {
   disabled = false,
   questionLabel = 'Question',
   keyLabel = 'Answer',
-  deck = undefined,
+  deck: _deck = undefined,
 } = defineProps<{
   /** HTML id attribute */
   id?: string;
@@ -30,8 +30,8 @@ const {
   questionLabel?: string;
   /** Caption shown above the key */
   keyLabel?: string;
-  /** Deck name for grouping in a deck-set */
-  deck?: string;
+  /** Deck name(s) for grouping in a deck-set. Use an array for multiple decks */
+  deck?: string | string[];
 }>();
 
 defineResource({
