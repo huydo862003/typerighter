@@ -13,7 +13,7 @@ import {
   useRoute,
 } from '@/client/app';
 import {
-  ensureTrailingSlash, getParentUrl, stripLeadingSlash,
+  ensureTrailingSlash, getParentUrl, parseNumericPrefix, stripLeadingSlash, unslugify,
 } from '@/shared';
 import type {
   Resource,
@@ -87,12 +87,17 @@ const decks = computed(() => {
     }
   }
 
-  // Named decks sorted alphabetically, unnamed deck last
+  // Sort by numeric prefix, then alphabetically; unnamed decks last
   return [...groups.entries()].sort(([nameA], [nameB]) => {
     if (!nameA) return 1;
     if (!nameB) return -1;
 
-    return nameA.localeCompare(nameB);
+    const prefixA = parseNumericPrefix(nameA);
+    const prefixB = parseNumericPrefix(nameB);
+
+    if (prefixA.order !== prefixB.order) return prefixA.order - prefixB.order;
+
+    return prefixA.rest.localeCompare(prefixB.rest);
   });
 });
 
@@ -111,7 +116,7 @@ onMounted(async () => {
         cards,
       ] in decks"
       :key="deckName"
-      :name="deckName || name"
+      :name="deckName ? unslugify(deckName) : name"
       :cards="cards"
     />
     <p
