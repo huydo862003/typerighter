@@ -365,10 +365,7 @@ watch(() => cards, loadCardStates);
               </h3>
             </div>
 
-            <Transition
-              name="td-deck-reveal"
-              mode="out-in"
-            >
+            <Transition name="td-deck-reveal">
               <div
                 v-if="revealed"
                 key="answer"
@@ -973,14 +970,17 @@ watch(() => cards, loadCardStates);
 }
 
 /* Answer reveal transition */
-.td-deck-reveal-enter-active,
+.td-deck-reveal-enter-active {
+  transition: opacity var(--duration-td-fast) var(--ease-td-out-quart);
+}
+
 .td-deck-reveal-leave-active {
-  transition: opacity 200ms ease, transform 200ms ease;
+  position: absolute;
+  transition: none;
 }
 
 .td-deck-reveal-enter-from {
   opacity: 0;
-  transform: translateY(8px);
 }
 
 .td-deck-reveal-leave-to {
