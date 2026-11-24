@@ -14,7 +14,8 @@ import {
 } from 'vue';
 import defaultTheme from '../theme-default';
 import TdDirectoryIndex from '../theme-default/components/custom/TdDirectoryIndex.vue';
-import TdFlashcard from '../theme-default/components/custom/TdFlashcard.vue';
+import TdDeckSet from '../theme-default/components/custom/deck-set/TdDeckSet.vue';
+import TdFlashcard from '../theme-default/components/custom/flashcard/TdFlashcard.vue';
 import TdGrid from '../theme-default/components/custom/TdGrid.vue';
 import TdGridCell from '../theme-default/components/custom/TdGridCell.vue';
 import TdGlossaryIndex from '../theme-default/components/custom/glossary/TdGlossaryIndex.vue';
@@ -236,6 +237,7 @@ export async function createTypedownApp (
 
   // custom components
   /* eslint-disable vue/multi-word-component-names */
+  app.component('DeckSet', TdDeckSet);
   app.component('DirectoryIndex', TdDirectoryIndex);
   app.component('GlossaryIndex', TdGlossaryIndex);
   app.component('Flashcard', TdFlashcard);

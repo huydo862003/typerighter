@@ -1,6 +1,6 @@
 export {
-  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, findCrumbLabel, getNodeIndexItem,
-  getTdIndexTitle, getTdResourceTitle, isIndexFile,
+  buildCascadeFilteredItems, buildContentTree, buildDirectoryListingMap, findCrumbLabel, flattenContentTree,
+  getNodeIndexItem, getTdIndexTitle, getTdResourceTitle, isIndexFile,
 } from './content';
 export {
   debounce, throttle,

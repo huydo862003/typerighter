@@ -200,6 +200,20 @@ export function findCrumbLabel (tree: ContentTree, urlSegments: string[], segmen
   return unslugify(segment);
 }
 
+export function flattenContentTree (entries: ContentTreeEntry[]): ContentSummary[] {
+  const result: ContentSummary[] = [];
+
+  for (const entry of entries) {
+    if (entry.kind === 'file') {
+      result.push(entry.item);
+    } else {
+      result.push(...flattenContentTree(entry.node.entries));
+    }
+  }
+
+  return result;
+}
+
 export function getNodeIndexItem (node: ContentTreeNode): ContentSummary | undefined {
   for (const entry of node.entries) {
     if (entry.kind === 'file' && isIndexFile(entry.item.filepath)) return entry.item;

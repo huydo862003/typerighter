@@ -26,7 +26,7 @@ export {
   extractFrontmatterBuiltinFields, type FrontmatterBuiltinFields,
   formatAbsoluteTime, formatEditTime, formatRelativeTime,
   formatDateString, formatIsoDate, formatTime,
-  ensureTrailingSlash, getAnchor, getDirectoryFromPageUrl, getDirectoryUrl,
+  ensureTrailingSlash, flattenContentTree, getAnchor, getDirectoryFromPageUrl, getDirectoryUrl,
   getIndexUrl, getParentUrl, getTdContentUrl, getUrlPath, isIndexUrl,
   isUrlAncestorOf, isUrlExternal, isUrlToPage, resolveRootUrl,
   stripAnchor, stripLeadingSlash, stripTrailingSlash,
