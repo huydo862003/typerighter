@@ -655,7 +655,8 @@ watch(() => cards, loadCardStates);
 .td-deck-list-answer {
   margin: 0;
   min-height: 0;
-  overflow: hidden;
+  max-height: 120px;
+  overflow-y: auto;
   padding: 8px 56px 16px 64px;
   font-size: 14px;
   line-height: 1.55;
