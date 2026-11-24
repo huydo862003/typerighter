@@ -118,8 +118,7 @@ mod tests {
 
   #[test]
   fn extracts_deck_prop_from_flashcard_container() {
-    let (db, project, file) =
-      load_vault_fixture("evaluate/my_vault", "flashcard_with_deck.td");
+    let (db, project, file) = load_vault_fixture("evaluate/my_vault", "flashcard_with_deck.td");
     let resources = export_component_resources(&db, project, file);
     assert_eq!(resources.len(), 1);
     let resource = &resources[0];
