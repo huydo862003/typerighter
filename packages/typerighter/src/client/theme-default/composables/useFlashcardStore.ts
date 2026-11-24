@@ -6,7 +6,7 @@ import {
 } from './useIndexedDb';
 
 export type {
-  CardState,
+  CardState, Grade,
 } from '../components/custom/flashcard/sm2';
 export {
   isDue,

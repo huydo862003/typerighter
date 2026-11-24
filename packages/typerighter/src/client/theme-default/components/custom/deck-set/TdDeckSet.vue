@@ -17,8 +17,12 @@ import type {
 } from '@/shared';
 
 const {
-  schema = undefined, folder = undefined,
+  name,
+  schema = undefined,
+  folder = undefined,
 } = defineProps<{
+  /** Display name shown above the deck set */
+  name: string;
   /** Filter by schema name (e.g. "PltFlashcard"). If omitted, matches any schema containing "Flashcard" */
   schema?: string;
   /** Folder to scan for flashcards. Same format as fref() paths: "/abs", "./rel", "../rel". Defaults to current directory */
@@ -94,7 +98,7 @@ onMounted(async () => {
         cards,
       ] in decks"
       :key="deckName"
-      :name="deckName"
+      :name="deckName || name"
       :cards="cards"
     />
     <p

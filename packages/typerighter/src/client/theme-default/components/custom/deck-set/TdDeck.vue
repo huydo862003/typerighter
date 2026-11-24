@@ -3,6 +3,12 @@ import {
   computed, onMounted, ref,
 } from 'vue';
 import {
+  ChevronLeft, ChevronRight, ChevronsRight, Check,
+} from '@lucide/vue';
+import {
+  useSiteConfig,
+} from '@/client/app';
+import {
   getCardStates,
   isDue,
   reviewCard,
@@ -10,15 +16,15 @@ import {
 import type {
   CardState,
 } from '@/client/theme-default/composables/useFlashcardStore';
-import {
-  useSiteConfig,
-} from '@/client/app';
 import type {
   ContentSummary,
 } from '@/shared';
 
 const {
-  name, cards,
+  /** Deck display name */
+  name,
+  /** Flashcard content items in this deck */
+  cards,
 } = defineProps<{
   /** Deck display name */
   name: string;
@@ -30,10 +36,24 @@ const {
   withBase,
 } = useSiteConfig();
 
-const mode = ref<'idle' | 'review'>('idle');
-const reviewQueue = ref<string[]>([]);
-const reviewIndex = ref(0);
-const showAnswer = ref(false);
+type Mode = 'browse' | 'review' | 'done';
+interface Tally { again: number;
+                  hard: number;
+                  good: number;
+                  easy: number; }
+
+const expanded = ref(false);
+const mode = ref<Mode>('browse');
+const queue = ref<string[]>([]);
+const position = ref(0);
+const revealed = ref(false);
+const expandedId = ref<string | null>(null);
+const tally = ref<Tally>({
+  again: 0,
+  hard: 0,
+  good: 0,
+  easy: 0,
+});
 const cardStates = ref<Map<string, CardState>>(new Map());
 
 onMounted(async () => {
@@ -45,165 +65,407 @@ onMounted(async () => {
 const dueCards = computed(() =>
   cards.filter((card) => isDue(cardStates.value.get(card.filepath))));
 
+const dueCount = computed(() => dueCards.value.length);
 const currentCard = computed(() => {
-  const filepath = reviewQueue.value[reviewIndex.value];
+  const filepath = queue.value[position.value];
 
   return cards.find((card) => card.filepath === filepath);
 });
+const remaining = computed(() => queue.value.length - position.value);
+const progressPct = computed(() =>
+  0 < queue.value.length ? Math.round((position.value / queue.value.length) * 100) : 0);
 
-const progress = computed(() =>
-  0 < reviewQueue.value.length
-    ? `${reviewIndex.value + 1} / ${reviewQueue.value.length}`
-    : '');
+const subtitle = computed(() => {
+  if (mode.value === 'browse') return `${cards.length} cards \u00b7 select a card to see its answer`;
+  if (mode.value === 'review') return `Reviewing \u00b7 ${remaining.value} left in this session`;
 
-async function answer (quality: number): Promise<void> {
-  const filepath = reviewQueue.value[reviewIndex.value];
+  return 'Session finished';
+});
 
-  if (filepath) {
-    const next = await reviewCard(filepath, quality);
+const actionLabel = computed(() => {
+  if (mode.value === 'browse') return 'Review';
+  if (mode.value === 'done') return 'Close';
 
-    cardStates.value.set(filepath, next);
-  }
-
-  showAnswer.value = false;
-  if (reviewIndex.value < reviewQueue.value.length - 1) {
-    reviewIndex.value++;
-  } else {
-    mode.value = 'idle';
-  }
-}
-
-function answerAgain (): void {
-  answer(0);
-}
-
-function answerEasy (): void {
-  answer(3);
-}
-
-function answerGood (): void {
-  answer(2);
-}
-
-function answerHard (): void {
-  answer(1);
-}
-
-function cardUrl (card: ContentSummary): string {
-  const path = card.filepath.replace(/\.td$/, '');
-
-  return withBase('/' + path);
-}
+  return 'End';
+});
 
 function endReview (): void {
-  mode.value = 'idle';
+  mode.value = 'browse';
+  revealed.value = false;
 }
 
-function reveal (): void {
-  showAnswer.value = true;
+function getCardGrade (card: ContentSummary): string {
+  const state = cardStates.value.get(card.filepath);
+
+  if (!state) return 'due';
+
+  return state.lastGrade ?? 'due';
+}
+
+function getCardUrl (card: ContentSummary): string {
+  return withBase('/' + card.filepath.replace(/\.td$/, ''));
+}
+
+async function grade (level: 'again' | 'hard' | 'good' | 'easy'): Promise<void> {
+  const filepath = queue.value[position.value];
+
+  if (!filepath) return;
+
+  const next = await reviewCard(filepath, [
+    'again',
+    'hard',
+    'good',
+    'easy',
+  ].indexOf(level));
+
+  cardStates.value.set(filepath, next);
+  tally.value[level]++;
+
+  if (level === 'again') queue.value.push(filepath);
+
+  const nextPosition = position.value + 1;
+
+  if (queue.value.length <= nextPosition) {
+    mode.value = 'done';
+    revealed.value = false;
+  } else {
+    position.value = nextPosition;
+    revealed.value = false;
+  }
+}
+
+function gradeAgain (): void {
+  grade('again');
+}
+
+function gradeEasy (): void {
+  grade('easy');
+}
+
+function gradeGood (): void {
+  grade('good');
+}
+
+function gradeHard (): void {
+  grade('hard');
+}
+
+function handleAction (): void {
+  if (mode.value === 'browse') startReview();
+  else endReview();
+}
+
+function previousCard (): void {
+  if (0 < position.value) {
+    position.value--;
+    revealed.value = false;
+  }
+}
+
+function revealAnswer (): void {
+  revealed.value = true;
+}
+
+function skipCard (): void {
+  if (remaining.value <= 1) return;
+  const current = queue.value[position.value];
+
+  queue.value = [
+    ...queue.value.slice(0, position.value),
+    ...queue.value.slice(position.value + 1),
+    current,
+  ];
+  revealed.value = false;
 }
 
 function startReview (): void {
-  reviewQueue.value = dueCards.value.map((card) => card.filepath);
-  reviewIndex.value = 0;
-  showAnswer.value = false;
+  let ids = dueCards.value.map((card) => card.filepath);
+
+  if (ids.length === 0) ids = cards.map((card) => card.filepath);
+  queue.value = ids;
+  position.value = 0;
+  revealed.value = false;
+  tally.value = {
+    again: 0,
+    hard: 0,
+    good: 0,
+    easy: 0,
+  };
   mode.value = 'review';
+  expanded.value = true;
 }
+
+function toggleCard (filepath: string): void {
+  expandedId.value = expandedId.value === filepath ? null : filepath;
+}
+
+function toggleExpanded (): void {
+  expanded.value = !expanded.value;
+}
+
+const doneSummary = computed(() =>
+  0 < dueCount.value
+    ? `${dueCount.value} card${dueCount.value === 1 ? '' : 's'} still due`
+    : 'All cards reviewed. Nothing due right now.');
 </script>
 
 <template>
   <div class="td-deck">
-    <div class="td-deck-header">
-      <span class="td-deck-name">{{ name }}</span>
-      <span class="td-deck-count">
-        <span
-          v-if="dueCards.length > 0"
-          class="td-deck-due"
-        >{{ dueCards.length }} due</span>
-        <span
-          v-else
-          class="td-deck-done"
-        >caught up</span>
-        <span class="td-deck-total">/ {{ cards.length }}</span>
+    <!-- Header: click to expand/collapse, always visible -->
+    <header
+      class="td-deck-header"
+      role="button"
+      tabindex="0"
+      :aria-expanded="expanded"
+      @click="toggleExpanded"
+      @keydown.enter.prevent="toggleExpanded"
+      @keydown.space.prevent="toggleExpanded"
+    >
+      <ChevronRight
+        aria-hidden="true"
+        :size="16"
+        class="td-deck-header-chevron"
+        :class="{
+          'is-open': expanded,
+        }"
+      />
+      <div class="td-deck-header-left">
+        <h3 class="td-deck-name">
+          {{ name }}
+        </h3>
+      </div>
+      <span class="td-deck-due-counter">
+        <strong class="td-deck-due-num">{{ dueCount }} due</strong> / {{ cards.length }}
       </span>
       <button
-        v-if="mode === 'idle' && dueCards.length > 0"
         type="button"
-        class="td-deck-btn td-deck-btn-primary"
-        @click="startReview"
+        class="td-deck-action"
+        :class="mode === 'browse' ? 'td-deck-action-primary' : 'td-deck-action-secondary'"
+        @click.stop="handleAction"
       >
-        Review
+        {{ actionLabel }}
       </button>
-      <button
-        v-if="mode === 'review'"
-        type="button"
-        class="td-deck-btn td-deck-btn-ghost"
-        @click="endReview"
-      >
-        End
-      </button>
-    </div>
+    </header>
 
+    <!-- Body: expands/collapses with grid transition -->
     <div
-      v-if="mode === 'review' && currentCard"
-      class="td-deck-review"
+      class="td-collapse"
+      :class="{
+        'is-collapsed': !expanded,
+      }"
     >
-      <div class="td-deck-progress">
-        {{ progress }}
-      </div>
-      <div class="td-deck-card">
-        <a
-          :href="cardUrl(currentCard)"
-          class="td-deck-card-label"
-        >
-          {{ currentCard.label || currentCard.filepath }}
-        </a>
-        <div
-          v-if="showAnswer && currentCard.excerpt"
-          class="td-deck-card-excerpt"
-        >
-          {{ currentCard.excerpt }}
+      <div>
+        <div class="td-deck-body">
+          <!-- Browse mode: scrollable card list -->
+          <ul
+            v-if="mode === 'browse'"
+            class="td-deck-list"
+          >
+            <li
+              v-for="(card, index) in cards"
+              :key="card.filepath"
+              class="td-deck-list-item"
+            >
+              <button
+                type="button"
+                class="td-deck-list-row"
+                :aria-expanded="expandedId === card.filepath"
+                @click="() => toggleCard(card.filepath)"
+              >
+                <span class="td-deck-list-num">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="td-deck-list-text">
+                  <span class="td-deck-list-q">{{ card.label || card.filepath }}</span>
+                  <span
+                    v-if="card.excerpt"
+                    class="td-deck-list-hint"
+                  >{{ card.excerpt }}</span>
+                </span>
+                <span
+                  class="td-deck-chip"
+                  :class="`td-deck-chip-${ getCardGrade(card)}`"
+                >{{ getCardGrade(card) }}</span>
+                <ChevronRight
+                  aria-hidden="true"
+                  :size="18"
+                  class="td-deck-list-chevron"
+                  :class="{
+                    'is-open': expandedId === card.filepath,
+                  }"
+                />
+              </button>
+              <div
+                class="td-collapse"
+                :class="{
+                  'is-collapsed': expandedId !== card.filepath,
+                }"
+              >
+                <div>
+                  <p class="td-deck-list-answer">
+                    <a :href="getCardUrl(card)">View card page</a>
+                  </p>
+                </div>
+              </div>
+            </li>
+          </ul>
+
+          <!-- Review mode -->
+          <div
+            v-else-if="mode === 'review' && currentCard"
+            class="td-deck-review"
+          >
+            <div class="td-deck-review-top">
+              <span class="td-deck-position">{{ position + 1 }} / {{ queue.length }}</span>
+              <div
+                class="td-deck-progress-bar"
+                aria-hidden="true"
+              >
+                <div
+                  class="td-deck-progress-fill"
+                  :style="{
+                    width: `${progressPct }%`,
+                  }"
+                />
+              </div>
+              <button
+                type="button"
+                class="td-deck-icon-btn"
+                :disabled="position === 0"
+                aria-label="Previous card"
+                @click="previousCard"
+              >
+                <ChevronLeft
+                  aria-hidden="true"
+                  :size="16"
+                />
+              </button>
+              <button
+                type="button"
+                class="td-deck-skip-btn"
+                :disabled="remaining <= 1"
+                @click="skipCard"
+              >
+                Skip
+                <ChevronsRight
+                  aria-hidden="true"
+                  :size="16"
+                />
+              </button>
+            </div>
+
+            <div class="td-deck-question">
+              <h3 class="td-deck-question-text">
+                {{ currentCard.label || currentCard.filepath }}
+              </h3>
+              <p
+                v-if="currentCard.excerpt"
+                class="td-deck-question-hint"
+              >
+                {{ currentCard.excerpt }}
+              </p>
+            </div>
+
+            <div
+              v-if="revealed"
+              class="td-deck-answer-panel"
+            >
+              <p class="td-deck-answer-eyebrow">
+                Answer
+              </p>
+              <p class="td-deck-answer-text">
+                <a :href="getCardUrl(currentCard)">View full answer on card page</a>
+              </p>
+            </div>
+            <div
+              v-else
+              class="td-deck-answer-placeholder"
+            >
+              Try to recall the answer, then reveal it.
+            </div>
+
+            <div class="td-deck-bottom-row">
+              <button
+                v-if="!revealed"
+                type="button"
+                class="td-deck-show-btn"
+                @click="revealAnswer"
+              >
+                Show answer
+              </button>
+              <template v-else>
+                <button
+                  type="button"
+                  class="td-deck-grade-btn td-deck-grade-again"
+                  @click="gradeAgain"
+                >
+                  Again
+                </button>
+                <button
+                  type="button"
+                  class="td-deck-grade-btn td-deck-grade-hard"
+                  @click="gradeHard"
+                >
+                  Hard
+                </button>
+                <button
+                  type="button"
+                  class="td-deck-grade-btn td-deck-grade-good"
+                  @click="gradeGood"
+                >
+                  Good
+                </button>
+                <button
+                  type="button"
+                  class="td-deck-grade-btn td-deck-grade-easy"
+                  @click="gradeEasy"
+                >
+                  Easy
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Done mode -->
+          <div
+            v-else-if="mode === 'done'"
+            class="td-deck-done"
+          >
+            <div class="td-deck-done-icon">
+              <Check
+                aria-hidden="true"
+                :size="26"
+              />
+            </div>
+            <h3 class="td-deck-done-title">
+              Session complete
+            </h3>
+            <p class="td-deck-done-summary">
+              {{ doneSummary }}
+            </p>
+            <div class="td-deck-tally">
+              <span class="td-deck-tally-pill td-deck-chip-again">Again {{ tally.again }}</span>
+              <span class="td-deck-tally-pill td-deck-chip-hard">Hard {{ tally.hard }}</span>
+              <span class="td-deck-tally-pill td-deck-chip-good">Good {{ tally.good }}</span>
+              <span class="td-deck-tally-pill td-deck-chip-easy">Easy {{ tally.easy }}</span>
+            </div>
+            <div class="td-deck-done-actions">
+              <button
+                type="button"
+                class="td-deck-action-secondary"
+                @click="endReview"
+              >
+                Back to deck
+              </button>
+              <button
+                v-if="dueCount > 0"
+                type="button"
+                class="td-deck-action-primary"
+                @click="startReview"
+              >
+                Review {{ dueCount }} again
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="td-deck-controls">
-        <button
-          v-if="!showAnswer"
-          type="button"
-          class="td-deck-btn td-deck-btn-primary"
-          @click="reveal"
-        >
-          Show answer
-        </button>
-        <template v-else>
-          <button
-            type="button"
-            class="td-deck-btn td-deck-btn-again"
-            @click="answerAgain"
-          >
-            Again
-          </button>
-          <button
-            type="button"
-            class="td-deck-btn td-deck-btn-hard"
-            @click="answerHard"
-          >
-            Hard
-          </button>
-          <button
-            type="button"
-            class="td-deck-btn td-deck-btn-good"
-            @click="answerGood"
-          >
-            Good
-          </button>
-          <button
-            type="button"
-            class="td-deck-btn td-deck-btn-easy"
-            @click="answerEasy"
-          >
-            Easy
-          </button>
-        </template>
       </div>
     </div>
   </div>
@@ -212,143 +474,466 @@ function startReview (): void {
 <style scoped>
 .td-deck {
   border: 1px solid var(--color-td-line-soft);
-  border-radius: var(--radius-td-lg);
+  border-radius: 14px;
+  background: var(--color-td-surface);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
+/* Header: clickable toggle + controls */
 .td-deck-header {
+  box-sizing: border-box;
+  padding: 10px 16px 10px 14px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  background: var(--color-td-surface);
+  background: var(--color-td-surface-muted, #F4F1EC);
+  border-bottom: 1px solid var(--color-td-line-soft);
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.td-deck-header:hover {
+  background: var(--color-td-hover);
+}
+
+.td-deck-header-chevron {
+  flex-shrink: 0;
+  color: var(--color-td-ink-4);
+  transition: transform var(--duration-td-open) var(--ease-td-out-quart);
+}
+
+.td-deck-header-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.td-deck-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
 }
 
 .td-deck-name {
-  font-weight: 600;
-  font-size: var(--font-size-td-sm);
-}
-
-.td-deck-count {
-  margin-left: auto;
-  font-size: var(--font-size-td-xs);
-  color: var(--color-td-ink-4);
-  display: flex;
-  gap: 4px;
-}
-
-.td-deck-due {
-  color: var(--color-td-accent);
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
 }
 
-.td-deck-done {
+.td-deck-subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
   color: var(--color-td-ink-4);
 }
 
-.td-deck-total {
-  color: var(--color-td-ink-4);
-}
-
-.td-deck-review {
-  padding: 16px;
-  border-top: 1px solid var(--color-td-line-soft);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.td-deck-progress {
-  font-size: var(--font-size-td-xs);
+.td-deck-due-counter {
+  font-size: 13px;
   color: var(--color-td-ink-4);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.td-deck-card {
-  min-height: 6rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-}
-
-.td-deck-card-label {
-  font-size: var(--font-size-td-base);
-  font-weight: 500;
-  color: var(--color-td-ink);
-  text-decoration: none;
-}
-
-.td-deck-card-label:hover {
+.td-deck-due-num {
+  font-weight: 600;
   color: var(--color-td-accent);
 }
 
-.td-deck-card-excerpt {
-  font-size: var(--font-size-td-sm);
-  color: var(--color-td-ink-3);
-  line-height: var(--leading-td-relaxed);
-}
-
-.td-deck-controls {
-  display: flex;
-  gap: 8px;
-}
-
-.td-deck-btn {
-  padding: 6px 14px;
-  border: none;
-  border-radius: var(--radius-td-md);
-  font-size: var(--font-size-td-xs);
-  font-weight: 500;
+/* Action button: fixed width to prevent shift */
+.td-deck-action,
+.td-deck-action-primary,
+.td-deck-action-secondary {
+  width: 80px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition:
-    background-color var(--duration-td-fast) var(--ease-td-out-quart),
-    opacity var(--duration-td-fast) var(--ease-td-out-quart);
+  flex-shrink: 0;
 }
 
-.td-deck-btn-primary {
+.td-deck-action-primary {
+  border: 1px solid transparent;
   background: var(--color-td-accent);
   color: white;
 }
 
-.td-deck-btn-primary:hover {
+.td-deck-action-primary:hover {
   opacity: 0.9;
 }
 
-.td-deck-btn-ghost {
-  background: transparent;
-  color: var(--color-td-ink-3);
+.td-deck-action-secondary {
   border: 1px solid var(--color-td-line-soft);
+  background: var(--color-td-surface);
+  color: var(--color-td-ink);
 }
 
-.td-deck-btn-ghost:hover {
+.td-deck-action-secondary:hover {
   background: var(--color-td-hover);
 }
 
-.td-deck-btn-again {
-  background: var(--color-td-danger-bg);
-  color: var(--color-td-danger);
+/* Body: fixed height */
+.td-deck-body {
+  height: 442px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.td-deck-btn-hard {
-  background: var(--color-td-warning-bg);
-  color: var(--color-td-warning-text);
+/* Browse: card list */
+.td-deck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 
-.td-deck-btn-good {
-  background: var(--color-td-info-bg);
-  color: var(--color-td-info);
+.td-deck-list-item {
+  border-bottom: 1px solid var(--color-td-line-soft);
 }
 
-.td-deck-btn-easy {
-  background: var(--color-td-tip-bg);
-  color: var(--color-td-tip);
+.td-deck-list-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
 }
 
-.td-deck-btn-again:hover,
-.td-deck-btn-hard:hover,
-.td-deck-btn-good:hover,
-.td-deck-btn-easy:hover {
+.td-deck-list-row:hover {
+  background: var(--color-td-hover);
+}
+
+.td-deck-list-num {
+  width: 24px;
+  font-size: 13px;
+  color: var(--color-td-ink-4);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.td-deck-list-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.td-deck-list-q {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.td-deck-list-hint {
+  font-size: 13px;
+  color: var(--color-td-ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-deck-list-chevron {
+  flex-shrink: 0;
+  color: var(--color-td-ink-4);
+  transition: transform 150ms;
+}
+
+.td-deck-list-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.td-deck-list-answer {
+  margin: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 56px 16px 64px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-td-ink-3);
+}
+
+.td-deck-list-answer a {
+  color: var(--color-td-accent);
+  text-decoration: none;
+}
+
+.td-deck-list-answer a:hover {
+  text-decoration: underline;
+}
+
+/* Status chips */
+.td-deck-chip {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.td-deck-chip-due { background: #FBEDE6; color: #9C3A18; }
+.td-deck-chip-again { background: #FCE8E8; color: #B42318; }
+.td-deck-chip-hard { background: #FAF0DA; color: #8A5A00; }
+.td-deck-chip-good { background: #E8EEFB; color: #2451B8; }
+.td-deck-chip-easy { background: #E2F3EA; color: #0E6E46; }
+
+/* Review mode */
+.td-deck-review {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 24px 24px;
+}
+
+.td-deck-review-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+}
+
+.td-deck-position {
+  font-size: 13px;
+  color: var(--color-td-ink-4);
+  font-variant-numeric: tabular-nums;
+  width: 56px;
+}
+
+.td-deck-progress-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-td-line-soft);
+  overflow: hidden;
+}
+
+.td-deck-progress-fill {
+  height: 100%;
+  background: var(--color-td-accent);
+  transition: width 200ms;
+}
+
+.td-deck-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--color-td-line-soft);
+  background: var(--color-td-surface);
+  cursor: pointer;
+  color: var(--color-td-ink);
+}
+
+.td-deck-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.td-deck-skip-btn {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-td-line-soft);
+  background: var(--color-td-surface);
+  color: var(--color-td-ink);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.td-deck-skip-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.td-deck-question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.td-deck-question-text {
+  margin: 0;
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 600;
+}
+
+.td-deck-question-hint {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--color-td-ink-4);
+}
+
+.td-deck-answer-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px 20px;
+  border-radius: 10px;
+  background: var(--color-td-surface-muted, #F7F5F1);
+  border: 1px solid var(--color-td-line-soft);
+}
+
+.td-deck-answer-eyebrow {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-td-ink-4);
+}
+
+.td-deck-answer-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.td-deck-answer-text a {
+  color: var(--color-td-accent);
+  text-decoration: none;
+}
+
+.td-deck-answer-text a:hover {
+  text-decoration: underline;
+}
+
+.td-deck-answer-placeholder {
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1.5px dashed var(--color-td-line-soft);
+  color: var(--color-td-ink-4);
+  font-size: 14px;
+}
+
+.td-deck-bottom-row {
+  height: 44px;
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.td-deck-show-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 8px;
+  border: 0;
+  background: var(--color-td-ink);
+  color: var(--color-td-surface);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.td-deck-show-btn:hover {
+  opacity: 0.9;
+}
+
+.td-deck-grade-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 8px;
+  border: 0;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.td-deck-grade-btn:hover {
   opacity: 0.85;
+}
+
+.td-deck-grade-again { background: #FCE8E8; color: #B42318; }
+.td-deck-grade-hard { background: #FAF0DA; color: #8A5A00; }
+.td-deck-grade-good { background: #E8EEFB; color: #2451B8; }
+.td-deck-grade-easy { background: #E2F3EA; color: #0E6E46; }
+
+/* Done mode */
+.td-deck-done {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.td-deck-done-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background: #E2F3EA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0E6E46;
+}
+
+.td-deck-done-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.td-deck-done-summary {
+  margin: 0;
+  font-size: 15px;
+  color: var(--color-td-ink-4);
+}
+
+.td-deck-tally {
+  display: flex;
+  gap: 8px;
+}
+
+.td-deck-tally-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.td-deck-done-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.td-deck-done-actions button {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
 }
 </style>

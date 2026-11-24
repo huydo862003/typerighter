@@ -10,7 +10,10 @@ export interface CardState {
   interval: number;
   repetitions: number;
   nextReview: number;
+  lastGrade?: Grade;
 }
+
+export type Grade = 'again' | 'hard' | 'good' | 'easy';
 
 export const SCHEMA_VERSION = 1;
 
@@ -28,8 +31,16 @@ export function newCardState (): CardState {
   };
 }
 
+const GRADE_NAMES: Grade[] = [
+  'again',
+  'hard',
+  'good',
+  'easy',
+];
+
 // quality: 0=again 1=hard 2=good 3=easy
 export function nextState (current: CardState, quality: number): CardState {
+  const gradeName = GRADE_NAMES[quality] ?? 'again';
   const score = [
     0,
     2,
@@ -48,6 +59,7 @@ export function nextState (current: CardState, quality: number): CardState {
       interval: 1,
       repetitions: 0,
       nextReview: Date.now() + 60_000,
+      lastGrade: gradeName,
     };
   }
 
@@ -67,5 +79,6 @@ export function nextState (current: CardState, quality: number): CardState {
     interval: nextInterval,
     repetitions: current.repetitions + 1,
     nextReview: Date.now() + nextInterval * 86_400_000,
+    lastGrade: gradeName,
   };
 }
