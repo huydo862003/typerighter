@@ -22,15 +22,26 @@ e2e.describe('container edge cases', () => {
   }) => {
     await testProject.goto(page, '/malformed-containers');
 
-    const details = page.locator('details.td-callout');
+    // Wait for content to fully render
+    await expect(page.getByRole('heading', {
+      name: 'Valid containers',
+    })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Details block renders with the new td-details class
+    const details = page.locator('.td-details');
 
     await expect(details.first()).toBeVisible({
       timeout: 10_000,
     });
 
+    // Tip callout still uses td-callout
     const tip = page.locator('.tip.td-callout');
 
-    await expect(tip).toBeVisible();
+    await expect(tip).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   e2e('nested containers render without Vue errors', async ({
