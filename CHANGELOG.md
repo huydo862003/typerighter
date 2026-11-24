@@ -1,3 +1,10 @@
+## [0.69.1] - 2026-11-24
+
+### Fixed
+
+- packages/typerighter
+  - Make deck overflow-auto
+
 ## [0.69.0] - 2026-11-24
 
 ### Added
