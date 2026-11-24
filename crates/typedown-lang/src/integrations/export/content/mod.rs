@@ -548,7 +548,12 @@ full content:
     assert!(
       exported
         .content
-        .contains(r#"<details class="details td-callout"><summary>Click to expand</summary>"#)
+        .contains(r#"<div class="details td-callout td-details is-collapsed">"#),
+      "details container should use div-based structure"
+    );
+    assert!(
+      exported.content.contains("Click to expand</button>"),
+      "details summary should be a button"
     );
     assert!(exported.content.contains("<p>details content</p>"));
   }
