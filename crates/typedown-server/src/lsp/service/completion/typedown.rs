@@ -23,7 +23,7 @@ use typedown_lang::db::types::typecheck::{is_nullable, is_subtyp_of};
 use typedown_lang::db::types::{
   File, LazyTyp, LitValue, Project, ProjectRedNode, SymbolKind, TdStaticTyp, TdTypEnum,
 };
-use typedown_lang::db::utils::{get_mapping_schema_name, kebab_to_pascal};
+use typedown_lang::db::utils::{get_mapping_schema_name, kebab_to_pascal, pascal_to_kebab};
 use typedown_lang::syntax::ast::{
   AstNode, BinaryExpr, Expr, MdContainerBlock, MdContainerShorthand, YamlMappingEntry, YamlOpKind,
 };
@@ -65,6 +65,11 @@ pub fn resolve_completion(
     SyntaxKind::InlineCode | SyntaxKind::InlineMath | SyntaxKind::MathBlock
   ) {
     return None;
+  }
+
+  // Cursor at the label position of a container or shorthand: suggest component names
+  if let Some(items) = collect_component_name_completions(db, project, &node) {
+    return Some(CompletionResponse::Array(items));
   }
 
   // Cursor inside container prop block: suggest prop names from the component contract
@@ -1111,6 +1116,80 @@ fn collect_code_block_prop_completions(
   }
 
   Some(CompletionResponse::Array(items))
+}
+
+// Suggest component names when the cursor is at the label position of ::: or [[
+fn collect_component_name_completions(
+  db: &TypedownDatabase,
+  project: Project,
+  node: &RedNode,
+) -> Option<Vec<CompletionItem>> {
+  // Check if cursor is in a container label position:
+  // - Inside MdContainerBlock, on/after the ::: token before any prop block
+  // - Inside MdContainerShorthand, on/after [[ before any prop block
+  let is_container_label = node.kind() == SyntaxKind::MdSymbol
+    && node.text() == ":::"
+    && node
+      .parent()
+      .is_some_and(|parent| parent.kind() == SyntaxKind::MdContainerBlock);
+  let is_shorthand_label = node
+    .parent()
+    .is_some_and(|parent| parent.kind() == SyntaxKind::MdContainerShorthand)
+    && matches!(
+      node.kind(),
+      SyntaxKind::LBracket | SyntaxKind::RBracket | SyntaxKind::MdSymbol
+    );
+  let is_label_ident = node.kind() == SyntaxKind::Ident
+    && node.parent().is_some_and(|parent| {
+      parent.kind() == SyntaxKind::MdContainerBlock
+        || parent.kind() == SyntaxKind::MdContainerShorthand
+    });
+
+  if !is_container_label && !is_shorthand_label && !is_label_ident {
+    return None;
+  }
+
+  let mut items = vec![];
+
+  // Builtin callouts (only for ::: containers, not [[ shorthand)
+  if !is_shorthand_label {
+    for name in [
+      "tip",
+      "info",
+      "warning",
+      "danger",
+      "details",
+      "note",
+      "important",
+      "caution",
+    ] {
+      items.push(CompletionItem {
+        label: name.to_string(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        detail: Some("builtin callout".to_string()),
+        ..Default::default()
+      });
+    }
+  }
+
+  // Custom components from contract
+  if let Some(contract_file) = project.custom_component_contract(db) {
+    let contract = get_component_contract(db, contract_file);
+    for entry in contract.entries(db) {
+      let kebab = pascal_to_kebab(&entry.name);
+      items.push(CompletionItem {
+        label: kebab,
+        kind: Some(CompletionItemKind::MODULE),
+        detail: Some(format!("component ({})", entry.source)),
+        ..Default::default()
+      });
+    }
+  }
+
+  if items.is_empty() {
+    return None;
+  }
+  Some(items)
 }
 
 // Suggest prop names when the cursor is inside a container's prop block ({...})
@@ -3920,6 +3999,66 @@ address:
       labels.contains(&"street"),
       "should suggest 'street' from address type, got: {:?}",
       labels
+    );
+  }
+
+  #[test]
+  fn container_name_suggests_builtin_and_custom_components() {
+    let contract_json = r#"{
+      "VideoEmbed": {
+        "source": "./VideoEmbed.vue",
+        "props": {}
+      },
+      "Chart": {
+        "source": "./Chart.vue",
+        "props": {}
+      }
+    }"#;
+    let (content, offset) = cursor(
+      r#"---
+---
+:::|
+"#,
+    );
+    let (analysis, uri) = setup_with_contract(&content, contract_json);
+    let params = make_params(uri, &content, offset);
+    let Some(CompletionResponse::Array(items)) = completion(&analysis, params) else {
+      panic!("expected completion items after :::");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"tip"),
+      "should suggest builtin callout 'tip': {labels:?}"
+    );
+    assert!(
+      labels.contains(&"video-embed"),
+      "should suggest custom component 'video-embed': {labels:?}"
+    );
+  }
+
+  #[test]
+  fn shorthand_name_suggests_custom_components() {
+    let contract_json = r#"{
+      "VideoEmbed": {
+        "source": "./VideoEmbed.vue",
+        "props": {}
+      }
+    }"#;
+    let (content, offset) = cursor(
+      r#"---
+---
+[[|]]
+"#,
+    );
+    let (analysis, uri) = setup_with_contract(&content, contract_json);
+    let params = make_params(uri, &content, offset);
+    let Some(CompletionResponse::Array(items)) = completion(&analysis, params) else {
+      panic!("expected completion items inside [[]]");
+    };
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+      labels.contains(&"video-embed"),
+      "should suggest custom component 'video-embed': {labels:?}"
     );
   }
 

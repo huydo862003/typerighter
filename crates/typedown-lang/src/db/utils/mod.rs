@@ -38,6 +38,17 @@ pub fn kebab_to_pascal(name: &str) -> String {
     .collect()
 }
 
+pub fn pascal_to_kebab(name: &str) -> String {
+  let mut result = String::new();
+  for char in name.chars() {
+    if char.is_uppercase() && !result.is_empty() {
+      result.push('-');
+    }
+    result.push(char.to_lowercase().next().unwrap_or(char));
+  }
+  result
+}
+
 /// Convert kebab-case to camelCase: `col-span` -> `colSpan`
 pub fn kebab_to_camel(name: &str) -> String {
   let mut parts = name.split('-');

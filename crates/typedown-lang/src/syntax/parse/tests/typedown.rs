@@ -471,6 +471,26 @@ fn parse_typedown_container_shorthand_no_frontmatter() {
   );
 }
 
+#[test]
+fn parse_empty_shorthand() {
+  let input = "[[]]\n";
+  let (ast, _diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(
+    tree.contains("MdContainerShorthand"),
+    "empty [[]] should still parse as MdContainerShorthand: {tree}"
+  );
+}
+
+#[test]
+fn parse_partial_shorthand() {
+  let input = "[[vid]]\n";
+  let (ast, diagnostics) = parse(input);
+  let tree = render_tree(&ast);
+  assert!(tree.contains("MdContainerShorthand"), "{tree}");
+  assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
 // Single dash is not a frontmatter opener
 #[test]
 fn parse_typedown_single_dash_no_frontmatter() {
