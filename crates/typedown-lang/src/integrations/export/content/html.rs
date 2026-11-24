@@ -506,7 +506,8 @@ impl<'a> HtmlEmitter<'a> {
 
     if name == "details" {
       self.write(&format!(
-        "<details class=\"details td-callout\"><summary>{title_text}</summary>\n"
+        r#"<div class="details td-callout td-details is-collapsed"><button class="td-details-summary" onclick="var p=this.parentElement;p.classList.toggle('is-collapsed');p.querySelector(':scope>.td-collapse').classList.toggle('is-collapsed')"><LucideIcon name="chevron-right" :size="14" class="td-details-chevron" />{title_text}</button><div class="td-collapse is-collapsed"><div>
+"#
       ));
     } else {
       let title_class = if has_custom_title {
@@ -526,7 +527,7 @@ impl<'a> HtmlEmitter<'a> {
     }
 
     if name == "details" {
-      self.write("</details>\n");
+      self.write("</div></div></div>\n");
     } else {
       self.write("</div>\n");
     }

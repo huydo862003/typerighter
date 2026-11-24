@@ -56,41 +56,66 @@
   color: var(--color-td-danger);
 }
 
-/* Details - padding lives on the element, summary stretches with negative margin */
-.td-content details.td-callout {
+/* Details - uses td-collapse grid transition for smooth open/close */
+.td-content .td-details {
   border-left: none;
   border: 1px solid var(--color-td-line-soft);
   border-radius: var(--radius-td-md);
-  padding: 0 20px 16px;
+  padding: 0 20px;
 }
 
-.td-content details.td-callout:not([open]) {
+.td-content .td-details.is-collapsed {
   padding-bottom: 0;
 }
 
-.td-content details.td-callout > summary {
-  margin: 0 -20px;
-  padding: 12px 20px;
-  font-weight: 600;
-  font-size: var(--font-size-td-sm);
-  cursor: pointer;
-  user-select: none;
+.td-content .td-details:not(.is-collapsed) {
+  padding-bottom: 16px;
 }
 
-.td-content details.td-callout > summary:hover {
+.td-content .td-details-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% + 40px);
+  margin: 0 -20px;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--font-size-td-sm);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--duration-td-open) var(--ease-td-out-quart);
+}
+
+.td-content .td-details-summary:hover {
   color: var(--color-td-link);
 }
 
-.td-content details.td-callout[open] > summary {
-  border-bottom: 1px solid var(--color-td-line-soft);
+.td-content .td-details:not(.is-collapsed) > .td-details-summary {
+  border-bottom-color: var(--color-td-line-soft);
   margin-bottom: 12px;
 }
 
-.td-content details.td-callout > p + p {
+.td-content .td-details-chevron {
+  flex-shrink: 0;
+  transition: transform var(--duration-td-open) var(--ease-td-out-quart);
+}
+
+.td-content .td-details:not(.is-collapsed) > .td-details-summary > .td-details-chevron {
+  transform: rotate(90deg);
+}
+
+/* The td-collapse wrapper handles the grid transition; the inline onclick toggles is-collapsed on both the outer .td-details and the inner .td-collapse */
+.td-content .td-details > .td-collapse > div > p + p {
   margin-top: 16px;
 }
 
-.td-content details.td-callout > details.td-callout {
+.td-content .td-details .td-details {
   margin-top: 8px;
 }
 
