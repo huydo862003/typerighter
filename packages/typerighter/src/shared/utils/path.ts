@@ -56,6 +56,21 @@ export function join (...segments: string[]): string {
     .replace(/\/$/, '') || '/';
 }
 
+// Resolve a relative/absolute path against a base directory
+// Same convention as fref: "/" = from root, "./" and "../" = relative, bare = from root
+export function resolveFrefPath (path: string, baseDirectory: string): string {
+  if (path.startsWith('/')) return path.slice(1);
+
+  const parts = baseDirectory.split('/').filter(Boolean);
+
+  for (const segment of path.split('/')) {
+    if (segment === '..') parts.pop();
+    else if (segment !== '.') parts.push(segment);
+  }
+
+  return parts.join('/');
+}
+
 export function stripExtension (filepath: string): string {
   const extension = extname(filepath);
 
