@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import {
-  Crosshair, Maximize, Minus, Plus, SlidersHorizontal,
+  Crosshair,
+  Maximize,
+  Minus,
+  Plus,
+  SlidersHorizontal,
+  X,
 } from '@lucide/vue';
 import {
-  useTemplateRef,
+  inject, useTemplateRef,
 } from 'vue';
 import {
   getSchemaColor,
@@ -17,7 +22,6 @@ import {
 import {
   TdKeyName,
 } from '@/client/theme-default/utils/keys';
-import TdKbdShortcut from '@/client/theme-default/components/TdKbdShortcut.vue';
 import TdTooltip from '@/client/theme-default/components/TdTooltip.vue';
 
 const {
@@ -35,11 +39,18 @@ const canvasRef = useTemplateRef<HTMLDivElement>('canvas');
 
 const {
   searchQuery, hiddenSchemas, schemaNames, filteredData, toggleSchema,
-} = useGraphFilter();
+} =
+  useGraphFilter();
 
 const {
   zoomPercent, focusCurrentPage, zoomFit, zoomIn, zoomOut,
-} = useGraphRenderer(canvasRef, filteredData, searchQuery);
+} =
+  useGraphRenderer(canvasRef, filteredData, searchQuery);
+
+const openGraphOverlay = inject<(() => void) | undefined>(
+  'openGraphOverlay',
+  undefined,
+);
 
 function closeOverlay () {
   emit('close');
@@ -74,6 +85,17 @@ function closeOverlay () {
           </div>
           <!-- Expanded panel -->
           <div class="td-kg-rail-panel">
+            <div class="td-kg-panel-header">
+              <span class="td-kg-panel-title">Knowledge graph</span>
+              <button
+                type="button"
+                class="td-kg-close-btn"
+                aria-label="Close"
+                @click="closeOverlay"
+              >
+                <X :size="16" />
+              </button>
+            </div>
             <input
               v-model="searchQuery"
               class="td-kg-search"
@@ -104,14 +126,6 @@ function closeOverlay () {
                 <span>{{ schema }}</span>
               </label>
             </div>
-            <button
-              type="button"
-              class="td-kg-close-btn"
-              @click="closeOverlay"
-            >
-              Close
-              <TdKbdShortcut :keys="[TdKeyName.Escape]" />
-            </button>
           </div>
         </div>
 
@@ -242,12 +256,28 @@ function closeOverlay () {
           <Plus :size="16" />
         </button>
       </TdTooltip>
+      <TdTooltip
+        v-if="openGraphOverlay"
+        text="Open fullscreen"
+        placement="top"
+        always
+      >
+        <button
+          type="button"
+          class="td-diagram-button"
+          aria-label="Open fullscreen"
+          @click="openGraphOverlay"
+        >
+          <Maximize :size="16" />
+        </button>
+      </TdTooltip>
     </div>
   </div>
 </template>
 
 <style scoped>
-@import './graph-controls.css';
+@import "./graph-controls.css";
+
 .td-knowledge-graph {
   position: relative;
   width: 100%;
@@ -324,7 +354,9 @@ function closeOverlay () {
   justify-content: center;
   color: var(--color-td-ink-3);
   cursor: pointer;
-  transition: transform var(--duration-td-move) var(--ease-td-out-quart), opacity var(--duration-td-fast) var(--ease-td-out-quart);
+  transition:
+    transform var(--duration-td-move) var(--ease-td-out-quart),
+    opacity var(--duration-td-fast) var(--ease-td-out-quart);
 }
 
 .td-kg-rail:hover .td-kg-rail-trigger {
@@ -350,7 +382,9 @@ function closeOverlay () {
   opacity: 0;
   transform: translateX(8px);
   pointer-events: none;
-  transition: opacity var(--duration-td-move) var(--ease-td-out-quart), transform var(--duration-td-move) var(--ease-td-out-quart);
+  transition:
+    opacity var(--duration-td-move) var(--ease-td-out-quart),
+    transform var(--duration-td-move) var(--ease-td-out-quart);
 }
 
 .td-kg-rail:hover .td-kg-rail-panel,
@@ -410,18 +444,29 @@ function closeOverlay () {
   flex-shrink: 0;
 }
 
+.td-kg-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.td-kg-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-td-ink-2);
+}
+
 .td-kg-close-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 6px 12px;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 1px solid var(--color-td-line);
   border-radius: 6px;
   background: none;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
   color: var(--color-td-ink-3);
   cursor: pointer;
 }

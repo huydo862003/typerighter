@@ -1,6 +1,32 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.71.0] - 2026-11-25
+
+### Added
+
+- packages/typerighter
+  - Knowledge graph: tooltips on all zoom/focus buttons
+  - Knowledge graph: fade transition on overlay open/close
+  - Knowledge graph: labels appear on hover neighbors and when zoomed in
+  - Ctrl+K opens collapsed sidebar and focuses search
+
+### Changed
+
+- packages/typerighter
+  - Knowledge graph: custom canvas renderer (no gradients/shadows) for better performance at scale
+  - Knowledge graph: pre-computed neighbor sets and node colors to avoid per-frame work
+  - Knowledge graph: simulation warmup offscreen with auto zoom-to-fit on engine stop
+  - Knowledge graph: link culling when zoomed out on large graphs (300+ nodes)
+  - Knowledge graph: hierarchy edges are solid, reference edges are dashed
+
+### Fixed
+
+- packages/typerighter
+  - Knowledge graph: force-graph kapsule export requires double invocation (`module.default()`)
+  - Knowledge graph: clicking a node navigated incorrectly (`router.go` -> `router.push`)
+  - Knowledge graph: redundant watchers caused simulation restart and canvas smearing
+
 ## [0.70.1] - 2026-11-25
 
 ### Fixed

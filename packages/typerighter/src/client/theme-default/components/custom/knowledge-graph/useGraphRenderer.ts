@@ -57,7 +57,6 @@ interface ForceGraphInstance {
   zoom: (level: number, duration?: number) => ForceGraphInstance;
   zoomToFit: (duration?: number, padding?: number) => ForceGraphInstance;
   centerAt: (x: number, y: number, duration?: number) => ForceGraphInstance;
-  refresh: () => ForceGraphInstance;
   _destructor?: () => void;
 }
 
@@ -112,12 +111,12 @@ export function useGraphRenderer (
     if (!canvasRef.value) return;
 
     const nodeCount = filteredData.value.nodes.length;
-    isLargeGraph = nodeCount > 300;
+
+    isLargeGraph = 300 < nodeCount;
 
     graph = createGraph(canvasRef.value)
       .backgroundColor('transparent')
-      .warmupTicks(isLargeGraph ? 100 : 50)
-      .cooldownTicks(0)
+      .warmupTicks(isLargeGraph ? 30 : 15)
       .cooldownTime(isLargeGraph ? 8000 : 15000)
       .d3AlphaDecay(isLargeGraph ? 0.05 : 0.03)
       .d3VelocityDecay(isLargeGraph ? 0.6 : 0.5)
@@ -146,7 +145,8 @@ export function useGraphRenderer (
     if (!canvasRef.value || !graph) return;
 
     const data = filteredData.value;
-    isLargeGraph = data.nodes.length > 300;
+
+    isLargeGraph = 300 < data.nodes.length;
 
     const nodes: GraphNode[] = data.nodes.map((node) => {
       const graphNode: GraphNode = {
@@ -160,7 +160,10 @@ export function useGraphRenderer (
       return graphNode;
     });
 
-    const nodeIndex = new Map(nodes.map((node) => [node.id, node]));
+    const nodeIndex = new Map(nodes.map((node) => [
+      node.id,
+      node,
+    ]));
 
     const links: GraphLink[] = data.edges.map((edge) => {
       // Build neighbor sets for hover highlighting
@@ -180,7 +183,7 @@ export function useGraphRenderer (
     });
   }
 
-  function paintNode (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) {
+  function paintNode (node: GraphNode, context: CanvasRenderingContext2D, globalScale: number) {
     const currentPath = route.path;
     const query = searchQuery.value.toLowerCase();
     const isCurrent = getTdContentUrl(node.id) === currentPath;
@@ -202,31 +205,30 @@ export function useGraphRenderer (
       radius = 5;
     }
 
-    ctx.beginPath();
-    ctx.arc(node.x!, node.y!, radius, 0, TWO_PI);
-    ctx.fillStyle = color;
-    ctx.fill();
+    context.beginPath();
+    context.arc(node.x!, node.y!, radius, 0, TWO_PI);
+    context.fillStyle = color;
+    context.fill();
 
     // Show label when zoomed in enough or for special nodes
-    // Show label when zoomed in enough or for special nodes
-    if (globalScale > LABEL_ZOOM_THRESHOLD || isCurrent || isHoverNeighbor) {
+    if (LABEL_ZOOM_THRESHOLD < globalScale || isCurrent || isHoverNeighbor) {
       const fontSize = Math.max(10 / globalScale, 1.5);
 
-      ctx.font = `${fontSize}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = isCurrent ? '#B5461F' : 'rgba(60, 55, 48, 0.8)';
-      ctx.fillText(node.label, node.x!, node.y! + radius + 2);
+      context.font = `${fontSize}px sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'top';
+      context.fillStyle = isCurrent ? '#B5461F' : 'rgba(60, 55, 48, 0.8)';
+      context.fillText(node.label, node.x!, node.y! + radius + 2);
     }
   }
 
-  function paintNodeHitArea (node: GraphNode, color: string, ctx: CanvasRenderingContext2D) {
+  function paintNodeHitArea (node: GraphNode, color: string, context: CanvasRenderingContext2D) {
     const radius = (node.__radius ?? 4) + 2;
 
-    ctx.beginPath();
-    ctx.arc(node.x!, node.y!, radius, 0, TWO_PI);
-    ctx.fillStyle = color;
-    ctx.fill();
+    context.beginPath();
+    context.arc(node.x!, node.y!, radius, 0, TWO_PI);
+    context.fillStyle = color;
+    context.fill();
   }
 
   function colorLink (link: GraphLink): string {
@@ -259,9 +261,6 @@ export function useGraphRenderer (
     if (canvasRef.value) {
       canvasRef.value.style.cursor = node ? 'pointer' : '';
     }
-
-    // Trigger visual refresh without restarting physics
-    graph?.refresh();
   }
 
   function focusCurrentPage () {

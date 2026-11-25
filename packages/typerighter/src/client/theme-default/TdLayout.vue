@@ -2,6 +2,7 @@
 import {
   computed,
   nextTick,
+  provide,
   ref,
   useTemplateRef,
   watch,
@@ -300,9 +301,15 @@ useGlobalHotkey([
 // Ctrl+G / Cmd+G - toggle knowledge graph overlay
 const graphOpen = ref(false);
 
+function openGraph () {
+  graphOpen.value = true;
+}
+
 function toggleGraph () {
   graphOpen.value = !graphOpen.value;
 }
+
+provide('openGraphOverlay', openGraph);
 
 useGlobalHotkey([
   TdKeyName.Control,
