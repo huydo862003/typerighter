@@ -171,9 +171,10 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
       const config = await tdContext.getConfig();
       const rootDirectory = resolve(config.rootDir);
 
-      // Eagerly populate site data and search index for the client bundle
+      // Eagerly populate site data, search index, and link graph for the client bundle
       virtualSearchIndex.index(rootDirectory);
       await virtualSiteData.fetchSync(tdContext);
+      await virtualLinkGraph.fetchSync(tdContext);
 
       const report = await tdContext.checkVault();
 
@@ -255,8 +256,7 @@ ${lines.join('\n')}`,
       virtualSearchIndex.index(rootDirectory);
       virtualSiteData.scan(rootDirectory);
       virtualSiteData.fetch(tdContext, server);
-      virtualLinkGraph.fetch(tdContext)
-        .catch(() => { });
+      virtualLinkGraph.fetch(tdContext, server);
 
       // Print vault diagnostics after the server URL is shown
       devServer.httpServer?.once('listening', async () => {
@@ -352,10 +352,7 @@ ${lines.join('\n')}`,
         for (const type of virtualResources.patchFile(filepath, componentResources)) {
           virtualResources.notifyHmrClient(server, type);
         }
-        virtualLinkGraph.fetch(tdContext).then(() => {
-          if (server) virtualLinkGraph.notifyHmrClient(server);
-        })
-          .catch(() => { });
+        virtualLinkGraph.fetch(tdContext, server);
       });
 
       // New file created: add to sidebar

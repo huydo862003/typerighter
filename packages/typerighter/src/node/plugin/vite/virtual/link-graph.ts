@@ -47,8 +47,20 @@ if (import.meta.hot) {
 }`;
   }
 
-  async fetch (context: TypedownContext): Promise<void> {
+  // Sync fetch for production builds
+  async fetchSync (context: TypedownContext): Promise<void> {
     this.data = await context.getLinkGraph();
+  }
+
+  // Async fetch for dev: pushes HMR update when data arrives
+  fetch (context: TypedownContext, server: ViteDevServer): void {
+    context
+      .getLinkGraph()
+      .then((data) => {
+        this.data = data;
+        this.notifyHmrClient(server);
+      })
+      .catch(() => { });
   }
 
   notifyHmrClient (server: ViteDevServer): void {
