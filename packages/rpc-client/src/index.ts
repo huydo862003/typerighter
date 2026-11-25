@@ -192,6 +192,24 @@ export interface TdComponentResourceEntry {
   fields: Record<string, string>;
 }
 
+export interface TdLinkGraph {
+  nodes: TdLinkGraphNode[];
+  edges: TdLinkGraphEdge[];
+}
+
+export interface TdLinkGraphNode {
+  id: string;
+  label: string;
+  schema?: string;
+  nodeType: 'page' | 'index';
+}
+
+export interface TdLinkGraphEdge {
+  source: string;
+  target: string;
+  kind: 'hierarchy' | 'reference';
+}
+
 // Server-reserved JSON-RPC error code for cancelled queries (-32000 to -32099)
 export const RPC_CANCELLED_CODE = -32002;
 
@@ -276,11 +294,11 @@ export class RpcClient {
     return this.rpc.sendRequest(METHOD_LIST_SIDEBAR, {});
   }
 
-  listComponentResources (componentType: string): Promise<Array<{ type: string; filepath: string; fields: Record<string, string> }>> {
+  listComponentResources (componentType: string): Promise<TdComponentResourceEntry[]> {
     return this.rpc.sendRequest(METHOD_LIST_COMPONENT_RESOURCES, { componentType });
   }
 
-  getLinkGraph (): Promise<{ nodes: Array<{ id: string; label: string; schema?: string }>; edges: Array<{ source: string; target: string }> }> {
+  getLinkGraph (): Promise<TdLinkGraph> {
     return this.rpc.sendRequest(METHOD_LINK_GRAPH, {});
   }
 

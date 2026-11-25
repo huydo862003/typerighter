@@ -1,6 +1,9 @@
 import type {
   ViteDevServer,
 } from 'vite';
+import type {
+  TdLinkGraph,
+} from '@typerighter/rpc-client';
 import {
   LINK_GRAPH_EVENT,
 } from '../constants';
@@ -8,29 +11,13 @@ import type {
   TypedownContext,
 } from '@/node/lib/typedown-context';
 
-export interface LinkGraph {
-  nodes: LinkGraphNode[];
-  edges: LinkGraphEdge[];
-}
-
-export interface LinkGraphEdge {
-  source: string;
-  target: string;
-}
-
-export interface LinkGraphNode {
-  id: string;
-  label: string;
-  schema?: string;
-}
-
-const EMPTY: LinkGraph = {
+const EMPTY: TdLinkGraph = {
   nodes: [],
   edges: [],
 };
 
-export class VirtualLinkGraph {
-  private data: LinkGraph = EMPTY;
+export class VirtualTdLinkGraph {
+  private data: TdLinkGraph = EMPTY;
 
   load (): string {
     const payload = JSON.stringify(this.data);

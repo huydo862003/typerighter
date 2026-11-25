@@ -18,9 +18,7 @@ use typedown_lang::db::derived::evaluate::evaluate_typ::evaluate_typ;
 use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::db::derived::name_resolver::file_symbol::file_symbol;
 use typedown_lang::db::derived::name_resolver::members::schema_members;
-use typedown_lang::db::derived::name_resolver::resolution_index::{
-  find_transitive_referrers, resolution_index,
-};
+use typedown_lang::db::derived::name_resolver::resolution_index::find_transitive_referrers;
 use typedown_lang::db::derived::name_resolver::resolve::resolve;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::db::derived::typechecker::typecheck::typecheck;
@@ -36,6 +34,8 @@ use typedown_lang::syntax::ast::{AstNode, SourceFile};
 use typedown_lang::syntax::diagnostic::{Severity, TdDiagnostic, TdDiagnosticKind};
 
 use typedown_types::path::normalize_path;
+
+use crate::rpc::link_graph::get_link_graph;
 
 use crate::core::analysis::Analysis;
 use crate::core::analysis_host::AnalysisHost;
@@ -674,7 +674,7 @@ fn dispatch_request(
       let params: ResourceParams = parse_params(params)?;
       Ok(serde_json::to_value(list_component_resources(analysis, &params.component_type)?).unwrap())
     }
-    METHOD_LINK_GRAPH => Ok(serde_json::to_value(link_graph(analysis)?).unwrap()),
+    METHOD_LINK_GRAPH => Ok(serde_json::to_value(get_link_graph(analysis)?).unwrap()),
     METHOD_LIST_SCHEMAS => Ok(serde_json::to_value(list_schemas(analysis)?).unwrap()),
     METHOD_GET_SCHEMA => {
       let params: SchemaParams = parse_params(params)?;
@@ -902,89 +902,6 @@ fn list_component_resources(
   }
 
   Ok(result)
-}
-
-fn link_graph(analysis: &Analysis) -> RpcResult<serde_json::Value> {
-  let db = &analysis.db;
-  let project = analysis.project;
-  let config = get_vault_config(db, project);
-  let root_dir = config.root_dir(db);
-  let files = project.files(db);
-
-  let mut nodes = Vec::new();
-  let mut edges = Vec::new();
-
-  // Build a filepath -> file map for target resolution
-  let mut filepath_map: HashMap<String, File> = HashMap::new();
-
-  for (path, file) in files.iter() {
-    if !path.starts_with(&root_dir) || !is_content_file(path) {
-      continue;
-    }
-    let relative = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    filepath_map.insert(relative.clone(), *file);
-
-    let nav = export_page_resource_nav(db, project, *file);
-    let label = nav
-      .as_ref()
-      .and_then(|nav| nav.label.clone())
-      .unwrap_or_else(|| relative.clone());
-    let schema = nav.as_ref().and_then(|nav| nav.schema.clone());
-
-    nodes.push(serde_json::json!({
-      "id": relative,
-      "label": label,
-      "schema": schema,
-    }));
-  }
-
-  // Pre-build def_id -> relative filepath index for O(1) lookups
-  let def_id_to_path: HashMap<String, String> = filepath_map
-    .iter()
-    .filter_map(|(relative, file)| {
-      let sym = file_symbol(db, project, *file).value(db)?;
-      Some((sym.definition_id(db).to_string(), relative.clone()))
-    })
-    .collect();
-
-  // For each content file, find outgoing links via the resolution index
-  for (path, file) in files.iter() {
-    if !path.starts_with(&root_dir) || !is_content_file(path) {
-      continue;
-    }
-    let source = normalize_path(path.strip_prefix(&root_dir).unwrap_or(path));
-    let index = resolution_index(db, project, *file);
-
-    for def_id in index.definition_ids(db) {
-      if let Some(target) = def_id_to_path.get(&def_id)
-        && *target != source
-      {
-        edges.push(serde_json::json!({
-          "source": source,
-          "target": target,
-        }));
-      }
-    }
-  }
-
-  // Deduplicate edges
-  edges.sort_by(|first, second| {
-    let key_a = (
-      first["source"].as_str().unwrap_or(""),
-      first["target"].as_str().unwrap_or(""),
-    );
-    let key_b = (
-      second["source"].as_str().unwrap_or(""),
-      second["target"].as_str().unwrap_or(""),
-    );
-    key_a.cmp(&key_b)
-  });
-  edges.dedup();
-
-  Ok(serde_json::json!({
-    "nodes": nodes,
-    "edges": edges,
-  }))
 }
 
 // Cascade SSG flags from index.td to all files in the same directory and subdirectories
@@ -1370,6 +1287,7 @@ mod tests {
   use super::*;
   use crate::core::analysis::Analysis;
   use crate::rpc::contract::{TdFileMetadata, TdSidebarItem, TdSsgFlags};
+  use crate::rpc::link_graph::get_link_graph;
   use typedown_lang::db::types::{FileHandle, FileMetadata};
 
   fn make_item(label: Option<&str>, show_in_search: bool) -> TdSidebarItem {
@@ -1508,7 +1426,7 @@ ref: fref("/note.td")
       Arc::new((Mutex::new(1), Condvar::new())),
     );
 
-    let result = link_graph(&analysis)
+    let result = get_link_graph(&analysis)
       .ok()
       .expect("link_graph should succeed");
     let nodes = result["nodes"].as_array().unwrap();

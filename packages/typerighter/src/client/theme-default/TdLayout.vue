@@ -39,7 +39,7 @@ import TdSidebarNav from './components/TdSidebarNav.vue';
 import TdSidebarIcons from './components/TdSidebarIcons.vue';
 import TdSkeleton from './components/TdSkeleton.vue';
 import TdCommandPalette from './components/TdCommandPalette.vue';
-import TdKnowledgeGraph from './components/custom/TdKnowledgeGraph.vue';
+import TdKnowledgeGraph from './components/custom/knowledge-graph/TdKnowledgeGraph.vue';
 import TdKbdShortcut from './components/TdKbdShortcut.vue';
 import TdTooltip from './components/TdTooltip.vue';
 import TdShortcutsDialog from './components/TdShortcutsDialog.vue';
@@ -162,6 +162,8 @@ function expandAndFocusSearch () {
 function focusSearch () {
   if (sidebarSearch.value?.isVisible) {
     sidebarSearch.value.focus();
+  } else if (isSidebarCollapsed.value) {
+    expandAndFocusSearch();
   } else {
     openMenu();
     menuSearch.value?.focus();
@@ -298,14 +300,8 @@ useGlobalHotkey([
 // Ctrl+G / Cmd+G - toggle knowledge graph overlay
 const graphOpen = ref(false);
 
-const graphOverlayRef = useTemplateRef<HTMLDivElement>('graphOverlay');
-
 function toggleGraph () {
   graphOpen.value = !graphOpen.value;
-
-  if (graphOpen.value) {
-    nextTick(() => graphOverlayRef.value?.focus());
-  }
 }
 
 useGlobalHotkey([
@@ -735,28 +731,11 @@ function shrinkSidebar () {
     />
 
     <!-- Knowledge graph overlay -->
-    <Teleport to="body">
-      <div
-        v-if="graphOpen"
-        ref="graphOverlay"
-        class="td-graph-overlay"
-        tabindex="0"
-        @keydown.escape="toggleGraph"
-      >
-        <TdKnowledgeGraph class="td-graph-overlay-canvas" />
-        <div class="td-graph-floating-toolbar">
-          <span class="td-graph-floating-label">Knowledge Graph</span>
-          <button
-            type="button"
-            class="td-graph-floating-btn"
-            @click="toggleGraph"
-          >
-            Close
-            <TdKbdShortcut :keys="[TdKeyName.Escape]" />
-          </button>
-        </div>
-      </div>
-    </Teleport>
+    <TdKnowledgeGraph
+      v-if="graphOpen"
+      overlay
+      @close="toggleGraph"
+    />
   </div>
 </template>
 
@@ -1181,60 +1160,5 @@ function shrinkSidebar () {
   .td-content {
     padding: 24px 16px 60px;
   }
-}
-
-/* Knowledge graph overlay */
-
-.td-graph-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  background: var(--color-td-bg);
-  outline: none;
-}
-
-.td-graph-overlay-canvas {
-  width: 100%;
-  height: 100% !important;
-  border: none !important;
-  border-radius: 0 !important;
-}
-
-.td-graph-floating-toolbar {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: var(--radius-td-lg);
-  border: 1px solid var(--color-td-line);
-  background: var(--color-td-surface);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.td-graph-floating-label {
-  font-size: var(--font-size-td-xs);
-  font-weight: 600;
-  color: var(--color-td-ink-3);
-}
-
-.td-graph-floating-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--color-td-line);
-  border-radius: var(--radius-td-sm);
-  background: none;
-  font: inherit;
-  font-size: var(--font-size-td-xs);
-  color: var(--color-td-ink-3);
-  cursor: pointer;
-}
-
-.td-graph-floating-btn:hover {
-  background: var(--color-td-hover);
 }
 </style>

@@ -40,7 +40,7 @@ const {
 const cardStates = ref<Map<string, CardState>>(new Map());
 
 const studying = ref(false);
-const studyDeckId = ref<string | null>(null);
+const studyDeckId = ref<string | undefined>();
 const studyMode = ref<StudyMode>('review');
 
 interface Deck {
@@ -127,7 +127,7 @@ const allCards = computed(() =>
 
 // Study targets
 const studyCards = computed((): Resource[] => {
-  if (studyDeckId.value === null) return allCards.value;
+  if (studyDeckId.value === undefined) return allCards.value;
 
   const deck = decks.value.find((deck) => deck.id === studyDeckId.value);
 
@@ -135,7 +135,7 @@ const studyCards = computed((): Resource[] => {
 });
 
 const studyDeckName = computed((): string => {
-  if (studyDeckId.value === null) return 'All decks';
+  if (studyDeckId.value === undefined) return 'All decks';
 
   const deck = decks.value.find((deck) => deck.id === studyDeckId.value);
 
@@ -159,17 +159,17 @@ async function loadStates () {
 }
 
 function previewAll () {
-  startStudy(null, 'preview');
+  startStudy(undefined, 'preview');
 }
 
-function startStudy (deckId: string | null, selectedMode: StudyMode) {
+function startStudy (deckId: string | undefined, selectedMode: StudyMode) {
   studyDeckId.value = deckId;
   studyMode.value = selectedMode;
   studying.value = true;
 }
 
 function studyAll () {
-  startStudy(null, 'review');
+  startStudy(undefined, 'review');
 }
 
 function studyDeck (deckId: string) {

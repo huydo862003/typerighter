@@ -19,7 +19,7 @@ import TdFlashcard from '../theme-default/components/custom/flashcard/TdFlashcar
 import TdGrid from '../theme-default/components/custom/TdGrid.vue';
 import TdGridCell from '../theme-default/components/custom/TdGridCell.vue';
 import TdGlossaryIndex from '../theme-default/components/custom/glossary/TdGlossaryIndex.vue';
-import TdKnowledgeGraph from '../theme-default/components/custom/TdKnowledgeGraph.vue';
+import TdKnowledgeGraph from '../theme-default/components/custom/knowledge-graph/TdKnowledgeGraph.vue';
 import TdLucideIcon from '../theme-default/components/TdLucideIcon.vue';
 import {
   Content,

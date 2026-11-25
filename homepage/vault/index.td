@@ -149,8 +149,13 @@ Here is what Typedown gives you across the language, editor, and build pipeline.
 - Static site generation with search and sidebar navigation
 - Syntax highlighting, math rendering, and callout blocks
 - Per-page icons, breadcrumbs, and prev/next navigation
+- Custom components: flashcard decks, knowledge graph, and more
 
 ![Scaffold home page with sidebar navigation, file structure, and commands table](01-getting-started/assets/initial-page.png)
+
+The knowledge graph visualizes every page in your vault and the links between them. Nodes are colored by schema type. Click any node to navigate to that page.
+
+[[knowledge-graph]]
 
 ## How it compares
 

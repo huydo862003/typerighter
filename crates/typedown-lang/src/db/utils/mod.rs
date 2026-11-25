@@ -74,6 +74,39 @@ pub fn snake_to_kebab(name: &str) -> String {
   name.replace('_', "-")
 }
 
+// Strip numeric prefix (e.g. "01-") and capitalize first word
+pub fn unslugify(slug: &str) -> String {
+  let rest = slug
+    .strip_prefix(|char: char| char.is_ascii_digit())
+    .and_then(|rest| {
+      rest.strip_prefix(|char: char| char.is_ascii_digit() || char == '-' || char == '_')
+    })
+    .map(|rest| {
+      rest.trim_start_matches(|char: char| char.is_ascii_digit() || char == '-' || char == '_')
+    })
+    .unwrap_or(slug);
+
+  let words: Vec<&str> = rest.split(['-', '_']).collect();
+  let mut result = String::new();
+
+  for (index, word) in words.iter().enumerate() {
+    if index > 0 {
+      result.push(' ');
+    }
+    if index == 0 && !word.is_empty() {
+      let mut chars = word.chars();
+      if let Some(first) = chars.next() {
+        result.push(first.to_uppercase().next().unwrap_or(first));
+        result.extend(chars);
+      }
+    } else {
+      result.push_str(word);
+    }
+  }
+
+  result
+}
+
 pub fn percent_encode(input: &str) -> String {
   let mut out = String::with_capacity(input.len() * 3);
   for byte in input.bytes() {

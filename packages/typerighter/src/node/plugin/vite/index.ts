@@ -56,7 +56,7 @@ import {
   VirtualSearchIndex,
 } from './virtual/search-index';
 import {
-  VirtualLinkGraph,
+  VirtualTdLinkGraph,
 } from './virtual/link-graph';
 import {
   VirtualResources,
@@ -108,7 +108,7 @@ export function typedown (options: TypedownPluginOptions = {}): Plugin[] {
   const virtualSiteData = new VirtualSiteData();
   const virtualSearchIndex = new VirtualSearchIndex();
   const virtualResources = new VirtualResources();
-  const virtualLinkGraph = new VirtualLinkGraph();
+  const virtualLinkGraph = new VirtualTdLinkGraph();
 
   const cache: TypedownPluginCache = {
     devHtml: undefined,
@@ -372,6 +372,7 @@ ${lines.join('\n')}`,
         for (const type of virtualResources.patchFile(filepath, componentResources)) {
           virtualResources.notifyHmrClient(server, type);
         }
+        virtualLinkGraph.fetch(tdContext, server);
       });
 
       // File deleted: remove from sidebar
@@ -387,6 +388,7 @@ ${lines.join('\n')}`,
         virtualPages.invalidate(server);
         notifyFileModulesHmrClient(filepath);
         virtualResources.removeFile(filepath, server);
+        virtualLinkGraph.fetch(tdContext, server);
       });
 
       // Schema changed: patch schema locally

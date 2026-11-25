@@ -27,6 +27,7 @@ declare module '@typedown/link-graph' {
     edges: Array<{
       source: string;
       target: string;
+      kind: 'hierarchy' | 'reference';
     }>;
   }>;
 }
