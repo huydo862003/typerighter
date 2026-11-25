@@ -130,7 +130,7 @@ export function useGraphRenderer (
       .linkWidth(1)
       .linkLineDash(dashLink)
       .onNodeHover(handleNodeHover)
-      .onNodeClick((node: GraphNode) => router.push(withBase(getTdContentUrl(node.id))))
+      .onNodeClick((node: GraphNode) => router.go(withBase(getTdContentUrl(node.id))))
       .onEngineStop(() => graph?.zoomToFit(400, 40))
       .onZoom((transform) => {
         currentZoom.value = transform.k;
