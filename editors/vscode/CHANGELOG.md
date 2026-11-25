@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.71.1] - 2026-11-25
+
+### Fixed
+
+- packages/typerighter
+  - Fix wrong router API call in knowledge graph
+
 ## [0.71.0] - 2026-11-25
 
 ### Added
