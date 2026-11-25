@@ -4,7 +4,6 @@
 
 - packages/typerighter
   - Knowledge graph renders empty on first load: link graph virtual module now follows the site data pattern (async fetch with HMR push on completion)
-  - Link graph data populated during production builds via `fetchSync` in `buildStart`
 
 ## [0.70.0] - 2026-11-24
 
