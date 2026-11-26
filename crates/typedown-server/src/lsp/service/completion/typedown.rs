@@ -131,8 +131,9 @@ pub fn resolve_completion(
     return Some(CompletionResponse::Array(items));
   }
 
-  // Schema-typed field value (including empty values): suggest fref("path") completions
-  if let Some(typ) = get_declared_field_typ_at_value(db, project, file, &node)
+  // Schema-typed field value (including empty values, but not inside string literals): suggest fref("path") completions
+  if find_ancestor(&node, SyntaxKind::StringLit).is_none()
+    && let Some(typ) = get_declared_field_typ_at_value(db, project, file, &node)
     && (typ.is_td_schema_typ() || has_nullable_member(db, &typ, TdTypEnum::is_td_schema_typ))
   {
     let items = collect_fref_wrapped_completions(db, project, Some(&typ));
@@ -2568,23 +2569,33 @@ assignee: f|
   fn fref_snippet_not_suggested_inside_string_on_schema_field() {
     let (content, offset) = cursor(
       r#"---
-_type: Task
+_type: TaskRef
 assignee: "f|"
 ---
 "#,
     );
-    let (analysis, uri) = setup(&content);
+    let (analysis, uri) = setup_with_content(&content);
     let params = make_params(uri, &content, offset);
 
     let response = completion(&analysis, params);
     let Some(CompletionResponse::Array(items)) = response else {
       panic!("expected value completions");
     };
-    let fref_item = items.iter().find(|item| item.label == "fref");
+    let has_fref = items.iter().any(|item| {
+      item.label == "fref"
+        || item.kind == Some(CompletionItemKind::REFERENCE)
+        || item
+          .insert_text
+          .as_deref()
+          .is_some_and(|text| text.contains("fref("))
+    });
     assert!(
-      fref_item.is_none(),
-      "fref should not be suggested inside a string literal, got: {:?}",
-      items.iter().map(|item| &item.label).collect::<Vec<_>>()
+      !has_fref,
+      "fref should not be suggested inside a string literal on a schema-typed field, got: {:?}",
+      items
+        .iter()
+        .map(|item| (&item.label, &item.insert_text))
+        .collect::<Vec<_>>()
     );
   }
 
