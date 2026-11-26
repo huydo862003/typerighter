@@ -23,12 +23,58 @@ pub fn node_at_offset(root: RedNode, offset: usize) -> Option<RedNode> {
 
 /// Returns true if the cursor is in a mapping value position rather than a key position
 pub fn is_in_mapping_value_position(node: &RedNode) -> bool {
-  let mut current = node.parent();
-  while let Some(ref cur) = current {
-    match cur.kind() {
-      SyntaxKind::YamlMappingEntryValue => return true,
+  let mut _current = Some(node.clone());
+  while let Some(ref current) = _current {
+    match current.kind() {
+      SyntaxKind::YamlMappingEntryValue => {
+        // When a value has no non-trivia tokens (e.g. `address:\n  |`) or ends with a trailing newline, a cursor on a subsequent line is outside the inline value
+        if !node.text().contains('\n') {
+          let value_text = current.text();
+          if let Some(first_newline) = value_text.find('\n') {
+            let before_newline = &value_text[..first_newline];
+            if before_newline.trim().is_empty()
+              && node.start_offset() > current.start_offset() + first_newline
+            {
+              return false;
+            }
+          }
+        }
+        return true;
+      }
+      SyntaxKind::YamlSequenceItem => return true,
       SyntaxKind::YamlMappingEntryKey => return false,
-      _ => current = cur.parent(),
+      SyntaxKind::YamlMappingEntry => {
+        // Direct token inside YamlMappingEntry (e.g. `:`, or trailing whitespace on `key: ` before newline) is in value position if it starts at or after the `:` token and stays on the same line
+        let colon = current
+          .children()
+          .find(|child| child.kind() == SyntaxKind::Colon);
+        let first_newline = current
+          .children()
+          .find(|child| child.kind() == SyntaxKind::Newline);
+        if let Some(colon) = colon
+          && node.start_offset() >= colon.end_offset()
+          && node.kind() != SyntaxKind::Newline
+          && first_newline.is_none_or(|newline| node.start_offset() < newline.start_offset())
+        {
+          return true;
+        }
+        return false;
+      }
+      SyntaxKind::YamlMapping => {
+        // Trailing whitespace after an entry with an incomplete inline expression (e.g. `name: a - |`) can be attached to YamlMapping right before the closing newline
+        if node.kind() == SyntaxKind::Whitespace
+          && let Some(previous_entry) = current
+            .children()
+            .filter(|child| child.kind() == SyntaxKind::YamlMappingEntry)
+            .take_while(|child| child.end_offset() <= node.start_offset())
+            .last()
+          && !previous_entry.text().ends_with('\n')
+        {
+          return true;
+        }
+        _current = current.parent();
+      }
+      _ => _current = current.parent(),
     }
   }
   false

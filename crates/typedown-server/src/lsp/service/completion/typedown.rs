@@ -136,7 +136,10 @@ pub fn resolve_completion(
     && let Some(typ) = get_declared_field_typ_at_value(db, project, file, &node)
     && (typ.is_td_schema_typ() || has_nullable_member(db, &typ, TdTypEnum::is_td_schema_typ))
   {
-    let items = collect_fref_wrapped_completions(db, project, Some(&typ));
+    let mut items = collect_fref_wrapped_completions(db, project, Some(&typ));
+    if let Some(value_items) = collect_value_completions(db, project, file, &node) {
+      items.extend(value_items);
+    }
     if !items.is_empty() {
       return Some(CompletionResponse::Array(items));
     }
@@ -427,9 +430,17 @@ fn collect_fref_completions(
   rope: &Rope,
   cursor_offset: usize,
 ) -> Vec<CompletionItem> {
-  let expected_typ = get_declared_field(db, project, file, node);
+  let string_lit = find_ancestor(node, SyntaxKind::StringLit);
+  let call_node = match string_lit {
+    Some(ref lit) => find_ancestor(lit, SyntaxKind::CallExpr),
+    None => find_ancestor(node, SyntaxKind::CallExpr),
+  };
+  let expected_typ = call_node.and_then(|call| {
+    let project_node = ProjectRedNode::new(project, file, call);
+    expected_node_typ(db, project_node).typ(db)
+  });
   let candidates = collect_fref_candidates(db, project, expected_typ.as_ref());
-  let inside_str = find_ancestor(node, SyntaxKind::StringLit).is_some();
+  let inside_str = string_lit.is_some();
 
   if inside_str {
     candidates
@@ -489,12 +500,22 @@ fn get_declared_field_typ_at_value<'db>(
   file: File,
   node: &RedNode,
 ) -> Option<TdTypEnum<'db>> {
-  if is_in_mapping_value_position(node) {
-    return get_declared_field(db, project, file, node);
+  if !is_in_mapping_value_position(node) {
+    return None;
+  }
+  if let Some(typ) = get_declared_field(db, project, file, node) {
+    return Some(typ);
   }
 
-  // Empty value: resolve from the entry key name
-  let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry)?;
+  // Empty value or trailing whitespace after an entry: resolve from the entry key name
+  let entry = find_ancestor(node, SyntaxKind::YamlMappingEntry).or_else(|| {
+    let mapping = find_ancestor(node, SyntaxKind::YamlMapping)?;
+    mapping
+      .children()
+      .filter(|child| child.kind() == SyntaxKind::YamlMappingEntry)
+      .take_while(|child| child.end_offset() <= node.start_offset())
+      .last()
+  })?;
   let key_text = YamlMappingEntry::cast(entry.clone()).and_then(|typed_entry| typed_entry.key())?;
   let mapping = entry
     .parent()
@@ -571,11 +592,7 @@ fn collect_value_completions(
 
   let mut items = vec![make_keyword_item("true"), make_keyword_item("false")];
 
-  // Get declared type early so the scope loop can gate fref on schema-typed fields
-  let declared_typ = get_declared_field(db, project, file, node);
-  let is_schema_typed = declared_typ.as_ref().is_some_and(|typ| {
-    typ.is_td_schema_typ() || has_nullable_member(db, typ, TdTypEnum::is_td_schema_typ)
-  });
+  let declared_typ = get_declared_field_typ_at_value(db, project, file, node);
   let inside_str = find_ancestor(node, SyntaxKind::StringLit).is_some();
 
   // Variables in scope (icon, fref, vault, file names, imports, closure params)
@@ -595,8 +612,8 @@ fn collect_value_completions(
     if matches!(symbol.kind(db), SymbolKind::Asset(..)) {
       continue;
     }
-    // fref is only relevant for schema-typed fields and only outside string literals
-    if name == "fref" && (!is_schema_typed || inside_str) {
+    // fref is a builtin macro usable in any expression position outside string literals
+    if name == "fref" && inside_str {
       continue;
     }
     let kind = match symbol.kind(db) {
@@ -2514,13 +2531,13 @@ name: a|
     );
   }
 
-  // fref scope variable should not appear for non-schema-typed fields (string, number, etc.)
+  // fref scope variable should appear in any unquoted expression position (including string-typed fields, e.g. fref("...").name)
   #[test]
-  fn fref_snippet_not_suggested_for_string_field() {
+  fn fref_snippet_suggested_for_string_field() {
     let (content, offset) = cursor(
       r#"---
 _type: Person
-name: n|
+name: f|
 ---
 "#,
     );
@@ -2533,8 +2550,8 @@ name: n|
     };
     let fref_item = items.iter().find(|item| item.label == "fref");
     assert!(
-      fref_item.is_none(),
-      "fref should not be suggested for string field, got: {:?}",
+      fref_item.is_some(),
+      "fref should be suggested in any unquoted value position, got: {:?}",
       items.iter().map(|item| &item.label).collect::<Vec<_>>()
     );
   }
@@ -2597,6 +2614,151 @@ assignee: "f|"
         .map(|item| (&item.label, &item.insert_text))
         .collect::<Vec<_>>()
     );
+  }
+
+  // fref should not appear inside a function call string argument f("|") on a schema-typed or non-schema-typed field
+  #[test]
+  fn fref_not_suggested_inside_call_string_arg() {
+    for (schema_name, field_line) in [
+      ("Directory", r#"featured: f("|")"#),
+      ("Person", r#"name: f("|")"#),
+    ] {
+      let input = format!(
+        r#"---
+_type: {schema_name}
+{field_line}
+---
+"#
+      );
+      let (content, offset) = cursor(&input);
+      let (analysis, uri) = setup_with_content(&content);
+      let params = make_params(uri, &content, offset);
+
+      if let Some(CompletionResponse::Array(items)) = completion(&analysis, params) {
+        let has_fref = items.iter().any(|item| {
+          item.label == "fref"
+            || item.kind == Some(CompletionItemKind::REFERENCE)
+            || item
+              .insert_text
+              .as_deref()
+              .is_some_and(|text| text.contains("fref("))
+        });
+        assert!(
+          !has_fref,
+          "fref should not be suggested inside f(\"|\") ({field_line}), got: {:?}",
+          items
+            .iter()
+            .map(|item| (&item.label, &item.insert_text))
+            .collect::<Vec<_>>()
+        );
+      }
+    }
+  }
+
+  // f(fref("|")) and f(fref(|)) should suggest fref completions even when the top-level field is not schema-typed
+  #[test]
+  fn fref_inside_call_arg_suggests_file_paths() {
+    for raw_input in [
+      r#"---
+_type: TaskRef
+title: ((person) -> "hello")(fref("|"))
+---
+"#,
+      r#"---
+_type: TaskRef
+title: ((person) -> "hello")(fref(|))
+---
+"#,
+    ] {
+      let (content, offset) = cursor(raw_input);
+      let (analysis, uri) = setup_with_content(&content);
+      let params = make_params(uri, &content, offset);
+
+      let response = completion(&analysis, params);
+      let Some(CompletionResponse::Array(items)) = response else {
+        panic!("expected fref completions inside {raw_input}");
+      };
+      let details: Vec<String> = items
+        .iter()
+        .filter_map(|item| item.detail.clone())
+        .collect();
+      assert!(
+        details.iter().any(|detail| detail.contains("alice")),
+        "should suggest alice.td inside {raw_input}, got: {:?}",
+        details
+      );
+    }
+  }
+
+  // Global symbols (fref, string, number, vault, icon, etc.) should be suggested in expression positions:
+  // (|), [|], : [], f(|), f(a, |), | + 1, a - |
+  #[test]
+  fn global_symbols_suggested_in_expression_positions() {
+    for raw_input in [
+      r#"---
+_type: Person
+name: (|)
+---
+"#,
+      r#"---
+_type: Person
+name: [|]
+---
+"#,
+      r#"---
+_type: Person
+name: []|
+---
+"#,
+      r#"---
+_type: Person
+name: f(|)
+---
+"#,
+      r#"---
+_type: Person
+name: f(a, |)
+---
+"#,
+      r#"---
+_type: Person
+name: | + 1
+---
+"#,
+      r#"---
+_type: Person
+name: a - |
+---
+"#,
+      r#"---
+_type: Directory
+featured: (|)
+---
+"#,
+      r#"---
+_type: Directory
+featured: f(|)
+---
+"#,
+    ] {
+      let (content, offset) = cursor(raw_input);
+      let (analysis, uri) = setup_with_content(&content);
+      let params = make_params(uri, &content, offset);
+
+      let response = completion(&analysis, params);
+      let Some(CompletionResponse::Array(items)) = response else {
+        panic!("expected completions for expression position:\n{raw_input}");
+      };
+      let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+      for expected in [
+        "fref", "string", "number", "boolean", "vault", "icon", "self",
+      ] {
+        assert!(
+          labels.contains(&expected),
+          "should suggest global '{expected}' in:\n{raw_input}\ngot: {labels:?}"
+        );
+      }
+    }
   }
 
   // Resource files should never appear as bare completions (no insert_text wrapping)
@@ -3014,11 +3176,7 @@ name: i|
     };
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(labels.contains(&"icon"), "should suggest builtin 'icon'");
-    // fref is omitted for non-schema-typed fields (name is a string field)
-    assert!(
-      !labels.contains(&"fref"),
-      "should not suggest 'fref' for string field"
-    );
+    assert!(labels.contains(&"fref"), "should suggest builtin 'fref'");
     assert!(labels.contains(&"vault"), "should suggest builtin 'vault'");
   }
 

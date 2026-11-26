@@ -14,8 +14,8 @@ use crate::db::types::TdSchemaTyp;
 use crate::db::types::derived::obj_system::TdStaticTyp;
 use crate::db::types::typecheck::is_subtyp_of;
 use crate::db::types::{
-  File, FuncSignature, LazyTyp, Project, ProjectRedNode, StaticAccessPath, Symbol, TdProductTyp,
-  TdTypEnum, TypResult,
+  File, FuncSignature, LazyTyp, Project, ProjectRedNode, StaticAccessPath, Symbol,
+  TdBoundVariableTyp, TdProductTyp, TdTypEnum, TypResult,
 };
 use crate::db::utils::is_schemaless_file;
 use crate::db::utils::is_typ_file;
@@ -189,7 +189,15 @@ fn get_expected_call_arg_typ<'db>(
   if let Some(TdTypEnum::TdFuncTyp(func)) = callee_typ {
     let params = func.signature(db).params(db);
     if let Some(param_typ) = params.get(arg_index).and_then(|lazy| lazy.resolve(db)) {
-      return TypResult::new(db, Some(param_typ), vec![]);
+      let resolved_param = match &param_typ {
+        TdTypEnum::TdBoundVariableTyp(bound_variable) => {
+          TdBoundVariableTyp::upper_bound(*bound_variable, db)
+            .resolve(db)
+            .unwrap_or(param_typ)
+        }
+        _ => param_typ,
+      };
+      return TypResult::new(db, Some(resolved_param), vec![]);
     }
   }
 
