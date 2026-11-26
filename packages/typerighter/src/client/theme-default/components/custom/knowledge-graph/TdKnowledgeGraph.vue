@@ -19,9 +19,6 @@ import {
 import {
   useGraphRenderer,
 } from './useGraphRenderer';
-import {
-  TdKeyName,
-} from '@/client/theme-default/utils/keys';
 import TdTooltip from '@/client/theme-default/components/TdTooltip.vue';
 
 const {

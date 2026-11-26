@@ -41,8 +41,19 @@ pub fn is_in_mapping_value_position(node: &RedNode) -> bool {
         }
         return true;
       }
-      SyntaxKind::YamlSequenceItem => return true,
-      SyntaxKind::YamlMappingEntryKey => return false,
+      SyntaxKind::YamlSequenceItem | SyntaxKind::DictEntryValue => return true,
+      SyntaxKind::YamlMappingEntryKey | SyntaxKind::DictEntryKey => return false,
+      SyntaxKind::DictEntry => {
+        let colon = current
+          .children()
+          .find(|child| child.kind() == SyntaxKind::Colon);
+        if let Some(colon) = colon
+          && node.start_offset() >= colon.end_offset()
+        {
+          return true;
+        }
+        return false;
+      }
       SyntaxKind::YamlMappingEntry => {
         // Direct token inside YamlMappingEntry (e.g. `:`, or trailing whitespace on `key: ` before newline) is in value position if it starts at or after the `:` token and stays on the same line
         let colon = current
@@ -63,11 +74,8 @@ pub fn is_in_mapping_value_position(node: &RedNode) -> bool {
       SyntaxKind::YamlMapping => {
         // Trailing whitespace after an entry with an incomplete inline expression (e.g. `name: a - |`) can be attached to YamlMapping right before the closing newline
         if node.kind() == SyntaxKind::Whitespace
-          && let Some(previous_entry) = current
-            .children()
-            .filter(|child| child.kind() == SyntaxKind::YamlMappingEntry)
-            .take_while(|child| child.end_offset() <= node.start_offset())
-            .last()
+          && let Some(previous_entry) =
+            get_last_child_ending_before(current, SyntaxKind::YamlMappingEntry, node.start_offset())
           && !previous_entry.text().ends_with('\n')
         {
           return true;
@@ -78,6 +86,20 @@ pub fn is_in_mapping_value_position(node: &RedNode) -> bool {
     }
   }
   false
+}
+
+/// Last child of `parent` with the given kind that ends at or before `offset`
+/// Used to find the entry a cursor trails when it sits in trivia after an incomplete entry
+pub fn get_last_child_ending_before(
+  parent: &RedNode,
+  kind: SyntaxKind,
+  offset: usize,
+) -> Option<RedNode> {
+  parent
+    .children()
+    .filter(|child| child.kind() == kind)
+    .take_while(|child| child.end_offset() <= offset)
+    .last()
 }
 
 /// Returns true if this `Ident` token is directly inside a `YamlMappingEntryKey`
