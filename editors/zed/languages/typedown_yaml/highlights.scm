@@ -9,6 +9,7 @@
 ; Values
 (number) @number
 (boolean) @boolean
+(null) @constant.builtin
 (string) @string
 (escape_sequence) @string.escape
 
@@ -68,6 +69,11 @@
 ; Postfix operators
 (postfix_expression "?" @operator)
 (optional_type "?" @operator)
+
+; Closures
+(closure_expression "->" @operator)
+(closure_expression (identifier) @variable.parameter)
+(parameter_list (identifier) @variable.parameter)
 
 ; Function calls
 (call_expression (expression (identifier) @function))

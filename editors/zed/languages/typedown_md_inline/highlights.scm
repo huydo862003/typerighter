@@ -46,6 +46,7 @@
 (self_expression) @variable.special
 (number) @number
 (boolean) @boolean
+(null) @constant.builtin
 (string) @string
 (escape_sequence) @string.escape
 (fref "fref" @function)
@@ -76,6 +77,11 @@
 ; Postfix operators
 (postfix_expression "?" @operator)
 
+; Closures
+(closure_expression "->" @operator)
+(closure_expression (identifier) @variable.parameter)
+(parameter_list (identifier) @variable.parameter)
+
 ; Function calls
 (call_expression (expression (identifier) @function))
 (call_expression (expression (access_expression (identifier) @function)))
@@ -88,6 +94,8 @@
 ; Punctuation
 (parenthesized_expression "(" @punctuation.bracket)
 (parenthesized_expression ")" @punctuation.bracket)
+(parameter_list "(" @punctuation.bracket)
+(parameter_list ")" @punctuation.bracket)
 (list_expression "[" @punctuation.bracket)
 (list_expression "]" @punctuation.bracket)
 (dict_expression "{" @punctuation.bracket)

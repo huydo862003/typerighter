@@ -202,6 +202,48 @@ h.test("typedown_yaml highlights query loads without errors", function()
   h.assert(ok, "typedown_yaml highlights query should load without errors: " .. tostring(err))
 end)
 
+local function get_highlight_captures(source, language)
+  local parser = vim.treesitter.get_string_parser(source, language)
+  local tree = parser:parse()[1]
+  local query = vim.treesitter.query.get(language, "highlights")
+  local captures = {}
+  for capture_id, node in query:iter_captures(tree:root(), source) do
+    local capture_name = query.captures[capture_id]
+    local text = vim.treesitter.get_node_text(node, source)
+    captures[text] = captures[text] or {}
+    table.insert(captures[text], capture_name)
+  end
+  return captures
+end
+
+h.test("typedown_yaml highlights null and -> correctly", function()
+  local yaml_available = pcall(vim.treesitter.language.inspect, "typedown_yaml")
+  if not yaml_available then
+    io.write("  (skipped: typedown_yaml parser not available)\n")
+    return
+  end
+
+  local yaml_captures = get_highlight_captures("a: null\nb: (x) -> x + 1\n", "typedown_yaml")
+  h.assert(yaml_captures["null"] and vim.tbl_contains(yaml_captures["null"], "constant.builtin"),
+    "typedown_yaml should highlight 'null' as @constant.builtin, got: " .. vim.inspect(yaml_captures["null"]))
+  h.assert(yaml_captures["->"] and vim.tbl_contains(yaml_captures["->"], "operator"),
+    "typedown_yaml should highlight '->' as @operator, got: " .. vim.inspect(yaml_captures["->"]))
+end)
+
+h.test("typedown_md_inline highlights null and -> correctly", function()
+  local inline_available = pcall(vim.treesitter.language.inspect, "typedown_md_inline")
+  if not inline_available then
+    io.write("  (skipped: typedown_md_inline parser not available)\n")
+    return
+  end
+
+  local inline_captures = get_highlight_captures("${(x)->null}", "typedown_md_inline")
+  h.assert(inline_captures["null"] and vim.tbl_contains(inline_captures["null"], "constant.builtin"),
+    "typedown_md_inline should highlight 'null' as @constant.builtin, got: " .. vim.inspect(inline_captures["null"]))
+  h.assert(inline_captures["->"] and vim.tbl_contains(inline_captures["->"], "operator"),
+    "typedown_md_inline should highlight '->' as @operator, got: " .. vim.inspect(inline_captures["->"]))
+end)
+
 h.test("inline formatting highlights are correctly set", function()
   require("typedown.render.highlights").setup()
 

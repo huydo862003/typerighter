@@ -33,6 +33,11 @@ export default grammar({
 
   word: ($) => $.identifier,
 
+  // `(x)` can either be a parenthesized expression or a param list as in `(x) -> ...`
+  conflicts: ($) => [
+    [$.expression, $.parameter_list],
+  ],
+
   rules: {
     // top-level has no _block_end, closed by EOF
     source_file: ($) =>

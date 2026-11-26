@@ -466,3 +466,147 @@ _label: 'Rules $\mathcal{r}$ define?'
           (inline_math
             (inline_math_content)))))))
 
+================
+Null value
+================
+val: null
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (null)))))
+
+================
+Nullary closure
+================
+val: -> today()
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (closure_expression
+          (expression
+            (call_expression
+              (expression
+                (identifier)))))))))
+
+================
+Closure with empty parameter list
+================
+val: () -> today()
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (closure_expression
+          (parameter_list)
+          (expression
+            (call_expression
+              (expression
+                (identifier)))))))))
+
+================
+Closure with single parameter
+================
+val: (x) -> x + 1
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (closure_expression
+          (parameter_list
+            (identifier))
+          (expression
+            (binary_expression
+              (expression
+                (identifier))
+              (expression
+                (number)))))))))
+
+================
+Closure with bare identifier parameter
+================
+val: x -> x + 1
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (closure_expression
+          (identifier)
+          (expression
+            (binary_expression
+              (expression
+                (identifier))
+              (expression
+                (number)))))))))
+
+================
+Closure with multiple parameters and trailing comma
+================
+val: (a, b,) -> a + b
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (closure_expression
+          (parameter_list
+            (identifier)
+            (identifier))
+          (expression
+            (binary_expression
+              (expression
+                (identifier))
+              (expression
+                (identifier)))))))))
+
+================
+Nested closure
+================
+val: (x) -> (y) -> x + y
+---
+
+(source_file
+  (block_mapping_entry
+    (property_key
+      (identifier))
+    (value
+      (expression
+        (closure_expression
+          (parameter_list
+            (identifier))
+          (expression
+            (closure_expression
+              (parameter_list
+                (identifier))
+              (expression
+                (binary_expression
+                  (expression
+                    (identifier))
+                  (expression
+                    (identifier)))))))))))
+
+

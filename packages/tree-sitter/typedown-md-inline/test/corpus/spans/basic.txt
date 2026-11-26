@@ -100,3 +100,18 @@ ${self.name.length()}
                   (self_expression))
                 (identifier)))
             (identifier)))))))
+
+================
+Interpolation with null and closure
+================
+${(x)->null}
+---
+
+(inline
+  (interpolation
+    (expression
+      (closure_expression
+        (parameter_list
+          (identifier))
+        (expression
+          (null))))))

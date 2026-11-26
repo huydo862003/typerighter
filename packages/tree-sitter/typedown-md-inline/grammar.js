@@ -43,7 +43,10 @@ export default grammar({
 
   extras: () => [],
 
-  conflicts: () => [],
+  // `(x)` can either be a parenthesized expression or a param list as in `(x) -> ...`
+  conflicts: ($) => [
+    [$.expression, $.parameter_list],
+  ],
 
   rules: {
     inline: ($) =>

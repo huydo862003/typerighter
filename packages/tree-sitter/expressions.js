@@ -8,6 +8,7 @@
 // @ts-check
 
 const PREC = {
+  CLOSURE: 0,
   OR: 1,
   AND: 2,
   EQUALITY: 3,
@@ -24,6 +25,7 @@ const PREC = {
 export const expr_rules = {
   expression: ($) =>
     choice(
+      $.closure_expression,
       $.binary_expression,
       $.unary_expression,
       $.postfix_expression,
@@ -33,6 +35,7 @@ export const expr_rules = {
       $.string,
       $.number,
       $.boolean,
+      $.null,
       $.identifier,
       $.self_expression,
       $.fref,
@@ -40,6 +43,41 @@ export const expr_rules = {
       $.list_expression,
       $.dict_expression,
       $.parenthesized_expression,
+    ),
+
+  // Closures: -> body, () -> body, (x) -> body, (a, b) -> body, x -> body
+
+  closure_expression: ($) =>
+    prec.right(
+      PREC.CLOSURE,
+      seq(
+        optional(
+          choice(
+            $.parameter_list,
+            $.identifier,
+          ),
+        ),
+        '->',
+        $.expression,
+      ),
+    ),
+
+  parameter_list: ($) =>
+    seq(
+      '(',
+      optional(
+        seq(
+          $.identifier,
+          repeat(
+            seq(
+              ',',
+              $.identifier,
+            ),
+          ),
+          optional(','),
+        ),
+      ),
+      ')',
     ),
 
   // Binary operators
@@ -337,6 +375,8 @@ export const expr_rules = {
       'true',
       'false',
     ),
+
+  null: () => 'null',
 
   identifier: () =>
     /[a-zA-Z_]\w*/,
