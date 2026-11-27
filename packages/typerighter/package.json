@@ -71,7 +71,7 @@
     "@tailwindcss/vite": "^4.3.5",
     "@typerighter/rpc-client": "workspace:*",
     "@typerighter/rpc-server": "workspace:*",
-    "@vitejs/plugin-vue": "^6.0.10",
+    "@vitejs/plugin-vue": "^6.0.11",
     "cac": "^7.1.0",
     "katex": "^0.19.1",
     "picocolors": "^1.1.1",
