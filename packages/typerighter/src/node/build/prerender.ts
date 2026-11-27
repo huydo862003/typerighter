@@ -3,7 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  fileURLToPath,
+  fileURLToPath, pathToFileURL,
 } from 'node:url';
 import type {
   ProgressLogger,
@@ -133,7 +133,7 @@ async function prerenderSingleThread (
   clientEntry: string,
   headExtra: string | undefined,
 ): Promise<void> {
-  const ssrModule = await import(context.ssrEntryPath);
+  const ssrModule = await import(pathToFileURL(context.ssrEntryPath).href);
   const render = await ssrModule.createRenderer();
   const totalPages = context.pageRoutes.length;
   let rendered = 0;
