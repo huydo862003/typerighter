@@ -9,7 +9,7 @@ use typedown_lang::db::derived::name_resolver::members::all_visible_members;
 use typedown_lang::db::derived::name_resolver::scope::scope;
 use typedown_lang::db::types::typecheck::is_nullable;
 use typedown_lang::db::types::{
-  LitValue, ProjectRedNode, Scope, ScopeKind, SymbolKind, TdStaticTyp, TdTypEnum,
+  LitValue, ProjectRedNode, Scope, ScopeKind, SymbolKind, TdLitTyp, TdStaticTyp, TdTypEnum,
 };
 use typedown_lang::syntax::ast::AstNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
@@ -180,7 +180,7 @@ fn push_temporal_items(
   });
 }
 
-// Collect literal values from a union type as completion items
+// Collect literal values from a single literal type or a union type as completion items
 // When inside_str is true, string values are inserted without surrounding quotes
 fn collect_enum_items(
   db: &TypedownDatabase,
@@ -188,9 +188,11 @@ fn collect_enum_items(
   inside_str: bool,
   items: &mut Vec<CompletionItem>,
 ) {
-  let sum = if let Some(sum) = typ.as_td_sum_typ() {
-    sum
-  } else {
+  if let Some(lit) = typ.as_td_lit_typ() {
+    push_lit_item(db, lit, inside_str, items);
+    return;
+  }
+  let Some(sum) = typ.as_td_sum_typ() else {
     return;
   };
   for member in sum.members(db) {
@@ -200,31 +202,40 @@ fn collect_enum_items(
     let Some(lit) = resolved_member.as_td_lit_typ() else {
       continue;
     };
-    let (label, insert_text, detail) = match lit.value(db) {
-      LitValue::String(string) => {
-        let label = format!("\"{string}\"");
-        let insert = if inside_str {
-          string.clone()
-        } else {
-          label.clone()
-        };
-        (label, insert, "string".to_string())
-      }
-      LitValue::Number(number) => (number.clone(), number.clone(), "number".to_string()),
-      LitValue::Bool(bool) => (bool.to_string(), bool.to_string(), "boolean".to_string()),
-      LitValue::Typ(typ) => {
-        let name = typ.display_name(db);
-        (name.clone(), name, "type".to_string())
-      }
-    };
-    items.push(CompletionItem {
-      label,
-      insert_text: Some(insert_text),
-      detail: Some(detail),
-      kind: Some(CompletionItemKind::ENUM_MEMBER),
-      ..Default::default()
-    });
+    push_lit_item(db, lit, inside_str, items);
   }
+}
+
+fn push_lit_item(
+  db: &TypedownDatabase,
+  lit: &TdLitTyp,
+  inside_str: bool,
+  items: &mut Vec<CompletionItem>,
+) {
+  let (label, insert_text, detail) = match lit.value(db) {
+    LitValue::String(string) => {
+      let label = format!("\"{string}\"");
+      let insert = if inside_str {
+        string.clone()
+      } else {
+        label.clone()
+      };
+      (label, insert, "string".to_string())
+    }
+    LitValue::Number(number) => (number.clone(), number.clone(), "number".to_string()),
+    LitValue::Bool(bool) => (bool.to_string(), bool.to_string(), "boolean".to_string()),
+    LitValue::Typ(typ) => {
+      let name = typ.display_name(db);
+      (name.clone(), name, "type".to_string())
+    }
+  };
+  items.push(CompletionItem {
+    label,
+    insert_text: Some(insert_text),
+    detail: Some(detail),
+    kind: Some(CompletionItemKind::ENUM_MEMBER),
+    ..Default::default()
+  });
 }
 
 // Build a keyword completion item (true, false, null)

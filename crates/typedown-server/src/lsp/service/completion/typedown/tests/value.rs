@@ -164,6 +164,33 @@ priority: "high"
   );
 }
 
+#[test]
+fn single_literal_field_suggests_constant_value() {
+  let (content, offset) = cursor(
+    r#"---
+_type: Contract
+kind: a|
+---
+"#,
+  );
+  let (analysis, uri) = setup_with_contract(
+    &content,
+    r#"{"properties": {"kind": {"type": "\"article\""}}}"#,
+  );
+  let params = make_params(uri, &content, offset);
+
+  let response = completion(&analysis, params);
+  let Some(CompletionResponse::Array(items)) = response else {
+    panic!("expected value completions for single literal field");
+  };
+  let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+  assert!(
+    labels.contains(&r#""article""#),
+    "should suggest 'article': {:?}",
+    labels
+  );
+}
+
 // Date field suggests ISO 8601 placeholder and "today" with current date
 #[test]
 fn date_field_suggests_date_placeholder() {
