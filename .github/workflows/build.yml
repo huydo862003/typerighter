@@ -71,7 +71,7 @@ jobs:
         run: cargo test --locked --workspace --exclude typedown-zed
 
       - name: Build packages
-        run: pnpm -r run build
+        run: pnpm --filter typerighter --filter @typerighter/rpc-client --filter @typerighter/rpc-server run build
 
       - name: Build example vault
         working-directory: examples/project_tracker
