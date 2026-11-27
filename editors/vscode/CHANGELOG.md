@@ -1,6 +1,13 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.71.3] - 2026-11-27
+
+### Fixed
+
+- packages/typerighter
+  - Broken vault build on windows due to path handling
+
 ## [0.71.2] - 2026-11-27
 
 ### Added
