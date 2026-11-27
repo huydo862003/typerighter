@@ -9,7 +9,7 @@ use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::ident_is_typ_reference;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 
 #[cfg(test)]
@@ -102,7 +102,7 @@ fn delta_encode(
 
   for (offset, length, token_typ, modifiers) in raw {
     // Convert char offset to line/character position
-    let position = text_offset_to_lsp_position(rope, offset);
+    let position = byte_offset_to_lsp_position(rope, offset);
     let line = position.line;
     let start = position.character;
 

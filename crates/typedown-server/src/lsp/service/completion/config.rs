@@ -2,7 +2,7 @@ use lsp_types::{CompletionItem, CompletionItemKind, CompletionParams, Completion
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::node_at_offset;
-use crate::core::utils::position::lsp_position_to_text_offset;
+use crate::core::utils::position::lsp_position_to_byte_offset;
 use crate::core::utils::uri::uri_to_path;
 use typedown_lang::db::derived::parse_file::parse_file;
 use typedown_lang::syntax::red::RedNode;
@@ -14,7 +14,7 @@ pub fn resolve_completion(
 ) -> Option<CompletionResponse> {
   let path = uri_to_path(&params.text_document_position.text_document.uri)?;
   let rope = analysis.file_rope(&path)?;
-  let offset = lsp_position_to_text_offset(&rope, params.text_document_position.position)?;
+  let offset = lsp_position_to_byte_offset(&rope, params.text_document_position.position)?;
 
   let db = &analysis.db;
   let project = analysis.project;

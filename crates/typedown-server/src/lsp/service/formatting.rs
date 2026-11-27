@@ -4,7 +4,7 @@ use typedown_lang::integrations::format::format_markdown;
 use typedown_lang::syntax::ast::{AstNode, SourceFile};
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 
 pub fn format_document(
@@ -36,8 +36,8 @@ pub fn format_document(
   let end = (start + body_node.text_len()).min(rope.len_bytes());
 
   let range = lsp_types::Range {
-    start: text_offset_to_lsp_position(&rope, start),
-    end: text_offset_to_lsp_position(&rope, end),
+    start: byte_offset_to_lsp_position(&rope, start),
+    end: byte_offset_to_lsp_position(&rope, end),
   };
 
   Some(vec![TextEdit {

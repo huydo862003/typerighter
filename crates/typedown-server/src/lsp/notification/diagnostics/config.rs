@@ -6,7 +6,7 @@ use typedown_lang::db::derived::get_vault_config::get_vault_config;
 use typedown_lang::syntax::diagnostic::TdDiagnostic;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 use crate::core::utils::uri::path_to_uri;
 
 pub fn publish_diagnostics(analysis: &Analysis) -> Vec<Notification> {
@@ -59,8 +59,8 @@ fn to_lsp_diagnostic(diag: &TdDiagnostic, rope: &Rope) -> Diagnostic {
   let end_offset = end_offset.min(rope.len_bytes());
 
   let range = lsp_types::Range {
-    start: text_offset_to_lsp_position(rope, start_offset),
-    end: text_offset_to_lsp_position(rope, end_offset),
+    start: byte_offset_to_lsp_position(rope, start_offset),
+    end: byte_offset_to_lsp_position(rope, end_offset),
   };
 
   Diagnostic {

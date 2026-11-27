@@ -20,7 +20,7 @@ use typedown_lang::syntax::ast::{AstNode, SourceFile};
 use typedown_lang::syntax::diagnostic::{TdDiagnostic, TdDiagnosticKind};
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 use crate::core::utils::uri::path_to_uri;
 
 use super::to_lsp_diagnostic;
@@ -205,8 +205,8 @@ fn lint_diag_to_lsp(lint: &TdDiagnostic, rope: &Rope) -> Diagnostic {
   let end = end.min(rope.len_bytes());
   Diagnostic {
     range: lsp_types::Range {
-      start: text_offset_to_lsp_position(rope, start),
-      end: text_offset_to_lsp_position(rope, end),
+      start: byte_offset_to_lsp_position(rope, start),
+      end: byte_offset_to_lsp_position(rope, end),
     },
     severity: Some(lsp_types::DiagnosticSeverity::WARNING),
     code: Some(NumberOrString::String(lint.code_str().into())),

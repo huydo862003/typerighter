@@ -19,7 +19,7 @@ use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{find_ancestor, is_in_mapping_value_position, node_at_offset};
-use crate::core::utils::position::lsp_position_to_text_offset;
+use crate::core::utils::position::lsp_position_to_byte_offset;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::commands;
 use crate::lsp::service::commands::create_linked_resource::{
@@ -108,7 +108,7 @@ pub fn resolve_code_action(
       }));
     }
   }
-  let offset = lsp_position_to_text_offset(&rope, params.range.start)?;
+  let offset = lsp_position_to_byte_offset(&rope, params.range.start)?;
   if let Some(node) = node_at_offset(root, offset.saturating_sub(1)) {
     // 1. Schema-typed frontmatter field
     if let Some(action) = create_linked_for_typed_field(db, project, file, &node, &params) {

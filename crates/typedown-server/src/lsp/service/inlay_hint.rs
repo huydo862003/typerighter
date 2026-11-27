@@ -12,7 +12,7 @@ use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::utils::symbol::get_resource_label;
 
@@ -73,7 +73,7 @@ fn build_fref_hint(
   let label = get_resource_label(db, symbol)?;
 
   let end_offset = call_node.end_offset();
-  let position = text_offset_to_lsp_position(rope, end_offset);
+  let position = byte_offset_to_lsp_position(rope, end_offset);
 
   Some(InlayHint {
     position,

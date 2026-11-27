@@ -11,7 +11,7 @@ use typedown_lang::syntax::syntax_kind::SyntaxKind;
 use typedown_types::path::normalize_path;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::node_trimmed_range;
+use crate::core::utils::position::get_node_trimmed_range;
 use crate::core::utils::uri::path_to_uri;
 use crate::lsp::service::utils::symbol::get_string_content_node;
 
@@ -37,7 +37,7 @@ pub fn collect_reference_edits(
     let text_edit = match reference.kind {
       // Ident references get replaced with `new_stem`
       ReferenceKind::Ident => TextEdit {
-        range: node_trimmed_range(&ref_rope, &reference.node.node),
+        range: get_node_trimmed_range(&ref_rope, &reference.node.node),
         new_text: new_stem.to_string(),
       },
       // Fref references get their path argument replaced with the new relative path
@@ -72,7 +72,7 @@ pub fn collect_reference_edits(
           format!("./{normalized}")
         };
         TextEdit {
-          range: node_trimmed_range(&ref_rope, &content),
+          range: get_node_trimmed_range(&ref_rope, &content),
           new_text,
         }
       }
@@ -92,7 +92,7 @@ pub fn collect_reference_edits(
           continue;
         };
         TextEdit {
-          range: node_trimmed_range(&ref_rope, &url_node),
+          range: get_node_trimmed_range(&ref_rope, &url_node),
           new_text: normalize_path(new_relative).to_string(),
         }
       }

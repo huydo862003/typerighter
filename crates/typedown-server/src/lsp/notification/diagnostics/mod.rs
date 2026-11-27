@@ -10,7 +10,7 @@ use typedown_lang::syntax::diagnostic::Severity;
 use typedown_lang::syntax::diagnostic::TdDiagnostic;
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 
 pub fn publish_diagnostics(analysis: &Analysis) -> Vec<Notification> {
   let mut notifications = typedown::publish_diagnostics_for_project(analysis);
@@ -30,8 +30,8 @@ pub(super) fn to_lsp_diagnostic(diagnostic: &TdDiagnostic, rope: &Rope) -> Optio
   let end_offset = end_offset.min(rope.len_bytes());
 
   let range = lsp_types::Range {
-    start: text_offset_to_lsp_position(rope, start_offset),
-    end: text_offset_to_lsp_position(rope, end_offset),
+    start: byte_offset_to_lsp_position(rope, start_offset),
+    end: byte_offset_to_lsp_position(rope, end_offset),
   };
 
   let severity = match diagnostic.severity {

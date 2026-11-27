@@ -1,5 +1,5 @@
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::{lsp_position_to_text_offset, node_trimmed_range};
+use crate::core::utils::position::{lsp_position_to_byte_offset, get_node_trimmed_range};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
 use crate::lsp::service::utils::symbol::{
   CursorSymbol, find_symbol_at_cursor, get_string_content_node, symbol_file_path,
@@ -24,7 +24,7 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
   let path = uri_to_path(uri)?;
   let rope = analysis.file_rope(&path)?;
 
-  let offset = lsp_position_to_text_offset(&rope, params.text_document_position.position)?;
+  let offset = lsp_position_to_byte_offset(&rope, params.text_document_position.position)?;
   let file = *project.files(db).get(&path)?;
 
   // resolve the symbol the cursor is pointing at, either fref or ident
@@ -45,11 +45,11 @@ pub fn find_references(analysis: &Analysis, params: ReferenceParams) -> Option<V
       let reference_rope = analysis.file_rope(&reference_path)?;
 
       let range = match reference.kind {
-        ReferenceKind::Ident => node_trimmed_range(&reference_rope, &reference.node.node),
+        ReferenceKind::Ident => get_node_trimmed_range(&reference_rope, &reference.node.node),
         ReferenceKind::Fref => fref_path_range(db, &reference_rope, &reference.node)
-          .unwrap_or_else(|| node_trimmed_range(&reference_rope, &reference.node.node)),
+          .unwrap_or_else(|| get_node_trimmed_range(&reference_rope, &reference.node.node)),
         ReferenceKind::MdLink => md_link_url_range(&reference_rope, &reference.node.node)
-          .unwrap_or_else(|| node_trimmed_range(&reference_rope, &reference.node.node)),
+          .unwrap_or_else(|| get_node_trimmed_range(&reference_rope, &reference.node.node)),
       };
       let scheme = analysis
         .scheme_map
@@ -152,7 +152,7 @@ fn fref_path_range(
     return None;
   }
   let content = get_string_content_node(&arg_node)?;
-  Some(node_trimmed_range(rope, &content))
+  Some(get_node_trimmed_range(rope, &content))
 }
 
 /// For a markdown link/media node, return the range of the URL text
@@ -163,7 +163,7 @@ fn md_link_url_range(rope: &Rope, node: &RedNode) -> Option<Range> {
     let media = MdMedia::cast(node.clone())?;
     media.url()?.syntax().clone()
   };
-  Some(node_trimmed_range(rope, &url_node))
+  Some(get_node_trimmed_range(rope, &url_node))
 }
 
 #[cfg(test)]

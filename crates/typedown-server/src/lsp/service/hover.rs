@@ -27,7 +27,7 @@ use crate::core::utils::ast::{
   containing_fref_expr, find_ancestor, get_nearest_expr_ancestor, is_in_mapping_value_position,
   node_at_offset,
 };
-use crate::core::utils::position::lsp_position_to_text_offset;
+use crate::core::utils::position::lsp_position_to_byte_offset;
 use crate::core::utils::uri::uri_to_path;
 use crate::lsp::service::utils::symbol::get_resource_label;
 
@@ -46,7 +46,7 @@ pub fn resolve_hover(analysis: &Analysis, params: HoverParams) -> Option<Hover> 
 
   // Get the hovered node
   let hovered_offset =
-    lsp_position_to_text_offset(&rope, params.text_document_position_params.position)?
+    lsp_position_to_byte_offset(&rope, params.text_document_position_params.position)?
       .saturating_sub(1);
   let hovered_node = node_at_offset(root_node, hovered_offset)?;
 

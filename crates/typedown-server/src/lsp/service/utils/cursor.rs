@@ -9,7 +9,7 @@ use typedown_lang::syntax::red::RedNode;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::ast::node_at_offset;
-use crate::core::utils::position::lsp_position_to_text_offset;
+use crate::core::utils::position::lsp_position_to_byte_offset;
 use crate::core::utils::uri::uri_to_path;
 
 pub struct CursorContext<'a> {
@@ -30,7 +30,7 @@ impl<'a> CursorContext<'a> {
 
     let path = uri_to_path(uri)?;
     let rope = analysis.file_rope(&path)?;
-    let offset = lsp_position_to_text_offset(&rope, position)?;
+    let offset = lsp_position_to_byte_offset(&rope, position)?;
 
     let file = *project.files(db).get(&path)?;
     let root = parse_file(db, project, file).ast(db).node.clone();

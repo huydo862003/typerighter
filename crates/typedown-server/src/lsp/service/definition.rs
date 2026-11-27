@@ -25,7 +25,7 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{
   containing_fref_expr, find_ancestor, get_nearest_expr_ancestor, node_at_offset,
 };
-use crate::core::utils::position::{lsp_position_to_text_offset, text_offset_to_lsp_position};
+use crate::core::utils::position::{lsp_position_to_byte_offset, byte_offset_to_lsp_position};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
 use typedown_lang::db::utils::resolve_md_link_path;
 
@@ -39,7 +39,7 @@ pub fn resolve_definition(
   let uri = &params.text_document_position_params.text_document.uri;
   let path = uri_to_path(uri)?;
   let rope = analysis.file_rope(&path)?;
-  let offset = lsp_position_to_text_offset(&rope, params.text_document_position_params.position)?;
+  let offset = lsp_position_to_byte_offset(&rope, params.text_document_position_params.position)?;
 
   let file = *project.files(db).get(&path)?;
   let root = parse_file(db, project, file).ast(db).node.clone();
@@ -146,7 +146,7 @@ fn resolve_field_key_definition(
   let target_uri = path_to_uri(&schema_path, scheme);
 
   let schema_rope = analysis.file_rope(&schema_path)?;
-  let position = text_offset_to_lsp_position(&schema_rope, field_offset);
+  let position = byte_offset_to_lsp_position(&schema_rope, field_offset);
 
   Some(GotoDefinitionResponse::Scalar(Location {
     uri: target_uri,

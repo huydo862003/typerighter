@@ -14,7 +14,7 @@ use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::utils::ast::find_ancestor;
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 use crate::lsp::service::utils::cursor::CursorContext;
 use crate::lsp::service::utils::symbol::get_resource_label;
 
@@ -186,8 +186,8 @@ fn compute_fref_unquoted_arg_range(
   }
 
   Some(Range {
-    start: text_offset_to_lsp_position(rope, arg_start_offset),
-    end: text_offset_to_lsp_position(rope, cursor_offset),
+    start: byte_offset_to_lsp_position(rope, arg_start_offset),
+    end: byte_offset_to_lsp_position(rope, cursor_offset),
   })
 }
 

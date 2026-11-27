@@ -16,7 +16,7 @@ use typedown_lang::syntax::red::RedNode;
 use typedown_lang::syntax::syntax_kind::SyntaxKind;
 
 use crate::core::utils::ast::{containing_fref_expr, find_ancestor, node_at_offset};
-use crate::core::utils::position::text_offset_to_lsp_position;
+use crate::core::utils::position::byte_offset_to_lsp_position;
 
 /// The kind of symbol reference found at the cursor position
 pub enum CursorSymbol {
@@ -47,8 +47,8 @@ impl CursorSymbol {
       CursorSymbol::MdLinkUrl { url_node, .. } => url_node.trimmed_range(),
     };
     Range {
-      start: text_offset_to_lsp_position(rope, offset),
-      end: text_offset_to_lsp_position(rope, offset + len),
+      start: byte_offset_to_lsp_position(rope, offset),
+      end: byte_offset_to_lsp_position(rope, offset + len),
     }
   }
 }

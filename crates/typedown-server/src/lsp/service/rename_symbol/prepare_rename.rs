@@ -1,7 +1,7 @@
 use lsp_types::{PrepareRenameResponse, TextDocumentPositionParams};
 
 use crate::core::analysis::Analysis;
-use crate::core::utils::{position::lsp_position_to_text_offset, uri::uri_to_path};
+use crate::core::utils::{position::lsp_position_to_byte_offset, uri::uri_to_path};
 use crate::lsp::service::utils::symbol::find_symbol_at_cursor;
 
 pub fn prepare_rename(
@@ -17,7 +17,7 @@ pub fn prepare_rename(
 
   // Locate the offset of the rename request
   let editor_position = params.position;
-  let offset = lsp_position_to_text_offset(&rope, editor_position)?;
+  let offset = lsp_position_to_byte_offset(&rope, editor_position)?;
 
   // Find the symbol that is requested a rename + qualifying information
   let rename_symbol = find_symbol_at_cursor(&analysis.db, project, file, offset)?;
