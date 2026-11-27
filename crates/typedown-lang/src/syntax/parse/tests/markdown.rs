@@ -5015,6 +5015,19 @@ fn parse_arrow_inside_list_no_error() {
   );
 }
 
+#[test]
+fn parse_bold_colon_before_decimal_no_missing_space() {
+  let (_, diagnostics) = parse_body_with_diagnostics(
+    r#"- **Flattened:** 1.3s, **2.4x speedup**
+"#,
+  );
+  assert!(
+    diagnostics.is_empty(),
+    "expected no diagnostics, got: {:?}",
+    diagnostics
+  );
+}
+
 // Nested list siblings with 2-space indent
 #[test]
 fn parse_nested_siblings() {

@@ -2566,7 +2566,14 @@ impl<S: Utf8Stream> ParseCtx<S> {
       return false;
     }
     let dot = self.lex_ctx.peek_md_nth(1, skip);
-    dot.token.kind() == SyntaxKind::MdSymbol && dot.token.chars().collect::<String>() == "."
+    if !(dot.token.kind() == SyntaxKind::MdSymbol && dot.token.chars().collect::<String>() == ".") {
+      return false;
+    }
+    let after_dot = self.lex_ctx.peek_md_nth(2, skip).token.kind();
+    matches!(
+      after_dot,
+      SyntaxKind::Whitespace | SyntaxKind::Newline | SyntaxKind::Eof
+    )
   }
 
   fn is_blockquote_start(&mut self, skip: usize) -> bool {
