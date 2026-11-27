@@ -377,14 +377,26 @@
   z-index: 1;
 }
 
-/* Service embeds with explicit sizing: no loading UI, no border */
+/* Service embeds with explicit sizing: no border */
 .td-content .td-embed-wrapper[style] {
   background: transparent;
   border: none;
 }
 
-.td-content .td-embed-wrapper[style]::before {
+.td-content .td-embed-wrapper.td-loaded::before {
   display: none;
+}
+
+/* Image loading placeholder */
+.td-content img.td-loading {
+  min-height: 80px;
+  background: var(--color-td-surface);
+  animation: td-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes td-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 /* Wrapper without inline style (generic iframes) */

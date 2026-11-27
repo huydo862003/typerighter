@@ -62,10 +62,45 @@ export function useLazyEmbeds (): void {
 
     scanAll();
 
+    const setupMediaLoading = (root: HTMLElement) => {
+      for (const iframe of root.querySelectorAll<HTMLIFrameElement>('.td-embed-wrapper iframe')) {
+        if (iframe.dataset.tdLoadingBound) continue;
+        iframe.dataset.tdLoadingBound = '1';
+        const wrapper = iframe.closest('.td-embed-wrapper');
+
+        if (!wrapper) continue;
+        const markLoaded = () => wrapper.classList.add('td-loaded');
+
+        iframe.addEventListener('load', markLoaded, {
+          once: true,
+        });
+        iframe.addEventListener('error', markLoaded, {
+          once: true,
+        });
+      }
+      for (const image of root.querySelectorAll<HTMLImageElement>('img')) {
+        if (image.dataset.tdLoadingBound || image.complete) continue;
+        image.dataset.tdLoadingBound = '1';
+        image.classList.add('td-loading');
+        const markLoaded = () => image.classList.remove('td-loading');
+
+        image.addEventListener('load', markLoaded, {
+          once: true,
+        });
+        image.addEventListener('error', markLoaded, {
+          once: true,
+        });
+      }
+    };
+
     const container = document.getElementById('td-content');
 
     if (container) {
-      mutationObserver = new MutationObserver(scanAll);
+      setupMediaLoading(container);
+      mutationObserver = new MutationObserver(() => {
+        scanAll();
+        setupMediaLoading(container);
+      });
       mutationObserver.observe(container, {
         childList: true,
         subtree: true,
