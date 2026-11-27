@@ -28,7 +28,7 @@ chrono = "0.4"
 log = "0.4"
 serde_json = "1"
 serde = "1"
-notify = "8.2.0"
+notify = "9.0.0"
 crossbeam-channel = "0.5"
 typedown-incremental = { version = "0.71.3", path = "../typedown-incremental" }
 typedown-lang = { version = "0.71.3", path = "../typedown-lang" }
