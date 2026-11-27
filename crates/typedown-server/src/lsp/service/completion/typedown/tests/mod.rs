@@ -6,5 +6,5 @@ mod imports;
 mod interpolation;
 mod member_access;
 mod no_completion;
-mod type_name;
+mod typ_name;
 mod value;
