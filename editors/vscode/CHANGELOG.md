@@ -1,6 +1,26 @@
 # Change Log
 
 Full changelog: [CHANGELOG.md](https://github.com/huydo862003/typerighter/blob/main/CHANGELOG.md)
+## [0.71.2] - 2026-11-27
+
+### Added
+
+- packages/typerighter
+  - Loading indicator for images, videos, and service/generic iframe embeds while loading
+- editors
+  - Auto-closing pairs for `:::`, `[[ ]]`, `${ }`, `()`, `""`, and `''` across Neovim, VS Code, and Zed
+
+### Fixed
+
+- crates/typedown-lang
+  - Highlight the `fref()` call instead of file start `(0, 0)` when `fref()` is missing its required argument
+  - Require whitespace, newline, or EOF after `.` in ordered list markers so decimals like `2.4x` do not trigger `missing-required-space`
+- crates/typedown-server
+  - Rank `fref(...)` completion suggestions by match quality (exact, prefix, substring, other) via `sort_text`
+  - Suggest single literal constant values in addition to union enum members in value completions
+- editors/nvim
+  - Fix Lua syntax error in `vim.bo.formatlistpat`
+
 ## [0.71.1] - 2026-11-25
 
 ### Fixed
