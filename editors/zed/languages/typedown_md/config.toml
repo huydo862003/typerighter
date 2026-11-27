@@ -1,3 +1,7 @@
 name = "typedown-markdown"
 grammar = "typedown_md"
 tab_size = 2
+
+brackets = [
+  { start = ":::", end = ":::", close = true, newline = true },
+]
