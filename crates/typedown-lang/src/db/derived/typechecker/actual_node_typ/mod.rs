@@ -484,7 +484,7 @@ fn get_call_typ<'db>(
       .into_iter()
       .map(|expr| ProjectRedNode::new(project, file, expr.syntax().clone()))
       .collect();
-    return get_macro_call_typ(db, kind, arg_nodes);
+    return get_macro_call_typ(db, kind, call.syntax(), arg_nodes);
   }
 
   let callee_result = actual_node_typ(db, callee_node);
@@ -518,20 +518,22 @@ fn get_call_typ<'db>(
 fn get_macro_call_typ<'db>(
   db: &'db TypedownDatabase,
   kind: BuiltinMacroKind,
+  call_node: &RedNode,
   args: Vec<ProjectRedNode>,
 ) -> TypResult<'db> {
   match kind {
-    BuiltinMacroKind::Fref => get_fref_typ(db, args),
+    BuiltinMacroKind::Fref => get_fref_typ(db, call_node, args),
   }
 }
 
 // fref("file.td") returns link[T] where T is the target file's schema type
-fn get_fref_typ<'db>(db: &'db TypedownDatabase, args: Vec<ProjectRedNode>) -> TypResult<'db> {
+fn get_fref_typ<'db>(
+  db: &'db TypedownDatabase,
+  call_node: &RedNode,
+  args: Vec<ProjectRedNode>,
+) -> TypResult<'db> {
   if args.len() != 1 {
-    let (trimmed_offset, trimmed_len) = args
-      .first()
-      .map(|arg| arg.node.trimmed_range())
-      .unwrap_or((0, 0));
+    let (trimmed_offset, trimmed_len) = call_node.trimmed_range();
     return TypResult::new(
       db,
       None,

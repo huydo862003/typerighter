@@ -1,5 +1,5 @@
 use crate::core::analysis::Analysis;
-use crate::core::utils::position::{lsp_position_to_byte_offset, get_node_trimmed_range};
+use crate::core::utils::position::{get_node_trimmed_range, lsp_position_to_byte_offset};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
 use crate::lsp::service::utils::symbol::{
   CursorSymbol, find_symbol_at_cursor, get_string_content_node, symbol_file_path,

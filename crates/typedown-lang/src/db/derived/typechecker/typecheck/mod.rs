@@ -1946,6 +1946,93 @@ mod tests {
   }
 
   #[test]
+  fn typecheck_fref_missing_arg_highlights_call_not_file_start() {
+    use crate::db::types::{File, FileHandle, FileMetadata, Project};
+    use crate::db::{QueryStorage, TypedownDatabase};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    let source = r#"---
+_type: Person
+name: fref()
+---
+"#;
+    let db = TypedownDatabase {
+      storage: QueryStorage::default(),
+    };
+    let root = PathBuf::from("/vault");
+    let config_path = root.join("typedown.yaml");
+    let schema_path = root.join("_types/Person.td");
+    let file_path = root.join("test.td");
+    let test_file = File::new(
+      &db,
+      FileHandle::Content(
+        file_path.clone(),
+        source.to_string(),
+        FileMetadata::default(),
+      ),
+    );
+    let files = HashMap::from([
+      (
+        config_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(
+            config_path,
+            r#"version: "1"
+vault:
+  root_dir: "."
+"#
+            .to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (
+        schema_path.clone(),
+        File::new(
+          &db,
+          FileHandle::Content(
+            schema_path,
+            r#"---
+_type: schema
+properties:
+  name:
+    type: string
+---
+"#
+            .to_string(),
+            FileMetadata::default(),
+          ),
+        ),
+      ),
+      (file_path, test_file),
+    ]);
+    let project = Project::new(&db, root, files, None);
+    let root_node = parse_file(&db, project, test_file).ast(&db);
+    let result = typecheck(&db, root_node);
+    let diagnostics = result.diagnostics(&db);
+    let diag = diagnostics
+      .iter()
+      .find(|diagnostic| {
+        matches!(
+          diagnostic.kind,
+          TdDiagnosticKind::WrongArgCount {
+            expected: 1,
+            got: 0
+          }
+        )
+      })
+      .expect("expected WrongArgCount for fref()");
+    assert_eq!(
+      source[diag.start_offset..diag.end_offset].trim(),
+      "fref()",
+      "WrongArgCount should highlight fref() call, got {:?}",
+      diag
+    );
+  }
+
+  #[test]
   fn typecheck_default_field_can_be_omitted() {
     let (db, project, file) = load_vault_fixture("typecheck/my_vault", "default_field_omitted.td");
     let root_node = parse_file(&db, project, file).ast(&db);

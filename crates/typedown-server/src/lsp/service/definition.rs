@@ -25,7 +25,7 @@ use crate::core::analysis::Analysis;
 use crate::core::utils::ast::{
   containing_fref_expr, find_ancestor, get_nearest_expr_ancestor, node_at_offset,
 };
-use crate::core::utils::position::{lsp_position_to_byte_offset, byte_offset_to_lsp_position};
+use crate::core::utils::position::{byte_offset_to_lsp_position, lsp_position_to_byte_offset};
 use crate::core::utils::uri::{path_to_uri, uri_to_path};
 use typedown_lang::db::utils::resolve_md_link_path;
 
