@@ -87,12 +87,58 @@ fn collect_fref_candidates(
     .collect()
 }
 
+// Rank a candidate against the typed query: 0 = exact, 1 = prefix, 2 = substring, 3 = other
+fn match_tier(candidate: &FrefCandidate, query: &str) -> u8 {
+  let query_lower = query.trim_start_matches('/').to_lowercase();
+  if query_lower.is_empty() {
+    return 0;
+  }
+  let path_no_slash = candidate.path.trim_start_matches('/').to_lowercase();
+  let basename_lower = candidate.basename.to_lowercase();
+  let label_lower = candidate
+    .label
+    .as_deref()
+    .unwrap_or_default()
+    .to_lowercase();
+
+  let fields = [
+    basename_lower.as_str(),
+    label_lower.as_str(),
+    path_no_slash.as_str(),
+  ];
+  if fields
+    .iter()
+    .any(|field| !field.is_empty() && *field == query_lower)
+  {
+    0
+  } else if fields
+    .iter()
+    .any(|field| !field.is_empty() && field.starts_with(&query_lower))
+  {
+    1
+  } else if fields
+    .iter()
+    .any(|field| !field.is_empty() && field.contains(&query_lower))
+  {
+    2
+  } else {
+    3
+  }
+}
+
 // Build a CompletionItem from a candidate, wrapping the path with the given template
 fn build_candidate_completion(
   candidate: &FrefCandidate,
+  typed_query: &str,
   insert_template: impl Fn(&str) -> String,
 ) -> CompletionItem {
   let display = candidate.label.as_deref().unwrap_or(&candidate.basename);
+  let tier = match_tier(candidate, typed_query);
+  let sort_text = format!(
+    "{tier}_{}_{}",
+    display.to_lowercase(),
+    candidate.path.to_lowercase()
+  );
 
   // filterText includes path, basename, and label for fuzzy matching
   let mut filter_parts = vec![candidate.path.clone(), candidate.basename.clone()];
@@ -112,6 +158,7 @@ fn build_candidate_completion(
         description: None,
       }),
     filter_text: Some(filter_parts.join(" ")),
+    sort_text: Some(sort_text),
     kind: Some(CompletionItemKind::REFERENCE),
     ..Default::default()
   }
@@ -138,12 +185,21 @@ fn collect_fref_completions(
     expected_node_typ(db, project_node).typ(db)
   });
   let candidates = collect_fref_candidates(db, project, expected_typ.as_ref());
+  let typed_query = match string_lit {
+    Some(ref lit) => {
+      let start = lit.start_offset().saturating_add(1).min(cursor_offset);
+      rope
+        .byte_slice(start..cursor_offset.min(rope.len_bytes()))
+        .to_string()
+    }
+    None => String::new(),
+  };
   let inside_str = string_lit.is_some();
 
   if inside_str {
     candidates
       .iter()
-      .map(|candidate| build_candidate_completion(candidate, |path| path.to_string()))
+      .map(|candidate| build_candidate_completion(candidate, &typed_query, |path| path.to_string()))
       .collect()
   } else {
     // Compute the range covering any existing unquoted arg content to replace
@@ -151,7 +207,8 @@ fn collect_fref_completions(
     candidates
       .iter()
       .map(|candidate| {
-        let mut item = build_candidate_completion(candidate, |path| format!("\"{path}\""));
+        let mut item =
+          build_candidate_completion(candidate, &typed_query, |path| format!("\"{path}\""));
         if let Some(range) = arg_replace_range {
           item.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
             range,
@@ -200,6 +257,6 @@ pub(super) fn collect_fref_wrapped_completions(
   let candidates = collect_fref_candidates(db, project, expected_typ);
   candidates
     .iter()
-    .map(|candidate| build_candidate_completion(candidate, |path| format!("fref(\"{path}\")")))
+    .map(|candidate| build_candidate_completion(candidate, "", |path| format!("fref(\"{path}\")")))
     .collect()
 }
