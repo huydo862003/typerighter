@@ -240,6 +240,41 @@ vim.api.nvim_create_autocmd("FileType", {
         vim.cmd("copen")
       end)
     end, { desc = "Show pages that link to the current file" })
+
+    vim.api.nvim_buf_create_user_command(event.buf, "TypedownForwardLinks", function()
+      local client = vim.lsp.get_clients({ name = "typedown-lsp", bufnr = event.buf })[1]
+      if not client then
+        vim.notify("[typedown] LSP not attached", vim.log.levels.WARN)
+        return
+      end
+      local uri = vim.uri_from_bufnr(event.buf)
+      client.request("workspace/executeCommand", {
+        command = "_typerighter.forwardLinks",
+        arguments = { { uri = uri } },
+      }, function(err, result)
+        if err then
+          vim.notify("[typedown] Forward links failed: " .. err.message, vim.log.levels.ERROR)
+          return
+        end
+        if not result or #result == 0 then
+          vim.notify("[typedown] No forward links found", vim.log.levels.INFO)
+          return
+        end
+        -- Convert LSP locations to quickfix items
+        local items = {}
+        for _, location in ipairs(result) do
+          local path = vim.uri_to_fname(location.uri)
+          table.insert(items, {
+            filename = path,
+            lnum = location.range.start.line + 1,
+            col = location.range.start.character + 1,
+            text = vim.fn.fnamemodify(path, ":t:r"),
+          })
+        end
+        vim.fn.setqflist({}, " ", { title = "Forward Links", items = items })
+        vim.cmd("copen")
+      end)
+    end, { desc = "Show pages that the current file links to" })
   end,
 })
 

@@ -7,7 +7,7 @@ use typedown_lang::syntax::ast::AstNode;
 
 use crate::core::analysis::Analysis;
 use crate::core::utils::position::get_node_trimmed_range;
-use crate::core::utils::uri::path_to_uri;
+use crate::core::utils::uri::{path_to_uri, uri_to_path};
 use crate::lsp::service::utils::symbol::get_string_content_node;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub fn execute(analysis: &Analysis, args: BacklinksArgs) -> Vec<Location> {
     Err(_) => return vec![],
   };
 
-  let target_path = match crate::core::utils::uri::uri_to_path(&target_uri) {
+  let target_path = match uri_to_path(&target_uri) {
     Some(path) => path,
     None => return vec![],
   };
